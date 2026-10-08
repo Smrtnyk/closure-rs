@@ -1,14 +1,30 @@
 #!/usr/bin/env bash
 # The CI gate (docs/PORTING.md §6): formatting, clippy, license headers and the tests.
-#   gates/ci.sh [checkout-dir]     (default: the checkout this script lives in; works in worktrees)
+#   gates/ci.sh [--lint | --test] [checkout-dir]
+# checkout-dir defaults to the checkout this script lives in (works in worktrees). Without a mode
+# every step runs; --lint runs the checks and clippy (steps 1-4), --test only the tests (step 5),
+# which is how .github/workflows/release.yml splits them into two parallel jobs.
+# Step 5 uses cargo-nextest when it is installed (one process per test, all test binaries in
+# parallel) and plain `cargo test` otherwise; both run the same tests.
 set -uo pipefail
-DIR="${1:-$(cd "$(dirname "$0")/.." && pwd)}"
+MODE=all
+DIR=""
+for a in "$@"; do
+  case "$a" in
+    --lint) MODE=lint ;;
+    --test) MODE=test ;;
+    -*) echo "ci.sh: unknown option $a" >&2; exit 2 ;;
+    *) DIR="$a" ;;
+  esac
+done
+DIR="${DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$DIR" || exit 2
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-8}"
 fail=0
 step() { echo "== $*"; }
 bad() { echo "FAIL: $*"; fail=1; }
 
+if [ "$MODE" != test ]; then
 step "1. forbid(unsafe_code) in every crate under crates/"
 for toml in crates/*/Cargo.toml; do
   [ -e "$toml" ] || continue
@@ -40,9 +56,22 @@ cargo clippy --workspace --all-targets --quiet -- -D warnings || bad "clippy"
 step "4. no ignored or skipped tests in crates/"
 if grep -rnE '#\[ignore|#\[cfg\(any\(\)\)\]|xfail|skip_list|SKIP_LIST|TEST_ALLOW_?LIST|test_allow_?list\b|allow_?listed_tests|ALLOW_?LISTED_TESTS' crates/ --include=*.rs; then bad "ignored/skipped tests"; fi
 
-step "5. cargo test"
-cargo test --workspace --quiet 2>&1 | grep -E '^test result|FAILED|panicked|error(\[|:)' | grep -v ' 0 failed' | head -40
-[ "${PIPESTATUS[0]}" -eq 0 ] || bad "cargo test"
+fi
+
+if [ "$MODE" != lint ]; then
+if cargo nextest --version >/dev/null 2>&1; then
+  step "5. cargo nextest run (and doctests with cargo test --doc)"
+  cargo nextest run --workspace --locked --no-fail-fast --status-level fail --final-status-level slow \
+    --hide-progress-bar 2>&1
+  [ "${PIPESTATUS[0]}" -eq 0 ] || bad "cargo nextest"
+  cargo test --workspace --locked --doc --quiet 2>&1 | grep -E 'FAILED|panicked|error(\[|:)' | head -40
+  [ "${PIPESTATUS[0]}" -eq 0 ] || bad "doctests"
+else
+  step "5. cargo test"
+  cargo test --workspace --quiet 2>&1 | grep -E '^test result|FAILED|panicked|error(\[|:)' | grep -v ' 0 failed' | head -40
+  [ "${PIPESTATUS[0]}" -eq 0 ] || bad "cargo test"
+fi
+fi
 
 if [ $fail -eq 0 ]; then echo "CI PASS"; else echo "CI FAIL"; fi
 exit $fail

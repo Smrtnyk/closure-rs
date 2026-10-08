@@ -42,13 +42,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Without the upstream Java sources the check compares every crates/**/*.rs header with
-      # LICENSES/headers.tsv (scripts/license_headers.py); it downloads nothing.
-      - name: License headers
-        if: matrix.platform == 'linux'
-        shell: bash
-        run: python3 scripts/license_headers.py --check
-
       # rust-toolchain.toml pins the toolchain; rustup installs it on first use
       - name: Rust toolchain
         shell: bash
@@ -142,22 +135,50 @@ jobs:
           path: dist/*.tgz
           if-no-files-found: error
 
-  test:
-    name: test (ubuntu)
+  # gates/ci.sh split in two parallel jobs: lint (unsafe check, license headers, fmt, clippy, no
+  # ignored tests) and test. Locally `bash gates/ci.sh` still runs both.
+  lint:
+    name: lint (fmt, clippy, licenses)
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - name: Rust toolchain
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@v2
-      - name: fmt, clippy, tests (gates/ci.sh)
-        run: bash gates/ci.sh
+      - name: gates/ci.sh --lint
+        run: bash gates/ci.sh --lint
+
+  # The tests are built without debug info and at opt-level 1: about 6x smaller than the default
+  # test profile (which does not fit a runner's disk comfortably) and 3x faster to run. Overflow
+  # checks and debug assertions stay on, so the tests check exactly what `cargo test` checks.
+  # cargo-nextest runs every test in its own process, all test binaries in parallel.
+  test:
+    name: test (ubuntu)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_PROFILE_DEV_OPT_LEVEL: 1
+      CARGO_PROFILE_TEST_DEBUG: 0
+      CARGO_PROFILE_TEST_OPT_LEVEL: 1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - name: Build the tests
+        run: cargo nextest run --workspace --locked --no-run
+      - name: gates/ci.sh --test
+        run: bash gates/ci.sh --test
 
   publish:
     name: publish to npm (manual)
     if: github.event_name == 'workflow_dispatch' && inputs.publish
-    needs: [build, test, npm-main]
+    needs: [build, lint, test, npm-main]
     runs-on: ubuntu-22.04
     environment: npm
     permissions:
