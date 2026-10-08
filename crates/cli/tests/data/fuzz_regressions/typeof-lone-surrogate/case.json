@@ -1,0 +1,14 @@
+{
+ "argv": [
+  "--compilation_level=ADVANCED",
+  "--js",
+  "in.js",
+  "--js_output_file",
+  "out/out.js"
+ ],
+ "origin": "fz-6fc868fd3e39, fz-835718add80e (seed 2001): JSC_UNKNOWN_TYPEOF_VALUE quoting a string with an unpaired surrogate; Java's UTF-8 error stream writes ?",
+ "exit_code": 0,
+ "outputs": [
+  "out/out.js"
+ ]
+}

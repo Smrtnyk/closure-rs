@@ -1,0 +1,16 @@
+{
+ "argv": [
+  "--compilation_level=SIMPLE",
+  "--jscomp_warning=checkTypes",
+  "--error_format=JSON",
+  "--js",
+  "in.js",
+  "--js_output_file",
+  "out/out.js"
+ ],
+ "origin": "as typeof-lone-surrogate, JSON error format",
+ "exit_code": 0,
+ "outputs": [
+  "out/out.js"
+ ]
+}

@@ -898,11 +898,17 @@ impl TypeCheck {
 
                 if left.is_type_of(compiler) {
                     if right.is_string_lit(compiler) {
-                        let s = right.get_string(compiler).to_string_lossy();
+                        // The string reaches the message as Java's UTF-8 stream writes it.
+                        let s = closure_rhino::java_lang::string::to_utf8_output_string(
+                            &right.get_string(compiler),
+                        );
                         self.check_typeof_string(compiler, right, &s);
                     }
                 } else if right.is_type_of(compiler) && left.is_string_lit(compiler) {
-                    let s = left.get_string(compiler).to_string_lossy();
+                    // The string reaches the message as Java's UTF-8 stream writes it.
+                    let s = closure_rhino::java_lang::string::to_utf8_output_string(
+                        &left.get_string(compiler),
+                    );
                     self.check_typeof_string(compiler, left, &s);
                 }
 
