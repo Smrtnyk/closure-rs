@@ -985,12 +985,20 @@ impl NodeId {
     }
     // port: Node#lookupProperty
     pub fn lookup_property(self, ast: &Ast, prop: Prop) -> Option<Arc<PropListItem>> {
+        self.lookup_property_ref(ast, prop).cloned()
+    }
+    // Java walks the list by reference; walking with borrows avoids an Arc clone (two atomic
+    // operations) per list item.
+    fn lookup_property_ref(self, ast: &Ast, prop: Prop) -> Option<&Arc<PropListItem>> {
         let prop_type = prop as u8;
-        let mut x = ast[self].prop_list_head.clone();
-        while x.as_ref().is_some_and(|x| prop_type != x.prop_type) {
-            x = x.unwrap().next.clone();
+        let mut x = ast[self].prop_list_head.as_ref();
+        while let Some(item) = x {
+            if item.prop_type == prop_type {
+                return Some(item);
+            }
+            x = item.next.as_ref();
         }
-        x
+        None
     }
     // port: Node#clonePropsFrom
     pub fn clone_props_from(self, ast: &mut Ast, other: NodeId) -> Self {
@@ -1098,7 +1106,7 @@ impl NodeId {
     }
     // port: Node#getProp
     pub fn get_prop(self, ast: &Ast, prop_type: Prop) -> Option<ObjectProp> {
-        self.lookup_property(ast, prop_type)
+        self.lookup_property_ref(ast, prop_type)
             .map(|i| i.get_object_value())
     }
     // port: Node#getBooleanProp
@@ -1107,7 +1115,7 @@ impl NodeId {
     }
     // port: Node#getIntProp
     pub fn get_int_prop(self, ast: &Ast, prop_type: Prop) -> i32 {
-        self.lookup_property(ast, prop_type)
+        self.lookup_property_ref(ast, prop_type)
             .map_or(0, |i| i.get_int_value())
     }
     // port: Node#putProp

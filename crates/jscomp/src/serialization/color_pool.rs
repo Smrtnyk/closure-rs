@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/serialization/ColorPool.java.
 
 //! Port of serialization/ColorPool.java.
-use super::malformed_typed_ast_exception::MalformedTypedAstException;
+use super::malformed_typed_ast_exception::{DebugParam, MalformedTypedAstException};
 use super::string_pool::StringPool;
 use super::type_pointers::{OFFSET_TO_AXIOMATIC_COLOR, TypePointers};
 use super::types_proto::{TypePool, TypeProto, TypeProtoKindCase};
@@ -408,7 +408,7 @@ impl Builder {
             MalformedTypedAstException::check_well_formed_with_param(
                 is_closure_assert.to_boolean(is_closure_assert_bool) == is_closure_assert_bool,
                 "Inconsistent values for closure_assert",
-                &format!("{obj_proto:?}"),
+                &DebugParam(&obj_proto),
             );
             is_closure_assert = Tri::for_boolean(is_closure_assert_bool);
 
@@ -455,7 +455,7 @@ impl Builder {
                 MalformedTypedAstException::check_well_formed_with_param(
                     !member.is_union(),
                     "Reconciling union with non-union",
-                    &format!("{proto:?}"),
+                    &DebugParam(&proto),
                 );
                 union.insert(member);
             }
@@ -500,7 +500,7 @@ fn create_trimmed_offset_to_id(type_pool: &TypePool) -> Vec<ColorId> {
         MalformedTypedAstException::check_well_formed_with_param(
             seen_ids.insert(id.unwrap()),
             "Duplicate ID in single shard",
-            &format!("{proto:?}"),
+            &DebugParam(&proto),
         );
     }
 
@@ -512,7 +512,7 @@ fn create_union_color_id(proto: &TypeProto, all_object_ids: &[Option<ColorId>]) 
     MalformedTypedAstException::check_well_formed_with_param(
         proto.get_union().get_union_member_count() > 1,
         "Union has too few members",
-        &format!("{proto:?}"),
+        &DebugParam(&proto),
     );
     let mut members: IndexSet<ColorId> = IndexSet::new();
     let union_member_list = proto.get_union().get_union_member_list();
@@ -525,7 +525,7 @@ fn create_union_color_id(proto: &TypeProto, all_object_ids: &[Option<ColorId>]) 
         MalformedTypedAstException::check_well_formed_with_param(
             member_id.is_some(),
             "Union member not found",
-            &format!("{proto:?}"),
+            &DebugParam(&proto),
         );
         members.insert(member_id.unwrap());
     }

@@ -4363,11 +4363,14 @@ impl RemoveUnusedCode {
                     let var_name = real.var_name.clone();
                     let removables = std::mem::take(&mut real.removables);
                     let ast: &Ast = compiler;
-                    self.unremovable_log.as_mut().unwrap().log_string(&format!(
-                        "{}: {}",
-                        var_name,
-                        reason_supplier(ast)
-                    ));
+                    // Java formats the message eagerly; the reason is a pure function of the
+                    // AST, so it is formatted only when the log file writes it (the default
+                    // NoOpLogFile never does).
+                    let mut reason_supplier = Some(reason_supplier);
+                    self.unremovable_log.as_mut().unwrap().log(&mut || {
+                        let reason = reason_supplier.take().map_or_else(String::new, |f| f(ast));
+                        format!("{var_name}: {reason}")
+                    });
                     for r in removables {
                         self.consider_for_independent_removal(compiler, r);
                     }

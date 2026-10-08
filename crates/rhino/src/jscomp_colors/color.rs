@@ -40,6 +40,9 @@ struct ColorValue {
     closure_assert: bool,
     union_elements: IndexSet<Color>,
     subtract_null_or_void: OnceLock<Color>,
+    // Not in Java (AutoValue recomputes hashCode, but String caches its own hash): the value is
+    // immutable, so its hash is computed once.
+    hash_code: OnceLock<i32>,
 }
 
 impl Color {
@@ -188,6 +191,9 @@ impl Color {
 
     // port: AutoValue_Color#hashCode
     pub fn hash_code(&self) -> i32 {
+        *self.0.hash_code.get_or_init(|| self.compute_hash_code())
+    }
+    fn compute_hash_code(&self) -> i32 {
         let mut h = 1i32;
         h = h.wrapping_mul(1000003) ^ self.get_id().hash_code();
         h = h.wrapping_mul(1000003)
@@ -422,6 +428,7 @@ impl Builder {
             closure_assert: self.closure_assert.unwrap(),
             union_elements: self.union_elements.unwrap(),
             subtract_null_or_void: OnceLock::new(),
+            hash_code: OnceLock::new(),
         }))
     }
     // port: Color.Builder#build

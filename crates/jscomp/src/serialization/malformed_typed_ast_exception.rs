@@ -30,6 +30,16 @@ pub struct MalformedTypedAstException {
     pub cause: Option<String>,
 }
 
+/// Not in Java: formats its value with `Debug` only when displayed, so the parameter of
+/// `check_well_formed_with_param` costs nothing unless the check fails (Java passes the object
+/// and formats it only in the exception message).
+pub struct DebugParam<'a, T: fmt::Debug>(pub &'a T);
+impl<T: fmt::Debug> fmt::Display for DebugParam<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.0)
+    }
+}
+
 impl MalformedTypedAstException {
     // port: MalformedTypedAstException#checkWellFormed(boolean,String)
     pub fn check_well_formed(condition: bool, description: &str) {
