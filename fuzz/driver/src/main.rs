@@ -10,8 +10,9 @@
 //!       the parse-filter verdict and the profile `run` would pick, to DIR/p<i>/<file> and
 //!       DIR/manifest.jsonl (+ DIR/summary.json). Gate 0.3 (a) and (b) use this.
 //!   run         --seed S (--count N | --duration SECS) [--servers K]
-//!               [--engine-b java|java-perturbed] [--source gen|mutate|mixed]
-//!               [--findings DIR] [--budget B] [--work DIR] [--report FILE]
+//!               [--engine-b java|java-perturbed|rust] [--rust-bin PATH]
+//!               [--source gen|mutate|mixed]
+//!               [--findings DIR] [--budget B] [--work DIR] [--report FILE] [--wide]
 //!       Generate/mutate programs, drop those the Java parser rejects, compile each under a
 //!       random applicable D2 profile drawn with the D-016 weights (ADVANCED family 65%, ws 3%,
 //!       other 32%; `PROFILE_WEIGHTS_PCT`), plus random in-scope option flags for one program in
@@ -22,8 +23,16 @@
 //!       for multi-file programs) and file it as DIR/<id>.md (default fuzz/findings). Engine
 //!       B "java" is a second, independent oracle JVM (proves the comparison path);
 //!       "java-perturbed" is Java with a synthetic bug (output altered when the input
-//!       contains `switch`) to prove the minimize-and-file path. Engine "rust" is added when
-//!       the port exists. With --duration, workers stop drawing programs after SECS seconds.
+//!       contains `switch`) to prove the minimize-and-file path. "rust" runs the closure-rs
+//!       CLI (`--rust-bin`, default `$CARGO_TARGET_DIR/release/closure-rs`, else
+//!       `target/release/closure-rs`) with the same argv as the oracle, from the repository root,
+//!       in the golden environment with stdin /dev/null (as gates/d2_rust.py does); its outcome
+//!       is its exit status, stdout, stderr and every file under the run's out_dir.
+//!       With --duration, workers stop drawing programs after SECS seconds. --wide adds two
+//!       draws on top of the D-016 ones: `--jscomp_off|--jscomp_warning=checkTypes` (one program
+//!       in four, never ws) and, for single-file programs under simple/advanced/advanced_strict/
+//!       pretty/sourcemap, `--language_out=ECMASCRIPT5|ECMASCRIPT_2015` (one in three; the
+//!       program is generated in low_target mode).
 //!       A worker thread that panics is a harness crash: it is counted in the report
 //!       (`harness_crashes`) and the process exits 3.
 //!   minimize-selftest --seed S [--count N]
@@ -39,7 +48,8 @@
 //!   gen:    the four jsgen categories in the same 30:25:15:5 ratio.
 //!   mutate: mutate only.
 //!
-//! JVM heap: each worker owns two servers at -Xmx1536m (engine A and B, or A plus a spare).
+//! JVM heap: each worker owns two servers at -Xmx1536m (engine A and B), or one with engine
+//! B `rust` (which runs the binary as a child process).
 
 #![forbid(unsafe_code)]
 
@@ -62,6 +72,48 @@ const MIX_SALT: u64 = 0x6d69_7865_6420;
 const PROFILE_SALT: u64 = 0x7072_6f66;
 const MUTATE_SALT: u64 = 0x6d75_7461_7465;
 const OPTION_SALT: u64 = 0x6f70_7469_6f6e;
+const WIDE_SALT: u64 = 0x7769_6465;
+
+/// `--wide`: type checking forced off or on, one program in four (never under ws).
+const WIDE_TYPECHECK: &[&str] = &["--jscomp_off=checkTypes", "--jscomp_warning=checkTypes"];
+/// `--wide`: a lower `--language_out` for single-file programs under the profiles that do not
+/// lock it, one program in three; the program is generated in `low_target` mode.
+const WIDE_LANG_OUT: &[&str] = &[
+    "--language_out=ECMASCRIPT5",
+    "--language_out=ECMASCRIPT_2015",
+];
+const WIDE_LANG_OUT_PROFILES: &[&str] = &[
+    "simple",
+    "advanced",
+    "advanced_strict",
+    "pretty",
+    "sourcemap",
+];
+
+/// `--wide` language_out override for single-file program `i` under `profile` (deterministic;
+/// depends only on seed, index and profile, so generation can use it).
+fn wide_lang_out(seed: u64, i: u64, profile: &str) -> Option<&'static str> {
+    if !WIDE_LANG_OUT_PROFILES.contains(&profile) {
+        return None;
+    }
+    let mut r = Rng::fork(seed ^ WIDE_SALT, i);
+    if !r.chance(1, 3) {
+        return None;
+    }
+    Some(WIDE_LANG_OUT[r.below(WIDE_LANG_OUT.len() as u64) as usize])
+}
+
+/// `--wide` type-checking flag for program `i` under `profile` (deterministic).
+fn wide_typecheck(seed: u64, i: u64, profile: &str) -> Option<&'static str> {
+    if profile == "ws" {
+        return None;
+    }
+    let mut r = Rng::fork(seed ^ WIDE_SALT ^ 0x7463, i);
+    if !r.chance(1, 4) {
+        return None;
+    }
+    Some(WIDE_TYPECHECK[r.below(WIDE_TYPECHECK.len() as u64) as usize])
+}
 
 /// When an option-flag group may be drawn (on top of "never under ws" and the profile's
 /// `locked` keys, both checked in [`option_flags`]).
@@ -205,7 +257,7 @@ const NOT_DRAWN: &[(&str, &str)] = &[
     ),
     (
         "--language_out",
-        "profile-owned: jsgen's low_target mode is keyed on the profile's language_out",
+        "profile-owned: jsgen's low_target mode is keyed on the profile's language_out (--wide draws ES5/ES2015 for single-file programs: WIDE_LANG_OUT)",
     ),
     (
         "--browser_featureset_year",
@@ -375,11 +427,11 @@ const NOT_DRAWN: &[(&str, &str)] = &[
     ),
     (
         "--jscomp_warning",
-        "diagnostic-group levels: need a strict-aware generation mode (not drawn yet)",
+        "diagnostic-group levels: need a strict-aware generation mode (not drawn yet); --wide draws =checkTypes (WIDE_TYPECHECK)",
     ),
     (
         "--jscomp_off",
-        "diagnostic-group levels: need a strict-aware generation mode (not drawn yet)",
+        "diagnostic-group levels: need a strict-aware generation mode (not drawn yet); --wide draws =checkTypes (WIDE_TYPECHECK)",
     ),
     (
         "--continue_after_errors",
@@ -580,6 +632,11 @@ struct Opts {
     out: Option<PathBuf>,
     work: Option<PathBuf>,
     report: Option<PathBuf>,
+    /// Engine B `rust`: the closure-rs CLI binary (default [`default_rust_bin`]).
+    rust_bin: Option<PathBuf>,
+    /// `--wide`: also draw [`WIDE_TYPECHECK`] and [`WIDE_LANG_OUT`] (off by default, so the
+    /// D-016 draws are unchanged without it).
+    wide: bool,
 }
 
 fn parse_opts() -> Opts {
@@ -597,6 +654,8 @@ fn parse_opts() -> Opts {
         out: None,
         work: None,
         report: None,
+        rust_bin: None,
+        wide: false,
     };
     let mut count_given = false;
     let abs = |v: &str| {
@@ -609,6 +668,11 @@ fn parse_opts() -> Opts {
     };
     let mut i = 1;
     while i < args.len() {
+        if args[i] == "--wide" {
+            o.wide = true;
+            i += 1;
+            continue;
+        }
         let v = args.get(i + 1).cloned().unwrap_or_default();
         match args[i].as_str() {
             "--seed" => o.seed = v.parse().expect("--seed"),
@@ -625,6 +689,7 @@ fn parse_opts() -> Opts {
             "--out" => o.out = Some(abs(&v)),
             "--work" => o.work = Some(abs(&v)),
             "--report" => o.report = Some(abs(&v)),
+            "--rust-bin" => o.rust_bin = Some(abs(&v)),
             x => die(&format!("unknown argument {x}")),
         }
         i += 2;
@@ -635,7 +700,37 @@ fn parse_opts() -> Opts {
     if !["gen", "mutate", "mixed"].contains(&o.source.as_str()) {
         die(&format!("unknown --source {}", o.source));
     }
+    if !ENGINES_B.contains(&o.engine_b.as_str()) {
+        die(&format!("unknown --engine-b {}", o.engine_b));
+    }
+    if o.engine_b == "rust" {
+        let bin = o.rust_bin.clone().unwrap_or_else(default_rust_bin);
+        if !bin.is_file() {
+            die(&format!(
+                "--engine-b rust: no closure-rs binary at {} (cargo build --release -p closure-cli, or --rust-bin PATH)",
+                bin.display()
+            ));
+        }
+        o.rust_bin = Some(bin);
+    }
     o
+}
+
+/// The engines `--engine-b` accepts.
+const ENGINES_B: &[&str] = &["java", "java-perturbed", "rust"];
+
+/// The release closure-rs CLI of this checkout: `$CARGO_TARGET_DIR/release/closure-rs`, else
+/// `<repo>/target/release/closure-rs`.
+fn default_rust_bin() -> PathBuf {
+    let target = std::env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| repo_root().join("target"));
+    let target = if target.is_absolute() {
+        target
+    } else {
+        repo_root().join(target)
+    };
+    target.join("release/closure-rs")
 }
 
 fn die(m: &str) -> ! {
@@ -713,6 +808,134 @@ fn rel(p: &Path) -> String {
 fn compile(s: &mut Server, args: &[String]) -> Result<Outcome, String> {
     let r = s.request(json!({"op": "compile", "args": args}), TIMEOUT)?;
     Outcome::from_compile(&r)
+}
+
+/// `a//b/./c` -> `a/b/c` (output-file keys: the oracle reports the path the compiler opened,
+/// e.g. `--chunk_output_path_prefix=<out_dir>/` + `c0.js`).
+fn normalize_key(k: &str) -> String {
+    let abs = k.starts_with('/');
+    let parts: Vec<&str> = k
+        .split('/')
+        .filter(|p| !p.is_empty() && *p != ".")
+        .collect();
+    format!("{}{}", if abs { "/" } else { "" }, parts.join("/"))
+}
+
+fn normalize_file_keys(files: BTreeMap<String, Vec<u8>>) -> BTreeMap<String, Vec<u8>> {
+    files
+        .into_iter()
+        .map(|(k, v)| (normalize_key(&k), v))
+        .collect()
+}
+
+/// Every regular file under `dir`, keyed `<key_prefix>/<path relative to dir>` (sorted).
+fn collect_files(dir: &Path, key_prefix: &str) -> Result<BTreeMap<String, Vec<u8>>, String> {
+    let mut out = BTreeMap::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        let rd = match std::fs::read_dir(&d) {
+            Ok(rd) => rd,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(format!("read_dir {}: {e}", d.display())),
+        };
+        for ent in rd {
+            let p = ent.map_err(|e| e.to_string())?.path();
+            if p.is_dir() {
+                stack.push(p);
+            } else if p.is_file() {
+                let r = p.strip_prefix(dir).unwrap_or(&p).to_string_lossy();
+                let bytes = std::fs::read(&p).map_err(|e| format!("read {}: {e}", p.display()))?;
+                out.insert(format!("{key_prefix}/{r}"), bytes);
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Engine `rust`: run `bin args` as the D2 runner runs the port (`gates/lib/d2_rust_core.py`
+/// `run_pair`): cwd `cwd`, the golden environment, stdin `/dev/null`.
+/// The outcome holds the exit status (128 + signal for a signal), stdout, stderr and every
+/// file under `out_dir` (keys: [`collect_files`] with `out_key`). A run still alive after
+/// `timeout` is killed and reported as exit [`RUST_TIMEOUT_EXIT`] with a note on stderr.
+fn run_binary(
+    bin: &Path,
+    args: &[String],
+    cwd: &Path,
+    out_dir: &Path,
+    out_key: &str,
+    timeout: Duration,
+) -> Result<Outcome, String> {
+    use std::io::Read;
+    use std::os::unix::process::ExitStatusExt;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new(bin)
+        .args(args)
+        .current_dir(cwd)
+        .env_clear()
+        .envs(fuzz_oracle::golden_env())
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("spawn {}: {e}", bin.display()))?;
+    let pipe = |r: Option<Box<dyn Read + Send>>| {
+        std::thread::spawn(move || {
+            let mut buf = vec![];
+            if let Some(mut r) = r {
+                let _ = r.read_to_end(&mut buf);
+            }
+            buf
+        })
+    };
+    let out_t = pipe(
+        child
+            .stdout
+            .take()
+            .map(|r| Box::new(r) as Box<dyn Read + Send>),
+    );
+    let err_t = pipe(
+        child
+            .stderr
+            .take()
+            .map(|r| Box::new(r) as Box<dyn Read + Send>),
+    );
+    let t0 = Instant::now();
+    let status = loop {
+        match child.try_wait().map_err(|e| format!("wait: {e}"))? {
+            Some(st) => break Some(st),
+            None if t0.elapsed() >= timeout => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break None;
+            }
+            None => std::thread::sleep(Duration::from_millis(2)),
+        }
+    };
+    let stdout = out_t.join().unwrap_or_default();
+    let mut stderr = err_t.join().unwrap_or_default();
+    let exit_code = match status {
+        Some(st) => match (st.code(), st.signal()) {
+            (Some(c), _) => i64::from(c),
+            (None, Some(sig)) => 128 + i64::from(sig),
+            (None, None) => -1,
+        },
+        None => {
+            stderr.extend_from_slice(
+                format!(
+                    "\n[fuzz-driver] closure-rs killed after {} s\n",
+                    timeout.as_secs()
+                )
+                .as_bytes(),
+            );
+            RUST_TIMEOUT_EXIT
+        }
+    };
+    Ok(Outcome {
+        exit_code,
+        stdout,
+        stderr,
+        files: collect_files(out_dir, out_key)?,
+    })
 }
 
 fn restart_if_dead(s: &mut Server, err: &str) {
@@ -963,7 +1186,21 @@ fn category(o: &Opts, i: u64) -> &'static str {
 fn program(o: &Opts, d2: &D2Inputs, i: u64, lists: &(Vec<String>, Vec<String>)) -> Prog {
     let mut p = program_base(o, d2, i, lists);
     let profile = pick_profile_n(o.seed, i, p.files.len(), lists);
-    let extra = option_flags(o.seed, i, &profile, &p);
+    let mut extra = option_flags(o.seed, i, &profile, &p);
+    if o.wide {
+        let has = |k: &str| extra.iter().chain(&p.extra_flags).any(|f| flag_key(f) == k);
+        let mut w = vec![];
+        if p.files.len() == 1
+            && let Some(f) = wide_lang_out(o.seed, i, &profile)
+            && !has(flag_key(f))
+        {
+            w.push(f.to_string());
+        }
+        if let Some(f) = wide_typecheck(o.seed, i, &profile) {
+            w.push(f.to_string());
+        }
+        extra.extend(w);
+    }
     if !extra.is_empty() {
         p.origin.push_str(&format!(":opts={}", extra.join(",")));
         p.extra_flags.extend(extra);
@@ -974,7 +1211,9 @@ fn program(o: &Opts, d2: &D2Inputs, i: u64, lists: &(Vec<String>, Vec<String>)) 
 fn program_base(o: &Opts, d2: &D2Inputs, i: u64, lists: &(Vec<String>, Vec<String>)) -> Prog {
     let seed = o.seed;
     // Single-file jsgen programs: generate for the profile they will be compiled under.
-    let low = low_target_profiles().contains(&pick_profile_n(seed, i, 1, lists));
+    let p1 = pick_profile_n(seed, i, 1, lists);
+    let low =
+        low_target_profiles().contains(&p1) || (o.wide && wide_lang_out(seed, i, &p1).is_some());
     let lowt = |f: &dyn Fn() -> String| dialect::with_low_target(low, f);
     let lang_cfg = jsgen::Config {
         closure: false,
@@ -1068,19 +1307,38 @@ fn materialize(prog: &Prog, dir: &Path) -> Result<Vec<PathBuf>, String> {
 // ---------------------------------------------------------------------------------------
 // Engines
 
+/// Rust engine timeout. Java's is [`TIMEOUT`]; a Rust compile that runs this long is filed as a
+/// mismatch (the outcome says so), not dropped.
+const RUST_TIMEOUT: Duration = Duration::from_secs(120);
+/// Exit code recorded for a Rust run killed at [`RUST_TIMEOUT`] (no real process status).
+const RUST_TIMEOUT_EXIT: i64 = -9;
+
 struct Engines {
     a: Server,
-    b: Server,
+    /// The second oracle JVM (engines `java`, `java-perturbed`); `None` for `rust`.
+    b: Option<Server>,
     b_kind: String,
+    /// Engine `rust`: the closure-rs CLI binary.
+    rust_bin: Option<PathBuf>,
     args: ArgsHelper,
 }
 
 impl Engines {
-    fn start(b_kind: &str) -> Engines {
+    fn start(b_kind: &str, rust_bin: Option<PathBuf>) -> Engines {
+        let rust = b_kind == "rust";
         Engines {
             a: Server::start(XMX).unwrap_or_else(|e| die(&e)),
-            b: Server::start(XMX).unwrap_or_else(|e| die(&e)),
+            b: if rust {
+                None
+            } else {
+                Some(Server::start(XMX).unwrap_or_else(|e| die(&e)))
+            },
             b_kind: b_kind.to_string(),
+            rust_bin: if rust {
+                Some(rust_bin.unwrap_or_else(default_rust_bin))
+            } else {
+                None
+            },
             args: ArgsHelper::start().unwrap_or_else(|e| die(&e)),
         }
     }
@@ -1113,9 +1371,23 @@ impl Engines {
         compile(&mut self.a, args).inspect_err(|e| restart_if_dead(&mut self.a, e))
     }
 
-    fn engine_b(&mut self, args: &[String], src: &str) -> Result<Outcome, String> {
-        let mut out =
-            compile(&mut self.b, args).inspect_err(|e| restart_if_dead(&mut self.b, e))?;
+    fn engine_b(&mut self, args: &[String], src: &str, out_dir: &Path) -> Result<Outcome, String> {
+        if self.b_kind == "rust" {
+            let bin = self
+                .rust_bin
+                .as_ref()
+                .ok_or("engine rust without a binary")?;
+            return run_binary(
+                bin,
+                args,
+                &repo_root(),
+                out_dir,
+                &rel(out_dir),
+                RUST_TIMEOUT,
+            );
+        }
+        let b = self.b.as_mut().ok_or("engine B has no oracle server")?;
+        let mut out = compile(b, args).inspect_err(|e| restart_if_dead(b, e))?;
         match self.b_kind.as_str() {
             "java" => {}
             "java-perturbed" => {
@@ -1128,9 +1400,7 @@ impl Engines {
                     }
                 }
             }
-            k => die(&format!(
-                "unknown engine {k} (the Rust engine is added in Phase 2)"
-            )),
+            k => die(&format!("unknown engine {k}")),
         }
         Ok(out)
     }
@@ -1146,13 +1416,19 @@ impl Engines {
         let paths = materialize(prog, in_dir)?;
         let args = self.argv(&paths, &prog.extra_flags, profile, out_dir)?;
         let _ = std::fs::remove_dir_all(out_dir);
-        let a = self.engine_a(&args)?;
+        let mut a = self.engine_a(&args)?;
         if is_java_crash(&a) {
             // D-009: a Java crash is not reference behaviour; such pairs are dropped, not compared.
             return Err(format!("{JAVA_CRASH}exit {}", a.exit_code));
         }
         let _ = std::fs::remove_dir_all(out_dir);
-        let b = self.engine_b(&args, &prog.all_text())?;
+        let mut b = self.engine_b(&args, &prog.all_text(), out_dir)?;
+        if self.b_kind == "rust" {
+            // The oracle keys output files by the path the compiler opened; the Rust engine
+            // by `<out_dir>/<relative path>`. Compare both under one spelling.
+            a.files = normalize_file_keys(std::mem::take(&mut a.files));
+            b.files = normalize_file_keys(std::mem::take(&mut b.files));
+        }
         Ok(a.diff(&b).map(|d| (d, a, b)))
     }
 
@@ -1407,10 +1683,32 @@ impl Tally {
     }
 }
 
+/// `(path, sha256)` of the Rust engine's binary, for reports (null for the Java engines).
+fn rust_bin_json(o: &Opts) -> Value {
+    match &o.rust_bin {
+        Some(p) if o.engine_b == "rust" => {
+            static SHA: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+            let sha = SHA.get_or_init(|| {
+                std::fs::read(p)
+                    .map(|b| {
+                        Sha256::digest(&b)
+                            .iter()
+                            .map(|x| format!("{x:02x}"))
+                            .collect::<String>()
+                    })
+                    .unwrap_or_default()
+            });
+            json!({"path": p.display().to_string(), "sha256": sha})
+        }
+        _ => Value::Null,
+    }
+}
+
 fn run_report(o: &Opts, run_id: &str, t: &Tally, wall: f64, crashes: u64, done: bool) -> Value {
     json!({
         "run": run_id, "engine_a": "java-oracle", "engine_b": o.engine_b, "source": o.source,
-        "seed": o.seed, "servers": o.servers,
+        "rust_bin": rust_bin_json(o),
+        "seed": o.seed, "servers": o.servers, "wide": o.wide,
         "duration_s": o.duration.map(|d| d.as_secs()),
         "count_limit": if o.count == u64::MAX { Value::Null } else { json!(o.count) },
         "finished": done, "wall_s": wall, "harness_crashes": crashes,
@@ -1459,7 +1757,7 @@ fn run(o: &Opts) {
             work.clone(),
         );
         hs.push(spawn_deep(move || {
-            let eng = RefCell::new(Engines::start(&opts.engine_b));
+            let eng = RefCell::new(Engines::start(&opts.engine_b, opts.rust_bin.clone()));
             let lists = profile_lists(&mut eng.borrow_mut().args);
             loop {
                 if deadline.is_some_and(|d| Instant::now() >= d) {
@@ -1683,7 +1981,7 @@ fn file_finding(
         .map(|(n, c)| format!("// --- {n} ---\n{c}"))
         .collect();
     let md = format!(
-        "# Fuzz finding {id}\n\n- engines: A = java-oracle, B = {eb}\n- profile: `{profile}`\n- extra flags: `{:?}`\n- difference: {final_diff}\n- original difference: {diff}\n- origin: `{}`\n- minimization ({:.1}s):\n{}\n\n## Argv (input paths as used)\n\n```\n{}\n```\n\n## Minimized repro\n\n```js\n{min_text}```\n\n## Engine A\n\n```\n{}\n```\n\n## Engine B\n\n```\n{}\n```\n\n## Original program\n\n```js\n{}```\n",
+        "# Fuzz finding {id}\n\n- engines: A = java-oracle, B = {eb}{bin}\n- profile: `{profile}`\n- extra flags: `{:?}`\n- difference: {final_diff}\n- original difference: {diff}\n- origin: `{}`\n- minimization ({:.1}s):\n{}\n\n## Argv (input paths as used)\n\n```\n{}\n```\n\n## Minimized repro\n\n```js\n{min_text}```\n\n## Engine A\n\n```\n{}\n```\n\n## Engine B\n\n```\n{}\n```\n\n## Original program\n\n```js\n{}```\n",
         cur.extra_flags,
         prog.origin,
         t0.elapsed().as_secs_f64(),
@@ -1697,6 +1995,15 @@ fn file_finding(
         show(&b),
         orig_text.chars().take(20_000).collect::<String>(),
         eb = o.engine_b,
+        bin = match rust_bin_json(o) {
+            Value::Null => String::new(),
+            v => format!(
+                " (`{}`, sha256 {})",
+                rel(Path::new(v["path"].as_str().unwrap_or(""))),
+                &v["sha256"].as_str().unwrap_or("")
+                    [..12.min(v["sha256"].as_str().unwrap_or("").len())]
+            ),
+        },
     );
     if let Err(e) = std::fs::write(o.findings.join(format!("{id}.md")), md) {
         eprintln!("cannot write finding {id}: {e}");
@@ -1713,7 +2020,7 @@ fn file_finding(
 // minimize-selftest
 
 fn minimize_selftest(o: &Opts) {
-    let eng = RefCell::new(Engines::start("java"));
+    let eng = RefCell::new(Engines::start("java", None));
     let cfg = jsgen::Config::default();
     let dir = repo_root().join("build/fuzz/minimize-selftest");
     std::fs::create_dir_all(&dir).unwrap();
@@ -1884,6 +2191,151 @@ mod tests {
             assert!((share("ws") - 0.03).abs() < 0.005, "{by:?}");
             assert!((share("other") - 0.32).abs() < 0.01, "{by:?}");
         }
+    }
+
+    /// A scratch directory for one test (removed first).
+    fn scratch(name: &str) -> PathBuf {
+        let d =
+            std::env::temp_dir().join(format!("fuzz-driver-test-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    /// A fake `closure-rs`: a shell script with `body`.
+    fn fake_bin(dir: &Path, body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let p = dir.join("fake-closure-rs");
+        std::fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+        p
+    }
+
+    #[test]
+    fn normalize_key_collapses_separators() {
+        assert_eq!(normalize_key("build/w0/out//c0.js"), "build/w0/out/c0.js");
+        assert_eq!(
+            normalize_key("build/./w0/out/out.js"),
+            "build/w0/out/out.js"
+        );
+        assert_eq!(normalize_key("/abs//x"), "/abs/x");
+        assert_eq!(normalize_key("out.js"), "out.js");
+    }
+
+    #[test]
+    fn rust_engine_outcome_has_exit_streams_and_out_dir_files() {
+        let d = scratch("outcome");
+        // argv as case_args builds it: relative paths, resolved from the cwd.
+        let bin = fake_bin(
+            &d,
+            r#"mkdir -p out/sub
+printf 'js:%s\n' "$2" > out/out.js
+printf 'map' > out/sub/c1.js.map
+printf 'stdout:%s:%s' "$1" "$(cat)"
+printf 'LANG=%s TZ=%s CARGO=%s' "$LANG" "$TZ" "${CARGO:-unset}" >&2
+exit 3"#,
+        );
+        let args = vec!["--a=1".to_string(), "x y".to_string()];
+        let o = run_binary(
+            &bin,
+            &args,
+            &d,
+            &d.join("out"),
+            "w/out",
+            Duration::from_secs(30),
+        )
+        .unwrap();
+        assert_eq!(o.exit_code, 3);
+        // stdin is /dev/null.
+        assert_eq!(o.stdout, b"stdout:--a=1:");
+        // The golden environment, nothing inherited.
+        assert_eq!(o.stderr, b"LANG=C.UTF-8 TZ=UTC CARGO=unset");
+        let keys: Vec<&str> = o.files.keys().map(|k| k.as_str()).collect();
+        assert_eq!(keys, ["w/out/out.js", "w/out/sub/c1.js.map"]);
+        assert_eq!(o.files["w/out/out.js"], b"js:x y\n");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn rust_engine_matches_the_oracle_outcome_shape() {
+        // The same files keyed as the oracle keys them (the path the compiler opened) compare
+        // equal once both sides are normalized, and any byte difference is reported.
+        let d = scratch("shape");
+        let bin = fake_bin(&d, "mkdir -p o; printf 'a' > o/c0.js; exit 0");
+        let b = run_binary(&bin, &[], &d, &d.join("o"), "r/o", Duration::from_secs(30)).unwrap();
+        let mut a = Outcome {
+            exit_code: 0,
+            stdout: vec![],
+            stderr: vec![],
+            files: BTreeMap::from([("r/o//c0.js".to_string(), b"a".to_vec())]),
+        };
+        a.files = normalize_file_keys(std::mem::take(&mut a.files));
+        let b = Outcome {
+            files: normalize_file_keys(b.files.clone()),
+            ..b
+        };
+        assert_eq!(a.diff(&b), None);
+        let mut c = b.clone();
+        c.files.insert("r/o/c0.js".into(), b"b".to_vec());
+        assert_eq!(a.diff(&c).as_deref(), Some("output file r/o/c0.js differs"));
+        let mut e = b.clone();
+        e.exit_code = 1;
+        assert_eq!(a.diff(&e).as_deref(), Some("exit_code 0 vs 1"));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn rust_engine_reports_signals_timeouts_and_missing_out_dir() {
+        let d = scratch("signal");
+        let bin = fake_bin(&d, "kill -SEGV $$");
+        let o = run_binary(&bin, &[], &d, &d.join("none"), "n", Duration::from_secs(30)).unwrap();
+        assert_eq!(o.exit_code, 128 + 11);
+        assert!(o.files.is_empty());
+        let bin = fake_bin(&d, "exec sleep 20");
+        let t0 = Instant::now();
+        let o = run_binary(
+            &bin,
+            &[],
+            &d,
+            &d.join("none"),
+            "n",
+            Duration::from_millis(300),
+        )
+        .unwrap();
+        assert!(t0.elapsed() < Duration::from_secs(10));
+        assert_eq!(o.exit_code, RUST_TIMEOUT_EXIT);
+        assert!(String::from_utf8_lossy(&o.stderr).contains("killed after"));
+        assert!(run_binary(&d.join("missing"), &[], &d, &d, "n", Duration::from_secs(1)).is_err());
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn engine_b_kinds_and_default_binary() {
+        assert!(ENGINES_B.contains(&"rust"));
+        assert!(ENGINES_B.contains(&"java"));
+        assert!(default_rust_bin().ends_with("release/closure-rs"));
+    }
+
+    #[test]
+    fn wide_draws_are_deterministic_and_respect_profiles() {
+        let (mut lang, mut tc) = (0, 0);
+        for i in 0..3000 {
+            for prof in ["ws", "lang_es5", "lang_next", "chunks2"] {
+                assert_eq!(wide_lang_out(9, i, prof), None, "{prof}");
+            }
+            assert_eq!(wide_typecheck(9, i, "ws"), None);
+            let l = wide_lang_out(9, i, "advanced");
+            assert_eq!(l, wide_lang_out(9, i, "advanced"));
+            lang += usize::from(l.is_some());
+            let t = wide_typecheck(9, i, "simple");
+            assert_eq!(t, wide_typecheck(9, i, "simple"));
+            tc += usize::from(t.is_some());
+            for f in l.into_iter().chain(t) {
+                assert!(WIDE_LANG_OUT.contains(&f) || WIDE_TYPECHECK.contains(&f));
+            }
+        }
+        assert!((800..1200).contains(&lang), "{lang}");
+        assert!((600..900).contains(&tc), "{tc}");
     }
 
     #[test]
