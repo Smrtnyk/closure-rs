@@ -37,6 +37,7 @@ crates/cli/tests/command_line_runner_test.rs	59c1e91738bdc9a4	Apache-2.0	closure
 crates/cli/tests/common/mod.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/tests/compiler_define_test.rs	bb58833d12a9d166	Apache-2.0	closure:test/com/google/javascript/jscomp/CompilerTest.java
 crates/cli/tests/exception_golden_test.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/cli/tests/fuzz_regression_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/tests/glob_golden_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/tests/java_io_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/tests/json_golden_test.rs	322fc2ba37b98b96	Apache-2.0	-
