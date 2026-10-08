@@ -470,10 +470,12 @@ impl ReferenceMap {
             return true;
         }
 
-        let grand_parent = parent.get_parent(compiler).unwrap();
+        // Java dereferences grandParent only once parent.isGetProp() holds: a detached
+        // parent (no grandparent) answers false.
+        let grand_parent = parent.get_parent(compiler);
         parent.is_get_prop(compiler)
-            && grand_parent.is_call(compiler)
-            && parent.is_first_child_of(compiler, Some(grand_parent))
+            && grand_parent.unwrap().is_call(compiler)
+            && parent.is_first_child_of(compiler, grand_parent)
             && parent.get_string(compiler) == "call"
     }
 
@@ -486,10 +488,11 @@ impl ReferenceMap {
             return true;
         }
 
-        let grand_parent = parent.get_parent(compiler).unwrap();
+        // As isCallTarget: grandParent is dereferenced only after parent.isOptChainGetProp().
+        let grand_parent = parent.get_parent(compiler);
         parent.is_opt_chain_get_prop(compiler)
-            && grand_parent.is_opt_chain_call(compiler)
-            && parent.is_first_child_of(compiler, Some(grand_parent))
+            && grand_parent.unwrap().is_opt_chain_call(compiler)
+            && parent.is_first_child_of(compiler, grand_parent)
             && parent.get_string(compiler) == "call"
     }
 

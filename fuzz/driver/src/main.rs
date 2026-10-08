@@ -257,7 +257,7 @@ const NOT_DRAWN: &[(&str, &str)] = &[
     ),
     (
         "--language_out",
-        "profile-owned: jsgen's low_target mode is keyed on the profile's language_out (--wide draws ES5/ES2015 for single-file programs: WIDE_LANG_OUT)",
+        "profile-owned: jsgen's low_target mode is keyed on the profile's language_out",
     ),
     (
         "--browser_featureset_year",
