@@ -1113,15 +1113,15 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
                         .expect("createCompiler connects the error print stream"),
                     compiler.get_source_excerpt_provider(),
                 );
+            let mut manager = closure_jscomp::sorting_error_manager::SortingErrorManager::new(
+                vec![Box::new(generator)],
+            );
+            manager.set_deferred_reports(compiler.get_deferred_reports());
             self.compiler
                 .as_mut()
                 .unwrap()
                 .as_merged_compiler()
-                .set_error_manager(Box::new(
-                    closure_jscomp::sorting_error_manager::SortingErrorManager::new(vec![
-                        Box::new(generator),
-                    ]),
-                ));
+                .set_error_manager(Box::new(manager));
         }
         if self.config.skip_normal_outputs {
             self.compiler

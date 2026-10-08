@@ -22,6 +22,13 @@ use crate::{
 };
 use closure_rhino::node::Ast;
 use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex};
+/// Rust adapter: reports that Java's message formatters make straight into the ErrorManager
+/// while a report generator runs (`SourceMapInput#getSourceMap` called through
+/// `Compiler#getSourceMapping`). Rust formatters cannot reach the (locked) manager, so they
+/// queue the reports here and the generator replays them with
+/// [`SortingErrorManager::report_deferred`].
+pub type DeferredReports = Arc<Mutex<Vec<(CheckLevel, JSError)>>>;
 pub struct SortingErrorManager {
     messages: Vec<ErrorWithLevel>,
     original_error_count: i32,
@@ -29,6 +36,7 @@ pub struct SortingErrorManager {
     warning_count: i32,
     typed_percent: f64,
     pub error_report_generators: Vec<Box<dyn ErrorReportGenerator>>,
+    deferred_reports: Option<DeferredReports>,
 }
 impl SortingErrorManager {
     // port: SortingErrorManager#SortingErrorManager
@@ -40,6 +48,25 @@ impl SortingErrorManager {
             warning_count: 0,
             typed_percent: 0.0,
             error_report_generators,
+            deferred_reports: None,
+        }
+    }
+    /// Rust adapter: the queue formatters report into while a generator runs (see
+    /// [`DeferredReports`]).
+    pub fn set_deferred_reports(&mut self, deferred_reports: DeferredReports) {
+        self.deferred_reports = Some(deferred_reports);
+    }
+    /// Rust adapter: report what the formatters queued while the generator printed the copy
+    /// `getSortedDiagnostics` returned. In Java those reports reach `report` during the loop,
+    /// so they are counted in the summary (and seen by later generators) but not printed by
+    /// the generator that triggered them.
+    pub fn report_deferred(&mut self) {
+        let Some(queue) = self.deferred_reports.clone() else {
+            return;
+        };
+        let reports = std::mem::take(&mut *queue.lock().unwrap());
+        for (level, error) in reports {
+            self.report(level, error);
         }
     }
     // port: SortingErrorManager#getSortedDiagnostics
@@ -117,7 +144,7 @@ impl ErrorManager for SortingErrorManager {
 }
 pub trait ErrorReportGenerator: Send {
     // port: SortingErrorManager.ErrorReportGenerator#generateReport
-    fn generate_report(&mut self, manager: &SortingErrorManager, ast: &Ast);
+    fn generate_report(&mut self, manager: &mut SortingErrorManager, ast: &Ast);
 }
 pub struct LeveledJSErrorComparator;
 const P1_LT_P2: i32 = -1;

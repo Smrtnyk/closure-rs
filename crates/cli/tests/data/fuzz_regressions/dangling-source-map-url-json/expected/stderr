@@ -1,0 +1,1 @@
+[{"level":"warning","description":"unreachable code","key":"JSC_UNREACHABLE_CODE","source":"in.js","line":3,"column":2,"length":9,"context":"  alert(2);\n  ^^^^^^^^^"},{"level":"info","description":"0 error(s), 2 warning(s), 85.7% typed"}]

@@ -1,0 +1,15 @@
+{
+ "argv": [
+  "--js",
+  "in.js",
+  "--js",
+  "in2.js",
+  "--js_output_file",
+  "out/out.js"
+ ],
+ "origin": "bench D7 fabric.js (dist/index.mjs ends with a sourceMappingURL to a missing file): Java counts SOURCEMAP_RESOLVE_FAILED, reported by the formatter during the report, in the summary but does not print it",
+ "exit_code": 0,
+ "outputs": [
+  "out/out.js"
+ ]
+}

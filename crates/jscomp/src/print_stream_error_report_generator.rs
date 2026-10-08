@@ -74,10 +74,13 @@ impl<W: Write + Send> PrintStreamErrorReportGenerator<W> {
 }
 impl<W: Write + Send> ErrorReportGenerator for PrintStreamErrorReportGenerator<W> {
     // port: PrintStreamErrorReportGenerator#generateReport
-    fn generate_report(&mut self, manager: &SortingErrorManager, ast: &Ast) {
+    fn generate_report(&mut self, manager: &mut SortingErrorManager, ast: &Ast) {
         for e in manager.get_sorted_diagnostics() {
             self.println(ast, e.level, &e.error);
         }
+        // Java: the formatter's reports (an unresolvable input source map) reached the manager
+        // during the loop above; they count in the summary but are not printed.
+        manager.report_deferred();
         self.print_summary(manager);
     }
 }

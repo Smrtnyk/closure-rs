@@ -1,0 +1,5 @@
+in.js:3:2: WARNING - [JSC_UNREACHABLE_CODE] unreachable code
+  3|   alert(2);
+       ^^^^^^^^^
+
+0 error(s), 2 warning(s)

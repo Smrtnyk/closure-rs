@@ -1,0 +1,18 @@
+{
+ "argv": [
+  "--js",
+  "in.js",
+  "--error_format=JSON",
+  "--compilation_level=ADVANCED",
+  "--create_source_map",
+  "out/out.js.map",
+  "--js_output_file",
+  "out/out.js"
+ ],
+ "origin": "as dangling-source-map-url, JsonErrorReportGenerator path",
+ "exit_code": 0,
+ "outputs": [
+  "out/out.js",
+  "out/out.js.map"
+ ]
+}
