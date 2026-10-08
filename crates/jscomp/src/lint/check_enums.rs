@@ -177,11 +177,7 @@ impl CheckEnums {
             }
 
             if !values.insert(value.clone()) {
-                t.report(
-                    value_node,
-                    &DUPLICATE_ENUM_VALUE,
-                    &[&value.to_string_lossy()],
-                );
+                t.report(value_node, &DUPLICATE_ENUM_VALUE, &[&value.to_string()]);
             }
             prop = p.get_next(t);
         }

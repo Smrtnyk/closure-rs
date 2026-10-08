@@ -1966,7 +1966,7 @@ impl ClosureRewriteModule {
                 compiler,
                 call,
                 &GOOG_MODULE_GET_OF_WEAK_MODULE,
-                &[&namespace_id.to_string_lossy()],
+                &[&namespace_id.to_string()],
             );
             compiler.report(error);
             compiler.report_change_to_enclosing_scope(call);
@@ -2974,7 +2974,7 @@ impl ClosureRewriteModule {
             t.report(
                 current_script,
                 &ILLEGAL_MODULE_RENAMING_CONFLICT,
-                &[&name.to_string_lossy(), &original],
+                &[&name.to_string(), &original],
             );
         } else {
             let type_ = check_not_null!(n.get_jstype(t));

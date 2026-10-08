@@ -73,7 +73,7 @@ impl CheckEs6Modules {
             t.report(
                 import_node,
                 &DUPLICATE_IMPORT,
-                &[&specifier.to_string_lossy(), &lineno, &charno],
+                &[&specifier.to_string(), &lineno, &charno],
             );
         }
     }

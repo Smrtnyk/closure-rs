@@ -95,7 +95,7 @@ impl CheckGoogModuleTypeScriptName {
                     t.report(
                         n,
                         &MODULE_NAMESPACE_MISMATCHES_TYPESCRIPT_NAMESPACE,
-                        &[&replacement_namespace.to_string_lossy()],
+                        &[&replacement_namespace.to_string()],
                     );
                     return;
                 }

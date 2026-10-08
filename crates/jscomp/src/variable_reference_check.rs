@@ -503,7 +503,7 @@ impl<'a> ReferenceCheckingBehavior<'a> {
                             compiler,
                             n,
                             &EARLY_REFERENCE_ERROR,
-                            &[&ref_name.to_string_lossy()],
+                            &[&ref_name.to_string()],
                         );
                         compiler.report(error);
                     }
@@ -533,7 +533,7 @@ impl<'a> ReferenceCheckingBehavior<'a> {
                         compiler,
                         r.get_node(),
                         &REDECLARED_VARIABLE,
-                        &[&name.to_string_lossy()],
+                        &[&name.to_string()],
                     );
                     compiler.report(error);
                 }

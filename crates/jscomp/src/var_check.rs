@@ -331,7 +331,7 @@ impl VarCheck {
         } else if self.strict_extern_check && t.get_input().unwrap().is_extern() {
             // The extern checks are stricter, don't report a second error.
         } else {
-            t.report(n, &UNDEFINED_VAR_ERROR, &[&var_name.to_string_lossy()]);
+            t.report(n, &UNDEFINED_VAR_ERROR, &[&var_name.to_string()]);
         }
 
         if self.validity_check {
@@ -598,7 +598,7 @@ impl Callback for NameRefInExternsCheck<'_> {
                             return;
                         }
                         let name = n.get_string(t);
-                        t.report(n, &UNDEFINED_EXTERN_VAR_ERROR, &[&name.to_string_lossy()]);
+                        t.report(n, &UNDEFINED_EXTERN_VAR_ERROR, &[&name.to_string()]);
                         self.undefined_names_from_externs.insert(name);
                     }
                     return;
@@ -630,11 +630,7 @@ impl Callback for NameRefInExternsCheck<'_> {
                 _ => {}
             }
             let name = n.get_string(t);
-            t.report(
-                n,
-                &NAME_REFERENCE_IN_EXTERNS_ERROR,
-                &[&name.to_string_lossy()],
-            );
+            t.report(n, &NAME_REFERENCE_IN_EXTERNS_ERROR, &[&name.to_string()]);
             let scope = t.get_scope();
             let var = scope.get_var(t.get_compiler(), name.clone());
             if var.is_none() {

@@ -130,7 +130,7 @@ impl CheckInterfaces {
                 t.report(
                     m,
                     &STATIC_MEMBER_FUNCTION_IN_INTERFACE_CLASS,
-                    &[&class_name.to_string_lossy(), &func_name.to_string_lossy()],
+                    &[&class_name.to_string(), &func_name.to_string()],
                 );
             } else {
                 let block = m.get_last_child(t).unwrap().get_last_child(t).unwrap();

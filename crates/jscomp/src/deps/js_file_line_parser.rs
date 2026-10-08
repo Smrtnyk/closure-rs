@@ -266,7 +266,7 @@ impl JsFileLineParser {
                             base.line_num,
                             0,
                             if fatal { &PARSE_ERROR } else { &PARSE_WARNING },
-                            &[&e.message, &line.to_string_lossy()],
+                            &[&e.message, &line.to_string()],
                         ),
                     );
                     base.parse_succeeded = base.parse_succeeded && !fatal;

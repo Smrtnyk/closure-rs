@@ -75,7 +75,7 @@ impl Callback for CheckPrototypeProperties {
                     compiler,
                     assign,
                     &ILLEGAL_PROTOTYPE_MEMBER,
-                    &[&prop_name.to_string_lossy()],
+                    &[&prop_name.to_string()],
                 ));
             }
         }

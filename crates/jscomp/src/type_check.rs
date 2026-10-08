@@ -898,17 +898,13 @@ impl TypeCheck {
 
                 if left.is_type_of(compiler) {
                     if right.is_string_lit(compiler) {
-                        // The string reaches the message as Java's UTF-8 stream writes it.
-                        let s = closure_rhino::java_lang::string::to_utf8_output_string(
-                            &right.get_string(compiler),
-                        );
+                        // Display: Java's UTF-8 error stream text (an unpaired surrogate is '?').
+                        let s = right.get_string(compiler).to_string();
                         self.check_typeof_string(compiler, right, &s);
                     }
                 } else if right.is_type_of(compiler) && left.is_string_lit(compiler) {
-                    // The string reaches the message as Java's UTF-8 stream writes it.
-                    let s = closure_rhino::java_lang::string::to_utf8_output_string(
-                        &left.get_string(compiler),
-                    );
+                    // Display: Java's UTF-8 error stream text (an unpaired surrogate is '?').
+                    let s = left.get_string(compiler).to_string();
                     self.check_typeof_string(compiler, left, &s);
                 }
 
@@ -3176,7 +3172,7 @@ impl TypeCheck {
                             compiler,
                             prop_node,
                             &INEXISTENT_ENUM_ELEMENT,
-                            &[&prop_name.to_string_lossy()],
+                            &[&prop_name.to_string()],
                         );
                     } else {
                         self.check_property_access_helper(
@@ -3320,7 +3316,7 @@ impl TypeCheck {
                 compiler,
                 prop_node,
                 report_type,
-                &[&prop_name.to_string_lossy(), &object_name, &pair.suggestion],
+                &[&prop_name.to_string(), &object_name, &pair.suggestion],
             );
         } else {
             let report_type = if strict_report {
@@ -3338,7 +3334,7 @@ impl TypeCheck {
                 compiler,
                 prop_node,
                 report_type,
-                &[&prop_name.to_string_lossy(), &object_name],
+                &[&prop_name.to_string(), &object_name],
             );
         }
     }

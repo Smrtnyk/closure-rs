@@ -166,15 +166,6 @@ pub fn get_bytes_utf8(value: &JsString) -> Vec<u8> {
     dst
 }
 
-/// Rust-only: the text a Java UTF-8 stream (`PrintStream`, `OutputStreamWriter`) writes for
-/// `value`: an unpaired surrogate becomes `?`, the UTF-8 encoder's replacement, as in
-/// [`get_bytes_utf8`]. Diagnostic messages are Rust `String`s that only ever reach such streams,
-/// so a message argument taken from a Java string is converted with this rather than
-/// `to_string_lossy` (U+FFFD).
-pub fn to_utf8_output_string(value: &JsString) -> String {
-    String::from_utf8(get_bytes_utf8(value)).expect("get_bytes_utf8 writes valid UTF-8")
-}
-
 /// Rust-only JDK emulation of `String.toLowerCase(Locale.ROOT)`: the Unicode default case
 /// mapping of every code point (SpecialCasing included), with the Final_Sigma condition for
 /// U+03A3. Unpaired surrogates are kept, as Java keeps them.

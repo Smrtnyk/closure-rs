@@ -208,12 +208,7 @@ impl StrictModeCheck {
                     &mut getters
                 };
                 if !set.insert(key_name.clone()) {
-                    self.report(
-                        compiler,
-                        k,
-                        &DUPLICATE_MEMBER,
-                        &[&key_name.to_string_lossy()],
-                    );
+                    self.report(compiler, k, &DUPLICATE_MEMBER, &[&key_name.to_string()]);
                 }
             }
             if !k.is_getter_def(compiler) {
@@ -224,12 +219,7 @@ impl StrictModeCheck {
                     &mut setters
                 };
                 if !set.insert(key_name.clone()) {
-                    self.report(
-                        compiler,
-                        k,
-                        &DUPLICATE_MEMBER,
-                        &[&key_name.to_string_lossy()],
-                    );
+                    self.report(compiler, k, &DUPLICATE_MEMBER, &[&key_name.to_string()]);
                 }
             }
             key = k.get_previous(compiler);

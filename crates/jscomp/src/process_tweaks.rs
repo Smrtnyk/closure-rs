@@ -382,12 +382,8 @@ impl Callback for CollectTweaks {
 
                 // Ensure tweaks are registered in the global scope.
                 if !t.in_global_hoist_scope() {
-                    let error = JSError::make(
-                        t,
-                        n,
-                        &NON_GLOBAL_TWEAK_INIT_ERROR,
-                        &[&tweak_id.to_string_lossy()],
-                    );
+                    let error =
+                        JSError::make(t, n, &NON_GLOBAL_TWEAK_INIT_ERROR, &[&tweak_id.to_string()]);
                     t.get_compiler().report(error);
                     return;
                 }
@@ -398,7 +394,7 @@ impl Callback for CollectTweaks {
                         t,
                         n,
                         &TWEAK_MULTIPLY_REGISTERED_ERROR,
-                        &[&tweak_id.to_string_lossy()],
+                        &[&tweak_id.to_string()],
                     );
                     t.get_compiler().report(error);
                     return;

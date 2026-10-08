@@ -269,7 +269,7 @@ impl Es6RewriteModules {
                     t.report(
                         import_decl,
                         &MISSING_MODULE_OR_PROVIDE,
-                        &[&namespace.to_string_lossy()],
+                        &[&namespace.to_string()],
                     );
                 }
                 Some(m) => {
@@ -846,7 +846,7 @@ impl Es6RewriteModules {
             t.report(
                 require_call,
                 &MISSING_MODULE_OR_PROVIDE,
-                &[&namespace.to_string_lossy()],
+                &[&namespace.to_string()],
             );
             m = Some(self.get_fallback_metadata_for_namespace(&namespace));
         }
@@ -1027,7 +1027,7 @@ impl Es6RewriteModules {
             t.report(
                 current_script,
                 &ILLEGAL_MODULE_RENAMING_CONFLICT,
-                &[&name.to_string_lossy()],
+                &[&name.to_string()],
             );
         } else {
             let type_ = check_not_null!(n.get_jstype(t));
