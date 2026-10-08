@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckInterfacesTest.java getProcessor (lines 32-35), bb8c8e7; getOptions (lines 37-42) is captured by the record's options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.lint.CheckInterfaces",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": "The test class has no fields. The per-test disableAstValidation() call is restored from harness.fields."
+}

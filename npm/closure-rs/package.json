@@ -1,0 +1,53 @@
+{
+  "name": "closure-rs",
+  "version": "0.0.1-alpha.0",
+  "description": "Rust port of the Closure Compiler CLI. Not affiliated with or published by Google.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./index.d.ts",
+        "default": "./index.js"
+      },
+      "require": {
+        "types": "./index.d.cts",
+        "default": "./index.js"
+      },
+      "default": "./index.js"
+    },
+    "./package.json": "./package.json",
+    "./*": "./*"
+  },
+  "bin": {
+    "closure-rs": "cli.js",
+    "google-closure-compiler": "cli.js"
+  },
+  "files": [
+    "lib/",
+    "cli.js",
+    "index.js",
+    "index.d.ts",
+    "index.d.cts",
+    "contrib/",
+    "externs/",
+    "README.md"
+  ],
+  "keywords": [
+    "javascript",
+    "compiler",
+    "optimizer",
+    "minifier",
+    "closure",
+    "closure-compiler"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "closure-rs-linux-x64": "0.0.1-alpha.0",
+    "closure-rs-win32-x64": "0.0.1-alpha.0"
+  }
+}

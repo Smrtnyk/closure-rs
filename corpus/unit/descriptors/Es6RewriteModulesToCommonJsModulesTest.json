@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6RewriteModulesToCommonJsModulesTest.java getProcessor (lines 59-62), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.Es6RewriteModulesToCommonJsModules",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor is unconditional. The test fields moduleRoots, resolutionMode, prefixReplacements and pathEscaper are read only by the overridden getOptions(), whose effect (setModuleRoots, setModuleResolutionMode, setBrowserResolverPrefixReplacements, setPathEscaper, LINT_CHECKS=ERROR) is replayed from record.options. setUp's setLanguage(ES2015, ES5) is in harness.fields."
+}

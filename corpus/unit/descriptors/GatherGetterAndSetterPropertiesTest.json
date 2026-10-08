@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/GatherGetterAndSetterPropertiesTest.java getProcessor (lines 31-34), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.GatherGetterAndSetterProperties",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": "The test class has no fields and overrides no other hook. The follow-up assertions on getLastCompiler().getAccessorSummary() after each testSame are captured by postCall.compiler.accessorSummary (corpus/unit/postcall/GatherGetterAndSetterPropertiesTest.json). Vacuity (classify round 1, batch 5): every record passes with the whole processor replaced by a no-op, and this cannot be fixed by capturing more state, because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the compiler's accessor summary to GatherGetterAndSetterProperties.gather(compiler, globalRoot) (plus declaredAccessors, empty here) before the processor runs, and the pass's process() recomputes exactly that summary (update(): AccessorSummary.create(gather(compiler, externs.getParent()))). The asserted state is therefore identical with or without the pass; the original Java test has the same property. The gate's mechanical vacuity rule keeps all 33 records notCaptured (excluded from (a), counted in (e)); that is the correct outcome, not a descriptor gap. Not recorded: noAssumePropertiesAreStaticallyAnalyzable (lines 352-364), which builds its own Compiler and calls process directly instead of the harness test API."
+}

@@ -1,0 +1,303 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.CrossChunkReferenceCollectorTest",
+ "methods": [
+  {
+   "method": "testVarInBlock",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testVarInLoopNotAssignedOnlyOnceInLifetime",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testVarInFunctionNotAssignedOnlyOnceInLifetime",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testVarAssignedOnceInLifetime1",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testVarAssignedOnceInLifetime2",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testBasicBlocks",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testClassStaticBlock",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "nullishCoalesce",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testTopLevelStatements",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testVarDeclarationStatement",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testFunctionDeclarationStatement",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testVariableAssignmentStatement",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testPropertyAssignmentStatement",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testGoogInheritsIsMovableDeclaration",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testDefinePropertiesIsMovableDeclaration",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testDefinePropertiesWithPrototypeIsMovableDeclaration",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testFunctionDeclarationOrAssignmentIsMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testLiteralValueIsMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testFunctionCallsAreNotMovableExceptForMethodStubs",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testUnknownNameValueIsImmovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testWellDefinedNameValueIsMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testUninitializedNameValueIsNotMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testReDefinedNameValueIsNotMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testEmptyArrayLiteralIsMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testArrayLiteralOfMovablesIsMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testArrayLiteralWithImmovableIsImmovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testEmptyObjectLiteralIsMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testObjectLiteralOfMovablesIsMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testObjectLiteralWithImmovableIsImmovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testTemplateLiteralIsMovableIfSubstitutionsAreMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testTemplateLiteralIsImmovableIfSubstitutionsAreImmovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testPureOrBreakMyCodeAnnotatedStringConcatIsMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testPureOrBreakMyCodeAnnotatedFunctionCallIsMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testPureOrBreakMyCodeAnnotatedStaticClassPropertyInitializerIsMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testPureOrBreakMyCodeAnnotatedStaticClassPropertyInitializerIsMovable2",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testPureOrBreakMyCodeAnnotatedNonstaticClassFieldIsMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testPureOrBreakMyCodeAnnotatedStaticClassFieldIsMovable",
+   "status": "captured",
+   "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  }
+ ],
+ "note": "Classify round 1, batch 4. Every flagged method asserts on the collector that getProcessor stored in testedCollector. The descriptor now opts in to testFieldsAfter (holder helper CrossChunkReferenceCollectorTest_Helpers, testFieldsAfterAlso testedCollector), so all 46 records have post state 'checked' and the class is no longer vacuous (whole-processor no-op and class-level NoopAgent both fail 46/46 with 'testFieldsAfter differs'). The gate classifies these methods as captured mechanically on that basis; the entries below are rust_unit_test because the dump does not hold the computed predicates the tests assert (isMovableDeclaration, isAssignedOnceInLifetime, isWellDefined, basic-block roots, Reference identity, value-node numbers). A postCall producer for CrossChunkReferenceCollector would make them captured (harness request)."
+}

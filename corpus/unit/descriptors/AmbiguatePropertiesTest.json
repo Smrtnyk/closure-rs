@@ -1,0 +1,61 @@
+{
+  "source": "test/com/google/javascript/jscomp/disambiguate/AmbiguatePropertiesTest.java getProcessor (lines 66-80). customSetUp (lines 57-64) affects only harness fields, which come from the record.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "static": "com.google.javascript.jscomp.disambiguate.AmbiguateProperties",
+        "method": "makePassForTesting",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "static": "com.google.common.collect.ImmutableSet",
+            "method": "of",
+            "args": [
+              {
+                "call": {
+                  "string": "$"
+                },
+                "method": "charAt",
+                "args": [
+                  {
+                    "int": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "static": "com.google.common.collect.ImmutableSet",
+            "method": "of",
+            "args": [
+              {
+                "call": {
+                  "string": "$"
+                },
+                "method": "charAt",
+                "args": [
+                  {
+                    "int": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "call": {
+              "compiler": true
+            },
+            "method": "getExternProperties",
+            "args": []
+          }
+        ]
+      }
+    }
+  ],
+  "note": "The original getProcessor returns an anonymous CompilerPass whose process() builds AmbiguateProperties.makePassForTesting(compiler, ImmutableSet.of('$'), ImmutableSet.of('$'), getGatheredExternProperties()), stores it in the write-only test field lastPass (read only by the test's own follow-up assertions) and runs it. CompilerTestCase.testInternal calls getProcessor(compiler).process(externs, root) back to back, so building the pass when getProcessor is evaluated is equivalent. getGatheredExternProperties() is CompilerTestCase's lastCompiler.getExternProperties() (after checkState(gatherExternPropertiesEnabled), which customSetUp enables); during testInternal lastCompiler is the compiler passed to getProcessor (no multistage compilation in this class). The char literal '$' has no DSL literal, so it is produced as \"$\".charAt(0) (a boxed Character).",
+  "unrepresentableAudit": "2 records list nested values under test.lastPass (colorRegistry internals, dumped at entry). lastPass is written by the processor before anything reads it, and nothing in replay reads it. testFieldsAfter (lastPass, 139 records) is deliberately not opted in. It is a dump of Java-internal AmbiguateProperties state (colorRegistry, BitSets, node refs), and the only test assertion on it (testRenamingMap, line 876: lastPass.getRenamingMap() == {x:b, y:c, z:a}) is fully implied by that record's expected output. Opting in would also need a typed holder field 'lastPass', which cannot hold the --mutate-noop stand-in.",
+  "postCallNote": "D-015 (a), fix-14: the 139 records whose testFieldsAfter.lastPass changed are classified in corpus/unit/postcall/AmbiguatePropertiesTest.json as captured via postCall.pass.ambiguatedPropertyMap, the AmbiguateProperties.renamingMap that getRenamingMap() returns (the only lastPass state any test asserts, testRenamingMap line 876). Replay reads it from the processor this descriptor builds and compares it with the recorded postCall (recorded from the test field lastPass)."
+}

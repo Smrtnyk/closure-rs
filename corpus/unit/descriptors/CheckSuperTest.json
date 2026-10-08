@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckSuperTest.java getProcessor (lines 35-38), bb8c8e7; setUp (lines 40-46) only calls disableAstValidation, which is in harness.fields",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.CheckSuper",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "The test class declares no fields."
+}

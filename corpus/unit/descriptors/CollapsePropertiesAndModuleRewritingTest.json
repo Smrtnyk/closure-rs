@@ -1,0 +1,14 @@
+{
+  "source": "test/com/google/javascript/jscomp/CollapsePropertiesAndModuleRewritingTest.java getProcessor (lines 40-91), anonymous CompilerPass copied verbatim into CollapsePropertiesAndModuleRewritingTestHelpers",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "helper": "CollapsePropertiesAndModuleRewritingTestHelpers.Processor",
+        "outer": ["collapseLevel", "chunkOutputType"],
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "collapseLevel and chunkOutputType are read inside the pass's factory lambda, at process time, from the outer instance; they are restored from testFields as holder fields."
+}

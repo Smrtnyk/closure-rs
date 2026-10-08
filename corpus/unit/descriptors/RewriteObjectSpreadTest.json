@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/RewriteObjectSpreadTest.java getProcessor (lines 54-57), bb8c8e7; the @Before methods customSetUp (lines 38-42: setAcceptedLanguage, setLanguageOut) and enableTypeCheckBeforePass (lines 44-52: enableNormalize, enableTypeCheck, enableTypeInfoValidation, allowExternsChanges, replaceTypesWithColors, enableMultistageCompilation) only set harness fields restored from the record; the constructor's TestExternsBuilder externs (addObject) reach the record as inputs.externs",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.RewriteObjectSpread", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "The test class declares no instance fields; getProcessor is unconditional. Not recorded: the getLastCompiler() color assertions after test() in testTyping_ofSpreadResult_isObject (the test's own follow-up assertions)."
+}

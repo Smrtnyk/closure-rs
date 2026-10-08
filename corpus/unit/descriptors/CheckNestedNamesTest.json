@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckNestedNamesTest.java getProcessor (lines 47-50), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.lint.CheckNestedNames", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "getProcessor returns new CheckNestedNames(compiler) unconditionally. getOptions (lines 52-58: setParseJsDocDocumentation(INCLUDE_DESCRIPTIONS_NO_WHITESPACE), ANALYZER_CHECKS at WARNING) is replayed from the options diff; setUp (lines 39-45: enableCreateModuleMap, enableTypeCheck) and the per-test disableTypeCheck/enableTypeCheck calls from harness.fields. The test has no instance fields (CLOSURE_EXTERNS is static and only feeds the recorded externs)."
+}

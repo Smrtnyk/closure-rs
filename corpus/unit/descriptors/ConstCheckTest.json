@@ -1,0 +1,71 @@
+{
+  "source": "test/com/google/javascript/jscomp/ConstCheckTest.java getProcessor (lines 36-42), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "let": [
+          [
+            "compiler",
+            {
+              "compiler": true
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "root"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "do": [
+              {
+                "call": {
+                  "new": "com.google.javascript.jscomp.InferConsts",
+                  "args": [
+                    {
+                      "var": "compiler"
+                    }
+                  ]
+                },
+                "method": "process",
+                "args": [
+                  {
+                    "var": "externs"
+                  },
+                  {
+                    "var": "root"
+                  }
+                ]
+              },
+              {
+                "call": {
+                  "new": "com.google.javascript.jscomp.ConstCheck",
+                  "args": [
+                    {
+                      "var": "compiler"
+                    }
+                  ]
+                },
+                "method": "process",
+                "args": [
+                  {
+                    "var": "externs"
+                  },
+                  {
+                    "var": "root"
+                  }
+                ]
+              }
+            ],
+            "value": {
+              "null": true
+            }
+          }
+        }
+      }
+    }
+  ],
+  "note": "getProcessor returns the lambda (Node externs, Node root) -> { new InferConsts(compiler).process(externs, root); new ConstCheck(compiler).process(externs, root); }. The descriptor is that lambda in the DSL: the let binds the getProcessor argument the lambda captures, and both passes are constructed inside process(), as in the original. The class declares no test fields. setUp's enableCreateModuleMap is a harness field restored from the record."
+}

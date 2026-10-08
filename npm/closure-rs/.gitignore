@@ -1,0 +1,4 @@
+# Copied in by scripts/npm_pack_main.mjs when packing
+/contrib/
+/externs/
+/test/types/node_modules/

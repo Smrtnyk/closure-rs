@@ -1,0 +1,222 @@
+closure-rs
+==========
+
+closure-rs is a Rust port of the Closure Compiler (https://github.com/google/closure-compiler),
+translated from its Java sources at commit bb8c8e7cb8d0b14b27ff5e969d186bb97017eb06 (2026-10-05).
+It is an independent project and is not affiliated with, endorsed by, or published by Google.
+
+Besides Closure Compiler itself, closure-rs translates parts of the Java libraries Closure Compiler
+runs on, because the port reproduces their exact behaviour: OpenJDK 21 classes, Protocol Buffers for
+Java, Guava, Gson and args4j. This file names every origin, its copyright holders, its license and
+the closure-rs files that contain translations of it.
+
+How the licensing is recorded
+-----------------------------
+
+Every Rust file under crates/ starts with the license notice(s) of the file(s) it was translated
+from, copied verbatim, followed by "// Ported from ..." lines that name the upstream project,
+version and files. Every ported function is marked with the method it corresponds to
+("// port: Class#method"). A file with several origins carries each notice, and each part stays
+under its own license. Files written for closure-rs without an upstream source carry the Apache-2.0
+notice of The closure-rs Authors. scripts/license_headers.py regenerates the headers from the
+markers; LICENSES/FILES.md lists every file that is not Apache-2.0 only, with its upstream files,
+and LICENSES/headers.tsv records every file's header, licenses and upstream files.
+
+License texts: LICENSE (Apache-2.0) and LICENSES/ (see LICENSES/README.md). The SPDX expression of
+the whole is
+
+  Apache-2.0 AND (MPL-1.1 OR GPL-2.0-or-later) AND GPL-2.0-only WITH Classpath-exception-2.0
+  AND BSD-3-Clause AND MIT AND Unicode-DFS-2016 AND dtoa
+
+Changes relative to the originals are the translation into Rust and the adjustments documented in
+DECISIONS.md.
+
+1. Closure Compiler
+-------------------
+
+  Copyright 2002 onwards The Closure Compiler Authors (the year of each file is in its header).
+  sourcemap's mapping.proto: Copyright 2009 Google Inc. All rights reserved.
+  Licensed under the Apache License, Version 2.0 (LICENSE).
+
+  Most of crates/ (1104 of 1318 Rust files) translate Closure Compiler's Java sources, its tests
+  and the classes protoc generates from its .proto files. crates/resources/data holds verbatim
+  copies of the externs and runtime JavaScript libraries of the Closure Compiler jar, each with its
+  Apache-2.0 header.
+
+2. Rhino-derived files of Closure Compiler (MPL 1.1 / GPL 2.0 or later)
+-----------------------------------------------------------------------
+
+  Parts of Closure Compiler's com.google.javascript.rhino package (Node, Token, IR, JSDocInfo, the
+  type system in rhino/jstype and their tests, among others) are Rhino code:
+    The Original Code is Rhino code, released May 6, 1999.
+    The Initial Developer of the Original Code is Netscape Communications Corporation.
+    Portions created by the Initial Developer are Copyright (C) 1997-1999 the Initial Developer.
+    All Rights Reserved.
+  They are licensed under the Mozilla Public License 1.1 (LICENSES/MPL-1.1.txt), or alternatively
+  under the GNU General Public License version 2 or later, as each file's license block states
+  (the block names the file's contributors). The 136 Rust files that translate them keep that
+  block verbatim and the same license; LICENSES/FILES.md lists them. Most are in
+  crates/rhino/src and crates/jstype; where a port of Closure's Apache-2.0 code also translates a
+  few methods of rhino classes, those methods are in a sibling *_rhino.rs module (for tests, under
+  tests/rhino/), so that no file mixes the two licenses.
+
+  Closure's rhino/dtoa/DToA.java (ported to crates/rhino/src/dtoa/d_to_a.rs) also carries:
+    The author of this software is David M. Gay.
+    Copyright (c) 1991, 2000, 2001 by Lucent Technologies.
+  with the permission notice in LICENSES/dtoa.txt.
+
+3. OpenJDK 21
+-------------
+
+  Copyright (c) 1994, 2025, Oracle and/or its affiliates. All rights reserved (the years of each
+  file are in its header). Portions Copyright (c) 1995 Colin Plumb (java.math.BigInteger).
+  (C) Copyright Taligent, Inc. 1996, 1997 and (C) Copyright IBM Corp. 1996 - 1998 (java.text
+  MessageFormat, ParseException); Portions Copyright IBM Corporation, 2001 (java.math.BigDecimal).
+  Licensed under the GNU General Public License version 2 only, with the "Classpath" exception that
+  Oracle designates in each of these files (LICENSES/GPL-2.0-only-WITH-Classpath-exception-2.0.txt;
+  see also LICENSES/OpenJDK-ADDITIONAL_LICENSE_INFO.txt and LICENSES/OpenJDK-ASSEMBLY_EXCEPTION.txt).
+  Translated from the java.base and java.xml sources of the pinned JDK (Eclipse Temurin
+  21.0.12.1+1, lib/src.zip):
+
+  crates/rhino/src/java_lang.rs, java_lang/*.rs and java_util/*.rs (the JDK classes the compiler's
+  output depends on):
+    java.lang: Character and CharacterData, String, StringBuilder/AbstractStringBuilder, Integer,
+      Double, Math, Throwable, Object, NumberFormatException
+    java.math.BigInteger; jdk.internal.math: FloatingDecimal, DoubleToDecimal, FormattedFPDecimal,
+      MathUtils
+    java.util: HashMap, BitSet, PriorityQueue/AbstractQueue/AbstractCollection, Formatter,
+      Properties; java.util.regex: Pattern, Matcher, CharPredicates, PatternSyntaxException
+    java.util.zip: ZipInputStream, ZipEntry, ZipUtils, CRC32
+    java.net: URI, URISyntaxException; java.text: MessageFormat, ParseException
+    java.nio.charset: Charset, CharsetEncoder, CharsetDecoder; sun.nio.cs: UTF_8, UnicodeDecoder,
+      StreamEncoder, StreamDecoder; java.io: IOException, BufferedReader
+    java.nio.file.Path, sun.nio.fs.UnixPath, sun.nio.fs.UnixException
+    org.xml.sax: ContentHandler, Attributes, SAXParseException, XMLReader (the SAX parser of
+      java_lang/sax_parser.rs; see 3a for the Xerces code it also ports)
+  crates/sourcemap/src/java_string.rs (String, Character, Long, Boolean, Throwable),
+    java_math.rs (java.math.BigDecimal), java_character_case.rs (Character case tables)
+  crates/cli/src/jdk_globs.rs: sun.nio.fs.Globs, sun.nio.fs.UnixFileSystem#getPathMatcher,
+    java.util.regex.Pattern, PatternSyntaxException
+  crates/cli/src/abstract_command_line_runner.rs: Throwable#printEnclosedStackTrace
+  crates/jscomp/src/remove_unused_code.rs, lint/check_no_mutated_es6_exports.rs:
+    java.util.HashMap (hashing, resizing and iteration order)
+  crates/jscomp/src/serialization/fast_gzip_output_stream.rs: java.util.zip.GZIPOutputStream,
+    DeflaterOutputStream, Deflater
+  crates/jscomp/src/protobuf/text_format.rs: java.lang.Long#parseLong
+  crates/rhino/src/dtoa/d_to_a.rs: java.math.BigInteger
+  crates/resources/src/jar.rs, crates/resources/tests/resource_loader.rs: java.lang.Class
+    (resource name resolution), java.util.zip.ZipFile (entry lookup)
+  crates/testing/src/proto_neutral.rs: java.lang.String (UTF-8 decoding), java.util.Base64
+  crates/regex/tests/char_ranges_test.rs: java.util.Random
+
+  3a. Apache Xerces (in OpenJDK's java.xml module)
+
+  crates/rhino/src/java_lang/sax_parser.rs and xml_char.rs translate the JDK's copy of Apache
+  Xerces (com.sun.org.apache.xerces.internal: XMLDocumentScannerImpl,
+  XMLDocumentFragmentScannerImpl, XMLScanner, XMLEntityScanner, XMLDTDScannerImpl, XMLDTDValidator,
+  io.UTF8Reader, util.XMLChar). Those files are licensed to the Apache Software Foundation under the
+  Apache License, Version 2.0 (with Oracle's copyright lines on its modifications). The Apache
+  Xerces NOTICE (LICENSES/Apache-2.0-Xerces-NOTICE.md) reads:
+
+    Apache Xerces Java
+    Copyright 1999-2022 The Apache Software Foundation
+
+    This product includes software developed at
+    The Apache Software Foundation (http://www.apache.org/).
+
+    Portions of this software were originally based on the following:
+    - software copyright (c) 1999, IBM Corporation., http://www.ibm.com.
+    - software copyright (c) 1999, Sun Microsystems., http://www.sun.com.
+    - voluntary contributions made by Paul Eng on behalf of the
+    Apache Software Foundation that were originally developed at iClick, Inc.,
+    software copyright (c) 1999.
+
+  3b. Unicode data
+
+  crates/rhino/src/java_lang/character_data.rs, character_bmp_data.rs, character_case_data.rs,
+  regex_categories.rs and crates/sourcemap/src/java_character_case.rs hold character property
+  tables generated from JDK 21's java.lang.Character, that is, data of the Unicode Character
+  Database 15.0: Copyright (c) 1991-2022 Unicode, Inc. All rights reserved. Distributed under the
+  Terms of Use in https://www.unicode.org/copyright.html (LICENSES/Unicode-DFS-2016.txt).
+
+4. Protocol Buffers for Java
+----------------------------
+
+  Copyright 2008 Google Inc. All rights reserved.
+  Licensed under the BSD 3-Clause license (LICENSES/BSD-3-Clause-protobuf.txt).
+  Translated from protobuf-java 4.30.2, the version Closure Compiler uses:
+  crates/jscomp/src/serialization/protobuf.rs: CodedInputStream, CodedOutputStream, WireFormat,
+    MessageLite, Internal.EnumLite, Utf8, Descriptors, InvalidProtocolBufferException
+  crates/jscomp/src/protobuf/text_format.rs: TextFormat (Parser, Printer, Tokenizer,
+    TextGenerator), TextFormatEscaper, Descriptors, AbstractMessage
+  The message classes generated from Closure Compiler's .proto files (crates/jscomp/src/*_proto.rs,
+  crates/sourcemap/src/proto) belong to Closure Compiler (section 1).
+
+5. Guava
+--------
+
+  Copyright (C) 2006-2018 The Guava Authors (the year of each file is in its header).
+  Licensed under the Apache License, Version 2.0 (LICENSE). Translated from Guava 33.4.6-jre:
+  crates/rhino/src/common_hash/farm_hash_fingerprint64.rs: com.google.common.hash
+    FarmHashFingerprint64
+  crates/jscomp/src/serialization/js_type_color_id_hasher.rs: Hashing, AbstractHasher,
+    AbstractNonStreamingHashFunction, HashCode (com.google.common.hash)
+  crates/resources/src/guava.rs, crates/jscomp/src/variable_map.rs: ImmutableMap,
+    RegularImmutableMap, JdkBackedImmutableMap, JdkBackedImmutableBiMap,
+    com.google.common.collect.Hashing, Splitter
+  crates/jscomp/src/remove_unused_code.rs, lint/check_no_mutated_es6_exports.rs: HashMultimap,
+    AbstractMapBasedMultimap, Maps
+  crates/jscomp/src/source_map_resolver.rs: BaseEncoding
+  crates/jscomp/src/transpile/transpile_result.rs: PercentEscaper, UnicodeEscaper
+  crates/jscomp/src/js_message.rs, guava_ascii.rs: CaseFormat, Ascii
+  crates/jscomp/src/deps/js_file_line_parser.rs: CharMatcher (whitespace table)
+  crates/rhino/src/jscomp_base/mod.rs: Strings#lenientFormat, Preconditions
+
+6. Gson
+-------
+
+  Copyright (C) 2008, 2010, 2011 Google Inc. (the year of each file is in its header).
+  Licensed under the Apache License, Version 2.0 (LICENSE). Translated from Gson 2.9.1:
+  crates/sourcemap/src/gson/ (JsonElement, JsonObject, JsonArray, JsonPrimitive, JsonNull,
+    LazilyParsedNumber, the exceptions, stream.JsonReader, JsonWriter, JsonScope, Gson,
+    TypeAdapters) and crates/cli/src/gson/ (JsonReader, JsonWriter, Gson, Streams, TypeAdapters)
+  crates/jscomp/src/diagnostic/logs_gson.rs, disambiguate/disambiguate_properties.rs,
+    serialization/serialize_types_to_pointers.rs: Gson#toJson, TypeAdapter, TypeAdapters,
+    CollectionTypeAdapterFactory, MapTypeAdapterFactory
+
+7. args4j
+---------
+
+  Copyright (c) 2013 Kohsuke Kawaguchi and other contributors
+  Licensed under the MIT License (LICENSES/MIT-args4j.txt). Translated from args4j 2.33:
+  crates/cli/src/args4j/ (CmdLineParser, CmdLineException, NamedOptionDef, OptionDef,
+    ParserProperties, Messages, spi: OptionHandler, OneArgumentOptionHandler,
+    BooleanOptionHandler, IntOptionHandler, StringOptionHandler, EnumOptionHandler,
+    MapOptionHandler, MultiValueFieldSetter, Messages)
+
+8. closure-rs
+-------------
+
+  Copyright 2026 The closure-rs Authors. Licensed under the Apache License, Version 2.0.
+  The Rust translation, the files written for closure-rs, and closure-rs' own Java tooling under
+  oracle/ (the replay DSL and recorder that crates/testing ports; the oracle's *_Helpers classes
+  hold methods copied from Closure Compiler's tests, whose ports carry Closure's notice).
+
+APIs referenced without translating code
+----------------------------------------
+
+  Some "// port:" markers name a library API whose documented behaviour the Rust code reproduces
+  without translating its source: java.lang.Object/Enum/String/Throwable methods, java.util.logging,
+  Guava's ImmutableMap/ImmutableSet builders and multimaps elsewhere, Truth subjects, JUnit's
+  TemporaryFolder and Guava testlib's EqualsTester. They add no notice; the report of
+  scripts/license_headers.py lists each one.
+
+Binary distributions
+--------------------
+
+  The closure-rs executable also contains Rust crates from crates.io (Cargo.lock) and the Rust
+  standard library, each under its own license (MIT, Apache-2.0, Unlicense, Zlib), which the
+  binary distribution reproduces with the files above: LICENSES/THIRD_PARTY_RUST.md
+  (THIRD_PARTY_RUST.md in the npm platform packages) lists every linked crate with its version,
+  license and full license texts, including zlib's for the copy libz-sys builds from source when
+  no system zlib is used. scripts/third_party_licenses.py writes it from Cargo.lock.

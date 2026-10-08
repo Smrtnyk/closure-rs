@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckDuplicateCaseTest.java getProcessor (lines 31-34), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.lint.CheckDuplicateCase", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "The test class declares no fields, no setUp and no other harness overrides; getProcessor is unconditional."
+}

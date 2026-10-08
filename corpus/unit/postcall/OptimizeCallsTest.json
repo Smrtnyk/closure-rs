@@ -1,0 +1,65 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.OptimizeCallsTest",
+ "methods": [
+  {
+   "method": "testReferenceCollection_ignoringExterns",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.references"
+   ],
+   "note": "key sets of getNameReferences/getPropReferences are the keys of references.names / references.props in the dump"
+  },
+  {
+   "method": "testReferenceCollection_consideringExterns",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.references"
+   ],
+   "note": "key sets of getNameReferences/getPropReferences are the keys of references.names / references.props in the dump"
+  },
+  {
+   "method": "testReferenceCollection_doesNotCollectTheEmptyName",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.references"
+   ],
+   "note": "absence of the empty key in references.names"
+  },
+  {
+   "method": "testReferenceCollection_findsSuperCalls_simpleNames",
+   "status": "rust_unit_test",
+   "reason": "Source lines 182-214: after test(...) it copies references.getNameReferences() (the OptimizeCalls.ReferenceMap the CallGraphCompilerPass handed to the test-local addPass lambda) and asserts, besides the key set {SuperClass, SubClass}, that the reference Node objects of each name have the Token sequences [NAME, NAME, SUPER, NAME] and [NAME, NAME] in order (Correspondence HAS_TOKEN = Node::getToken). The asserted state is the reference object graph's Node objects (which node the collector recorded for each use, e.g. the SUPER node of super()); the replayed testFieldsAfter.references dump writes each reference node only as a class-name ref (Node / Node$StringNode), so NAME and GETPROP-like StringNodes are indistinguishable there. The records' postCall carries no pass-level key (postCall.pass is empty: no result producer is reachable from the OptimizeCalls processor or the helper) and only the compiler keys externProperties (the gathered extern property names) and accessorSummary (getter/setter summary), neither of which holds reference nodes.",
+   "fragment": "corpus/unit/rust_unit_tests/OptimizeCallsTest.md",
+   "category": "graph"
+  },
+  {
+   "method": "testReferenceCollection_findsSuperCalls_qualifiedNames",
+   "status": "rust_unit_test",
+   "reason": "Source lines 216-249: after test(...) it copies references.getPropReferences() and asserts, besides the key set {SuperClass, SubClass, constructor}, that the reference Node objects have the Token sequences [GETPROP, GETPROP, SUPER, GETPROP] and [GETPROP, GETPROP] in order (HAS_TOKEN = Node::getToken). The asserted state is the Node objects of the OptimizeCalls.ReferenceMap reference graph; the replayed testFieldsAfter.references dump writes each reference node only as a class-name ref (Node / Node$StringNode), not its token. The records' postCall carries no pass-level key (postCall.pass is empty: no result producer is reachable from the OptimizeCalls processor or the helper) and only the compiler keys externProperties (the gathered extern property names) and accessorSummary (getter/setter summary), neither of which holds reference nodes.",
+   "fragment": "corpus/unit/rust_unit_tests/OptimizeCallsTest.md",
+   "category": "graph"
+  },
+  {
+   "method": "testReferenceCollection_findsClassFields",
+   "status": "rust_unit_test",
+   "reason": "Source lines 251-296: after test(...) it asserts the key sets of getNameReferences() {C} and getPropReferences() {a, b, e} (those keys are compared by the replayed testFieldsAfter.references dump) and then that the single reference Node of each of a, b and e has Token MEMBER_FIELD_DEF (HAS_TOKEN = Node::getToken). The token of the Node objects in the OptimizeCalls.ReferenceMap reference graph is not in the dump, which writes each reference node only as a class-name ref. The records' postCall carries no pass-level key (postCall.pass is empty: no result producer is reachable from the OptimizeCalls processor or the helper) and only the compiler keys externProperties (the gathered extern property names) and accessorSummary (getter/setter summary), neither of which holds reference nodes.",
+   "fragment": "corpus/unit/rust_unit_tests/OptimizeCallsTest.md",
+   "category": "graph"
+  },
+  {
+   "method": "testReferenceCollection_reflectedProps",
+   "status": "rust_unit_test",
+   "reason": "Source lines 298-319: after test(...) it asserts that getPropReferences().get(\"m\") holds reference Node objects with the Token sequence [MEMBER_FUNCTION_DEF, CALL] in order, i.e. that the goog.reflect.objectProperty call node is recorded as a reference of m (HAS_TOKEN = Node::getToken). The asserted state is the Node objects of the OptimizeCalls.ReferenceMap reference graph; the replayed testFieldsAfter.references dump writes each reference node only as a class-name ref, not its token. The records' postCall carries no pass-level key (postCall.pass is empty: no result producer is reachable from the OptimizeCalls processor or the helper) and only the compiler keys externProperties (the gathered extern property names) and accessorSummary (getter/setter summary), neither of which holds reference nodes.",
+   "fragment": "corpus/unit/rust_unit_tests/OptimizeCallsTest.md",
+   "category": "graph"
+  },
+  {
+   "method": "testIsAllowedReference_taggedTemplateLiteral",
+   "status": "rust_unit_test",
+   "reason": "Source lines 321-345: after test(...) it takes getNameReferences().get(\"obj\") (asserted non-null) and calls the Java predicate OptimizeCalls.isAllowedReference(Node) on each reference Node object, asserting that at least one (the tagged-template use obj.tag`template`) is disallowed. The asserted state is a predicate over the position of the Node objects held in the OptimizeCalls.ReferenceMap reference graph (their parents in the AST); the replayed testFieldsAfter.references dump writes each reference node only as a class-name ref. The records' postCall carries no pass-level key (postCall.pass is empty: no result producer is reachable from the OptimizeCalls processor or the helper) and only the compiler keys externProperties (the gathered extern property names) and accessorSummary (getter/setter summary), neither of which holds reference nodes.",
+   "fragment": "corpus/unit/rust_unit_tests/OptimizeCallsTest.md",
+   "category": "graph"
+  }
+ ]
+}

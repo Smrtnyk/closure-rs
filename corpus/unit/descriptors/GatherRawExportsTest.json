@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/GatherRawExportsTest.java getProcessor (lines 47-51), bb8c8e7; setUp (lines 38-45) only calls enableNormalize/enableNormalizeExpectedOutput, which are restored from harness.fields",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.GatherRawExports",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor stores the new GatherRawExports in the test field `last` and returns it. `last` is write-only from getProcessor's point of view: only assertExported's follow-up assertion on last.getExportedVariableNames() reads it, and that assertion is not part of the record. One unconditional case covers every record."
+}

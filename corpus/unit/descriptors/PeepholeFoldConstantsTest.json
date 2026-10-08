@@ -1,0 +1,20 @@
+{
+  "source": "test/com/google/javascript/jscomp/PeepholeFoldConstantsTest.java getProcessor (lines 72-76), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+        "args": [
+          {"compiler": true},
+          {"record": "harness.effective.getName"},
+          {"array": "com.google.javascript.jscomp.AbstractPeepholeOptimization", "items": [
+            {"new": "com.google.javascript.jscomp.PeepholeFoldConstants",
+             "args": [{"field": "late"}, {"field": "useTypes"}]}
+          ]}
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor reads only the test fields late and useTypes (both always recorded as booleans) and getName(); one unconditional case covers every recorded combination (late in {false,true}, useTypes in {false,true}). The other overridden hooks need no descriptor: getNumRepetitions() returns the numRepetitions field and is replayed from harness.effective.getNumRepetitions (1 or 2); getOptions() only calls setAssumeGettersArePure(assumeGettersPure) and is replayed from the options diff (assumeGettersArePure absent when true, which is the CompilerOptions default). setUp's disableTypeCheck/enableNormalize/disableCompareJsDoc and the per-test enable*/disable* calls are in harness.fields. Not recorded at all: the private printHelper/process path (assertSameResults/assertNotSameResults in testInvertibleOperators and testCommutativeOperators), which calls getProcessor(compiler).process directly instead of test(); and the getLastCompiler() node assertions after test() in the two testFoldAddTemplateLiterals_validateRawAndCooked* methods."
+}

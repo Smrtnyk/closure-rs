@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckTemplateParamsTest.java getProcessor (lines 41-45), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "sequence": []
+      }
+    }
+  ],
+  "note": "getProcessor returns the no-op lambda `(externs, root) -> {}`; the warnings under test come from JSDoc parsing and type checking (setUp's enableTypeCheck, restored from harness.fields). An empty sequence is exactly a CompilerPass that does nothing. getOptions()'s setWarningLevel(CHECK_TYPES, WARNING) is replayed from record.options.",
+  "vacuityStatus": "Classify batch 3 (2026-10-07), informational only (the gate reads no free text here): the class is vacuous by construction, because the original getProcessor is itself the no-op lambda, so the whole-processor no-op run changes nothing. No method has assertions after its hooked call, the test class has no fields, and the records have no postconditions, so there is no post-call state to capture: everything the test asserts (the TOO_MANY_TEMPLATE_PARAMS warnings, which JSTypeRegistry reports through RhinoErrorReporter while the harness's enableTypeCheck step resolves JSDoc types) is compared inside the call through observed.warnings. Adding a testFieldsAfter opt-in only to escape the vacuity rule would be a hollow check, so the 29 records stay excluded from (a) by the mechanical vacuity rule (counted in (e)). Measured on 2026-10-07: 29/29 pass under --noop-processor, and 29/29 also pass under the class-level NoopAgent on com.google.javascript.jscomp.TypeCheck (3 entry points rewritten), so these warnings do not come from TypeCheck's own process/visit code either. Classify round 2 batch 8 (v7 records, build/unit/fix-8/noop, gate replay flags): --noop-processor 29/29 pass; the class-level NoopAgent on com.google.javascript.jscomp.TypedScopeCreator fails 11 records, 7 of them assertion-type (the expected TOO_MANY_TEMPLATE_PARAMS warning vanishes: indexes 2, 7, 8, 14, 19, 23, 28) and 4 with an NPE (not counted); on com.google.javascript.jscomp.TypeInferencePass 29/29 pass. TypedScopeCreator and TypeInferencePass have no pass role (gate Gate02PassRole: nopass), so vacuityNoopClass cannot name them (gate (a) would fail on it) and the class stays vacuous."
+}

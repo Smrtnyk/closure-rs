@@ -1,0 +1,12 @@
+{
+  "source": "test/com/google/javascript/jscomp/OptimizeParametersTest.java getProcessor (lines 41-44); setUp (lines 46-55) only toggles harness fields (enableNormalize, disableMultistageCompilation, enableNormalizeExpectedOutput, enableGatherExternProperties), which replay restores from harness.fields",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.OptimizeParameters",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

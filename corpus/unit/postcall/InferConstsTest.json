@@ -1,0 +1,198 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.InferConstsTest",
+ "methods": [
+  {
+   "method": "testArgumentsJSDoc",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testClass",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testConstArguments",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testConstantByConventionButNotInPractice",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testDefaultValue",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testDestructuring",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testEsModuleImports",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testForConst",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testForConst1",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testForConstJSDoc",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testForIn",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testForLet",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testForOf",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testForVar",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testFunctionParam",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testGeneratorFunctionConst",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testGeneratorFunctionVar",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testGoogModuleExports",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testPossibleEarlyRefInFunction",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testSimple",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testSimpleLetConst",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testUnfound",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testVarArguments",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  },
+  {
+   "method": "testVarInBlock",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.constFinder"
+   ],
+   "note": "assertConsts (InferConstsTest.java:291-309; assertNotConsts at 287-289 delegates to it) asserts after testSame that each expected name is in / not in constFinder.inferredNodes or constFinder.declaredNodes. The descriptor case checks the whole constFinder dump (names, declaredNodes, inferredNodes) on every record: testFieldsAfter.constFinder when it changed, testFieldsAfterAlso otherwise (the unchanged entry value)."
+  }
+ ]
+}

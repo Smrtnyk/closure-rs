@@ -1,0 +1,72 @@
+{
+  "source": "test/com/google/javascript/jscomp/ReplaceStringsTest.java getProcessor (lines 116-143), bb8c8e7; the anonymous CompilerPass (lines 120-142) is helper ReplaceStringsTest_Helpers.GetProcessorPass and the nested Renamer (lines 104-114) is ReplaceStringsTest_Helpers.Renamer; setUp (lines 89-102) sets functionsToInspect, runDisambiguateProperties and rename, whose values are recorded, and its enable*/setGenericNameReplacements calls are restored from harness.fields; getOptions (lines 82-87) is captured by the record's options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "once": "getProcessorPass",
+        "value": {
+          "helper": "ReplaceStringsTest_Helpers.GetProcessorPass",
+          "args": [
+            {
+              "compiler": true
+            },
+            {
+              "new": "com.google.javascript.jscomp.ReplaceStrings",
+              "args": [
+                {
+                  "compiler": true
+                },
+                {
+                  "string": "`"
+                },
+                {
+                  "field": "functionsToInspect"
+                }
+              ]
+            },
+            {
+              "field": "rename"
+            },
+            {
+              "field": "runDisambiguateProperties"
+            }
+          ]
+        }
+      },
+      "testFieldsAfter": {
+        "once": "getProcessorPass",
+        "value": {
+          "helper": "ReplaceStringsTest_Helpers.GetProcessorPass",
+          "args": [
+            {
+              "compiler": true
+            },
+            {
+              "new": "com.google.javascript.jscomp.ReplaceStrings",
+              "args": [
+                {
+                  "compiler": true
+                },
+                {
+                  "string": "`"
+                },
+                {
+                  "field": "functionsToInspect"
+                }
+              ]
+            },
+            {
+              "field": "rename"
+            },
+            {
+              "field": "runDisambiguateProperties"
+            }
+          ]
+        }
+      },
+      "note": "Post-call check (classify batch 7, D-015 a): testDebugStrings asserts on pass.getResult() after test(js, expected) (test lines 525-542): the list of used ReplaceStrings.Result objects, each result's original and replacement, in order. The test field `pass` is the ReplaceStrings that getProcessor built for this call (one repetition in every record); the helper GetProcessorPass holds that same object in its field `pass`, so the processor is shared through once and the holder's field `pass` is compared with the record's testFieldsAfter.pass. Its `results` field is the LinkedHashMap original -> Result (original, replacement, didReplacement) in insertion order, which is exactly what getResult() filters (didReplacement) and returns."
+    }
+  ],
+  "note": "getProcessor first assigns pass = new ReplaceStrings(compiler, \"`\", functionsToInspect) (built here as the helper's second argument), then returns the anonymous pass, which reads rename, runDisambiguateProperties and pass when it runs. functionsToInspect is always recorded as a plain string list (the default list, or [\"A.prototype.f(?)\"] in testWarnsIfPassingPrototypeMethod); rename is true in testRenameName/testRenameStaticProp; runDisambiguateProperties is false in every record. The recorded value of the field pass is stale (the previous call's pass, or null) because getProcessor overwrites it; the one record with unrepresentable entries (testExcludedFile call 1) has them all under test.pass, so they do not affect replay. testDebugStrings's follow-up assertions on pass.getResult() are checked by the case's testFieldsAfter (classify batch 7; see the case note and corpus/unit/postcall/ReplaceStringsTest.json)."
+}

@@ -1,0 +1,42 @@
+{
+  "source": "test/com/google/javascript/jscomp/RewriteOptionalChainingOperatorTest.java: nested classes BaseTestClass.getProcessor (lines 399-412) and DeleteOptChainTests.getProcessor (lines 432-445), each `new RewriteOptionalChainingOperator(compiler, testVarNameCreator)` over an anonymous counting TmpVarNameCreator. The TmpVarNameCreator statements (lines 401-410, 434-443) are copied verbatim into helper RewriteOptionalChainingOperatorTest_Helpers; the constructor call is the DSL new, bb8c8e7.",
+  "cases": [
+    {
+      "when": {
+        "instanceClass": "com.google.javascript.jscomp.RewriteOptionalChainingOperatorTest$BaseTestClass"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.RewriteOptionalChainingOperator",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "static": "com.google.javascript.jscomp.RewriteOptionalChainingOperatorTest_Helpers",
+            "method": "baseTestClassTmpVarNameCreator",
+            "args": []
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "instanceClass": "com.google.javascript.jscomp.RewriteOptionalChainingOperatorTest$DeleteOptChainTests"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.RewriteOptionalChainingOperator",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "static": "com.google.javascript.jscomp.RewriteOptionalChainingOperatorTest_Helpers",
+            "method": "deleteOptChainTestsTmpVarNameCreator",
+            "args": []
+          }
+        ]
+      }
+    }
+  ],
+  "note": "BaseTestClass is Parameterized; its jsSrc/jsOutput parameter fields only feed test(...) inputs and expected output, which are in the record. Each getProcessor call creates a fresh TmpVarNameCreator (counter starts at 0), so no {\"once\"} is needed. customSetUp (lines 390-397) and DeleteOptChainTests.setUp (lines 422-430) only call harness setters, restored from harness.fields."
+}

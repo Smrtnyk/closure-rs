@@ -1,0 +1,32 @@
+{
+  "source": "test/com/google/javascript/jscomp/integration/IntegrationTest.java: IntegrationTestCase subclass; records replay through ReplayIntegrationTest; options come from the record, there is no processor.",
+  "note": "2 of 340 records store anonymous test classes into CompilerOptions: testReplaceIdGeneratorsTest call 0 (idGenerators = ImmutableMap.of(\"xid\", IntegrationTest$1), lines 1330-1340) and testAlwaysRunSafetyCheck call 0 (customPasses gets IntegrationTest$2 at BEFORE_OPTIMIZATIONS, lines 3871-3883). Rule 6 keeps those classes off the replay classpath, so the cases below skip decoding those option fields and rebuild them with the test's own calls on the verbatim helpers in oracle/replay/helpers/com/google/javascript/jscomp/IntegrationTest_Helpers.java. Every other record replays with no customisation (no case matches).",
+  "cases": [
+    {
+      "when": {"method": "testReplaceIdGeneratorsTest", "call": 0},
+      "options": {
+        "skip": ["idGenerators"],
+        "then": [
+          {"call": {"options": true}, "method": "setIdGenerators", "args": [
+            {"static": "com.google.common.collect.ImmutableMap", "method": "of", "args": [
+              {"string": "xid"},
+              {"helper": "IntegrationTest_Helpers.XidRenamingMap"}
+            ]}
+          ]}
+        ]
+      }
+    },
+    {
+      "when": {"method": "testAlwaysRunSafetyCheck", "call": 0},
+      "options": {
+        "skip": ["customPasses"],
+        "then": [
+          {"call": {"options": true}, "method": "addCustomPass", "args": [
+            {"enum": "com.google.javascript.jscomp.CustomPassExecutionTime", "name": "BEFORE_OPTIMIZATIONS"},
+            {"helper": "IntegrationTest_Helpers.AlwaysRunSafetyCheckPass"}
+          ]}
+        ]
+      }
+    }
+  ]
+}

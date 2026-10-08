@@ -1,0 +1,60 @@
+{
+  "source": "test/com/google/javascript/jscomp/GatherExternPropertiesTest.java getProcessor (lines 63-67) and field mode (line 57), copied verbatim into helper GatherExternPropertiesTest_Helpers; expectExterns postcondition (lines 342-345), bb8c8e7",
+  "cases": [
+    {
+      "when": {
+        "expected.postconditions": 1
+      },
+      "processor": {
+        "call": {
+          "once": "holder",
+          "value": {
+            "withFields": {
+              "helper": "GatherExternPropertiesTest_Helpers"
+            },
+            "fields": {
+              "mode": {
+                "field": "mode"
+              }
+            }
+          }
+        },
+        "method": "getProcessor",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      },
+      "postconditions": [
+        {
+          "helper": "GatherExternPropertiesTest_Helpers.ExpectExterns",
+          "args": [
+            {
+              "record": "expected.postconditionValues.0.captures.arg$1"
+            }
+          ]
+        }
+      ],
+      "testFieldsAfter": {
+        "once": "holder",
+        "value": {
+          "withFields": {
+            "helper": "GatherExternPropertiesTest_Helpers"
+          },
+          "fields": {
+            "mode": {
+              "field": "mode"
+            }
+          }
+        }
+      },
+      "testFieldsAfterAlso": [
+        "mode"
+      ],
+      "note": "The holder GatherExternPropertiesTest_Helpers stands in for the test instance: its field mode is set from the recorded testFields.mode, and its verbatim getProcessor defaults it to OPTIMIZE and writes it back exactly like the test (getProcessor runs once per record, numRepetitions 1). The testFieldsAfter check compares mode after the call on every record (testFieldsAfterAlso): the 6 first records of methods that never set mode recorded the write-back null -> OPTIMIZE in testFieldsAfter; the others expect their unchanged entry value. The test's own post-call assertion is the postcondition (expectExterns: compiler.getExternProperties() containsExactlyElementsIn the expected names), replayed verbatim; postCall.compiler.externProperties records the same set."
+    }
+  ],
+  "note": "getProcessor is `mode = this.mode == null ? Mode.OPTIMIZE : mode; return new GatherExternProperties(compiler, mode);`, replayed verbatim through the holder (classify round 1, batch 5; it replaces the two earlier cases that inlined the default). testFields is captured before getProcessor runs, so the first record of a test method that never sets mode has mode null; later records see the field already defaulted, or set explicitly by the test (CHECK, OPTIMIZE, CHECK_AND_OPTIMIZE). assertExternProperties' postcondition lambda (expectExterns, lines 342-345) is replayed through the verbatim helper GatherExternPropertiesTest_Helpers.ExpectExterns, rebuilt from its recorded capture expected.postconditionValues.0.captures.arg$1 (every record has exactly 1 postcondition; the `when` pins that).",
+  "unrepresentableAudit": "Gate (e) plan (classify round 2, batch 3, v7 records): no record has a recorder-level `unrepresentable` entry any more. D-017 item 1 put GatherExternPropertiesTest in UnitRecorder.POSTCONDITION_DATA_CLASSES: the expectExterns lambda's index 0 is listed in expected.postconditionsCaptured, postCall.postcondition.externProperties holds the asserted set, and gate (e) skips the lambda placeholder in expected.postconditionValues[0] because postCall.postcondition is present. The lambda's code is still replayed verbatim (GatherExternPropertiesTest_Helpers.ExpectExterns, rebuilt from its recorded capture expected.postconditionValues.0.captures.arg$1; count rule 1 = 1 on all 32 records)."
+}

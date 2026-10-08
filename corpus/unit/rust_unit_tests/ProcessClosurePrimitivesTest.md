@@ -1,0 +1,4 @@
+Post-call assertions of ProcessClosurePrimitivesTest (test/com/google/javascript/jscomp/ProcessClosurePrimitivesTest.java, bb8c8e7) that query the compiler's JSTypeRegistry (`isForwardDeclaredType`). The post-call snapshot has no key for the registry's forward-declared names. Port each as a Rust unit test of ProcessClosurePrimitives and the type registry.
+
+- ProcessClosurePrimitivesTest#testAddDependency: after `goog.addDependency('x.js', ['A', 'B'], []);` is folded to `0`, none of `A`, `B`, `C` is a forward-declared type (lines 102-109).
+- ProcessClosurePrimitivesTest#testForwardDeclarations: `goog.forwardDeclare('A.B')` in a script and in a `goog.module` forward-declares `A.B` (and not `C.D`); `const B = goog.forwardDeclare('A.B')` in a module, with `A.B` provided by another file, does NOT forward-declare `A.B` (lines 151-170).

@@ -1,0 +1,12 @@
+{
+  "source": "test/com/google/javascript/jscomp/ExtraRequireRemoverTest.java getProcessor (lines 27-30); the getOptions override (lines 32-37, MODULE_LOAD warnings OFF) is captured in the record's options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ExtraRequireRemover",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

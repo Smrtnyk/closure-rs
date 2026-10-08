@@ -1,0 +1,8 @@
+## RewriteAsyncIterationTest (post-call assertions, gate 0.2 (a))
+
+Methods of `com.google.javascript.jscomp.RewriteAsyncIterationTest` whose assertions after the hooked call assert the colors (`Color`, Java-internal objects of the output AST) of nodes the pass created. Their records stay in the corpus (inputs, expected output, diagnostics and outcome replay); the post-call checks below are ported as Rust unit tests next to the pass.
+
+- RewriteAsyncIterationTest#testAsyncGenerator: in `baz` after rewriting `async function* baz() { foo() }`, the `$jscomp.AsyncGeneratorWrapper` NAME has the wrapper class color, the NEW expression has the wrapper instance color and the inner generator call has the GENERATOR color
+- RewriteAsyncIterationTest#testAwaitInAsyncGenerator: after rewriting `await` inside an async generator, the wrapper NAME / NEW / inner generator call carry the wrapper class, wrapper instance and GENERATOR colors; in the second case `bar = await foo()` leaves `bar` colored NUMBER
+- RewriteAsyncIterationTest#testForAwaitOfDeclarations: in the rewritten for-await loop, `$jscomp$forAwait$tempIterator0` and the `$jscomp.makeAsyncIterator` call are colored ASYNC_ITERATOR_ITERABLE, the `next()` call PROMISE, `.done` BOOLEAN and `.value` NUMBER (for each declaration kind tested)
+- RewriteAsyncIterationTest#testYieldInAsyncGenerator: after rewriting `yield` inside an async generator, the wrapper NAME / NEW / inner generator call carry the wrapper class, wrapper instance and GENERATOR colors; in the second case `bar = yield 2+2` leaves `bar` colored UNKNOWN (yield expressions are always `?`)

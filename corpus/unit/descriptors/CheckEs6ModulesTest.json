@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckEs6ModulesTest.java getProcessor (lines 39-42), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.lint.CheckEs6Modules",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor reads no test fields (the class declares none), so one unconditional case covers every record. setUp (lines 33-37) only calls ignoreWarnings(ModuleLoader.INVALID_MODULE_PATH), which is in harness.fields. getOptions is not overridden."
+}

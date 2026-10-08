@@ -1,0 +1,38 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.TranspileAndOptimizeClosureUnawareTest",
+ "methods": [
+  {
+   "method": "classInheritance_injectsRequiredRuntimeLibraries",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.injectedLibraries"
+   ],
+   "note": "After one test(...) (multistage), asserts getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() containsExactly es6/util/construct, es6/util/inherits, es6/util/arrayfromiterable: the set of runtime library paths injected into the compiler, which D-017 item 2 makes the neutral snapshot key postCall.compiler.injectedLibraries. Since harness round 2 (D-017 item 2, v7 recording) the method's record carries postCall.compiler.injectedLibraries in injection order, and replay compares it by postCall JSON equality (class-limited gate (a) run, fix-6 round 2: claim verified, record passes). It is not a Rust unit test: the asserted value is a set of library path strings, a neutral value (FORMAT.md, D-017 item 2)."
+  },
+  {
+   "method": "classInheritance_usesReflectConstructForUnknownSuperclass",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.injectedLibraries"
+   ],
+   "note": "After one test(...) (multistage), asserts getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() containsExactly es6/util/construct, es6/util/inherits, es6/util/arrayfromiterable: the set of runtime library paths injected into the compiler, which D-017 item 2 makes the neutral snapshot key postCall.compiler.injectedLibraries. Since harness round 2 (D-017 item 2, v7 recording) the method's record carries postCall.compiler.injectedLibraries in injection order, and replay compares it by postCall JSON equality (class-limited gate (a) run, fix-6 round 2: claim verified, record passes). It is not a Rust unit test: the asserted value is a set of library path strings, a neutral value (FORMAT.md, D-017 item 2)."
+  },
+  {
+   "method": "runtimeLibraryInjection_injectsOnlyWhatsNeededPerScript",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.injectedLibraries"
+   ],
+   "note": "After one test(...) (multistage), asserts getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() containsExactly es6/util/construct, es6/util/inherits, es6/util/arrayfromiterable, es6/object/assign: the set of runtime library paths injected into the compiler, which D-017 item 2 makes the neutral snapshot key postCall.compiler.injectedLibraries. Since harness round 2 (D-017 item 2, v7 recording) the method's record carries postCall.compiler.injectedLibraries in injection order, and replay compares it by postCall JSON equality (class-limited gate (a) run, fix-6 round 2: claim verified, record passes). It is not a Rust unit test: the asserted value is a set of library path strings, a neutral value (FORMAT.md, D-017 item 2)."
+  },
+  {
+   "method": "runtimeFieldInjection_incompatibleWithRestArg",
+   "status": "captured",
+   "note": "Review round 4: the former rust_unit_test reason named a value replay compares (outcome); former reason: asserts the message of the IllegalStateException thrown by the hooked call (assertThrows ... hasMessageThat().contains(\"rest parameters not allowed in closureUnaware function\")). The record's outcome (status exception, class and full message) is compared exactly by Java replay, but the postcall schema accepts only postCall.*, testFieldsAfter.* or postconditions as `via`, and a non-Java harness com",
+   "via": [
+    "outcome"
+   ]
+  }
+ ]
+}

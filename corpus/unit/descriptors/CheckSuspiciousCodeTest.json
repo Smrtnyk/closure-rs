@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckSuspiciousCodeTest.java getProcessor (lines 30-33). setUp (enableParseTypeInfo) and per-test enableTypeCheck come from the record's harness fields.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.CombinedCompilerPass",
+        "args": [
+          {"compiler": true},
+          {"array": "com.google.javascript.jscomp.NodeTraversal$Callback", "items": [
+            {"new": "com.google.javascript.jscomp.CheckSuspiciousCode", "args": []}
+          ]}
+        ]
+      }
+    }
+  ]
+}

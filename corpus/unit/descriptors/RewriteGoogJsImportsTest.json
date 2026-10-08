@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/RewriteGoogJsImportsTest.java getProcessor (lines 59-71), a lambda CompilerPass",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "helper": "RewriteGoogJsImportsTest_Helpers.GetProcessorPass",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "A DSL sequence cannot express this lambda: ModuleMapCreator and RewriteGoogJsImports read compiler.getModuleMetadataMap() / compiler.getModuleMap() in their constructors, which must run after the previous pass. The lambda body is the helper's process()."
+}

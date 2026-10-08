@@ -1,0 +1,17 @@
+{
+ "source": "test/com/google/javascript/jscomp/WhitespaceWrapGoogModulesTest.java getProcessor (lines 37-40), bb8c8e7",
+ "cases": [
+  {
+   "when": {},
+   "processor": {
+    "new": "com.google.javascript.jscomp.WhitespaceWrapGoogModules",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  }
+ ],
+ "note": "The class declares no instance fields. setUp (lines 26-35) only calls disableCompareAsTree(), whose effect (harness.fields.compareAsTree=false, comparison.mode=string) is restored from the recorded harness fields."
+}

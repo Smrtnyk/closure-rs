@@ -1,0 +1,3 @@
+Post-call assertions of ProcessClosureProvidesAndRequiresTest (test/com/google/javascript/jscomp/ProcessClosureProvidesAndRequiresTest.java, bb8c8e7) that inspect source positions of output AST nodes. The AST comparison ignores line and column numbers, and the post-call snapshot does not record them. The comparison of `lastProcessor` in replay does not cover them either. Port it as a Rust unit test of ProcessClosureProvidesAndRequires.
+
+- ProcessClosureProvidesAndRequiresTest#testSourcePositionPreservation: for `goog.provide('foo.bar.baz');`, the generated declarations of `foo`, `foo.bar` and `foo.bar.baz` sit at line 1, columns 14, 18 and 22 (lines 914-938).

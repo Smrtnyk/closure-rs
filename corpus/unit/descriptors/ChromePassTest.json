@@ -1,0 +1,9 @@
+{
+  "source": "test/com/google/javascript/jscomp/ChromePassTest.java getProcessor (lines 26-29), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.ChromePass", "args": [{"compiler": true}]}
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+[package]
+name = "jsgen"
+description = "Seeded, deterministic grammar-based JavaScript program generator (docs/PORTING.md §4.6)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "jsgen"
+path = "src/bin/jsgen.rs"
+
+[lints]
+workspace = true

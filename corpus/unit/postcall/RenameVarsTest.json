@@ -1,0 +1,494 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.RenameVarsTest",
+ "methods": [
+  {
+   "method": "testArrayDestructuring",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testArrowFunctions",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testBias",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testBleedingFunctionInBlocks",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testBleedingRecursiveFunctions1",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testBleedingRecursiveFunctions2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testBleedingRecursiveFunctions3",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testClasses",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testContrivedExampleWhereConsistentRenamingIsWorse",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "the assertions after test() read renameVars.getVariableMap() (assertVariableMapsEqual / lookupNewName); postCall.pass.variableMap is RenameVars.getVariableMap() of the pass the processor built (or, under ClosurePassAndRenameVars, of the renameVars it assigns), compared exactly by replay"
+  },
+  {
+   "method": "testDefaultFunction",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testDoNotRenameArguments",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testDoNotRenameExportedName",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testDollarSignSuperExport1",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testDollarSignSuperExport2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testExportComplexSymbolReservesName",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testExportSimpleSymbolReservesName",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testExportToNonStringDoesntExplode",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testForOf",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testGenerators",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testImport1",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testImport2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testLetConst",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testNamingBasedOnOrderOfOccurrence",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testObjectDestructuring",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testObjectLiterals",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testPreferStableNames",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "the assertions after test() read renameVars.getVariableMap() (assertVariableMapsEqual / lookupNewName); postCall.pass.variableMap is RenameVars.getVariableMap() of the pass the processor built (or, under ClosurePassAndRenameVars, of the renameVars it assigns), compared exactly by replay"
+  },
+  {
+   "method": "testPseudoNames",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRecursiveFunctions1",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameGlobals",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameLocals",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameLocalsClashingWithGlobals",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameLocalsToSame",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameLocals_const",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameLocals_let",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameNested",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameParamsWithLeadingUnderscores",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameRedeclaredGlobals",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameSimple",
+   "status": "rust_unit_test",
+   "reason": "asserts source positions (source file name, lineno, charno, length) of the output AST nodes of getLastCompiler().getRoot() after test(); Node source positions are in no test field or postcondition, the records' postCall key variableMap holds only the rename map (original name to new name), and Node.isEquivalentTo ignores positions",
+   "fragment": "corpus/unit/rust_unit_tests/RenameVarsTest.md",
+   "note": "its one record's testFieldsAfter.renameVars changed and postCall.pass.variableMap is compared, but that does not cover the asserted positions",
+   "category": "node-identity"
+  },
+  {
+   "method": "testRenameWithExterns1",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameWithExterns2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameWithNameOverlap",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameWithPrefix1",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameWithPrefix2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRenameWithPrefix3",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testRestFunction",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testStableRenameGlobals",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "the assertions after test() read renameVars.getVariableMap() (assertVariableMapsEqual / lookupNewName); postCall.pass.variableMap is RenameVars.getVariableMap() of the pass the processor built (or, under ClosurePassAndRenameVars, of the renameVars it assigns), compared exactly by replay"
+  },
+  {
+   "method": "testStableRenameLocalsClashingWithGlobals",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testStableRenameNested",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "the assertions after test() read renameVars.getVariableMap() (assertVariableMapsEqual / lookupNewName); postCall.pass.variableMap is RenameVars.getVariableMap() of the pass the processor built (or, under ClosurePassAndRenameVars, of the renameVars it assigns), compared exactly by replay"
+  },
+  {
+   "method": "testStableRenameSimple",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "the assertions after test() read renameVars.getVariableMap() (assertVariableMapsEqual / lookupNewName); postCall.pass.variableMap is RenameVars.getVariableMap() of the pass the processor built (or, under ClosurePassAndRenameVars, of the renameVars it assigns), compared exactly by replay"
+  },
+  {
+   "method": "testStableRenameSimpleExternsChanges",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "the assertions after test() read renameVars.getVariableMap() (assertVariableMapsEqual / lookupNewName); postCall.pass.variableMap is RenameVars.getVariableMap() of the pass the processor built (or, under ClosurePassAndRenameVars, of the renameVars it assigns), compared exactly by replay"
+  },
+  {
+   "method": "testStableRenameSimpleGlobalNameExterned",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testStableRenameSimpleLocalNameExterned",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testStableRenameWithAnonymousFunctions",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "the assertions after test() read renameVars.getVariableMap() (assertVariableMapsEqual / lookupNewName); postCall.pass.variableMap is RenameVars.getVariableMap() of the pass the processor built (or, under ClosurePassAndRenameVars, of the renameVars it assigns), compared exactly by replay"
+  },
+  {
+   "method": "testStableRenameWithExterns1",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testStableRenameWithExterns2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testStableRenameWithNameOverlap",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testStableRenameWithPointlesslyAnonymousFunctions",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "the assertions after test() read renameVars.getVariableMap() (assertVariableMapsEqual / lookupNewName); postCall.pass.variableMap is RenameVars.getVariableMap() of the pass the processor built (or, under ClosurePassAndRenameVars, of the renameVars it assigns), compared exactly by replay"
+  },
+  {
+   "method": "testStableRenameWithPrefix1AndUnstableLocalNames",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testStableRenameWithPrefix2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testTemplateStrings",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  },
+  {
+   "method": "testTryCatchLifeTime",
+   "status": "captured",
+   "via": [
+    "postCall.pass.variableMap"
+   ],
+   "note": "no assertion after the hooked call; its records' testFieldsAfter.renameVars (and for testBias nameGenerator) changed because getProcessor/ClosurePassAndRenameVars assigns the pass, whose result state is the variable map that replay compares as postCall.pass.variableMap (the next call reads it as previouslyUsedMap, recorded in that record's testFields)"
+  }
+ ]
+}

@@ -1,0 +1,15 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.OptionalChainTypeCheckTest",
+ "methods": [
+  {
+   "method": "testOptChainGetElemExpressions_nonNullObject",
+   "recordClass": "com.google.javascript.jscomp.OptionalChainTypeCheckTest$OptChainTestsNonParameterized",
+   "status": "rust_unit_test",
+   "reason": "asserts JSType.isUnknownType() on output AST nodes after parseAndTypeCheck (JSType objects; type_check observed_only record)",
+   "fragment": "corpus/unit/rust_unit_tests/OptionalChainTypeCheckTest.md",
+   "note": "moved from the descriptor's legacy postCallAssertions (fix-13)",
+   "category": "jstype"
+  }
+ ]
+}

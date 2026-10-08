@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/AngularPassTest.java getProcessor (lines 27-30), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.AngularPass",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor is unconditional. getOptions() (lines 32-39) sets MODULE_LOAD to OFF and angularPass=true, both replayed from the options diff; the per-test enableRewriteClosureCode() is in harness.fields."
+}

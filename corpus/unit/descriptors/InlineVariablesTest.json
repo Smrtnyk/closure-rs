@@ -1,0 +1,25 @@
+{
+  "source": "test/com/google/javascript/jscomp/InlineVariablesTest.java getProcessor (lines 46-50); field inlineLocalsOnly (line 32), reset in tearDown (lines 52-56)",
+  "cases": [
+    {
+      "when": {"testFields.inlineLocalsOnly": true},
+      "processor": {
+        "new": "com.google.javascript.jscomp.InlineVariables",
+        "args": [
+          {"compiler": true},
+          {"enum": "com.google.javascript.jscomp.InlineVariables$Mode", "name": "LOCALS_ONLY"}
+        ]
+      }
+    },
+    {
+      "when": {"testFields.inlineLocalsOnly": false},
+      "processor": {
+        "new": "com.google.javascript.jscomp.InlineVariables",
+        "args": [
+          {"compiler": true},
+          {"enum": "com.google.javascript.jscomp.InlineVariables$Mode", "name": "ALL"}
+        ]
+      }
+    }
+  ]
+}

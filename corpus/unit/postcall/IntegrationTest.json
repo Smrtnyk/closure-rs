@@ -1,0 +1,152 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.integration.IntegrationTest",
+ "methods": [
+  {
+   "method": "es5WithSomePerformantEs2015AndAsyncFunctions_withEs5Out",
+   "status": "captured",
+   "via": [
+    "observed.output"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test; the reason names observed state replay compares): integration record: the asserted value (lastCompiler.toSource() contains neither 'async ' nor 'await ' (ES5 output lowers async functions despite ES5_WITH_SOME_PERFORMANT_ES2015_AND_ASYNC_FUNCTIONS)) is in the record's observed.output, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions, so it cannot be declared captured; harness request filed to accept observed.output as a via for integration records."
+  },
+  {
+   "method": "testAlwaysRunSafetyCheck",
+   "status": "captured",
+   "via": [
+    "outcome"
+   ],
+   "note": "Review round 4: asserts the message of the RuntimeException from the safety check; replay compares the outcome's status, class and message exactly"
+  },
+  {
+   "method": "testCheckGlobalThisOn",
+   "status": "captured",
+   "via": [
+    "observed.errors"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test; the reason names observed state replay compares): integration record: the asserted value (exactly one error, in DiagnosticGroups.GLOBAL_THIS (JSC_USED_GLOBAL_THIS), with checkSuspiciousCode on) is in the record's observed.errors, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions, so it cannot be declared captured; harness request filed to accept observed.errors as a via for integration records."
+  },
+  {
+   "method": "testCheckProvideAlias2",
+   "status": "captured",
+   "via": [
+    "observed.errors"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test; the reason names observed state replay compares): integration record: the asserted value (the first error's description contains 'found   : (typeof cycle.a.Widget.Item)') is in the record's observed.errors, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions, so it cannot be declared captured; harness request filed to accept observed.errors as a via for integration records."
+  },
+  {
+   "method": "testCheckProvideAlias3",
+   "status": "captured",
+   "via": [
+    "observed.errors"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test; the reason names observed state replay compares): integration record: the asserted value (the first error's description contains 'found   : (typeof cycle.a.Widget.Item)' (three-file variant)) is in the record's observed.errors, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions, so it cannot be declared captured; harness request filed to accept observed.errors as a via for integration records."
+  },
+  {
+   "method": "testCheckProvideAlias_requireTypedInModule",
+   "status": "captured",
+   "via": [
+    "observed.errors"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test; the reason names observed state replay compares): integration record: the asserted value (the first error's description contains 'required: cycle.a.Widget.Item') is in the record's observed.errors, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions, so it cannot be declared captured; harness request filed to accept observed.errors as a via for integration records."
+  },
+  {
+   "method": "testCheckSymbolsOn",
+   "status": "captured",
+   "via": [
+    "observed.errors"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test; the reason names observed state replay compares): integration record: the asserted value (exactly one error, in DiagnosticGroups.UNDEFINED_VARIABLES (JSC_UNDEFINED_VARIABLE)) is in the record's observed.errors, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions, so it cannot be declared captured; harness request filed to accept observed.errors as a via for integration records."
+  },
+  {
+   "method": "testExportTestFunctionsOn2",
+   "status": "captured",
+   "via": [
+    "observed.output"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test; the reason names observed state replay compares): integration record: the asserted value (compiler.toSource() equals the exact expected text (pseudo-named testSuite export)) is in the record's observed.output, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions, so it cannot be declared captured; harness request filed to accept observed.output as a via for integration records."
+  },
+  {
+   "method": "testGetOriginalQualifiedNameAfterEs6RewriteClasses",
+   "status": "rust_unit_test",
+   "reason": "asserts on Node.getOriginalQualifiedName()/getOriginalName() of a GETPROP in the compiled AST (original-name properties of output AST nodes); integration records have no postCall snapshot, so nothing replay compares holds it.",
+   "fragment": "corpus/unit/rust_unit_tests/IntegrationTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testInvalidTTLDoesntCrash",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.warnings"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test; the reason names observed state replay compares): integration record: the asserted value (errors are exactly one PARSING diagnostic and warnings exactly one CHECK_TYPES diagnostic for an invalid TTL expression) is in the record's observed.errors, observed.warnings, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions, so it cannot be declared captured; harness request filed to accept observed.errors, observed.warnings as a via for integration records."
+  },
+  {
+   "method": "testIssue701",
+   "status": "captured",
+   "via": [
+    "observed.output"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test; the reason names observed state replay compares): integration record: the asserted value (lastCompiler.toSource() equals the expected text (ASCII art kept in a @preserve license comment)) is in the record's observed.output, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions, so it cannot be declared captured; harness request filed to accept observed.output as a via for integration records."
+  },
+  {
+   "method": "testRenamePrefixNamespaceAndBlockScopedFunctions_es5in_es5out",
+   "status": "captured",
+   "via": [
+    "observed.errors"
+   ],
+   "note": "Review round 4: asserts the two JSC_LANGUAGE_FEATURE errors; they are the record's observed.errors, which replay compares JSON-equal"
+  },
+  {
+   "method": "testStrictWarningsGuard",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.warnings"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test; the reason names observed state replay compares): integration record: the asserted value (with StrictWarningsGuard the type mismatch is exactly one error and there are no warnings) is in the record's observed.errors, observed.warnings, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions, so it cannot be declared captured; harness request filed to accept observed.errors, observed.warnings as a via for integration records."
+  },
+  {
+   "method": "testSuspiciousCodeOff",
+   "status": "captured",
+   "via": [
+    "observed.errors"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test; the reason names observed state replay compares): integration record: the asserted value (exactly one error, in DiagnosticGroups.GLOBAL_THIS, with checkSuspiciousCode off) is in the record's observed.errors, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions, so it cannot be declared captured; harness request filed to accept observed.errors as a via for integration records."
+  },
+  {
+   "method": "testWarnUnnecessaryBackslashInStringLiteral",
+   "status": "captured",
+   "via": [
+    "observed.warnings"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test; the reason names observed state replay compares): integration record: the asserted value (exactly one warning, whose description contains 'Unnecessary escape') is in the record's observed.warnings, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions, so it cannot be declared captured; harness request filed to accept observed.warnings as a via for integration records."
+  }
+ ],
+ "note": "Classify round 2 batch 5 (v7 records). 19 flagged methods: 14 captured (observed.errors/warnings/output or outcome, which replay compares for integration records), 1 rust_unit_test (Node original-name properties of the output AST), 4 unclassified. The 4 assert neutral values on state no integration record holds: the v7 recording (harness round 2) writes postCall only for compiler_test_case records, so kind=integration records have no postCall snapshot (see pendingNeutralKey).",
+ "pendingNeutralKey": [
+  {
+   "methods": [
+    "testInferTypes",
+    "testTypeCheckAndInference"
+   ],
+   "key": "typedPercent (D-017 item 2) for integration records",
+   "note": "asserts lastCompiler.getErrorManager().getTypedPercent() (a double: isEqualTo(0.0) after both test() calls of testInferTypes, isGreaterThan(0.0) in testTypeCheckAndInference) after test(); neutral, so never a Rust unit test. compiler.typedPercent exists since v7 for compiler_test_case records only; these records are kind=integration and carry no postCall (harness request: post-call snapshot for integration records)"
+  },
+  {
+   "methods": [
+    "testReplaceCssNames"
+   ],
+   "key": "Result.cssNames for integration records (not named in D-017 item 2; harness request)",
+   "note": "asserts lastCompiler.getResult().cssNames containsExactly 'foo'; a set of strings, neutral; no snapshot key (not named in D-017 item 2) and integration records carry no postCall"
+  },
+  {
+   "methods": [
+    "testRenamePrefixNamespaceActivatesRewriteGlobalDeclarationsForTryCatchWrapping"
+   ],
+   "key": "none fits",
+   "note": "asserts options.shouldRewriteGlobalDeclarationsForTryCatchWrapping() is false after testSame; the getter returns the plain field rewriteGlobalDeclarationsForTryCatchWrapping, which no src code writes during compilation (only the CompilerOptions constructor and its setter), so the assertion checks the test's input options, which the record's options diff fixes (field absent = false). Not Java-internal and not post-call state the compiler produces; no via in the postcall vocabulary expresses it."
+  }
+ ]
+}

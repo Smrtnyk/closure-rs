@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/MissingProvideTest.java getProcessor (lines 42-49), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "sequence": []
+      }
+    }
+  ],
+  "note": "getProcessor returns an anonymous CompilerPass whose process(externs, root) body is empty (`// No-op. We're just checking for warnings during Closure passes.`). An empty sequence is exactly a CompilerPass that does nothing. The diagnostics under test come from the closure pass and module rewriting that setUp enables (enableRewriteClosureCode, enableClosurePass), restored from harness.fields. The class declares no fields. Vacuity (classify round 1, batch 11, round 7): the recorded processor is the test's empty anonymous CompilerPass, so the whole-processor no-op is identical to the original and catches nothing. The asserted diagnostics (JSC_MISSING_MODULE_OR_PROVIDE, JSC_MISSING_MODULE_OR_PROVIDE_FOR_FORWARD_DECLARE) are reported by CheckClosureImports (src CheckClosureImports.java:368, 502, 507), which CompilerTestCase runs itself under enableRewriteClosureCode (CTC:1128-1131, before ScopedAliases and ClosureRewriteModule). vacuityNoopClass names exactly that pass (FORMAT.md 'No-op vacuity, harness-run passes'); it is an in-scope top-level src CompilerPass and not the recorded processor's class.",
+  "vacuityNoopClass": "com.google.javascript.jscomp.CheckClosureImports"
+}

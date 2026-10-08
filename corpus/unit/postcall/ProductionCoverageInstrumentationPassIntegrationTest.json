@@ -1,0 +1,33 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.integration.ProductionCoverageInstrumentationPassIntegrationTest",
+ "methods": [
+  {
+   "method": "testExternIsNotDeclaredException",
+   "status": "captured",
+   "via": [
+    "outcome"
+   ],
+   "recordClass": "com.google.javascript.jscomp.integration.ProductionCoverageInstrumentationPassIntegrationTest",
+   "note": "the test asserts assertThrows(AssertionError.class, () -> compile(options, source)) and that the error's message equals 'The array name passed to --production_instrumentation_array_name was not declared as an extern. This will result in undefined behaviour'. That AssertionError is thrown by src/, CoverageInstrumentationPass.checkIfArrayNameExternDeclared (instrumentation/CoverageInstrumentationPass.java:98-104), not by test code; the method's one record (index 8, api compile) stores it as its outcome {status exception, exceptionClass java.lang.AssertionError, that exact message}, and ReplayMain compares status, class and message exactly. Gate (a)'s outcome rule accepts only outcomes with assertion=false, and the recorder sets assertion=true for every java.lang.AssertionError, so the gate reports this claim invalid ('outcome claim needs a non-assertion exception with a message') until the gate can tell a src-thrown AssertionError from a harness assertion (harness request, fix-7). The record stays excluded meanwhile (integration api compile, notCaptured). Harness round 2 (v7 recording) did not adopt an outcome via for an AssertionError thrown by in-scope src/ code: it is a gate-definition change (D-017 freeze). The v7 record 8 still has outcome assertion=true, so the claim stays invalid."
+  },
+  {
+   "method": "testInstrumentationMappingIsCreated",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.instrumentationMapping"
+   ],
+   "recordClass": "com.google.javascript.jscomp.integration.ProductionCoverageInstrumentationPassIntegrationTest",
+   "note": "the test asserts Compiler.getInstrumentationMapping().getOriginalNameToNewNameMap() of the compiler that IntegrationTestCase.compile returns: a map string -> string with 4 entries (' FunctionNames' = '[\"foo\"]', ' FileNames' = '[\"i0.js\"]', ' Types' = '[\"FUNCTION\"]', 'C' = 'AAACA'). That is a neutral value (FORMAT.md: maps of strings are never a Rust unit test), so the method is captured, through a compiler-level snapshot key holding that map. No such key exists yet, and integration api compile records carry no postCall snapshot at all (record 6 has none), so gate (a) reports this claim invalid ('not in its postCall snapshot') until the recorder snapshots the returned compiler of integration compile records with a compiler.instrumentationMapping key (harness request, fix-7) and the class is re-recorded. The record stays excluded meanwhile (integration api compile, notCaptured). observed.output does not hold the mapping (it holds only the pushed index string 'C'). Harness round 2 (v7 recording) did not add it: the post-call snapshot for integration records is listed as open D-017 item 2 work, and compiler.instrumentationMapping as a key outside D-017 item 2 (a gate-definition change). The v7 record still has no postCall, so the claim stays invalid."
+  },
+  {
+   "method": "testNoNameFunctionsAreNamedProperly",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.instrumentationMapping"
+   ],
+   "recordClass": "com.google.javascript.jscomp.integration.ProductionCoverageInstrumentationPassIntegrationTest",
+   "note": "the test asserts that Compiler.getInstrumentationMapping().getOriginalNameToNewNameMap() of the compiler that IntegrationTestCase.compile returns maps ' FunctionNames' to '[\"<Anonymous>\"]' for 'tempObj.a || tempObj.b;'. A map string -> string is a neutral value (FORMAT.md: never a Rust unit test), so the method is captured through a compiler-level snapshot key holding that map. No such key exists yet and integration api compile records carry no postCall snapshot (record 7 has none), so gate (a) reports this claim invalid until the recorder snapshots the returned compiler of integration compile records with a compiler.instrumentationMapping key (harness request, fix-7) and the class is re-recorded. The record stays excluded meanwhile (integration api compile, notCaptured). Harness round 2 (v7 recording) did not add it: the post-call snapshot for integration records is listed as open D-017 item 2 work, and compiler.instrumentationMapping as a key outside D-017 item 2 (a gate-definition change). The v7 record still has no postCall, so the claim stays invalid."
+  }
+ ]
+}

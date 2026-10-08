@@ -1,0 +1,32 @@
+{
+  "source": "test/com/google/javascript/jscomp/J2clStringValueOfRewriterPassTest.java getProcessor (lines 25-28) and createCompiler (lines 30-35), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {
+          "list": [
+            {
+              "static": "com.google.javascript.jscomp.J2clSourceFileChecker",
+              "method": "markToRunJ2clPasses",
+              "args": [{"compiler": true}]
+            },
+            {
+              "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+              "args": [
+                {"compiler": true},
+                {"record": "harness.effective.getName"},
+                {"array": "com.google.javascript.jscomp.AbstractPeepholeOptimization", "items": [
+                  {"new": "com.google.javascript.jscomp.J2clStringValueOfRewriterPass", "args": []}
+                ]}
+              ]
+            }
+          ]
+        },
+        "method": "get",
+        "args": [{"int": 1}]
+      }
+    }
+  ],
+  "note": "getProcessor reads no test field (testFields is empty): new PeepholeOptimizationsPass(compiler, getName(), new J2clStringValueOfRewriterPass()); the varargs parameter is passed as an AbstractPeepholeOptimization[] array. The createCompiler override returns a plain Compiler (harness.effective.createCompiler) after J2clSourceFileChecker.markToRunJ2clPasses(compiler), which only sets the compiler's runJ2clPasses flag; without it J2clStringValueOfRewriterPass.beginTraversal records shouldRunJ2clPasses=false and every optimizeSubtree returns the node unchanged. The DSL has no createCompiler hook, so (as in J2clClinitPrunerPassTest, batch 27) the descriptor makes the same call on the same compiler from getProcessor: the list evaluates its items in order (the void markToRunJ2clPasses call yields null, then the pass) and get(1) returns the pass. Equivalent because the flag's only readers in src/ are the J2CL passes and ProcessDefines, none of which runs between createCompiler and getProcessor here (no setUp override; the harness only parses), and the call is idempotent across repetitions (getNumRepetitions is 1). The expected-output parse uses a separate createCompiler() compiler that runs no J2CL pass, so its missing flag is unobservable."
+}

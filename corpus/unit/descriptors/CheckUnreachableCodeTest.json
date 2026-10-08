@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckUnreachableCodeTest.java getProcessor (lines 26-29): new CombinedCompilerPass(compiler, new CheckUnreachableCode(compiler)), the varargs Callback... constructor.",
+  "cases": [
+    {
+      "when": {"instanceClass": "com.google.javascript.jscomp.CheckUnreachableCodeTest"},
+      "processor": {
+        "new": "com.google.javascript.jscomp.CombinedCompilerPass",
+        "args": [
+          {"compiler": true},
+          {"array": "com.google.javascript.jscomp.NodeTraversal$Callback", "items": [
+            {"new": "com.google.javascript.jscomp.CheckUnreachableCode", "args": [{"compiler": true}]}
+          ]}
+        ]
+      }
+    }
+  ]
+}

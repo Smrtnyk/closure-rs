@@ -1,0 +1,9 @@
+{
+  "source": "test/com/google/javascript/jscomp/InlineSimpleMethodsTest.java getProcessor (lines 26-29)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.InlineSimpleMethods", "args": [{"compiler": true}]}
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6RewriteBlockScopedFunctionDeclarationTest.java getProcessor (lines 46-49), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.Es6RewriteBlockScopedFunctionDeclaration", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "The @Before customSetUp (lines 29-37: enableNormalize, setAcceptedLanguage(ES2015), enableTypeCheck, enableTypeInfoValidation, replaceTypesWithColors, enableMultistageCompilation) only changes harness state, restored from harness.fields. getOptions() (lines 39-44) only sets languageOut ECMASCRIPT3, replayed from the record's options diff. The test class declares no fields."
+}

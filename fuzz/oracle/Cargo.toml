@@ -1,0 +1,16 @@
+[package]
+name = "fuzz-oracle"
+description = "Rust client for the closure-rs Java oracle server pool (oracle/PROTOCOL.md), golden env enforced (D-010)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json = { workspace = true, features = ["unbounded_depth"] }
+serde = { workspace = true }
+base64 = { workspace = true }
+
+[lints]
+workspace = true

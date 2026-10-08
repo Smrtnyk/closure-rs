@@ -1,0 +1,5 @@
+java.lang.IllegalArgumentException: Bad level "2147483648"
+	at java.logging/java.util.logging.Level.parse(Level.java:527)
+	at com.google.javascript.jscomp.AbstractCommandLineRunner.doRun(AbstractCommandLineRunner.java:1157)
+	at com.google.javascript.jscomp.AbstractCommandLineRunner.run(AbstractCommandLineRunner.java:536)
+	at com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2256)

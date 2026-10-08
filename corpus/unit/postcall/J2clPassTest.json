@@ -1,0 +1,13 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.J2clPassTest",
+ "methods": [
+  {
+   "method": "testQualifiedInlines_markImplementor",
+   "status": "rust_unit_test",
+   "reason": "asserts that the inlined `Foo` NAME node has the same Color object as the declared `var Foo` NAME node in the output AST; colors are Java-internal objects that no postCall key, test field or postcondition records, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/J2clPassTest.md",
+   "category": "color"
+  }
+ ]
+}

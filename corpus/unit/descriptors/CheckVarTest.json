@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckVarTest.java getProcessor (lines 31-34), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.lint.CheckVar",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor reads no test field: it always returns new CheckVar(compiler). The other override, getOptions() (lines 36-41), only adds setWarningLevel(DiagnosticGroups.LINT_CHECKS, CheckLevel.WARNING) to super.getOptions(); its effect is in record.options (the warnings guard) and is replayed from there. The class has no setUp override and no instance fields (testFields is empty in every record)."
+}

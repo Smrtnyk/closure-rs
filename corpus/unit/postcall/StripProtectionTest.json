@@ -1,0 +1,15 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.StripProtectionTest",
+ "note": "classify batch 16 (D-015 a); re-read in classify round 1 batch 8 (D-017 item 6) from test/com/google/javascript/jscomp/StripProtectionTest.java (bb8c8e7).",
+ "methods": [
+  {
+   "method": "testJ2clPreserveFunction",
+   "status": "captured",
+   "via": [
+    "outcome"
+   ],
+   "note": "The only post-call assertion (line 96, assertThat(exception.toString()).contains(\"Only allowed for J2CL code\")) reads the RuntimeException that assertThrows (line 93-95) returns from the second hooked call, testSame on the non-.java.js source. That call is record index 1, whose outcome is status exception, class java.lang.RuntimeException, assertion false, message 'INTERNAL COMPILER ERROR. ... Only allowed for J2CL code ...'; ReplayMain compares status, class and message exactly, so the asserted state is replay-compared. Record index 0 (the first call, test(... Foo.java.js ..., expected(\"\")), outcome normal) has no post-call assertion of its own: nothing after it reads its state except through the second call. Gate (a) checks an outcome claim on every record of the method, so it currently rejects this entry on record 0 (status normal); a per-call scope for outcome claims was requested from the gate owner in classify round 1; harness round 2 logged an 'allow a via to apply ...' request (text cut off, most likely this one) as a gate-definition change (D-017 freeze), so it stays open. Re-checked in classify round 2 batch 8 on the v7 records: record 1's outcome is unchanged and replays green, record 0 is normal and replays green. Not relabelled rust_unit_test: the asserted exception is in record 1 and replay compares it (Review round 4)."
+  }
+ ]
+}

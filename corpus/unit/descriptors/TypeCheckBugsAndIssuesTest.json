@@ -1,0 +1,1 @@
+{"source":"test/com/google/javascript/jscomp/TypeCheckBugsAndIssuesTest.java: uses TypeCheckTestCase.TypeTestBuilder.newTest(); records replay through ReplayTypeCheckTest; there is no processor.","cases":[]}

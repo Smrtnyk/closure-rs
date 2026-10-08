@@ -1,0 +1,1 @@
+{"source": "test/com/google/javascript/jscomp/TypeCheckSymbolsTest.java is a plain JUnit class (no harness base) whose 13 tests use the static TypeCheckTestCase.TypeTestBuilder.newTest() builder: records (api TypeTestBuilder.run) replay through ReplayTypeCheckTest; there is no processor.", "cases": []}

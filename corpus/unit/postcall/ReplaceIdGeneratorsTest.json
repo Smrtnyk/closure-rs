@@ -1,0 +1,342 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.ReplaceIdGeneratorsTest",
+ "methods": [
+  {
+   "method": "testBackwardCompat",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testBadGenerator1",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testBadGenerator2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testBadGenerator3",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testClass",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testConditionalCall",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testConflictingIdGenerator",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testConsistentIdGenUnderPseudoRenaming",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testConst",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testInObjLit",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testInObjLit_mapped",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testIndirectCall",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testLet",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testLocalCall",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testMapped",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testMapped2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testMappedMap",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "testMap asserts lastPass.getSerializedIdMappings().trim() after test(); postCall.pass.idGeneratorMappings is ReplaceIdGenerators.getSerializedIdMappings() of the processor, compared exactly (untrimmed, so stricter) by replay"
+  },
+  {
+   "method": "testMixedGenerators",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testNonLiteralParam1",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testNonLiteralParam2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testNullishCoalesce",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testObjectLit",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testObjectLit_ES6",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testObjectLit_empty",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testObjectLit_function",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testObjectLit_mapped",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testObjectLit_xid",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testReusePreviousSerialization1",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "testMap asserts lastPass.getSerializedIdMappings().trim() after test(); postCall.pass.idGeneratorMappings is ReplaceIdGenerators.getSerializedIdMappings() of the processor, compared exactly (untrimmed, so stricter) by replay"
+  },
+  {
+   "method": "testReusePreviousSerialization2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "testMap asserts lastPass.getSerializedIdMappings().trim() after test(); postCall.pass.idGeneratorMappings is ReplaceIdGenerators.getSerializedIdMappings() of the processor, compared exactly (untrimmed, so stricter) by replay"
+  },
+  {
+   "method": "testReusePreviousSerializationConsistent1",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "testMap asserts lastPass.getSerializedIdMappings().trim() after test(); postCall.pass.idGeneratorMappings is ReplaceIdGenerators.getSerializedIdMappings() of the processor, compared exactly (untrimmed, so stricter) by replay"
+  },
+  {
+   "method": "testSerialization1",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "testMap asserts lastPass.getSerializedIdMappings().trim() after test(); postCall.pass.idGeneratorMappings is ReplaceIdGenerators.getSerializedIdMappings() of the processor, compared exactly (untrimmed, so stricter) by replay"
+  },
+  {
+   "method": "testSerialization2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "testMap asserts lastPass.getSerializedIdMappings().trim() after test(); postCall.pass.idGeneratorMappings is ReplaceIdGenerators.getSerializedIdMappings() of the processor, compared exactly (untrimmed, so stricter) by replay"
+  },
+  {
+   "method": "testSimple",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testSimpleConsistent",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testSimpleStable",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testSimpleXid",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testTTLCall",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "testMap asserts lastPass.getSerializedIdMappings().trim() after test(); postCall.pass.idGeneratorMappings is ReplaceIdGenerators.getSerializedIdMappings() of the processor, compared exactly (untrimmed, so stricter) by replay"
+  },
+  {
+   "method": "testTTLCall_invalid",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testTTLCall_transpiled",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "testMap asserts lastPass.getSerializedIdMappings().trim() after test(); postCall.pass.idGeneratorMappings is ReplaceIdGenerators.getSerializedIdMappings() of the processor, compared exactly (untrimmed, so stricter) by replay"
+  },
+  {
+   "method": "testTwoGenerators",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testUnknownMapping",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  },
+  {
+   "method": "testVar",
+   "status": "captured",
+   "via": [
+    "postCall.pass.idGeneratorMappings"
+   ],
+   "note": "no assertion after the hooked call; testFieldsAfter.lastPass changed because getProcessor assigns the pass; its result state, getSerializedIdMappings(), is compared by replay as postCall.pass.idGeneratorMappings"
+  }
+ ]
+}

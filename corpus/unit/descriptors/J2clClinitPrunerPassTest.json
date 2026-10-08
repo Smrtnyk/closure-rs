@@ -1,0 +1,53 @@
+{
+  "source": "test/com/google/javascript/jscomp/J2clClinitPrunerPassTest.java getProcessor (lines 28-32) and createCompiler (lines 34-39), bb8c8e7; setUp (lines 41-50) only calls enableNormalize/enableNormalizeExpectedOutput/enableComputeSideEffects, which are restored from harness.fields",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {
+          "list": [
+            {
+              "static": "com.google.javascript.jscomp.J2clSourceFileChecker",
+              "method": "markToRunJ2clPasses",
+              "args": [
+                {
+                  "compiler": true
+                }
+              ]
+            },
+            {
+              "new": "com.google.javascript.jscomp.J2clClinitPrunerPass",
+              "args": [
+                {
+                  "compiler": true
+                },
+                {
+                  "call": {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getChangeTracker",
+                    "args": []
+                  },
+                  "method": "getChangedScopeNodesForPass",
+                  "args": [
+                    {
+                      "string": "J2clClinitPrunerPass"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "method": "get",
+        "args": [
+          {
+            "int": 1
+          }
+        ]
+      }
+    }
+  ],
+  "note": "The createCompiler override returns a plain Compiler (harness.effective.createCompiler) after calling J2clSourceFileChecker.markToRunJ2clPasses(compiler), which only sets the compiler's runJ2clPasses flag; without it J2clClinitPrunerPass.process returns immediately. The DSL has no createCompiler hook, so the descriptor makes the same call on the same compiler from getProcessor: the list evaluates its items in order (first the markToRunJ2clPasses call, whose void result is null, then the pass) and get(1) returns the pass. This is equivalent because the only readers of the flag are the J2CL passes and ProcessDefines, and none of them runs between createCompiler and getProcessor (the harness only parses, normalizes and computes side effects there); the call is idempotent across repetitions. See dsl_request 'createCompiler hook' (batch 27)."
+}

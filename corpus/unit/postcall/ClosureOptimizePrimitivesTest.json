@@ -1,0 +1,14 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.ClosureOptimizePrimitivesTest",
+ "methods": [
+  {
+   "method": "testObjectCreateNonConstKey1",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.allowableFeatures"
+   ],
+   "note": "the test asserts assertFS(getLastCompiler().getAllowableFeatures()).has(Feature.COMPUTED_PROPERTIES) after test(...) (the rewrite of goog.object.create with a non-constant key emits a computed property and marks the feature as allowed). Compiler.getAllowableFeatures() is a FeatureSet, a set of feature names: a neutral value that D-017 item 2 makes the snapshot key compiler.allowableFeatures (harness round 2, v7 recording). The snapshot reads it from the test's lastCompiler, i.e. the compiler getLastCompiler() returns. The method's one record (23) holds postCall.compiler.allowableFeatures with COMPUTED_PROPERTIES among its 58 feature names, and ReplayMain compares the whole postCall by JSON equality, so a replay whose feature set differs fails the record with 'postCall differs'. The record's other key, compiler.accessorSummary, is the getter/setter summary and plays no part in the assertion."
+  }
+ ]
+}

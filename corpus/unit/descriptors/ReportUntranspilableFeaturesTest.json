@@ -1,0 +1,42 @@
+{
+  "source": "test/com/google/javascript/jscomp/ReportUntranspilableFeaturesTest.java getProcessor (lines 47-58), bb8c8e7",
+  "cases": [
+    {
+      "when": {"testFields.browserFeaturesetYear": {"isNull": false}},
+      "processor": {
+        "static": "com.google.javascript.jscomp.PeepholeTranspilationsPass",
+        "method": "create",
+        "args": [
+          {"compiler": true},
+          {"static": "com.google.common.collect.ImmutableList", "method": "of", "args": [
+            {"new": "com.google.javascript.jscomp.ReportUntranspilableFeatures",
+             "args": [
+               {"compiler": true},
+               {"field": "browserFeaturesetYear"},
+               {"call": {"field": "browserFeaturesetYear"}, "method": "getFeatureSet", "args": []}
+             ]}
+          ]}
+        ]
+      }
+    },
+    {
+      "when": {},
+      "processor": {
+        "static": "com.google.javascript.jscomp.PeepholeTranspilationsPass",
+        "method": "create",
+        "args": [
+          {"compiler": true},
+          {"static": "com.google.common.collect.ImmutableList", "method": "of", "args": [
+            {"new": "com.google.javascript.jscomp.ReportUntranspilableFeatures",
+             "args": [
+               {"compiler": true},
+               {"field": "browserFeaturesetYear"},
+               {"call": {"field": "languageOut"}, "method": "toFeatureSet", "args": []}
+             ]}
+          ]}
+        ]
+      }
+    }
+  ],
+  "note": "The two cases are the two arms of the ternary on line 56-57: browserFeaturesetYear != null ? browserFeaturesetYear.getFeatureSet() : languageOut.toFeatureSet(). The second case is reached only when browserFeaturesetYear is null, so its second argument evaluates to null as in the original. Both test fields (languageOut, browserFeaturesetYear) are recorded as enums or null in every record. setUp's disableTypeCheck/enableRunTypeCheckAfterProcessing are harness fields restored from the record."
+}

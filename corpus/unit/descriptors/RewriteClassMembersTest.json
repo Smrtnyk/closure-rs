@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/RewriteClassMembersTest.java getProcessor (lines 57-60)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.Es6NormalizeClasses",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "The test(...)/testError(...)/testSame(...) overrides only call the harness setters setAssumeStaticInheritanceIsNotUsed and setLanguageOut before delegating; their effect is in the recorded options, harness fields and inputs."
+}

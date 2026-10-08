@@ -1,0 +1,12 @@
+{
+  "source": "test/com/google/javascript/jscomp/VariableReferenceCheckTest.java getProcessor (lines 43-47)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.VariableReferenceCheck",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

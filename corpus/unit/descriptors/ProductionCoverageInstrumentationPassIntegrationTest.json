@@ -1,0 +1,1 @@
+{"source":"test/com/google/javascript/jscomp/integration/ProductionCoverageInstrumentationPassIntegrationTest.java: IntegrationTestCase subclass; records replay through ReplayIntegrationTest; options come from the record, there is no processor.","cases":[]}

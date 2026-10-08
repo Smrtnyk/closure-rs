@@ -1,0 +1,23 @@
+{
+  "source": "test/com/google/javascript/jscomp/disambiguate/DisambiguatePropertiesTest.java getProcessor (lines 78-81) and getOptions (lines 83-88), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.disambiguate.DisambiguateProperties",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "field": "propertiesThatMustDisambiguate"
+          }
+        ]
+      }
+    }
+  ],
+  "classMap": {
+    "com.google.javascript.jscomp.disambiguate.DisambiguatePropertiesTest$SilenceNoiseGuard": "com.google.javascript.jscomp.DisambiguatePropertiesTest_Helpers$SilenceNoiseGuard"
+  },
+  "note": "propertiesThatMustDisambiguate is recorded as an ImmutableSet of strings (empty, or [invalid0, invalid1] in errorReported_forInvalidation_ofSpecifiedPropNames_oncePerName). getOptions() (lines 83-88) calls options.addWarningsGuard(new SilenceNoiseGuard()), so every record's options.warningsGuard (composeWarningsGuard.guards.0) holds an object of class DisambiguatePropertiesTest$SilenceNoiseGuard with no fields. Rule 6 keeps that class off the replay classpath, so classMap maps it to the verbatim copy DisambiguatePropertiesTest_Helpers$SilenceNoiseGuard (lines 1302-1321; it has no instance fields, so the rebuilt guard is equivalent). setUp's enableTypeCheck/replaceTypesWithColors/disableCompareJsDoc/enableDebugLogging(true) are restored from the recorded harness fields."
+}

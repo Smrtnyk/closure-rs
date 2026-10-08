@@ -1,0 +1,14 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6RewriteGeneratorsTest.java getProcessor (lines 112-130; a PhaseOptimizer of three makePassFactory passes, one a lambda reading the field extraRuntimeLibFields), replayed through helper Es6RewriteGeneratorsTest_Helpers.GetProcessor with extraRuntimeLibFields restored from testFields. setUp (lines 91-103) only sets harness state (setAcceptedLanguage, enableNormalize, enableTypeCheck, enableTypeInfoValidation, replaceTypesWithColors, enableMultistageCompilation, setGenericNameReplacements) and resets extraRuntimeLibFields, all of which come from the record; getOptions (lines 105-110) is captured by the record's options; the constructor's externs are in inputs.externs",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {"helper": "Es6RewriteGeneratorsTest_Helpers.GetProcessor", "outer": ["extraRuntimeLibFields"]},
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "The DSL has no function/lambda construct, so the makePassFactory arguments (a capturing lambda and two constructor references) cannot be built as DSL values; the whole getProcessor body is a verbatim helper, following the Es6RewriteDestructuringTest precedent. extraRuntimeLibFields is recorded as [] (93 records) or [\"$jscomp.asyncExecutePromiseGeneratorProgram\"] (3 records). Because the passes are created inside the helper through PassFactory, --mutate-noop Es6RewriteGenerators does not reach them."
+}

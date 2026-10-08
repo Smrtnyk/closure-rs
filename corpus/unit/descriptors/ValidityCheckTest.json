@@ -1,0 +1,16 @@
+{
+  "source": "test/com/google/javascript/jscomp/ValidityCheckTest.java getProcessor (lines 46-55), field otherPass (line 37) and the three otherPass anonymous classes assigned by the tests (lines 60-70, 83-88, 101-113), bb8c8e7, replayed through helper ValidityCheckTest_Helpers.GetProcessor",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "helper": "ValidityCheckTest_Helpers.GetProcessor",
+        "args": [
+          {"compiler": true},
+          {"field": "otherPass", "path": "object"}
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor returns an anonymous CompilerPass (ValidityCheckTest$1) that runs the test field otherPass and then a new ValidityCheck. Each test assigns otherPass an anonymous CompilerPass before calling test()/testSame(); the record dumps it as {object: ValidityCheckTest$2|$3|$4, fields: {}} (stateless). The helper holds verbatim copies of getProcessor and of the three anonymous classes (as named inner classes) and selects the copy by the recorded class name; an unknown name throws. The anonymous classes call getLastCompiler(), an inherited CompilerTestCase method; during testInternal the harness's lastCompiler is exactly the Compiler passed to getProcessor (multistage is off in every record), so the helper's generated getLastCompiler() returns that compiler (AggressiveInlineAliasesTest_Helpers precedent). setUp (lines 39-44) only resets otherPass to null. All three records end in the exception the test expects (outcome.status=exception; the test's try/catch and message assertions are outside the hooked call)."
+}

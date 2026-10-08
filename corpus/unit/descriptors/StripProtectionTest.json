@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/StripProtectionTest.java getProcessor (lines 29-32), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.CheckSideEffects$StripProtection", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "getProcessor is unconditional (return new CheckSideEffects.StripProtection(compiler)); the test has no fields and no other overridden harness hooks. The second record is the testSame inside assertThrows: its recorded outcome is the RuntimeException ('Only allowed for J2CL code', an INTERNAL COMPILER ERROR because the source is not a .java.js file), which the replay must reproduce; the test's follow-up assertThat on exception.toString() is not recorded."
+}

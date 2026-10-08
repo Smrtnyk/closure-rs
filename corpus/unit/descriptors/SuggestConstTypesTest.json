@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/ijs/SuggestConstTypesTest.java getProcessor (lines 41-44), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.ijs.ConvertToTypedInterface", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "getProcessor is unconditional (return new ConvertToTypedInterface(compiler)); the test has no fields. setUp's allowExternsChanges/enableTypeCheck are in harness.fields. Each record expects one CONSTANT_WITH_SUGGESTED_TYPE warning with a message-contains predicate (expected.diagnostics)."
+}

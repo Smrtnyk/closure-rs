@@ -1,0 +1,23 @@
+{
+  "source": "test/com/google/javascript/jscomp/PeepholeMinimizeConditionsTest.java getProcessor (lines 45-51); setUp (lines 37-43) resets late=true, which the recorded testFields.late already reflects",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "withFields": {
+          "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+          "args": [
+            {"compiler": true},
+            {"record": "harness.effective.getName"},
+            {"array": "com.google.javascript.jscomp.AbstractPeepholeOptimization", "items": [
+              {"new": "com.google.javascript.jscomp.PeepholeMinimizeConditions",
+               "args": [{"field": "late"}]}
+            ]}
+          ]
+        },
+        "fields": {"retraverseOnChange": {"bool": false}}
+      }
+    }
+  ],
+  "note": "peepholePass.setRetraverseOnChange(false) returns void and only assigns the field retraverseOnChange (src PeepholeOptimizationsPass.java lines 55-58), so it is modelled with withFields."
+}

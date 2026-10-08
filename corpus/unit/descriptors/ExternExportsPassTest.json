@@ -1,0 +1,230 @@
+{
+  "source": "test/com/google/javascript/jscomp/ExternExportsPassTest.java getProcessor (lines 48-51), bb8c8e7. setUp (lines 32-37: enableTypeCheck) and getOptions (lines 39-46: setExternExportsPath, setCheckSymbols) come from the record's harness fields and options. The postcondition built by compileAndExportExterns (lines 1786-1805) is rebuilt from expected.postconditionValues through the holder helper ExternExportsPassTest_Helpers (verbatim lambdas), so the generated-externs assertion of compileAndCheck (lines 1720-1738) runs again in replay.",
+  "cases": [
+    {
+      "when": {
+        "expected.postconditionValues.0.captures.arg$1": {
+          "isNull": true
+        }
+      },
+      "note": "compileAndExportExterns(js) / (js, externs): consumer is null, so the postcondition does nothing (testDontWarnOn* tests).",
+      "processor": {
+        "new": "com.google.javascript.jscomp.ExternExportsPass",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      },
+      "postconditions": [
+        {
+          "call": {
+            "once": "testInstance",
+            "value": {
+              "let": [
+                [
+                  "t",
+                  {
+                    "helper": "ExternExportsPassTest_Helpers"
+                  }
+                ]
+              ],
+              "in": {
+                "do": [
+                  {
+                    "call": {
+                      "var": "t"
+                    },
+                    "method": "setUp",
+                    "args": []
+                  }
+                ],
+                "value": {
+                  "var": "t"
+                }
+              }
+            }
+          },
+          "method": "postcondition",
+          "args": [
+            {
+              "null": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "when": {
+        "expected.postconditionValues.0.captures.arg$1.captures.arg$2": {
+          "isNull": false
+        }
+      },
+      "note": "useExportsAsExternsWithClass (lines 1352-1380): the consumer captures the test instance (arg$1, the holder, set up like the test) and clientSource (arg$2), and runs a nested compileAndExportExterns(clientSource, MINIMAL_EXTERNS + generatedExterns), i.e. a nested test(...) on the test instance.",
+      "processor": {
+        "new": "com.google.javascript.jscomp.ExternExportsPass",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      },
+      "postconditions": [
+        {
+          "call": {
+            "once": "testInstance",
+            "value": {
+              "let": [
+                [
+                  "t",
+                  {
+                    "helper": "ExternExportsPassTest_Helpers"
+                  }
+                ]
+              ],
+              "in": {
+                "do": [
+                  {
+                    "call": {
+                      "var": "t"
+                    },
+                    "method": "setUp",
+                    "args": []
+                  }
+                ],
+                "value": {
+                  "var": "t"
+                }
+              }
+            }
+          },
+          "method": "postcondition",
+          "args": [
+            {
+              "call": {
+                "once": "testInstance",
+                "value": {
+                  "let": [
+                    [
+                      "t",
+                      {
+                        "helper": "ExternExportsPassTest_Helpers"
+                      }
+                    ]
+                  ],
+                  "in": {
+                    "do": [
+                      {
+                        "call": {
+                          "var": "t"
+                        },
+                        "method": "setUp",
+                        "args": []
+                      }
+                    ],
+                    "value": {
+                      "var": "t"
+                    }
+                  }
+                }
+              },
+              "method": "useExportsAsExternsWithClassConsumer",
+              "args": [
+                {
+                  "record": "expected.postconditionValues.0.captures.arg$1.captures.arg$2"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "when": {
+        "expected.postconditionValues.0.captures.arg$1.captures.arg$1": {
+          "isNull": false
+        }
+      },
+      "note": "compileAndCheck(js, expected) / (externs, js, expected): the consumer captures expected (arg$1) and asserts the generated externs.",
+      "processor": {
+        "new": "com.google.javascript.jscomp.ExternExportsPass",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      },
+      "postconditions": [
+        {
+          "call": {
+            "once": "testInstance",
+            "value": {
+              "let": [
+                [
+                  "t",
+                  {
+                    "helper": "ExternExportsPassTest_Helpers"
+                  }
+                ]
+              ],
+              "in": {
+                "do": [
+                  {
+                    "call": {
+                      "var": "t"
+                    },
+                    "method": "setUp",
+                    "args": []
+                  }
+                ],
+                "value": {
+                  "var": "t"
+                }
+              }
+            }
+          },
+          "method": "postcondition",
+          "args": [
+            {
+              "call": {
+                "once": "testInstance",
+                "value": {
+                  "let": [
+                    [
+                      "t",
+                      {
+                        "helper": "ExternExportsPassTest_Helpers"
+                      }
+                    ]
+                  ],
+                  "in": {
+                    "do": [
+                      {
+                        "call": {
+                          "var": "t"
+                        },
+                        "method": "setUp",
+                        "args": []
+                      }
+                    ],
+                    "value": {
+                      "var": "t"
+                    }
+                  }
+                }
+              },
+              "method": "compileAndCheckConsumer",
+              "args": [
+                {
+                  "record": "expected.postconditionValues.0.captures.arg$1.captures.arg$1"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "note": "Every record calls test(externs, srcs, Postcondition) from compileAndExportExterns. The recorder lists the postcondition lambda in unrepresentable (expected.postconditions[0]) but records its captures in expected.postconditionValues: arg$1 is the Consumer (null, the compileAndCheck lambda capturing expected, or the useExportsAsExternsWithClass lambda capturing the test instance and clientSource). The holder helper is created once per record and set up like the test (setUp: enableTypeCheck); it is used as the test instance only by the nested test(...) of useExportsAsExternsWithClass. In the original that nested call ran on the same test instance and so replaced lastCompiler; in replay it runs on the holder. The recorded observed errors/warnings are empty for that record, and the nested compile has none either, so the observation is the same.",
+  "unrepresentableAudit": "Classify round 1, batch 4 (gate (e) plan). All 69 records have exactly one recorder-level unrepresentable entry, expected.postconditions[0] = the Postcondition lambda of compileAndExportExterns; no other section holds a placeholder. Its code is copied verbatim into ExternExportsPassTest_Helpers.postcondition (with the two Consumer lambdas it may capture) and its captures are recorded in expected.postconditionValues, so every case above rebuilds it: replay runs 1 postcondition in each of the 69 records (count rule holds) and all 69 pass; with the processor removed (--noop-processor) or ExternExportsPass no-oped by the NoopAgent, 66 of 69 fail (1 Truth assertion, 65 NullPointerException in the verbatim consumer on a null externExport; the 3 passing records have a null consumer). No descriptor change can remove these entries: the recorder lists every postcondition lambda. Plan: gate (e) to count a postcondition lambda as represented when the selected case rebuilds it from expected.postconditionValues through a verbatim helper and the count rule holds (harness request, classify round 1 batch 4)."
+}

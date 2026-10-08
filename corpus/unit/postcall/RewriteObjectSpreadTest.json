@@ -1,0 +1,14 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.RewriteObjectSpreadTest",
+ "note": "classify batch 16 (D-015 a).",
+ "methods": [
+  {
+   "method": "testTyping_ofSpreadResult_isObject",
+   "status": "rust_unit_test",
+   "reason": "asserts the Color objects attached to output-AST nodes (obj has StandardColors.TOP_OBJECT; the Object.assign call has the same Color as the node after Object.assign in the externs AST), test lines 91-102; the harness compares ASTs without types/colors (compareType=false) and no postCall key or test field records node colors",
+   "fragment": "corpus/unit/rust_unit_tests/RewriteObjectSpreadTest.md",
+   "category": "color"
+  }
+ ]
+}

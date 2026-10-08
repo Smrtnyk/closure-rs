@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/NodeUtilTest.java, nested test class CreateSynthesizedExternsSymbolTests, getProcessor (lines 4699-4708, an anonymous CompilerPass), copied verbatim into helper NodeUtilTest_Helpers, bb8c8e7",
+  "cases": [
+    {
+      "when": {"instanceClass": "com.google.javascript.jscomp.NodeUtilTest$CreateSynthesizedExternsSymbolTests"},
+      "processor": {
+        "mutationPoint": "com.google.javascript.jscomp.NodeUtil",
+        "value": {
+          "call": {"helper": "NodeUtilTest_Helpers"},
+          "method": "getProcessor",
+          "args": [{"compiler": true}]
+        }
+      }
+    }
+  ],
+  "note": "Only the nested class NodeUtilTest.CreateSynthesizedExternsSymbolTests extends CompilerTestCase. Every other NodeUtilTest test is a plain Node/NodeUtil unit test and is not recorded. Its getProcessor is unconditional and returns an anonymous CompilerPass that calls NodeUtil.createSynthesizedExternsSymbol(compiler, \"TEST_NAME\"). The class has no fields and no other overridden hooks. The single record has api=testExternChanges: the expected 'var TEST_NAME' is compared against the externs root, and diagnostics are observed on the compiler that createCompiler() returned. The mutationPoint lets --mutate-noop NodeUtil replace the anonymous pass with a no-op CompilerPass, so no extern is synthesized and the record fails."
+}

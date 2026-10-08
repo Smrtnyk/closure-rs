@@ -1,0 +1,14 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.VarCheckTest",
+ "methods": [
+  {
+   "method": "testSimpleValidityCheck",
+   "status": "captured",
+   "via": [
+    "outcome"
+   ],
+   "note": "VarCheckTest.java:692-700: with validityCheck=true, checkSynthesizedExtern (lines 1257-1266, one hooked testExternChanges call) must throw; the test catches the RuntimeException and asserts hasMessageThat().contains(\"Unexpected variable x\") (the fail() before the catch asserts that it throws). The record (index 137) has outcome {status: exception, exceptionClass: java.lang.RuntimeException, assertion: false, message: \"INTERNAL COMPILER ERROR. ... Unexpected variable x ...\"}; replay compares status, exception class and message exactly (ReplayMain.compare), so the asserted exception and its message are the replay-checked outcome. Classify round 1 batch 14: moved from rust_unit_test (category exception) to captured via outcome (FORMAT.md, Review round 4)."
+  }
+ ]
+}

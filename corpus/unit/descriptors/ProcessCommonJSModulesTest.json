@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/ProcessCommonJSModulesTest.java getProcessor (lines 47-50), bb8c8e7; getOptions (lines 34-45) is captured by the record's options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ProcessCommonJSModules",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor ignores the test fields; moduleRoots and resolutionMode only feed getOptions (setModuleRoots / setModuleResolutionMode), which the record's options diff reproduces. setWebpackModulesById is a harness field (harness.fields.webpackModulesById). ModulesTestUtils.testModules calls test(...) and is recorded through testInternal."
+}

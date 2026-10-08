@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckConstPrivatePropertiesTest.java getProcessor (lines 33-36), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.lint.CheckConstPrivateProperties",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor is unconditional and reads no test field (the class declares none). getOptions (lines 38-43) only sets LINT_CHECKS to WARNING, which the record's options (warningsGuard) carry."
+}

@@ -1,0 +1,34 @@
+{
+  "source": "test/com/google/javascript/jscomp/InlinePropertiesTest.java getProcessor (lines 59-82), bb8c8e7",
+  "cases": [
+    {
+      "when": {"testFields.runSmartNameRemoval": true},
+      "processor": {
+        "helper": "InlinePropertiesTest_Helpers.Anon1",
+        "args": [
+          {"new": "com.google.javascript.jscomp.InlineProperties", "args": [{"compiler": true}]},
+          {"call":
+            {"call":
+              {"call":
+                {"call":
+                  {"call":
+                    {"call":
+                      {"call":
+                        {"new": "com.google.javascript.jscomp.RemoveUnusedCode$Builder", "args": [{"compiler": true}]},
+                       "method": "removeLocalVars", "args": [{"bool": true}]},
+                     "method": "removeGlobals", "args": [{"bool": true}]},
+                   "method": "preserveFunctionExpressionNames", "args": [{"bool": true}]},
+                 "method": "removeUnusedPrototypeProperties", "args": [{"bool": true}]},
+               "method": "removeUnusedThisProperties", "args": [{"bool": true}]},
+             "method": "removeUnusedObjectDefinePropertiesDefinitions", "args": [{"bool": true}]},
+           "method": "build", "args": []}
+        ]
+      }
+    },
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.InlineProperties", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "getProcessor reads only the test field runSmartNameRemoval (recorded as a boolean: false in 50 records, true in 1, testRemoveDeadPrototypeProperties). When false it returns new InlineProperties(compiler). When true it also builds a RemoveUnusedCode pass with the Builder chain of lines 63-71 and returns the anonymous InlinePropertiesTest$1, which runs removalPass and then pass; that class body is copied verbatim into InlinePropertiesTest_Helpers.Anon1, whose generated constructor takes the two captured locals (pass, removalPass). Args are evaluated in order, so InlineProperties is constructed before the RemoveUnusedCode builder, as in the test. getOptions (lines 48-57, warning level OFF for a DiagnosticGroup of INEXISTENT_PROPERTY and TYPE_MISMATCH_WARNING) is replayed from the options diff; setUp (lines 84-96: enableTypeCheck, enableNormalize, enableClosurePass, enableRewriteClosureProvides, enableGatherExternProperties, replaceTypesWithColors, disableCompareJsDoc) is replayed from harness.fields."
+}

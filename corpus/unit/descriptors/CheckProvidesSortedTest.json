@@ -1,0 +1,14 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckProvidesSortedTest.java getProcessor (lines 39-49), bb8c8e7, replayed through helper CheckProvidesSortedTest_Helpers.GetProcessorHost (getProcessor copied verbatim, including its anonymous CompilerPass CheckProvidesSortedTest$1)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {"helper": "CheckProvidesSortedTest_Helpers.GetProcessorHost"},
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor builds a fresh CheckProvidesSorted(Mode.COLLECT_AND_REPORT) callback and returns an anonymous CompilerPass that traverses root with it; it reads no test field (the class declares none). The helper holder lives in com.google.javascript.jscomp (not the test's package lint) because the DSL resolves helper holders there; every type it uses (CheckProvidesSorted, its Mode enum and constructor, NodeTraversal.traverse) is public. getOptions() (lines 51-61) is replayed from record.options."
+}

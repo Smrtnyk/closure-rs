@@ -1,0 +1,22 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.CollapseAnonymousFunctionsTest",
+ "methods": [
+  {
+   "method": "testLet",
+   "status": "rust_unit_test",
+   "reason": "checkState that the NAME nodes `f` (function name, and in the second call the called name) in getLastCompiler().getJsRoot() do NOT carry Node.IS_CONSTANT_NAME, after each of the two test() calls (2 records); IS_CONSTANT_NAME is a per-node boolean property that isEquivalentTo does not compare; the records carry only compiler.externProperties and compiler.accessorSummary, neither of which holds node properties; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/CollapseAnonymousFunctionsTest.md",
+   "category": "node-identity",
+   "note": "Source lines 62-83."
+  },
+  {
+   "method": "testConst",
+   "status": "rust_unit_test",
+   "reason": "checkState that the NAME nodes `f` (function name, and in the second call the called name) in getLastCompiler().getJsRoot() carry Node.IS_CONSTANT_NAME, after each of the two test() calls (2 records); IS_CONSTANT_NAME is a per-node boolean property that isEquivalentTo does not compare; the records carry only compiler.externProperties and compiler.accessorSummary, neither of which holds node properties; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/CollapseAnonymousFunctionsTest.md",
+   "category": "node-identity",
+   "note": "Source lines 85-104."
+  }
+ ]
+}

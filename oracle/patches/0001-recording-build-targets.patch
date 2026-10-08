@@ -1,0 +1,54 @@
+diff --git a/BUILD.bazel b/BUILD.bazel
+index aa1219b..8b2cd5a 100644
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -344,3 +344,49 @@ java_library(
+         "test/com/google/javascript/jscomp/instrumentation/reporter/testdata/**/*",
+     ]),
+ )
++
++# ---- closure-rs unit-corpus recording targets (oracle/patches/0001-recording-build-targets.patch) ----
++# Deploy jar of the compiler, its runtime deps, and the non-Test support classes from test/
++# (compiler_tests_lib). It contains NO *Test class; the replay harness runs on it alone.
++java_binary(
++    name = "unit_support",
++    testonly = True,
++    main_class = "org.junit.runner.JUnitCore",
++    runtime_deps = [
++        ":compiler_tests_lib",
++        ":compiler_tests_resources",
++    ],
++)
++
++# Every *Test.java under test/ (the classes gen_java_tests turns into java_test targets),
++# compiled as one library so the whole suite can run outside Bazel with plain JUnitCore.
++java_library(
++    name = "unit_all_tests",
++    testonly = True,
++    srcs = glob(["test/**/*Test.java"]),
++    deps = [
++        ":compiler_lib",
++        ":compiler_tests_lib",
++        "//src/com/google/debugging/sourcemap/proto:mapping_java_proto",
++        "//src/com/google/javascript/jscomp/compiler_state:compiler_state_java_proto",
++        "//src/com/google/javascript/jscomp/conformance:conformance_java_proto",
++        "//src/com/google/javascript/jscomp/instrumentation/reporter/proto:profile_java_proto",
++        "//src/com/google/javascript/rhino/typed_ast:typed_ast_java_proto",
++        "@google_bazel_common//third_party/java/auto:value",
++        "@google_bazel_common//third_party/java/junit",
++        "@google_bazel_common//third_party/java/mockito",
++        "@google_bazel_common//third_party/java/truth",
++        "@google_bazel_common//third_party/java/truth/extensions:proto",
++        "@maven//:args4j_args4j",
++        "@maven//:com_google_code_gson_gson",
++        "@maven//:com_google_errorprone_error_prone_annotations",
++        "@maven//:com_google_guava_failureaccess",
++        "@maven//:com_google_guava_guava",
++        "@maven//:com_google_guava_guava_testlib",
++        "@maven//:com_google_jimfs_jimfs",
++        "@maven//:com_google_protobuf_protobuf_java",
++        "@maven//:com_google_re2j_re2j",
++        "@maven//:io_github_java_diff_utils_java_diff_utils",
++        "@maven//:org_jspecify_jspecify",
++    ],
++)

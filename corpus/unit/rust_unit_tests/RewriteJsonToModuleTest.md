@@ -1,0 +1,3 @@
+## RewriteJsonToModuleTest (post-call assertions, gate 0.2 (a))
+
+No method of `com.google.javascript.jscomp.RewriteJsonToModuleTest` is a Rust unit test. Its six flagged methods assert `getLastCompiler().getModuleLoader().getPackageJsonMainEntries()`, a map of strings. That is a neutral value, so it is never a Rust unit test (FORMAT.md). Since the v7 recording (D-017 item 2) the records carry it as `postCall.compiler.packageJsonMainEntries`, and all six methods are `captured` in `corpus/unit/postcall/RewriteJsonToModuleTest.json`: four through that key, and the two `isEmpty()` methods (`testJsonFile`, `testPackageJsonWithoutMain`) through `postCallAbsent.compiler.packageJsonMainEntries`, because the key is written only for a non-empty map.

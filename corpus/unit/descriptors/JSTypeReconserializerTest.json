@@ -1,0 +1,201 @@
+{
+  "source": "test/com/google/javascript/jscomp/serialization/JSTypeReconserializerTest.java getProcessor (lines 81-120), fields (lines 52-58), setUp (lines 71-79), createCompiler override (lines 122-129), bb8c8e7. getProcessor and the fields it touches are copied verbatim into helper com.google.javascript.jscomp.serialization.JSTypeReconserializerTest_Helpers",
+  "cases": [
+    {
+      "when": {
+        "testFields.shouldSerializeProperty.captures.arg$1": {
+          "isNull": false
+        }
+      },
+      "compilerSetup": [
+        {
+          "call": {
+            "field": "typesToForwardDeclare"
+          },
+          "method": "forEach",
+          "args": [
+            {
+              "lambda": [
+                "typeName"
+              ],
+              "iface": "java.util.function.Consumer",
+              "body": {
+                "call": {
+                  "compiler": true
+                },
+                "method": "forwardDeclareType",
+                "args": [
+                  {
+                    "var": "typeName"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "processor": {
+        "call": {
+          "once": "test",
+          "value": {
+            "withFields": {
+              "helper": "JSTypeReconserializerTest_Helpers",
+              "package": "com.google.javascript.jscomp.serialization",
+              "args": []
+            },
+            "fields": {
+              "shouldSerializeProperty": {
+                "lambda": [
+                  "propertyName"
+                ],
+                "iface": "java.util.function.Predicate",
+                "body": {
+                  "call": {
+                    "field": "shouldSerializeProperty",
+                    "path": "captures.arg$1"
+                  },
+                  "method": "contains",
+                  "args": [
+                    {
+                      "var": "propertyName"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "method": "getProcessor",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      },
+      "testFieldsAfter": {
+        "once": "test",
+        "value": {
+          "withFields": {
+            "helper": "JSTypeReconserializerTest_Helpers",
+            "package": "com.google.javascript.jscomp.serialization",
+            "args": []
+          },
+          "fields": {
+            "shouldSerializeProperty": {
+              "lambda": [
+                "propertyName"
+              ],
+              "iface": "java.util.function.Predicate",
+              "body": {
+                "call": {
+                  "field": "shouldSerializeProperty",
+                  "path": "captures.arg$1"
+                },
+                "method": "contains",
+                "args": [
+                  {
+                    "var": "propertyName"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "testFieldsAfterAlso": [
+        "labelToPointer",
+        "stringPoolBuilder",
+        "typePool"
+      ],
+      "note": "shouldSerializeProperty is the method reference ImmutableSet.of(\"constructor\", \"serializeMe\")::contains (lines 225-226); the recorded lambda dump captures that set as arg$1, so the predicate is rebuilt as (propertyName) -> arg$1.contains(propertyName)."
+    },
+    {
+      "when": {},
+      "compilerSetup": [
+        {
+          "call": {
+            "field": "typesToForwardDeclare"
+          },
+          "method": "forEach",
+          "args": [
+            {
+              "lambda": [
+                "typeName"
+              ],
+              "iface": "java.util.function.Consumer",
+              "body": {
+                "call": {
+                  "compiler": true
+                },
+                "method": "forwardDeclareType",
+                "args": [
+                  {
+                    "var": "typeName"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "processor": {
+        "call": {
+          "once": "test",
+          "value": {
+            "withFields": {
+              "helper": "JSTypeReconserializerTest_Helpers",
+              "package": "com.google.javascript.jscomp.serialization",
+              "args": []
+            },
+            "fields": {
+              "shouldSerializeProperty": {
+                "lambda": [
+                  "propertyName"
+                ],
+                "iface": "java.util.function.Predicate",
+                "body": {
+                  "bool": true
+                }
+              }
+            }
+          }
+        },
+        "method": "getProcessor",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      },
+      "testFieldsAfter": {
+        "once": "test",
+        "value": {
+          "withFields": {
+            "helper": "JSTypeReconserializerTest_Helpers",
+            "package": "com.google.javascript.jscomp.serialization",
+            "args": []
+          },
+          "fields": {
+            "shouldSerializeProperty": {
+              "lambda": [
+                "propertyName"
+              ],
+              "iface": "java.util.function.Predicate",
+              "body": {
+                "bool": true
+              }
+            }
+          }
+        }
+      },
+      "testFieldsAfterAlso": [
+        "labelToPointer",
+        "stringPoolBuilder",
+        "typePool"
+      ],
+      "note": "shouldSerializeProperty is setUp's (propertyName) -> true (line 77); its recorded lambda dump has no captures."
+    }
+  ],
+  "note": "The test instance is modelled by one helper holder per record ({\"once\":\"test\"}), shared by every getProcessor call, exactly as the test instance is shared across repetitions; testFieldsAfter opts in to checking its typePool, stringPoolBuilder and labelToPointer after the call against the recorded testFieldsAfter (these are the pass's side outputs that the tests assert on). shouldSerializeProperty is a java.util.function.Predicate lambda, dumped as unrepresentable in every record, but with its captures; each case rebuilds it from them as a DSL lambda. compilerSetup models the createCompiler override (lines 122-129): for each typesToForwardDeclare entry (recorded as a set of strings; non-empty only in doesntSerializeForwardDeclaredType) it calls compiler.forwardDeclareType on the freshly created compiler. getProcessor re-assigns stringPoolBuilder and labelToPointer and the pass only writes typePool/labelToPointer, so their recorded entry values are never read. setUp's enableTypeCheck/enableSourceInformationAnnotator are harness fields restored from the record.",
+  "noteTestFieldsAfterAlso": "Classify round 1 batch 2 (D-017): labelToPointer, stringPoolBuilder and typePool are compared in every record, also when the call left them unchanged (17 testNativeTypesAreNotSerialized records and 3 nativeObjects() calls; expected value = the entry value, FORMAT.md testFieldsAfterAlso). The tests assert on these fields after every compileToTypes/compileToTypePool call (test lines 131-807)."
+}

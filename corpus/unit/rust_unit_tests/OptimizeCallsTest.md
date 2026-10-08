@@ -1,0 +1,9 @@
+## OptimizeCallsTest (post-call assertions, gate 0.2 (a))
+
+Methods of `com.google.javascript.jscomp.OptimizeCallsTest` whose follow-up assertions read the `references` test field (the `OptimizeCalls.ReferenceMap` the CallGraphCompilerPass stored). Replay compares the recorded post-call `references` dump (descriptor `testFieldsAfter`, fix-8): global-scope variable names and the name/property reference maps with their keys, list order and node classes, so these records stay counted. The parts below need the reference nodes themselves (their `Token`, or the `OptimizeCalls.isAllowedReference` predicate) and are ported as Rust unit tests next to OptimizeCalls.
+
+- OptimizeCallsTest#testReferenceCollection_findsSuperCalls_simpleNames: for the class/super() input of the record, the name reference lists of SuperClass and SubClass hold nodes with tokens [NAME, NAME, SUPER, NAME] and [NAME, NAME], in order.
+- OptimizeCallsTest#testReferenceCollection_findsSuperCalls_qualifiedNames: for the ns.SuperClass/ns.SubClass input of the record, the property reference lists of SuperClass and SubClass hold nodes with tokens [GETPROP, GETPROP, SUPER, GETPROP] and [GETPROP, GETPROP], in order.
+- OptimizeCallsTest#testReferenceCollection_findsClassFields: for the class-fields input of the record, the property references of a, b and e are each one MEMBER_FIELD_DEF node (the key sets {C} and {a, b, e} are already compared by replay).
+- OptimizeCallsTest#testReferenceCollection_reflectedProps: for the goog.reflect.objectProperty input of the record, the property reference list of m holds a MEMBER_FUNCTION_DEF node and then the CALL node, in order.
+- OptimizeCallsTest#testIsAllowedReference_taggedTemplateLiteral: for the tagged-template input of the record, the name references of obj exist and at least one of them is not an allowed reference under OptimizeCalls.isAllowedReference (the obj.tag`template` use).

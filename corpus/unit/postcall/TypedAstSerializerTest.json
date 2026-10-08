@@ -1,0 +1,71 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.serialization.TypedAstSerializerTest",
+ "methods": [
+  {
+   "method": "emptySourcesNoTypeChecking",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.testResult"
+   ],
+   "note": "asserts, after Tester.test()'s testSame, testResult.getTypePool().getTypeList() ignoringFieldDescriptors(ObjectTypeProto.uuid) containsExactlyElementsIn the expected ObjectTypeProtos (own_property offsets looked up in testResult's string pool) and reads testResult.getStringPool(); testResult is the TypedAst the processor lambda stores. Replay compares testFieldsAfter.testResult (descriptor opt-in, comparedFields [testResult]) by JSON equality, and since v7 (D-017 item 2) the record holds it in the neutral protobuf encoding with no depth limit: type_pool.type (every TypeProto/ObjectTypeProto, uuid and own_property included), string_pool.strings, extern_ast/code_ast and source_file_pool. The comparison is stricter than the assertion (uuid is compared too)"
+  },
+  {
+   "method": "consoleDotLogNoTypeChecking",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.testResult"
+   ],
+   "note": "asserts, after Tester.test()'s testSame, testResult.getTypePool().getTypeList() ignoringFieldDescriptors(ObjectTypeProto.uuid) containsExactlyElementsIn the expected ObjectTypeProtos (own_property offsets looked up in testResult's string pool) and reads testResult.getStringPool(); testResult is the TypedAst the processor lambda stores. Replay compares testFieldsAfter.testResult (descriptor opt-in, comparedFields [testResult]) by JSON equality, and since v7 (D-017 item 2) the record holds it in the neutral protobuf encoding with no depth limit: type_pool.type (every TypeProto/ObjectTypeProto, uuid and own_property included), string_pool.strings, extern_ast/code_ast and source_file_pool. The comparison is stricter than the assertion (uuid is compared too)"
+  },
+  {
+   "method": "emptySourcesWithTypeChecking",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.testResult"
+   ],
+   "note": "asserts, after Tester.test()'s testSame, testResult.getTypePool().getTypeList() ignoringFieldDescriptors(ObjectTypeProto.uuid) containsExactlyElementsIn the expected ObjectTypeProtos (own_property offsets looked up in testResult's string pool) and reads testResult.getStringPool(); testResult is the TypedAst the processor lambda stores. Replay compares testFieldsAfter.testResult (descriptor opt-in, comparedFields [testResult]) by JSON equality, and since v7 (D-017 item 2) the record holds it in the neutral protobuf encoding with no depth limit: type_pool.type (every TypeProto/ObjectTypeProto, uuid and own_property included), string_pool.strings, extern_ast/code_ast and source_file_pool. The comparison is stricter than the assertion (uuid is compared too)"
+  },
+  {
+   "method": "consoleDotLogWithTypeChecking",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.testResult"
+   ],
+   "note": "asserts, after Tester.test()'s testSame, testResult.getTypePool().getTypeList() ignoringFieldDescriptors(ObjectTypeProto.uuid) containsExactlyElementsIn the expected ObjectTypeProtos (own_property offsets looked up in testResult's string pool) and reads testResult.getStringPool(); testResult is the TypedAst the processor lambda stores. Replay compares testFieldsAfter.testResult (descriptor opt-in, comparedFields [testResult]) by JSON equality, and since v7 (D-017 item 2) the record holds it in the neutral protobuf encoding with no depth limit: type_pool.type (every TypeProto/ObjectTypeProto, uuid and own_property included), string_pool.strings, extern_ast/code_ast and source_file_pool. The comparison is stricter than the assertion (uuid is compared too)"
+  },
+  {
+   "method": "emptySourcesWithColorizedAst",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.testResult"
+   ],
+   "note": "asserts, after Tester.test()'s testSame, testResult.getTypePool().getTypeList() ignoringFieldDescriptors(ObjectTypeProto.uuid) containsExactlyElementsIn the expected ObjectTypeProtos (own_property offsets looked up in testResult's string pool) and reads testResult.getStringPool(); testResult is the TypedAst the processor lambda stores. Replay compares testFieldsAfter.testResult (descriptor opt-in, comparedFields [testResult]) by JSON equality, and since v7 (D-017 item 2) the record holds it in the neutral protobuf encoding with no depth limit: type_pool.type (every TypeProto/ObjectTypeProto, uuid and own_property included), string_pool.strings, extern_ast/code_ast and source_file_pool. The comparison is stricter than the assertion (uuid is compared too)"
+  },
+  {
+   "method": "consoleDotLogWithColorizedAst",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.testResult"
+   ],
+   "note": "asserts, after Tester.test()'s testSame, testResult.getTypePool().getTypeList() ignoringFieldDescriptors(ObjectTypeProto.uuid) containsExactlyElementsIn the expected ObjectTypeProtos (own_property offsets looked up in testResult's string pool) and reads testResult.getStringPool(); testResult is the TypedAst the processor lambda stores. Replay compares testFieldsAfter.testResult (descriptor opt-in, comparedFields [testResult]) by JSON equality, and since v7 (D-017 item 2) the record holds it in the neutral protobuf encoding with no depth limit: type_pool.type (every TypeProto/ObjectTypeProto, uuid and own_property included), string_pool.strings, extern_ast/code_ast and source_file_pool. The comparison is stricter than the assertion (uuid is compared too)"
+  },
+  {
+   "method": "ignoresIjsFilesInExternAst",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.testResult"
+   ],
+   "note": "asserts, after testSame, the file names of testResult.getExternAstList() looked up in testResult.getSourceFilePool() (contains the regular file, doesNotContain the .i.js file); testResult is the TypedAst the processor lambda stores. Replay compares testFieldsAfter.testResult (descriptor opt-in, comparedFields [testResult]) by JSON equality, and since v7 (D-017 item 2) the record holds it in the neutral protobuf encoding with no depth limit: every LazyAst's source_file index and every SourceFileProto filename of source_file_pool"
+  },
+  {
+   "method": "ignoresIjsFilesInCodeAst",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.testResult"
+   ],
+   "note": "asserts, after testSame, the file names of testResult.getCodeAstList() looked up in testResult.getSourceFilePool() (contains the regular file, doesNotContain the .i.js file); testResult is the TypedAst the processor lambda stores. Replay compares testFieldsAfter.testResult (descriptor opt-in, comparedFields [testResult]) by JSON equality, and since v7 (D-017 item 2) the record holds it in the neutral protobuf encoding with no depth limit: every LazyAst's source_file index and every SourceFileProto filename of source_file_pool"
+  }
+ ],
+ "note": "Classify round 2 batch 5 (v7 records). Every flagged method asserts contents of the serialized TypedAst protobuf in the test field testResult. The v7 recorder writes protobuf messages in the neutral {proto, fields} encoding (FORMAT.md 'Neutral encodings'), so gate rule 1a no longer demotes the field and testFieldsAfter.testResult holds the asserted state."
+}

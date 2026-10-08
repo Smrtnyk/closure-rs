@@ -1,0 +1,15 @@
+{
+  "source": "test/com/google/javascript/jscomp/ClosureOptimizePrimitivesTest.java getProcessor (lines 33-36)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ClosureOptimizePrimitives",
+        "args": [
+          {"compiler": true},
+          {"field": "canUseEs6Syntax"}
+        ]
+      }
+    }
+  ]
+}

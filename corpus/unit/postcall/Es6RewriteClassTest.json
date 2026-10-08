@@ -1,0 +1,76 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.Es6RewriteClassTest",
+ "methods": [
+  {
+   "method": "testClassStatementWithConstructor",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "after test() asserts Color objects that ConvertTypesToColors and the multistage TypedAST round trip attach to nodes of getLastCompiler().getJsRoot() (Es6RewriteClassTest.java:99-111: the NAME `C` has a constructor color and the FUNCTION node has the same color as `C`); Colors (identity, getPrototypes(), getInstanceColors(), StandardColors constants) are compiler-internal objects that Node.isEquivalentTo ignores. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteClassTest.md"
+  },
+  {
+   "method": "testClassStatementWithMethod",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "after test() asserts Color objects that ConvertTypesToColors and the multistage TypedAST round trip attach to nodes of getLastCompiler().getJsRoot() (Es6RewriteClassTest.java:114-143: the only prototype color of `C`'s color is the color of the GETPROP `C.prototype`, the NAME `C` there has `C`'s constructor color, and the method FUNCTION has the color of `C.prototype.method`); Colors (identity, getPrototypes(), getInstanceColors(), StandardColors constants) are compiler-internal objects that Node.isEquivalentTo ignores. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteClassTest.md"
+  },
+  {
+   "method": "testComputedSuper",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "after test() asserts Color objects that ConvertTypesToColors and the multistage TypedAST round trip attach to nodes of getLastCompiler().getJsRoot() (Es6RewriteClassTest.java:1443-1505: in `RETURN: { return Foo.prototype['m'].call(this) + 1; }` the CALL and the `.call` GETPROP have StandardColors.UNKNOWN, `Foo.prototype` has the only prototype color of `Foo`, `Foo` has `Foo`'s color and `this` has the only instance color of `Bar`); Colors (identity, getPrototypes(), getInstanceColors(), StandardColors constants) are compiler-internal objects that Node.isEquivalentTo ignores. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteClassTest.md"
+  },
+  {
+   "method": "testSimpleClassStatement",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "after test() asserts Color objects that ConvertTypesToColors and the multistage TypedAST round trip attach to nodes of getLastCompiler().getJsRoot() (Es6RewriteClassTest.java:84-96: the NAME `C` of `let C = function() {}` has a constructor color and the FUNCTION node has the same color as `C`); Colors (identity, getPrototypes(), getInstanceColors(), StandardColors constants) are compiler-internal objects that Node.isEquivalentTo ignores. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteClassTest.md"
+  },
+  {
+   "method": "testSuperCall",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "after test() asserts Color objects that ConvertTypesToColors and the multistage TypedAST round trip attach to nodes of getLastCompiler().getJsRoot() (Es6RewriteClassTest.java:1107-1148: in `SUPER: { D.call(this); }` the CALL has StandardColors.NULL_OR_VOID, `D.call` has TOP_OBJECT, `D` has `D`'s color and `this` has the only instance color of `C`'s color); Colors (identity, getPrototypes(), getInstanceColors(), StandardColors constants) are compiler-internal objects that Node.isEquivalentTo ignores. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteClassTest.md"
+  },
+  {
+   "method": "testClassStatementWithConstructor_hasCorrectSourceInfo",
+   "status": "rust_unit_test",
+   "category": "node-identity",
+   "reason": "after the hooked call (reached through the helper testAndReturnAsts, Es6RewriteClassTest.java:3460-3466, which returns getLastCompiler().getJsRoot() and a separately parsed input AST) asserts assertNode(..).hasEqualSourceInfoTo(..) between output-AST and input-AST Node objects (Es6RewriteClassTest.java:3144-3172: the NAME `C` and the FUNCTION of the output have the source position of `C` and of `constructor() {}` of the input): source positions of Java Node objects, which Node.isEquivalentTo does not compare. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteClassTest.md"
+  },
+  {
+   "method": "testClassStatementWithMethod_hasCorrectSourceInfo",
+   "status": "rust_unit_test",
+   "category": "node-identity",
+   "reason": "after the hooked call (reached through the helper testAndReturnAsts, Es6RewriteClassTest.java:3460-3466, which returns getLastCompiler().getJsRoot() and a separately parsed input AST) asserts assertNode(..).hasEqualSourceInfoTo(..) between output-AST and input-AST Node objects (Es6RewriteClassTest.java:3175-3216: `C.prototype.method`, `C.prototype` and `C` have the source position of the MEMBER_FUNCTION_DEF `method`, and the FUNCTION that of `method() {}`): source positions of Java Node objects, which Node.isEquivalentTo does not compare. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteClassTest.md"
+  },
+  {
+   "method": "testComputedSuper_hasCorrectSourceInfo",
+   "status": "rust_unit_test",
+   "category": "node-identity",
+   "reason": "after the hooked call (reached through the helper testAndReturnAsts, Es6RewriteClassTest.java:3460-3466, which returns getLastCompiler().getJsRoot() and a separately parsed input AST) asserts assertNode(..).hasEqualSourceInfoTo(..) between output-AST and input-AST Node objects (Es6RewriteClassTest.java:3272-3339: the CALL has the source position of `super['m']()`, the `.call` GETPROP, the GETELEM and `this` that of `super['m']`, and `Foo.prototype` and `Foo` that of `super`): source positions of Java Node objects, which Node.isEquivalentTo does not compare. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteClassTest.md"
+  },
+  {
+   "method": "testSimpleClassStatement_hasCorrectSourceInfo",
+   "status": "rust_unit_test",
+   "category": "node-identity",
+   "reason": "after the hooked call (reached through the helper testAndReturnAsts, Es6RewriteClassTest.java:3460-3466, which returns getLastCompiler().getJsRoot() and a separately parsed input AST) asserts assertNode(..).hasEqualSourceInfoTo(..) between output-AST and input-AST Node objects (Es6RewriteClassTest.java:3117-3141: the NAME `C` and the FUNCTION of the output have the source position of `C` and of the CLASS node of the input): source positions of Java Node objects, which Node.isEquivalentTo does not compare. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteClassTest.md"
+  },
+  {
+   "method": "testSuperCall_hasCorrectSourceInfo",
+   "status": "rust_unit_test",
+   "category": "node-identity",
+   "reason": "after the hooked call (reached through the helper testAndReturnAsts, Es6RewriteClassTest.java:3460-3466, which returns getLastCompiler().getJsRoot() and a separately parsed input AST) asserts assertNode(..).hasEqualSourceInfoTo(..) between output-AST and input-AST Node objects (Es6RewriteClassTest.java:3219-3269: the CALL `D.call(this)` has the source position of `super()`, and `D.call`, `D` and `this` that of `super`): source positions of Java Node objects, which Node.isEquivalentTo does not compare. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteClassTest.md"
+  }
+ ]
+}

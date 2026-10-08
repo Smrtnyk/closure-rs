@@ -1,0 +1,23 @@
+[package]
+name = "fuzz-driver"
+description = "Differential fuzzing driver: generate/mutate, run Java (and later Rust), compare, minimize, file findings"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+jsgen = { workspace = true }
+mutate = { workspace = true }
+minimize = { workspace = true }
+fuzz-oracle = { workspace = true }
+
+[[bin]]
+name = "fuzz-driver"
+path = "src/main.rs"
+
+[lints]
+workspace = true

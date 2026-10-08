@@ -1,0 +1,134 @@
+{
+  "v": 1,
+  "class": "com.google.javascript.jscomp.GatherGetterAndSetterPropertiesTest",
+  "methods": [
+    {
+      "method": "defaultToNormal",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "detectClass",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "detectClassStatic",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "detectDefinePropertiesMemberFunctions",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "detectDefinePropertiesQuotedKeys",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "detectDefinePropertiesUnquotedKeys",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "detectDefinePropertyMemberFunctions",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "detectDefinePropertyQuotedKeys",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "detectDefinePropertyUnquotedKeys",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "detectJscompGlobalObject",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "detectObjectLiteral",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "findGettersAndSettersInExterns",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "findGettersAndSettersInSources",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "mergeExtersAndSrcs",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "mergeInExterns",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    },
+    {
+      "method": "mergeInSrcs",
+      "status": "captured",
+      "via": [
+        "postCall.compiler.accessorSummary"
+      ],
+      "note": "asserts getLastCompiler().getAccessorSummary() (getKind(name) or getAccessors() containsExactlyEntriesIn) after each testSame; postCall.compiler.accessorSummary is the full getAccessors() map (getKind(name) is that map's value, NORMAL when absent), recorded and compared by replay on every record. Note: the class stays vacuous under the whole-processor no-op because CompilerTestCase.updateAccessorSummary (CTC:1575-1580) sets the same summary from GatherGetterAndSetterProperties.gather(root) before the processor runs, so these records cannot tell the pass from a no-op; the gate's vacuity rule keeps them notCaptured (excluded) on its own."
+    }
+  ]
+}

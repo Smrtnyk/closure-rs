@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/SubstituteEs6SyntaxTest.java getProcessor (lines 27-30), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.SubstituteEs6Syntax",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "The test class declares no fields and no setUp; the per-test disableCompareAsTree calls are in harness.fields and comparison.mode."
+}

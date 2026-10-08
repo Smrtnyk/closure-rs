@@ -1,0 +1,318 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.TypeCheckTest",
+ "methods": [
+  {
+   "method": "testAddMethodsPrototypeTwoWays",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testAddSingletonGetter",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testAddingMethodsPrototypeIdiomAndObjectLiteralSimpleNamespace",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testAddingMethodsUsingPrototypeIdiomComplexNamespace1",
+   "status": "rust_unit_test",
+   "reason": "asserts on the TypeCheckResult that parseAndTypeCheckWithScope returns: JSType objects of the global TypedScope (scope.getVar(name).getType(): type identity/equality with registry native types, instanceof FunctionType/ObjectType, property types); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "note": "assertions are in the private helper testAddingMethodsUsingPrototypeIdiomComplexNamespace(TypeCheckResult); moved here from the descriptor's legacy postCallAssertions (out_of_scope)",
+   "category": "jstype"
+  },
+  {
+   "method": "testAddingMethodsUsingPrototypeIdiomComplexNamespace2",
+   "status": "rust_unit_test",
+   "reason": "asserts on the TypeCheckResult that parseAndTypeCheckWithScope returns: JSType objects of the global TypedScope (scope.getVar(name).getType(): type identity/equality with registry native types, instanceof FunctionType/ObjectType, property types); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "note": "assertions are in the private helper testAddingMethodsUsingPrototypeIdiomComplexNamespace(TypeCheckResult); moved here from the descriptor's legacy postCallAssertions (out_of_scope)",
+   "category": "jstype"
+  },
+  {
+   "method": "testAddingMethodsUsingPrototypeIdiomSimpleNamespace",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testAssignToUntypedProperty",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testAssignToUntypedVariable",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testCallArrayConstructorAsFunction",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testCallDateConstructorAsFunction",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testCallErrorConstructorAsFunction",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testCast4Types",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testComplexNamespace",
+   "status": "rust_unit_test",
+   "reason": "asserts on the TypeCheckResult that parseAndTypeCheckWithScope returns: JSType objects of the global TypedScope (scope.getVar(name).getType(): type identity/equality with registry native types, instanceof FunctionType/ObjectType, property types); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state; also JSType object identity (isSameInstanceAs) between scope and AST nodes",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testConstructorType7",
+   "status": "rust_unit_test",
+   "reason": "asserts on the TypeCheckResult that parseAndTypeCheckWithScope returns: JSType objects of the global TypedScope (scope.getVar(name).getType(): type identity/equality with registry native types, instanceof FunctionType/ObjectType, property types); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testDeclareBuiltInConstructor",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testDeclaredNativeTypeEquality",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testDontAddMethodsIfNoConstructor",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testEnum21",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testExtendBuiltInType1",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testExtendBuiltInType2",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testExtendFunction1",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testExtendFunction2",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testFlowScopeBug1",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testFlowScopeBug2",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testGatherProperyWithoutAnnotation1",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testGatherProperyWithoutAnnotation2",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testGoodExtends4",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testNamespacedConstructor",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testNew12",
+   "status": "rust_unit_test",
+   "reason": "asserts on the TypeCheckResult that parseAndTypeCheckWithScope returns: JSType objects of the global TypedScope (scope.getVar(name).getType(): type identity/equality with registry native types, instanceof FunctionType/ObjectType, property types); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testNew13",
+   "status": "rust_unit_test",
+   "reason": "asserts on the TypeCheckResult that parseAndTypeCheckWithScope returns: JSType objects of the global TypedScope (scope.getVar(name).getType(): type identity/equality with registry native types, instanceof FunctionType/ObjectType, property types); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testNew14",
+   "status": "rust_unit_test",
+   "reason": "asserts on the TypeCheckResult that parseAndTypeCheckWithScope returns: JSType objects of the global TypedScope (scope.getVar(name).getType(): type identity/equality with registry native types, instanceof FunctionType/ObjectType, property types); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testNew15",
+   "status": "rust_unit_test",
+   "reason": "asserts on the TypeCheckResult that parseAndTypeCheckWithScope returns: JSType objects of the global TypedScope (scope.getVar(name).getType(): type identity/equality with registry native types, instanceof FunctionType/ObjectType, property types); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testNew6",
+   "status": "rust_unit_test",
+   "reason": "asserts on the TypeCheckResult that parseAndTypeCheckWithScope returns: JSType objects of the global TypedScope (scope.getVar(name).getType(): type identity/equality with registry native types, instanceof FunctionType/ObjectType, property types); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testObjectLiteral",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testPrototypePropertyReference",
+   "status": "rust_unit_test",
+   "reason": "asserts on the TypeCheckResult that parseAndTypeCheckWithScope returns: JSType objects of the global TypedScope (scope.getVar(name).getType(): type identity/equality with registry native types, instanceof FunctionType/ObjectType, property types); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "note": "its error/warning-count assertions are already compared by replay (observed.errors/warnings); the JSType assertions are not",
+   "category": "jstype"
+  },
+  {
+   "method": "testPrototypePropertyTypes",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testResolutionViaRegistry5",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testScoping10",
+   "status": "rust_unit_test",
+   "reason": "asserts on the TypeCheckResult that parseAndTypeCheckWithScope returns: the global TypedScope declares a and does not declare b (assertScope(p.scope).declares/doesNotDeclare) and scope.getVar(\"a\").getType().toString() is \"function(): undefined\" (a JSType object of the global TypedScope); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records typed-scope or type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype",
+   "note": "Classify round 1 batch 14: reason made specific after reading the source (TypeCheckTest testScoping10)."
+  },
+  {
+   "method": "testSheqRefinedScope",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testUndefinedVar",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testValueTypeBuiltInPrototypePropertyType",
+   "status": "rust_unit_test",
+   "reason": "asserts on JSType objects attached to nodes of the type-checked AST returned by the call (parseAndTypeCheck, or TypeCheckResult.root of parseAndTypeCheckWithScope) (Node.getJSType(): equality with registry native types, instanceof ObjectType/FunctionType, property types, toString()); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testVar1",
+   "status": "rust_unit_test",
+   "reason": "asserts on the TypeCheckResult that parseAndTypeCheckWithScope returns: JSType objects of the global TypedScope (scope.getVar(name).getType(): type identity/equality with registry native types, instanceof FunctionType/ObjectType, property types); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testVar3",
+   "status": "rust_unit_test",
+   "reason": "asserts on the TypeCheckResult that parseAndTypeCheckWithScope returns: JSType objects of the global TypedScope (scope.getVar(name).getType(): type identity/equality with registry native types, instanceof FunctionType/ObjectType, property types); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testVar4",
+   "status": "rust_unit_test",
+   "reason": "asserts on the TypeCheckResult that parseAndTypeCheckWithScope returns: JSType objects of the global TypedScope (scope.getVar(name).getType(): type identity/equality with registry native types, instanceof FunctionType/ObjectType, property types); type_check records have no postCall snapshot or testFieldsAfter, so no neutral snapshot records type-registry state",
+   "fragment": "corpus/unit/rust_unit_tests/TypeCheckTest.md",
+   "category": "jstype"
+  }
+ ]
+}

@@ -1,0 +1,22 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.RewriteClassMembersTest",
+ "methods": [
+  {
+   "method": "testSuperCallInComplexExpression_cannotDecompose",
+   "status": "captured",
+   "note": "Review round 4: the former rust_unit_test reason named a value replay compares (outcome); former reason: asserts (assertThrows + hasMessageThat().contains) on the message of the RuntimeException Es6NormalizeClasses throws from the hooked test() call; the postcall schema has no outcome via, and a non-Java harness compares only the status of a non-assertion exception (FORMAT.md Outcome contract) because the recorded message embeds Java Color{id=...} and Node dumps",
+   "via": [
+    "outcome"
+   ]
+  },
+  {
+   "method": "testConditionalSuperCalls",
+   "status": "captured",
+   "note": "Review round 4: the former rust_unit_test reason named a value replay compares (outcome); former reason: asserts (assertThrows + hasMessageThat().contains) on the message of the RuntimeException Es6NormalizeClasses throws from the hooked test() call; the postcall schema has no outcome via, and a non-Java harness compares only the status of a non-assertion exception (FORMAT.md Outcome contract) because the recorded message embeds Java Color{id=...} and Node dumps",
+   "via": [
+    "outcome"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,50 @@
+{
+ "source": "test/com/google/javascript/jscomp/InferConstsTest.java getProcessor (lines 37-47, an anonymous CompilerPass) and FindConstants (lines 339-361), copied verbatim into helper InferConstsTest_Helpers, bb8c8e7",
+ "classMap": {
+  "com.google.javascript.jscomp.InferConstsTest$1": "com.google.javascript.jscomp.InferConstsTest_Helpers$1",
+  "com.google.javascript.jscomp.InferConstsTest$FindConstants": "com.google.javascript.jscomp.InferConstsTest_Helpers$FindConstants"
+ },
+ "cases": [
+  {
+   "when": {},
+   "processor": {
+    "call": {
+     "once": "holder",
+     "value": {
+      "withFields": {
+       "helper": "InferConstsTest_Helpers"
+      },
+      "fields": {
+       "names": {
+        "field": "names"
+       }
+      }
+     }
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   },
+   "testFieldsAfter": {
+    "once": "holder",
+    "value": {
+     "withFields": {
+      "helper": "InferConstsTest_Helpers"
+     },
+     "fields": {
+      "names": {
+       "field": "names"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "constFinder"
+   ]
+  }
+ ],
+ "note": "getProcessor reads the test field names (an ImmutableList<String>, set by assertConsts before each testSame and recorded at that point), builds a fresh FindConstants(names) into constFinder, and returns an anonymous CompilerPass that runs new InferConsts(compiler).process(externs, root) and then NodeTraversal.traverse(compiler, root, constFinder). The DSL has no 'traverse' construct, so the method is replayed through the verbatim helper. The helper holder is shared through {\"once\":\"holder\"} by the processor and the testFieldsAfter check, as the test instance is shared by getProcessor and assertConsts. The recorded testFields.constFinder is the previous call's leftover collector and is not read (getProcessor overwrites it). Post-call state (classify batch 0, D-015 a): assertConsts asserts, after testSame, that each expected name is (or is not) in constFinder.inferredNodes / constFinder.declaredNodes. Both sets are fields of constFinder, which the recorder dumps in testFieldsAfter (depth 2: names, declaredNodes, inferredNodes). The case checks constFinder on every record: testFieldsAfter.constFinder when its dump changed during the call (70 records), and through testFieldsAfterAlso the unchanged entry value (22 records whose new FindConstants dumps exactly like the previous call's, so the post-call value equals testFields.constFinder). The full sets are compared (exact JSON on the Java side, neutral set equality for a non-Java harness), which is at least as strict as the test's contains/doesNotContain checks. classMap maps the helper's FindConstants and anonymous pass back to the recorded names (testFieldsAfter dump and processor identity). Under the whole-processor no-op the holder's constFinder stays null, so the check fails (no vacuity). Classification: corpus/unit/postcall/InferConstsTest.json (the legacy postCallAssertions entry was removed; it no longer classified anything)."
+}

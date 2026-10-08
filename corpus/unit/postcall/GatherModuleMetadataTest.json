@@ -1,0 +1,383 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.GatherModuleMetadataTest",
+ "methods": [
+  {
+   "method": "testBundleGoogLoadModuleAndProvides",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "Asserts after one testSame: by-namespace keys exactly [some.provide, some.other.provide, multiple.calls.c0, multiple.calls.c1]; the c0 and c1 modules each have only their namespace, non-legacy goog.module, path() null, usesClosure true; testcode has googNamespaces [some.provide, some.other.provide], isGoogProvide, usesClosure true. Record: testcode GOOG_PROVIDE, usesClosure true, googNamespaces [some.provide, some.other.provide], nestedModules [GOOG_MODULE usesClosure true [multiple.calls.c0], GOOG_MODULE usesClosure true [multiple.calls.c1]]. Every asserted value is in postCall.compiler.moduleMetadataByPath, which replay compares (JSON equality of the postCall object): since D-017 item 2 (harness round 2, v7) moduleMetadataByPath.testcode.nestedModules holds the full metadata of each nested goog.loadModule module (moduleType, usesClosure, googNamespaces, ...) in nestedModules() order. getModulesByGoogNamespace() is a function of that state: GatherModuleMetadata.leaveModule puts every googNamespace of every module, top-level or nested, into it, mapped to that module. isNonLegacyGoogModule / isLegacyGoogModule / isGoogProvide / isNonProvideScript are functions of the recorded moduleType. path() is null for exactly the modules that appear only in a parent's nestedModules list: enterModule gets path null for a goog.loadModule CALL (t.getInput().getPath() only for a SCRIPT), and leaveModule puts a module into getModulesByPath() iff its path is non-null, so a nested module with a path would appear as an extra moduleMetadataByPath key. Residual gap, stated openly: the by-namespace index and path() are not snapshot fields of their own, so a port whose index or path disagreed with its module list in a way that leaves the by-path map unchanged would not be caught (a possible follow-up)."
+  },
+  {
+   "method": "testBundleGoogLoadModuleAndProvidesWithGoogDefined",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "Asserts after one testSame (the file defines goog via @provideGoog): by-namespace keys exactly [some.provide, some.other.provide, multiple.calls.c0, multiple.calls.c1]; the c0 and c1 modules each have only their namespace, non-legacy goog.module, path() null, usesClosure false; testcode has googNamespaces [some.provide, some.other.provide], isGoogProvide, usesClosure false. Record: testcode GOOG_PROVIDE, usesClosure false, googNamespaces [some.provide, some.other.provide], nestedModules [GOOG_MODULE usesClosure false [multiple.calls.c0], GOOG_MODULE usesClosure false [multiple.calls.c1]]. Every asserted value is in postCall.compiler.moduleMetadataByPath, which replay compares (JSON equality of the postCall object): since D-017 item 2 (harness round 2, v7) moduleMetadataByPath.testcode.nestedModules holds the full metadata of each nested goog.loadModule module (moduleType, usesClosure, googNamespaces, ...) in nestedModules() order. getModulesByGoogNamespace() is a function of that state: GatherModuleMetadata.leaveModule puts every googNamespace of every module, top-level or nested, into it, mapped to that module. isNonLegacyGoogModule / isLegacyGoogModule / isGoogProvide / isNonProvideScript are functions of the recorded moduleType. path() is null for exactly the modules that appear only in a parent's nestedModules list: enterModule gets path null for a goog.loadModule CALL (t.getInput().getPath() only for a SCRIPT), and leaveModule puts a module into getModulesByPath() iff its path is non-null, so a nested module with a path would appear as an extra moduleMetadataByPath key. Residual gap, stated openly: the by-namespace index and path() are not snapshot fields of their own, so a port whose index or path disagreed with its module list in a way that leaves the by-path map unchanged would not be caught (a possible follow-up)."
+  },
+  {
+   "method": "testCommonJsModule",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts by-namespace map empty; testcode is COMMON_JS. Every asserted value is in postCall.compiler.moduleMetadataByPath: this record has no nested module (nestedModules is the empty list for every path; v7 records list nested goog.loadModule metadata there), so GatherModuleMetadata.leaveModule fills getModulesByGoogNamespace() with exactly the top-level modules, keyed by their recorded googNamespaces, and isGoogProvide/isGoogModule/isNonLegacyGoogModule/isLegacyGoogModule/isEs6Module/isCommonJs are functions of the recorded moduleType. Residual gap, stated openly: the by-namespace index is not a snapshot key of its own, so a port whose index disagrees with its modules would not be caught by this record (a possible follow-up: snapshot getModulesByGoogNamespace() directly)."
+  },
+  {
+   "method": "testDynamicImport",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: script.js is a SCRIPT (isNonProvideScript) whose es6ImportSpecifiers are exactly ['./imported.js']. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testEs6Module",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts by-namespace keys empty; testcode present, googNamespaces empty, ES6_MODULE. Every asserted value is in postCall.compiler.moduleMetadataByPath: this record has no nested module (nestedModules is the empty list for every path; v7 records list nested goog.loadModule metadata there), so GatherModuleMetadata.leaveModule fills getModulesByGoogNamespace() with exactly the top-level modules, keyed by their recorded googNamespaces, and isGoogProvide/isGoogModule/isNonLegacyGoogModule/isLegacyGoogModule/isEs6Module/isCommonJs are functions of the recorded moduleType. Residual gap, stated openly: the by-namespace index is not a snapshot key of its own, so a port whose index disagrees with its modules would not be caught by this record (a possible follow-up: snapshot getModulesByGoogNamespace() directly)."
+  },
+  {
+   "method": "testEs6ModuleDeclareModuleId",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts by-namespace keys == {my.module}; its module googNamespaces == [my.module], ES6_MODULE, not goog module. Every asserted value is in postCall.compiler.moduleMetadataByPath: this record has no nested module (nestedModules is the empty list for every path; v7 records list nested goog.loadModule metadata there), so GatherModuleMetadata.leaveModule fills getModulesByGoogNamespace() with exactly the top-level modules, keyed by their recorded googNamespaces, and isGoogProvide/isGoogModule/isNonLegacyGoogModule/isLegacyGoogModule/isEs6Module/isCommonJs are functions of the recorded moduleType. Residual gap, stated openly: the by-namespace index is not a snapshot key of its own, so a port whose index disagrees with its modules would not be caught by this record (a possible follow-up: snapshot getModulesByGoogNamespace() directly)."
+  },
+  {
+   "method": "testEs6ModuleDeclareModuleIdImportedGoog",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts by-namespace keys == {my.module}; its module (testcode) googNamespaces == [my.module], ES6_MODULE, not goog module. Every asserted value is in postCall.compiler.moduleMetadataByPath: this record has no nested module (nestedModules is the empty list for every path; v7 records list nested goog.loadModule metadata there), so GatherModuleMetadata.leaveModule fills getModulesByGoogNamespace() with exactly the top-level modules, keyed by their recorded googNamespaces, and isGoogProvide/isGoogModule/isNonLegacyGoogModule/isLegacyGoogModule/isEs6Module/isCommonJs are functions of the recorded moduleType. Residual gap, stated openly: the by-namespace index is not a snapshot key of its own, so a port whose index disagrees with its modules would not be caught by this record (a possible follow-up: snapshot getModulesByGoogNamespace() directly)."
+  },
+  {
+   "method": "testExport",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode es6ImportSpecifiers == ['@spec!']. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testGatherFromExterns",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts by-namespace keys == {my.module}; its module (the externs script) googNamespaces == [my.module], ES6_MODULE, not goog module. Every asserted value is in postCall.compiler.moduleMetadataByPath: this record has no nested module (nestedModules is the empty list for every path; v7 records list nested goog.loadModule metadata there), so GatherModuleMetadata.leaveModule fills getModulesByGoogNamespace() with exactly the top-level modules, keyed by their recorded googNamespaces, and isGoogProvide/isGoogModule/isNonLegacyGoogModule/isLegacyGoogModule/isEs6Module/isCommonJs are functions of the recorded moduleType. Residual gap, stated openly: the by-namespace index is not a snapshot key of its own, so a port whose index disagrees with its modules would not be caught by this record (a possible follow-up: snapshot getModulesByGoogNamespace() directly)."
+  },
+  {
+   "method": "testGoogInOtherScriptGoogIsClosure",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode1 usesClosure == true. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testGoogInSameScriptGoogIsNotClosure",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode usesClosure == false. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testGoogModule",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts by-namespace keys == {my.module}; its module googNamespaces == [my.module], GOOG_MODULE (isGoogModule, isNonLegacyGoogModule, not provide/legacy). Every asserted value is in postCall.compiler.moduleMetadataByPath: this record has no nested module (nestedModules is the empty list for every path; v7 records list nested goog.loadModule metadata there), so GatherModuleMetadata.leaveModule fills getModulesByGoogNamespace() with exactly the top-level modules, keyed by their recorded googNamespaces, and isGoogProvide/isGoogModule/isNonLegacyGoogModule/isLegacyGoogModule/isEs6Module/isCommonJs are functions of the recorded moduleType. Residual gap, stated openly: the by-namespace index is not a snapshot key of its own, so a port whose index disagrees with its modules would not be caught by this record (a possible follow-up: snapshot getModulesByGoogNamespace() directly)."
+  },
+  {
+   "method": "testGoogModuleWithDefaultExport",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts same as testGoogModule with 'exports = 0' (stays GOOG_MODULE, not COMMON_JS). Every asserted value is in postCall.compiler.moduleMetadataByPath: this record has no nested module (nestedModules is the empty list for every path; v7 records list nested goog.loadModule metadata there), so GatherModuleMetadata.leaveModule fills getModulesByGoogNamespace() with exactly the top-level modules, keyed by their recorded googNamespaces, and isGoogProvide/isGoogModule/isNonLegacyGoogModule/isLegacyGoogModule/isEs6Module/isCommonJs are functions of the recorded moduleType. Residual gap, stated openly: the by-namespace index is not a snapshot key of its own, so a port whose index disagrees with its modules would not be caught by this record (a possible follow-up: snapshot getModulesByGoogNamespace() directly)."
+  },
+  {
+   "method": "testGoogProvide",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts by-namespace keys == {my.provide}; testcode present; that module's googNamespaces == [my.provide], isGoogProvide. Every asserted value is in postCall.compiler.moduleMetadataByPath: this record has no nested module (nestedModules is the empty list for every path; v7 records list nested goog.loadModule metadata there), so GatherModuleMetadata.leaveModule fills getModulesByGoogNamespace() with exactly the top-level modules, keyed by their recorded googNamespaces, and isGoogProvide/isGoogModule/isNonLegacyGoogModule/isLegacyGoogModule/isEs6Module/isCommonJs are functions of the recorded moduleType. Residual gap, stated openly: the by-namespace index is not a snapshot key of its own, so a port whose index disagrees with its modules would not be caught by this record (a possible follow-up: snapshot getModulesByGoogNamespace() directly)."
+  },
+  {
+   "method": "testGoogProvideWithGoogDeclaredInOtherFile",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts by-namespace keys == {my.provide}; its module (testcode1) googNamespaces == [my.provide], isGoogProvide. Every asserted value is in postCall.compiler.moduleMetadataByPath: this record has no nested module (nestedModules is the empty list for every path; v7 records list nested goog.loadModule metadata there), so GatherModuleMetadata.leaveModule fills getModulesByGoogNamespace() with exactly the top-level modules, keyed by their recorded googNamespaces, and isGoogProvide/isGoogModule/isNonLegacyGoogModule/isLegacyGoogModule/isEs6Module/isCommonJs are functions of the recorded moduleType. Residual gap, stated openly: the by-namespace index is not a snapshot key of its own, so a port whose index disagrees with its modules would not be caught by this record (a possible follow-up: snapshot getModulesByGoogNamespace() directly)."
+  },
+  {
+   "method": "testImport",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode es6ImportSpecifiers == ['@spec!']. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testImportOrder",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode es6ImportSpecifiers == ['first','second','third'] (snapshot list compared in order). Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testImportedGoogIsClosure",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode usesClosure == true. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testImportedScript",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: imported.js and notimported.js moduleType == SCRIPT. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testImportedScriptWithEntryPoint",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: imported.js moduleType == ES6_MODULE and notimported.js absent from modulesByPath (snapshot map keys compared). Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testImportedScriptWithScriptsToModules",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: imported.js moduleType == ES6_MODULE, notimported.js == SCRIPT. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testImportedScriptWithSortOnly",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: imported.js moduleType == ES6_MODULE, notimported.js == SCRIPT. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testLegacyGoogModule",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts by-namespace keys == {my.module}; its module is LEGACY_GOOG_MODULE. Every asserted value is in postCall.compiler.moduleMetadataByPath: this record has no nested module (nestedModules is the empty list for every path; v7 records list nested goog.loadModule metadata there), so GatherModuleMetadata.leaveModule fills getModulesByGoogNamespace() with exactly the top-level modules, keyed by their recorded googNamespaces, and isGoogProvide/isGoogModule/isNonLegacyGoogModule/isLegacyGoogModule/isEs6Module/isCommonJs are functions of the recorded moduleType. Residual gap, stated openly: the by-namespace index is not a snapshot key of its own, so a port whose index disagrees with its modules would not be caught by this record (a possible follow-up: snapshot getModulesByGoogNamespace() directly)."
+  },
+  {
+   "method": "testLoadModule",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "Asserts after one testSame: by-namespace keys exactly [my.module]; that module has googNamespaces [my.module], is a non-legacy goog.module, path() null; testcode has no googNamespaces and is a non-provide script. Record: testcode SCRIPT, googNamespaces [], nestedModules [GOOG_MODULE, googNamespaces [my.module]]. Every asserted value is in postCall.compiler.moduleMetadataByPath, which replay compares (JSON equality of the postCall object): since D-017 item 2 (harness round 2, v7) moduleMetadataByPath.testcode.nestedModules holds the full metadata of each nested goog.loadModule module (moduleType, usesClosure, googNamespaces, ...) in nestedModules() order. getModulesByGoogNamespace() is a function of that state: GatherModuleMetadata.leaveModule puts every googNamespace of every module, top-level or nested, into it, mapped to that module. isNonLegacyGoogModule / isLegacyGoogModule / isGoogProvide / isNonProvideScript are functions of the recorded moduleType. path() is null for exactly the modules that appear only in a parent's nestedModules list: enterModule gets path null for a goog.loadModule CALL (t.getInput().getPath() only for a SCRIPT), and leaveModule puts a module into getModulesByPath() iff its path is non-null, so a nested module with a path would appear as an extra moduleMetadataByPath key. Residual gap, stated openly: the by-namespace index and path() are not snapshot fields of their own, so a port whose index or path disagreed with its module list in a way that leaves the by-path map unchanged would not be caught (a possible follow-up)."
+  },
+  {
+   "method": "testLoadModuleLegacyNamespace",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "Asserts after one testSame: by-namespace keys exactly [my.module]; that module has googNamespaces [my.module], isLegacyGoogModule, path() null; testcode has no googNamespaces and is a non-provide script. Record: testcode SCRIPT, googNamespaces [], nestedModules [LEGACY_GOOG_MODULE, googNamespaces [my.module]]. Every asserted value is in postCall.compiler.moduleMetadataByPath, which replay compares (JSON equality of the postCall object): since D-017 item 2 (harness round 2, v7) moduleMetadataByPath.testcode.nestedModules holds the full metadata of each nested goog.loadModule module (moduleType, usesClosure, googNamespaces, ...) in nestedModules() order. getModulesByGoogNamespace() is a function of that state: GatherModuleMetadata.leaveModule puts every googNamespace of every module, top-level or nested, into it, mapped to that module. isNonLegacyGoogModule / isLegacyGoogModule / isGoogProvide / isNonProvideScript are functions of the recorded moduleType. path() is null for exactly the modules that appear only in a parent's nestedModules list: enterModule gets path null for a goog.loadModule CALL (t.getInput().getPath() only for a SCRIPT), and leaveModule puts a module into getModulesByPath() iff its path is non-null, so a nested module with a path would appear as an extra moduleMetadataByPath key. Residual gap, stated openly: the by-namespace index and path() are not snapshot fields of their own, so a port whose index or path disagreed with its module list in a way that leaves the by-path map unchanged would not be caught (a possible follow-up)."
+  },
+  {
+   "method": "testLoadModuleUseStrict",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "Asserts after one testSame: by-namespace keys exactly [with.strict]; that module has googNamespaces [with.strict], is a non-legacy goog.module, path() null; testcode has no googNamespaces and is a non-provide script. Record: testcode SCRIPT, googNamespaces [], nestedModules [GOOG_MODULE, googNamespaces [with.strict]]. Every asserted value is in postCall.compiler.moduleMetadataByPath, which replay compares (JSON equality of the postCall object): since D-017 item 2 (harness round 2, v7) moduleMetadataByPath.testcode.nestedModules holds the full metadata of each nested goog.loadModule module (moduleType, usesClosure, googNamespaces, ...) in nestedModules() order. getModulesByGoogNamespace() is a function of that state: GatherModuleMetadata.leaveModule puts every googNamespace of every module, top-level or nested, into it, mapped to that module. isNonLegacyGoogModule / isLegacyGoogModule / isGoogProvide / isNonProvideScript are functions of the recorded moduleType. path() is null for exactly the modules that appear only in a parent's nestedModules list: enterModule gets path null for a goog.loadModule CALL (t.getInput().getPath() only for a SCRIPT), and leaveModule puts a module into getModulesByPath() iff its path is non-null, so a nested module with a path would appear as an extra moduleMetadataByPath key. Residual gap, stated openly: the by-namespace index and path() are not snapshot fields of their own, so a port whose index or path disagreed with its module list in a way that leaves the by-path map unchanged would not be caught (a possible follow-up)."
+  },
+  {
+   "method": "testLocalGoogIsIgnored",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts by-namespace keys empty; testcode usesClosure == false. Every asserted value is in postCall.compiler.moduleMetadataByPath: this record has no nested module (nestedModules is the empty list for every path; v7 records list nested goog.loadModule metadata there), so GatherModuleMetadata.leaveModule fills getModulesByGoogNamespace() with exactly the top-level modules, keyed by their recorded googNamespaces, and isGoogProvide/isGoogModule/isNonLegacyGoogModule/isLegacyGoogModule/isEs6Module/isCommonJs are functions of the recorded moduleType. Residual gap, stated openly: the by-namespace index is not a snapshot key of its own, so a port whose index disagrees with its modules would not be caught by this record (a possible follow-up: snapshot getModulesByGoogNamespace() directly)."
+  },
+  {
+   "method": "testLocalGoogIsNotClosure",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode usesClosure == false. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testMaybeRequire",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode maybeRequiredGoogNamespaces == ['my.Type']. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testMultipleGoogLoadModules",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "Asserts after one testSame: by-namespace keys exactly [multiple.calls.c0, multiple.calls.c1]; each maps to a module with only that namespace, non-legacy goog.module, path() null; testcode has no googNamespaces and is a non-provide script. Record: testcode SCRIPT, googNamespaces [], nestedModules [GOOG_MODULE [multiple.calls.c0], GOOG_MODULE [multiple.calls.c1]]. Every asserted value is in postCall.compiler.moduleMetadataByPath, which replay compares (JSON equality of the postCall object): since D-017 item 2 (harness round 2, v7) moduleMetadataByPath.testcode.nestedModules holds the full metadata of each nested goog.loadModule module (moduleType, usesClosure, googNamespaces, ...) in nestedModules() order. getModulesByGoogNamespace() is a function of that state: GatherModuleMetadata.leaveModule puts every googNamespace of every module, top-level or nested, into it, mapped to that module. isNonLegacyGoogModule / isLegacyGoogModule / isGoogProvide / isNonProvideScript are functions of the recorded moduleType. path() is null for exactly the modules that appear only in a parent's nestedModules list: enterModule gets path null for a goog.loadModule CALL (t.getInput().getPath() only for a SCRIPT), and leaveModule puts a module into getModulesByPath() iff its path is non-null, so a nested module with a path would appear as an extra moduleMetadataByPath key. Residual gap, stated openly: the by-namespace index and path() are not snapshot fields of their own, so a port whose index or path disagreed with its module list in a way that leaves the by-path map unchanged would not be caught (a possible follow-up)."
+  },
+  {
+   "method": "testMultipleGoogModuleCallsInLoadModule",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "Asserts after one testSame: by-namespace keys exactly [multiple.calls.c0, multiple.calls.c1]; the c0 module has googNamespaces [c0, c1] and the c1 key maps to the same instance (isSameInstanceAs), non-legacy goog.module, path() null; testcode has no googNamespaces and is a non-provide script. Record: testcode SCRIPT, googNamespaces [], nestedModules holds ONE GOOG_MODULE with googNamespaces [multiple.calls.c0, multiple.calls.c1]; leaveModule maps both namespaces of that one module to it, so the identity assertion is implied by the single nested entry (a port that split it into two modules would record two nested entries). Every asserted value is in postCall.compiler.moduleMetadataByPath, which replay compares (JSON equality of the postCall object): since D-017 item 2 (harness round 2, v7) moduleMetadataByPath.testcode.nestedModules holds the full metadata of each nested goog.loadModule module (moduleType, usesClosure, googNamespaces, ...) in nestedModules() order. getModulesByGoogNamespace() is a function of that state: GatherModuleMetadata.leaveModule puts every googNamespace of every module, top-level or nested, into it, mapped to that module. isNonLegacyGoogModule / isLegacyGoogModule / isGoogProvide / isNonProvideScript are functions of the recorded moduleType. path() is null for exactly the modules that appear only in a parent's nestedModules list: enterModule gets path null for a goog.loadModule CALL (t.getInput().getPath() only for a SCRIPT), and leaveModule puts a module into getModulesByPath() iff its path is non-null, so a nested module with a path would appear as an extra moduleMetadataByPath key. Residual gap, stated openly: the by-namespace index and path() are not snapshot fields of their own, so a port whose index or path disagreed with its module list in a way that leaves the by-path map unchanged would not be caught (a possible follow-up)."
+  },
+  {
+   "method": "testMultipleGoogProvide",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts by-namespace keys == {my.first.provide, my.second.provide}; both map to testcode whose googNamespaces are both, isGoogProvide. Every asserted value is in postCall.compiler.moduleMetadataByPath: this record has no nested module (nestedModules is the empty list for every path; v7 records list nested goog.loadModule metadata there), so GatherModuleMetadata.leaveModule fills getModulesByGoogNamespace() with exactly the top-level modules, keyed by their recorded googNamespaces, and isGoogProvide/isGoogModule/isNonLegacyGoogModule/isLegacyGoogModule/isEs6Module/isCommonJs are functions of the recorded moduleType. Residual gap, stated openly: the by-namespace index is not a snapshot key of its own, so a port whose index disagrees with its modules would not be caught by this record (a possible follow-up: snapshot getModulesByGoogNamespace() directly)."
+  },
+  {
+   "method": "testReadToggle",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: foo$2etoggles.js readToggles is empty. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testRequireDynamic",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode dynamicallyRequiredGoogNamespaces == ['my.Type']. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testRequireType",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode weaklyRequiredGoogNamespaces == ['my.Type']. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testRequiredClosureNamespaces",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode stronglyRequiredGoogNamespaces == ['my.Type']. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testSetTestOnly",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode isTestOnly == true. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testSetTestOnlyWithExtraArg",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode isTestOnly == false after the expected INVALID_SET_TEST_ONLY error. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testSetTestOnlyWithInvalidArg",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode isTestOnly == false after the expected INVALID_SET_TEST_ONLY error. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testSetTestOnlyWithStringArg",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode isTestOnly == true. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testToggleModuleGoogModuleGet",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode readToggles == ['foo']. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testToggleModuleIgnoreShadowedUsage",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode readToggles is empty. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testToggleModuleImportAsModule",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode readToggles == ['foo','b_a_z']. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testToggleModuleImportDestructured",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode readToggles == ['foo','b_a_z']. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testToggleModuleImportDestructuredAliased",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode readToggles == ['bar']. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testUsesGlobalClosure",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode usesClosure == true. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testUsesGlobalClosureNoFunctionCall",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts only on getModulesByPath() entries: testcode usesClosure == true. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  }
+ ],
+ "note": "Batch 6 (classify round 1). 40 methods captured via postCall.compiler.moduleMetadataByPath (28 assert only on getModulesByPath(); 12 also on getModulesByGoogNamespace() for records without nested modules, see their notes), 7 rust_unit_test (nested goog.loadModule modules, not in the snapshot)."
+}

@@ -1,0 +1,391 @@
+{
+ "source": "test/com/google/javascript/jscomp/PeepholeOptimizationsPassTest.java getProcessor (lines 41-45); the peephole optimizations stored in currentPeepholePasses are the nested classes of lines 115-195 and the anonymous classes of lines 80-89, 92-101, 249-259 and 260-268, copied into helper PeepholeOptimizationsPassTest_Helpers, bb8c8e7",
+ "cases": [
+  {
+   "when": {
+    "testFields.currentPeepholePasses": {
+     "list": [
+      {
+       "object": "com.google.javascript.jscomp.PeepholeOptimizationsPassTest$RenameYToX",
+       "fields": {
+        "AbstractPeepholeOptimization.compiler": null,
+        "AbstractPeepholeOptimization.astAnalyzer": null,
+        "AbstractPeepholeOptimization.newFeatures": {
+         "set": [],
+         "impl": "java.util.LinkedHashSet"
+        }
+       }
+      },
+      {
+       "object": "com.google.javascript.jscomp.PeepholeOptimizationsPassTest$RemoveParentVarsForNodesNamedX",
+       "fields": {
+        "AbstractPeepholeOptimization.compiler": null,
+        "AbstractPeepholeOptimization.astAnalyzer": null,
+        "AbstractPeepholeOptimization.newFeatures": {
+         "set": [],
+         "impl": "java.util.LinkedHashSet"
+        }
+       }
+      }
+     ],
+     "impl": "com.google.common.collect.RegularImmutableList"
+    }
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "record": "harness.effective.getName"
+     },
+     {
+      "array": "com.google.javascript.jscomp.AbstractPeepholeOptimization",
+      "items": [
+       {
+        "helper": "PeepholeOptimizationsPassTest_Helpers.RenameYToX",
+        "args": []
+       },
+       {
+        "helper": "PeepholeOptimizationsPassTest_Helpers.RemoveParentVarsForNodesNamedX",
+        "args": []
+       }
+      ]
+     }
+    ]
+   },
+   "note": "recorded in testOptimizationReplacingNode"
+  },
+  {
+   "when": {
+    "testFields.currentPeepholePasses": {
+     "list": [
+      {
+       "object": "com.google.javascript.jscomp.PeepholeOptimizationsPassTest$3",
+       "fields": {
+        "AbstractPeepholeOptimization.compiler": null,
+        "AbstractPeepholeOptimization.astAnalyzer": null,
+        "AbstractPeepholeOptimization.newFeatures": {
+         "set": [],
+         "impl": "java.util.LinkedHashSet"
+        }
+       }
+      },
+      {
+       "object": "com.google.javascript.jscomp.PeepholeOptimizationsPassTest$4",
+       "fields": {
+        "AbstractPeepholeOptimization.compiler": null,
+        "AbstractPeepholeOptimization.astAnalyzer": null,
+        "AbstractPeepholeOptimization.newFeatures": {
+         "set": [],
+         "impl": "java.util.LinkedHashSet"
+        }
+       }
+      }
+     ],
+     "impl": "com.google.common.collect.RegularImmutableList"
+    }
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "record": "harness.effective.getName"
+     },
+     {
+      "array": "com.google.javascript.jscomp.AbstractPeepholeOptimization",
+      "items": [
+       {
+        "helper": "PeepholeOptimizationsPassTest_Helpers.Anon3",
+        "args": []
+       },
+       {
+        "helper": "PeepholeOptimizationsPassTest_Helpers.Anon4",
+        "args": []
+       }
+      ]
+     }
+    ]
+   },
+   "note": "recorded in testAddFeatureToEnclosingScript"
+  },
+  {
+   "when": {
+    "testFields.currentPeepholePasses": {
+     "list": [
+      {
+       "object": "com.google.javascript.jscomp.PeepholeOptimizationsPassTest$RemoveParentVarsForNodesNamedX",
+       "fields": {
+        "AbstractPeepholeOptimization.compiler": null,
+        "AbstractPeepholeOptimization.astAnalyzer": null,
+        "AbstractPeepholeOptimization.newFeatures": {
+         "set": [],
+         "impl": "java.util.LinkedHashSet"
+        }
+       }
+      }
+     ],
+     "impl": "com.google.common.collect.SingletonImmutableList"
+    }
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "record": "harness.effective.getName"
+     },
+     {
+      "array": "com.google.javascript.jscomp.AbstractPeepholeOptimization",
+      "items": [
+       {
+        "helper": "PeepholeOptimizationsPassTest_Helpers.RemoveParentVarsForNodesNamedX",
+        "args": []
+       }
+      ]
+     }
+    ]
+   },
+   "note": "recorded in testOptimizationRemovingSubtreeParent"
+  },
+  {
+   "when": {
+    "testFields.currentPeepholePasses": {
+     "list": [],
+     "impl": "com.google.common.collect.RegularImmutableList"
+    }
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "record": "harness.effective.getName"
+     },
+     {
+      "array": "com.google.javascript.jscomp.AbstractPeepholeOptimization",
+      "items": []
+     }
+    ]
+   },
+   "note": "recorded in testEmptyPass"
+  },
+  {
+   "when": {
+    "testFields.currentPeepholePasses": {
+     "list": [
+      {
+       "object": "com.google.javascript.jscomp.PeepholeOptimizationsPassTest$1",
+       "fields": {
+        "AbstractPeepholeOptimization.compiler": null,
+        "AbstractPeepholeOptimization.astAnalyzer": null,
+        "AbstractPeepholeOptimization.newFeatures": {
+         "set": [],
+         "impl": "java.util.LinkedHashSet"
+        }
+       }
+      },
+      {
+       "object": "com.google.javascript.jscomp.PeepholeOptimizationsPassTest$2",
+       "fields": {
+        "AbstractPeepholeOptimization.compiler": null,
+        "AbstractPeepholeOptimization.astAnalyzer": null,
+        "AbstractPeepholeOptimization.newFeatures": {
+         "set": [],
+         "impl": "java.util.LinkedHashSet"
+        }
+       }
+      }
+     ],
+     "impl": "com.google.common.collect.RegularImmutableList"
+    }
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "record": "harness.effective.getName"
+     },
+     {
+      "array": "com.google.javascript.jscomp.AbstractPeepholeOptimization",
+      "items": [
+       {
+        "helper": "PeepholeOptimizationsPassTest_Helpers.Anon1",
+        "args": [
+         {
+          "once": "visitationLog",
+          "value": {
+           "list": []
+          }
+         }
+        ]
+       },
+       {
+        "helper": "PeepholeOptimizationsPassTest_Helpers.Anon2",
+        "args": [
+         {
+          "once": "visitationLog",
+          "value": {
+           "list": []
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "note": "recorded in testOptimizationOrder"
+  },
+  {
+   "when": {
+    "testFields.currentPeepholePasses": {
+     "list": [
+      {
+       "object": "com.google.javascript.jscomp.PeepholeOptimizationsPassTest$RemoveNodesNamedXUnderVarOptimization",
+       "fields": {
+        "AbstractPeepholeOptimization.compiler": null,
+        "AbstractPeepholeOptimization.astAnalyzer": null,
+        "AbstractPeepholeOptimization.newFeatures": {
+         "set": [],
+         "impl": "java.util.LinkedHashSet"
+        }
+       }
+      }
+     ],
+     "impl": "com.google.common.collect.SingletonImmutableList"
+    }
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "record": "harness.effective.getName"
+     },
+     {
+      "array": "com.google.javascript.jscomp.AbstractPeepholeOptimization",
+      "items": [
+       {
+        "helper": "PeepholeOptimizationsPassTest_Helpers.RemoveNodesNamedXUnderVarOptimization",
+        "args": []
+       }
+      ]
+     }
+    ]
+   },
+   "note": "recorded in testOptimizationRemovingSubtreeChild"
+  },
+  {
+   "when": {
+    "testFields.currentPeepholePasses": {
+     "list": [
+      {
+       "object": "com.google.javascript.jscomp.PeepholeOptimizationsPassTest$RemoveNodesNamedXOptimization",
+       "fields": {
+        "AbstractPeepholeOptimization.compiler": null,
+        "AbstractPeepholeOptimization.astAnalyzer": null,
+        "AbstractPeepholeOptimization.newFeatures": {
+         "set": [],
+         "impl": "java.util.LinkedHashSet"
+        }
+       }
+      },
+      {
+       "object": "com.google.javascript.jscomp.PeepholeOptimizationsPassTest$RemoveParentVarsForNodesNamedX",
+       "fields": {
+        "AbstractPeepholeOptimization.compiler": null,
+        "AbstractPeepholeOptimization.astAnalyzer": null,
+        "AbstractPeepholeOptimization.newFeatures": {
+         "set": [],
+         "impl": "java.util.LinkedHashSet"
+        }
+       }
+      }
+     ],
+     "impl": "com.google.common.collect.RegularImmutableList"
+    }
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "record": "harness.effective.getName"
+     },
+     {
+      "array": "com.google.javascript.jscomp.AbstractPeepholeOptimization",
+      "items": [
+       {
+        "helper": "PeepholeOptimizationsPassTest_Helpers.RemoveNodesNamedXOptimization",
+        "args": []
+       },
+       {
+        "helper": "PeepholeOptimizationsPassTest_Helpers.RemoveParentVarsForNodesNamedX",
+        "args": []
+       }
+      ]
+     }
+    ]
+   },
+   "note": "recorded in testOptimizationsRemoveParentAfterRemoveChild"
+  },
+  {
+   "when": {
+    "testFields.currentPeepholePasses": {
+     "list": [
+      {
+       "object": "com.google.javascript.jscomp.PeepholeOptimizationsPassTest$RemoveNodesNamedXOptimization",
+       "fields": {
+        "AbstractPeepholeOptimization.compiler": null,
+        "AbstractPeepholeOptimization.astAnalyzer": null,
+        "AbstractPeepholeOptimization.newFeatures": {
+         "set": [],
+         "impl": "java.util.LinkedHashSet"
+        }
+       }
+      }
+     ],
+     "impl": "com.google.common.collect.SingletonImmutableList"
+    }
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "record": "harness.effective.getName"
+     },
+     {
+      "array": "com.google.javascript.jscomp.AbstractPeepholeOptimization",
+      "items": [
+       {
+        "helper": "PeepholeOptimizationsPassTest_Helpers.RemoveNodesNamedXOptimization",
+        "args": []
+       }
+      ]
+     }
+    ]
+   },
+   "note": "recorded in testOptimizationRemovingSubtree"
+  }
+ ],
+ "note": "getProcessor reads only the test field currentPeepholePasses (an ImmutableList<AbstractPeepholeOptimization> that each test method assigns before test()/testSame()) and getName(), and returns new PeepholeOptimizationsPass(compiler, getName(), currentPeepholePasses.toArray(...)). The recorded list elements are instances of test-local classes, which the generic value decoding cannot rebuild (the *Test classes are not on the replay classpath), so there is one case per distinct recorded value of the field, matched exactly on testFields.currentPeepholePasses, whose processor rebuilds the same list in the same order from the helper copies: PeepholeOptimizationsPassTest$N (javac's numbering of the anonymous classes in source order) maps to helper AnonN, and each nested class maps to the helper of the same name. Each recorded element's only fields are AbstractPeepholeOptimization's compiler/astAnalyzer (null) and newFeatures (empty), which is also the state of a fresh helper instance; PeepholeOptimizationsPass.process sets them through beginTraversal. Anon1 and Anon2 (note1Applied/note2Applied of testOptimizationOrder) capture the local list visitationLog, which both share; the descriptor passes one list per record to both through {\"once\":\"visitationLog\"}. The list is only appended to by the pass and read by the test's own assertThat(visitationLog) after testSame, which is not replayed; likewise testAddFeatureToEnclosingScript's assertion on getLastCompiler()'s script FEATURE_SET is not replayed. No other harness hook is overridden; getNumRepetitions is 1 in every record. Each case's note names the test methods it was recorded in."
+}

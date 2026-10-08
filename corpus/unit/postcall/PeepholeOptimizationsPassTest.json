@@ -1,0 +1,20 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.PeepholeOptimizationsPassTest",
+ "methods": [
+  {
+   "method": "testOptimizationOrder",
+   "status": "rust_unit_test",
+   "reason": "asserts a method-local List<String> (visitationLog) that two test-local anonymous AbstractPeepholeOptimization subclasses fill from optimizeSubtree (test lines 75-112); the list is neither a test-instance field nor compiler state, so no testFieldsAfter entry or postCall key can hold it; the record (index 4) carries no pass-level postCall key, only compiler.accessorSummary, which does not hold the visit order",
+   "fragment": "corpus/unit/rust_unit_tests/PeepholeOptimizationsPassTest.md",
+   "category": "test-local-object"
+  },
+  {
+   "method": "testAddFeatureToEnclosingScript",
+   "status": "rust_unit_test",
+   "reason": "asserts the Node.FEATURE_SET property of the output SCRIPT node testcode (compiler.getScriptNode(\"testcode\").getProp(Node.FEATURE_SET), test lines 270-275), a property of a Java Node object set by test-local AbstractPeepholeOptimization callbacks; the record (index 1) carries no pass-level postCall key, only compiler.accessorSummary, which does not hold node properties, and the AST comparison does not compare node FeatureSets",
+   "fragment": "corpus/unit/rust_unit_tests/PeepholeOptimizationsPassTest.md",
+   "category": "node-identity"
+  }
+ ]
+}

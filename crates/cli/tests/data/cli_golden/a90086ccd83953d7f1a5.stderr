@@ -1,0 +1,1 @@
+Invalid JS file count 'auto' for chunk: b. Only the first chunk may specify a size of 'auto' and it must have no dependencies.

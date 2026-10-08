@@ -1,0 +1,31 @@
+{
+ "source": "test/com/google/javascript/jscomp/serialization/TypedAstSerializerTest.java getProcessor (lines 100-126) and field testResult (lines 89-90), bb8c8e7; copied verbatim into helper com.google.javascript.jscomp.serialization.TypedAstSerializerTest_Helpers",
+ "cases": [
+  {
+   "when": {},
+   "processor": {
+    "call": {
+     "once": "test",
+     "value": {
+      "new": "com.google.javascript.jscomp.serialization.TypedAstSerializerTest_Helpers",
+      "args": []
+     }
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   },
+   "testFieldsAfter": {
+    "once": "test",
+    "value": {
+     "new": "com.google.javascript.jscomp.serialization.TypedAstSerializerTest_Helpers",
+     "args": []
+    }
+   }
+  }
+ ],
+ "note": "getProcessor returns a lambda capturing the test instance and the compiler: it empties every externs script (reporting the change), then runs new TypedAstSerializer(compiler, SerializationOptions{includeDebugInfo, runValidation}).serializeRoots(externs, root) and stores the TypedAst in testResult. The holder lives in the serialization package because TypedAstSerializer is package-private (JSTypeColorIdHasherTest_Helpers precedent), so it is built with {\"new\"} and its verbatim getProcessor is called. testResult is null in every record on entry and only written by the lambda. The holder is shared through {\"once\":\"test\"} and the case opts in to testFieldsAfter on it (fix-8), so replay compares the recorded post-call testResult. Since the v7 recording (D-017 item 2) it is the neutral protobuf encoding of the whole TypedAst message (no depth limit: type pool, string pool, extern/code LazyAsts with their decoded AstNode trees, source-file pool); corpus/unit/postcall/TypedAstSerializerTest.json classifies the assertions as captured through it. setUp (lines 92-98) only calls allowExternsChanges(); the per-test enableTypeCheck/disableTypeCheck/replaceTypesWithColors calls are in harness.fields."
+}

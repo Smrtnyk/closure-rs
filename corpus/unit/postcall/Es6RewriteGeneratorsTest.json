@@ -1,0 +1,41 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.Es6RewriteGeneratorsTest",
+ "methods": [
+  {
+   "method": "testGeneratorForIn_withTypes",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "after the hooked call (reached through the helper testAndReturnBodyForNumericGenerator, Es6RewriteGeneratorsTest.java:1888-1898, which returns a node of getLastCompiler().getJsRoot()) asserts Color objects of output-AST nodes (Es6RewriteGeneratorsTest.java:1742-1818: the forIn assignment and both operands have StandardColors.TOP_OBJECT, the negated condition has BOOLEAN, `i = GEN_FORIN$0$0.getNext()` has alternates NULL_OR_VOID and STRING, getNext has TOP_OBJECT, null has NULL_OR_VOID, and the jumpToEnd receiver has the $jscomp.generator.Context instance color); Colors are compiler-internal objects that Node.isEquivalentTo ignores. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteGeneratorsTest.md"
+  },
+  {
+   "method": "testGeneratorMultipleVars_withTypes",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "after the hooked call (reached through the helper testAndReturnBodyForNumericGenerator, Es6RewriteGeneratorsTest.java:1888-1898, which returns a node of getLastCompiler().getJsRoot()) asserts Color objects of output-AST nodes (Es6RewriteGeneratorsTest.java:1853-1880: `x = 1` and its operands have StandardColors.NUMBER and `y = '2'` and its operands have StandardColors.STRING); Colors are compiler-internal objects that Node.isEquivalentTo ignores. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteGeneratorsTest.md"
+  },
+  {
+   "method": "testGeneratorTryCatch_withTypes",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "after the hooked call (reached through the helper testAndReturnBodyForNumericGenerator, Es6RewriteGeneratorsTest.java:1888-1898, which returns a node of getLastCompiler().getJsRoot()) asserts Color objects of output-AST nodes (Es6RewriteGeneratorsTest.java:1821-1850: `e = GEN_CONTEXT$0.enterCatchBlock()`, both operands and the enterCatchBlock GETPROP have StandardColors.UNKNOWN); Colors are compiler-internal objects that Node.isEquivalentTo ignores. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteGeneratorsTest.md"
+  },
+  {
+   "method": "testYieldAll_withTypes",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "after the hooked call (reached through the helper testAndReturnBodyForNumericGenerator, Es6RewriteGeneratorsTest.java:1888-1898, which returns a node of getLastCompiler().getJsRoot()) asserts Color objects of output-AST nodes (Es6RewriteGeneratorsTest.java:1712-1739: the yieldAll CALL has StandardColors.UNKNOWN, the array literal has the ColorRegistry ARRAY_ID color, and its items and the resume address 0 have StandardColors.NUMBER); Colors are compiler-internal objects that Node.isEquivalentTo ignores. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteGeneratorsTest.md"
+  },
+  {
+   "method": "testYield_withTypes",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "after the hooked call (reached through the helper testAndReturnBodyForNumericGenerator, Es6RewriteGeneratorsTest.java:1888-1898, which returns a node of getLastCompiler().getJsRoot()) asserts Color objects of output-AST nodes (Es6RewriteGeneratorsTest.java:1676-1709: the yield CALL has StandardColors.UNKNOWN, the $jscomp.generator.Context receiver has the only instance color of the extern $jscomp.generator.Context, and `1 + 2`, its operands and the resume address 0 have StandardColors.NUMBER); Colors are compiler-internal objects that Node.isEquivalentTo ignores. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteGeneratorsTest.md"
+  }
+ ]
+}

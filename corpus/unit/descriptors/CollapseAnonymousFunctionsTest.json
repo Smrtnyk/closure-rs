@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/CollapseAnonymousFunctionsTest.java getProcessor (lines 35-38), bb8c8e7; customSetUp (lines 30-33) only calls enableNormalize, which is restored from harness.fields",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.CollapseAnonymousFunctions",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": "The test class has no fields. Node-level checkState assertions on getLastCompiler() after test() (testLet, testConst and others) are not part of the record."
+}

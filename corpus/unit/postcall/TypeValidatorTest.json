@@ -1,0 +1,70 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.TypeValidatorTest",
+ "methods": [
+  {
+   "method": "bug_testMismatchRecursively_throughFields",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.typeMismatches"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test): the asserted TypeMismatch list is postCall.compiler.typeMismatches, compared by replay. Old reason: asserts after testWarning on getLastCompiler().getTypeMismatches(): the compiler's recorded TypeMismatch list, its size (exactly 1); no postCall key or test-instance field records the type-mismatch list (TypeValidatorTest has no fields; see harness request compiler.typeMismatches)"
+  },
+  {
+   "method": "bug_testMismatchRecursively_throughTemplates",
+   "status": "captured",
+   "via": [
+    "postCallAbsent.compiler.typeMismatches"
+   ],
+   "note": "Classify round 1 batch 5 (D-017 item 3): the method asserts getLastCompiler().getTypeMismatches() isEmpty() after testWarning. The recorder writes postCall.compiler.typeMismatches only when the list is non-empty (FORMAT.md post-call snapshot), and no typeMismatchesError key is present, so the empty list is the absence of the key; ReplayMain compares postCall key sets exactly. Type checking ran (enableTypeCheck in setUp; the record's expected TYPE_MISMATCH_WARNING comes from TypeValidator)."
+  },
+  {
+   "method": "testBasicMismatch",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.typeMismatches"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test): the asserted TypeMismatch list is postCall.compiler.typeMismatches, compared by replay. Old reason: asserts after testWarning on getLastCompiler().getTypeMismatches(): the compiler's recorded TypeMismatch list, exactly one mismatch whose (found, required) JSTypes equal (string, number) by JSType equality; no postCall key or test-instance field records the type-mismatch list (TypeValidatorTest has no fields; see harness request compiler.typeMismatches)"
+  },
+  {
+   "method": "testFunctionMismatch",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.typeMismatches"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test): the asserted TypeMismatch list is postCall.compiler.typeMismatches, compared by replay. Old reason: asserts after testWarning on getLastCompiler().getTypeMismatches(): the compiler's recorded TypeMismatch list, exactly the three mismatches (function(string):number vs function(boolean):string, string vs boolean, number vs string), the function types built with JSTypeRegistry.createFunctionType and compared by JSType equality; no postCall key or test-instance field records the type-mismatch list (TypeValidatorTest has no fields; see harness request compiler.typeMismatches)"
+  },
+  {
+   "method": "testFunctionMismatch2",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.typeMismatches"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test): the asserted TypeMismatch list is postCall.compiler.typeMismatches, compared by replay. Old reason: asserts after testWarning on getLastCompiler().getTypeMismatches(): the compiler's recorded TypeMismatch list, exactly the two mismatches (function(string):number vs function(boolean):number, string vs boolean), compared by JSType equality; no postCall key or test-instance field records the type-mismatch list (TypeValidatorTest has no fields; see harness request compiler.typeMismatches)"
+  },
+  {
+   "method": "testNullUndefined",
+   "status": "captured",
+   "via": [
+    "postCallAbsent.compiler.typeMismatches"
+   ],
+   "note": "Classify round 1 batch 5 (D-017 item 3): the method asserts getLastCompiler().getTypeMismatches() isEmpty() after testWarning. The recorder writes postCall.compiler.typeMismatches only when the list is non-empty (FORMAT.md post-call snapshot), and no typeMismatchesError key is present, so the empty list is the absence of the key; ReplayMain compares postCall key sets exactly. Type checking ran (enableTypeCheck in setUp; the record's expected TYPE_MISMATCH_WARNING comes from TypeValidator)."
+  },
+  {
+   "method": "testSubclass",
+   "status": "captured",
+   "via": [
+    "postCallAbsent.compiler.typeMismatches"
+   ],
+   "note": "Classify round 1 batch 5 (D-017 item 3): the method asserts getLastCompiler().getTypeMismatches() isEmpty() after testWarning. The recorder writes postCall.compiler.typeMismatches only when the list is non-empty (FORMAT.md post-call snapshot), and no typeMismatchesError key is present, so the empty list is the absence of the key; ReplayMain compares postCall key sets exactly. Type checking ran (enableTypeCheck in setUp; the record's expected TYPE_MISMATCH_WARNING comes from TypeValidator)."
+  },
+  {
+   "method": "testUnionsMismatch",
+   "status": "captured",
+   "via": [
+    "postCallAbsent.compiler.typeMismatches"
+   ],
+   "note": "Classify round 1 batch 5 (D-017 item 3): the method asserts getLastCompiler().getTypeMismatches() isEmpty() after testWarning. The recorder writes postCall.compiler.typeMismatches only when the list is non-empty (FORMAT.md post-call snapshot), and no typeMismatchesError key is present, so the empty list is the absence of the key; ReplayMain compares postCall key sets exactly. Type checking ran (enableTypeCheck in setUp; the record's expected TYPE_MISMATCH_WARNING comes from TypeValidator)."
+  }
+ ]
+}

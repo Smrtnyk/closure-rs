@@ -1,0 +1,12 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckTypeImportCodeReferencesTest.java getProcessor (lines 32-35)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.CheckTypeImportCodeReferences",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

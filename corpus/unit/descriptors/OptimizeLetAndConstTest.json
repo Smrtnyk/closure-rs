@@ -1,0 +1,33 @@
+{
+ "source": "test/com/google/javascript/jscomp/OptimizeLetAndConstTest.java getProcessor (lines 36-42), bb8c8e7",
+ "cases": [
+  {
+   "when": {},
+   "processor": {
+    "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "string": "testOptimizeLetAndConst"
+     },
+     {
+      "array": "com.google.javascript.jscomp.AbstractPeepholeOptimization",
+      "items": [
+       {
+        "new": "com.google.javascript.jscomp.OptimizeLetAndConstPeephole",
+        "args": [
+         {
+          "field": "assumeOutputIsWrapped"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ],
+ "note": "getProcessor reads only the test field assumeOutputIsWrapped (a boolean, always recorded: false in 12 records, true in the 2 records of testConstToVarGlobalWrapped/testLetToVarGlobalWrapped). setUp (lines 29-34) only resets assumeOutputIsWrapped to false after super.setUp()."
+}

@@ -1,0 +1,49 @@
+{
+  "source": "test/com/google/javascript/jscomp/ProcessClosureProvidesAndRequiresTest.java getProcessor (lines 60-67), bb8c8e7: a lambda that calls the private methods verifyCollectProvidedNamesDoesntChangeAst (lines 1043-1061) and createClosureProcessor (lines 44-46) and assigns the field lastProcessor; all copied verbatim into helper ProcessClosureProvidesAndRequiresTest_Helpers.GetProcessorLambda. setUp (lines 48-58) resets preserveGoogProvidesAndRequires and lastProcessor (recorded in testFields) and calls setAcceptedLanguage/enableTypeCheck/enableCreateModuleMap/replaceTypesWithColors (harness.fields); the constructor's externs are in inputs.externs",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "helper": "ProcessClosureProvidesAndRequiresTest_Helpers.GetProcessorLambda",
+        "outerInstance": {
+          "once": "holder",
+          "value": {
+            "withFields": {
+              "helper": "ProcessClosureProvidesAndRequiresTest_Helpers",
+              "args": []
+            },
+            "fields": {
+              "preserveGoogProvidesAndRequires": {
+                "field": "preserveGoogProvidesAndRequires"
+              }
+            }
+          }
+        },
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      },
+      "testFieldsAfter": {
+        "once": "holder",
+        "value": {
+          "withFields": {
+            "helper": "ProcessClosureProvidesAndRequiresTest_Helpers",
+            "args": []
+          },
+          "fields": {
+            "preserveGoogProvidesAndRequires": {
+              "field": "preserveGoogProvidesAndRequires"
+            }
+          }
+        }
+      },
+      "testFieldsAfterAlso": [
+        "lastProcessor"
+      ],
+      "note": "fix-13 (D-015 a): one holder per record ({\"once\":\"holder\"}, preserveGoogProvidesAndRequires restored from the record) is shared by the processor lambda and the post-call check. The lambda assigns holder.lastProcessor exactly as the test's lambda assigns the test field, so the post-call dump of lastProcessor (depth 2, referenceable encoding: providedNames, exportedVariables, requiresToBeRemoved, forwardDeclaresToRemove, hasRewritingOccurred, chunkGraph, ...) is compared with the recorded testFieldsAfter.lastProcessor. testFieldsAfterAlso lastProcessor also compares the records whose call left the dump unchanged (a later call in the same method that rebuilt an identical processor): their expected value is testFields.lastProcessor. This captures testGoogExportSymbolRecording's assertion on lastProcessor.getExportedVariableNames() (field exportedVariables)."
+    }
+  ],
+  "note": "preserveGoogProvidesAndRequires is the only test field getProcessor reads (recorded false or true). lastProcessor is write-before-read inside the lambda; since fix-13 the post-call value of lastProcessor is compared (case note). The record-level unrepresentable entries all sit under test.lastProcessor and do not affect replay. The lambda's verifyCollectProvidedNamesDoesntChangeAst assertion runs inside process(), so its failures would surface in the recorded outcome."
+}

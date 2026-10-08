@@ -1,0 +1,51 @@
+{
+ "source": "test/com/google/javascript/jscomp/OptimizeCallsTest.java getProcessor (lines 51-58), bb8c8e7; the lambda passed to addPass (line 56) is copied verbatim as helper OptimizeCallsTest_Helpers.ReferencesCapturingPass",
+ "cases": [
+  {
+   "when": {},
+   "processor": {
+    "call": {
+     "call": {
+      "call": {
+       "call": {
+        "static": "com.google.javascript.jscomp.OptimizeCalls",
+        "method": "builder",
+        "args": []
+       },
+       "method": "setCompiler",
+       "args": [
+        {
+         "compiler": true
+        }
+       ]
+      },
+      "method": "setConsiderExterns",
+      "args": [
+       {
+        "field": "considerExterns"
+       }
+      ]
+     },
+     "method": "addPass",
+     "args": [
+      {
+       "once": "referencesCapturingPass",
+       "value": {
+        "helper": "OptimizeCallsTest_Helpers.ReferencesCapturingPass"
+       }
+      }
+     ]
+    },
+    "method": "build",
+    "args": []
+   },
+   "testFieldsAfter": {
+    "once": "referencesCapturingPass",
+    "value": {
+     "helper": "OptimizeCallsTest_Helpers.ReferencesCapturingPass"
+    }
+   }
+  }
+ ],
+ "note": "considerExterns is a @Nullable Boolean test field that every test method sets explicitly before its single test() call; it is recorded as true or false in every record and unboxed by setConsiderExterns(boolean). The CallGraphCompilerPass lambda only stores the collected ReferenceMap into the test field `references`, which the test's own Truth assertions read after test(). The helper pass is shared through {\"once\":\"referencesCapturingPass\"} and the case opts in to testFieldsAfter on it (fix-8), so replay compares the recorded post-call `references` dump (global scope variable names, the name and property reference maps with their keys, list order and node classes). Token and OptimizeCalls.isAllowedReference checks are not in that dump; corpus/unit/postcall/OptimizeCallsTest.json classifies them. setUp (lines 42-49) only calls enableNormalize/enableGatherExternProperties, restored from harness.fields."
+}

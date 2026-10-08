@@ -1,0 +1,62 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.integration.PolymerIntegrationTest",
+ "methods": [
+  {
+   "method": "testPolymer2a",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.warnings"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): integration record (api compile, always notCaptured): the asserted value (compiler.getErrors() and getWarnings() are empty) is in the record's observed.errors, observed.warnings, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions. Provisional: an observed.* / outcome via claim (harness request, classify batch 9) would make it captured"
+  },
+  {
+   "method": "testPolymerElementImportedFromEsModule",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.warnings"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): integration record (api compile, always notCaptured): the asserted value (compiler.getErrors() and getWarnings() are empty) is in the record's observed.errors, observed.warnings, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions. Provisional: an observed.* / outcome via claim (harness request, classify batch 9) would make it captured"
+  },
+  {
+   "method": "testPolymerFunctionImportedFromEsModule",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.warnings"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): integration record (api compile, always notCaptured): the asserted value (compiler.getErrors() and getWarnings() are empty) is in the record's observed.errors, observed.warnings, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions. Provisional: an observed.* / outcome via claim (harness request, classify batch 9) would make it captured"
+  },
+  {
+   "method": "testPolymerExportPolicyExportAllClassBased",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.output",
+    "observed.warnings"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): integration record (api compile, always notCaptured): the asserted value (compiler.toSource() contains longUnusedProperty and longUnusedMethod; errors and warnings empty) is in the record's observed.output, observed.errors, observed.warnings, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions. Provisional: an observed.* / outcome via claim (harness request, classify batch 9) would make it captured"
+  },
+  {
+   "method": "testPolymerExportPolicyExportAllLegacyElement",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.output",
+    "observed.warnings"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): integration record (api compile, always notCaptured): the asserted value (compiler.toSource() contains longUnusedProperty and longUnusedMethod; errors and warnings empty) is in the record's observed.output, observed.errors, observed.warnings, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions. Provisional: an observed.* / outcome via claim (harness request, classify batch 9) would make it captured"
+  },
+  {
+   "method": "testPolymerPropertyDeclarationsWithConstructor",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.warnings"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): integration record (api compile, always notCaptured): the asserted value (no errors; exactly one warning, whose node string is 'p1' (observed.warnings holds that warning: JSC_POLYMER_MISPLACED_PROPERTY_JSDOC at i0.js line 18, charno 6, length 2, the `p1` key; the node itself is not recorded)) is in the record's observed.errors, observed.warnings, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions. Provisional: an observed.* / outcome via claim (harness request, classify batch 9) would make it captured"
+  }
+ ]
+}

@@ -1,0 +1,19 @@
+{
+  "source": "test/com/google/javascript/jscomp/PeepholeRemoveDeadCodeTest.java getProcessor (lines 43-53)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+        "args": [
+          {"compiler": true},
+          {"record": "harness.effective.getName"},
+          {"array": "com.google.javascript.jscomp.AbstractPeepholeOptimization", "items": [
+            {"new": "com.google.javascript.jscomp.PeepholeRemoveDeadCode", "args": []}
+          ]}
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor returns an anonymous CompilerPass (PeepholeRemoveDeadCodeTest$1) whose process(externs, root) only does `new PeepholeOptimizationsPass(compiler, getName(), new PeepholeRemoveDeadCode()).process(externs, root)`. CompilerTestCase calls getProcessor(compiler).process(...) immediately (CompilerTestCase.java lines 1266 and 1689), both constructors only store their arguments (PeepholeOptimizationsPass.java lines 40-54; PeepholeRemoveDeadCode has the implicit no-arg constructor), and getName() returns the same value at either time. Building the delegate directly is therefore equivalent, and it keeps PeepholeRemoveDeadCode reachable by --mutate-noop (a verbatim helper would construct it outside the DSL)."
+}

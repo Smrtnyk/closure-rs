@@ -1,0 +1,118 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.NormalizeTest",
+ "methods": [
+  {
+   "method": "testConstAnnotationPropagation",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testConstRHSPropagation",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testConstRHSPropagation2",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testFunctionExpressionNameNodeIsConstant",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testFunctionExpressionNameNodeIsConstant2",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testIsConstant",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testIsConstantByDestructuring",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testIsConstantByDestructuringWithDefault",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testPropertyIsConstantIfMatchesConstantName",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testRHSFunctionExpressionNameNodeIsConstant",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testRHSFunctionExpressionNameNodeIsConstant1",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testRHSFunctionExpressionNameNodeIsConstant2",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testRHSFunctionExpressionNameNodeIsConstant3",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testRHSFunctionExpressionNameNodeIsConstant4",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testRestConstAnnotationPropagation",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testRestConstAnnotationPropagation_onlyConstVars",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.IS_CONSTANT_NAME on name nodes of the output AST (getLastCompiler().getRoot()); no postCall key or test field records node properties, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/NormalizeTest.md",
+   "category": "node-identity"
+  }
+ ]
+}

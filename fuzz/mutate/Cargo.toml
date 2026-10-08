@@ -1,0 +1,23 @@
+[package]
+name = "mutate"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json = { workspace = true }
+jsgen = { workspace = true }
+
+# Only the oracle-backed measurement example (examples/parse_rate.rs) uses the oracle client;
+# the library itself stays oracle-free (fuzz/DESIGN.md dependency direction).
+[dev-dependencies]
+fuzz-oracle = { workspace = true }
+
+[[bin]]
+name = "mutate"
+path = "src/bin/mutate.rs"
+
+[lints]
+workspace = true

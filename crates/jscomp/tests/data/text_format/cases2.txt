@@ -1,0 +1,63 @@
+requirement: { foo: 1; value: 'a' }
+=====
+requirement: { foo: 1, value: 'a' }
+=====
+requirement: { foo { bar: 1; }; value: 'a' }
+=====
+requirement: { foo: [1, 'x', {a: 1}] value: 'a' }
+=====
+requirement: { foo: bar.baz value: 'a' } zzz: 1
+=====
+requirement: { foo: 1.5e3f }
+=====
+requirement: { foo: - }
+=====
+requirement: { type: 2147483648 }
+=====
+requirement: { type: 0xzz }
+=====
+requirement: { type: 99999999999999999 }
+=====
+requirement: { type: 09 }
+=====
+requirement: { type: - }
+=====
+requirement: { value: '\x' }
+=====
+requirement: { value: '\U0001F600 \U00110000' }
+=====
+requirement: { value: '\ud800' }
+=====
+requirement: { value: '\UZ' }
+=====
+requirement: { value: '\U0000D800' }
+=====
+requirement: { value: 'a\'}
+=====
+requirement: { value: 'a\
+' }
+=====
+Requirement: { value: 'a' }
+=====
+requirement: { type: BANNED_NAME } requirement: { type: CUSTOM }; requirement: {},
+=====
+requirement: { value: 'a' ; ; }
+=====
+requirement: { value: 'é x' }
+=====
+requirement:{value:'a'}#c
+requirement<value:"b">
+=====
+requirement: { value: 'x' "y" 5 }
+=====
+[ext]: 1
+=====
+requirement: { value: ['a' 'b'] }
+=====
+requirement: { value: ['a'; 'b'] }
+=====
+requirement: { type: [BANNED_NAME] }
+=====
+requirement: { value: 'a', }
+=====
+requirement: { value: 'a'  }

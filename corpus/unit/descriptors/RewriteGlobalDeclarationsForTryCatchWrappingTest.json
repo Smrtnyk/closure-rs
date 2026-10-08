@@ -1,0 +1,17 @@
+{
+ "source": "test/com/google/javascript/jscomp/RewriteGlobalDeclarationsForTryCatchWrappingTest.java getProcessor (lines 28-31), bb8c8e7",
+ "cases": [
+  {
+   "when": {},
+   "processor": {
+    "new": "com.google.javascript.jscomp.RewriteGlobalDeclarationsForTryCatchWrapping",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  }
+ ],
+ "note": "The class overrides only getProcessor and declares no instance fields. testFunctionDeclarationsInModule passes chunk inputs (JSChunkGraphBuilder.forUnordered), which the record carries as inputs.chunks."
+}

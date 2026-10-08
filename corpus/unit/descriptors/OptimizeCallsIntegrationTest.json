@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/OptimizeCallsIntegrationTest.java getProcessor (lines 54-76), bb8c8e7: an anonymous CompilerPass, copied verbatim as helper OptimizeCallsIntegrationTest_Helpers.GetProcessorPass; setUp (lines 44-52) only calls enableNormalize/enableNormalizeExpectedOutput/enableGatherExternProperties, which are in harness.fields; the constructor's externs are in inputs.externs",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"helper": "OptimizeCallsIntegrationTest_Helpers.GetProcessorPass", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "The anonymous pass constructs and runs PureFunctionIdentifier.Driver, RemoveUnusedCode, then OptimizeCalls(OptimizeReturns, OptimizeParameters), each constructed after the previous one has run; a DSL sequence would construct all of them first, so the body is a verbatim helper. Consequently --mutate-noop cannot reach these passes for this class. The test class declares no fields."
+}

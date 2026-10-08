@@ -1,0 +1,12 @@
+{
+  "source": "test/com/google/javascript/jscomp/ijs/ConvertToTypedInterfaceTest.java getProcessor (lines 41-44); setUp (lines 34-39) only calls allowExternsChanges (a harness field, restored from harness.fields); getOptions (lines 46-51) is captured by the record's options diff",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ijs.ConvertToTypedInterface",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

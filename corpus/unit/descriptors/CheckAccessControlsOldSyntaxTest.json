@@ -1,0 +1,12 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckAccessControlsOldSyntaxTest.java getProcessor (lines 67-70)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.CheckAccessControls",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

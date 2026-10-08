@@ -1,0 +1,184 @@
+{
+  "source": "test/com/google/javascript/jscomp/RenamePropertiesTest.java getProcessor (lines 1105-1116); setUp (lines 52-62) is captured by the record's harness fields",
+  "cases": [
+    {
+      "when": {
+        "method": "testPrototypePropertiesUsingFilterFunction"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.RenameProperties",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "field": "generatePseudoNames"
+          },
+          {
+            "field": "prevUsedPropertyMap"
+          },
+          {
+            "static": "com.google.common.collect.ImmutableSet",
+            "method": "of",
+            "args": []
+          },
+          {
+            "static": "com.google.common.collect.ImmutableSet",
+            "method": "of",
+            "args": []
+          },
+          {
+            "new": "com.google.javascript.jscomp.DefaultNameGenerator",
+            "args": []
+          },
+          {
+            "helper": "RenamePropertiesTest_Helpers.GetPrefixFilter"
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testPrototypePropertiesUsingFilterOnFilename"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.RenameProperties",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "field": "generatePseudoNames"
+          },
+          {
+            "field": "prevUsedPropertyMap"
+          },
+          {
+            "static": "com.google.common.collect.ImmutableSet",
+            "method": "of",
+            "args": []
+          },
+          {
+            "static": "com.google.common.collect.ImmutableSet",
+            "method": "of",
+            "args": []
+          },
+          {
+            "new": "com.google.javascript.jscomp.DefaultNameGenerator",
+            "args": []
+          },
+          {
+            "helper": "RenamePropertiesTest_Helpers.FilterOnFilename"
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testPrototypeAndRenameFunctionsFilterOnFilename"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.RenameProperties",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "field": "generatePseudoNames"
+          },
+          {
+            "field": "prevUsedPropertyMap"
+          },
+          {
+            "static": "com.google.common.collect.ImmutableSet",
+            "method": "of",
+            "args": []
+          },
+          {
+            "static": "com.google.common.collect.ImmutableSet",
+            "method": "of",
+            "args": []
+          },
+          {
+            "new": "com.google.javascript.jscomp.DefaultNameGenerator",
+            "args": []
+          },
+          {
+            "helper": "RenamePropertiesTest_Helpers.RenameFunctionsFilterOnFilename"
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testPrototypeAndRenameFunctionsFilterOnFilename2"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.RenameProperties",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "field": "generatePseudoNames"
+          },
+          {
+            "field": "prevUsedPropertyMap"
+          },
+          {
+            "static": "com.google.common.collect.ImmutableSet",
+            "method": "of",
+            "args": []
+          },
+          {
+            "static": "com.google.common.collect.ImmutableSet",
+            "method": "of",
+            "args": []
+          },
+          {
+            "new": "com.google.javascript.jscomp.DefaultNameGenerator",
+            "args": []
+          },
+          {
+            "helper": "RenamePropertiesTest_Helpers.RenameFunctionsFilterOnFilename2"
+          }
+        ]
+      }
+    },
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.RenameProperties",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "field": "generatePseudoNames"
+          },
+          {
+            "field": "prevUsedPropertyMap"
+          },
+          {
+            "static": "com.google.common.collect.ImmutableSet",
+            "method": "of",
+            "args": []
+          },
+          {
+            "static": "com.google.common.collect.ImmutableSet",
+            "method": "of",
+            "args": []
+          },
+          {
+            "new": "com.google.javascript.jscomp.DefaultNameGenerator",
+            "args": []
+          },
+          {
+            "helper": "RenamePropertiesTest_Helpers.DefaultFilter"
+          }
+        ]
+      }
+    }
+  ],
+  "note": "The test field propertyNameFilter is a lambda (recorded as unrepresentable). Its value is the field initialiser `(Node name) -> true` except in the four test methods that assign a different lambda before their only test call; each lambda is a verbatim helper, selected by the recorded test method. prevUsedPropertyMap (null, or a VariableMap taken from the previous call's renameProperties.getPropertyMap() in testStableRenaming-style tests) and generatePseudoNames are decoded from testFields. The test field renameProperties is only written by getProcessor (for the test's own follow-up reads) and is not an input. The record's testFieldsAfter.renameProperties (76 records) is the pass object getProcessor assigned to that test field. Classify batch 17 (D-015 a) classifies those records in corpus/unit/postcall/RenamePropertiesTest.json as captured via postCall.pass.propertyMap: the test's only post-call reads of the field are renameProperties.getPropertyMap() (testStableRenaming line 522, testStableWithTrickyExternsChanges line 453), which is that snapshot key, present in all 85 records and compared by replay. The whole-object testFieldsAfter opt-in is not used: its dump's propertyRenameEligibilityFilter is a RenamePropertiesTest$$Lambda ref that the helper filter classes never match by name, and the rest is pass-internal working state no test reads."
+}

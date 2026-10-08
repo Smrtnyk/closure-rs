@@ -1,0 +1,1 @@
+{"source":"IntegrationTestCase subclass (test/com/google/javascript/jscomp/integration/GetterAndSetterIntegrationTest.java): records replay through ReplayIntegrationTest; createCompilerOptions()'s effect and each test's option changes are in record.options, there is no processor.","cases":[]}

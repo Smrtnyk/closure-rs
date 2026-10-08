@@ -1,0 +1,15 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.refactoring.ScriptMetadataTest",
+ "note": "classify round 1 batch 8 (D-017 item 6). Read from test/com/google/javascript/refactoring/ScriptMetadataTest.java (bb8c8e7).",
+ "methods": [
+  {
+   "method": "testParsesAliases",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.lastMetadata"
+   ],
+   "note": "Lines 48-50 assert lastMetadata.getAlias(ns) for a.b.Foo, a.b.Bar and a.b.Qux. ScriptMetadata.getAlias (src/com/google/javascript/refactoring/ScriptMetadata.java line 95) is requireAliases.get(namespace). The record's testFieldsAfter.lastMetadata (null at entry, set by the processor lambda during the hooked call) holds requireAliases as a java.util.LinkedHashMap {a.b.Foo: Foo, a.b.Bar: Bar, a.b.Qux: Qux} (plus namesInUse, supportsRequireAliases and the script Node as a class-name reference). The descriptor's testFieldsAfter opt-in shares the helper holder with the processor through {\"once\":\"test\"}, so replay compares the holder's lastMetadata after the call (comparedFields [lastMetadata], post state checked). No Guava or protobuf object dump is in the compared value (FORMAT.md rule 1a). The record carries no postCall.pass key."
+  }
+ ]
+}

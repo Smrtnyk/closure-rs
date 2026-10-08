@@ -1,0 +1,134 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest",
+ "methods": [
+  {
+   "method": "getProp_isFound",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "optChainGetProp_isFound",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "objectLitProp_isFound",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "objectPatternProp_isFound",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "classMemberProp_onPrototype_isFound",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "classMemberProp_onInstance_isFound",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "classMemberField_onInstance_isFound",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "classMemberField_onCtor_isFound",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "classMemberProp_onCtor_isFound",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "objectLitProp_inObjectDefineProperties_isFound",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "stringLiteralProp_viaPropDefinerFunction_isFound",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "propDefinerFunction_noObject_associatesWithJavaNull",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "externProps_areClusteredTogether",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "externProps_areClusteredTogether_evenIfSourceInformationIsMissingWithinExterns",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "enumsAreClusteredWithExterns",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "assertThatUsesOf(name) maps each use site of PropertyClustering.getUseSites() (Node -> ColorGraphNode) to the label of the Color that the StubColorGraphNodeFactory created that ColorGraphNode for (flattener.createdNodes inverse, compared by Color object identity) and to the use-site Node's token; the @After verifiers also walk each PropertyClustering's StandardUnionFind of ColorGraphNodes and compare the original-name cluster with the ColorGraphNodes of labelled Colors. Replay compares testFieldsAfter.finder/flattener/labeledStatementMap, but the dump writes every use-site Node and ColorGraphNode, and the union-find, as class-name refs, so the Node-to-Color association the test asserts is not in any compared value (the propIndex key set is). The records carry no postCall.pass.* key (their postCall has compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "propertylessConstructorsAreRecordedInTypeFlattener",
+   "status": "rust_unit_test",
+   "category": "color",
+   "reason": "asserts flattener.created (the LinkedHashSet<Color> passed to StubColorGraphNodeFactory.createNode) containsExactlyElementsIn the Colors of the labelled statements TYPEOF_FOO, TYPEOF_BAR, TYPEOF_QUZ, TYPEOF_BAZ, i.e. Color object equality between two Color collections of the colorized AST; the @After verifiers also walk ColorGraphNode union-find clusters, which the dump writes as refs. The records carry no postCall.pass.* key (compiler keys accessorSummary, moduleMetadataByPath, typeMismatchesError only).",
+   "fragment": "corpus/unit/rust_unit_tests/ColorFindPropertyReferencesTest.md"
+  },
+  {
+   "method": "propDefinerFunction_noString_findsNoNodes",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.finder"
+   ],
+   "note": "Classify round 1 batch 5: the only post-call assertion is assertThat(propIndex.keySet()).isEmpty(), where propIndex = finder.getPropertyIndex() (ColorFindPropertyReferences.propIndex). testFieldsAfter.finder changed during the hooked call (the processor lambda assigns this.finder), replay compares it (post state checked, comparedFields finder, flattener), and the recorded finder.propIndex is the empty LinkedHashMap. The @After verifiers loop over propIndex.values(), so with an empty index they assert nothing."
+  },
+  {
+   "method": "propDefinerFunction_nonLiteralName_findsNoNodes",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.finder"
+   ],
+   "note": "Classify round 1 batch 5: the only post-call assertion is assertThat(propIndex.keySet()).isEmpty(), where propIndex = finder.getPropertyIndex() (ColorFindPropertyReferences.propIndex). testFieldsAfter.finder changed during the hooked call (the processor lambda assigns this.finder), replay compares it (post state checked, comparedFields finder, flattener), and the recorded finder.propIndex is the empty LinkedHashMap. The @After verifiers loop over propIndex.values(), so with an empty index they assert nothing."
+  }
+ ]
+}

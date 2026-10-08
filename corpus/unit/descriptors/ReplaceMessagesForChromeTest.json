@@ -1,0 +1,16 @@
+{
+  "source": "test/com/google/javascript/jscomp/ReplaceMessagesForChromeTest.java getProcessor (lines 28-31), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReplaceMessagesForChrome",
+        "args": [
+          {"compiler": true},
+          {"new": "com.google.javascript.jscomp.GoogleJsMessageIdGenerator", "args": [{"null": true}]}
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor is `return new ReplaceMessagesForChrome(compiler, new GoogleJsMessageIdGenerator(null));` (GoogleJsMessageIdGenerator has a single one-argument constructor, String projectId). The class declares no fields. setUp's enableTypeCheck/replaceTypesWithColors/enableTypeInfoValidation and ignoreWarnings(MISSING_PROPERTIES) are harness state, restored from harness.fields."
+}

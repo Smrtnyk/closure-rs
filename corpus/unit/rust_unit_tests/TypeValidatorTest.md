@@ -1,0 +1,3 @@
+## TypeValidatorTest (post-call assertions, gate 0.2 (a))
+
+Test class `com.google.javascript.jscomp.TypeValidatorTest` (reference commit bb8c8e7). No method of this class is a Rust unit test. Every post-call assertion reads `getLastCompiler().getTypeMismatches()`, which replay compares through `postCall.compiler.typeMismatches`: the methods that expect mismatches claim that key, and the methods that expect an empty list (bug_testMismatchRecursively_throughTemplates, testNullUndefined, testSubclass, testUnionsMismatch) claim `postCallAbsent.compiler.typeMismatches`, because the recorder writes the key only when the list is non-empty (D-017 item 3).

@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/RewriteCallerCodeLocationTest.java getProcessor (lines 33-37), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.RewriteCallerCodeLocation",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor returns the lambda `(externs, root) -> new RewriteCallerCodeLocation(compiler).process(externs, root)`. CompilerTestCase calls it as `getProcessor(compiler).process(externsRoot, mainRoot)` (CompilerTestCase.java line 1266), so the pass is constructed and run back to back either way; the constructor only stores compiler, compiler.createAstFactory() and a new LinkedHashMap, none of which can differ between the two points. A direct {\"new\"} is therefore equivalent and keeps the pass visible to --mutate-noop. setUp is not overridden; the per-test enableTypeCheck/enableParseTypeInfo are in harness.fields. The class declares no fields."
+}

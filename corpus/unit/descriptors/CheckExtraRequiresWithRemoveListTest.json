@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckExtraRequiresWithRemoveListTest.java getProcessor (lines 44-47), bb8c8e7; getOptions (lines 36-42: EXTRA_REQUIRE at ERROR, MODULE_LOAD OFF) is captured by the record's options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.lint.CheckExtraRequires",
+        "args": [
+          {"compiler": true},
+          {"static": "com.google.common.collect.ImmutableSet", "method": "of",
+           "args": [{"string": "xx"}, {"string": "yy"}, {"string": "zz"}]}
+        ]
+      }
+    }
+  ],
+  "note": "The test class declares no fields; getProcessor is unconditional: new CheckExtraRequires(compiler, ImmutableSet.of(\"xx\", \"yy\", \"zz\"))."
+}

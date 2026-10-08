@@ -1,0 +1,14 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6TemplateLiteralsTest.java getProcessor (lines 55-63), bb8c8e7, replayed through helper Es6TemplateLiteralsTest_Helpers.GetProcessorHost (getProcessor copied verbatim; it builds a PhaseOptimizer from two makePassFactory one-time passes with method references)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {"helper": "Es6TemplateLiteralsTest_Helpers.GetProcessorHost"},
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "Same shape as LateEs6ToEs3ConverterTest.json. getProcessor reads no test field (REPLACEMENT_PREFIXES and RUNTIME_STUBS are static constants used only by customSetUp, the constructor's default externs and the test bodies). customSetUp (lines 43-53: enableNormalize, setAcceptedLanguage(ES2015), setLanguageOut(ES3), enableTypeCheck, enableTypeInfoValidation, replaceTypesWithColors, enableMultistageCompilation, setGenericNameReplacements) only sets harness state, restored from harness.fields and record.options."
+}

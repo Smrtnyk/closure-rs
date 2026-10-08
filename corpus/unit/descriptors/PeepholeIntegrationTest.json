@@ -1,0 +1,23 @@
+{
+  "source": "test/com/google/javascript/jscomp/PeepholeIntegrationTest.java getProcessor (lines 45-56); getNumRepetitions (lines 58-61) returns the numRepetitions field, recorded as harness.effective.getNumRepetitions; setUp (lines 32-43) toggles harness fields (restored from harness.fields) and resets late/numRepetitions (recorded in testFields)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+        "args": [
+          {"compiler": true},
+          {"record": "harness.effective.getName"},
+          {"array": "com.google.javascript.jscomp.AbstractPeepholeOptimization", "items": [
+            {"new": "com.google.javascript.jscomp.PeepholeMinimizeConditions", "args": [{"field": "late"}]},
+            {"new": "com.google.javascript.jscomp.PeepholeSubstituteAlternateSyntax", "args": [{"field": "late"}]},
+            {"new": "com.google.javascript.jscomp.PeepholeRemoveDeadCode", "args": []},
+            {"new": "com.google.javascript.jscomp.PeepholeFoldConstants", "args": [{"field": "late"}, {"bool": false}]},
+            {"new": "com.google.javascript.jscomp.PeepholeReplaceKnownMethods", "args": [{"field": "late"}, {"bool": false}]},
+            {"new": "com.google.javascript.jscomp.MinimizeExitPoints", "args": []}
+          ]}
+        ]
+      }
+    }
+  ]
+}

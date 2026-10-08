@@ -1,0 +1,26 @@
+{
+  "source": "test/com/google/javascript/jscomp/J2clUndefinedChecksRewriterPassTest.java getProcessor (lines 25-29) and createCompiler (lines 31-36), bb8c8e7: new PeepholeOptimizationsPass(compiler, getName(), new J2clUndefinedChecksRewriterPass()) on a Compiler that createCompiler marks with J2clSourceFileChecker.markToRunJ2clPasses.",
+  "cases": [
+    {
+      "when": {},
+      "compilerSetup": [
+        {
+          "static": "com.google.javascript.jscomp.J2clSourceFileChecker",
+          "method": "markToRunJ2clPasses",
+          "args": [{"compiler": true}]
+        }
+      ],
+      "processor": {
+        "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+        "args": [
+          {"compiler": true},
+          {"record": "harness.effective.getName"},
+          {"array": "com.google.javascript.jscomp.AbstractPeepholeOptimization", "items": [
+            {"new": "com.google.javascript.jscomp.J2clUndefinedChecksRewriterPass", "args": []}
+          ]}
+        ]
+      }
+    }
+  ],
+  "note": "The createCompiler override returns super.createCompiler() after J2clSourceFileChecker.markToRunJ2clPasses(compiler); that is exactly a DSL v2 compilerSetup effect (run on each freshly created compiler, before init/parse). Without the flag J2clUndefinedChecksRewriterPass.optimizeSubtree returns its input unchanged. Round 1 made the same call from getProcessor through a list/get(1) workaround because the DSL had no createCompiler hook."
+}

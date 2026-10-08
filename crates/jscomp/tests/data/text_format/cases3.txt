@@ -1,0 +1,30 @@
+requirement: { value: 'a'  }
+=====
+requirement: { value: 'a'  }
+=====
+requirement: { value: 'a'  }
+=====
+requirement: { value: 'a' 
+ }
+=====
+requirement: { value: 'a'   }
+=====
+requirement: { value: 'a' }
+=====
+requirement: { value: 'a' # c value: 'b' }
+=====
+requirement: { value: 'a' # c  value: 'b' }
+=====
+requirement: { value: 'ab' }
+=====
+requirement: { value: 'a'  }
+=====
+requirement: { value: 'é' é }
+=====
+requirement: {
+  value: 'a'
+  bogus: 'x'
+  other {
+  }
+}
+zz: 1

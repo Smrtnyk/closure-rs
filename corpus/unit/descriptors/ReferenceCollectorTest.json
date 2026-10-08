@@ -1,0 +1,676 @@
+{
+  "source": "test/com/google/javascript/jscomp/ReferenceCollectorTest.java getProcessor (lines 44-48): new ReferenceCollector(compiler, this.behavior, new SyntacticScopeCreator(compiler))",
+  "cases": [
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$1"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon1"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$2"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon2"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$3"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon3"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$4"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon4"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$5"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon5"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$6"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon6"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$7"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon7"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$8"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon8"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$9"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon9"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$10"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon10"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$11"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon11"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$12"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon12"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$13"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon13"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$14"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon14"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$15"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon15"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testIterableRest_declaration"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Lambda_testIterableRest_declaration"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testObjectRest_declaration"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Lambda_testObjectRest_declaration"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testClass"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Lambda_testClass"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testClass_withInstantiation"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Lambda_testClass_withInstantiation"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testClassExpression_assignedToConst_andInstantiated"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Lambda_testClassExpression_assignedToConst_andInstantiated"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testNamedClassExpression_assignedToConst_andInstantiated"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Lambda_testNamedClassExpression_assignedToConst_andInstantiated"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testImport1"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Lambda_testImport1"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testImport2"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Lambda_testImport2"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testImport2_alternate"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Lambda_testImport2_alternate"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testImport3"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Lambda_testImport3"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testImport4"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Lambda_testImport4"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "method": "testLetInLoopAssignedOnceInLifetime"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Lambda_testLetInLoopAssignedOnceInLifetime"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "field": "behavior"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "note": "The behavior field holds an anonymous Behavior class (recorded as {object: ReferenceCollectorTest$N}) or a lambda (recorded as unrepresentable). Both are copied verbatim into ReferenceCollectorTest_Helpers: anonymous classes are selected by their recorded class name, lambdas by the test method (each lambda test makes exactly one testBehavior call, so the method identifies the lambda). The last case covers a null/decodable behavior field (none recorded). The SyntacticScopeCreator is created after the behavior is evaluated, unlike the test's local; neither constructor has side effects. Fix-2 (2026-10-07), gate 0.2 (a)/(e) plan: every assertion of this test runs inside the processor, in the Behavior callback's afterExitScope, and every record is a testSame record (no change, no diagnostics). With the processor replaced by a no-op the callbacks never run, so all 30 records pass, and the review-round-2 vacuity rule moves them to notCaptured. Nothing in the record changes when the pass is skipped: testFieldsAfter is empty in all 30 records, and postCall has only compiler.accessorSummary. The static post-call scan flags no method, so there is nothing to classify in corpus/unit/postcall/. The plan, requested in the fix-2 report: a recorder postCall producer pass.referenceMap for ReferenceCollector (per collected variable: name, declaring scope root position, and each reference's token, position, isDeclaration, isInitializingDeclaration and isLvalue, plus isAssignedOnceInLifetime and isWellDefined). That is exactly what the callbacks assert, and it is empty under a no-op."
+}

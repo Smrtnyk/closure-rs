@@ -1,0 +1,64 @@
+# closure-rs Cargo workspace root.
+#
+# fuzz/ holds the fuzzer. crates/ holds the port itself: one crate per directory,
+# picked up by the "crates/*" glob. Shared dependency versions live in [workspace.dependencies];
+# member crates use `dep = { workspace = true }` and `[lints] workspace = true`.
+[workspace]
+resolver = "3"
+members = [
+    "fuzz/jsgen",
+    "fuzz/mutate",
+    "fuzz/minimize",
+    "fuzz/oracle",
+    "fuzz/driver",
+    "crates/*",
+]
+exclude = ["crates/clippy.toml"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "Apache-2.0 AND (MPL-1.1 OR GPL-2.0-or-later) AND GPL-2.0-only WITH Classpath-exception-2.0 AND BSD-3-Clause AND MIT AND Unicode-DFS-2016 AND dtoa"
+publish = false
+
+[workspace.dependencies]
+closure-rhino = { path = "crates/rhino" }
+closure-parsing = { path = "crates/parsing" }
+closure-jscomp = { path = "crates/jscomp" }
+closure-jstype = { path = "crates/jstype" }
+regex = "1"
+indexmap = "2"
+zip = { version = "8.6", default-features = false, features = ["deflate-flate2-zlib"] }
+flate2 = { version = "1", default-features = false, features = ["zlib"] }
+num-bigint = "0.4"
+num-integer = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+base64 = "0.22"
+sha2 = "0.10"
+jsgen = { path = "fuzz/jsgen" }
+mutate = { path = "fuzz/mutate" }
+minimize = { path = "fuzz/minimize" }
+fuzz-oracle = { path = "fuzz/oracle" }
+
+# docs/PORTING.md §6 item 1: #![forbid(unsafe_code)] in every crate (members opt in with `[lints] workspace = true`).
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.release]
+debug = 1
+
+# closure-testing parses the whole unit corpus (~750 MB of JSON) in `cargo test`; optimise it and
+# its gzip decoder in the default test profile so CI stays fast.
+[profile.dev.package.closure-testing]
+opt-level = 3
+[profile.dev.package.flate2]
+opt-level = 3
+[profile.dev.package.crc32fast]
+opt-level = 3
+[profile.dev.package.indexmap]
+opt-level = 3

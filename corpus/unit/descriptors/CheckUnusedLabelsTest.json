@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckUnusedLabelsTest.java getProcessor (lines 34-37), bb8c8e7; getOptions (lines 39-44: LINT_CHECKS at WARNING) is captured by the record's options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.lint.CheckUnusedLabels", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "The test class declares no fields and no setUp; getProcessor is unconditional."
+}

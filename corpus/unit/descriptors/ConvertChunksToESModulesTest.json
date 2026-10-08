@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/ConvertChunksToESModulesTest.java getProcessor (lines 33-36), bb8c8e7. No setUp override; per-test ignoreWarnings(...) calls are restored from harness.fields.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ConvertChunksToESModules",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "The test class declares no fields; getProcessor is unconditional."
+}

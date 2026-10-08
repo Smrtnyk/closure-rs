@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6RewriteDestructuringTest.java getProcessor (lines 77-91; a PhaseOptimizer of makePassFactory lambdas, one reading the field destructuringRewriteMode), replayed through helper Es6RewriteDestructuringTest_Helpers.GetProcessor with destructuringRewriteMode restored from testFields. customSetUp (lines 50-61), tearDown (lines 63-68) and getOptions (lines 70-75) affect only harness fields, options and destructuringRewriteMode, which come from the record.",
+  "cases": [
+    {
+      "when": {"instanceClass": "com.google.javascript.jscomp.Es6RewriteDestructuringTest"},
+      "processor": {
+        "call": {"helper": "Es6RewriteDestructuringTest_Helpers.GetProcessor", "outer": ["destructuringRewriteMode"]},
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

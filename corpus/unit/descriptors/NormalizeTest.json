@@ -1,0 +1,36 @@
+{
+  "source": "test/com/google/javascript/jscomp/NormalizeTest.java getProcessor (lines 48-51); the anonymous CompilerTestCase in testRenamingConstantProperties (lines 1636-1655, instanceClass NormalizeTest$1) overrides getProcessor and is replayed through helper NormalizeTest_Helpers.RenamingConstantPropertiesTester. getOptions (lines 53-58) and customSetUp (lines 60-66) affect only options/harness fields, which come from the record.",
+  "cases": [
+    {
+      "when": {
+        "instanceClass": "com.google.javascript.jscomp.NormalizeTest$1"
+      },
+      "processor": {
+        "call": {
+          "helper": "NormalizeTest_Helpers.RenamingConstantPropertiesTester"
+        },
+        "method": "getProcessor",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "instanceClass": "com.google.javascript.jscomp.NormalizeTest"
+      },
+      "processor": {
+        "static": "com.google.javascript.jscomp.Normalize",
+        "method": "createNormalizeForOptimizations",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": "Normalize is built by the static factory Normalize.createNormalizeForOptimizations (Normalize.java:70-73, builder(compiler).build()), called as getProcessor does; the NormalizeTest$1 tester builds a PhaseOptimizer inside its getProcessor. Neither goes through a DSL \"new\", so --mutate-noop Normalize does not reach these records (see dsl_requests: mutate-noop on static/call results)."
+}

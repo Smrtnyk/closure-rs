@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6ExtractClassesTest.java getProcessor (lines 29-32), bb8c8e7.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.Es6NormalizeClasses",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": "setUp (lines 34-47) only calls harness setters (setAcceptedLanguage, setLanguageOut, enableTypeInfoValidation, enableRewriteClosureCode, enableTypeCheck, replaceTypesWithColors, enableMultistageCompilation, setGenericNameReplacements), restored from harness.fields."
+}

@@ -1,0 +1,4 @@
+Exception in thread "main" com.google.javascript.jscomp.FlagUsageException: ERROR - both flags `--browser_featureset_year` and `--language_out` specified.
+	at com.google.javascript.jscomp.CommandLineRunner.initConfigFromFlags(CommandLineRunner.java:1657)
+	at com.google.javascript.jscomp.CommandLineRunner.<init>(CommandLineRunner.java:1479)
+	at com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2254)

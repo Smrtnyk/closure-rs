@@ -1,0 +1,323 @@
+{
+ "source": "test/com/google/javascript/jscomp/disambiguate/ColorFindPropertyReferencesTest.java getProcessor (lines 105-109), the processor lambda built by collectProperties (lines 609-630), setUp (lines 83-91), bb8c8e7",
+ "cases": [
+  {
+   "when": {
+    "method": "externProps_areClusteredTogether_evenIfSourceInformationIsMissingWithinExterns"
+   },
+   "processor": {
+    "call": {
+     "once": "test",
+     "value": {
+      "new": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers",
+      "args": [
+       {
+        "compiler": true
+       },
+       {
+        "bool": true
+       },
+       {
+        "set": []
+       }
+      ]
+     }
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   },
+   "testFieldsAfter": {
+    "once": "test",
+    "value": {
+     "new": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers",
+     "args": [
+      {
+       "compiler": true
+      },
+      {
+       "bool": true
+      },
+      {
+       "set": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "when": {
+    "method": "stringLiteralProp_viaPropDefinerFunction_isFound"
+   },
+   "processor": {
+    "call": {
+     "once": "test",
+     "value": {
+      "new": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers",
+      "args": [
+       {
+        "compiler": true
+       },
+       {
+        "bool": false
+       },
+       {
+        "set": [
+         {
+          "string": "reflect"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   },
+   "testFieldsAfter": {
+    "once": "test",
+    "value": {
+     "new": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers",
+     "args": [
+      {
+       "compiler": true
+      },
+      {
+       "bool": false
+      },
+      {
+       "set": [
+        {
+         "string": "reflect"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "when": {
+    "method": "propDefinerFunction_noObject_associatesWithJavaNull"
+   },
+   "processor": {
+    "call": {
+     "once": "test",
+     "value": {
+      "new": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers",
+      "args": [
+       {
+        "compiler": true
+       },
+       {
+        "bool": false
+       },
+       {
+        "set": [
+         {
+          "string": "reflect"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   },
+   "testFieldsAfter": {
+    "once": "test",
+    "value": {
+     "new": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers",
+     "args": [
+      {
+       "compiler": true
+      },
+      {
+       "bool": false
+      },
+      {
+       "set": [
+        {
+         "string": "reflect"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "when": {
+    "method": "propDefinerFunction_noString_findsNoNodes"
+   },
+   "processor": {
+    "call": {
+     "once": "test",
+     "value": {
+      "new": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers",
+      "args": [
+       {
+        "compiler": true
+       },
+       {
+        "bool": false
+       },
+       {
+        "set": [
+         {
+          "string": "reflect"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   },
+   "testFieldsAfter": {
+    "once": "test",
+    "value": {
+     "new": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers",
+     "args": [
+      {
+       "compiler": true
+      },
+      {
+       "bool": false
+      },
+      {
+       "set": [
+        {
+         "string": "reflect"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "when": {
+    "method": "propDefinerFunction_nonLiteralName_findsNoNodes"
+   },
+   "processor": {
+    "call": {
+     "once": "test",
+     "value": {
+      "new": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers",
+      "args": [
+       {
+        "compiler": true
+       },
+       {
+        "bool": false
+       },
+       {
+        "set": [
+         {
+          "string": "reflect"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   },
+   "testFieldsAfter": {
+    "once": "test",
+    "value": {
+     "new": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers",
+     "args": [
+      {
+       "compiler": true
+      },
+      {
+       "bool": false
+      },
+      {
+       "set": [
+        {
+         "string": "reflect"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "when": {},
+   "processor": {
+    "call": {
+     "once": "test",
+     "value": {
+      "new": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers",
+      "args": [
+       {
+        "compiler": true
+       },
+       {
+        "bool": false
+       },
+       {
+        "set": []
+       }
+      ]
+     }
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   },
+   "testFieldsAfter": {
+    "once": "test",
+    "value": {
+     "new": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers",
+     "args": [
+      {
+       "compiler": true
+      },
+      {
+       "bool": false
+      },
+      {
+       "set": []
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "classMap": {
+  "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest$1": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers$SilenceChecksWarningsGuard",
+  "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest$StubColorGraphNodeFactory": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers$StubColorGraphNodeFactory",
+  "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest$$Lambda": "com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferencesTest_Helpers$$Lambda"
+ },
+ "note": "getProcessor returns the test field `processor`, a lambda that collectProperties(propertyReflectorNames, externs, src) assigns just before its single test(...) call; it runs externsCallback, LabelledStatementCollector, then ColorFindPropertyReferences with a StubColorGraphNodeFactory and the predicate `propertyReflectorNames.contains(node.getQualifiedName())`. Both the lambda and externsCallback are recorded only as unrepresentable lambdas (the record's 18 `unrepresentable` entries: test.externsCallback, test.processor), and propertyReflectorNames is a captured local, so cases are keyed on the test method: the four propDefinerFunction/viaPropDefinerFunction tests pass ImmutableSet.of(\"reflect\"), every other test uses the two-argument collectProperties (ImmutableSet.of()); only externProps_areClusteredTogether_evenIfSourceInformationIsMissingWithinExterns replaces setUp's no-op externsCallback (with the clearSourceFileRecursive lambda). The helper (package disambiguate, built with `new` because the pass classes are package-private) reproduces this verbatim, so every recorded unrepresentable entry is rebuilt by the descriptor. The helper instance stands for the test instance and is shared through {\"once\":\"test\"}. getOptions() adds SILENCE_CHECKS_WARNINGS_GUARD, an anonymous WarningsGuard recorded in options.warningsGuard as ColorFindPropertyReferencesTest$1; classMap maps it to the verbatim helper SilenceChecksWarningsGuard. createCompiler() returns the test's bare `new Compiler()` field; the replay uses CompilerTestCase#createCompiler (recorded createCompiler class is Compiler), which differs only by setAllowableFeatures(acceptedLanguage.toFeatureSet()) (overwritten by Compiler.initOptions with the same options.languageIn feature set), setPreferRegexParser(false) (the Compiler default) and initWebpackMap (webpackModulesById is empty here), so the two are equivalent. The test's own follow-up assertions read propIndex (finder.getPropertyIndex()), labeledStatementMap and flattener after test(...); the record carries them in testFieldsAfter. Every case opts in to `testFieldsAfter` on the shared helper instance ({\"once\":\"test\"}), so replay compares labeledStatementMap, finder (with its propIndex) and flattener (fix-8). Replay maps helper class names back through the inverse of classMap before comparing (ReplayCompilerTest.canonicalClassNames), so classMap also maps the recorded ColorFindPropertyReferencesTest$StubColorGraphNodeFactory and ColorFindPropertyReferencesTest$$Lambda (the isPropertyReflector lambda) to the helper's StubColorGraphNodeFactory and _Helpers$$Lambda; no recorded value is decoded through these two entries. The two @After verifications are not recorded."
+}

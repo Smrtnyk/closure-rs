@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/FunctionRewriterTest.java getProcessor (lines 70-73), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.FunctionRewriter", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "getProcessor returns new FunctionRewriter(compiler) unconditionally. setUp (lines 62-68: enableNormalize, enableNormalizeExpectedOutput) is replayed from harness.fields. The test has no instance fields."
+}

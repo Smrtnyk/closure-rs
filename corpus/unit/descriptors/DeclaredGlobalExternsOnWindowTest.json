@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/DeclaredGlobalExternsOnWindowTest.java getProcessor (lines 27-30), bb8c8e7. setUp (lines 32-39) only calls enableTypeCheck/allowExternsChanges/enableRunTypeCheckAfterProcessing, which are restored from harness.fields.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.DeclaredGlobalExternsOnWindow",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": "The test class declares no fields; getProcessor is unconditional. 16 of the 20 records use api=testExternChanges (CompilerTestCase.testExternChanges, which compares the externs root instead of the sources root). Since the DSL v2 harness these replay through the same case (DSL.md 'Replay outcome'): the processor is the same for both apis."
+}

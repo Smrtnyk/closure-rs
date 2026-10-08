@@ -1,0 +1,480 @@
+{
+  "schema": 1,
+  "comment": "Pinned benchmark projects for D7 (docs/PORTING.md \u00a73). Fetched into bench-cache/ by scripts/fetch_bench.sh, run by scripts/run_bench.py; see bench/README.md. Paths in 'dest' are relative to bench-cache/, paths in jobs relative to the repository root. tree_sha256 = sha256 over the sorted lines '<path relative to dest>\\0<sha256 of the file>\\n' of every regular file fetched into dest.",
+  "levels": [
+    "SIMPLE",
+    "ADVANCED"
+  ],
+  "projects": [
+    {
+      "name": "d3-12",
+      "description": "12 d3 packages, each compiled separately from its src/index.js into one standalone ES2015 file (12 separate compiles), as a 12-entry-point ES-module project would be built. Sibling packages that a package imports (and internmap, d3-array's dependency) are passed as inputs from a node_modules layout and resolved with --module_resolution=NODE.",
+      "sources": [
+        {
+          "name": "d3-array",
+          "kind": "git",
+          "repo": "https://github.com/d3/d3-array.git",
+          "ref": "v3.2.4",
+          "commit": "94d4541626ae3ac6c847e3d4c6e31aca1a8879b4",
+          "license": "ISC",
+          "dest": "d3-12/node_modules/d3-array",
+          "paths": [
+            "src",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "c94500495dfbd315e38cbd8f7392857c6514be79d0223cbd8da3d542cfe991b2"
+        },
+        {
+          "name": "d3-color",
+          "kind": "git",
+          "repo": "https://github.com/d3/d3-color.git",
+          "ref": "v3.1.0",
+          "commit": "7a1573ed260de4fd97d061975244841132adde92",
+          "license": "ISC",
+          "dest": "d3-12/node_modules/d3-color",
+          "paths": [
+            "src",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "150962b0508ef298d885785b4835760fc2ca3a3f6f4805844890f55b34d0debd"
+        },
+        {
+          "name": "d3-format",
+          "kind": "git",
+          "repo": "https://github.com/d3/d3-format.git",
+          "ref": "v3.1.2",
+          "commit": "ebdc2d530277df379157f82fee6ea5623d179bd7",
+          "license": "ISC",
+          "dest": "d3-12/node_modules/d3-format",
+          "paths": [
+            "src",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "d76985ddced322b31df05877ec1fe1830b62daeeb04c71ce6a0816c9778eec5c"
+        },
+        {
+          "name": "d3-interpolate",
+          "kind": "git",
+          "repo": "https://github.com/d3/d3-interpolate.git",
+          "ref": "v3.0.1",
+          "commit": "6562b85040f7a9b96efe49b54a77eb6fceafa1c1",
+          "license": "ISC",
+          "dest": "d3-12/node_modules/d3-interpolate",
+          "paths": [
+            "src",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "5643f792a12b00e26bb3ec868693ba740faddce39a706816bbd4aca7fbf13007"
+        },
+        {
+          "name": "d3-path",
+          "kind": "git",
+          "repo": "https://github.com/d3/d3-path.git",
+          "ref": "v3.1.0",
+          "commit": "58bce7a53df2b03f70092a9b00b78055c4ffee04",
+          "license": "ISC",
+          "dest": "d3-12/node_modules/d3-path",
+          "paths": [
+            "src",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "9bb39f2e90503119a5fcae9b7280e8888df8d0346467e6035c5ee468226d1c19"
+        },
+        {
+          "name": "d3-shape",
+          "kind": "git",
+          "repo": "https://github.com/d3/d3-shape.git",
+          "ref": "v3.2.0",
+          "commit": "8ec82658454750cfa29efb1e0ea514e3dd9b2297",
+          "license": "ISC",
+          "dest": "d3-12/node_modules/d3-shape",
+          "paths": [
+            "src",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "b95b143df8fa7fc1b3083e1eb9a7d8ce8c202b505cdf2112d8500d2947886e05"
+        },
+        {
+          "name": "d3-time",
+          "kind": "git",
+          "repo": "https://github.com/d3/d3-time.git",
+          "ref": "v3.1.0",
+          "commit": "d66bba6f83801b2f3a3e6440dba8df3357669c73",
+          "license": "ISC",
+          "dest": "d3-12/node_modules/d3-time",
+          "paths": [
+            "src",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "a0e779593a286cdb7345299831c292df31125aca31e0439c865f499540607800"
+        },
+        {
+          "name": "d3-time-format",
+          "kind": "git",
+          "repo": "https://github.com/d3/d3-time-format.git",
+          "ref": "v4.1.0",
+          "commit": "76cfef1da81b70404c0226ec9db9b0d56fa09461",
+          "license": "ISC",
+          "dest": "d3-12/node_modules/d3-time-format",
+          "paths": [
+            "src",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "a204f57919228e2e591c204fb68b827f3c1a5c2bdfdf13146a8c27c3b8cd76ea"
+        },
+        {
+          "name": "d3-scale",
+          "kind": "git",
+          "repo": "https://github.com/d3/d3-scale.git",
+          "ref": "v4.0.2",
+          "commit": "83555bd759c7314420bd4240642beda5e258db9e",
+          "license": "ISC",
+          "dest": "d3-12/node_modules/d3-scale",
+          "paths": [
+            "src",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "c1961403baf39cf31ea2b343dc1ef768cbb9b652d8adab86f0f63d4f24a2aa63"
+        },
+        {
+          "name": "d3-selection",
+          "kind": "git",
+          "repo": "https://github.com/d3/d3-selection.git",
+          "ref": "v3.0.0",
+          "commit": "91245ee124ec4dd491e498ecbdc9679d75332b49",
+          "license": "ISC",
+          "dest": "d3-12/node_modules/d3-selection",
+          "paths": [
+            "src",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "8bc00e5bcbeacc1eece4b71cd05690799a2ec1cae6e67035cc76c29795aa07c2"
+        },
+        {
+          "name": "d3-hierarchy",
+          "kind": "git",
+          "repo": "https://github.com/d3/d3-hierarchy.git",
+          "ref": "v3.1.2",
+          "commit": "7bea49efdc1093b28a8d60d2f8717d8a17803564",
+          "license": "ISC",
+          "dest": "d3-12/node_modules/d3-hierarchy",
+          "paths": [
+            "src",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "33160c882e786a331a3c8f734de93099a3a5087d3ef3a98b1b812b41ac38ca71"
+        },
+        {
+          "name": "d3-geo",
+          "kind": "git",
+          "repo": "https://github.com/d3/d3-geo.git",
+          "ref": "v3.1.1",
+          "commit": "8c53a90ae70c94bace73ecb02f2c792c649c86ba",
+          "license": "ISC",
+          "dest": "d3-12/node_modules/d3-geo",
+          "paths": [
+            "src",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "2893e90f404f9557c492ce3ee8bd0ce8ba65a7893c48a972e46dfd2137e4e96a"
+        },
+        {
+          "name": "internmap",
+          "kind": "git",
+          "repo": "https://github.com/mbostock/internmap.git",
+          "ref": "v2.0.3",
+          "commit": "78db0b387b951c036f7a8d6580d98afd8f416a5e",
+          "license": "ISC",
+          "dest": "d3-12/node_modules/internmap",
+          "paths": [
+            "src",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "5d52536872f07fbddba3c0a67d0e802b1c2137617d6877f94cba879472c6cc89",
+          "note": "not a job: the dependency of d3-array (import from \"internmap\")"
+        }
+      ],
+      "flags": [
+        "--language_in=ECMASCRIPT_NEXT",
+        "--language_out=ECMASCRIPT_2015",
+        "--module_resolution=NODE",
+        "--dependency_mode=PRUNE"
+      ],
+      "jobs": [
+        {
+          "name": "d3-array",
+          "entry_point": "bench-cache/d3-12/node_modules/d3-array/src/index.js",
+          "js": [
+            "bench-cache/d3-12/node_modules/d3-array/package.json",
+            "bench-cache/d3-12/node_modules/d3-array/src/**/*.js",
+            "bench-cache/d3-12/node_modules/internmap/package.json",
+            "bench-cache/d3-12/node_modules/internmap/src/**/*.js"
+          ],
+          "advanced_entry_point": "bench/entries/d3-array.js"
+        },
+        {
+          "name": "d3-color",
+          "entry_point": "bench-cache/d3-12/node_modules/d3-color/src/index.js",
+          "js": [
+            "bench-cache/d3-12/node_modules/d3-color/package.json",
+            "bench-cache/d3-12/node_modules/d3-color/src/**/*.js"
+          ],
+          "advanced_entry_point": "bench/entries/d3-color.js"
+        },
+        {
+          "name": "d3-format",
+          "entry_point": "bench-cache/d3-12/node_modules/d3-format/src/index.js",
+          "js": [
+            "bench-cache/d3-12/node_modules/d3-format/package.json",
+            "bench-cache/d3-12/node_modules/d3-format/src/**/*.js"
+          ],
+          "advanced_entry_point": "bench/entries/d3-format.js"
+        },
+        {
+          "name": "d3-interpolate",
+          "entry_point": "bench-cache/d3-12/node_modules/d3-interpolate/src/index.js",
+          "js": [
+            "bench-cache/d3-12/node_modules/d3-color/package.json",
+            "bench-cache/d3-12/node_modules/d3-color/src/**/*.js",
+            "bench-cache/d3-12/node_modules/d3-interpolate/package.json",
+            "bench-cache/d3-12/node_modules/d3-interpolate/src/**/*.js"
+          ],
+          "advanced_entry_point": "bench/entries/d3-interpolate.js"
+        },
+        {
+          "name": "d3-path",
+          "entry_point": "bench-cache/d3-12/node_modules/d3-path/src/index.js",
+          "js": [
+            "bench-cache/d3-12/node_modules/d3-path/package.json",
+            "bench-cache/d3-12/node_modules/d3-path/src/**/*.js"
+          ],
+          "advanced_entry_point": "bench/entries/d3-path.js"
+        },
+        {
+          "name": "d3-shape",
+          "entry_point": "bench-cache/d3-12/node_modules/d3-shape/src/index.js",
+          "js": [
+            "bench-cache/d3-12/node_modules/d3-path/package.json",
+            "bench-cache/d3-12/node_modules/d3-path/src/**/*.js",
+            "bench-cache/d3-12/node_modules/d3-shape/package.json",
+            "bench-cache/d3-12/node_modules/d3-shape/src/**/*.js"
+          ],
+          "advanced_entry_point": "bench/entries/d3-shape.js"
+        },
+        {
+          "name": "d3-time",
+          "entry_point": "bench-cache/d3-12/node_modules/d3-time/src/index.js",
+          "js": [
+            "bench-cache/d3-12/node_modules/d3-array/package.json",
+            "bench-cache/d3-12/node_modules/d3-array/src/**/*.js",
+            "bench-cache/d3-12/node_modules/d3-time/package.json",
+            "bench-cache/d3-12/node_modules/d3-time/src/**/*.js",
+            "bench-cache/d3-12/node_modules/internmap/package.json",
+            "bench-cache/d3-12/node_modules/internmap/src/**/*.js"
+          ],
+          "advanced_entry_point": "bench/entries/d3-time.js"
+        },
+        {
+          "name": "d3-time-format",
+          "entry_point": "bench-cache/d3-12/node_modules/d3-time-format/src/index.js",
+          "js": [
+            "bench-cache/d3-12/node_modules/d3-array/package.json",
+            "bench-cache/d3-12/node_modules/d3-array/src/**/*.js",
+            "bench-cache/d3-12/node_modules/d3-time/package.json",
+            "bench-cache/d3-12/node_modules/d3-time/src/**/*.js",
+            "bench-cache/d3-12/node_modules/d3-time-format/package.json",
+            "bench-cache/d3-12/node_modules/d3-time-format/src/**/*.js",
+            "bench-cache/d3-12/node_modules/internmap/package.json",
+            "bench-cache/d3-12/node_modules/internmap/src/**/*.js"
+          ],
+          "advanced_entry_point": "bench/entries/d3-time-format.js"
+        },
+        {
+          "name": "d3-scale",
+          "entry_point": "bench-cache/d3-12/node_modules/d3-scale/src/index.js",
+          "js": [
+            "bench-cache/d3-12/node_modules/d3-array/package.json",
+            "bench-cache/d3-12/node_modules/d3-array/src/**/*.js",
+            "bench-cache/d3-12/node_modules/d3-color/package.json",
+            "bench-cache/d3-12/node_modules/d3-color/src/**/*.js",
+            "bench-cache/d3-12/node_modules/d3-format/package.json",
+            "bench-cache/d3-12/node_modules/d3-format/src/**/*.js",
+            "bench-cache/d3-12/node_modules/d3-interpolate/package.json",
+            "bench-cache/d3-12/node_modules/d3-interpolate/src/**/*.js",
+            "bench-cache/d3-12/node_modules/d3-scale/package.json",
+            "bench-cache/d3-12/node_modules/d3-scale/src/**/*.js",
+            "bench-cache/d3-12/node_modules/d3-time/package.json",
+            "bench-cache/d3-12/node_modules/d3-time/src/**/*.js",
+            "bench-cache/d3-12/node_modules/d3-time-format/package.json",
+            "bench-cache/d3-12/node_modules/d3-time-format/src/**/*.js",
+            "bench-cache/d3-12/node_modules/internmap/package.json",
+            "bench-cache/d3-12/node_modules/internmap/src/**/*.js"
+          ],
+          "advanced_entry_point": "bench/entries/d3-scale.js"
+        },
+        {
+          "name": "d3-selection",
+          "entry_point": "bench-cache/d3-12/node_modules/d3-selection/src/index.js",
+          "js": [
+            "bench-cache/d3-12/node_modules/d3-selection/package.json",
+            "bench-cache/d3-12/node_modules/d3-selection/src/**/*.js"
+          ],
+          "advanced_entry_point": "bench/entries/d3-selection.js"
+        },
+        {
+          "name": "d3-hierarchy",
+          "entry_point": "bench-cache/d3-12/node_modules/d3-hierarchy/src/index.js",
+          "js": [
+            "bench-cache/d3-12/node_modules/d3-hierarchy/package.json",
+            "bench-cache/d3-12/node_modules/d3-hierarchy/src/**/*.js"
+          ],
+          "advanced_entry_point": "bench/entries/d3-hierarchy.js"
+        },
+        {
+          "name": "d3-geo",
+          "entry_point": "bench-cache/d3-12/node_modules/d3-geo/src/index.js",
+          "js": [
+            "bench-cache/d3-12/node_modules/d3-array/package.json",
+            "bench-cache/d3-12/node_modules/d3-array/src/**/*.js",
+            "bench-cache/d3-12/node_modules/d3-geo/package.json",
+            "bench-cache/d3-12/node_modules/d3-geo/src/**/*.js",
+            "bench-cache/d3-12/node_modules/internmap/package.json",
+            "bench-cache/d3-12/node_modules/internmap/src/**/*.js"
+          ],
+          "advanced_entry_point": "bench/entries/d3-geo.js"
+        }
+      ]
+    },
+    {
+      "name": "three",
+      "description": "three.js: one large ES-module graph, entry src/Three.js.",
+      "sources": [
+        {
+          "name": "three.js",
+          "kind": "git",
+          "repo": "https://github.com/mrdoob/three.js.git",
+          "ref": "r186",
+          "commit": "9b4a2ac29c63ccb43fd51c5661f2f873ac2c39b8",
+          "license": "MIT",
+          "dest": "three",
+          "paths": [
+            "src",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "08722ea907aaa0ec3e986861ff28d8eaf2b8758829d20d3db8f1be8c56d512e0"
+        }
+      ],
+      "flags": [
+        "--language_in=ECMASCRIPT_NEXT",
+        "--language_out=ECMASCRIPT_2015",
+        "--module_resolution=NODE",
+        "--dependency_mode=PRUNE",
+        "--externs=bench/externs/webxr.js",
+        "--jscomp_off=visibility"
+      ],
+      "jobs": [
+        {
+          "name": "three",
+          "entry_point": "bench-cache/three/src/Three.js",
+          "js": [
+            "bench-cache/three/package.json",
+            "bench-cache/three/src/**/*.js"
+          ],
+          "advanced_entry_point": "bench/entries/three.js"
+        }
+      ]
+    },
+    {
+      "name": "lodash-es",
+      "description": "lodash-es: about 640 tiny ES modules, entry lodash.js.",
+      "sources": [
+        {
+          "name": "lodash",
+          "kind": "git",
+          "repo": "https://github.com/lodash/lodash.git",
+          "ref": "4.17.21-es",
+          "commit": "11eb817cdfacf56c02d7005cbe520ffbeb0fe59a",
+          "license": "MIT",
+          "dest": "lodash-es",
+          "paths": [
+            "*.js",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "8d2e237f449f0dfc89de1010030591e9a7780d56de85b67145bab89903fc51f4"
+        }
+      ],
+      "flags": [
+        "--language_in=ECMASCRIPT_NEXT",
+        "--language_out=ECMASCRIPT_2015",
+        "--module_resolution=NODE",
+        "--dependency_mode=PRUNE"
+      ],
+      "jobs": [
+        {
+          "name": "lodash-es",
+          "entry_point": "bench-cache/lodash-es/lodash.js",
+          "js": [
+            "bench-cache/lodash-es/package.json",
+            "bench-cache/lodash-es/*.js"
+          ],
+          "advanced_entry_point": "bench/entries/lodash-es.js"
+        }
+      ]
+    },
+    {
+      "name": "fabric",
+      "description": "fabric.js 7.4.0: one large bundled ES module (dist/index.mjs, about 790 KB) from the npm release tarball. The repository's sources are TypeScript and its dist/ is not committed, so the release tarball's ES-module build is used.",
+      "sources": [
+        {
+          "name": "fabric",
+          "kind": "npm-tarball",
+          "repo": "https://github.com/fabricjs/fabric.js.git",
+          "ref": "v740",
+          "commit": "ce64f450bad811750cb5a75aa749fc1502c644be",
+          "url": "https://registry.npmjs.org/fabric/-/fabric-7.4.0.tgz",
+          "tarball_sha256": "47b563847544c80a23f7a37de6788e78667a385bfde932706834bbab076c0c3f",
+          "integrity": "sha512-NalYDc3eifTl1C33zryQwpH6+XA/2ClxQrH9vkASkZw3tbkRmorpikhYMmxhUTmi7O3e9ODz0vOT8qfaCh9IVA==",
+          "license": "MIT",
+          "dest": "fabric",
+          "paths": [
+            "dist/index.mjs",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "72320dc9572faec49409352c16d8b0bbcc7f99bb359b57941240c290e0455dbc"
+        }
+      ],
+      "flags": [
+        "--language_in=ECMASCRIPT_NEXT",
+        "--language_out=ECMASCRIPT_2015",
+        "--module_resolution=NODE",
+        "--dependency_mode=PRUNE"
+      ],
+      "jobs": [
+        {
+          "name": "fabric",
+          "entry_point": "bench-cache/fabric/dist/index.mjs",
+          "js": [
+            "bench-cache/fabric/dist/index.mjs"
+          ],
+          "advanced_entry_point": "bench/entries/fabric.js"
+        }
+      ]
+    }
+  ]
+}

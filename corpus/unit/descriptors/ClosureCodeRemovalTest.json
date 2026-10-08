@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/ClosureCodeRemovalTest.java getProcessor (lines 224-227), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ClosureCodeRemoval",
+        "args": [{"compiler": true}, {"bool": true}, {"bool": true}]
+      }
+    }
+  ],
+  "note": "The test class declares no instance fields (EXTERNS and ASSERTIONS are static constants; the externs reach the record through harness.fields). There is no setUp override; the per-test enableTypeCheck/replaceTypesWithColors/disableCompareJsDoc calls are in harness.fields."
+}

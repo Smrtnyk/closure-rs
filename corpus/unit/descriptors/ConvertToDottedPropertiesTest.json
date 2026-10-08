@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/ConvertToDottedPropertiesTest.java getProcessor (lines 27-30), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ConvertToDottedProperties",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor is the only overridden hook; the class has no fields."
+}

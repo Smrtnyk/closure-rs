@@ -1,0 +1,35 @@
+/*
+ * Copyright 2026 The closure-rs Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Gson.java remains in its package-named directory.
+#[allow(clippy::module_inception)]
+pub mod gson;
+pub mod json_array;
+pub mod json_element;
+pub mod json_io_exception;
+pub mod json_null;
+pub mod json_object;
+pub mod json_parse_exception;
+pub mod json_primitive;
+pub mod json_syntax_exception;
+pub mod lazily_parsed_number;
+pub mod stream;
+pub use gson::{Gson, Target};
+pub use json_array::JsonArray;
+pub use json_element::JsonElement;
+pub use json_object::JsonObject;
+pub use json_parse_exception::JsonParseException;
+pub use json_primitive::JsonPrimitive;

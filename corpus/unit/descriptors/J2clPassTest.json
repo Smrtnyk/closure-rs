@@ -1,0 +1,38 @@
+{
+ "source": "test/com/google/javascript/jscomp/J2clPassTest.java getProcessor (lines 39-42) and createCompiler (lines 44-49), bb8c8e7",
+ "cases": [
+  {
+   "when": {},
+   "processor": {
+    "call": {
+     "list": [
+      {
+       "static": "com.google.javascript.jscomp.J2clSourceFileChecker",
+       "method": "markToRunJ2clPasses",
+       "args": [
+        {
+         "compiler": true
+        }
+       ]
+      },
+      {
+       "new": "com.google.javascript.jscomp.J2clPass",
+       "args": [
+        {
+         "compiler": true
+        }
+       ]
+      }
+     ]
+    },
+    "method": "get",
+    "args": [
+     {
+      "int": 1
+     }
+    ]
+   }
+  }
+ ],
+ "note": "createCompiler is overridden to call J2clSourceFileChecker.markToRunJ2clPasses(compiler) on the compiler it returns; the recorded effective createCompiler class is plain Compiler, so ReplayCompilerTest uses the base createCompiler. The descriptor makes the same call on the compiler passed to getProcessor before constructing J2clPass (list.get(1) returns the pass). With multistage compilation (replaceTypesWithColors) the original marks both the first compiler and the deserialized one (createCompiler is called again by CompilerTestCaseUtils.multistageSerializeAndDeserialize, and the flag is also carried by saveState/restoreState); the replay marks the deserialized compiler, which is the one getProcessor receives. Only J2cl passes and ProcessDefines read the flag, and the harness runs none of them before getProcessor. customSetUp (lines 32-37) only sets harness state (enableTypeCheck, replaceTypesWithColors, enableNormalize), restored from harness.fields."
+}

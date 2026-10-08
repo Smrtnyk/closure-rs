@@ -1,0 +1,15 @@
+{
+  "source": "test/com/google/javascript/jscomp/FlowSensitiveInlineVariablesTest.java getProcessor (lines 50-59). setUp (enableNormalize, enableNormalizeExpectedOutput, lines 37-43) and getNumRepetitions (3, lines 45-49) come from the record's harness fields and effective values.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "sequence": [
+          {"new": "com.google.javascript.jscomp.PureFunctionIdentifier$Driver", "args": [{"compiler": true}]},
+          {"new": "com.google.javascript.jscomp.FlowSensitiveInlineVariables", "args": [{"compiler": true}]}
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor returns an anonymous CompilerPass whose process() runs `new PureFunctionIdentifier.Driver(compiler).process(externs, root)` then `new FlowSensitiveInlineVariables(compiler).process(externs, root)`. This is exactly a DSL sequence of the two passes: both constructors only store their arguments (PureFunctionIdentifier.java:1539-1541; FlowSensitiveInlineVariables.java:151-154, whose SideEffectPredicate() only sets namesToCheck=null), and CompilerTestCase calls process() immediately after getProcessor() (CompilerTestCase.java:1266), so constructing both before the first process() call is unobservable. Using the DSL instead of a verbatim helper keeps both passes reachable by --mutate-noop (gate 0.2(d))."
+}

@@ -1,0 +1,13 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.Es6ForOfConverterTest",
+ "methods": [
+  {
+   "method": "testConstnessPreservedInNewDeclarations",
+   "status": "rust_unit_test",
+   "category": "node-identity",
+   "reason": "after test() (Es6ForOfConverterTest.java:287-301) walks getLastCompiler().getJsRoot() to the `let CID = KEY$1$CID.value` declaration and checks name.getBooleanProp(Node.IS_CONSTANT_NAME): a Java Node property flag, which Node.isEquivalentTo does not compare. The method's records carry no postCall.pass.* key; their postCall holds only compiler.externProperties (extern property names), compiler.accessorSummary (getter/setter property kinds) and compiler.typeMismatchesError (type information was replaced by colors), none of which holds the asserted state; testFieldsAfter is empty and no postcondition runs.",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ForOfConverterTest.md"
+  }
+ ]
+}

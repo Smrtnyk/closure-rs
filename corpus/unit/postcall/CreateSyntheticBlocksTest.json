@@ -1,0 +1,14 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.CreateSyntheticBlocksTest",
+ "methods": [
+  {
+   "method": "testSyntheticBlock_doesNotCreateNewScope",
+   "status": "rust_unit_test",
+   "reason": "after testSame() asserts on Node objects of getLastCompiler().getJsRoot(): the only SCRIPT's first child is a BLOCK whose Node.isSyntheticBlock() flag is true, and NodeUtil.createsBlockScope(block) is false (a predicate over the node's token, its parent's token and that same synthetic-block flag); the record compares output as a string (disableCompareAsTree), and the printer does not print synthetic-block braces, so neither the BLOCK nor its flag is compared; the record carries only compiler.accessorSummary, which holds no node properties; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/CreateSyntheticBlocksTest.md",
+   "category": "node-identity",
+   "note": "Source lines 179-189 (record 20). Category corrected in Classify round 1 from 'graph' to 'node-identity': the method reads node tokens and a Node flag, not a scope or reference graph."
+  }
+ ]
+}

@@ -1,0 +1,230 @@
+{
+ "source": "test/com/google/javascript/jscomp/RenameVarsTest.java getProcessor (lines 67-107)",
+ "cases": [
+  {
+   "when": {
+    "testFields.withNormalize": true,
+    "testFields.withClosurePass": true
+   },
+   "processor": {
+    "helper": "RenameVarsTestHelpers.NormalizePassWrapper",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "helper": "RenameVarsTestHelpers.ClosurePassAndRenameVars",
+      "outer": [
+       "prefix",
+       "previouslyUsedMap"
+      ],
+      "args": [
+       {
+        "compiler": true
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "testFields.withNormalize": true,
+    "testFields.nameGenerator": {
+     "isNull": false
+    }
+   },
+   "processor": {
+    "helper": "RenameVarsTestHelpers.NormalizePassWrapper",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "new": "com.google.javascript.jscomp.RenameVars",
+      "args": [
+       {
+        "compiler": true
+       },
+       {
+        "field": "prefix"
+       },
+       {
+        "field": "localRenamingOnly"
+       },
+       {
+        "field": "generatePseudoNames"
+       },
+       {
+        "field": "preferStableNames"
+       },
+       {
+        "field": "previouslyUsedMap"
+       },
+       {
+        "static": "com.google.common.collect.ImmutableSet",
+        "method": "of",
+        "args": []
+       },
+       {
+        "null": true
+       },
+       {
+        "field": "nameGenerator"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "testFields.withNormalize": true
+   },
+   "processor": {
+    "helper": "RenameVarsTestHelpers.NormalizePassWrapper",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "new": "com.google.javascript.jscomp.RenameVars",
+      "args": [
+       {
+        "compiler": true
+       },
+       {
+        "field": "prefix"
+       },
+       {
+        "field": "localRenamingOnly"
+       },
+       {
+        "field": "generatePseudoNames"
+       },
+       {
+        "field": "preferStableNames"
+       },
+       {
+        "field": "previouslyUsedMap"
+       },
+       {
+        "static": "com.google.common.collect.ImmutableSet",
+        "method": "of",
+        "args": []
+       },
+       {
+        "null": true
+       },
+       {
+        "new": "com.google.javascript.jscomp.DefaultNameGenerator",
+        "args": []
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "testFields.withNormalize": false,
+    "testFields.withClosurePass": true
+   },
+   "processor": {
+    "helper": "RenameVarsTestHelpers.ClosurePassAndRenameVars",
+    "outer": [
+     "prefix",
+     "previouslyUsedMap"
+    ],
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "testFields.withNormalize": false,
+    "testFields.nameGenerator": {
+     "isNull": false
+    }
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.RenameVars",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "field": "prefix"
+     },
+     {
+      "field": "localRenamingOnly"
+     },
+     {
+      "field": "generatePseudoNames"
+     },
+     {
+      "field": "preferStableNames"
+     },
+     {
+      "field": "previouslyUsedMap"
+     },
+     {
+      "static": "com.google.common.collect.ImmutableSet",
+      "method": "of",
+      "args": []
+     },
+     {
+      "null": true
+     },
+     {
+      "field": "nameGenerator"
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "testFields.withNormalize": false
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.RenameVars",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "field": "prefix"
+     },
+     {
+      "field": "localRenamingOnly"
+     },
+     {
+      "field": "generatePseudoNames"
+     },
+     {
+      "field": "preferStableNames"
+     },
+     {
+      "field": "previouslyUsedMap"
+     },
+     {
+      "static": "com.google.common.collect.ImmutableSet",
+      "method": "of",
+      "args": []
+     },
+     {
+      "null": true
+     },
+     {
+      "new": "com.google.javascript.jscomp.DefaultNameGenerator",
+      "args": []
+     }
+    ]
+   }
+  }
+ ],
+ "note": "renameVars is write-only inside ClosurePassAndRenameVars (it records the pass for the test's own follow-up assertions), so it is not restored as an outer field."
+}

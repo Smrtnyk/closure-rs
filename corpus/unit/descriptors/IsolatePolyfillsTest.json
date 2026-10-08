@@ -1,0 +1,110 @@
+{
+  "source": "test/com/google/javascript/jscomp/IsolatePolyfillsTest.java getProcessor (lines 64-75), field polyfillTable (line 44), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "let": [
+          [
+            "compiler",
+            {
+              "compiler": true
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "root"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "do": [
+              {
+                "call": {
+                  "call": {
+                    "call": {
+                      "var": "compiler"
+                    },
+                    "method": "getSynthesizedExternsInput",
+                    "args": []
+                  },
+                  "method": "getAstRoot",
+                  "args": [
+                    {
+                      "var": "compiler"
+                    }
+                  ]
+                },
+                "method": "addChildToBack",
+                "args": [
+                  {
+                    "static": "com.google.javascript.rhino.IR",
+                    "method": "var",
+                    "args": [
+                      {
+                        "static": "com.google.javascript.rhino.IR",
+                        "method": "name",
+                        "args": [
+                          {
+                            "string": "$jscomp$lookupPolyfilledValue"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "call": {
+                  "new": "com.google.javascript.jscomp.IsolatePolyfills",
+                  "args": [
+                    {
+                      "var": "compiler"
+                    },
+                    {
+                      "static": "com.google.javascript.jscomp.PolyfillUsageFinder$Polyfills",
+                      "method": "fromTable",
+                      "args": [
+                        {
+                          "call": {
+                            "static": "com.google.common.base.Joiner",
+                            "method": "on",
+                            "args": [
+                              {
+                                "string": "\n"
+                              }
+                            ]
+                          },
+                          "method": "join",
+                          "args": [
+                            {
+                              "field": "polyfillTable"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "method": "process",
+                "args": [
+                  {
+                    "var": "externs"
+                  },
+                  {
+                    "var": "root"
+                  }
+                ]
+              }
+            ],
+            "value": {
+              "null": true
+            }
+          }
+        }
+      }
+    }
+  ],
+  "note": "getProcessor returns the lambda (externs, root) -> { compiler.getSynthesizedExternsInput().getAstRoot(compiler).addChildToBack(IR.var(IR.name(\"$jscomp$lookupPolyfilledValue\"))); new IsolatePolyfills(compiler, Polyfills.fromTable(Joiner.on(\"\\n\").join(polyfillTable))).process(externs, root); }, written as a DSL lambda for CompilerPass. The let binds the captured getProcessor compiler. The lambda reads the test field polyfillTable when it runs; the field is final, filled by addLibrary before the test's test calls and cleared only in setUp, so its value at process time is the recorded entry value testFields.polyfillTable (always a list of strings). polyfillsToInject and enablePropertyFlattening only feed the input strings (buildPolyfillJs) and getOptions (setCollapsePropertiesLevel), whose effects are the record's inputs and options. setUp's allowExternsChanges/setLanguageOut are harness fields restored from the record. testExternForJSCompLookupPolyfillDeleted (api=testExternChanges) uses the same processor."
+}

@@ -1,0 +1,5 @@
+## CreateSyntheticBlocksTest (post-call assertions, gate 0.2 (a))
+
+Methods of `com.google.javascript.jscomp.CreateSyntheticBlocksTest` that, after the hooked `testSame(...)` call, inspect `Node` objects of the output AST (`getLastCompiler().getJsRoot()`): node tokens, the synthetic-block flag and `NodeUtil.createsBlockScope`. The record compares output as a string (`disableCompareAsTree`), which does not show synthetic blocks, and no `postCall` key, test field or postcondition records these node properties; the record is excluded from gate (a) counting under D-015 and the check is ported as a Rust unit test next to CreateSyntheticBlocks.
+
+- CreateSyntheticBlocksTest#testSyntheticBlock_doesNotCreateNewScope: CreateSyntheticBlocks on `startMarker();var x=1;endMarker()` (with the processor's Normalize, peephole and Denormalize passes) leaves a SCRIPT whose only child is a BLOCK marked synthetic (Node.isSyntheticBlock), and NodeUtil.createsBlockScope returns false for that block (test lines 179-189; record 20)

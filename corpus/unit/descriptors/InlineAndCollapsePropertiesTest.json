@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/InlineAndCollapsePropertiesTest.java getProcessor (lines 53-68): a PhaseOptimizer with two lambda PassFactories, copied verbatim as static method InlineAndCollapsePropertiesTest_Helpers.getProcessor",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"static": "com.google.javascript.jscomp.InlineAndCollapsePropertiesTest_Helpers", "method": "getProcessor", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "The pass factories take java.util.function.Function lambdas (Es6NormalizeClasses::new and an InlineAndCollapseProperties.builder chain), which the DSL cannot express, so the whole getProcessor body is a verbatim helper. setUp's enableNormalize/enableNormalizeExpectedOutput/disableCompareJsDoc/setGenericNameReplacements and setAssumeStaticInheritanceIsNotUsed are harness fields restored from the record."
+}

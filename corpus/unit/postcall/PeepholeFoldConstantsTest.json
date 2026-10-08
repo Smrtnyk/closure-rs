@@ -1,0 +1,28 @@
+{
+  "v": 1,
+  "class": "com.google.javascript.jscomp.PeepholeFoldConstantsTest",
+  "methods": [
+    {
+      "method": "testFoldAddTemplateLiterals_validateRawAndCookedStringForLiteralBackslash_andValidateChildren",
+      "status": "rust_unit_test",
+      "reason": "walks the output AST with Node accessors (isTemplateLit, getChildCount, getCookedString, getRawString, isTemplateLitSub, getString) on the folded TEMPLATELIT; these are Node lookups (FORMAT.md: Rust-unit-test material). The same raw/cooked strings and child shape are also compared by the replayed AST equivalence (TemplateLiteralSubstringNode.isEquivalentTo compares raw and cooked), but no via names the output comparison. The record carries no postCall.pass key; its postCall.compiler keys are externProperties, accessorSummary and allowableFeatures (sets of names and the getter/setter summary), none of which holds AST nodes",
+      "fragment": "corpus/unit/rust_unit_tests/PeepholeFoldConstantsTest.md",
+      "category": "node-identity"
+    },
+    {
+      "method": "testFoldAddTemplateLiterals_validateRawAndCookedStringForSpecialChars_andValidateChildren",
+      "status": "rust_unit_test",
+      "reason": "walks the output AST with Node accessors (isTemplateLit, getChildCount, getCookedString, getRawString, isTemplateLitSub, getString) on the folded TEMPLATELIT; these are Node lookups (FORMAT.md: Rust-unit-test material). The same raw/cooked strings and child shape are also compared by the replayed AST equivalence (TemplateLiteralSubstringNode.isEquivalentTo compares raw and cooked), but no via names the output comparison. The record carries no postCall.pass key; its postCall.compiler keys are externProperties, accessorSummary and allowableFeatures (sets of names and the getter/setter summary), none of which holds AST nodes",
+      "fragment": "corpus/unit/rust_unit_tests/PeepholeFoldConstantsTest.md",
+      "category": "node-identity"
+    },
+    {
+      "method": "testInvertibleOperators",
+      "status": "unclassified",
+      "note": "the invertibility property (for each literal pair and comparison operator, op and its inverse fold to complementary results, or both to false for uncomparable operands) is ported as a Rust unit test of PeepholeFoldConstants; the method's 6 records are excluded from gate (a) counting by the rust_unit_test rule",
+      "pending": "assertSameResults/assertNotSameResults compare printed JS source strings (output code, a neutral value, never a Rust unit test, gate 0.2 (a)). Unclassified until the compared strings are recorded (for example by hooking printHelper).",
+      "formerRustUnitTestReason": "the assertions after the first hooked call are assertSameResults/assertNotSameResults (lines 2487-2498, helpers 2913-2949): they compare printed JS source strings that the test's private printHelper computes by building its own Compiler (createCompiler, getOptions, init, parseInputs), running getProcessor(compiler).process(externsRoot, mainRoot) directly and printing with compiler.toSource(mainRoot), outside every hooked harness API. The compared objects are produced by that test-local Java code in compilations that are never recorded (gate (b) caveat on printHelper), so they are no post-call state of the method's hooked test(...) calls (records 518-523, the NaN/Infinity self-comparisons, which replay their expected output 'true'/'false'); those records carry only postCall.compiler.externProperties, postCall.compiler.accessorSummary and postCall.compiler.allowableFeatures (no postCall.pass key), none of which holds a printHelper result",
+      "formerCategory": "test-local-object"
+    }
+  ]
+}

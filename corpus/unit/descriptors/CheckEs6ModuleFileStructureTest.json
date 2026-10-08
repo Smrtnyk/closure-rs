@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckEs6ModuleFileStructureTest.java getProcessor (lines 38-41), bb8c8e7; setUp (lines 32-36) only calls ignoreWarnings(ModuleLoader.INVALID_MODULE_PATH), which is in harness.fields",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.lint.CheckEs6ModuleFileStructure",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "The test class declares no fields."
+}

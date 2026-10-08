@@ -1,0 +1,429 @@
+{
+  "v": 1,
+  "class": "com.google.javascript.jscomp.RenamePropertiesTest",
+  "note": "classify batch 17 (D-015 a). No method of RenamePropertiesTest is flagged by the static scan; these 59 methods (76 records) have replay post state 'unclassified' only because the test field renameProperties, which getProcessor (test lines 1105-1116) assigns the RenameProperties it builds, changed during the call. The only post-call reads of that field in the test are renameProperties.getPropertyMap() in testStableRenaming (line 522) and testStableWithTrickyExternsChanges (line 453); no method asserts anything else on it. getPropertyMap() is the snapshot key postCall.pass.propertyMap (producer RenameProperties, the replayed processor; recording side the test field), present in all 85 records of the class (1 repetition each) and compared by replay. testFieldsAfter.renameProperties is not opted in: the rest of its dump is pass-internal working state (Node refs in stringNodesToRename, callNodeToParentMap, toRemove, Property objects, the name generator) plus the propertyRenameEligibilityFilter lambda, which the verbatim helper filters cannot reproduce by class name (descriptor note).",
+  "methods": [
+    {
+      "method": "testArrayDestructuring",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testAvoidingConflictsBetQuotedAndUnquotedPropertyNamesStable",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ],
+      "note": "Reads renameProperties.getPropertyMap() after its first test() call and feeds it to the next call as prevUsedPropertyMap: that read is postCall.pass.propertyMap of the first record (RenameProperties.getPropertyMap(), compared by replay), and the value fed forward is the next record's testFields.prevUsedPropertyMap, which the descriptor decodes into the replayed RenameProperties."
+    },
+    {
+      "method": "testAvoidingConflictsBetweenQuotedAndUnquotedPropertyNames",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testClassComputedFields",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testClassFieldWithFunctionRHS",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testClassFields",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testClassFieldsInExterns",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testClassMixedFields",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testClasses",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testComputedMethodPropertyNamesInClass",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testComputedPropertyNamesInObjectLit",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testDestructuredProperties",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testExternedPropertyName",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testExternedPropertyNameDefinedByObjectLiteral",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testGeneratePseudoNames",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testGetSetInClass",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testIncorrectAttemptToAccessQuotedProperty",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testMixedQuotedAndUnquotedObjLitKeys1",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testMixedQuotedAndUnquotedObjLitKeys2",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testMixedQuotedAndUnquotedObjLitKeysStable",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ],
+      "note": "Reads renameProperties.getPropertyMap() after its first test() call and feeds it to the next call as prevUsedPropertyMap: that read is postCall.pass.propertyMap of the first record (RenameProperties.getPropertyMap(), compared by replay), and the value fed forward is the next record's testFields.prevUsedPropertyMap, which the descriptor decodes into the replayed RenameProperties."
+    },
+    {
+      "method": "testNestedDestructuringProperties",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testObjectLiteralInLocalScope",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testObjectMethodProperty",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testOverlappingOriginalAndGeneratedNames",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testOverlappingOriginalAndGeneratedNamesStable",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ],
+      "note": "Reads renameProperties.getPropertyMap() after its first test() call and feeds it to the next call as prevUsedPropertyMap: that read is postCall.pass.propertyMap of the first record (RenameProperties.getPropertyMap(), compared by replay), and the value fed forward is the next record's testFields.prevUsedPropertyMap, which the descriptor decodes into the replayed RenameProperties."
+    },
+    {
+      "method": "testPropertyAddedToFunction",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testPropertyAddedToObject",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testPropertyAddedToObjectStable",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ],
+      "note": "Reads renameProperties.getPropertyMap() after its first test() call and feeds it to the next call as prevUsedPropertyMap: that read is postCall.pass.propertyMap of the first record (RenameProperties.getPropertyMap(), compared by replay), and the value fed forward is the next record's testFields.prevUsedPropertyMap, which the descriptor decodes into the replayed RenameProperties."
+    },
+    {
+      "method": "testPropertyAffinityOff",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testPropertyOfObjectOfUnknownType",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testPrototypeAndRenameFunctionsFilterOnFilename",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testPrototypeAndRenameFunctionsFilterOnFilename2",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testPrototypeProperties",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testPrototypePropertiesAsObjLitKeys1",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testPrototypePropertiesAsObjLitKeys2",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testPrototypePropertiesAsObjLitKeys3",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testPrototypePropertiesAsObjLitKeysStable",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ],
+      "note": "Reads renameProperties.getPropertyMap() after its first test() call and feeds it to the next call as prevUsedPropertyMap: that read is postCall.pass.propertyMap of the first record (RenameProperties.getPropertyMap(), compared by replay), and the value fed forward is the next record's testFields.prevUsedPropertyMap, which the descriptor decodes into the replayed RenameProperties."
+    },
+    {
+      "method": "testPrototypePropertiesStable",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ],
+      "note": "Reads renameProperties.getPropertyMap() after its first test() call and feeds it to the next call as prevUsedPropertyMap: that read is postCall.pass.propertyMap of the first record (RenameProperties.getPropertyMap(), compared by replay), and the value fed forward is the next record's testFields.prevUsedPropertyMap, which the descriptor decodes into the replayed RenameProperties."
+    },
+    {
+      "method": "testPrototypePropertiesUsingFilterFunction",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testPrototypePropertiesUsingFilterOnFilename",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testPrototypeProperties_optChain",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testPrototypePropertyForArrowFunction",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testQuotedPrototypeProperty",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testReadPropertyOfThis",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testRemoveRenameFunctionStubs1",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testRemoveRenameFunctionStubs2",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testRenamePropertiesFunctionCall1",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testRenamePropertiesFunctionCall2",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testRenamePropertiesFunctionCallStable",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ],
+      "note": "Reads renameProperties.getPropertyMap() after its first test() call and feeds it to the next call as prevUsedPropertyMap: that read is postCall.pass.propertyMap of the first record (RenameProperties.getPropertyMap(), compared by replay), and the value fed forward is the next record's testFields.prevUsedPropertyMap, which the descriptor decodes into the replayed RenameProperties."
+    },
+    {
+      "method": "testRenamePropertiesWithLeadingUnderscores",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testRenamePropertiesWithLeadingUnderscoresStable",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ],
+      "note": "Reads renameProperties.getPropertyMap() after its first test() call and feeds it to the next call as prevUsedPropertyMap: that read is postCall.pass.propertyMap of the first record (RenameProperties.getPropertyMap(), compared by replay), and the value fed forward is the next record's testFields.prevUsedPropertyMap, which the descriptor decodes into the replayed RenameProperties."
+    },
+    {
+      "method": "testSamePropertyNameQuotedAndUnquoted",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testSetPropertyOfThis",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testSetQuotedPropertyOfThis",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testStableWithTrickyExternsChanges",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ],
+      "note": "Reads renameProperties.getPropertyMap() after its first test() call and feeds it to the next call as prevUsedPropertyMap: that read is postCall.pass.propertyMap of the first record (RenameProperties.getPropertyMap(), compared by replay), and the value fed forward is the next record's testFields.prevUsedPropertyMap, which the descriptor decodes into the replayed RenameProperties."
+    },
+    {
+      "method": "testStaticAndInstanceMethodWithSameName",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testStaticClassComputedFields",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testStaticClassFields",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    },
+    {
+      "method": "testStaticMethodInClass",
+      "status": "captured",
+      "via": [
+        "postCall.pass.propertyMap"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,2558 @@
+diff --git a/test/com/google/javascript/jscomp/CompilerTestCase.java b/test/com/google/javascript/jscomp/CompilerTestCase.java
+index 087d277..88b4eee 100644
+--- a/test/com/google/javascript/jscomp/CompilerTestCase.java
++++ b/test/com/google/javascript/jscomp/CompilerTestCase.java
+@@ -942,9 +942,50 @@ public abstract class CompilerTestCase {
+       Expected expected,
+       List<Diagnostic> diagnostics,
+       List<Postcondition> postconditions) {
++    UnitRecorder.Rec __rec = UnitRecorder.enter(this, "compiler_test_case", "testInternal");
++    if (__rec != null) {
++      __recordCall(__rec, externs, inputs, expected, diagnostics, postconditions);
++    }
++    __currentRec = __rec;
++    __recDepth++;
++    try {
++      testInternal__recorded(externs, inputs, expected, diagnostics, postconditions);
++    } catch (Throwable __t) {
++      UnitRecorder.fail(__rec, __t);
++      throw __t;
++    } finally {
++      __recDepth--;
++      if (__rec != null) {
++        __recordExit(__rec);
++      }
++      __currentRec = null;
++      UnitRecorder.exit(__rec);
++    }
++  }
++
++  // ---- closure-rs recording hook (oracle/patches/0002-recording-hooks.patch) ----
++  private UnitRecorder.Rec __currentRec;
++  private Compiler __recCompiler;
++  /** The compiler the outermost testInternal call's postconditions verify (D-017 item 1). */
++  private Compiler __recPostCompiler;
++  /** testInternal nesting depth on this instance (1 = the outermost, recorded call). */
++  private int __recDepth;
+ 
++  private void __notePostconditionCompiler(Compiler compiler) {
++    if (__recDepth == 1 && __recPostCompiler == null) {
++      __recPostCompiler = compiler;
++    }
++  }
++
++  private void testInternal__recorded(
++      Externs externs,
++      Sources inputs,
++      Expected expected,
++      List<Diagnostic> diagnostics,
++      List<Postcondition> postconditions) {
+     Compiler compiler = createAndInitializeCompiler(externs, inputs);
+     lastCompiler = compiler;
++    __recordHarnessAfterGetOptions(__currentRec);
+ 
+     if (this.typeCheckEnabled) {
+       BaseJSTypeTestCase.addNativeProperties(compiler.getTypeRegistry());
+@@ -953,6 +994,218 @@ public abstract class CompilerTestCase {
+     testInternal(compiler, externs, inputs, expected, diagnostics, postconditions);
+   }
+ 
++  private void __recordCall(
++      UnitRecorder.Rec rec,
++      Externs externs,
++      Sources inputs,
++      Expected expected,
++      List<Diagnostic> diagnostics,
++      List<? extends TestPart> postconditions) {
++    com.google.gson.JsonObject in = UnitRecorder.obj(rec, "inputs");
++    in.add("externs", externs == null ? com.google.gson.JsonNull.INSTANCE : UnitRecorder.sourceFiles(externs.externs));
++    if (inputs instanceof FlatSources flat) {
++      in.add("sources", UnitRecorder.sourceFiles(flat.sources));
++    } else if (inputs instanceof ChunkSources cs) {
++      in.add("chunks", UnitRecorder.chunks(cs.chunks));
++    }
++    com.google.gson.JsonObject ex = UnitRecorder.obj(rec, "expected");
++    if (expected == null) {
++      ex.add("output", com.google.gson.JsonNull.INSTANCE);
++    } else if (expected == EXPECTED_SAME) {
++      ex.addProperty("output", "SAME");
++    } else {
++      ex.add("output", UnitRecorder.sourceFiles(expected.expected));
++    }
++    com.google.gson.JsonArray ds = new com.google.gson.JsonArray();
++    for (Diagnostic d : diagnostics) {
++      ds.add(__diag(d));
++    }
++    ex.add("diagnostics", ds);
++    ex.addProperty("postconditions", postconditions == null ? 0 : postconditions.size());
++    if (postconditions != null) {
++      com.google.gson.JsonArray caps = new com.google.gson.JsonArray();
++      com.google.gson.JsonArray captured = new com.google.gson.JsonArray();
++      for (int i = 0; i < postconditions.size(); i++) {
++        if (UnitRecorder.postconditionDataLambda(postconditions.get(i))) {
++          // D-017 item 1 (FORMAT.md "Postcondition data"): what this lambda asserts is captured as
++          // replay-compared postCall data (postCall.postcondition, postCall.compiler.externExport,
++          // postCall.compiler.externProperties), so the lambda is not unrepresentable. Its value
++          // (class name and captures, which descriptors decode) is kept as recorded; the index is
++          // listed in expected.postconditionsCaptured.
++          captured.add(i);
++          caps.add(UnitRecorder.value(postconditions.get(i), "expected.postconditions[" + i + "]", null, 3));
++          continue;
++        }
++        com.google.gson.JsonObject u = new com.google.gson.JsonObject();
++        u.addProperty("path", "expected.postconditions[" + i + "]");
++        u.addProperty("reason", "postcondition lambda " + UnitRecorder.className(postconditions.get(i).getClass()));
++        rec.unrep.add(u);
++        caps.add(UnitRecorder.value(postconditions.get(i), "expected.postconditions[" + i + "]", null, 3));
++      }
++      ex.add("postconditionValues", caps);
++      if (captured.size() > 0) {
++        ex.add("postconditionsCaptured", captured);
++      }
++    }
++    com.google.gson.JsonObject cmp = UnitRecorder.obj(rec, "comparison");
++    cmp.addProperty("mode", compareAsTree ? "ast" : "string");
++    cmp.addProperty("compareJsDoc", compareJsDoc);
++    cmp.addProperty("normalizeExpected", normalizeEnabled || normalizeExpectedOutputEnabled);
++    cmp.addProperty("closurePassForExpected", closurePassEnabledForExpected);
++    __recordHarness(rec);
++  }
++
++  private static com.google.gson.JsonObject __diag(Diagnostic d) {
++    com.google.gson.JsonObject o = new com.google.gson.JsonObject();
++    o.addProperty("key", d.diagnostic.key);
++    o.addProperty("level", String.valueOf(d.level));
++    if (d.messagePredicate != null) {
++      String n = d.messagePredicate.name;
++      if (n.startsWith("containing \"") && n.endsWith("\"")) {
++        o.addProperty("messageMode", "contains");
++        o.addProperty("message", n.substring("containing \"".length(), n.length() - 1));
++      } else if (n.startsWith("\"") && n.endsWith("\"")) {
++        o.addProperty("messageMode", "exact_trimmed");
++        o.addProperty("message", n.substring(1, n.length() - 1));
++      } else {
++        o.addProperty("messageMode", "unknown");
++        o.addProperty("message", n);
++      }
++    }
++    if (d.line != -1 || d.charno != -1 || d.length != -1) {
++      o.addProperty("line", d.line);
++      o.addProperty("charno", d.charno);
++      o.addProperty("length", d.length);
++    }
++    return o;
++  }
++
++  private void __recordHarness(UnitRecorder.Rec rec) {
++    com.google.gson.JsonObject h = UnitRecorder.obj(rec, "harness");
++    h.addProperty("base", CompilerTestCase.class.getName());
++    h.add("fields", UnitRecorder.fields(this, CompilerTestCase.class, Object.class, "harness", rec.unrep, 2));
++    h.add("overrides", UnitRecorder.overrides(this, CompilerTestCase.class));
++    com.google.gson.JsonObject eff = new com.google.gson.JsonObject();
++    eff.addProperty("getNumRepetitions", getNumRepetitions());
++    try {
++      CodingConvention cc = getCodingConvention();
++      eff.addProperty("getCodingConvention", cc == null ? null : cc.getClass().getName());
++    } catch (RuntimeException e) {
++      eff.addProperty("getCodingConvention", "<threw " + e + ">");
++    }
++    eff.addProperty("getName", getName());
++    h.add("effective", eff);
++    rec.o.add("testFields", UnitRecorder.testFields(this, CompilerTestCase.class, rec.unrep));
++  }
++
++  /** Called right before the processor under test runs (each repetition). */
++  private void __recordProcessor(Compiler compiler, CompilerPass pass, int repetition) {
++    UnitRecorder.Rec rec = __currentRec;
++    if (rec == null || rec.processorSeen) {
++      return;
++    }
++    rec.processorSeen = true;
++    __recordOptions(rec, compiler);
++    com.google.gson.JsonObject p = UnitRecorder.obj(rec, "processor");
++    p.addProperty("class", pass == null ? null : UnitRecorder.className(pass.getClass()));
++    if (pass != null) {
++      // Depth 2 (fixer round 1): wrapped passes (e.g. a test-inner wrapper's wrappedPass) dump their
++      // own configuration; every value the dump cannot represent is listed in `unrepresentable`.
++      // D-015(e): referenceable dump; values it cannot represent are class-name references.
++      p.add("fields", UnitRecorder.refFields(pass, pass.getClass(), Object.class, "processor", 2));
++      rec.processorObj = pass;
++    }
++  }
++
++  private void __recordOptions(UnitRecorder.Rec rec, Compiler compiler) {
++    rec.o.add("options", UnitRecorder.optionsDiff(compiler.getOptions(), rec.unrep));
++    com.google.gson.JsonObject eff = UnitRecorder.obj(rec, "harness").getAsJsonObject("effective");
++    if (eff != null) {
++      eff.addProperty("createCompiler", compiler.getClass().getName());
++    }
++  }
++
++  /** Harness fields changed by getOptions() (e.g. enableTypeCheck()), dumped right after it. */
++  private void __recordHarnessAfterGetOptions(UnitRecorder.Rec rec) {
++    if (rec == null || rec.o.getAsJsonObject("harness").has("fieldsAfterGetOptions")) {
++      return;
++    }
++    com.google.gson.JsonObject h = rec.o.getAsJsonObject("harness");
++    com.google.gson.JsonObject before = h.getAsJsonObject("fields");
++    com.google.gson.JsonArray u = new com.google.gson.JsonArray();
++    com.google.gson.JsonObject now =
++        UnitRecorder.fields(this, CompilerTestCase.class, Object.class, "harnessAfterGetOptions", u, 2);
++    com.google.gson.JsonObject diff = new com.google.gson.JsonObject();
++    for (String k : now.keySet()) {
++      if (k.equals("lastCompiler") || k.startsWith("__")) {
++        continue;
++      }
++      if (!java.util.Objects.equals(now.get(k), before.get(k))) {
++        diff.add(k, now.get(k));
++      }
++    }
++    UnitRecorder.addUnrepFor(rec.unrep, u, "harnessAfterGetOptions", diff.keySet());
++    h.add("fieldsAfterGetOptions", diff);
++  }
++
++  /** Test-instance fields whose dump changed during the hooked call (FORMAT.md testFieldsAfter). */
++  private void __recordTestFieldsAfter(UnitRecorder.Rec rec) {
++    com.google.gson.JsonObject before = rec.o.getAsJsonObject("testFields");
++    if (before == null) {
++      return;
++    }
++    com.google.gson.JsonObject now =
++        UnitRecorder.refFields(this, this.getClass(), CompilerTestCase.class, "testAfter", 2);
++    com.google.gson.JsonObject diff = new com.google.gson.JsonObject();
++    for (String k : now.keySet()) {
++      if (!java.util.Objects.equals(now.get(k), before.get(k))) {
++        diff.add(k, now.get(k));
++      }
++    }
++    rec.o.add("testFieldsAfter", diff);
++  }
++
++  /** expected.postconditions of the record (D-017 item 1: postcondition data only then). */
++  private static int __recPostconditions(UnitRecorder.Rec rec) {
++    com.google.gson.JsonObject ex = rec.o.getAsJsonObject("expected");
++    com.google.gson.JsonElement n = ex == null ? null : ex.get("postconditions");
++    return n == null || n.isJsonNull() ? 0 : n.getAsInt();
++  }
++
++  private void __recordExit(UnitRecorder.Rec rec) {
++    Compiler lastCompiler = __recCompiler != null ? __recCompiler : this.lastCompiler;
++    __recCompiler = null;
++    try {
++      __recordTestFieldsAfter(rec);
++    } catch (RuntimeException e) {
++      rec.o.addProperty("testFieldsAfterError", e.toString());
++    }
++    try {
++      // FORMAT.md "Post-call snapshot": fixed compiler-result accessors, right after the call.
++      rec.o.add(
++          "postCall",
++          UnitRecorder.postCallSnapshot(
++              lastCompiler, rec.processorObj, UnitRecorder.ownFieldValues(this, CompilerTestCase.class),
++              __recPostconditions(rec) > 0 ? (__recPostCompiler != null ? __recPostCompiler : lastCompiler) : null));
++    } catch (RuntimeException e) {
++      rec.o.addProperty("postCallError", e.toString());
++    }
++    __recPostCompiler = null;
++    if (!rec.processorSeen && lastCompiler != null) {
++      __recordOptions(rec, lastCompiler);
++      rec.o.add("processor", com.google.gson.JsonNull.INSTANCE);
++    }
++    if (lastCompiler != null) {
++      com.google.gson.JsonObject obs = UnitRecorder.obj(rec, "observed");
++      try {
++        obs.add("errors", UnitRecorder.errors(lastCompiler.getErrors()));
++        obs.add("warnings", UnitRecorder.errors(lastCompiler.getWarnings()));
++      } catch (RuntimeException e) {
++        obs.addProperty("diagnosticsError", e.toString());
++      }
++    }
++  }
++
+   /**
+    * Create a fresh Compiler object initialized with the given externs and inputs.
+    *
+@@ -1073,6 +1326,7 @@ public abstract class CompilerTestCase {
+           .that(compiler.getErrors())
+           .comparingElementsUsing(DIAGNOSTIC_CORRESPONDENCE)
+           .containsExactlyElementsIn(expectedErrors);
++      __notePostconditionCompiler(compiler); // closure-rs recording hook (D-017 item 1)
+       for (Postcondition postcondition : postconditions) {
+         postcondition.verify(compiler);
+       }
+@@ -1263,7 +1517,9 @@ public abstract class CompilerTestCase {
+         // Call "beforePass" as some passes ask for the index of the current pass being run and
+         // expect it to be >= 0.
+         compiler.beforePass(this.getName());
+-        getProcessor(compiler).process(externsRoot, mainRoot);
++        CompilerPass __pass = getProcessor(compiler);
++        __recordProcessor(compiler, __pass, i);
++        __pass.process(externsRoot, mainRoot);
+ 
+         if (checkAstChangeMarking) {
+           // TODO(johnlenz): add support for multiple passes in getProcessor so that we can
+@@ -1353,6 +1609,7 @@ public abstract class CompilerTestCase {
+             .doesNotContainMatch("\\{\\d\\}");
+       }
+     }
++    __notePostconditionCompiler(compiler); // closure-rs recording hook (D-017 item 1)
+     for (Postcondition postcondition : postconditions) {
+       postcondition.verify(compiler);
+     }
+@@ -1652,8 +1909,31 @@ public abstract class CompilerTestCase {
+ 
+   protected void testExternChanges(
+       Externs externs, Sources inputs, Expected expectedExtern, Diagnostic... warnings) {
++    UnitRecorder.Rec __rec = UnitRecorder.enter(this, "compiler_test_case", "testExternChanges");
++    if (__rec != null) {
++      __recordCall(__rec, externs, inputs, expectedExtern, Arrays.asList(warnings), null);
++    }
++    __currentRec = __rec;
++    try {
++      testExternChanges__recorded(externs, inputs, expectedExtern, warnings);
++    } catch (Throwable __t) {
++      UnitRecorder.fail(__rec, __t);
++      throw __t;
++    } finally {
++      if (__rec != null) {
++        __recordExit(__rec);
++      }
++      __currentRec = null;
++      UnitRecorder.exit(__rec);
++    }
++  }
++
++  private void testExternChanges__recorded(
++      Externs externs, Sources inputs, Expected expectedExtern, Diagnostic... warnings) {
+     Compiler compiler = createCompiler();
++    __recCompiler = compiler;
+     CompilerOptions options = getOptions();
++    __recordHarnessAfterGetOptions(__currentRec);
+     if (inputs instanceof FlatSources flatSources) {
+       compiler.init(externs.externs, flatSources.sources, options);
+     } else {
+@@ -1686,7 +1966,9 @@ public abstract class CompilerTestCase {
+     // Call "beforePass" as some passes ask for the index of the current pass being run and expect
+     // it to be >= 0.
+     compiler.beforePass(this.getName());
+-    (getProcessor(compiler)).process(externs, root);
++    CompilerPass __pass = getProcessor(compiler);
++    __recordProcessor(compiler, __pass, 0);
++    __pass.process(externs, root);
+ 
+     if (compareAsTree) {
+       // Ignore and remove empty externs, so that if we start with an empty extern and only add
+diff --git a/test/com/google/javascript/jscomp/TypeCheckTestCase.java b/test/com/google/javascript/jscomp/TypeCheckTestCase.java
+index 0851d93..3733b32 100644
+--- a/test/com/google/javascript/jscomp/TypeCheckTestCase.java
++++ b/test/com/google/javascript/jscomp/TypeCheckTestCase.java
+@@ -178,47 +178,61 @@ public abstract class TypeCheckTestCase extends CompilerTypeTestCase {
+     }
+ 
+     public void run() {
+-      checkState(!this.sources.isEmpty(), "Must provide a source");
+-      checkState(!this.hasRun, "Cannot run the same test twice");
+-      this.hasRun = true;
+-      if (this.includeDefaultExterns) {
+-        this.externs.add(0, DEFAULT_EXTERNS);
+-      }
+-
+-      String allExterns = String.join("\n", this.externs);
+-
+-      final List<Object> diagnostics;
+-      final Correspondence<JSError, Object> correspondence;
+-      if (!this.diagnosticTypes.isEmpty()) {
+-        diagnostics = castAny(this.diagnosticTypes);
+-        correspondence = castAny(DIAGNOSTIC_EQUALITY);
+-      } else {
+-        diagnostics = castAny(this.diagnosticDescriptions);
+-        correspondence = castAny(DESCRIPTION_EQUALITY);
+-      }
+-      for (DiagnosticGroup suppress : this.suppress) {
+-        compiler.getOptions().setWarningLevel(suppress, CheckLevel.OFF);
+-      }
+-
+-      parseAndTypeCheckWithScope(compiler, allExterns, this.sources, reportUnknownTypes);
+-
+-      final ImmutableList<JSError> assertedErrors;
+-      final ImmutableList<JSError> emptyErrors;
+-      if (this.diagnosticsAreErrors) {
+-        assertedErrors = compiler.getErrors();
+-        emptyErrors = compiler.getWarnings();
+-      } else {
+-        assertedErrors = compiler.getWarnings();
+-        emptyErrors = compiler.getErrors();
++    UnitRecorder.Rec __rec = UnitRecorder.enter(null, "type_check", "TypeTestBuilder.run");
++    if (__rec != null) {
++      __recordBuilder(__rec, this);
++    }
++    try {
++        checkState(!this.sources.isEmpty(), "Must provide a source");
++        checkState(!this.hasRun, "Cannot run the same test twice");
++        this.hasRun = true;
++        if (this.includeDefaultExterns) {
++          this.externs.add(0, DEFAULT_EXTERNS);
++        }
++  
++        String allExterns = String.join("\n", this.externs);
++  
++        final List<Object> diagnostics;
++        final Correspondence<JSError, Object> correspondence;
++        if (!this.diagnosticTypes.isEmpty()) {
++          diagnostics = castAny(this.diagnosticTypes);
++          correspondence = castAny(DIAGNOSTIC_EQUALITY);
++        } else {
++          diagnostics = castAny(this.diagnosticDescriptions);
++          correspondence = castAny(DESCRIPTION_EQUALITY);
++        }
++        for (DiagnosticGroup suppress : this.suppress) {
++          compiler.getOptions().setWarningLevel(suppress, CheckLevel.OFF);
++        }
++  
++        parseAndTypeCheckWithScope(compiler, allExterns, this.sources, reportUnknownTypes);
++  
++        final ImmutableList<JSError> assertedErrors;
++        final ImmutableList<JSError> emptyErrors;
++        if (this.diagnosticsAreErrors) {
++          assertedErrors = compiler.getErrors();
++          emptyErrors = compiler.getWarnings();
++        } else {
++          assertedErrors = compiler.getWarnings();
++          emptyErrors = compiler.getErrors();
++        }
++  
++        assertThat(assertedErrors)
++            .comparingElementsUsing(correspondence)
++            .containsExactlyElementsIn(diagnostics)
++            .inOrder();
++        assertThat(emptyErrors).isEmpty();
++          } catch (Throwable __t) {
++      UnitRecorder.fail(__rec, __t);
++      throw __t;
++    } finally {
++      if (__rec != null) {
++        __recordTypeObserved(__rec, compiler);
+       }
+-
+-      assertThat(assertedErrors)
+-          .comparingElementsUsing(correspondence)
+-          .containsExactlyElementsIn(diagnostics)
+-          .inOrder();
+-      assertThat(emptyErrors).isEmpty();
++      UnitRecorder.exit(__rec);
+     }
+   }
++  }
+ 
+   @SuppressWarnings({"unchecked", "TypeParameterUnusedInFormals"})
+   private static <T> T castAny(Object x) {
+@@ -263,30 +277,53 @@ public abstract class TypeCheckTestCase extends CompilerTypeTestCase {
+   @CanIgnoreReturnValue
+   protected static TypeCheckResult parseAndTypeCheckWithScope(
+       Compiler compiler, String externs, List<SourceFile> sources, boolean reportUnknownTypes) {
+-    compiler.init(
+-        ImmutableList.of(SourceFile.fromCode("[externs]", externs)),
+-        sources,
+-        compiler.getOptions());
+-    compiler.parse();
+-
+-    Node jsNode = compiler.getJsRoot();
+-    Node externsNode = compiler.getExternsRoot();
+-    new GatherModuleMetadata(compiler, false, ResolutionMode.BROWSER).process(externsNode, jsNode);
+-    new ModuleMapCreator(compiler, compiler.getModuleMetadataMap()).process(externsNode, jsNode);
+-    new InferConsts(compiler).process(externsNode, jsNode);
+-
+-    assertWithMessage("Regarding errors:").that(compiler.getErrors()).isEmpty();
+-
+-    TypedScope s =
+-        makeTypeCheck(compiler, compiler.getTypeRegistry())
+-            .reportUnknownTypes(reportUnknownTypes)
+-            .processForTesting(externsNode, jsNode);
+-
+-    new AstValidator(compiler)
+-        .setTypeValidationMode(TypeInfoValidation.JSTYPE)
+-        .process(externsNode, jsNode);
+-
+-    return new TypeCheckResult(jsNode.getFirstChild(), s);
++    UnitRecorder.Rec __rec = UnitRecorder.enter(null, "type_check", "parseAndTypeCheckWithScope");
++    if (__rec != null) {
++      com.google.gson.JsonObject in = UnitRecorder.obj(__rec, "inputs");
++      com.google.gson.JsonArray ex = new com.google.gson.JsonArray();
++      ex.add(UnitRecorder.sourceFile(SourceFile.fromCode("[externs]", externs)));
++      in.add("externs", ex);
++      in.add("sources", UnitRecorder.sourceFiles(sources));
++      com.google.gson.JsonObject b = UnitRecorder.obj(__rec, "harness");
++      b.addProperty("base", TypeCheckTestCase.class.getName());
++      b.addProperty("reportUnknownTypes", reportUnknownTypes);
++      UnitRecorder.obj(__rec, "comparison").addProperty("mode", "observed_only");
++      __rec.o.add("options", UnitRecorder.optionsDiff(compiler.getOptions(), __rec.unrep));
++    }
++    try {
++      compiler.init(
++          ImmutableList.of(SourceFile.fromCode("[externs]", externs)),
++          sources,
++          compiler.getOptions());
++      compiler.parse();
++  
++      Node jsNode = compiler.getJsRoot();
++      Node externsNode = compiler.getExternsRoot();
++      new GatherModuleMetadata(compiler, false, ResolutionMode.BROWSER).process(externsNode, jsNode);
++      new ModuleMapCreator(compiler, compiler.getModuleMetadataMap()).process(externsNode, jsNode);
++      new InferConsts(compiler).process(externsNode, jsNode);
++  
++      assertWithMessage("Regarding errors:").that(compiler.getErrors()).isEmpty();
++  
++      TypedScope s =
++          makeTypeCheck(compiler, compiler.getTypeRegistry())
++              .reportUnknownTypes(reportUnknownTypes)
++              .processForTesting(externsNode, jsNode);
++  
++      new AstValidator(compiler)
++          .setTypeValidationMode(TypeInfoValidation.JSTYPE)
++          .process(externsNode, jsNode);
++  
++      return new TypeCheckResult(jsNode.getFirstChild(), s);
++        } catch (Throwable __t) {
++      UnitRecorder.fail(__rec, __t);
++      throw __t;
++    } finally {
++      if (__rec != null) {
++        __recordTypeObserved(__rec, compiler);
++      }
++      UnitRecorder.exit(__rec);
++    }
+   }
+ 
+   /**
+@@ -355,4 +392,51 @@ public abstract class TypeCheckTestCase extends CompilerTypeTestCase {
+       this.scope = scope;
+     }
+   }
++
++  // ---- closure-rs recording hook (oracle/patches/0002-recording-hooks.patch) ----
++  static void __recordBuilder(UnitRecorder.Rec rec, TypeTestBuilder t) {
++    com.google.gson.JsonObject in = UnitRecorder.obj(rec, "inputs");
++    in.add("sources", UnitRecorder.sourceFiles(t.sources));
++    com.google.gson.JsonArray ex = new com.google.gson.JsonArray();
++    for (String e : t.externs) {
++      ex.add(e);
++    }
++    in.add("externStrings", ex);
++    in.addProperty("includeDefaultExterns", t.includeDefaultExterns);
++    in.addProperty("defaultExterns", DEFAULT_EXTERNS);
++    com.google.gson.JsonObject b = UnitRecorder.obj(rec, "harness");
++    b.addProperty("base", TypeCheckTestCase.class.getName() + "$TypeTestBuilder");
++    b.addProperty("diagnosticsAreErrors", t.diagnosticsAreErrors);
++    b.addProperty("reportUnknownTypes", t.reportUnknownTypes);
++    com.google.gson.JsonArray sup = new com.google.gson.JsonArray();
++    for (DiagnosticGroup g : t.suppress) {
++      sup.add(UnitRecorder.diagnosticGroup(g));
++    }
++    b.add("suppress", sup);
++    com.google.gson.JsonObject exp = UnitRecorder.obj(rec, "expected");
++    com.google.gson.JsonArray dt = new com.google.gson.JsonArray();
++    for (DiagnosticType d : t.diagnosticTypes) {
++      dt.add(UnitRecorder.diagnosticType(d));
++    }
++    exp.add("diagnosticTypes", dt);
++    com.google.gson.JsonArray dd = new com.google.gson.JsonArray();
++    for (String d : t.diagnosticDescriptions) {
++      dd.add(d);
++    }
++    exp.add("diagnosticDescriptions", dd);
++    UnitRecorder.obj(rec, "comparison").addProperty(
++        "mode", t.diagnosticTypes.isEmpty() ? "diagnostic_descriptions_in_order" : "diagnostic_types_in_order");
++    // options before suppressions are applied (run() applies them)
++    rec.o.add("options", UnitRecorder.optionsDiff(t.compiler.getOptions(), rec.unrep));
++  }
++
++  static void __recordTypeObserved(UnitRecorder.Rec rec, Compiler compiler) {
++    com.google.gson.JsonObject obs = UnitRecorder.obj(rec, "observed");
++    try {
++      obs.add("errors", UnitRecorder.errors(compiler.getErrors()));
++      obs.add("warnings", UnitRecorder.errors(compiler.getWarnings()));
++    } catch (RuntimeException e) {
++      obs.addProperty("observeError", e.toString());
++    }
++  }
+ }
+diff --git a/test/com/google/javascript/jscomp/UnitRecorder.java b/test/com/google/javascript/jscomp/UnitRecorder.java
+new file mode 100644
+index 0000000..71df20b
+--- /dev/null
++++ b/test/com/google/javascript/jscomp/UnitRecorder.java
+@@ -0,0 +1,1485 @@
++/*
++ * closure-rs unit-corpus recording hook (oracle/patches/0002-recording-hooks.patch).
++ * Inactive unless the system property closurers.unit.record is set (so Bazel runs are unaffected).
++ * Writes one JSON line per outermost call to a hooked harness API. Format: corpus/unit/FORMAT.md.
++ */
++package com.google.javascript.jscomp;
++
++import com.google.gson.Gson;
++import com.google.gson.GsonBuilder;
++import com.google.gson.JsonArray;
++import com.google.gson.JsonElement;
++import com.google.gson.JsonNull;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonPrimitive;
++import java.io.IOException;
++import java.io.Writer;
++import java.lang.reflect.Array;
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.lang.reflect.Modifier;
++import java.util.ArrayList;
++import java.util.Collection;
++import java.util.IdentityHashMap;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Optional;
++import java.util.Set;
++import java.util.regex.Pattern;
++
++/** Records harness API calls as self-contained JSON records. */
++public final class UnitRecorder {
++  public static final int FORMAT_VERSION = 2;
++  private static final Gson GSON =
++      new GsonBuilder().disableHtmlEscaping().serializeNulls().serializeSpecialFloatingPointValues().create();
++
++  private UnitRecorder() {}
++
++  /** Active only when -Dclosurers.unit.record=true (set by UnitRecordingMain). */
++  public static final boolean ENABLED = Boolean.getBoolean("closurers.unit.record");
++
++  // ---- current test, set by the recording runner's RunListener ----
++  public static volatile String currentClass = null;
++  public static volatile String currentMethod = null;
++  private static Writer out = null;
++  private static final Map<String, Integer> callIndexByTest = new LinkedHashMap<>();
++  /** All entries to hooked APIs (any depth), by "kind:method". */
++  public static final Map<String, Integer> entries = new LinkedHashMap<>();
++  /** Outermost entries (one record each), by "kind:method". */
++  public static final Map<String, Integer> outermost = new LinkedHashMap<>();
++  public static int recordsWritten = 0;
++  public static int recordsWithUnrepresentable = 0;
++  private static final ThreadLocal<Integer> depth = ThreadLocal.withInitial(() -> 0);
++
++  public static synchronized void setOutput(Writer w) {
++    out = w;
++    callIndexByTest.clear();
++  }
++
++  /** A record under construction. */
++  public static final class Rec {
++    public final JsonObject o = new JsonObject();
++    public final JsonArray unrep = new JsonArray();
++    public boolean processorSeen = false;
++    /** The processor of the first repetition (post-call snapshot producer root). */
++    public Object processorObj;
++    public Object instance;
++  }
++
++  private static synchronized void count(Map<String, Integer> m, String k) {
++    m.merge(k, 1, Integer::sum);
++  }
++
++  /** Called at every hooked entry; returns a Rec only for the outermost hooked call. */
++  public static Rec enter(Object instance, String kind, String method) {
++    if (!ENABLED) {
++      return null;
++    }
++    count(entries, kind + ":" + method);
++    int d = depth.get();
++    depth.set(d + 1);
++    if (d != 0) {
++      return null;
++    }
++    count(outermost, kind + ":" + method);
++    Rec r = new Rec();
++    r.instance = instance;
++    String cls = currentClass != null ? currentClass : (instance != null ? instance.getClass().getName() : "?");
++    String m = currentMethod != null ? currentMethod : "?";
++    int idx;
++    synchronized (UnitRecorder.class) {
++      idx = callIndexByTest.merge(cls + "#" + m, 1, Integer::sum) - 1;
++    }
++    r.o.addProperty("v", FORMAT_VERSION);
++    r.o.addProperty("class", cls);
++    r.o.addProperty("method", m);
++    r.o.addProperty("call", idx);
++    r.o.addProperty("kind", kind);
++    r.o.addProperty("api", method);
++    if (instance != null) {
++      r.o.addProperty("instanceClass", instance.getClass().getName());
++    }
++    traceBegin();
++    return r;
++  }
++
++  // ---- pass trace (D-017 item 8, FORMAT.md "passTrace") ----
++  // The NoopAgent in TRACE mode (-javaagent:noop-agent.jar=trace=<scope>) is on the system class
++  // path; it is reached by reflection so the recorder also runs without it (then no passTrace).
++  private static final java.lang.reflect.Method[] TRACE = traceMethods();
++
++  private static java.lang.reflect.Method[] traceMethods() {
++    try {
++      Class<?> t = Class.forName("closurers.agent.Trace", true, ClassLoader.getSystemClassLoader());
++      if (!(Boolean) t.getMethod("active").invoke(null)) {
++        return null;
++      }
++      return new java.lang.reflect.Method[] {t.getMethod("begin"), t.getMethod("end")};
++    } catch (ReflectiveOperationException | LinkageError e) {
++      return null;
++    }
++  }
++
++  private static void traceBegin() {
++    if (TRACE == null) {
++      return;
++    }
++    try {
++      TRACE[0].invoke(null);
++    } catch (ReflectiveOperationException e) {
++      throw new RuntimeException(e);
++    }
++  }
++
++  @SuppressWarnings("unchecked")
++  private static JsonArray traceEnd() {
++    if (TRACE == null) {
++      return null;
++    }
++    try {
++      JsonArray a = new JsonArray();
++      for (String s : (List<String>) TRACE[1].invoke(null)) {
++        a.add(s);
++      }
++      return a;
++    } catch (ReflectiveOperationException e) {
++      throw new RuntimeException(e);
++    }
++  }
++
++  /** Must be called in a finally block for every enter(). */
++  public static void exit(Rec r) {
++    if (!ENABLED) {
++      return;
++    }
++    depth.set(depth.get() - 1);
++    if (r == null) {
++      return;
++    }
++    JsonArray trace = traceEnd();
++    if (trace != null) {
++      r.o.add("passTrace", trace);
++    }
++    if (!r.o.has("outcome")) {
++      JsonObject oc = new JsonObject();
++      oc.addProperty("status", "normal");
++      r.o.add("outcome", oc);
++    }
++    r.o.add("unrepresentable", r.unrep);
++    write(r);
++  }
++
++  public static void fail(Rec r, Throwable t) {
++    if (r == null) {
++      return;
++    }
++    JsonObject oc = new JsonObject();
++    oc.addProperty("status", "exception");
++    oc.addProperty("exceptionClass", t.getClass().getName());
++    String msg = t.getMessage();
++    oc.addProperty("message", msg == null ? null : truncate(msg, 4000));
++    oc.addProperty("assertion", t instanceof AssertionError);
++    r.o.add("outcome", oc);
++  }
++
++  private static String truncate(String s, int n) {
++    return s.length() <= n ? s : s.substring(0, n) + "...<truncated " + (s.length() - n) + " chars>";
++  }
++
++  private static synchronized void write(Rec r) {
++    if (out == null) {
++      return;
++    }
++    if (r.unrep.size() > 0) {
++      recordsWithUnrepresentable++;
++    }
++    try {
++      out.write(escapeLoneSurrogates(GSON.toJson(r.o)));
++      out.write('\n');
++      recordsWritten++;
++    } catch (IOException e) {
++      throw new RuntimeException(e);
++    }
++  }
++
++  /**
++   * JSON strings are UTF-16. A lone surrogate cannot be encoded as UTF-8, so it is written as a
++   * {@code \\uXXXX} escape (FORMAT.md "Strings"); paired surrogates stay literal (4-byte UTF-8).
++   */
++  static String escapeLoneSurrogates(String json) {
++    StringBuilder sb = null;
++    int n = json.length();
++    for (int i = 0; i < n; i++) {
++      char c = json.charAt(i);
++      boolean lone = false;
++      if (Character.isHighSurrogate(c)) {
++        if (i + 1 < n && Character.isLowSurrogate(json.charAt(i + 1))) {
++          if (sb != null) {
++            sb.append(c).append(json.charAt(i + 1));
++          }
++          i++;
++          continue;
++        }
++        lone = true;
++      } else if (Character.isLowSurrogate(c)) {
++        lone = true;
++      }
++      if (lone && sb == null) {
++        sb = new StringBuilder(n + 16).append(json, 0, i);
++      }
++      if (sb != null) {
++        if (lone) {
++          sb.append(String.format("\\u%04x", (int) c));
++        } else {
++          sb.append(c);
++        }
++      }
++    }
++    return sb == null ? json : sb.toString();
++  }
++
++  public static void put(Rec r, String key, JsonElement value) {
++    if (r != null) {
++      r.o.add(key, value);
++    }
++  }
++
++  public static JsonObject obj(Rec r, String key) {
++    JsonObject x = r.o.has(key) ? r.o.getAsJsonObject(key) : new JsonObject();
++    r.o.add(key, x);
++    return x;
++  }
++
++  // ---------------------------------------------------------------------------------------------
++  // Value encoding (see corpus/unit/FORMAT.md, "Value encoding")
++  // ---------------------------------------------------------------------------------------------
++
++  public static JsonElement sourceFiles(List<SourceFile> files) {
++    if (files == null) {
++      return JsonNull.INSTANCE;
++    }
++    JsonArray a = new JsonArray();
++    for (SourceFile f : files) {
++      a.add(sourceFile(f));
++    }
++    return a;
++  }
++
++  public static JsonObject sourceFile(SourceFile f) {
++    JsonObject o = new JsonObject();
++    o.addProperty("name", f.getName());
++    try {
++      o.addProperty("code", f.getCode());
++    } catch (IOException e) {
++      o.addProperty("codeError", e.toString());
++    }
++    o.addProperty("kind", String.valueOf(f.getKind()));
++    return o;
++  }
++
++  public static JsonElement chunks(List<JSChunk> chunks) {
++    JsonArray a = new JsonArray();
++    for (JSChunk c : chunks) {
++      JsonObject o = new JsonObject();
++      o.addProperty("name", c.getName());
++      JsonArray deps = new JsonArray();
++      for (JSChunk d : c.getDependencies()) {
++        deps.add(d.getName());
++      }
++      o.add("deps", deps);
++      JsonArray in = new JsonArray();
++      for (CompilerInput ci : c.getInputs()) {
++        in.add(sourceFile(ci.getSourceFile()));
++      }
++      o.add("inputs", in);
++      a.add(o);
++    }
++    return a;
++  }
++
++  public static JsonElement strings(String[] s) {
++    if (s == null) {
++      return JsonNull.INSTANCE;
++    }
++    JsonArray a = new JsonArray();
++    for (String x : s) {
++      a.add(x);
++    }
++    return a;
++  }
++
++  public static JsonObject diagnosticType(DiagnosticType t) {
++    JsonObject o = new JsonObject();
++    o.addProperty("key", t.key);
++    o.addProperty("level", String.valueOf(t.level));
++    return o;
++  }
++
++  public static JsonElement diagnosticGroup(DiagnosticGroup g) {
++    if (g == null) {
++      return JsonNull.INSTANCE;
++    }
++    JsonObject o = new JsonObject();
++    String name = null;
++    try {
++      for (Map.Entry<String, DiagnosticGroup> e : DiagnosticGroups.getRegisteredGroups().entrySet()) {
++        if (e.getValue() == g) {
++          name = e.getKey();
++          break;
++        }
++      }
++    } catch (RuntimeException e) {
++      // ignore
++    }
++    if (name == null) {
++      for (Field f : DiagnosticGroups.class.getDeclaredFields()) {
++        if (Modifier.isStatic(f.getModifiers()) && f.getType() == DiagnosticGroup.class) {
++          try {
++            f.setAccessible(true);
++            if (f.get(null) == g) {
++              name = "DiagnosticGroups." + f.getName();
++              break;
++            }
++          } catch (ReflectiveOperationException | RuntimeException e) {
++            // ignore
++          }
++        }
++      }
++    }
++    o.addProperty("group", name);
++    JsonArray types = new JsonArray();
++    for (DiagnosticType t : g.getTypes()) {
++      types.add(t.key);
++    }
++    o.add("types", types);
++    return o;
++  }
++
++  public static JsonArray errors(List<JSError> errs) {
++    JsonArray a = new JsonArray();
++    for (JSError e : errs) {
++      JsonObject o = new JsonObject();
++      o.addProperty("key", e.type().key);
++      o.addProperty("defaultLevel", String.valueOf(e.getDefaultLevel()));
++      o.addProperty("description", e.description());
++      o.addProperty("source", e.sourceName());
++      o.addProperty("line", e.lineno());
++      o.addProperty("charno", e.charno());
++      o.addProperty("length", e.length());
++      a.add(o);
++    }
++    return a;
++  }
++
++  /**
++   * Referenceable dump mode (D-015 e, FORMAT.md "Referenceable values"): used for test-instance
++   * fields (entry and after the call) and the processor dump. A value the dump cannot represent
++   * (a lambda, a cycle, an object nested deeper than the dump depth, a field reflection cannot
++   * read) is written as a class-name reference {"ref": FQCN} (a lambda keeps its "captures") and
++   * is NOT listed in `unrepresentable`: no descriptor or harness decodes those values.
++   */
++  private static final ThreadLocal<Boolean> REFS = ThreadLocal.withInitial(() -> false);
++
++  public static JsonObject refFields(Object v, Class<?> c, Class<?> stop, String path, int depthLeft) {
++    boolean old = REFS.get();
++    REFS.set(true);
++    try {
++      return fields(v, c, stop, path, null, depthLeft, new IdentityHashMap<>());
++    } finally {
++      REFS.set(old);
++    }
++  }
++
++  public static JsonElement refValue(Object v, String path, int maxDepth) {
++    boolean old = REFS.get();
++    REFS.set(true);
++    try {
++      return dump(v, path, null, maxDepth, new IdentityHashMap<>());
++    } finally {
++      REFS.set(old);
++    }
++  }
++
++  private static JsonObject ref(String cls) {
++    JsonObject o = new JsonObject();
++    o.addProperty("ref", cls);
++    return o;
++  }
++
++  /** Simple-mode dump: primitives, strings, enums, collections of these; else {"object":cls}. */
++  public static JsonElement value(Object v, String path, JsonArray unrep, int maxDepth) {
++    return dump(v, path, unrep, maxDepth, new IdentityHashMap<>());
++  }
++
++  /** A test instance (captured by a lambda or held in a field): referenced, never dumped. */
++  private static boolean isHarnessInstance(Class<?> c) {
++    for (Class<?> k = c; k != null; k = k.getSuperclass()) {
++      String n = k.getName();
++      if (n.equals("com.google.javascript.jscomp.CompilerTestCase")
++          || n.equals("com.google.javascript.jscomp.CompilerTypeTestCase")
++          || n.equals("com.google.javascript.jscomp.integration.IntegrationTestCase")) {
++        return true;
++      }
++    }
++    return false;
++  }
++
++  /**
++   * Stable class name: a hidden lambda class's name ends in a run-dependent address
++   * ("Foo$$Lambda/0x0000..."), which is dropped ("Foo$$Lambda").
++   */
++  public static String className(Class<?> c) {
++    String n = c.getName();
++    int i = n.indexOf("$$Lambda");
++    return i < 0 ? n : n.substring(0, i + "$$Lambda".length());
++  }
++
++  private static boolean isLambda(Class<?> c) {
++    return c.isSynthetic() || c.getName().contains("$$Lambda") || c.isHidden();
++  }
++
++  /**
++   * Adds the entries of {@code from} whose path is {@code prefix + "." + k} (or below it) for a key
++   * k in {@code keys} to {@code to}: the unrepresentable values of a diffed dump's kept fields.
++   */
++  public static void addUnrepFor(JsonArray to, JsonArray from, String prefix, Set<String> keys) {
++    if (to == null) {
++      return;
++    }
++    for (JsonElement e : from) {
++      String path = e.getAsJsonObject().get("path").getAsString();
++      for (String k : keys) {
++        String p = prefix + "." + k;
++        if (path.equals(p) || (path.startsWith(p) && "[{.".indexOf(path.charAt(p.length())) >= 0)) {
++          to.add(e);
++          break;
++        }
++      }
++    }
++  }
++
++  /**
++   * A TypedScope (TypedScopeCreatorTest's globalScope/lastLocalScope/lastFunctionScope, which the
++   * tests assert on after the hooked call): every own variable as [name, type string or null,
++   * isTypeInferred], in the scope's iteration order, plus the root token and the type of this.
++   */
++  private static JsonObject typedScope(TypedScope s) {
++    JsonObject o = new JsonObject();
++    o.addProperty("rootToken", s.getRootNode() == null ? null : s.getRootNode().getToken().toString());
++    o.addProperty("depth", s.getDepth());
++    com.google.javascript.rhino.jstype.JSType tt = null;
++    try {
++      tt = s.getTypeOfThis();
++    } catch (RuntimeException e) {
++      // no this type
++    }
++    o.addProperty("typeOfThis", tt == null ? null : truncateType(tt.toString()));
++    JsonArray vars = new JsonArray();
++    for (TypedVar v : s.getVarIterable()) {
++      JsonArray a = new JsonArray();
++      a.add(v.getName());
++      a.add(v.getType() == null ? null : truncateType(v.getType().toString()));
++      a.add(v.isTypeInferred());
++      vars.add(a);
++    }
++    o.add("vars", vars);
++    return o;
++  }
++
++  private static String truncateType(String t) {
++    return t.length() <= 2000 ? t : t.substring(0, 2000) + "...<truncated " + (t.length() - 2000) + " chars>";
++  }
++
++  private static void unrep(JsonArray unrep, String path, String reason) {
++    if (unrep == null) {
++      return;
++    }
++    JsonObject o = new JsonObject();
++    o.addProperty("path", path);
++    o.addProperty("reason", reason);
++    unrep.add(o);
++  }
++
++  private static JsonElement dump(
++      Object v, String path, JsonArray unrep, int depthLeft, IdentityHashMap<Object, Boolean> seen) {
++    if (v == null) {
++      return JsonNull.INSTANCE;
++    }
++    if (v instanceof String s) {
++      return new JsonPrimitive(s);
++    }
++    if (v instanceof Boolean b) {
++      return new JsonPrimitive(b);
++    }
++    if (v instanceof Integer || v instanceof Short || v instanceof Byte) {
++      return new JsonPrimitive((Number) v);
++    }
++    if (v instanceof Long l) {
++      JsonObject o = new JsonObject();
++      o.addProperty("long", l.toString());
++      return o;
++    }
++    if (v instanceof Double || v instanceof Float) {
++      JsonObject o = new JsonObject();
++      o.addProperty("double", Double.toString(((Number) v).doubleValue()));
++      return o;
++    }
++    if (v instanceof Character c) {
++      JsonObject o = new JsonObject();
++      o.addProperty("char", String.valueOf(c));
++      return o;
++    }
++    if (v instanceof Enum<?> e) {
++      JsonObject o = new JsonObject();
++      o.addProperty("enum", e.getDeclaringClass().getName());
++      o.addProperty("name", e.name());
++      return o;
++    }
++    if (v instanceof DiagnosticType t) {
++      JsonObject o = new JsonObject();
++      o.add("diagnosticType", diagnosticType(t));
++      return o;
++    }
++    if (v instanceof DiagnosticGroup g) {
++      JsonObject o = new JsonObject();
++      o.add("diagnosticGroup", diagnosticGroup(g));
++      return o;
++    }
++    if (v instanceof Class<?> c) {
++      JsonObject o = new JsonObject();
++      o.addProperty("classRef", c.getName());
++      return o;
++    }
++    if (v instanceof Pattern p) {
++      JsonObject o = new JsonObject();
++      o.addProperty("regex", p.pattern());
++      o.addProperty("flags", p.flags());
++      return o;
++    }
++    if (v instanceof SourceFile f) {
++      JsonObject o = new JsonObject();
++      o.add("sourceFile", sourceFile(f));
++      return o;
++    }
++    if (v instanceof Optional<?> opt) {
++      JsonObject o = new JsonObject();
++      o.add("optional", opt.isPresent() ? dump(opt.get(), path + ".get", unrep, depthLeft, seen) : JsonNull.INSTANCE);
++      return o;
++    }
++    if (v instanceof TypedScope ts) {
++      JsonObject o = new JsonObject();
++      o.add("typedScope", typedScope(ts));
++      return o;
++    }
++    Class<?> c = v.getClass();
++    if (isLambda(c)) {
++      boolean refs = REFS.get();
++      if (!refs) {
++        unrep(unrep, path, "lambda or synthetic class " + className(c));
++      }
++      JsonObject o = new JsonObject();
++      o.addProperty(refs ? "ref" : "unrepresentable", className(c));
++      if (!seen.containsKey(v) && depthLeft > 0) {
++        // Captured values (javac lambda fields arg$1, arg$2, ...), so a verbatim helper can rebuild
++        // the lambda. Not listed in unrepresentable: the lambda itself already is.
++        seen.put(v, true);
++        try {
++          o.add("captures", fields(v, c, Object.class, path + ".captures", null, depthLeft - 1, seen));
++        } finally {
++          seen.remove(v);
++        }
++      }
++      return o;
++    }
++    if (isHarnessInstance(c)) {
++      JsonObject o = new JsonObject();
++      o.addProperty("ref", c.getName());
++      return o;
++    }
++    if (seen.containsKey(v)) {
++      if (REFS.get()) {
++        return ref(c.getName());
++      }
++      unrep(unrep, path, "cycle");
++      JsonObject o = new JsonObject();
++      o.addProperty("unrepresentable", "cycle:" + c.getName());
++      return o;
++    }
++    seen.put(v, true);
++    try {
++      if (v instanceof WarningsGuard && c.getName().equals("com.google.javascript.jscomp.ComposeWarningsGuard")) {
++        JsonObject o = new JsonObject();
++        JsonObject g = new JsonObject();
++        ComposeWarningsGuard cg = (ComposeWarningsGuard) v;
++        JsonArray guards = new JsonArray();
++        int i = 0;
++        for (WarningsGuard wg : cg.getGuards()) {
++          guards.add(dump(wg, path + ".guards[" + i++ + "]", unrep, depthLeft, seen));
++        }
++        g.add("guards", guards);
++        o.add("composeWarningsGuard", g);
++        return o;
++      }
++      if (c.isArray()) {
++        JsonObject o = new JsonObject();
++        o.addProperty("arrayOf", c.getComponentType().getName());
++        JsonArray a = new JsonArray();
++        int n = Array.getLength(v);
++        for (int i = 0; i < n; i++) {
++          a.add(dump(Array.get(v, i), path + "[" + i + "]", unrep, depthLeft, seen));
++        }
++        o.add("items", a);
++        return o;
++      }
++      if (v instanceof Map<?, ?> m) {
++        JsonObject o = new JsonObject();
++        JsonArray a = new JsonArray();
++        int i = 0;
++        for (Map.Entry<?, ?> e : m.entrySet()) {
++          JsonArray kv = new JsonArray();
++          kv.add(dump(e.getKey(), path + "{k" + i + "}", unrep, depthLeft, seen));
++          kv.add(dump(e.getValue(), path + "{v" + i + "}", unrep, depthLeft, seen));
++          a.add(kv);
++          i++;
++        }
++        o.add("map", a);
++        o.addProperty("impl", c.getName());
++        return o;
++      }
++      if (v instanceof Collection<?> col) {
++        JsonObject o = new JsonObject();
++        JsonArray a = new JsonArray();
++        int i = 0;
++        for (Object x : col) {
++          a.add(dump(x, path + "[" + i++ + "]", unrep, depthLeft, seen));
++        }
++        o.add(v instanceof Set ? "set" : "list", a);
++        o.addProperty("impl", c.getName());
++        return o;
++      }
++      // D-017 item 2 (FORMAT.md "Neutral encodings"): a Guava Table as its cells, each
++      // [row, column, value], in cellSet() order, plus the implementation class.
++      if (v instanceof com.google.common.collect.Table<?, ?, ?> t) {
++        JsonObject o = new JsonObject();
++        JsonArray a = new JsonArray();
++        int i = 0;
++        for (com.google.common.collect.Table.Cell<?, ?, ?> cell : t.cellSet()) {
++          JsonArray rcv = new JsonArray();
++          rcv.add(dump(cell.getRowKey(), path + "{r" + i + "}", unrep, depthLeft, seen));
++          rcv.add(dump(cell.getColumnKey(), path + "{c" + i + "}", unrep, depthLeft, seen));
++          rcv.add(dump(cell.getValue(), path + "{v" + i + "}", unrep, depthLeft, seen));
++          a.add(rcv);
++          i++;
++        }
++        o.add("table", a);
++        o.addProperty("impl", c.getName());
++        return o;
++      }
++      // D-017 item 2 (FORMAT.md "Neutral encodings"): a protobuf message or builder by its
++      // descriptor: every set field by name, nested messages in full (no depth limit).
++      if (v instanceof com.google.protobuf.MessageOrBuilder msg) {
++        return protoValue(msg);
++      }
++      if (v instanceof Compiler || v instanceof com.google.javascript.rhino.Node) {
++        JsonObject o = new JsonObject();
++        o.addProperty("ref", c.getName());
++        return o;
++      }
++      if (depthLeft <= 0) {
++        if (REFS.get()) {
++          return ref(c.getName());
++        }
++        unrep(unrep, path, "object nesting too deep: " + c.getName());
++        JsonObject o = new JsonObject();
++        o.addProperty("unrepresentable", c.getName());
++        return o;
++      }
++      JsonObject o = new JsonObject();
++      o.addProperty("object", c.getName());
++      o.add("fields", fields(v, c, Object.class, path, unrep, depthLeft - 1, seen));
++      return o;
++    } finally {
++      seen.remove(v);
++    }
++  }
++
++  /**
++   * D-017 item 2 (FORMAT.md "Neutral encodings"): {"proto": descriptor full name, "fields": {name:
++   * value}} with the fields getAllFields() returns (the set fields, in field-number order); never the
++   * Java-only memoizedIsInitialized / memoizedSize / memoizedHashCode / unknownFields. Repeated fields
++   * (map fields included, as their entry messages) are arrays; enums are value names; 64-bit integers
++   * {"long": decimal}; floating point {"double": Double.toString}; bytes {"bytes": base64}, except
++   * StringPoolProto.strings (UTF-8 strings) and LazyAst.script (the encoded AstNode, as {"astNode":
++   * its message}).
++   */
++  private static JsonObject protoValue(com.google.protobuf.MessageOrBuilder m) {
++    JsonObject o = new JsonObject();
++    o.addProperty("proto", m.getDescriptorForType().getFullName());
++    JsonObject f = new JsonObject();
++    for (Map.Entry<com.google.protobuf.Descriptors.FieldDescriptor, Object> e : m.getAllFields().entrySet()) {
++      com.google.protobuf.Descriptors.FieldDescriptor fd = e.getKey();
++      if (fd.isRepeated()) {
++        JsonArray a = new JsonArray();
++        for (Object x : (List<?>) e.getValue()) {
++          a.add(protoScalar(m, fd, x));
++        }
++        f.add(fd.getName(), a);
++      } else {
++        f.add(fd.getName(), protoScalar(m, fd, e.getValue()));
++      }
++    }
++    o.add("fields", f);
++    return o;
++  }
++
++  private static JsonElement protoScalar(
++      com.google.protobuf.MessageOrBuilder owner, com.google.protobuf.Descriptors.FieldDescriptor fd, Object x) {
++    switch (fd.getJavaType()) {
++      case MESSAGE:
++        return protoValue((com.google.protobuf.MessageOrBuilder) x);
++      case ENUM:
++        return new JsonPrimitive(((com.google.protobuf.Descriptors.EnumValueDescriptor) x).getName());
++      case BYTE_STRING: {
++        com.google.protobuf.ByteString b = (com.google.protobuf.ByteString) x;
++        com.google.protobuf.Descriptors.Descriptor d = owner.getDescriptorForType();
++        if (d == com.google.javascript.jscomp.serialization.StringPoolProto.getDescriptor()
++            && fd.getName().equals("strings")) {
++          return new JsonPrimitive(b.toStringUtf8());
++        }
++        if (d == com.google.javascript.jscomp.serialization.LazyAst.getDescriptor() && fd.getName().equals("script")) {
++          try {
++            JsonObject o = new JsonObject();
++            o.add("astNode", protoValue(com.google.javascript.jscomp.serialization.AstNode.parseFrom(b)));
++            return o;
++          } catch (com.google.protobuf.InvalidProtocolBufferException ex) {
++            // not an AstNode: falls back to the bytes
++          }
++        }
++        JsonObject o = new JsonObject();
++        o.addProperty("bytes", java.util.Base64.getEncoder().encodeToString(b.toByteArray()));
++        return o;
++      }
++      case LONG: {
++        JsonObject o = new JsonObject();
++        o.addProperty("long", x.toString());
++        return o;
++      }
++      case FLOAT:
++      case DOUBLE: {
++        JsonObject o = new JsonObject();
++        o.addProperty("double", Double.toString(((Number) x).doubleValue()));
++        return o;
++      }
++      case BOOLEAN:
++        return new JsonPrimitive((Boolean) x);
++      case INT:
++        return new JsonPrimitive((Integer) x);
++      default:
++        return new JsonPrimitive(String.valueOf(x));
++    }
++  }
++
++  /** Dumps the non-static fields of v declared in classes from c up to (excluding) stop. */
++  public static JsonObject fields(Object v, Class<?> c, Class<?> stop, String path, JsonArray unrep, int depthLeft) {
++    return fields(v, c, stop, path, unrep, depthLeft, new IdentityHashMap<>());
++  }
++
++  private static JsonObject fields(
++      Object v, Class<?> c, Class<?> stop, String path, JsonArray unrep, int depthLeft,
++      IdentityHashMap<Object, Boolean> seen) {
++    JsonObject o = new JsonObject();
++    for (Class<?> k = c; k != null && k != stop && k != Object.class; k = k.getSuperclass()) {
++      for (Field f : k.getDeclaredFields()) {
++        if (Modifier.isStatic(f.getModifiers()) || f.isSynthetic()) {
++          continue;
++        }
++        String name = (k == c ? "" : k.getSimpleName() + ".") + f.getName();
++        if (o.has(name)) {
++          name = k.getName() + "." + f.getName();
++        }
++        try {
++          f.setAccessible(true);
++          o.add(name, dump(f.get(v), path + "." + name, unrep, depthLeft, seen));
++        } catch (ReflectiveOperationException | RuntimeException e) {
++          if (REFS.get()) {
++            o.add(name, ref(f.getType().getName()));
++          } else {
++            unrep(unrep, path + "." + name, "reflection failed: " + e);
++          }
++        }
++      }
++    }
++    return o;
++  }
++
++  /** Diff of options against new CompilerOptions(): field name -> value (only differing ones). */
++  public static JsonObject optionsDiff(CompilerOptions opts, JsonArray unrep) {
++    JsonObject diff = new JsonObject();
++    if (opts == null) {
++      return null;
++    }
++    CompilerOptions def = new CompilerOptions();
++    JsonArray scratch = new JsonArray();
++    JsonObject a = fields(opts, opts.getClass(), Object.class, "options", scratch, 4);
++    JsonObject b = fields(def, def.getClass(), Object.class, "default", new JsonArray(), 4);
++    for (String k : a.keySet()) {
++      JsonElement va = a.get(k);
++      JsonElement vb = b.get(k);
++      if (!GSON.toJson(va).equals(GSON.toJson(vb))) {
++        diff.add(k, va);
++        // keep only the unrepresentable entries that belong to differing fields
++        for (JsonElement u : scratch) {
++          String p = u.getAsJsonObject().get("path").getAsString();
++          if (p.equals("options." + k) || p.startsWith("options." + k + ".") || p.startsWith("options." + k + "[")
++              || p.startsWith("options." + k + "{")) {
++            unrep.add(u);
++          }
++        }
++      }
++    }
++    if (opts.getClass() != CompilerOptions.class) {
++      diff.addProperty("@class", opts.getClass().getName());
++    }
++    return diff;
++  }
++
++  /** Names of non-private instance methods declared in base that the instance's class overrides. */
++  public static JsonArray overrides(Object instance, Class<?> base) {
++    JsonArray a = new JsonArray();
++    List<String> seen = new ArrayList<>();
++    for (Class<?> b = base; b != null && b != Object.class; b = b.getSuperclass()) {
++      for (Method m : b.getDeclaredMethods()) {
++        int mod = m.getModifiers();
++        if (Modifier.isPrivate(mod) || Modifier.isStatic(mod) || Modifier.isFinal(mod) || m.isSynthetic()) {
++          continue;
++        }
++        for (Class<?> k = instance.getClass(); k != null && k != base; k = k.getSuperclass()) {
++          try {
++            Method o = k.getDeclaredMethod(m.getName(), m.getParameterTypes());
++            String sig = m.getName() + sigOf(m);
++            if (!o.isSynthetic() && !seen.contains(sig)) {
++              seen.add(sig);
++              JsonObject e = new JsonObject();
++              e.addProperty("method", sig);
++              e.addProperty("declaredIn", k.getName());
++              a.add(e);
++            }
++            break;
++          } catch (NoSuchMethodException e) {
++            // continue
++          }
++        }
++      }
++    }
++    List<JsonElement> sorted = new ArrayList<>();
++    a.forEach(sorted::add);
++    sorted.sort(
++        (x, y) ->
++            (x.getAsJsonObject().get("method").getAsString() + " " + x.getAsJsonObject().get("declaredIn").getAsString())
++                .compareTo(
++                    y.getAsJsonObject().get("method").getAsString() + " "
++                        + y.getAsJsonObject().get("declaredIn").getAsString()));
++    JsonArray out = new JsonArray();
++    sorted.forEach(out::add);
++    return out;
++  }
++
++  private static String sigOf(Method m) {
++    StringBuilder sb = new StringBuilder("(");
++    Class<?>[] p = m.getParameterTypes();
++    for (int i = 0; i < p.length; i++) {
++      if (i > 0) {
++        sb.append(',');
++      }
++      sb.append(p[i].getSimpleName());
++    }
++    return sb.append(')').toString();
++  }
++
++  /** Dumps the test instance's own fields (declared below the harness base class). */
++  public static JsonObject testFields(Object instance, Class<?> harnessBase, JsonArray unrep) {
++    return refFields(instance, instance.getClass(), harnessBase, "test", 2);
++  }
++
++  // ---------------------------------------------------------------------------------------------
++  // Post-call snapshot (FORMAT.md "Post-call snapshot"): a fixed set of compiler-result accessors,
++  // read right after the hooked call. Shared by the recorder and by replay (oracle/replay), so both
++  // sides compute it with the same code.
++  // ---------------------------------------------------------------------------------------------
++
++  /** Result producers: pass class FQCN, snapshot key, accessor (method name, or "field:name"). */
++  public static final String[][] RESULT_PRODUCERS = {
++    {"com.google.javascript.jscomp.RenameVars", "pass.variableMap", "getVariableMap"},
++    {"com.google.javascript.jscomp.RenameProperties", "pass.propertyMap", "getPropertyMap"},
++    {"com.google.javascript.jscomp.ReplaceStrings", "pass.stringMap", "getStringMap"},
++    {"com.google.javascript.jscomp.disambiguate.AmbiguateProperties", "pass.ambiguatedPropertyMap", "field:renamingMap"},
++    {"com.google.javascript.jscomp.ReplaceIdGenerators", "pass.idGeneratorMappings", "getSerializedIdMappings"},
++    {"com.google.javascript.jscomp.GatherRawExports", "pass.exportedVariableNames", "getExportedVariableNames"},
++    {"com.google.javascript.jscomp.CheckRegExp", "pass.globalRegExpPropertiesUsed", "isGlobalRegExpPropertiesUsed"},
++  };
++
++  /**
++   * The snapshot: {"compiler": {key: value}, "pass": {key: value}}; absent keys mean the accessor
++   * returned null or no producer was reachable. Producers are searched in the processor (first
++   * repetition), its fields to object depth 2 (list/array items included), then the given extra
++   * roots (the test instance's own fields, or replay's helper objects).
++   */
++  /**
++   * D-017 item 1 (FORMAT.md "Postcondition data"): test classes whose postcondition lambdas assert
++   * state that the snapshot captures as replay-compared data. Their lambdas are recorded as
++   * class-name references ({@code postconditionLambda}), not as unrepresentable placeholders:
++   * PureFunctionIdentifierTest (side-effect flags of CALL/NEW/TAGGED_TEMPLATELIT nodes, {@code
++   * postCall.postcondition.sideEffectFlags}), ExternExportsPassTest (the generated externs, {@code
++   * postCall.compiler.externExport}), GatherExternPropertiesTest (the gathered set, {@code
++   * postCall.compiler.externProperties}), ScopedAliasesTest (the JSDoc type nodes its
++   * TypeVerifyingPass compares, {@code postCall.postcondition.jsdocTypes}).
++   */
++  public static final Set<String> POSTCONDITION_DATA_CLASSES =
++      Set.of(
++          "com.google.javascript.jscomp.PureFunctionIdentifierTest",
++          "com.google.javascript.jscomp.ExternExportsPassTest",
++          "com.google.javascript.jscomp.GatherExternPropertiesTest",
++          "com.google.javascript.jscomp.ScopedAliasesTest");
++
++  /** True when the postcondition object is a lambda of a POSTCONDITION_DATA_CLASSES class. */
++  public static boolean postconditionDataLambda(Object postcondition) {
++    if (postcondition == null) {
++      return false;
++    }
++    String n = className(postcondition.getClass());
++    int i = n.indexOf('$');
++    return isLambda(postcondition.getClass()) && i > 0 && POSTCONDITION_DATA_CLASSES.contains(n.substring(0, i));
++  }
++
++  public static JsonObject postCallSnapshot(Compiler compiler, Object processor, List<Object> extraRoots) {
++    return postCallSnapshot(compiler, processor, extraRoots, null);
++  }
++
++  /**
++   * As above; with a non-null {@code postconditionCompiler} (the compiler the hooked call's
++   * postconditions verify; given only when it ran at least one) the snapshot also holds {@code
++   * postcondition}: the state postcondition lambdas assert, read from that compiler (D-017 item 1,
++   * FORMAT.md "Postcondition data"). It is the outermost call's compiler even when a nested hooked
++   * call replaced the test's lastCompiler.
++   */
++  public static JsonObject postCallSnapshot(
++      Compiler compiler, Object processor, List<Object> extraRoots, Compiler postconditionCompiler) {
++    JsonObject snap = new JsonObject();
++    JsonObject comp = new JsonObject();
++    if (compiler != null) {
++      try {
++        Set<String> ep = compiler.getExternProperties();
++        if (ep != null) {
++          comp.add("externProperties", refValue(ep, "post.externProperties", 2));
++        }
++      } catch (RuntimeException e) {
++        comp.addProperty("externPropertiesError", e.getClass().getName());
++      }
++      variableMap(comp, "variableMap", () -> compiler.getVariableMap());
++      variableMap(comp, "propertyMap", () -> compiler.getPropertyMap());
++      variableMap(comp, "stringMap", () -> compiler.getStringMap());
++      try {
++        AccessorSummary as = compiler.getAccessorSummary();
++        if (as != null) {
++          comp.add("accessorSummary", refValue(as.getAccessors(), "post.accessorSummary", 2));
++        }
++      } catch (RuntimeException e) {
++        comp.addProperty("accessorSummaryError", e.getClass().getName());
++      }
++      try {
++        com.google.javascript.jscomp.modules.ModuleMetadataMap mm = compiler.getModuleMetadataMap();
++        if (mm != null) {
++          JsonObject byPath = new JsonObject();
++          for (Map.Entry<String, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata> e :
++              mm.getModulesByPath().entrySet()) {
++            byPath.add(e.getKey(), moduleMetadata(e.getValue()));
++          }
++          comp.add("moduleMetadataByPath", byPath);
++        }
++      } catch (RuntimeException e) {
++        comp.addProperty("moduleMetadataError", e.getClass().getName());
++      }
++      try {
++        SourceMap sm = compiler.getSourceMap();
++        if (sm != null) {
++          StringBuilder sb = new StringBuilder();
++          sm.appendTo(sb, "out.js");
++          comp.addProperty("sourceMap", sb.toString());
++        }
++      } catch (IOException | RuntimeException e) {
++        comp.addProperty("sourceMapError", e.getClass().getName());
++      }
++      // Architect harness round: the TypeValidator's recorded mismatches, in recording order, as
++      // {found, required} JSType.toString() strings. Compiler.getTypeMismatches() throws before type
++      // checking has run; then there is no key. Present only when non-empty.
++      try {
++        JsonArray tm = new JsonArray();
++        for (TypeMismatch m : compiler.getTypeMismatches()) {
++          JsonObject e = new JsonObject();
++          e.addProperty("found", String.valueOf(m.found()));
++          e.addProperty("required", String.valueOf(m.required()));
++          tm.add(e);
++        }
++        if (tm.size() > 0) {
++          comp.add("typeMismatches", tm);
++        }
++      } catch (RuntimeException e) {
++        if (!String.valueOf(e.getMessage()).startsWith("Can't ask for type mismatches before type checking")) {
++          comp.addProperty("typeMismatchesError", e.getClass().getName());
++        }
++      }
++      // Architect harness round: Compiler.runJ2clPasses() (set by J2clSourceFileChecker); present
++      // only when true.
++      if (compiler.runJ2clPasses()) {
++        comp.addProperty("runJ2clPasses", true);
++      }
++      // D-017 item 2 (FORMAT.md "Post-call snapshot"): neutral compiler keys.
++      // injectedLibraries: RuntimeJsLibManager.getInjectedLibraries() in injection order; present
++      // only when non-empty.
++      try {
++        List<String> libs = compiler.getRuntimeJsLibManager().getInjectedLibraries();
++        if (libs != null && !libs.isEmpty()) {
++          JsonArray a = new JsonArray();
++          for (String l : libs) {
++            a.add(l);
++          }
++          comp.add("injectedLibraries", a);
++        }
++      } catch (RuntimeException e) {
++        comp.addProperty("injectedLibrariesError", e.getClass().getName());
++      }
++      // allowableFeatures: getAllowableFeatures() as FeatureSet.Feature names in enum order; present
++      // when the compiler has a feature set.
++      try {
++        com.google.javascript.jscomp.parsing.parser.FeatureSet fs = compiler.getAllowableFeatures();
++        if (fs != null) {
++          JsonArray a = new JsonArray();
++          for (com.google.javascript.jscomp.parsing.parser.FeatureSet.Feature ft :
++              com.google.javascript.jscomp.parsing.parser.FeatureSet.Feature.values()) {
++            if (fs.has(ft)) {
++              a.add(ft.name());
++            }
++          }
++          comp.add("allowableFeatures", a);
++        }
++      } catch (RuntimeException e) {
++        comp.addProperty("allowableFeaturesError", e.getClass().getName());
++      }
++      // packageJsonMainEntries: getModuleLoader().getPackageJsonMainEntries() (string -> string, in
++      // the loader's map order); present only when non-empty.
++      try {
++        com.google.javascript.jscomp.deps.ModuleLoader ml = compiler.getModuleLoader();
++        Map<String, String> pj = ml == null ? null : ml.getPackageJsonMainEntries();
++        if (pj != null && !pj.isEmpty()) {
++          comp.add("packageJsonMainEntries", refValue(pj, "post.packageJsonMainEntries", 1));
++        }
++      } catch (RuntimeException e) {
++        comp.addProperty("packageJsonMainEntriesError", e.getClass().getName());
++      }
++      // typedPercent: ErrorManager.getTypedPercent() as {"double": Double.toString}; present only
++      // when non-zero (it is set only when type checking computed it).
++      try {
++        double tp = compiler.getErrorManager().getTypedPercent();
++        if (tp != 0.0) {
++          JsonObject o = new JsonObject();
++          o.addProperty("double", Double.toString(tp));
++          comp.add("typedPercent", o);
++        }
++      } catch (RuntimeException e) {
++        comp.addProperty("typedPercentError", e.getClass().getName());
++      }
++      // moduleMapBoundNames: {module path: [bound local names in boundNames() order]} of
++      // getModuleMap(); present only when the module map is set and non-empty.
++      try {
++        com.google.javascript.jscomp.modules.ModuleMap mmap = compiler.getModuleMap();
++        if (mmap != null && !mmap.getModulesByPath().isEmpty()) {
++          JsonObject byPath = new JsonObject();
++          for (Map.Entry<String, com.google.javascript.jscomp.modules.Module> e : mmap.getModulesByPath().entrySet()) {
++            JsonArray a = new JsonArray();
++            for (String n : e.getValue().boundNames().keySet()) {
++              a.add(n);
++            }
++            byPath.add(e.getKey(), a);
++          }
++          comp.add("moduleMapBoundNames", byPath);
++        }
++      } catch (RuntimeException e) {
++        comp.addProperty("moduleMapBoundNamesError", e.getClass().getName());
++      }
++    }
++    snap.add("compiler", comp);
++    JsonObject pass = new JsonObject();
++    List<Object> objs = new ArrayList<>();
++    IdentityHashMap<Object, Boolean> seen = new IdentityHashMap<>();
++    collect(processor, 2, objs, seen);
++    if (extraRoots != null) {
++      for (Object r : extraRoots) {
++        collect(r, 1, objs, seen);
++      }
++    }
++    for (Object o : objs) {
++      for (String[] p : RESULT_PRODUCERS) {
++        if (pass.has(p[1]) || !isInstance(o.getClass(), p[0])) {
++          continue;
++        }
++        try {
++          Object v;
++          if (p[2].startsWith("field:")) {
++            Field f = findField(o.getClass(), p[2].substring(6));
++            f.setAccessible(true);
++            v = f.get(o);
++          } else {
++            Method m = findMethod(o.getClass(), p[2]);
++            m.setAccessible(true);
++            v = m.invoke(o);
++          }
++          if (v instanceof VariableMap vm) {
++            v = vm.getOriginalNameToNewNameMap();
++          }
++          if (v != null) {
++            pass.add(p[1], refValue(v, "post." + p[1], 2));
++          }
++        } catch (ReflectiveOperationException | RuntimeException e) {
++          Throwable c = e instanceof java.lang.reflect.InvocationTargetException ite ? ite.getCause() : e;
++          pass.addProperty(p[1] + "Error", c == null ? e.getClass().getName() : c.getClass().getName());
++        }
++      }
++    }
++    // Architect harness round: pass.referenceMap, the state of the first reachable ReferenceCollector:
++    // its collected variables in collection order (LinkedHashMap), each with its references.
++    for (Object o : objs) {
++      if (pass.has("pass.referenceMap") || pass.has("pass.referenceMapError") || !(o instanceof ReferenceCollector)) {
++        continue;
++      }
++      ReferenceCollector rc = (ReferenceCollector) o;
++      try {
++        JsonArray vars = new JsonArray();
++        for (Var v : rc.getAllSymbols()) {
++          ReferenceCollection refs = rc.getReferences(v);
++          JsonObject vo = new JsonObject();
++          vo.addProperty("name", v.getName());
++          vo.addProperty("scopeRoot", nodePos(v.getScopeRoot()));
++          vo.addProperty("isAssignedOnceInLifetime", refs.isAssignedOnceInLifetime());
++          vo.addProperty("isWellDefined", refs.isWellDefined());
++          JsonArray ra = new JsonArray();
++          for (Reference r : refs.references) {
++            JsonObject ro = new JsonObject();
++            ro.addProperty("node", nodePos(r.getNode()));
++            ro.addProperty("isDeclaration", r.isDeclaration());
++            ro.addProperty("isInitializingDeclaration", r.isInitializingDeclaration());
++            ro.addProperty("isLvalue", r.isLvalue());
++            ra.add(ro);
++          }
++          vo.add("references", ra);
++          vars.add(vo);
++        }
++        pass.add("pass.referenceMap", vars);
++      } catch (RuntimeException e) {
++        pass.addProperty("pass.referenceMapError", e.getClass().getName());
++      }
++    }
++    // Architect harness round: pass.crossChunkReferences, the state of the first reachable
++    // CrossChunkReferenceCollector: global variables in varsByName order with their references, and
++    // the top-level statements (references named "<var>#<index in that var's references>").
++    for (Object o : objs) {
++      if (pass.has("pass.crossChunkReferences") || pass.has("pass.crossChunkReferencesError")
++          || !(o instanceof CrossChunkReferenceCollector)) {
++        continue;
++      }
++      CrossChunkReferenceCollector cc = (CrossChunkReferenceCollector) o;
++      try {
++        JsonObject out = new JsonObject();
++        JsonArray vars = new JsonArray();
++        IdentityHashMap<Reference, String> refIds = new IdentityHashMap<>();
++        for (Map.Entry<String, Var> e : cc.getGlobalVariableNamesMap().entrySet()) {
++          ReferenceCollection refs = cc.getReferences(e.getValue());
++          JsonObject vo = new JsonObject();
++          vo.addProperty("name", e.getKey());
++          if (refs == null) {
++            vo.add("references", JsonNull.INSTANCE);
++          } else {
++            vo.addProperty("isAssignedOnceInLifetime", refs.isAssignedOnceInLifetime());
++            vo.addProperty("isWellDefined", refs.isWellDefined());
++            JsonArray ra = new JsonArray();
++            int i = 0;
++            for (Reference r : refs.references) {
++              refIds.put(r, e.getKey() + "#" + i++);
++              JsonObject ro = new JsonObject();
++              ro.addProperty("node", nodePos(r.getNode()));
++              ro.addProperty("basicBlockRoot", r.getBasicBlock() == null ? null : nodePos(r.getBasicBlock().getRoot()));
++              ra.add(ro);
++            }
++            vo.add("references", ra);
++          }
++          vars.add(vo);
++        }
++        out.add("vars", vars);
++        JsonArray stmts = new JsonArray();
++        for (CrossChunkReferenceCollector.TopLevelStatement t : cc.getTopLevelStatements()) {
++          JsonObject so = new JsonObject();
++          so.addProperty("originalOrder", t.getOriginalOrder());
++          so.addProperty("statement", nodePos(t.getStatementNode()));
++          boolean decl = t.isDeclarationStatement();
++          so.addProperty("isDeclarationStatement", decl);
++          so.addProperty("isMovableDeclaration", t.isMovableDeclaration());
++          so.addProperty("declaredNameReference", decl ? refId(refIds, t.getDeclaredNameReference()) : null);
++          JsonArray nd = new JsonArray();
++          for (Reference r : t.getNonDeclarationReferences()) {
++            nd.add(refId(refIds, r));
++          }
++          so.add("nonDeclarationReferences", nd);
++          com.google.javascript.rhino.Node vn = t.getDeclaredValueNode();
++          so.addProperty("declaredValueNode", nodePos(vn));
++          if (vn != null && vn.isNumber()) {
++            so.addProperty("declaredValueNumber", String.valueOf(vn.getDouble()));
++          }
++          stmts.add(so);
++        }
++        out.add("topLevelStatements", stmts);
++        pass.add("pass.crossChunkReferences", out);
++      } catch (RuntimeException e) {
++        pass.addProperty("pass.crossChunkReferencesError", e.getClass().getName());
++      }
++    }
++    snap.add("pass", pass);
++    if (postconditionCompiler != null) {
++      snap.add("postcondition", postconditionData(postconditionCompiler));
++    }
++    return snap;
++  }
++
++  /** True when n is in the JS root (not the externs). */
++  private static boolean inJs(Compiler compiler, com.google.javascript.rhino.Node n) {
++    com.google.javascript.rhino.Node js = compiler.getJsRoot();
++    for (com.google.javascript.rhino.Node p = n; p != null; p = p.getParent()) {
++      if (p == js) {
++        return true;
++      }
++    }
++    return false;
++  }
++
++  /** D-017 item 1: output-AST state asserted by postcondition lambdas (FORMAT.md "Postcondition data"):
++   * sideEffectFlags = [node, callee qualified name or null, Node.getSideEffectFlags()] of every
++   * CALL/NEW/TAGGED_TEMPLATELIT/OPTCHAIN_CALL node of externs and JS (pre-order); jsdocTypes = [node,
++   * [toStringTree of each JSDoc type node]] of every JS-root node whose JSDoc has type nodes. */
++  private static JsonObject postconditionData(Compiler compiler) {
++    JsonObject o = new JsonObject();
++    JsonArray flags = new JsonArray();
++    JsonArray types = new JsonArray();
++    try {
++      com.google.javascript.rhino.Node root = compiler.getRoot();
++      if (root != null) {
++        NodeUtil.visitPreOrder(
++            root,
++            n -> {
++              if (n.isCall() || n.isNew() || n.isTaggedTemplateLit() || n.isOptChainCall()) {
++                JsonArray e = new JsonArray();
++                e.add(nodePos(n));
++                com.google.javascript.rhino.Node callee = n.getFirstChild();
++                e.add(callee != null && callee.isQualifiedName() ? callee.getQualifiedName() : null);
++                e.add(n.getSideEffectFlags());
++                flags.add(e);
++              }
++              com.google.javascript.rhino.JSDocInfo info = n.getJSDocInfo();
++              if (info != null && !info.getTypeNodes().isEmpty() && inJs(compiler, n)) {
++                JsonArray e = new JsonArray();
++                e.add(nodePos(n));
++                JsonArray tn = new JsonArray();
++                for (com.google.javascript.rhino.Node t : info.getTypeNodes()) {
++                  tn.add(t.toStringTree());
++                }
++                e.add(tn);
++                types.add(e);
++              }
++            });
++      }
++      o.add("sideEffectFlags", flags);
++      o.add("jsdocTypes", types);
++    } catch (RuntimeException e) {
++      o.addProperty("error", e.getClass().getName());
++    }
++    // ExternExportsPassTest: the generated externs the lambda hands to its consumer.
++    try {
++      String ee = compiler.getResult().externExport;
++      o.addProperty("externExport", ee);
++    } catch (RuntimeException e) {
++      o.addProperty("externExportError", e.getClass().getName());
++    }
++    // GatherExternPropertiesTest: the gathered set (also in compiler.externProperties of the
++    // snapshot's own compiler).
++    try {
++      Set<String> ep = compiler.getExternProperties();
++      if (ep != null) {
++        JsonArray a = new JsonArray();
++        for (String x : new java.util.TreeSet<>(ep)) {
++          a.add(x);
++        }
++        o.add("externProperties", a);
++      }
++    } catch (RuntimeException e) {
++      o.addProperty("externPropertiesError", e.getClass().getName());
++    }
++    return o;
++  }
++
++  private static String refId(IdentityHashMap<Reference, String> ids, Reference r) {
++    String id = ids.get(r);
++    return id != null ? id : "unlisted " + nodePos(r.getNode());
++  }
++
++  /** "TOKEN source:line:column" of a node (null for null), for post-call snapshots. */
++  private static String nodePos(com.google.javascript.rhino.Node n) {
++    if (n == null) {
++      return null;
++    }
++    return n.getToken() + " " + n.getSourceFileName() + ":" + n.getLineno() + ":" + n.getCharno();
++  }
++
++  /** Test-instance fields (declared below base) as extra producer roots. */
++  public static List<Object> ownFieldValues(Object instance, Class<?> base) {
++    List<Object> out = new ArrayList<>();
++    if (instance == null) {
++      return out;
++    }
++    for (Class<?> k = instance.getClass(); k != null && k != base && k != Object.class; k = k.getSuperclass()) {
++      for (Field f : k.getDeclaredFields()) {
++        if (Modifier.isStatic(f.getModifiers()) || f.isSynthetic() || f.getType().isPrimitive()) {
++          continue;
++        }
++        try {
++          f.setAccessible(true);
++          Object v = f.get(instance);
++          if (v != null) {
++            out.add(v);
++          }
++        } catch (ReflectiveOperationException | RuntimeException e) {
++          // not readable: not a producer root
++        }
++      }
++    }
++    return out;
++  }
++
++  private interface VmSupplier {
++    VariableMap get();
++  }
++
++  private static void variableMap(JsonObject comp, String key, VmSupplier s) {
++    try {
++      VariableMap vm = s.get();
++      if (vm != null) {
++        comp.add(key, refValue(vm.getOriginalNameToNewNameMap(), "post." + key, 2));
++      }
++    } catch (RuntimeException e) {
++      comp.addProperty(key + "Error", e.getClass().getName());
++    }
++  }
++
++  private static JsonObject moduleMetadata(com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata m) {
++    JsonObject o = new JsonObject();
++    o.add("moduleType", refValue(m.moduleType(), "post.m", 1));
++    o.addProperty("usesClosure", m.usesClosure());
++    o.addProperty("isTestOnly", m.isTestOnly());
++    o.add("googNamespaces", refValue(m.googNamespaces(), "post.m", 1));
++    o.add("stronglyRequiredGoogNamespaces", refValue(m.stronglyRequiredGoogNamespaces(), "post.m", 1));
++    o.add("dynamicallyRequiredGoogNamespaces", refValue(m.dynamicallyRequiredGoogNamespaces(), "post.m", 1));
++    o.add("maybeRequiredGoogNamespaces", refValue(m.maybeRequiredGoogNamespaces(), "post.m", 1));
++    o.add("weaklyRequiredGoogNamespaces", refValue(m.weaklyRequiredGoogNamespaces(), "post.m", 1));
++    o.add("es6ImportSpecifiers", refValue(m.es6ImportSpecifiers(), "post.m", 1));
++    o.add("readToggles", refValue(m.readToggles(), "post.m", 1));
++    // D-017 item 2: the nested goog.loadModule modules' metadata in full (recursively), in
++    // nestedModules() order (was a count before; the list size is that count).
++    JsonArray nested = new JsonArray();
++    for (com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata n : m.nestedModules()) {
++      nested.add(moduleMetadata(n));
++    }
++    o.add("nestedModules", nested);
++    return o;
++  }
++
++  private static boolean isInstance(Class<?> c, String fqcn) {
++    for (Class<?> k = c; k != null; k = k.getSuperclass()) {
++      if (k.getName().equals(fqcn)) {
++        return true;
++      }
++    }
++    return false;
++  }
++
++  private static Field findField(Class<?> c, String name) throws NoSuchFieldException {
++    for (Class<?> k = c; k != null; k = k.getSuperclass()) {
++      try {
++        return k.getDeclaredField(name);
++      } catch (NoSuchFieldException e) {
++        // continue
++      }
++    }
++    throw new NoSuchFieldException(name);
++  }
++
++  private static Method findMethod(Class<?> c, String name) throws NoSuchMethodException {
++    for (Class<?> k = c; k != null; k = k.getSuperclass()) {
++      try {
++        return k.getDeclaredMethod(name);
++      } catch (NoSuchMethodException e) {
++        // continue
++      }
++    }
++    throw new NoSuchMethodException(name);
++  }
++
++  /** Objects reachable from root through instance fields (and list/array items) to depth d. */
++  private static void collect(Object root, int d, List<Object> out, IdentityHashMap<Object, Boolean> seen) {
++    if (root == null || seen.containsKey(root)) {
++      return;
++    }
++    Class<?> c = root.getClass();
++    if (c.isPrimitive() || root instanceof String || root instanceof Number || root instanceof Boolean
++        || root instanceof Enum || root instanceof Compiler || root instanceof com.google.javascript.rhino.Node) {
++      return;
++    }
++    seen.put(root, true);
++    if (root instanceof Collection<?> col) {
++      if (d > 0) {
++        for (Object x : col) {
++          collect(x, d - 1, out, seen);
++        }
++      }
++      return;
++    }
++    if (c.isArray()) {
++      if (d > 0 && !c.getComponentType().isPrimitive()) {
++        for (int i = 0; i < Array.getLength(root); i++) {
++          collect(Array.get(root, i), d - 1, out, seen);
++        }
++      }
++      return;
++    }
++    if (root instanceof Map) {
++      return;
++    }
++    out.add(root);
++    if (d <= 0 || c.getName().startsWith("java.") || c.getName().startsWith("com.google.common.")) {
++      return;
++    }
++    for (Class<?> k = c; k != null && k != Object.class; k = k.getSuperclass()) {
++      for (Field f : k.getDeclaredFields()) {
++        if (Modifier.isStatic(f.getModifiers()) || f.getType().isPrimitive()) {
++          continue;
++        }
++        try {
++          f.setAccessible(true);
++          collect(f.get(root), d - 1, out, seen);
++        } catch (ReflectiveOperationException | RuntimeException e) {
++          // unreadable field: skipped
++        }
++      }
++    }
++  }
++
++  public static synchronized Map<String, Integer> snapshot(Map<String, Integer> m) {
++    return new LinkedHashMap<>(m);
++  }
++}
+diff --git a/test/com/google/javascript/jscomp/UnitRecordingMain.java b/test/com/google/javascript/jscomp/UnitRecordingMain.java
+new file mode 100644
+index 0000000..4d58505
+--- /dev/null
++++ b/test/com/google/javascript/jscomp/UnitRecordingMain.java
+@@ -0,0 +1,134 @@
++/*
++ * closure-rs unit-corpus recording runner (oracle/patches/0002-recording-hooks.patch).
++ * Runs JUnit test classes with plain JUnitCore and the UnitRecorder hook enabled.
++ * Usage: java -Dclosurers.unit.record=true ... UnitRecordingMain REC_DIR STAT_DIR RECORD_NAME CLASS_FQCN
++ * Writes REC_DIR/RECORD_NAME.jsonl.gz and STAT_DIR/RECORD_NAME.json (atomically; the stats file last).
++ */
++package com.google.javascript.jscomp;
++
++import com.google.gson.GsonBuilder;
++import com.google.gson.JsonArray;
++import com.google.gson.JsonObject;
++import java.io.BufferedWriter;
++import java.io.OutputStreamWriter;
++import java.io.Writer;
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.nio.file.Paths;
++import java.nio.file.StandardCopyOption;
++import java.util.LinkedHashMap;
++import java.util.Map;
++import org.junit.runner.Description;
++import org.junit.runner.JUnitCore;
++import org.junit.runner.Request;
++import org.junit.runner.Result;
++import org.junit.runner.notification.Failure;
++import org.junit.runner.notification.RunListener;
++
++/** Recording runner; not a test. */
++public final class UnitRecordingMain {
++  private UnitRecordingMain() {}
++
++  public static void main(String[] args) throws Exception {
++    Path recDir = Paths.get(args[0]);
++    Path statDir = Paths.get(args[1]);
++    String recName = args[2];
++    String className = args[3];
++    Files.createDirectories(recDir);
++    Files.createDirectories(statDir);
++    Path recTmp = recDir.resolve(recName + ".jsonl.gz.tmp");
++    Path recFinal = recDir.resolve(recName + ".jsonl.gz");
++    Path statTmp = statDir.resolve(recName + ".json.tmp");
++    Path statFinal = statDir.resolve(recName + ".json");
++
++    Map<String, JsonObject> tests = new LinkedHashMap<>();
++    JsonObject stats = new JsonObject();
++    stats.addProperty("class", className);
++    stats.addProperty("record", recName);
++    long t0 = System.currentTimeMillis();
++    try (Writer w =
++        new BufferedWriter(
++            new OutputStreamWriter(
++                new java.util.zip.GZIPOutputStream(Files.newOutputStream(recTmp), 1 << 16),
++                StandardCharsets.UTF_8),
++            1 << 16)) {
++      UnitRecorder.setOutput(w);
++      Class<?> cls = Class.forName(className);
++      JUnitCore core = new JUnitCore();
++      core.addListener(
++          new RunListener() {
++            @Override
++            public void testStarted(Description d) {
++              UnitRecorder.currentClass = d.getClassName();
++              UnitRecorder.currentMethod = d.getMethodName();
++              JsonObject t = new JsonObject();
++              t.addProperty("status", "passed");
++              tests.put(d.getClassName() + "#" + d.getMethodName(), t);
++            }
++
++            @Override
++            public void testFinished(Description d) {
++              UnitRecorder.currentMethod = null;
++            }
++
++            @Override
++            public void testFailure(Failure f) {
++              Description d = f.getDescription();
++              JsonObject t =
++                  tests.computeIfAbsent(d.getClassName() + "#" + d.getMethodName(), k -> new JsonObject());
++              t.addProperty("status", "failed");
++              Throwable e = f.getException();
++              t.addProperty("exception", e == null ? null : e.getClass().getName());
++              String m = f.getMessage();
++              t.addProperty("message", m == null ? null : m.substring(0, Math.min(m.length(), 2000)));
++            }
++
++            @Override
++            public void testAssumptionFailure(Failure f) {
++              Description d = f.getDescription();
++              JsonObject t =
++                  tests.computeIfAbsent(d.getClassName() + "#" + d.getMethodName(), k -> new JsonObject());
++              t.addProperty("status", "assumption_failed");
++            }
++
++            @Override
++            public void testIgnored(Description d) {
++              JsonObject t = new JsonObject();
++              t.addProperty("status", "ignored");
++              tests.put(d.getClassName() + "#" + d.getMethodName(), t);
++            }
++          });
++      Result r = core.run(Request.aClass(cls));
++      stats.addProperty("runCount", r.getRunCount());
++      stats.addProperty("failureCount", r.getFailureCount());
++      stats.addProperty("ignoreCount", r.getIgnoreCount());
++      stats.addProperty("assumptionFailureCount", r.getAssumptionFailureCount());
++      UnitRecorder.setOutput(null);
++    }
++    stats.addProperty("millis", System.currentTimeMillis() - t0);
++    stats.addProperty("records", UnitRecorder.recordsWritten);
++    stats.addProperty("recordsWithUnrepresentable", UnitRecorder.recordsWithUnrepresentable);
++    JsonObject entries = new JsonObject();
++    UnitRecorder.snapshot(UnitRecorder.entries).forEach(entries::addProperty);
++    stats.add("entries", entries);
++    JsonObject outer = new JsonObject();
++    UnitRecorder.snapshot(UnitRecorder.outermost).forEach(outer::addProperty);
++    stats.add("outermost", outer);
++    JsonObject testObj = new JsonObject();
++    tests.forEach(testObj::add);
++    stats.add("tests", testObj);
++    Files.move(recTmp, recFinal, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
++    Files.writeString(
++        statTmp, new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create().toJson(stats));
++    Files.move(statTmp, statFinal, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
++    System.out.println(
++        "RECORDED " + className + " records=" + UnitRecorder.recordsWritten + " run=" + stats.get("runCount")
++            + " failed=" + stats.get("failureCount"));
++    System.exit(0);
++  }
++
++  static JsonArray unused() {
++    return new JsonArray();
++  }
++}
+diff --git a/test/com/google/javascript/jscomp/integration/IntegrationTestCase.java b/test/com/google/javascript/jscomp/integration/IntegrationTestCase.java
+index e539941..53afbd5 100644
+--- a/test/com/google/javascript/jscomp/integration/IntegrationTestCase.java
++++ b/test/com/google/javascript/jscomp/integration/IntegrationTestCase.java
+@@ -180,27 +180,42 @@ abstract class IntegrationTestCase {
+    * into {@code compiled}.
+    */
+   protected void test(CompilerOptions options, String[] original, String[] compiled) {
+-    Compiler compiler = compile(options, original);
+-
+-    Node root = compiler.getRoot().getLastChild();
+-
+-    // Verify that there are no unexpected errors before checking the compiled output
+-    assertWithMessage(
+-            """
+-            Expected no warnings or errors
+-            Errors:
+-            %s
+-            Warnings:
+-            %s
+-            """,
+-            Joiner.on("\n").join(compiler.getErrors()),
+-            Joiner.on("\n").join(compiler.getWarnings()))
+-        .that(compiler.getErrors().size() + compiler.getWarnings().size())
+-        .isEqualTo(0);
+-
+-    if (compiled != null) {
+-      Node expectedRoot = parseExpectedCode(compiled, options);
+-      assertNode(root).usingSerializer(compiler::toSource).isEqualTo(expectedRoot);
++    com.google.javascript.jscomp.UnitRecorder.Rec __rec =
++        com.google.javascript.jscomp.UnitRecorder.enter(this, "integration", "test");
++    if (__rec != null) {
++      __recordIntegration(__rec, options, original, null, compiled, null);
++    }
++    try {
++      Compiler compiler = compile(options, original);
++  
++      Node root = compiler.getRoot().getLastChild();
++  
++      // Verify that there are no unexpected errors before checking the compiled output
++      assertWithMessage(
++              """
++              Expected no warnings or errors
++              Errors:
++              %s
++              Warnings:
++              %s
++              """,
++              Joiner.on("\n").join(compiler.getErrors()),
++              Joiner.on("\n").join(compiler.getWarnings()))
++          .that(compiler.getErrors().size() + compiler.getWarnings().size())
++          .isEqualTo(0);
++  
++      if (compiled != null) {
++        Node expectedRoot = parseExpectedCode(compiled, options);
++        assertNode(root).usingSerializer(compiler::toSource).isEqualTo(expectedRoot);
++      }
++        } catch (Throwable __t) {
++      com.google.javascript.jscomp.UnitRecorder.fail(__rec, __t);
++      throw __t;
++    } finally {
++      if (__rec != null) {
++        __recordIntegrationExit(__rec);
++      }
++      com.google.javascript.jscomp.UnitRecorder.exit(__rec);
+     }
+   }
+ 
+@@ -223,22 +238,37 @@ abstract class IntegrationTestCase {
+   /** Asserts that when compiling with the given compiler options, there is an error or warning. */
+   protected void test(
+       CompilerOptions options, String[] original, String[] compiled, DiagnosticGroup[] warnings) {
+-    Compiler compiler = compile(options, original);
+-    checkUnexpectedErrorsOrWarnings(compiler, warnings.length);
+-
+-    if (compiled != null) {
+-      Node root = compiler.getRoot().getLastChild();
+-      Node expectedRoot = parseExpectedCode(compiled, options);
+-      assertNode(root).usingSerializer(compiler::toSource).isEqualTo(expectedRoot);
++    com.google.javascript.jscomp.UnitRecorder.Rec __rec =
++        com.google.javascript.jscomp.UnitRecorder.enter(this, "integration", "test_warnings");
++    if (__rec != null) {
++      __recordIntegration(__rec, options, original, null, compiled, warnings);
++    }
++    try {
++      Compiler compiler = compile(options, original);
++      checkUnexpectedErrorsOrWarnings(compiler, warnings.length);
++  
++      if (compiled != null) {
++        Node root = compiler.getRoot().getLastChild();
++        Node expectedRoot = parseExpectedCode(compiled, options);
++        assertNode(root).usingSerializer(compiler::toSource).isEqualTo(expectedRoot);
++      }
++  
++      assertThat(
++              ImmutableList.builder()
++                  .addAll(compiler.getErrors())
++                  .addAll(compiler.getWarnings())
++                  .build())
++          .comparingElementsUsing(JSCompCorrespondences.OWNING_DIAGNOSTIC_GROUP)
++          .containsExactly(warnings);
++        } catch (Throwable __t) {
++      com.google.javascript.jscomp.UnitRecorder.fail(__rec, __t);
++      throw __t;
++    } finally {
++      if (__rec != null) {
++        __recordIntegrationExit(__rec);
++      }
++      com.google.javascript.jscomp.UnitRecorder.exit(__rec);
+     }
+-
+-    assertThat(
+-            ImmutableList.builder()
+-                .addAll(compiler.getErrors())
+-                .addAll(compiler.getWarnings())
+-                .build())
+-        .comparingElementsUsing(JSCompCorrespondences.OWNING_DIAGNOSTIC_GROUP)
+-        .containsExactly(warnings);
+   }
+ 
+   /** Asserts that when compiling with the given compiler options, there is an error or warning. */
+@@ -247,26 +277,41 @@ abstract class IntegrationTestCase {
+       String[] original,
+       String @Nullable [] compiled,
+       DiagnosticGroup warnings) {
+-    Compiler compiler = compile(options, original);
+-    checkUnexpectedErrorsOrWarnings(compiler, 1);
+-
+-    if (compiled != null) {
+-      Node root = compiler.getRoot().getLastChild();
+-      Node expectedRoot = parseExpectedCode(compiled, options);
+-      assertNode(root).usingSerializer(compiler::toSource).isEqualTo(expectedRoot);
++    com.google.javascript.jscomp.UnitRecorder.Rec __rec =
++        com.google.javascript.jscomp.UnitRecorder.enter(this, "integration", "test_warning");
++    if (__rec != null) {
++      __recordIntegration(__rec, options, original, null, compiled, new DiagnosticGroup[] {warnings});
+     }
+-
+-    DiagnosticType diagnostic;
+-    if (compiler.getErrorCount() == 1) {
+-      diagnostic = compiler.getErrors().get(0).type();
+-    } else {
+-      diagnostic = compiler.getWarnings().get(0).type();
++    try {
++      Compiler compiler = compile(options, original);
++      checkUnexpectedErrorsOrWarnings(compiler, 1);
++  
++      if (compiled != null) {
++        Node root = compiler.getRoot().getLastChild();
++        Node expectedRoot = parseExpectedCode(compiled, options);
++        assertNode(root).usingSerializer(compiler::toSource).isEqualTo(expectedRoot);
++      }
++  
++      DiagnosticType diagnostic;
++      if (compiler.getErrorCount() == 1) {
++        diagnostic = compiler.getErrors().get(0).type();
++      } else {
++        diagnostic = compiler.getWarnings().get(0).type();
++      }
++      assertWithMessage(
++              "Error not in expected diagnostic group. Error: %s\nExpected group: %s",
++              diagnostic.key, warnings)
++          .that(warnings.matches(diagnostic))
++          .isTrue();
++        } catch (Throwable __t) {
++      com.google.javascript.jscomp.UnitRecorder.fail(__rec, __t);
++      throw __t;
++    } finally {
++      if (__rec != null) {
++        __recordIntegrationExit(__rec);
++      }
++      com.google.javascript.jscomp.UnitRecorder.exit(__rec);
+     }
+-    assertWithMessage(
+-            "Error not in expected diagnostic group. Error: %s\nExpected group: %s",
+-            diagnostic.key, warnings)
+-        .that(warnings.matches(diagnostic))
+-        .isTrue();
+   }
+ 
+   /** Asserts that there is at least one parse error. */
+@@ -277,20 +322,35 @@ abstract class IntegrationTestCase {
+   /** Asserts that there is at least one parse error. */
+   protected void testParseError(
+       CompilerOptions options, String original, @Nullable String compiled) {
+-    Compiler compiler = compile(options, original);
+-    for (JSError error : compiler.getErrors()) {
+-      if (!DiagnosticGroups.PARSING.matches(error)) {
+-        assertWithMessage("Found unexpected error type %s:\n%s", error.type(), error).fail();
+-      }
++    com.google.javascript.jscomp.UnitRecorder.Rec __rec =
++        com.google.javascript.jscomp.UnitRecorder.enter(this, "integration", "testParseError");
++    if (__rec != null) {
++      __recordIntegration(__rec, options, new String[] {original}, null, compiled == null ? null : new String[] {compiled}, null);
+     }
+-    assertWithMessage("Unexpected warnings: %s", Joiner.on("\n").join(compiler.getWarnings()))
+-        .that(compiler.getWarnings().size())
+-        .isEqualTo(0);
+-
+-    if (compiled != null) {
+-      Node root = compiler.getRoot().getLastChild();
+-      Node expectedRoot = parseExpectedCode(new String[] {compiled}, options);
+-      assertNode(root).usingSerializer(compiler::toSource).isEqualTo(expectedRoot);
++    try {
++      Compiler compiler = compile(options, original);
++      for (JSError error : compiler.getErrors()) {
++        if (!DiagnosticGroups.PARSING.matches(error)) {
++          assertWithMessage("Found unexpected error type %s:\n%s", error.type(), error).fail();
++        }
++      }
++      assertWithMessage("Unexpected warnings: %s", Joiner.on("\n").join(compiler.getWarnings()))
++          .that(compiler.getWarnings().size())
++          .isEqualTo(0);
++  
++      if (compiled != null) {
++        Node root = compiler.getRoot().getLastChild();
++        Node expectedRoot = parseExpectedCode(new String[] {compiled}, options);
++        assertNode(root).usingSerializer(compiler::toSource).isEqualTo(expectedRoot);
++      }
++        } catch (Throwable __t) {
++      com.google.javascript.jscomp.UnitRecorder.fail(__rec, __t);
++      throw __t;
++    } finally {
++      if (__rec != null) {
++        __recordIntegrationExit(__rec);
++      }
++      com.google.javascript.jscomp.UnitRecorder.exit(__rec);
+     }
+   }
+ 
+@@ -326,11 +386,26 @@ abstract class IntegrationTestCase {
+ 
+   @CanIgnoreReturnValue
+   protected Compiler compile(CompilerOptions options, ImmutableList<JSChunk> chunks) {
+-    Compiler compiler = createCompiler(new BlackHoleErrorManager());
+-
+-    lastCompiler = compiler;
+-    var unused = compiler.compileChunks(externs, chunks, options);
+-    return compiler;
++    com.google.javascript.jscomp.UnitRecorder.Rec __rec =
++        com.google.javascript.jscomp.UnitRecorder.enter(this, "integration", "compile");
++    if (__rec != null) {
++      __recordIntegration(__rec, options, null, chunks, null, null);
++    }
++    try {
++      Compiler compiler = createCompiler(new BlackHoleErrorManager());
++  
++      lastCompiler = compiler;
++      var unused = compiler.compileChunks(externs, chunks, options);
++      return compiler;
++        } catch (Throwable __t) {
++      com.google.javascript.jscomp.UnitRecorder.fail(__rec, __t);
++      throw __t;
++    } finally {
++      if (__rec != null) {
++        __recordIntegrationExit(__rec);
++      }
++      com.google.javascript.jscomp.UnitRecorder.exit(__rec);
++    }
+   }
+ 
+   Compiler createCompiler(ErrorManager errorManager) {
+@@ -346,9 +421,24 @@ abstract class IntegrationTestCase {
+   }
+ 
+   protected void testNoWarnings(CompilerOptions options, String[] sources) {
+-    Compiler compiler = compile(options, sources);
+-    assertThat(compiler.getErrors()).isEmpty();
+-    assertThat(compiler.getWarnings()).isEmpty();
++    com.google.javascript.jscomp.UnitRecorder.Rec __rec =
++        com.google.javascript.jscomp.UnitRecorder.enter(this, "integration", "testNoWarnings");
++    if (__rec != null) {
++      __recordIntegration(__rec, options, sources, null, null, null);
++    }
++    try {
++      Compiler compiler = compile(options, sources);
++      assertThat(compiler.getErrors()).isEmpty();
++      assertThat(compiler.getWarnings()).isEmpty();
++        } catch (Throwable __t) {
++      com.google.javascript.jscomp.UnitRecorder.fail(__rec, __t);
++      throw __t;
++    } finally {
++      if (__rec != null) {
++        __recordIntegrationExit(__rec);
++      }
++      com.google.javascript.jscomp.UnitRecorder.exit(__rec);
++    }
+   }
+ 
+   /**
+@@ -377,4 +467,58 @@ abstract class IntegrationTestCase {
+ 
+     return compiler.getRoot().getLastChild();
+   }
++
++  // ---- closure-rs recording hook (oracle/patches/0002-recording-hooks.patch) ----
++  private void __recordIntegration(
++      com.google.javascript.jscomp.UnitRecorder.Rec rec,
++      CompilerOptions options,
++      String[] original,
++      List<JSChunk> chunks,
++      String[] compiled,
++      DiagnosticGroup[] warnings) {
++    com.google.javascript.jscomp.UnitRecorder.Rec r = rec;
++    com.google.gson.JsonObject in = com.google.javascript.jscomp.UnitRecorder.obj(r, "inputs");
++    in.add("externs", com.google.javascript.jscomp.UnitRecorder.sourceFiles(externs));
++    if (original != null) {
++      in.add("originals", com.google.javascript.jscomp.UnitRecorder.strings(original));
++      in.addProperty("inputFileNamePrefix", inputFileNamePrefix);
++      in.addProperty("inputFileNameSuffix", inputFileNameSuffix);
++    }
++    if (chunks != null) {
++      in.add("chunks", com.google.javascript.jscomp.UnitRecorder.chunks(chunks));
++    }
++    com.google.gson.JsonObject ex = com.google.javascript.jscomp.UnitRecorder.obj(r, "expected");
++    ex.add("output", com.google.javascript.jscomp.UnitRecorder.strings(compiled));
++    com.google.gson.JsonArray ws = new com.google.gson.JsonArray();
++    if (warnings != null) {
++      for (DiagnosticGroup g : warnings) {
++        ws.add(com.google.javascript.jscomp.UnitRecorder.diagnosticGroup(g));
++      }
++    }
++    ex.add("diagnosticGroups", warnings == null ? com.google.gson.JsonNull.INSTANCE : ws);
++    com.google.gson.JsonObject cmp = com.google.javascript.jscomp.UnitRecorder.obj(r, "comparison");
++    cmp.addProperty("mode", "ast_assertNode");
++    r.o.add("options", com.google.javascript.jscomp.UnitRecorder.optionsDiff(options, r.unrep));
++    com.google.gson.JsonObject h = com.google.javascript.jscomp.UnitRecorder.obj(r, "harness");
++    h.addProperty("base", IntegrationTestCase.class.getName());
++    h.add("fields", com.google.javascript.jscomp.UnitRecorder.fields(
++        this, IntegrationTestCase.class, Object.class, "harness", null, 0));
++    h.add("overrides", com.google.javascript.jscomp.UnitRecorder.overrides(this, IntegrationTestCase.class));
++    r.o.add("testFields", com.google.javascript.jscomp.UnitRecorder.testFields(this, IntegrationTestCase.class, r.unrep));
++  }
++
++  private void __recordIntegrationExit(com.google.javascript.jscomp.UnitRecorder.Rec rec) {
++    com.google.gson.JsonObject obs = com.google.javascript.jscomp.UnitRecorder.obj(rec, "observed");
++    if (lastCompiler == null) {
++      return;
++    }
++    obs.addProperty("compilerClass", lastCompiler.getClass().getName());
++    try {
++      obs.add("errors", com.google.javascript.jscomp.UnitRecorder.errors(lastCompiler.getErrors()));
++      obs.add("warnings", com.google.javascript.jscomp.UnitRecorder.errors(lastCompiler.getWarnings()));
++      obs.addProperty("output", lastCompiler.getRoot() == null ? null : lastCompiler.toSource());
++    } catch (RuntimeException e) {
++      obs.addProperty("observeError", e.toString());
++    }
++  }
+ }

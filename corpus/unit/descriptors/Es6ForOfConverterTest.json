@@ -1,0 +1,14 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6ForOfConverterTest.java getProcessor (lines 56-64; a PhaseOptimizer of makePassFactory method references), replayed through helper Es6ForOfConverterTest_Helpers.GetProcessor. customSetUp (lines 40-54) affects only harness fields (enableNormalize, setAcceptedLanguage, setLanguageOut, enableTypeCheck, enableTypeInfoValidation, replaceTypesWithColors, enableMultistageCompilation, setGenericNameReplacements), which come from the record.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {"helper": "Es6ForOfConverterTest_Helpers.GetProcessor"},
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "The test class declares no instance fields (EXTERNS_BASE is a static constant; the externs reach the record through harness.fields). Not recorded: the getLastCompiler() node assertions after test() in one method (the test's own follow-up assertions)."
+}

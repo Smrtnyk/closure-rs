@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckNullabilityModifiersTest.java getProcessor (lines 32-35), bb8c8e7; getOptions (lines 37-42) is captured by the record's options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.lint.CheckNullabilityModifiers",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "The test class declares no fields and no setUp; getOptions only sets LINT_CHECKS to WARNING, which is in the options diff."
+}

@@ -1,0 +1,4 @@
+# class	path	size	sha256 of entries joined as key=>value\n, or EXC:class:message  (ResourceLoader.loadPropertiesMap)
+com.google.javascript.jscomp.RewritePolyfills	js/polyfills.txt	208	6ff7c881e7fe6d86b6067273649d1d9f4425c6816bf406da7edbad50a4cb9f3a
+com.google.javascript.jscomp.js.RuntimeJsLibManager	transpilation_libs.txt	0	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+com.google.javascript.jscomp.Compiler	js/base.js	EXC:java.lang.IllegalArgumentException:Multiple entries with same key: /**=@const Locals for goog.scope */ and /**=@const */

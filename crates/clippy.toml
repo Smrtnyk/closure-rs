@@ -1,0 +1,5 @@
+# docs/PORTING.md §6 item 3: deterministic iteration only. Applies to every crate under crates/.
+disallowed-types = [
+    { path = "std::collections::HashMap", reason = "use IndexMap, or a Java-order map where output depends on iteration (docs/PORTING.md §5, §8)" },
+    { path = "std::collections::HashSet", reason = "use IndexSet, or a Java-order set where output depends on iteration (docs/PORTING.md §5, §8)" },
+]

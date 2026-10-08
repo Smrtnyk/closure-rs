@@ -1,0 +1,3 @@
+"not_a_value" is not a valid value for "--dependency_mode"
+Sample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]
+Run with --help for all options and details

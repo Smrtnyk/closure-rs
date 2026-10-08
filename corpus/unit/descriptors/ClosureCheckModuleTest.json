@@ -1,0 +1,36 @@
+{
+  "source": "test/com/google/javascript/jscomp/ClosureCheckModuleTest.java getProcessor (lines 50-59); getOptions (lines 61-67) is captured by the record's options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "lambda": ["externs", "root"],
+        "iface": "com.google.javascript.jscomp.CompilerPass",
+        "body": {
+          "let": [
+            ["gatherModuleMetadata",
+             {"new": "com.google.javascript.jscomp.GatherModuleMetadata",
+              "args": [
+                {"compiler": true},
+                {"bool": false},
+                {"enum": "com.google.javascript.jscomp.deps.ModuleLoader$ResolutionMode", "name": "BROWSER"}
+              ]}]
+          ],
+          "in": {
+            "do": [
+              {"call": {"var": "gatherModuleMetadata"}, "method": "process",
+               "args": [{"var": "externs"}, {"var": "root"}]},
+              {"call": {"new": "com.google.javascript.jscomp.ClosureCheckModule",
+                        "args": [{"compiler": true},
+                                 {"call": {"compiler": true}, "method": "getModuleMetadataMap", "args": []}]},
+               "method": "process",
+               "args": [{"var": "externs"}, {"var": "root"}]}
+            ],
+            "value": {"null": true}
+          }
+        }
+      }
+    }
+  ],
+  "note": "getProcessor returns the lambda (externs, root) -> { GatherModuleMetadata gatherModuleMetadata = new GatherModuleMetadata(compiler, false, ResolutionMode.BROWSER); gatherModuleMetadata.process(externs, root); new ClosureCheckModule(compiler, compiler.getModuleMetadataMap()).process(externs, root); }. It is modelled with a DSL lambda (DSL.md pattern 'a pass built at process time'): the body runs at process time, so getModuleMetadataMap() is read after GatherModuleMetadata has run, exactly as in the test. Both passes are built with 'new', so --mutate-noop reaches ClosureCheckModule and GatherModuleMetadata."
+}

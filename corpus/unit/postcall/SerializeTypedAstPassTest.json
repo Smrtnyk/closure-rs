@@ -1,0 +1,111 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.serialization.SerializeTypedAstPassTest",
+ "methods": [
+  {
+   "method": "doesNotSerializeInputSourceMappingURL",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.astConsumer"
+   ],
+   "note": "The hooked call is the test(...) inside compile(TestPart...) (lines 488-497); the pass under test hands the TypedAst to astConsumer, the lambda ast -> resultAst[0] = ast, and the test then reads it back through SerializationResult. testFieldsAfter.astConsumer holds that lambda's captured TypedAst[1] after the call in the neutral protobuf encoding (FORMAT.md \"Neutral encodings\", D-017 item 2): every set field by descriptor name, no depth limit, string_pool.strings as strings and each LazyAst.script decoded into its AstNode tree. The descriptor opts in to testFieldsAfter on the shared helper holder, so replay compares the whole message (post state checked, no library-internal object dump). Asserted: code_ast[0].source_mapping_url is empty for a foo.js.map URL: the proto3 default, so the field is absent from the encoded LazyAst, and replay compares key sets exactly (lines 457-478); records [9]."
+  },
+  {
+   "method": "serializeInlineSourceMappingURL",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.astConsumer"
+   ],
+   "note": "The hooked call is the test(...) inside compile(TestPart...) (lines 488-497); the pass under test hands the TypedAst to astConsumer, the lambda ast -> resultAst[0] = ast, and the test then reads it back through SerializationResult. testFieldsAfter.astConsumer holds that lambda's captured TypedAst[1] after the call in the neutral protobuf encoding (FORMAT.md \"Neutral encodings\", D-017 item 2): every set field by descriptor name, no depth limit, string_pool.strings as strings and each LazyAst.script decoded into its AstNode tree. The descriptor opts in to testFieldsAfter on the shared helper holder, so replay compares the whole message (post state checked, no library-internal object dump). Asserted: code_ast[0].source_mapping_url equals the base64 payload of the inline data URL, without its prefix (lines 429-455); records [10]."
+  },
+  {
+   "method": "serializesExternProperties",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.astConsumer"
+   ],
+   "note": "The hooked call is the test(...) inside compile(TestPart...) (lines 488-497); the pass under test hands the TypedAst to astConsumer, the lambda ast -> resultAst[0] = ast, and the test then reads it back through SerializationResult. testFieldsAfter.astConsumer holds that lambda's captured TypedAst[1] after the call in the neutral protobuf encoding (FORMAT.md \"Neutral encodings\", D-017 item 2): every set field by descriptor name, no depth limit, string_pool.strings as strings and each LazyAst.script decoded into its AstNode tree. The descriptor opts in to testFieldsAfter on the shared helper holder, so replay compares the whole message (post state checked, no library-internal object dump). Asserted: externs_summary.prop_name_ptr containsAtLeast the string-pool offsets of method and arg (lines 410-427); records [3]."
+  },
+  {
+   "method": "serializesExternsFile",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.astConsumer"
+   ],
+   "note": "The hooked call is the test(...) inside compile(TestPart...) (lines 488-497); the pass under test hands the TypedAst to astConsumer, the lambda ast -> resultAst[0] = ast, and the test then reads it back through SerializationResult. testFieldsAfter.astConsumer holds that lambda's captured TypedAst[1] after the call in the neutral protobuf encoding (FORMAT.md \"Neutral encodings\", D-017 item 2): every set field by descriptor name, no depth limit, string_pool.strings as strings and each LazyAst.script decoded into its AstNode tree. The descriptor opts in to testFieldsAfter on the shared helper holder, so replay compares the whole message (post state checked, no library-internal object dump). Asserted: the source_file_pool entry that extern_ast[0].source_file points to has filename externs (lines 356-373); records [6]."
+  },
+  {
+   "method": "serializesSourceOfSyntheticCode",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.astConsumer"
+   ],
+   "note": "The hooked call is the test(...) inside compile(TestPart...) (lines 488-497); the pass under test hands the TypedAst to astConsumer, the lambda ast -> resultAst[0] = ast, and the test then reads it back through SerializationResult. testFieldsAfter.astConsumer holds that lambda's captured TypedAst[1] after the call in the neutral protobuf encoding (FORMAT.md \"Neutral encodings\", D-017 item 2): every set field by descriptor name, no depth limit, string_pool.strings as strings and each LazyAst.script decoded into its AstNode tree. The descriptor opts in to testFieldsAfter on the shared helper holder, so replay compares the whole message (post state checked, no library-internal object dump). Asserted: code_ast[0].source_file names testcode in the source_file_pool; the first child of the decoded script AstNode (the injected base library) points to a file ending in js/base.js; its child and the last statement have source_file 0 (inherit the parent's file) (lines 375-408); records [5]."
+  },
+  {
+   "method": "testAst_arrowFunction",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.astConsumer"
+   ],
+   "note": "The hooked call is the test(...) inside compile(TestPart...) (lines 488-497); the pass under test hands the TypedAst to astConsumer, the lambda ast -> resultAst[0] = ast, and the test then reads it back through SerializationResult. testFieldsAfter.astConsumer holds that lambda's captured TypedAst[1] after the call in the neutral protobuf encoding (FORMAT.md \"Neutral encodings\", D-017 item 2): every set field by descriptor name, no depth limit, string_pool.strings as strings and each LazyAst.script decoded into its AstNode tree. The descriptor opts in to testFieldsAfter on the shared helper holder, so replay compares the whole message (post state checked, no library-internal object dump). Asserted: result.sourceNodes.get(0), the AstNode that SerializationResult parses from code_ast[0].script, equals the expected AstNode tree ignoring line, type and column: FUNCTION_LITERAL with the ARROW_FN boolean property, an empty-name IDENTIFIER, PARAMETER_LIST and STRING_LITERAL hello (lines 268-302); records [7]."
+  },
+  {
+   "method": "testAst_constNumber",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.astConsumer"
+   ],
+   "note": "The hooked call is the test(...) inside compile(TestPart...) (lines 488-497); the pass under test hands the TypedAst to astConsumer, the lambda ast -> resultAst[0] = ast, and the test then reads it back through SerializationResult. testFieldsAfter.astConsumer holds that lambda's captured TypedAst[1] after the call in the neutral protobuf encoding (FORMAT.md \"Neutral encodings\", D-017 item 2): every set field by descriptor name, no depth limit, string_pool.strings as strings and each LazyAst.script decoded into its AstNode tree. The descriptor opts in to testFieldsAfter on the shared helper holder, so replay compares the whole message (post state checked, no library-internal object dump). Asserted: result.sourceNodes.get(0), the AstNode that SerializationResult parses from code_ast[0].script, equals the expected AstNode tree (ignoring ObjectTypeProto uuid and own_property): SOURCE_FILE > CONST_DECLARATION > IDENTIFIER x (string and original-name pointers into the string pool, relative column, NUMBER type) > NUMBER_LITERAL 5 (test lines 88-119); records [4]."
+  },
+  {
+   "method": "testAst_externs",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.astConsumer"
+   ],
+   "note": "The hooked call is the test(...) inside compile(TestPart...) (lines 488-497); the pass under test hands the TypedAst to astConsumer, the lambda ast -> resultAst[0] = ast, and the test then reads it back through SerializationResult. testFieldsAfter.astConsumer holds that lambda's captured TypedAst[1] after the call in the neutral protobuf encoding (FORMAT.md \"Neutral encodings\", D-017 item 2): every set field by descriptor name, no depth limit, string_pool.strings as strings and each LazyAst.script decoded into its AstNode tree. The descriptor opts in to testFieldsAfter on the shared helper holder, so replay compares the whole message (post state checked, no library-internal object dump). Asserted: externNodes has size 2: the TypedAst has two extern_ast LazyAst entries, the default externs file and the @externs source (lines 121-125); records [11]."
+  },
+  {
+   "method": "testAst_letString",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.astConsumer"
+   ],
+   "note": "The hooked call is the test(...) inside compile(TestPart...) (lines 488-497); the pass under test hands the TypedAst to astConsumer, the lambda ast -> resultAst[0] = ast, and the test then reads it back through SerializationResult. testFieldsAfter.astConsumer holds that lambda's captured TypedAst[1] after the call in the neutral protobuf encoding (FORMAT.md \"Neutral encodings\", D-017 item 2): every set field by descriptor name, no depth limit, string_pool.strings as strings and each LazyAst.script decoded into its AstNode tree. The descriptor opts in to testFieldsAfter on the shared helper holder, so replay compares the whole message (post state checked, no library-internal object dump). Asserted: result.sourceNodes.get(0), the AstNode that SerializationResult parses from code_ast[0].script, equals the expected AstNode tree ignoring relative line and column: LET_DECLARATION > IDENTIFIER s > STRING_LITERAL hello, with string-pool pointers and STRING type (lines 161-192); records [13]."
+  },
+  {
+   "method": "testAst_numberInCast",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.astConsumer"
+   ],
+   "note": "The hooked call is the test(...) inside compile(TestPart...) (lines 488-497); the pass under test hands the TypedAst to astConsumer, the lambda ast -> resultAst[0] = ast, and the test then reads it back through SerializationResult. testFieldsAfter.astConsumer holds that lambda's captured TypedAst[1] after the call in the neutral protobuf encoding (FORMAT.md \"Neutral encodings\", D-017 item 2): every set field by descriptor name, no depth limit, string_pool.strings as strings and each LazyAst.script decoded into its AstNode tree. The descriptor opts in to testFieldsAfter on the shared helper holder, so replay compares the whole message (post state checked, no library-internal object dump). Asserted: result.sourceNodes.get(0), the AstNode that SerializationResult parses from code_ast[0].script, equals the expected AstNode tree ignoring line and column: the cast is not serialized; the NUMBER_LITERAL 1 carries the IS_PARENTHESIZED and COLOR_FROM_CAST boolean properties and the UNKNOWN type (lines 239-266); records [2]."
+  },
+  {
+   "method": "testAst_templateLit_illegalEscape",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.astConsumer"
+   ],
+   "note": "The hooked call is the test(...) inside compile(TestPart...) (lines 488-497); the pass under test hands the TypedAst to astConsumer, the lambda ast -> resultAst[0] = ast, and the test then reads it back through SerializationResult. testFieldsAfter.astConsumer holds that lambda's captured TypedAst[1] after the call in the neutral protobuf encoding (FORMAT.md \"Neutral encodings\", D-017 item 2): every set field by descriptor name, no depth limit, string_pool.strings as strings and each LazyAst.script decoded into its AstNode tree. The descriptor opts in to testFieldsAfter on the shared helper holder, so replay compares the whole message (post state checked, no library-internal object dump). Asserted: result.sourceNodes.get(0), the AstNode that SerializationResult parses from code_ast[0].script, equals the expected AstNode tree ignoring line, column and type: EXPRESSION_STATEMENT > TAGGED_TEMPLATELIT with the FREE_CALL boolean property > IDENTIFIER latex, TEMPLATELIT > TEMPLATELIT_STRING whose template_string_value has cooked pointer -1 and the raw string \\unicode (lines 194-237); records [12]."
+  },
+  {
+   "method": "testAst_typeSummaryFiles_areNotSerialized_orSearchedForTypes",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.astConsumer"
+   ],
+   "note": "The hooked call is the test(...) inside compile(TestPart...) (lines 488-497); the pass under test hands the TypedAst to astConsumer, the lambda ast -> resultAst[0] = ast, and the test then reads it back through SerializationResult. testFieldsAfter.astConsumer holds that lambda's captured TypedAst[1] after the call in the neutral protobuf encoding (FORMAT.md \"Neutral encodings\", D-017 item 2): every set field by descriptor name, no depth limit, string_pool.strings as strings and each LazyAst.script decoded into its AstNode tree. The descriptor opts in to testFieldsAfter on the shared helper holder, so replay compares the whole message (post state checked, no library-internal object dump). Asserted: the whole TypedAst of the first hooked call (closure externs, mandatory.js and the @typeSummary foo.i.js) isEqualTo the TypedAst of the second (closure externs and mandatory.js only): both records' messages are compared in full (lines 127-159); records [0, 1]."
+  },
+  {
+   "method": "testRewrittenGoogModule_containsOriginalNames",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.astConsumer"
+   ],
+   "note": "The hooked call is the test(...) inside compile(TestPart...) (lines 488-497); the pass under test hands the TypedAst to astConsumer, the lambda ast -> resultAst[0] = ast, and the test then reads it back through SerializationResult. testFieldsAfter.astConsumer holds that lambda's captured TypedAst[1] after the call in the neutral protobuf encoding (FORMAT.md \"Neutral encodings\", D-017 item 2): every set field by descriptor name, no depth limit, string_pool.strings as strings and each LazyAst.script decoded into its AstNode tree. The descriptor opts in to testFieldsAfter on the shared helper holder, so replay compares the whole message (post state checked, no library-internal object dump). Asserted: result.sourceNodes.get(0), the AstNode that SerializationResult parses from code_ast[0].script, equals the expected AstNode tree ignoring line, column and type: the SOURCE_FILE has the GOOG_MODULE property, the module$exports$a$b$c VAR_DECLARATION has IS_NAMESPACE and JSDOC_CONST, and the rewritten function and its parameter keep original-name pointers to f and x (lines 304-354); records [8]."
+  }
+ ],
+ "note": "Classify round 2, batch 3: all 13 flagged methods are captured via testFieldsAfter.astConsumer. They assert only on the serialized TypedAst message, which the v7 records hold in full in the neutral protobuf encoding; round 1 had left them unclassified until that encoding existed. No method is a Rust unit test."
+}

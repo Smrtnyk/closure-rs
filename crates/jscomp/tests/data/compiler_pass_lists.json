@@ -1,0 +1,7279 @@
+[
+  {
+    "configuration": "ws",
+    "flags": [
+      "--compilation_level=WHITESPACE_ONLY"
+    ],
+    "whitespace": [
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "whitespaceWrapGoogModules",
+        "loop": false
+      }
+    ],
+    "transpile": [
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "TranspileOnlyClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      }
+    ],
+    "checks": {
+      "error": "options.getSkipNonTranspilationPasses() cannot be mixed with PassConfig::getChecks. Call PassConfig::getTranspileOnlyPasses instead."
+    },
+    "optimizations": [],
+    "finalizations": [
+      {
+        "name": "beforeChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "afterChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "beforeExtractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "beforeRenameProperties",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "postNormalizePeephole",
+        "loop": false
+      },
+      {
+        "name": "denormalize",
+        "loop": false
+      },
+      {
+        "name": "beforeVariableRenaming",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "optimizeToEs6",
+        "loop": false
+      },
+      {
+        "name": "checkAstValidity",
+        "loop": false
+      },
+      {
+        "name": "varCheckValidity",
+        "loop": false
+      }
+    ]
+  },
+  {
+    "configuration": "simple",
+    "flags": [
+      "--compilation_level=SIMPLE"
+    ],
+    "whitespace": [
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "whitespaceWrapGoogModules",
+        "loop": false
+      }
+    ],
+    "transpile": [
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "TranspileOnlyClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      }
+    ],
+    "checks": [
+      {
+        "name": "ADD_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "checkJsDocAndEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "checkTypeImportCodeReferences",
+        "loop": false
+      },
+      {
+        "name": "declaredGlobalExternsOnWindow",
+        "loop": false
+      },
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "checkGoogRequires",
+        "loop": false
+      },
+      {
+        "name": "checkStrictMode",
+        "loop": false
+      },
+      {
+        "name": "closureCheckModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "checkSideEffects",
+        "loop": false
+      },
+      {
+        "name": "closureGoogScopeAliases",
+        "loop": false
+      },
+      {
+        "name": "closurePrimitives",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "beforeTypeChecking",
+        "loop": false
+      },
+      {
+        "name": "clearTypedScopeCreatorPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "closureRewriteModule",
+        "loop": false
+      },
+      {
+        "name": "REWRITE_DYNAMIC_IMPORT",
+        "loop": false
+      },
+      {
+        "name": "clearTopTypedScopePass",
+        "loop": false
+      },
+      {
+        "name": "suspiciousCode",
+        "loop": false
+      },
+      {
+        "name": "j2clSourceFileChecker",
+        "loop": false
+      },
+      {
+        "name": "checkControlFlow",
+        "loop": false
+      },
+      {
+        "name": "checkConsts",
+        "loop": false
+      },
+      {
+        "name": "rewriteCallerCodeLocation",
+        "loop": false
+      },
+      {
+        "name": "processDefines_CHECK",
+        "loop": false
+      },
+      {
+        "name": "j2clChecksPass",
+        "loop": false
+      },
+      {
+        "name": "generateExports",
+        "loop": false
+      },
+      {
+        "name": "afterStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "MERGE_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "removeWeakSources",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeSerialization",
+        "loop": false
+      }
+    ],
+    "optimizations": [
+      {
+        "name": "removeCastNodes",
+        "loop": false
+      },
+      {
+        "name": "typesToColors",
+        "loop": false
+      },
+      {
+        "name": "removeUnnecessarySyntheticExterns",
+        "loop": false
+      },
+      {
+        "name": "j2clPass",
+        "loop": false
+      },
+      {
+        "name": "TranspileAndOptimizeClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "RewritePolyfills",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "closureProvidesRequires",
+        "loop": false
+      },
+      {
+        "name": "closureReplaceGetCssName",
+        "loop": false
+      },
+      {
+        "name": "processDefines_OPTIMIZE",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationsTranspilation",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "j2clUtilGetDefineRewriterPass",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardOptimizations",
+        "loop": false
+      },
+      {
+        "name": "j2clAssertRemovalPass",
+        "loop": false
+      },
+      {
+        "name": "replaceToggles",
+        "loop": false
+      },
+      {
+        "name": "inlineAndCollapseProperties",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "obfuscationPassMarker",
+        "loop": false
+      },
+      {
+        "name": "optimizationsHalfwayPoint",
+        "loop": false
+      },
+      {
+        "name": "closureOptimizePrimitives",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      },
+      {
+        "name": "beforeMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "j2clConstantHoisterPass",
+        "loop": true
+      },
+      {
+        "name": "j2clClinitPass",
+        "loop": true
+      },
+      {
+        "name": "inlineFunctions",
+        "loop": true
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "deadAssignmentsElimination",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      }
+    ],
+    "finalizations": [
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "beforeChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "afterChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "beforeExtractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "beforeRenameProperties",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      },
+      {
+        "name": "convertToDottedProperties",
+        "loop": false
+      },
+      {
+        "name": "coalesceVariableNames",
+        "loop": false
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "postNormalizePeephole",
+        "loop": false
+      },
+      {
+        "name": "collapseVariableDeclarations",
+        "loop": false
+      },
+      {
+        "name": "denormalize",
+        "loop": false
+      },
+      {
+        "name": "beforeVariableRenaming",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "renameVars",
+        "loop": false
+      },
+      {
+        "name": "renameLabels",
+        "loop": false
+      },
+      {
+        "name": "latePeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "stripSideEffectProtection",
+        "loop": false
+      },
+      {
+        "name": "optimizeToEs6",
+        "loop": false
+      },
+      {
+        "name": "checkAstValidity",
+        "loop": false
+      },
+      {
+        "name": "varCheckValidity",
+        "loop": false
+      }
+    ]
+  },
+  {
+    "configuration": "advanced",
+    "flags": [
+      "--compilation_level=ADVANCED"
+    ],
+    "whitespace": [
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "whitespaceWrapGoogModules",
+        "loop": false
+      }
+    ],
+    "transpile": [
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "TranspileOnlyClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      }
+    ],
+    "checks": [
+      {
+        "name": "ADD_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "checkJsDocAndEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "checkTypeImportCodeReferences",
+        "loop": false
+      },
+      {
+        "name": "declaredGlobalExternsOnWindow",
+        "loop": false
+      },
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "checkGoogRequires",
+        "loop": false
+      },
+      {
+        "name": "checkStrictMode",
+        "loop": false
+      },
+      {
+        "name": "closureCheckModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "checkSideEffects",
+        "loop": false
+      },
+      {
+        "name": "closureGoogScopeAliases",
+        "loop": false
+      },
+      {
+        "name": "closurePrimitives",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "checkRegExp",
+        "loop": false
+      },
+      {
+        "name": "beforeTypeChecking",
+        "loop": false
+      },
+      {
+        "name": "inferTypes",
+        "loop": false
+      },
+      {
+        "name": "checkTypes",
+        "loop": false
+      },
+      {
+        "name": "clearTypedScopeCreatorPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "closureRewriteModule",
+        "loop": false
+      },
+      {
+        "name": "REWRITE_DYNAMIC_IMPORT",
+        "loop": false
+      },
+      {
+        "name": "clearTopTypedScopePass",
+        "loop": false
+      },
+      {
+        "name": "suspiciousCode",
+        "loop": false
+      },
+      {
+        "name": "j2clSourceFileChecker",
+        "loop": false
+      },
+      {
+        "name": "checkControlFlow",
+        "loop": false
+      },
+      {
+        "name": "checkAccessControls",
+        "loop": false
+      },
+      {
+        "name": "checkConsts",
+        "loop": false
+      },
+      {
+        "name": "rewriteCallerCodeLocation",
+        "loop": false
+      },
+      {
+        "name": "processDefines_CHECK",
+        "loop": false
+      },
+      {
+        "name": "j2clChecksPass",
+        "loop": false
+      },
+      {
+        "name": "generateExports",
+        "loop": false
+      },
+      {
+        "name": "afterStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "MERGE_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "removeWeakSources",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeSerialization",
+        "loop": false
+      }
+    ],
+    "optimizations": [
+      {
+        "name": "removeCastNodes",
+        "loop": false
+      },
+      {
+        "name": "typesToColors",
+        "loop": false
+      },
+      {
+        "name": "removeUnnecessarySyntheticExterns",
+        "loop": false
+      },
+      {
+        "name": "j2clPass",
+        "loop": false
+      },
+      {
+        "name": "TranspileAndOptimizeClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "RewritePolyfills",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "closureProvidesRequires",
+        "loop": false
+      },
+      {
+        "name": "replaceMessages",
+        "loop": false
+      },
+      {
+        "name": "closureReplaceGetCssName",
+        "loop": false
+      },
+      {
+        "name": "processDefines_OPTIMIZE",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationsTranspilation",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "j2clUtilGetDefineRewriterPass",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardOptimizations",
+        "loop": false
+      },
+      {
+        "name": "closureCodeRemoval",
+        "loop": false
+      },
+      {
+        "name": "j2clAssertRemovalPass",
+        "loop": false
+      },
+      {
+        "name": "replaceToggles",
+        "loop": false
+      },
+      {
+        "name": "inlineAndCollapseProperties",
+        "loop": false
+      },
+      {
+        "name": "replaceIdGenerators",
+        "loop": false
+      },
+      {
+        "name": "j2clPropertyInlinerPass",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "obfuscationPassMarker",
+        "loop": false
+      },
+      {
+        "name": "earlyInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "earlyPeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "disambiguateProperties",
+        "loop": false
+      },
+      {
+        "name": "markPureFunctions",
+        "loop": false
+      },
+      {
+        "name": "optimizationsHalfwayPoint",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationLoop",
+        "loop": false
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterEarlyOptimizationLoop",
+        "loop": false
+      },
+      {
+        "name": "closureOptimizePrimitives",
+        "loop": false
+      },
+      {
+        "name": "crossChunkCodeMotion",
+        "loop": true
+      },
+      {
+        "name": "devirtualizeMethods",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      },
+      {
+        "name": "beforeMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "inlineSimpleMethods",
+        "loop": true
+      },
+      {
+        "name": "inlineProperties",
+        "loop": true
+      },
+      {
+        "name": "deadPropertyAssignmentElimination",
+        "loop": true
+      },
+      {
+        "name": "optimizeCalls",
+        "loop": true
+      },
+      {
+        "name": "j2clConstantHoisterPass",
+        "loop": true
+      },
+      {
+        "name": "j2clClinitPass",
+        "loop": true
+      },
+      {
+        "name": "inlineFunctions",
+        "loop": true
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "deadAssignmentsElimination",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      }
+    ],
+    "finalizations": [
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "beforeChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "crossChunkCodeMotion",
+        "loop": true
+      },
+      {
+        "name": "crossChunkMethodMotion",
+        "loop": true
+      },
+      {
+        "name": "afterChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "optimizeConstructors",
+        "loop": false
+      },
+      {
+        "name": "collapseAnonymousFunctions",
+        "loop": false
+      },
+      {
+        "name": "beforeExtractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "extractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "ambiguateProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeRenameProperties",
+        "loop": false
+      },
+      {
+        "name": "renameProperties",
+        "loop": false
+      },
+      {
+        "name": "gatherRawExports",
+        "loop": false
+      },
+      {
+        "name": "convertToDottedProperties",
+        "loop": false
+      },
+      {
+        "name": "coalesceVariableNames",
+        "loop": false
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "postNormalizePeephole",
+        "loop": false
+      },
+      {
+        "name": "collapseVariableDeclarations",
+        "loop": false
+      },
+      {
+        "name": "denormalize",
+        "loop": false
+      },
+      {
+        "name": "beforeVariableRenaming",
+        "loop": false
+      },
+      {
+        "name": "renameVars",
+        "loop": false
+      },
+      {
+        "name": "renameLabels",
+        "loop": false
+      },
+      {
+        "name": "latePeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "stripSideEffectProtection",
+        "loop": false
+      },
+      {
+        "name": "optimizeToEs6",
+        "loop": false
+      },
+      {
+        "name": "checkAstValidity",
+        "loop": false
+      },
+      {
+        "name": "varCheckValidity",
+        "loop": false
+      }
+    ]
+  },
+  {
+    "configuration": "advanced_strict",
+    "flags": [
+      "--compilation_level=ADVANCED",
+      "--warning_level=VERBOSE",
+      "--jscomp_error=*"
+    ],
+    "whitespace": [
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "whitespaceWrapGoogModules",
+        "loop": false
+      }
+    ],
+    "transpile": [
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "TranspileOnlyClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      }
+    ],
+    "checks": [
+      {
+        "name": "ADD_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "checkJsDocAndEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "checkTypeImportCodeReferences",
+        "loop": false
+      },
+      {
+        "name": "lintChecks",
+        "loop": false
+      },
+      {
+        "name": "checkRequiresAndProvidesSorted",
+        "loop": false
+      },
+      {
+        "name": "checkExtraRequires",
+        "loop": false
+      },
+      {
+        "name": "checkMissingRequires",
+        "loop": false
+      },
+      {
+        "name": "declaredGlobalExternsOnWindow",
+        "loop": false
+      },
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "checkGoogRequires",
+        "loop": false
+      },
+      {
+        "name": "checkStrictMode",
+        "loop": false
+      },
+      {
+        "name": "closureCheckModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "checkSideEffects",
+        "loop": false
+      },
+      {
+        "name": "closureGoogScopeAliases",
+        "loop": false
+      },
+      {
+        "name": "closurePrimitives",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "checkRegExp",
+        "loop": false
+      },
+      {
+        "name": "beforeTypeChecking",
+        "loop": false
+      },
+      {
+        "name": "inferTypes",
+        "loop": false
+      },
+      {
+        "name": "checkTypes",
+        "loop": false
+      },
+      {
+        "name": "clearTypedScopeCreatorPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "closureRewriteModule",
+        "loop": false
+      },
+      {
+        "name": "REWRITE_DYNAMIC_IMPORT",
+        "loop": false
+      },
+      {
+        "name": "clearTopTypedScopePass",
+        "loop": false
+      },
+      {
+        "name": "suspiciousCode",
+        "loop": false
+      },
+      {
+        "name": "j2clSourceFileChecker",
+        "loop": false
+      },
+      {
+        "name": "checkControlFlow",
+        "loop": false
+      },
+      {
+        "name": "checkAccessControls",
+        "loop": false
+      },
+      {
+        "name": "checkConsts",
+        "loop": false
+      },
+      {
+        "name": "rewriteCallerCodeLocation",
+        "loop": false
+      },
+      {
+        "name": "processDefines_CHECK",
+        "loop": false
+      },
+      {
+        "name": "j2clChecksPass",
+        "loop": false
+      },
+      {
+        "name": "generateExports",
+        "loop": false
+      },
+      {
+        "name": "afterStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "MERGE_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "removeWeakSources",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeSerialization",
+        "loop": false
+      }
+    ],
+    "optimizations": [
+      {
+        "name": "removeCastNodes",
+        "loop": false
+      },
+      {
+        "name": "typesToColors",
+        "loop": false
+      },
+      {
+        "name": "removeUnnecessarySyntheticExterns",
+        "loop": false
+      },
+      {
+        "name": "j2clPass",
+        "loop": false
+      },
+      {
+        "name": "TranspileAndOptimizeClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "RewritePolyfills",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "closureProvidesRequires",
+        "loop": false
+      },
+      {
+        "name": "replaceMessages",
+        "loop": false
+      },
+      {
+        "name": "closureReplaceGetCssName",
+        "loop": false
+      },
+      {
+        "name": "processDefines_OPTIMIZE",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationsTranspilation",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "j2clUtilGetDefineRewriterPass",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardOptimizations",
+        "loop": false
+      },
+      {
+        "name": "closureCodeRemoval",
+        "loop": false
+      },
+      {
+        "name": "j2clAssertRemovalPass",
+        "loop": false
+      },
+      {
+        "name": "replaceToggles",
+        "loop": false
+      },
+      {
+        "name": "inlineAndCollapseProperties",
+        "loop": false
+      },
+      {
+        "name": "replaceIdGenerators",
+        "loop": false
+      },
+      {
+        "name": "j2clPropertyInlinerPass",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "obfuscationPassMarker",
+        "loop": false
+      },
+      {
+        "name": "earlyInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "earlyPeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "disambiguateProperties",
+        "loop": false
+      },
+      {
+        "name": "markPureFunctions",
+        "loop": false
+      },
+      {
+        "name": "optimizationsHalfwayPoint",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationLoop",
+        "loop": false
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterEarlyOptimizationLoop",
+        "loop": false
+      },
+      {
+        "name": "closureOptimizePrimitives",
+        "loop": false
+      },
+      {
+        "name": "crossChunkCodeMotion",
+        "loop": true
+      },
+      {
+        "name": "devirtualizeMethods",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      },
+      {
+        "name": "beforeMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "inlineSimpleMethods",
+        "loop": true
+      },
+      {
+        "name": "inlineProperties",
+        "loop": true
+      },
+      {
+        "name": "deadPropertyAssignmentElimination",
+        "loop": true
+      },
+      {
+        "name": "optimizeCalls",
+        "loop": true
+      },
+      {
+        "name": "j2clConstantHoisterPass",
+        "loop": true
+      },
+      {
+        "name": "j2clClinitPass",
+        "loop": true
+      },
+      {
+        "name": "inlineFunctions",
+        "loop": true
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "deadAssignmentsElimination",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      }
+    ],
+    "finalizations": [
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "beforeChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "crossChunkCodeMotion",
+        "loop": true
+      },
+      {
+        "name": "crossChunkMethodMotion",
+        "loop": true
+      },
+      {
+        "name": "afterChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "optimizeConstructors",
+        "loop": false
+      },
+      {
+        "name": "collapseAnonymousFunctions",
+        "loop": false
+      },
+      {
+        "name": "beforeExtractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "extractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "ambiguateProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeRenameProperties",
+        "loop": false
+      },
+      {
+        "name": "renameProperties",
+        "loop": false
+      },
+      {
+        "name": "gatherRawExports",
+        "loop": false
+      },
+      {
+        "name": "convertToDottedProperties",
+        "loop": false
+      },
+      {
+        "name": "coalesceVariableNames",
+        "loop": false
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "postNormalizePeephole",
+        "loop": false
+      },
+      {
+        "name": "collapseVariableDeclarations",
+        "loop": false
+      },
+      {
+        "name": "denormalize",
+        "loop": false
+      },
+      {
+        "name": "beforeVariableRenaming",
+        "loop": false
+      },
+      {
+        "name": "renameVars",
+        "loop": false
+      },
+      {
+        "name": "renameLabels",
+        "loop": false
+      },
+      {
+        "name": "latePeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "stripSideEffectProtection",
+        "loop": false
+      },
+      {
+        "name": "optimizeToEs6",
+        "loop": false
+      },
+      {
+        "name": "checkAstValidity",
+        "loop": false
+      },
+      {
+        "name": "varCheckValidity",
+        "loop": false
+      }
+    ]
+  },
+  {
+    "configuration": "lang_es5",
+    "flags": [
+      "--compilation_level=SIMPLE",
+      "--language_out=ECMASCRIPT5"
+    ],
+    "whitespace": [
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "whitespaceWrapGoogModules",
+        "loop": false
+      }
+    ],
+    "transpile": [
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "TranspileOnlyClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "RewritePolyfills",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "rewriteLogicalAssignmentOperatorsPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteOptionalChainingOperator",
+        "loop": false
+      },
+      {
+        "name": "rewriteNullishCoalesceOperator",
+        "loop": false
+      },
+      {
+        "name": "rewriteAsyncIteration",
+        "loop": false
+      },
+      {
+        "name": "rewriteObjectSpread",
+        "loop": false
+      },
+      {
+        "name": "rewriteAsyncFunctions",
+        "loop": false
+      },
+      {
+        "name": "rewriteExponentialOperator",
+        "loop": false
+      },
+      {
+        "name": "es6ConvertSuper",
+        "loop": false
+      },
+      {
+        "name": "Es6RewriteDestructuring",
+        "loop": false
+      },
+      {
+        "name": "Es6RewriteArrowFunction",
+        "loop": false
+      },
+      {
+        "name": "Es6RewriteClass",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteRestParameters",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteSpreadExpressions",
+        "loop": false
+      },
+      {
+        "name": "lateConvertEs6",
+        "loop": false
+      },
+      {
+        "name": "es6ForOf",
+        "loop": false
+      },
+      {
+        "name": "Es6RewriteBlockScopedFunctionDeclaration",
+        "loop": false
+      },
+      {
+        "name": "Es6RewriteBlockScopedDeclaration",
+        "loop": false
+      },
+      {
+        "name": "rewriteGenerators",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      }
+    ],
+    "checks": [
+      {
+        "name": "ADD_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "checkJsDocAndEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "checkTypeImportCodeReferences",
+        "loop": false
+      },
+      {
+        "name": "declaredGlobalExternsOnWindow",
+        "loop": false
+      },
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "checkGoogRequires",
+        "loop": false
+      },
+      {
+        "name": "checkStrictMode",
+        "loop": false
+      },
+      {
+        "name": "closureCheckModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "checkSideEffects",
+        "loop": false
+      },
+      {
+        "name": "closureGoogScopeAliases",
+        "loop": false
+      },
+      {
+        "name": "closurePrimitives",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "beforeTypeChecking",
+        "loop": false
+      },
+      {
+        "name": "clearTypedScopeCreatorPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "closureRewriteModule",
+        "loop": false
+      },
+      {
+        "name": "REWRITE_DYNAMIC_IMPORT",
+        "loop": false
+      },
+      {
+        "name": "clearTopTypedScopePass",
+        "loop": false
+      },
+      {
+        "name": "suspiciousCode",
+        "loop": false
+      },
+      {
+        "name": "j2clSourceFileChecker",
+        "loop": false
+      },
+      {
+        "name": "checkControlFlow",
+        "loop": false
+      },
+      {
+        "name": "checkConsts",
+        "loop": false
+      },
+      {
+        "name": "rewriteCallerCodeLocation",
+        "loop": false
+      },
+      {
+        "name": "processDefines_CHECK",
+        "loop": false
+      },
+      {
+        "name": "j2clChecksPass",
+        "loop": false
+      },
+      {
+        "name": "generateExports",
+        "loop": false
+      },
+      {
+        "name": "afterStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "MERGE_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "removeWeakSources",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeSerialization",
+        "loop": false
+      }
+    ],
+    "optimizations": [
+      {
+        "name": "removeCastNodes",
+        "loop": false
+      },
+      {
+        "name": "typesToColors",
+        "loop": false
+      },
+      {
+        "name": "removeUnnecessarySyntheticExterns",
+        "loop": false
+      },
+      {
+        "name": "j2clPass",
+        "loop": false
+      },
+      {
+        "name": "TranspileAndOptimizeClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "RewritePolyfills",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "closureProvidesRequires",
+        "loop": false
+      },
+      {
+        "name": "closureReplaceGetCssName",
+        "loop": false
+      },
+      {
+        "name": "processDefines_OPTIMIZE",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationsTranspilation",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "rewriteLogicalAssignmentOperatorsPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteOptionalChainingOperator",
+        "loop": false
+      },
+      {
+        "name": "rewriteNullishCoalesceOperator",
+        "loop": false
+      },
+      {
+        "name": "rewriteAsyncIteration",
+        "loop": false
+      },
+      {
+        "name": "rewriteObjectSpread",
+        "loop": false
+      },
+      {
+        "name": "rewriteAsyncFunctions",
+        "loop": false
+      },
+      {
+        "name": "rewriteExponentialOperator",
+        "loop": false
+      },
+      {
+        "name": "es6ConvertSuper",
+        "loop": false
+      },
+      {
+        "name": "Es6RewriteDestructuring",
+        "loop": false
+      },
+      {
+        "name": "Es6RewriteArrowFunction",
+        "loop": false
+      },
+      {
+        "name": "Es6RewriteClass",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteRestParameters",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteSpreadExpressions",
+        "loop": false
+      },
+      {
+        "name": "lateConvertEs6",
+        "loop": false
+      },
+      {
+        "name": "es6ForOf",
+        "loop": false
+      },
+      {
+        "name": "Es6RewriteBlockScopedFunctionDeclaration",
+        "loop": false
+      },
+      {
+        "name": "Es6RewriteBlockScopedDeclaration",
+        "loop": false
+      },
+      {
+        "name": "rewriteGenerators",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "j2clUtilGetDefineRewriterPass",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardOptimizations",
+        "loop": false
+      },
+      {
+        "name": "j2clAssertRemovalPass",
+        "loop": false
+      },
+      {
+        "name": "replaceToggles",
+        "loop": false
+      },
+      {
+        "name": "inlineAndCollapseProperties",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "obfuscationPassMarker",
+        "loop": false
+      },
+      {
+        "name": "optimizationsHalfwayPoint",
+        "loop": false
+      },
+      {
+        "name": "closureOptimizePrimitives",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      },
+      {
+        "name": "beforeMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "j2clConstantHoisterPass",
+        "loop": true
+      },
+      {
+        "name": "j2clClinitPass",
+        "loop": true
+      },
+      {
+        "name": "inlineFunctions",
+        "loop": true
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "deadAssignmentsElimination",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      }
+    ],
+    "finalizations": [
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "beforeChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "afterChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "beforeExtractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "beforeRenameProperties",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      },
+      {
+        "name": "convertToDottedProperties",
+        "loop": false
+      },
+      {
+        "name": "coalesceVariableNames",
+        "loop": false
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "postNormalizePeephole",
+        "loop": false
+      },
+      {
+        "name": "collapseVariableDeclarations",
+        "loop": false
+      },
+      {
+        "name": "denormalize",
+        "loop": false
+      },
+      {
+        "name": "beforeVariableRenaming",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "renameVars",
+        "loop": false
+      },
+      {
+        "name": "renameLabels",
+        "loop": false
+      },
+      {
+        "name": "latePeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "stripSideEffectProtection",
+        "loop": false
+      },
+      {
+        "name": "checkAstValidity",
+        "loop": false
+      },
+      {
+        "name": "varCheckValidity",
+        "loop": false
+      }
+    ]
+  },
+  {
+    "configuration": "lang_es2015",
+    "flags": [
+      "--compilation_level=SIMPLE",
+      "--language_out=ECMASCRIPT_2015"
+    ],
+    "whitespace": [
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "whitespaceWrapGoogModules",
+        "loop": false
+      }
+    ],
+    "transpile": [
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "TranspileOnlyClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "rewriteLogicalAssignmentOperatorsPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteOptionalChainingOperator",
+        "loop": false
+      },
+      {
+        "name": "rewriteNullishCoalesceOperator",
+        "loop": false
+      },
+      {
+        "name": "rewriteAsyncIteration",
+        "loop": false
+      },
+      {
+        "name": "rewriteObjectSpread",
+        "loop": false
+      },
+      {
+        "name": "Es6RewriteDestructuring",
+        "loop": false
+      },
+      {
+        "name": "rewriteAsyncFunctions",
+        "loop": false
+      },
+      {
+        "name": "rewriteExponentialOperator",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      }
+    ],
+    "checks": [
+      {
+        "name": "ADD_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "checkJsDocAndEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "checkTypeImportCodeReferences",
+        "loop": false
+      },
+      {
+        "name": "declaredGlobalExternsOnWindow",
+        "loop": false
+      },
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "checkGoogRequires",
+        "loop": false
+      },
+      {
+        "name": "checkStrictMode",
+        "loop": false
+      },
+      {
+        "name": "closureCheckModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "checkSideEffects",
+        "loop": false
+      },
+      {
+        "name": "closureGoogScopeAliases",
+        "loop": false
+      },
+      {
+        "name": "closurePrimitives",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "beforeTypeChecking",
+        "loop": false
+      },
+      {
+        "name": "clearTypedScopeCreatorPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "closureRewriteModule",
+        "loop": false
+      },
+      {
+        "name": "REWRITE_DYNAMIC_IMPORT",
+        "loop": false
+      },
+      {
+        "name": "clearTopTypedScopePass",
+        "loop": false
+      },
+      {
+        "name": "suspiciousCode",
+        "loop": false
+      },
+      {
+        "name": "j2clSourceFileChecker",
+        "loop": false
+      },
+      {
+        "name": "checkControlFlow",
+        "loop": false
+      },
+      {
+        "name": "checkConsts",
+        "loop": false
+      },
+      {
+        "name": "rewriteCallerCodeLocation",
+        "loop": false
+      },
+      {
+        "name": "processDefines_CHECK",
+        "loop": false
+      },
+      {
+        "name": "j2clChecksPass",
+        "loop": false
+      },
+      {
+        "name": "generateExports",
+        "loop": false
+      },
+      {
+        "name": "afterStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "MERGE_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "removeWeakSources",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeSerialization",
+        "loop": false
+      }
+    ],
+    "optimizations": [
+      {
+        "name": "removeCastNodes",
+        "loop": false
+      },
+      {
+        "name": "typesToColors",
+        "loop": false
+      },
+      {
+        "name": "removeUnnecessarySyntheticExterns",
+        "loop": false
+      },
+      {
+        "name": "j2clPass",
+        "loop": false
+      },
+      {
+        "name": "TranspileAndOptimizeClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "RewritePolyfills",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "closureProvidesRequires",
+        "loop": false
+      },
+      {
+        "name": "closureReplaceGetCssName",
+        "loop": false
+      },
+      {
+        "name": "processDefines_OPTIMIZE",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationsTranspilation",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "rewriteLogicalAssignmentOperatorsPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteOptionalChainingOperator",
+        "loop": false
+      },
+      {
+        "name": "rewriteNullishCoalesceOperator",
+        "loop": false
+      },
+      {
+        "name": "rewriteAsyncIteration",
+        "loop": false
+      },
+      {
+        "name": "rewriteObjectSpread",
+        "loop": false
+      },
+      {
+        "name": "Es6RewriteDestructuring",
+        "loop": false
+      },
+      {
+        "name": "rewriteAsyncFunctions",
+        "loop": false
+      },
+      {
+        "name": "rewriteExponentialOperator",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "j2clUtilGetDefineRewriterPass",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardOptimizations",
+        "loop": false
+      },
+      {
+        "name": "j2clAssertRemovalPass",
+        "loop": false
+      },
+      {
+        "name": "replaceToggles",
+        "loop": false
+      },
+      {
+        "name": "inlineAndCollapseProperties",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "obfuscationPassMarker",
+        "loop": false
+      },
+      {
+        "name": "optimizationsHalfwayPoint",
+        "loop": false
+      },
+      {
+        "name": "closureOptimizePrimitives",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      },
+      {
+        "name": "beforeMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "j2clConstantHoisterPass",
+        "loop": true
+      },
+      {
+        "name": "j2clClinitPass",
+        "loop": true
+      },
+      {
+        "name": "inlineFunctions",
+        "loop": true
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "deadAssignmentsElimination",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      }
+    ],
+    "finalizations": [
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "beforeChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "afterChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "beforeExtractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "beforeRenameProperties",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      },
+      {
+        "name": "convertToDottedProperties",
+        "loop": false
+      },
+      {
+        "name": "coalesceVariableNames",
+        "loop": false
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "postNormalizePeephole",
+        "loop": false
+      },
+      {
+        "name": "collapseVariableDeclarations",
+        "loop": false
+      },
+      {
+        "name": "denormalize",
+        "loop": false
+      },
+      {
+        "name": "beforeVariableRenaming",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "renameVars",
+        "loop": false
+      },
+      {
+        "name": "renameLabels",
+        "loop": false
+      },
+      {
+        "name": "latePeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "stripSideEffectProtection",
+        "loop": false
+      },
+      {
+        "name": "optimizeToEs6",
+        "loop": false
+      },
+      {
+        "name": "checkAstValidity",
+        "loop": false
+      },
+      {
+        "name": "varCheckValidity",
+        "loop": false
+      }
+    ]
+  },
+  {
+    "configuration": "lang_next",
+    "flags": [
+      "--compilation_level=SIMPLE",
+      "--language_out=ECMASCRIPT_NEXT"
+    ],
+    "whitespace": [
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "whitespaceWrapGoogModules",
+        "loop": false
+      }
+    ],
+    "transpile": [
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "TranspileOnlyClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      }
+    ],
+    "checks": [
+      {
+        "name": "ADD_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "checkJsDocAndEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "checkTypeImportCodeReferences",
+        "loop": false
+      },
+      {
+        "name": "declaredGlobalExternsOnWindow",
+        "loop": false
+      },
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "checkGoogRequires",
+        "loop": false
+      },
+      {
+        "name": "checkStrictMode",
+        "loop": false
+      },
+      {
+        "name": "closureCheckModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "checkSideEffects",
+        "loop": false
+      },
+      {
+        "name": "closureGoogScopeAliases",
+        "loop": false
+      },
+      {
+        "name": "closurePrimitives",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "beforeTypeChecking",
+        "loop": false
+      },
+      {
+        "name": "clearTypedScopeCreatorPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "closureRewriteModule",
+        "loop": false
+      },
+      {
+        "name": "REWRITE_DYNAMIC_IMPORT",
+        "loop": false
+      },
+      {
+        "name": "clearTopTypedScopePass",
+        "loop": false
+      },
+      {
+        "name": "suspiciousCode",
+        "loop": false
+      },
+      {
+        "name": "j2clSourceFileChecker",
+        "loop": false
+      },
+      {
+        "name": "checkControlFlow",
+        "loop": false
+      },
+      {
+        "name": "checkConsts",
+        "loop": false
+      },
+      {
+        "name": "rewriteCallerCodeLocation",
+        "loop": false
+      },
+      {
+        "name": "processDefines_CHECK",
+        "loop": false
+      },
+      {
+        "name": "j2clChecksPass",
+        "loop": false
+      },
+      {
+        "name": "generateExports",
+        "loop": false
+      },
+      {
+        "name": "afterStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "MERGE_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "removeWeakSources",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeSerialization",
+        "loop": false
+      }
+    ],
+    "optimizations": [
+      {
+        "name": "removeCastNodes",
+        "loop": false
+      },
+      {
+        "name": "typesToColors",
+        "loop": false
+      },
+      {
+        "name": "removeUnnecessarySyntheticExterns",
+        "loop": false
+      },
+      {
+        "name": "j2clPass",
+        "loop": false
+      },
+      {
+        "name": "TranspileAndOptimizeClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "RewritePolyfills",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "closureProvidesRequires",
+        "loop": false
+      },
+      {
+        "name": "closureReplaceGetCssName",
+        "loop": false
+      },
+      {
+        "name": "processDefines_OPTIMIZE",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationsTranspilation",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "j2clUtilGetDefineRewriterPass",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardOptimizations",
+        "loop": false
+      },
+      {
+        "name": "j2clAssertRemovalPass",
+        "loop": false
+      },
+      {
+        "name": "replaceToggles",
+        "loop": false
+      },
+      {
+        "name": "inlineAndCollapseProperties",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "obfuscationPassMarker",
+        "loop": false
+      },
+      {
+        "name": "optimizationsHalfwayPoint",
+        "loop": false
+      },
+      {
+        "name": "closureOptimizePrimitives",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      },
+      {
+        "name": "beforeMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "j2clConstantHoisterPass",
+        "loop": true
+      },
+      {
+        "name": "j2clClinitPass",
+        "loop": true
+      },
+      {
+        "name": "inlineFunctions",
+        "loop": true
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "deadAssignmentsElimination",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      }
+    ],
+    "finalizations": [
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "beforeChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "afterChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "beforeExtractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "beforeRenameProperties",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      },
+      {
+        "name": "convertToDottedProperties",
+        "loop": false
+      },
+      {
+        "name": "coalesceVariableNames",
+        "loop": false
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "postNormalizePeephole",
+        "loop": false
+      },
+      {
+        "name": "collapseVariableDeclarations",
+        "loop": false
+      },
+      {
+        "name": "denormalize",
+        "loop": false
+      },
+      {
+        "name": "beforeVariableRenaming",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "renameVars",
+        "loop": false
+      },
+      {
+        "name": "renameLabels",
+        "loop": false
+      },
+      {
+        "name": "latePeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "stripSideEffectProtection",
+        "loop": false
+      },
+      {
+        "name": "optimizeToEs6",
+        "loop": false
+      },
+      {
+        "name": "checkAstValidity",
+        "loop": false
+      },
+      {
+        "name": "varCheckValidity",
+        "loop": false
+      }
+    ]
+  },
+  {
+    "configuration": "pretty",
+    "flags": [
+      "--compilation_level=SIMPLE",
+      "--formatting=PRETTY_PRINT"
+    ],
+    "whitespace": [
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "whitespaceWrapGoogModules",
+        "loop": false
+      }
+    ],
+    "transpile": [
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "TranspileOnlyClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      }
+    ],
+    "checks": [
+      {
+        "name": "ADD_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "checkJsDocAndEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "checkTypeImportCodeReferences",
+        "loop": false
+      },
+      {
+        "name": "declaredGlobalExternsOnWindow",
+        "loop": false
+      },
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "checkGoogRequires",
+        "loop": false
+      },
+      {
+        "name": "checkStrictMode",
+        "loop": false
+      },
+      {
+        "name": "closureCheckModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "checkSideEffects",
+        "loop": false
+      },
+      {
+        "name": "closureGoogScopeAliases",
+        "loop": false
+      },
+      {
+        "name": "closurePrimitives",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "beforeTypeChecking",
+        "loop": false
+      },
+      {
+        "name": "clearTypedScopeCreatorPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "closureRewriteModule",
+        "loop": false
+      },
+      {
+        "name": "REWRITE_DYNAMIC_IMPORT",
+        "loop": false
+      },
+      {
+        "name": "clearTopTypedScopePass",
+        "loop": false
+      },
+      {
+        "name": "suspiciousCode",
+        "loop": false
+      },
+      {
+        "name": "j2clSourceFileChecker",
+        "loop": false
+      },
+      {
+        "name": "checkControlFlow",
+        "loop": false
+      },
+      {
+        "name": "checkConsts",
+        "loop": false
+      },
+      {
+        "name": "rewriteCallerCodeLocation",
+        "loop": false
+      },
+      {
+        "name": "processDefines_CHECK",
+        "loop": false
+      },
+      {
+        "name": "j2clChecksPass",
+        "loop": false
+      },
+      {
+        "name": "generateExports",
+        "loop": false
+      },
+      {
+        "name": "afterStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "MERGE_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "removeWeakSources",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeSerialization",
+        "loop": false
+      }
+    ],
+    "optimizations": [
+      {
+        "name": "removeCastNodes",
+        "loop": false
+      },
+      {
+        "name": "typesToColors",
+        "loop": false
+      },
+      {
+        "name": "removeUnnecessarySyntheticExterns",
+        "loop": false
+      },
+      {
+        "name": "j2clPass",
+        "loop": false
+      },
+      {
+        "name": "TranspileAndOptimizeClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "RewritePolyfills",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "closureProvidesRequires",
+        "loop": false
+      },
+      {
+        "name": "closureReplaceGetCssName",
+        "loop": false
+      },
+      {
+        "name": "processDefines_OPTIMIZE",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationsTranspilation",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "j2clUtilGetDefineRewriterPass",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardOptimizations",
+        "loop": false
+      },
+      {
+        "name": "j2clAssertRemovalPass",
+        "loop": false
+      },
+      {
+        "name": "replaceToggles",
+        "loop": false
+      },
+      {
+        "name": "inlineAndCollapseProperties",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "obfuscationPassMarker",
+        "loop": false
+      },
+      {
+        "name": "optimizationsHalfwayPoint",
+        "loop": false
+      },
+      {
+        "name": "closureOptimizePrimitives",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      },
+      {
+        "name": "beforeMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "j2clConstantHoisterPass",
+        "loop": true
+      },
+      {
+        "name": "j2clClinitPass",
+        "loop": true
+      },
+      {
+        "name": "inlineFunctions",
+        "loop": true
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "deadAssignmentsElimination",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      }
+    ],
+    "finalizations": [
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "beforeChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "afterChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "beforeExtractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "beforeRenameProperties",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      },
+      {
+        "name": "convertToDottedProperties",
+        "loop": false
+      },
+      {
+        "name": "coalesceVariableNames",
+        "loop": false
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "postNormalizePeephole",
+        "loop": false
+      },
+      {
+        "name": "collapseVariableDeclarations",
+        "loop": false
+      },
+      {
+        "name": "denormalize",
+        "loop": false
+      },
+      {
+        "name": "beforeVariableRenaming",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "renameVars",
+        "loop": false
+      },
+      {
+        "name": "renameLabels",
+        "loop": false
+      },
+      {
+        "name": "latePeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "stripSideEffectProtection",
+        "loop": false
+      },
+      {
+        "name": "optimizeToEs6",
+        "loop": false
+      },
+      {
+        "name": "checkAstValidity",
+        "loop": false
+      },
+      {
+        "name": "varCheckValidity",
+        "loop": false
+      }
+    ]
+  },
+  {
+    "configuration": "sourcemap",
+    "flags": [
+      "--compilation_level=SIMPLE",
+      "--create_source_map=build/codex/compiler/out.js.map"
+    ],
+    "whitespace": [
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "whitespaceWrapGoogModules",
+        "loop": false
+      }
+    ],
+    "transpile": [
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "TranspileOnlyClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      }
+    ],
+    "checks": [
+      {
+        "name": "ADD_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "checkJsDocAndEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "checkTypeImportCodeReferences",
+        "loop": false
+      },
+      {
+        "name": "declaredGlobalExternsOnWindow",
+        "loop": false
+      },
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "checkGoogRequires",
+        "loop": false
+      },
+      {
+        "name": "checkStrictMode",
+        "loop": false
+      },
+      {
+        "name": "closureCheckModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "checkSideEffects",
+        "loop": false
+      },
+      {
+        "name": "closureGoogScopeAliases",
+        "loop": false
+      },
+      {
+        "name": "closurePrimitives",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "beforeTypeChecking",
+        "loop": false
+      },
+      {
+        "name": "clearTypedScopeCreatorPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "closureRewriteModule",
+        "loop": false
+      },
+      {
+        "name": "REWRITE_DYNAMIC_IMPORT",
+        "loop": false
+      },
+      {
+        "name": "clearTopTypedScopePass",
+        "loop": false
+      },
+      {
+        "name": "suspiciousCode",
+        "loop": false
+      },
+      {
+        "name": "j2clSourceFileChecker",
+        "loop": false
+      },
+      {
+        "name": "checkControlFlow",
+        "loop": false
+      },
+      {
+        "name": "checkConsts",
+        "loop": false
+      },
+      {
+        "name": "rewriteCallerCodeLocation",
+        "loop": false
+      },
+      {
+        "name": "processDefines_CHECK",
+        "loop": false
+      },
+      {
+        "name": "j2clChecksPass",
+        "loop": false
+      },
+      {
+        "name": "generateExports",
+        "loop": false
+      },
+      {
+        "name": "afterStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "MERGE_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "removeWeakSources",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeSerialization",
+        "loop": false
+      }
+    ],
+    "optimizations": [
+      {
+        "name": "removeCastNodes",
+        "loop": false
+      },
+      {
+        "name": "typesToColors",
+        "loop": false
+      },
+      {
+        "name": "removeUnnecessarySyntheticExterns",
+        "loop": false
+      },
+      {
+        "name": "j2clPass",
+        "loop": false
+      },
+      {
+        "name": "TranspileAndOptimizeClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "RewritePolyfills",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "closureProvidesRequires",
+        "loop": false
+      },
+      {
+        "name": "closureReplaceGetCssName",
+        "loop": false
+      },
+      {
+        "name": "processDefines_OPTIMIZE",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationsTranspilation",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "j2clUtilGetDefineRewriterPass",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardOptimizations",
+        "loop": false
+      },
+      {
+        "name": "j2clAssertRemovalPass",
+        "loop": false
+      },
+      {
+        "name": "replaceToggles",
+        "loop": false
+      },
+      {
+        "name": "inlineAndCollapseProperties",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "obfuscationPassMarker",
+        "loop": false
+      },
+      {
+        "name": "optimizationsHalfwayPoint",
+        "loop": false
+      },
+      {
+        "name": "closureOptimizePrimitives",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      },
+      {
+        "name": "beforeMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "j2clConstantHoisterPass",
+        "loop": true
+      },
+      {
+        "name": "j2clClinitPass",
+        "loop": true
+      },
+      {
+        "name": "inlineFunctions",
+        "loop": true
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "deadAssignmentsElimination",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      }
+    ],
+    "finalizations": [
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "beforeChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "afterChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "beforeExtractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "beforeRenameProperties",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      },
+      {
+        "name": "convertToDottedProperties",
+        "loop": false
+      },
+      {
+        "name": "coalesceVariableNames",
+        "loop": false
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "postNormalizePeephole",
+        "loop": false
+      },
+      {
+        "name": "collapseVariableDeclarations",
+        "loop": false
+      },
+      {
+        "name": "denormalize",
+        "loop": false
+      },
+      {
+        "name": "beforeVariableRenaming",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "renameVars",
+        "loop": false
+      },
+      {
+        "name": "renameLabels",
+        "loop": false
+      },
+      {
+        "name": "latePeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "stripSideEffectProtection",
+        "loop": false
+      },
+      {
+        "name": "optimizeToEs6",
+        "loop": false
+      },
+      {
+        "name": "checkAstValidity",
+        "loop": false
+      },
+      {
+        "name": "varCheckValidity",
+        "loop": false
+      }
+    ]
+  },
+  {
+    "configuration": "chunks2",
+    "flags": [
+      "--compilation_level=ADVANCED",
+      "--js=build/codex/compiler/c0.js",
+      "--chunk=c0:1",
+      "--js=build/codex/compiler/c1.js",
+      "--chunk=c1:1:c0",
+      "--chunk_output_path_prefix=build/codex/compiler/"
+    ],
+    "whitespace": [
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "whitespaceWrapGoogModules",
+        "loop": false
+      }
+    ],
+    "transpile": [
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "TranspileOnlyClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      }
+    ],
+    "checks": [
+      {
+        "name": "ADD_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "checkJsDocAndEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "checkTypeImportCodeReferences",
+        "loop": false
+      },
+      {
+        "name": "declaredGlobalExternsOnWindow",
+        "loop": false
+      },
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "checkGoogRequires",
+        "loop": false
+      },
+      {
+        "name": "checkStrictMode",
+        "loop": false
+      },
+      {
+        "name": "closureCheckModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "checkSideEffects",
+        "loop": false
+      },
+      {
+        "name": "closureGoogScopeAliases",
+        "loop": false
+      },
+      {
+        "name": "closurePrimitives",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "checkRegExp",
+        "loop": false
+      },
+      {
+        "name": "beforeTypeChecking",
+        "loop": false
+      },
+      {
+        "name": "inferTypes",
+        "loop": false
+      },
+      {
+        "name": "checkTypes",
+        "loop": false
+      },
+      {
+        "name": "clearTypedScopeCreatorPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "closureRewriteModule",
+        "loop": false
+      },
+      {
+        "name": "REWRITE_DYNAMIC_IMPORT",
+        "loop": false
+      },
+      {
+        "name": "clearTopTypedScopePass",
+        "loop": false
+      },
+      {
+        "name": "suspiciousCode",
+        "loop": false
+      },
+      {
+        "name": "j2clSourceFileChecker",
+        "loop": false
+      },
+      {
+        "name": "checkControlFlow",
+        "loop": false
+      },
+      {
+        "name": "checkAccessControls",
+        "loop": false
+      },
+      {
+        "name": "checkConsts",
+        "loop": false
+      },
+      {
+        "name": "rewriteCallerCodeLocation",
+        "loop": false
+      },
+      {
+        "name": "processDefines_CHECK",
+        "loop": false
+      },
+      {
+        "name": "j2clChecksPass",
+        "loop": false
+      },
+      {
+        "name": "generateExports",
+        "loop": false
+      },
+      {
+        "name": "afterStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "MERGE_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "removeWeakSources",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeSerialization",
+        "loop": false
+      }
+    ],
+    "optimizations": [
+      {
+        "name": "removeCastNodes",
+        "loop": false
+      },
+      {
+        "name": "typesToColors",
+        "loop": false
+      },
+      {
+        "name": "removeUnnecessarySyntheticExterns",
+        "loop": false
+      },
+      {
+        "name": "j2clPass",
+        "loop": false
+      },
+      {
+        "name": "TranspileAndOptimizeClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "RewritePolyfills",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "closureProvidesRequires",
+        "loop": false
+      },
+      {
+        "name": "replaceMessages",
+        "loop": false
+      },
+      {
+        "name": "closureReplaceGetCssName",
+        "loop": false
+      },
+      {
+        "name": "processDefines_OPTIMIZE",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationsTranspilation",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "j2clUtilGetDefineRewriterPass",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardOptimizations",
+        "loop": false
+      },
+      {
+        "name": "closureCodeRemoval",
+        "loop": false
+      },
+      {
+        "name": "j2clAssertRemovalPass",
+        "loop": false
+      },
+      {
+        "name": "replaceToggles",
+        "loop": false
+      },
+      {
+        "name": "inlineAndCollapseProperties",
+        "loop": false
+      },
+      {
+        "name": "replaceIdGenerators",
+        "loop": false
+      },
+      {
+        "name": "j2clPropertyInlinerPass",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "obfuscationPassMarker",
+        "loop": false
+      },
+      {
+        "name": "earlyInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "earlyPeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "disambiguateProperties",
+        "loop": false
+      },
+      {
+        "name": "markPureFunctions",
+        "loop": false
+      },
+      {
+        "name": "optimizationsHalfwayPoint",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationLoop",
+        "loop": false
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterEarlyOptimizationLoop",
+        "loop": false
+      },
+      {
+        "name": "closureOptimizePrimitives",
+        "loop": false
+      },
+      {
+        "name": "crossChunkCodeMotion",
+        "loop": true
+      },
+      {
+        "name": "devirtualizeMethods",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      },
+      {
+        "name": "beforeMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "inlineSimpleMethods",
+        "loop": true
+      },
+      {
+        "name": "inlineProperties",
+        "loop": true
+      },
+      {
+        "name": "deadPropertyAssignmentElimination",
+        "loop": true
+      },
+      {
+        "name": "optimizeCalls",
+        "loop": true
+      },
+      {
+        "name": "j2clConstantHoisterPass",
+        "loop": true
+      },
+      {
+        "name": "j2clClinitPass",
+        "loop": true
+      },
+      {
+        "name": "inlineFunctions",
+        "loop": true
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "deadAssignmentsElimination",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      }
+    ],
+    "finalizations": [
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "beforeChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "crossChunkCodeMotion",
+        "loop": true
+      },
+      {
+        "name": "crossChunkMethodMotion",
+        "loop": true
+      },
+      {
+        "name": "afterChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "optimizeConstructors",
+        "loop": false
+      },
+      {
+        "name": "collapseAnonymousFunctions",
+        "loop": false
+      },
+      {
+        "name": "beforeExtractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "extractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "ambiguateProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeRenameProperties",
+        "loop": false
+      },
+      {
+        "name": "renameProperties",
+        "loop": false
+      },
+      {
+        "name": "gatherRawExports",
+        "loop": false
+      },
+      {
+        "name": "convertToDottedProperties",
+        "loop": false
+      },
+      {
+        "name": "coalesceVariableNames",
+        "loop": false
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "postNormalizePeephole",
+        "loop": false
+      },
+      {
+        "name": "collapseVariableDeclarations",
+        "loop": false
+      },
+      {
+        "name": "denormalize",
+        "loop": false
+      },
+      {
+        "name": "beforeVariableRenaming",
+        "loop": false
+      },
+      {
+        "name": "renameVars",
+        "loop": false
+      },
+      {
+        "name": "renameLabels",
+        "loop": false
+      },
+      {
+        "name": "latePeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "stripSideEffectProtection",
+        "loop": false
+      },
+      {
+        "name": "optimizeToEs6",
+        "loop": false
+      },
+      {
+        "name": "checkAstValidity",
+        "loop": false
+      },
+      {
+        "name": "varCheckValidity",
+        "loop": false
+      }
+    ]
+  },
+  {
+    "configuration": "chunks3",
+    "flags": [
+      "--compilation_level=ADVANCED",
+      "--js=build/codex/compiler/c0.js",
+      "--chunk=c0:1",
+      "--js=build/codex/compiler/c1.js",
+      "--chunk=c1:1:c0",
+      "--js=build/codex/compiler/c2.js",
+      "--chunk=c2:1:c0",
+      "--chunk_output_path_prefix=build/codex/compiler/"
+    ],
+    "whitespace": [
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "whitespaceWrapGoogModules",
+        "loop": false
+      }
+    ],
+    "transpile": [
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "TranspileOnlyClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      }
+    ],
+    "checks": [
+      {
+        "name": "ADD_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "checkJsDocAndEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "checkTypeImportCodeReferences",
+        "loop": false
+      },
+      {
+        "name": "declaredGlobalExternsOnWindow",
+        "loop": false
+      },
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "checkGoogRequires",
+        "loop": false
+      },
+      {
+        "name": "checkStrictMode",
+        "loop": false
+      },
+      {
+        "name": "closureCheckModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "checkSideEffects",
+        "loop": false
+      },
+      {
+        "name": "closureGoogScopeAliases",
+        "loop": false
+      },
+      {
+        "name": "closurePrimitives",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "checkRegExp",
+        "loop": false
+      },
+      {
+        "name": "beforeTypeChecking",
+        "loop": false
+      },
+      {
+        "name": "inferTypes",
+        "loop": false
+      },
+      {
+        "name": "checkTypes",
+        "loop": false
+      },
+      {
+        "name": "clearTypedScopeCreatorPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "closureRewriteModule",
+        "loop": false
+      },
+      {
+        "name": "REWRITE_DYNAMIC_IMPORT",
+        "loop": false
+      },
+      {
+        "name": "clearTopTypedScopePass",
+        "loop": false
+      },
+      {
+        "name": "suspiciousCode",
+        "loop": false
+      },
+      {
+        "name": "j2clSourceFileChecker",
+        "loop": false
+      },
+      {
+        "name": "checkControlFlow",
+        "loop": false
+      },
+      {
+        "name": "checkAccessControls",
+        "loop": false
+      },
+      {
+        "name": "checkConsts",
+        "loop": false
+      },
+      {
+        "name": "rewriteCallerCodeLocation",
+        "loop": false
+      },
+      {
+        "name": "processDefines_CHECK",
+        "loop": false
+      },
+      {
+        "name": "j2clChecksPass",
+        "loop": false
+      },
+      {
+        "name": "generateExports",
+        "loop": false
+      },
+      {
+        "name": "afterStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "MERGE_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "removeWeakSources",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeSerialization",
+        "loop": false
+      }
+    ],
+    "optimizations": [
+      {
+        "name": "removeCastNodes",
+        "loop": false
+      },
+      {
+        "name": "typesToColors",
+        "loop": false
+      },
+      {
+        "name": "removeUnnecessarySyntheticExterns",
+        "loop": false
+      },
+      {
+        "name": "j2clPass",
+        "loop": false
+      },
+      {
+        "name": "TranspileAndOptimizeClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "RewritePolyfills",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "closureProvidesRequires",
+        "loop": false
+      },
+      {
+        "name": "replaceMessages",
+        "loop": false
+      },
+      {
+        "name": "closureReplaceGetCssName",
+        "loop": false
+      },
+      {
+        "name": "processDefines_OPTIMIZE",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationsTranspilation",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "j2clUtilGetDefineRewriterPass",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardOptimizations",
+        "loop": false
+      },
+      {
+        "name": "closureCodeRemoval",
+        "loop": false
+      },
+      {
+        "name": "j2clAssertRemovalPass",
+        "loop": false
+      },
+      {
+        "name": "replaceToggles",
+        "loop": false
+      },
+      {
+        "name": "inlineAndCollapseProperties",
+        "loop": false
+      },
+      {
+        "name": "replaceIdGenerators",
+        "loop": false
+      },
+      {
+        "name": "j2clPropertyInlinerPass",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "obfuscationPassMarker",
+        "loop": false
+      },
+      {
+        "name": "earlyInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "earlyPeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "disambiguateProperties",
+        "loop": false
+      },
+      {
+        "name": "markPureFunctions",
+        "loop": false
+      },
+      {
+        "name": "optimizationsHalfwayPoint",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationLoop",
+        "loop": false
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterEarlyOptimizationLoop",
+        "loop": false
+      },
+      {
+        "name": "closureOptimizePrimitives",
+        "loop": false
+      },
+      {
+        "name": "crossChunkCodeMotion",
+        "loop": true
+      },
+      {
+        "name": "devirtualizeMethods",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      },
+      {
+        "name": "beforeMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "inlineSimpleMethods",
+        "loop": true
+      },
+      {
+        "name": "inlineProperties",
+        "loop": true
+      },
+      {
+        "name": "deadPropertyAssignmentElimination",
+        "loop": true
+      },
+      {
+        "name": "optimizeCalls",
+        "loop": true
+      },
+      {
+        "name": "j2clConstantHoisterPass",
+        "loop": true
+      },
+      {
+        "name": "j2clClinitPass",
+        "loop": true
+      },
+      {
+        "name": "inlineFunctions",
+        "loop": true
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "deadAssignmentsElimination",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      }
+    ],
+    "finalizations": [
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "beforeChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "crossChunkCodeMotion",
+        "loop": true
+      },
+      {
+        "name": "crossChunkMethodMotion",
+        "loop": true
+      },
+      {
+        "name": "afterChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "optimizeConstructors",
+        "loop": false
+      },
+      {
+        "name": "collapseAnonymousFunctions",
+        "loop": false
+      },
+      {
+        "name": "beforeExtractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "extractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "ambiguateProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeRenameProperties",
+        "loop": false
+      },
+      {
+        "name": "renameProperties",
+        "loop": false
+      },
+      {
+        "name": "gatherRawExports",
+        "loop": false
+      },
+      {
+        "name": "convertToDottedProperties",
+        "loop": false
+      },
+      {
+        "name": "coalesceVariableNames",
+        "loop": false
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "postNormalizePeephole",
+        "loop": false
+      },
+      {
+        "name": "collapseVariableDeclarations",
+        "loop": false
+      },
+      {
+        "name": "denormalize",
+        "loop": false
+      },
+      {
+        "name": "beforeVariableRenaming",
+        "loop": false
+      },
+      {
+        "name": "renameVars",
+        "loop": false
+      },
+      {
+        "name": "renameLabels",
+        "loop": false
+      },
+      {
+        "name": "latePeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "stripSideEffectProtection",
+        "loop": false
+      },
+      {
+        "name": "optimizeToEs6",
+        "loop": false
+      },
+      {
+        "name": "checkAstValidity",
+        "loop": false
+      },
+      {
+        "name": "varCheckValidity",
+        "loop": false
+      }
+    ]
+  },
+  {
+    "configuration": "default_WHITESPACE_ONLY",
+    "flags": [],
+    "whitespace": [
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "whitespaceWrapGoogModules",
+        "loop": false
+      }
+    ],
+    "transpile": [
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "TranspileOnlyClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      }
+    ],
+    "checks": {
+      "error": "options.getSkipNonTranspilationPasses() cannot be mixed with PassConfig::getChecks. Call PassConfig::getTranspileOnlyPasses instead."
+    },
+    "optimizations": [],
+    "finalizations": [
+      {
+        "name": "beforeChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "afterChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "beforeExtractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "beforeRenameProperties",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "postNormalizePeephole",
+        "loop": false
+      },
+      {
+        "name": "denormalize",
+        "loop": false
+      },
+      {
+        "name": "beforeVariableRenaming",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "optimizeToEs6",
+        "loop": false
+      },
+      {
+        "name": "checkAstValidity",
+        "loop": false
+      },
+      {
+        "name": "varCheckValidity",
+        "loop": false
+      }
+    ]
+  },
+  {
+    "configuration": "default_SIMPLE_OPTIMIZATIONS",
+    "flags": [],
+    "whitespace": [
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "whitespaceWrapGoogModules",
+        "loop": false
+      }
+    ],
+    "transpile": [
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "TranspileOnlyClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      }
+    ],
+    "checks": [
+      {
+        "name": "ADD_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "FORBID_DYNAMIC_IMPORT",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "checkJsDocAndEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "checkTypeImportCodeReferences",
+        "loop": false
+      },
+      {
+        "name": "declaredGlobalExternsOnWindow",
+        "loop": false
+      },
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "checkGoogRequires",
+        "loop": false
+      },
+      {
+        "name": "checkStrictMode",
+        "loop": false
+      },
+      {
+        "name": "closureCheckModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "checkSideEffects",
+        "loop": false
+      },
+      {
+        "name": "closureGoogScopeAliases",
+        "loop": false
+      },
+      {
+        "name": "closurePrimitives",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "beforeTypeChecking",
+        "loop": false
+      },
+      {
+        "name": "clearTypedScopeCreatorPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "closureRewriteModule",
+        "loop": false
+      },
+      {
+        "name": "clearTopTypedScopePass",
+        "loop": false
+      },
+      {
+        "name": "j2clSourceFileChecker",
+        "loop": false
+      },
+      {
+        "name": "checkControlFlow",
+        "loop": false
+      },
+      {
+        "name": "checkConsts",
+        "loop": false
+      },
+      {
+        "name": "rewriteCallerCodeLocation",
+        "loop": false
+      },
+      {
+        "name": "processDefines_CHECK",
+        "loop": false
+      },
+      {
+        "name": "j2clChecksPass",
+        "loop": false
+      },
+      {
+        "name": "generateExports",
+        "loop": false
+      },
+      {
+        "name": "afterStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "MERGE_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "removeWeakSources",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeSerialization",
+        "loop": false
+      }
+    ],
+    "optimizations": [
+      {
+        "name": "removeCastNodes",
+        "loop": false
+      },
+      {
+        "name": "typesToColors",
+        "loop": false
+      },
+      {
+        "name": "removeUnnecessarySyntheticExterns",
+        "loop": false
+      },
+      {
+        "name": "j2clPass",
+        "loop": false
+      },
+      {
+        "name": "TranspileAndOptimizeClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "closureProvidesRequires",
+        "loop": false
+      },
+      {
+        "name": "closureReplaceGetCssName",
+        "loop": false
+      },
+      {
+        "name": "processDefines_OPTIMIZE",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationsTranspilation",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "j2clUtilGetDefineRewriterPass",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardOptimizations",
+        "loop": false
+      },
+      {
+        "name": "j2clAssertRemovalPass",
+        "loop": false
+      },
+      {
+        "name": "replaceToggles",
+        "loop": false
+      },
+      {
+        "name": "inlineAndCollapseProperties",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "obfuscationPassMarker",
+        "loop": false
+      },
+      {
+        "name": "optimizationsHalfwayPoint",
+        "loop": false
+      },
+      {
+        "name": "closureOptimizePrimitives",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      },
+      {
+        "name": "beforeMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "j2clConstantHoisterPass",
+        "loop": true
+      },
+      {
+        "name": "j2clClinitPass",
+        "loop": true
+      },
+      {
+        "name": "inlineFunctions",
+        "loop": true
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "deadAssignmentsElimination",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      }
+    ],
+    "finalizations": [
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "beforeChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "afterChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "beforeExtractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "beforeRenameProperties",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      },
+      {
+        "name": "convertToDottedProperties",
+        "loop": false
+      },
+      {
+        "name": "coalesceVariableNames",
+        "loop": false
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "postNormalizePeephole",
+        "loop": false
+      },
+      {
+        "name": "collapseVariableDeclarations",
+        "loop": false
+      },
+      {
+        "name": "denormalize",
+        "loop": false
+      },
+      {
+        "name": "beforeVariableRenaming",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "renameVars",
+        "loop": false
+      },
+      {
+        "name": "renameLabels",
+        "loop": false
+      },
+      {
+        "name": "latePeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "stripSideEffectProtection",
+        "loop": false
+      },
+      {
+        "name": "optimizeToEs6",
+        "loop": false
+      },
+      {
+        "name": "checkAstValidity",
+        "loop": false
+      },
+      {
+        "name": "varCheckValidity",
+        "loop": false
+      }
+    ]
+  },
+  {
+    "configuration": "default_ADVANCED_OPTIMIZATIONS",
+    "flags": [],
+    "whitespace": [
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "whitespaceWrapGoogModules",
+        "loop": false
+      }
+    ],
+    "transpile": [
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "TranspileOnlyClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "invertContextualRenaming",
+        "loop": false
+      },
+      {
+        "name": "removePropertyRenamingCalls",
+        "loop": false
+      }
+    ],
+    "checks": [
+      {
+        "name": "ADD_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "FORBID_DYNAMIC_IMPORT",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "rewriteScriptsToEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "gatherModuleMetadata",
+        "loop": false
+      },
+      {
+        "name": "createModuleMap",
+        "loop": false
+      },
+      {
+        "name": "checkJsDocAndEs6Modules",
+        "loop": false
+      },
+      {
+        "name": "checkTypeImportCodeReferences",
+        "loop": false
+      },
+      {
+        "name": "declaredGlobalExternsOnWindow",
+        "loop": false
+      },
+      {
+        "name": "checkVariableReferences",
+        "loop": false
+      },
+      {
+        "name": "checkVars",
+        "loop": false
+      },
+      {
+        "name": "checkGoogRequires",
+        "loop": false
+      },
+      {
+        "name": "checkStrictMode",
+        "loop": false
+      },
+      {
+        "name": "closureCheckModule",
+        "loop": false
+      },
+      {
+        "name": "checkSuper",
+        "loop": false
+      },
+      {
+        "name": "checkSideEffects",
+        "loop": false
+      },
+      {
+        "name": "closureGoogScopeAliases",
+        "loop": false
+      },
+      {
+        "name": "closurePrimitives",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "checkRegExp",
+        "loop": false
+      },
+      {
+        "name": "beforeTypeChecking",
+        "loop": false
+      },
+      {
+        "name": "inferTypes",
+        "loop": false
+      },
+      {
+        "name": "checkTypes",
+        "loop": false
+      },
+      {
+        "name": "clearTypedScopeCreatorPass",
+        "loop": false
+      },
+      {
+        "name": "rewriteGoogJsImports",
+        "loop": false
+      },
+      {
+        "name": "es6RewriteModule",
+        "loop": false
+      },
+      {
+        "name": "closureRewriteModule",
+        "loop": false
+      },
+      {
+        "name": "clearTopTypedScopePass",
+        "loop": false
+      },
+      {
+        "name": "suspiciousCode",
+        "loop": false
+      },
+      {
+        "name": "j2clSourceFileChecker",
+        "loop": false
+      },
+      {
+        "name": "checkControlFlow",
+        "loop": false
+      },
+      {
+        "name": "checkAccessControls",
+        "loop": false
+      },
+      {
+        "name": "checkConsts",
+        "loop": false
+      },
+      {
+        "name": "rewriteCallerCodeLocation",
+        "loop": false
+      },
+      {
+        "name": "processDefines_CHECK",
+        "loop": false
+      },
+      {
+        "name": "j2clChecksPass",
+        "loop": false
+      },
+      {
+        "name": "generateExports",
+        "loop": false
+      },
+      {
+        "name": "afterStandardChecks",
+        "loop": false
+      },
+      {
+        "name": "MERGE_SYNTHETIC_SCRIPT",
+        "loop": false
+      },
+      {
+        "name": "removeWeakSources",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeSerialization",
+        "loop": false
+      }
+    ],
+    "optimizations": [
+      {
+        "name": "removeCastNodes",
+        "loop": false
+      },
+      {
+        "name": "typesToColors",
+        "loop": false
+      },
+      {
+        "name": "removeUnnecessarySyntheticExterns",
+        "loop": false
+      },
+      {
+        "name": "j2clPass",
+        "loop": false
+      },
+      {
+        "name": "TranspileAndOptimizeClosureUnaware",
+        "loop": false
+      },
+      {
+        "name": "es6InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "InjectRuntimeLibraries",
+        "loop": false
+      },
+      {
+        "name": "closureProvidesRequires",
+        "loop": false
+      },
+      {
+        "name": "closureReplaceGetCssName",
+        "loop": false
+      },
+      {
+        "name": "processDefines_OPTIMIZE",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationsTranspilation",
+        "loop": false
+      },
+      {
+        "name": "normalize",
+        "loop": false
+      },
+      {
+        "name": "gatherGettersAndSetters",
+        "loop": false
+      },
+      {
+        "name": "peepholeTranspilationsPasses",
+        "loop": false
+      },
+      {
+        "name": "featureRemovalPasses",
+        "loop": false
+      },
+      {
+        "name": "es6NormalizeClasses",
+        "loop": false
+      },
+      {
+        "name": "postTranspileUnsupportedFeaturesRemovedCheck",
+        "loop": false
+      },
+      {
+        "name": "j2clUtilGetDefineRewriterPass",
+        "loop": false
+      },
+      {
+        "name": "gatherExternProperties",
+        "loop": false
+      },
+      {
+        "name": "beforeStandardOptimizations",
+        "loop": false
+      },
+      {
+        "name": "closureCodeRemoval",
+        "loop": false
+      },
+      {
+        "name": "j2clAssertRemovalPass",
+        "loop": false
+      },
+      {
+        "name": "replaceToggles",
+        "loop": false
+      },
+      {
+        "name": "inlineAndCollapseProperties",
+        "loop": false
+      },
+      {
+        "name": "replaceIdGenerators",
+        "loop": false
+      },
+      {
+        "name": "j2clPropertyInlinerPass",
+        "loop": false
+      },
+      {
+        "name": "inferConsts",
+        "loop": false
+      },
+      {
+        "name": "obfuscationPassMarker",
+        "loop": false
+      },
+      {
+        "name": "earlyInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "earlyPeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "markPureFunctions",
+        "loop": false
+      },
+      {
+        "name": "optimizationsHalfwayPoint",
+        "loop": false
+      },
+      {
+        "name": "beforeEarlyOptimizationLoop",
+        "loop": false
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterEarlyOptimizationLoop",
+        "loop": false
+      },
+      {
+        "name": "closureOptimizePrimitives",
+        "loop": false
+      },
+      {
+        "name": "crossChunkCodeMotion",
+        "loop": true
+      },
+      {
+        "name": "devirtualizeMethods",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      },
+      {
+        "name": "beforeMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "inlineSimpleMethods",
+        "loop": true
+      },
+      {
+        "name": "deadPropertyAssignmentElimination",
+        "loop": true
+      },
+      {
+        "name": "optimizeCalls",
+        "loop": true
+      },
+      {
+        "name": "j2clConstantHoisterPass",
+        "loop": true
+      },
+      {
+        "name": "j2clClinitPass",
+        "loop": true
+      },
+      {
+        "name": "inlineFunctions",
+        "loop": true
+      },
+      {
+        "name": "inlineVariables",
+        "loop": true
+      },
+      {
+        "name": "deadAssignmentsElimination",
+        "loop": true
+      },
+      {
+        "name": "collapseObjectLiterals",
+        "loop": true
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": true
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": true
+      },
+      {
+        "name": "afterMainOptimizations",
+        "loop": false
+      },
+      {
+        "name": "runCustomPasses",
+        "loop": false
+      }
+    ],
+    "finalizations": [
+      {
+        "name": "flowSensitiveInlineVariables",
+        "loop": false
+      },
+      {
+        "name": "removeUnusedCode",
+        "loop": false
+      },
+      {
+        "name": "beforeChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "crossChunkCodeMotion",
+        "loop": true
+      },
+      {
+        "name": "crossChunkMethodMotion",
+        "loop": true
+      },
+      {
+        "name": "afterChunkMotion",
+        "loop": false
+      },
+      {
+        "name": "optimizeConstructors",
+        "loop": false
+      },
+      {
+        "name": "collapseAnonymousFunctions",
+        "loop": false
+      },
+      {
+        "name": "beforeExtractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "extractPrototypeMemberDeclarations",
+        "loop": false
+      },
+      {
+        "name": "beforeRenameProperties",
+        "loop": false
+      },
+      {
+        "name": "renameProperties",
+        "loop": false
+      },
+      {
+        "name": "gatherRawExports",
+        "loop": false
+      },
+      {
+        "name": "convertToDottedProperties",
+        "loop": false
+      },
+      {
+        "name": "coalesceVariableNames",
+        "loop": false
+      },
+      {
+        "name": "peepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "markUnnormalized",
+        "loop": false
+      },
+      {
+        "name": "postNormalizePeephole",
+        "loop": false
+      },
+      {
+        "name": "collapseVariableDeclarations",
+        "loop": false
+      },
+      {
+        "name": "denormalize",
+        "loop": false
+      },
+      {
+        "name": "beforeVariableRenaming",
+        "loop": false
+      },
+      {
+        "name": "renameVars",
+        "loop": false
+      },
+      {
+        "name": "renameLabels",
+        "loop": false
+      },
+      {
+        "name": "latePeepholeOptimizations",
+        "loop": false
+      },
+      {
+        "name": "stripSideEffectProtection",
+        "loop": false
+      },
+      {
+        "name": "optimizeToEs6",
+        "loop": false
+      },
+      {
+        "name": "checkAstValidity",
+        "loop": false
+      },
+      {
+        "name": "varCheckValidity",
+        "loop": false
+      }
+    ]
+  }
+]

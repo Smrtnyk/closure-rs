@@ -1,0 +1,19 @@
+{
+  "source": "test/com/google/javascript/jscomp/J2clCheckPassTest.java getProcessor (lines 40-43) and createCompiler (lines 45-50), bb8c8e7; setUp (lines 33-38) only calls enableTypeCheck, a harness field restored from the record; the constructor's DEFAULT_EXTERNS reach the record as inputs.externs",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {
+          "list": [
+            {"static": "com.google.javascript.jscomp.J2clSourceFileChecker", "method": "markToRunJ2clPasses", "args": [{"compiler": true}]},
+            {"new": "com.google.javascript.jscomp.J2clChecksPass", "args": [{"compiler": true}]}
+          ]
+        },
+        "method": "get",
+        "args": [{"int": 1}]
+      }
+    }
+  ],
+  "note": "The test class declares no instance fields; getProcessor is unconditional (new J2clChecksPass(compiler)). The createCompiler override returns a plain Compiler (harness.effective.createCompiler) after J2clSourceFileChecker.markToRunJ2clPasses(compiler), which only sets the compiler's runJ2clPasses flag. The DSL has no createCompiler hook, so the descriptor makes the same call on the same compiler from getProcessor (list evaluated in order, get(1) returns the pass), as in J2clClinitPrunerPassTest. Equivalent: the only readers of the flag are the J2CL passes and ProcessDefines (J2clSourceFileChecker.shouldRunJ2clPasses); none of them runs between createCompiler and getProcessor (the harness only parses and type checks there), J2clChecksPass itself does not read it, and the call is idempotent."
+}

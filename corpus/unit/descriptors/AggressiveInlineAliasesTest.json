@@ -1,0 +1,104 @@
+{
+  "source": "test/com/google/javascript/jscomp/AggressiveInlineAliasesTest.java getProcessor (lines 47-63), bb8c8e7, written in the DSL (pattern 'A PhaseOptimizer' plus 'A pass factory'): optimizer = new PhaseOptimizer(compiler, null); optimizer.addOneTimePass(makePassFactory(\"es6NormalizeClasses\", Es6NormalizeClasses::new)); optimizer.addOneTimePass(makePassFactory(\"inlineAndCollapseProperties\", (comp) -> InlineAndCollapseProperties.builder(compiler).setPropertyCollapseLevel(ALL).setChunkOutputType(GLOBAL_NAMESPACE).setHaveModulesBeenRewritten(false).setModuleResolutionMode(BROWSER).testAggressiveInliningOnly(this::validateGlobalNamespace).build())); return optimizer. `this::validateGlobalNamespace` is a Consumer lambda over the verbatim validateGlobalNamespace (lines 3341-3398) in helper AggressiveInlineAliasesTest_Helpers, whose lastCompiler (the test's getLastCompiler()) is the compiler passed to getProcessor.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "let": [
+          ["compiler", {"compiler": true}],
+          [
+            "this",
+            {
+              "withFields": {"helper": "AggressiveInlineAliasesTest_Helpers"},
+              "fields": {"lastCompiler": {"var": "compiler"}}
+            }
+          ],
+          [
+            "optimizer",
+            {"new": "com.google.javascript.jscomp.PhaseOptimizer", "args": [{"var": "compiler"}, {"null": true}]}
+          ]
+        ],
+        "in": {
+          "do": [
+            {
+              "call": {"var": "optimizer"},
+              "method": "addOneTimePass",
+              "args": [
+                {
+                  "static": "com.google.javascript.jscomp.CompilerTestCase",
+                  "method": "makePassFactory",
+                  "args": [
+                    {"string": "es6NormalizeClasses"},
+                    {
+                      "lambda": ["c"],
+                      "iface": "java.util.function.Function",
+                      "body": {"new": "com.google.javascript.jscomp.Es6NormalizeClasses", "args": [{"var": "c"}]}
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "call": {"var": "optimizer"},
+              "method": "addOneTimePass",
+              "args": [
+                {
+                  "static": "com.google.javascript.jscomp.CompilerTestCase",
+                  "method": "makePassFactory",
+                  "args": [
+                    {"string": "inlineAndCollapseProperties"},
+                    {
+                      "lambda": ["comp"],
+                      "iface": "java.util.function.Function",
+                      "body": {
+                        "call": {
+                          "call": {
+                            "call": {
+                              "call": {
+                                "call": {
+                                  "call": {
+                                    "static": "com.google.javascript.jscomp.InlineAndCollapseProperties",
+                                    "method": "builder",
+                                    "args": [{"var": "compiler"}]
+                                  },
+                                  "method": "setPropertyCollapseLevel",
+                                  "args": [{"enum": "com.google.javascript.jscomp.CompilerOptions$PropertyCollapseLevel", "name": "ALL"}]
+                                },
+                                "method": "setChunkOutputType",
+                                "args": [{"enum": "com.google.javascript.jscomp.CompilerOptions$ChunkOutputType", "name": "GLOBAL_NAMESPACE"}]
+                              },
+                              "method": "setHaveModulesBeenRewritten",
+                              "args": [{"bool": false}]
+                            },
+                            "method": "setModuleResolutionMode",
+                            "args": [{"enum": "com.google.javascript.jscomp.deps.ModuleLoader$ResolutionMode", "name": "BROWSER"}]
+                          },
+                          "method": "testAggressiveInliningOnly",
+                          "args": [
+                            {
+                              "lambda": ["passGlobalNamespace"],
+                              "iface": "java.util.function.Consumer",
+                              "body": {
+                                "call": {"var": "this"},
+                                "method": "validateGlobalNamespace",
+                                "args": [{"var": "passGlobalNamespace"}]
+                              }
+                            }
+                          ]
+                        },
+                        "method": "build",
+                        "args": []
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "value": {"var": "optimizer"}
+        }
+      }
+    }
+  ],
+  "note": "customSetUp (enableNormalize, setGenericNameReplacements) only sets harness fields, which the replay restores from the record. The holder is built once per getProcessor call, which is equivalent to the test instance because validateGlobalNamespace reads only getLastCompiler()."
+}

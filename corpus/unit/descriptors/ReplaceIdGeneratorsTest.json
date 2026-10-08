@@ -1,0 +1,35 @@
+{
+  "source": "test/com/google/javascript/jscomp/ReplaceIdGeneratorsTest.java getProcessor (lines 40-71), bb8c8e7; the anonymous RenamingMap (lines 43-54) is helper ReplaceIdGeneratorsTest_Helpers.IdTestMap; setUp (lines 73-79) only resets generatePseudoNames and previousMappings, whose values are recorded; getOptions (lines 81-86) is captured by the record's options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReplaceIdGenerators",
+        "args": [
+          {"compiler": true},
+          {"call": {"options": true}, "method": "needsTranspilationOf",
+           "args": [{"enum": "com.google.javascript.jscomp.parsing.parser.FeatureSet$Feature", "name": "TEMPLATE_LITERALS"}]},
+          {"call":
+            {"call":
+              {"call":
+                {"call":
+                  {"call": {"new": "com.google.common.collect.ImmutableMap$Builder", "args": []},
+                   "method": "put",
+                   "args": [{"string": "goog.events.getUniqueId"}, {"enum": "com.google.javascript.jscomp.RenamingToken", "name": "INCONSISTENT"}]},
+                 "method": "put",
+                 "args": [{"string": "goog.place.getUniqueId"}, {"enum": "com.google.javascript.jscomp.RenamingToken", "name": "INCONSISTENT"}]},
+               "method": "put",
+               "args": [{"string": "id"}, {"once": "idTestMap", "value": {"helper": "ReplaceIdGeneratorsTest_Helpers.IdTestMap", "args": []}}]},
+             "method": "put",
+             "args": [{"string": "get.id"}, {"once": "idTestMap", "value": {"helper": "ReplaceIdGeneratorsTest_Helpers.IdTestMap", "args": []}}]},
+           "method": "buildOrThrow",
+           "args": []},
+          {"field": "generatePseudoNames"},
+          {"field": "previousMappings"},
+          {"null": true}
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor reads generatePseudoNames and previousMappings (both always recorded as plain values). The one idTestMap instance is put under both 'id' and 'get.id'; 'once' reproduces that sharing (every record has getNumRepetitions=1, and the map is stateless). The field lastPass is write-only from getProcessor's point of view: the test reads it only in testMap's follow-up assertion on getSerializedIdMappings(), which the recording does not capture. The record-level unrepresentable entries all sit under test.lastPass and do not affect replay."
+}

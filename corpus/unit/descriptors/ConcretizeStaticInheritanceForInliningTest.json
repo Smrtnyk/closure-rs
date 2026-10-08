@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/ConcretizeStaticInheritanceForInliningTest.java getProcessor (lines 25-28), bb8c8e7.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ConcretizeStaticInheritanceForInlining",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": "No other harness hook is overridden and no test field exists."
+}

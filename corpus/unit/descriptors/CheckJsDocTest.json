@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckJsDocTest.java getProcessor (lines 50-53)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.CheckJSDoc", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "jsdocParsingMode (setUp: INCLUDE_DESCRIPTIONS_WITH_WHITESPACE; one test sets TYPES_ONLY) only feeds getOptions(), whose effect is already captured in the record's options."
+}

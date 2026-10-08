@@ -1,0 +1,21 @@
+{
+  "source": "test/com/google/javascript/jscomp/serialization/JSTypeColorIdHasherTest.java getProcessor (lines 101-109) and inner class LabeledTypeFinder (lines 80-95), bb8c8e7; copied verbatim into helper com.google.javascript.jscomp.serialization.JSTypeColorIdHasherTest_Helpers",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {"once": "holder", "value": {"new": "com.google.javascript.jscomp.serialization.JSTypeColorIdHasherTest_Helpers", "args": []}},
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      },
+      "testFieldsAfter": {"once": "holder", "value": {"new": "com.google.javascript.jscomp.serialization.JSTypeColorIdHasherTest_Helpers", "args": []}},
+      "testFieldsAfterAlso": ["labelToColorId"],
+      "testFieldsAfterSkip": {
+        "hasher": "JSTypeColorIdHasher instance: its only state is a map keyed by the registry's native JSType objects (Java-internal type graph, dumped as refs); the test never asserts on it, only on the ColorIds it returns, which are in labelToColorId",
+        "colorIdToJSTypes": "LinkedHashMultimap<ColorId, JSType> kept by the test only for debugging (source comment 'Useful for debugging'); never asserted; its values are JSType objects (Java-internal) and its dump is the multimap's internal entry graph"
+      },
+      "note": "Post-call check (classify round 1, batch 5): the holder is shared through {\"once\":\"holder\"} by getProcessor and the testFieldsAfter check, exactly like the test instance. labelToColorId (label -> ColorId{rightAligned: long}) is what every test method asserts on (containsNoDuplicates/hasSize on its values, containsExactly on its keys, isEqualTo between two compiles). testFieldsAfterAlso makes it compared on every record: on the first testSame of a method it changed (expected = testFieldsAfter value); on the second testSame of the haveRecompileStableIds_*/haveHeaderDerivableIds_* methods its dump did not change, so the expected value is its entry value from testFields, which is the map the first compile produced: this is the test's own isEqualTo(idsFromFirstCompile, idsFromSecondCompile) assertion. isNotSameInstanceAs is Java object identity of two maps getProcessor creates freshly (always true; not pass behaviour)."
+    }
+  ],
+  "note": "getProcessor re-assigns all three test fields it uses (hasher, labelToColorId, colorIdToJSTypes) on every call, so a fresh holder per record (shared by every getProcessor call of the record and the testFieldsAfter check through {\"once\"}) is equivalent to the shared test instance; the recorded entry values of those fields are never read by the replayed code (labelToColorId's entry value is only the expected value of the check, see the case note). The holder is built with {\"new\"} because it must live in package com.google.javascript.jscomp.serialization (JSTypeColorIdHasher is package-private) and {\"helper\"} only resolves holders in com.google.javascript.jscomp. The parameter rewriteClosureModules only drives setUp's enableRewriteClosureCode/disableRewriteModulesAfterTypechecking, restored from harness.fields; enableCreateModuleMap/enableTypeCheck likewise."
+}

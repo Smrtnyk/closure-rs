@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/VarCheckTest.java getProcessor (lines 78-94), bb8c8e7: an anonymous CompilerPass reading the test fields validityCheck and declarationCheck; it uses the static nested VariableTestCheck (lines 1232-1255). Both are copied verbatim into oracle/replay/helpers/com/google/javascript/jscomp/VarCheckTest_Helpers.java. The pass's control flow depends on compiler.hasErrors() at process time, which the DSL has no conditional for, so the anonymous pass stays a helper and is marked as the VarCheck mutation point: under --mutate-noop VarCheck the whole anonymous pass (both VarCheck runs, plus the assertion-only VariableTestCheck) becomes a no-op.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "mutationPoint": "com.google.javascript.jscomp.VarCheck",
+        "value": {
+          "helper": "VarCheckTest_Helpers.GetProcessorPass",
+          "outer": ["validityCheck", "declarationCheck"],
+          "args": [{"compiler": true}]
+        }
+      }
+    }
+  ],
+  "note": "strictChunkDepErrorLevel and externValidationErrorLevel only affect getOptions(), whose effect is the record's options diff. The same case serves api testInternal (209 records) and testExternChanges (16 records)."
+}

@@ -1,0 +1,5 @@
+{
+ "source": "test/com/google/javascript/jscomp/OptionalChainTypeCheckTest.java: Enclosed runner; the inner classes use TypeCheckTestCase.TypeTestBuilder.newTest() or extend TypeCheckTestCase (parseAndTypeCheckWithScope); records replay through ReplayTypeCheckTest; there is no processor.",
+ "cases": [],
+ "note": "fix-13: the post-call assertion of testOptChainGetElemExpressions_nonNullObject is classified in corpus/unit/postcall/OptionalChainTypeCheckTest.json (rust_unit_test); the descriptor's legacy postCallAssertions entry was moved there."
+}

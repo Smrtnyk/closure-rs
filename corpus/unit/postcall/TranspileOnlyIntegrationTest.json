@@ -1,0 +1,14 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.integration.TranspileOnlyIntegrationTest",
+ "methods": [
+  {
+   "method": "testASTValidator_transpileOnly_withModuleNotFirstChildOfScript",
+   "status": "rust_unit_test",
+   "reason": "after the hooked compile(options, source) (TranspileOnlyIntegrationTest.java:83, api compile, record index 2) the test builds its own AstValidator(compiler) (line 90), runs validateScript on the compiled SCRIPT node (lines 91-92, after checkState that it is a SCRIPT; it must accept a goog.module call that is not the script's first child), then sets compiler.getOptions().setSkipNonTranspilationPasses(false) on the live compiler (line 95) and asserts that the same validateScript call throws IllegalStateException (lines 96-98). These are checks by a test-built Java AstValidator on the Java Node tree under an option flipped after the call; no record field holds them (integration records have no postCall snapshot). The method's other assertions (no errors, no warnings, lines 86-87; toSource of the last root child equals the expected text, line 88) correspond to the record's observed.errors and observed.warnings (both empty) and observed.output (compiler.toSource() of the same single script: the asserted text followed by ';'), which replay compares JSON-equal, but the validator checks keep the method from being captured",
+   "fragment": "corpus/unit/rust_unit_tests/TranspileOnlyIntegrationTest.md",
+   "category": "test-local-object",
+   "note": "Classify round 1 batch 14: category changed from exception to test-local-object after reading the source: the IllegalStateException comes from the test's own AstValidator.validateScript call after compile() returned, not from the hooked call, so the 'exception' category (an exception thrown by the hooked call) does not describe it."
+  }
+ ]
+}

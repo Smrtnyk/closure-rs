@@ -1,0 +1,14 @@
+{
+  "source": "test/com/google/javascript/jscomp/FunctionTypeBuilderTest.java getProcessor (lines 39-46), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "sequence": []
+      }
+    }
+  ],
+  "note": "getProcessor returns an anonymous CompilerPass (FunctionTypeBuilderTest$1) whose process(externs, js) body is empty; the warnings under test come from FunctionTypeBuilder running inside type checking (setUp, lines 31-37: enableParseTypeInfo/enableTypeCheck, restored from harness.fields). An empty sequence is exactly a CompilerPass that does nothing (CheckTemplateParamsTest precedent). The test class declares no fields, and no other harness hook is overridden.",
+  "vacuityNote": "Classify round 1 batch 10 (2026-10-07, D-017): the recorded processor is the test's own empty CompilerPass (getProcessor, lines 39-46), so the whole-processor no-op of gate 0.2(a) equals the original and can never fail a record. The records assert through the type checking the harness runs (setUp, lines 31-37: enableParseTypeInfo, enableTypeCheck), which is exactly the case FORMAT.md 'No-op vacuity, harness-run passes' defines vacuityNoopClass for. TypeCheck is an in-scope top-level src class with a pass role (CompilerPass, NodeTraversal.Callback) and is not the recorded processor's class (FunctionTypeBuilderTest$1). Measured (build/unit/fix-10/r7-vnc-tc, scripts/unit_replay.sh --mutate-noop com.google.javascript.jscomp.TypeCheck): the agent rewrote TypeCheck.process, shouldTraverse and visit; testInlineJsDoc and testInlineJsDoc2 (TYPE_MISMATCH_WARNING, 'inconsistent return type' and 'initializing variable', emitted from TypeCheck through TypeValidator) fail with com.google.common.truth.ComparisonFailureWithFacts ('There should be 1 warnings ... but was : 0'), an assertion-type failure. The 5 TYPE_REDEFINITION records and testValidBuiltInTypeRedefinition still pass under that mutation: FunctionTypeBuilder reports TYPE_REDEFINITION during typed scope creation (TypedScopeCreator.createScope from TypeCheck.processForTesting), and TypedScopeCreator has no pass role, so no vacuityNoopClass can name it. Their warnings (type and message) are still compared by replay on every record, and passTrace verifies the executed pass set.",
+  "vacuityNoopClass": "com.google.javascript.jscomp.TypeCheck"
+}

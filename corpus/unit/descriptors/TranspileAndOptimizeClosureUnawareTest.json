@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/TranspileAndOptimizeClosureUnawareTest.java getProcessor (lines 39-42), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.TranspileAndOptimizeClosureUnaware",
+        "args": [{"compiler": true}, {"field": "mode"}]
+      }
+    }
+  ],
+  "note": "getProcessor reads only the test field mode (an enum, always recorded: TRANSPILE_AND_OPTIMIZE from the @Before setup, TRANSPILE_ONLY in the transpileOnlyMode_* and runtimeFieldInjection_incompatibleWithRestArg tests). The overridden getOptions() applies the extraOptions Consumer (a lambda, so testFields.extraOptions is recorded as unrepresentable); its only effect is on CompilerOptions, which replay rebuilds from record.options (e.g. generatePseudoNames in taggedTemplateLitTranspilation), so the lambda itself is not needed. setup()'s enableMultistageCompilation/disableCompareJsDoc and per-test setLanguageOut are in harness.fields/options. inputCount/outputCount only number the generated input/expected file names. Not replayed: the getLastCompiler().getRuntimeJsLibManager() assertions after test() in three tests."
+}

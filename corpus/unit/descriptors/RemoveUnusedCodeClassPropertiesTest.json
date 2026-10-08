@@ -1,0 +1,237 @@
+{
+  "source": "test/com/google/javascript/jscomp/RemoveUnusedCodeClassPropertiesTest.java getProcessor (lines 92-101): new RemoveUnusedCode.Builder(compiler).removeLocalVars(!keepLocals).removeGlobals(!keepGlobals).removeUnusedPrototypeProperties(true).removeUnusedThisProperties(true).removeUnusedObjectDefinePropertiesDefinitions(true).build(). One case per (keepLocals, keepGlobals) value; the negations are written out as constants. setUp (lines 103-114) only sets harness state, which comes from the record.",
+  "cases": [
+    {
+      "when": {
+        "testFields.keepLocals": true,
+        "testFields.keepGlobals": false
+      },
+      "processor": {
+        "call": {
+          "call": {
+            "call": {
+              "call": {
+                "call": {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnusedCode$Builder",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "removeLocalVars",
+                  "args": [
+                    {
+                      "bool": false
+                    }
+                  ]
+                },
+                "method": "removeGlobals",
+                "args": [
+                  {
+                    "bool": true
+                  }
+                ]
+              },
+              "method": "removeUnusedPrototypeProperties",
+              "args": [
+                {
+                  "bool": true
+                }
+              ]
+            },
+            "method": "removeUnusedThisProperties",
+            "args": [
+              {
+                "bool": true
+              }
+            ]
+          },
+          "method": "removeUnusedObjectDefinePropertiesDefinitions",
+          "args": [
+            {
+              "bool": true
+            }
+          ]
+        },
+        "method": "build",
+        "args": []
+      }
+    },
+    {
+      "when": {
+        "testFields.keepLocals": true,
+        "testFields.keepGlobals": true
+      },
+      "processor": {
+        "call": {
+          "call": {
+            "call": {
+              "call": {
+                "call": {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnusedCode$Builder",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "removeLocalVars",
+                  "args": [
+                    {
+                      "bool": false
+                    }
+                  ]
+                },
+                "method": "removeGlobals",
+                "args": [
+                  {
+                    "bool": false
+                  }
+                ]
+              },
+              "method": "removeUnusedPrototypeProperties",
+              "args": [
+                {
+                  "bool": true
+                }
+              ]
+            },
+            "method": "removeUnusedThisProperties",
+            "args": [
+              {
+                "bool": true
+              }
+            ]
+          },
+          "method": "removeUnusedObjectDefinePropertiesDefinitions",
+          "args": [
+            {
+              "bool": true
+            }
+          ]
+        },
+        "method": "build",
+        "args": []
+      }
+    },
+    {
+      "when": {
+        "testFields.keepLocals": false,
+        "testFields.keepGlobals": false
+      },
+      "processor": {
+        "call": {
+          "call": {
+            "call": {
+              "call": {
+                "call": {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnusedCode$Builder",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "removeLocalVars",
+                  "args": [
+                    {
+                      "bool": true
+                    }
+                  ]
+                },
+                "method": "removeGlobals",
+                "args": [
+                  {
+                    "bool": true
+                  }
+                ]
+              },
+              "method": "removeUnusedPrototypeProperties",
+              "args": [
+                {
+                  "bool": true
+                }
+              ]
+            },
+            "method": "removeUnusedThisProperties",
+            "args": [
+              {
+                "bool": true
+              }
+            ]
+          },
+          "method": "removeUnusedObjectDefinePropertiesDefinitions",
+          "args": [
+            {
+              "bool": true
+            }
+          ]
+        },
+        "method": "build",
+        "args": []
+      }
+    },
+    {
+      "when": {
+        "testFields.keepLocals": false,
+        "testFields.keepGlobals": true
+      },
+      "processor": {
+        "call": {
+          "call": {
+            "call": {
+              "call": {
+                "call": {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnusedCode$Builder",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "removeLocalVars",
+                  "args": [
+                    {
+                      "bool": true
+                    }
+                  ]
+                },
+                "method": "removeGlobals",
+                "args": [
+                  {
+                    "bool": false
+                  }
+                ]
+              },
+              "method": "removeUnusedPrototypeProperties",
+              "args": [
+                {
+                  "bool": true
+                }
+              ]
+            },
+            "method": "removeUnusedThisProperties",
+            "args": [
+              {
+                "bool": true
+              }
+            ]
+          },
+          "method": "removeUnusedObjectDefinePropertiesDefinitions",
+          "args": [
+            {
+              "bool": true
+            }
+          ]
+        },
+        "method": "build",
+        "args": []
+      }
+    }
+  ]
+}

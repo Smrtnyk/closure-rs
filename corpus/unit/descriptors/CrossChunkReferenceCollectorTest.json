@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/CrossChunkReferenceCollectorTest.java getProcessor (lines 42-47), bb8c8e7. The holder helper CrossChunkReferenceCollectorTest_Helpers holds getProcessor and the field testedCollector verbatim (lines 35, 43-47).",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {"once": "testInstance", "value": {"helper": "CrossChunkReferenceCollectorTest_Helpers"}},
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      },
+      "testFieldsAfter": {"once": "testInstance", "value": {"helper": "CrossChunkReferenceCollectorTest_Helpers"}},
+      "testFieldsAfterAlso": ["testedCollector"],
+      "note": "Post-call check (classify round 1, batch 4): getProcessor stores the collector it builds in testedCollector, and every test method asserts on testedCollector after testSame. The holder (created once per record, used as the processor's test instance) keeps that collector, and replay dumps holder.testedCollector exactly as the recorder dumped the test field (referenceable encoding, depth 2) and compares it with the record. testFieldsAfterAlso makes the 9 records whose testFieldsAfter is empty (the second testSame of a method produced a collector whose dump equals the previous one) compare the field too, against its unchanged entry value. Compared: the global variable names (varsByName keys and their Var name/index), per variable the number of references (referenceMap values), the top-level statements in order (originalOrder, number of non-declaration references, whether declaredNameReference/declaredValueNode are set and the value node's class), statementCounter, blockStack. Not in the dump (computed on demand from Java objects, so not compared): isMovableDeclaration, ReferenceCollection.isAssignedOnceInLifetime/isWellDefined, basic-block roots of references, Reference identity, the value node's number. Those assertions are classified rust_unit_test in corpus/unit/postcall/CrossChunkReferenceCollectorTest.json."
+    }
+  ],
+  "note": "getProcessor creates a SyntacticScopeCreator, then new CrossChunkReferenceCollector(compiler, scopeCreator), stores it in the field testedCollector and returns it; the holder helper does the same (verbatim). customSetUp (lines 37-40: enableNormalize) is replayed from harness.fields."
+}

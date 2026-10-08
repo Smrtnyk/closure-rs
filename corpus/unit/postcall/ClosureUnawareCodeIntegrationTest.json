@@ -1,0 +1,78 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.integration.ClosureUnawareCodeIntegrationTest",
+ "methods": [
+  {
+   "method": "testNoOptimizeClosureUnawareCode_collapsesSequentialComments",
+   "status": "rust_unit_test",
+   "reason": "asserts JSDocInfo and non-JSDoc comment objects attached to nodes of the compiled AST (lastCompiler.getRoot()), walking the closure-unaware function body with a NodeTraversal; the integration comparison (ast_assertNode) ignores JSDoc and comments, integration records have no postCall snapshot, and observed.output only shows the printed comments, not which node holds them",
+   "fragment": "corpus/unit/rust_unit_tests/ClosureUnawareCodeIntegrationTest.md",
+   "category": "jsdocinfo"
+  },
+  {
+   "method": "testNoOptimizeClosureUnawareCode_doesntCreateCastNodesInClosureUnawareBlocks",
+   "status": "rust_unit_test",
+   "reason": "asserts that no node of the compiled closure-unaware function is a CAST and that the function has no JSDocInfo (NodeTraversal over lastCompiler's AST); the integration comparison ignores JSDoc and integration records have no postCall snapshot (the absence of CAST tokens is also implied by the replayed AST comparison, the JSDocInfo part is not)",
+   "fragment": "corpus/unit/rust_unit_tests/ClosureUnawareCodeIntegrationTest.md",
+   "category": "jsdocinfo"
+  },
+  {
+   "method": "testNoOptimizeClosureUnawareCode_doesntCreateJSDocInfoWithinClosureUnawareBlocks",
+   "status": "rust_unit_test",
+   "reason": "asserts JSDocInfo and non-JSDoc comment objects attached to nodes of the compiled AST (lastCompiler.getRoot()), walking the closure-unaware function body with a NodeTraversal; the integration comparison (ast_assertNode) ignores JSDoc and comments, integration records have no postCall snapshot, and observed.output only shows the printed comments, not which node holds them; also the script's JSDocInfo license text",
+   "fragment": "corpus/unit/rust_unit_tests/ClosureUnawareCodeIntegrationTest.md",
+   "category": "jsdocinfo"
+  },
+  {
+   "method": "testOptimizeClosureUnawareCode_preservesOnlyLicenseJsdoc",
+   "status": "rust_unit_test",
+   "reason": "asserts JSDocInfo and non-JSDoc comment objects attached to nodes of the compiled AST (lastCompiler.getRoot()), walking the closure-unaware function body with a NodeTraversal; the integration comparison (ast_assertNode) ignores JSDoc and comments, integration records have no postCall snapshot, and observed.output only shows the printed comments, not which node holds them; also the script's JSDocInfo license text",
+   "fragment": "corpus/unit/rust_unit_tests/ClosureUnawareCodeIntegrationTest.md",
+   "category": "jsdocinfo"
+  },
+  {
+   "method": "testTranspileClosureUnaware_transpilesClassInheritance",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.injectedLibraries"
+   ],
+   "note": "After one test(...) (integration, api test), asserts lastCompiler.getRuntimeJsLibManager().getInjectedLibraries() containsExactly es6/util/inherits, es6/util/construct, es6/util/arrayfromiterable (a set of runtime library path strings), which D-017 item 2 makes the neutral snapshot key postCall.compiler.injectedLibraries. Known gate result: harness round 2 records that key for compiler_test_case records only; this record is kind=integration and integration records carry no postCall snapshot (open D-017 item 2 work), so the gate rejects this claim and the method stays unclassified until integration records carry the snapshot. observed.output does not hold it: under RuntimeLibraryMode.RECORD_AND_VALIDATE_FIELDS the libraries are recorded, not inserted into the output, and es6/util/arrayfromiterable is not referenced by the output at all. It is not a Rust unit test: the value is neutral."
+  },
+  {
+   "method": "testNoOptimizeClosureUnawareCode_stripsWhitespaceAndCommentsFromProtectedCode",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.output",
+    "observed.warnings"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): integration record (api compile, always notCaptured): the asserted value (errors+warnings count 0 and compiler.toSource() equals \"'use strict';(function(){const x=5}).call(globalThis);\") is in the record's observed.errors, observed.warnings, observed.output, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions. The postcall schema now accepts observed.* vias for integration records; this claim is verified by the class-limited gate (a) run (fix-6 round 2), which also resolves the record's integration-compile notCaptured state."
+  },
+  {
+   "method": "testNoOptimizeClosureUnawareCode_transpilationAndWhitespaceOnly",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.output",
+    "observed.warnings"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): integration record (api compile, always notCaptured): the asserted value (errors+warnings count 0 and compiler.toSource(main root) equals the expected goog.loadModule text; observed.output is compiler.toSource() of the same compiled program, which differs from the asserted text only by the leading 'use strict' directive) is in the record's observed.errors, observed.warnings, observed.output, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions. The postcall schema now accepts observed.* vias for integration records; this claim is verified by the class-limited gate (a) run (fix-6 round 2), which also resolves the record's integration-compile notCaptured state."
+  },
+  {
+   "method": "testNoOptimizeClosureUnawareCode_doesntRunTranspilation",
+   "status": "captured",
+   "via": [
+    "outcome"
+   ],
+   "note": "The method's only post-call assertion is assertThrows(RuntimeException.class, () -> compile(options, inputWithConst)) followed by hasMessageThat().contains(\"AST should not contain const declaration.\"). The record (integration, api compile) has outcome status exception, exceptionClass java.lang.IllegalStateException, assertion false and the full message, which starts with that text; replay compares status, class and message exactly (ReplayMain.compare). Review round 4 accepts outcome as a capture path for an asserted compiler exception."
+  },
+  {
+   "method": "testTranspileOnlyClosureUnawareCode_runsTranspilation",
+   "status": "captured",
+   "via": [
+    "observed.output"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): integration record (api compile, always notCaptured): the asserted value (compiler.toSource() equals the expected goog.loadModule text with `var Clazz = function() {}`) is in the record's observed.output, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions. The postcall schema now accepts observed.* vias for integration records; this claim is verified by the class-limited gate (a) run (fix-6 round 2), which also resolves the record's integration-compile notCaptured state."
+  }
+ ]
+}

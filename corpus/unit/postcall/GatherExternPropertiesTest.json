@@ -1,0 +1,16 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.GatherExternPropertiesTest",
+ "methods": [
+  {
+   "method": "testGatherExternPropertiesIncludingRecordTypes",
+   "status": "captured",
+   "via": [
+    "postconditions",
+    "postCall.compiler.externProperties",
+    "postCall.postcondition.externProperties"
+   ],
+   "note": "The scan flags the method for `expectExterns()` in the argument list of its last testSame (test lines 250-254): ASSERT_BROAD matches the helper name after the end of the first hooked call, but expectExterns only builds the Postcondition lambda (lines 342-345) that the harness runs inside that call, like the one assertExternProperties passes in the 18 calls before it. The method has no other assertion. The asserted state, compiler.getExternProperties() containsExactlyElementsIn(properties), is checked three times by replay on all 19 records: the descriptor replays the postcondition verbatim (GatherExternPropertiesTest_Helpers.ExpectExterns rebuilt from expected.postconditionValues.0.captures.arg$1; count rule 1 = 1); postCall.compiler.externProperties holds the same set; and postCall.postcondition.externProperties (D-017 item 1) holds the sorted set read from the compiler the postcondition verified. Both postCall keys are compared by postCall equality (classify round 2: the postcondition key is accepted as a via since harness round 2)."
+  }
+ ]
+}

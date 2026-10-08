@@ -1,0 +1,39 @@
+{
+  "source": "test/com/google/javascript/jscomp/MakeDeclaredNamesUniqueTest.java getProcessor (lines 47-72). invert=false: the anonymous CompilerPass, replayed through helper MakeDeclaredNamesUniqueTest_Helpers.Processor whose outer fields (useDefaultRenamer, removeConst, assertOnChange) are restored from testFields; invert=true: MakeDeclaredNamesUnique.getContextualRenameInverter(compiler).",
+  "cases": [
+    {
+      "when": {
+        "testFields.invert": true
+      },
+      "processor": {
+        "static": "com.google.javascript.jscomp.MakeDeclaredNamesUnique",
+        "method": "getContextualRenameInverter",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.invert": false
+      },
+      "processor": {
+        "helper": "MakeDeclaredNamesUniqueTest_Helpers.Processor",
+        "outer": [
+          "useDefaultRenamer",
+          "invert",
+          "removeConst",
+          "assertOnChange"
+        ],
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": "invert=false: the anonymous CompilerPass builds a MakeDeclaredNamesUnique callback via MakeDeclaredNamesUnique.builder() and runs NodeTraversal.traverseRoots(compiler, callback, externs, root); the DSL has no traverseRoots-as-a-pass construct, so it is a verbatim helper. invert=true: the static factory getContextualRenameInverter (MakeDeclaredNamesUnique.java:114-116). Neither path is reachable by --mutate-noop (see dsl_requests: traverseRoots, mutate-noop on static/call results). The helper field `invert` is restored too (it is read only by getProcessor itself, never by the inner class)."
+}

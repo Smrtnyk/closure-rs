@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6RewriteClassTest.java getProcessor (lines 69-81; a PhaseOptimizer of makePassFactory lambdas, one reading the field es6SubclassTranspilation), replayed through helper Es6RewriteClassTest_Helpers.GetProcessor with es6SubclassTranspilation restored from testFields. customSetUp (lines 55-67) affects only harness fields and es6SubclassTranspilation, which come from the record.",
+  "cases": [
+    {
+      "when": {"instanceClass": "com.google.javascript.jscomp.Es6RewriteClassTest"},
+      "processor": {
+        "call": {"helper": "Es6RewriteClassTest_Helpers.GetProcessor", "outer": ["es6SubclassTranspilation"]},
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "source": "test/com/google/javascript/jscomp/AliasStringsTest.java getProcessor (lines 40-48), bb8c8e7: new AliasStrings(compiler, compiler.getChunkGraph(), false, aliasStringsMode), and if hashReduction then pass.unitTestHashReductionMask = 0. setUp (lines 50-55) only resets aliasStringsMode (recorded in testFields).",
+  "cases": [
+    {
+      "when": {"testFields.hashReduction": true},
+      "processor": {
+        "withFields": {
+          "new": "com.google.javascript.jscomp.AliasStrings",
+          "args": [
+            {"compiler": true},
+            {"call": {"compiler": true}, "method": "getChunkGraph", "args": []},
+            {"bool": false},
+            {"field": "aliasStringsMode"}
+          ]
+        },
+        "fields": {"unitTestHashReductionMask": {"int": 0}}
+      }
+    },
+    {
+      "when": {"testFields.hashReduction": false},
+      "processor": {
+        "new": "com.google.javascript.jscomp.AliasStrings",
+        "args": [
+          {"compiler": true},
+          {"call": {"compiler": true}, "method": "getChunkGraph", "args": []},
+          {"bool": false},
+          {"field": "aliasStringsMode"}
+        ]
+      }
+    }
+  ],
+  "note": "Both test fields (hashReduction, aliasStringsMode) are recorded in every record; recorded combinations: ALL/false (17), ALL/true (1), LARGE/false (1), ALL_AGGRESSIVE/false (1)."
+}

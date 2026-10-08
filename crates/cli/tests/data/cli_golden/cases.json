@@ -1,0 +1,4286 @@
+[
+  {
+    "argv": [
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--help_markdown"
+    ],
+    "exit_code": 0,
+    "stdout": "1689a6aa0a7bf6f7f52f.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "a.js"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "a.js",
+      "--version"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--browser_featureset_year",
+      "2018",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "056ffc9dead5d693c6b3.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--browser_featureset_year=2018",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "056ffc9dead5d693c6b3.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--browser_featureset_year",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "3e3ff7eb5326bc3663fc.stderr"
+  },
+  {
+    "argv": [
+      "--browser_featureset_year=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "3e3ff7eb5326bc3663fc.stderr"
+  },
+  {
+    "argv": [
+      "--help",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--help=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--help",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--print_tree",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--print_tree=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--print_tree",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--print_tree_json",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--print_tree_json=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--print_tree_json",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--print_ast",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--print_ast=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--print_ast",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--emit_use_strict",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--emit_use_strict=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--emit_use_strict",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "37a9a7daeab9c1ea1a1b.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--strict_mode_input",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "35ab71e18e9e30708294.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--strict_mode_input=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "35ab71e18e9e30708294.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--strict_mode_input",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_dev_mode",
+      "OFF",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_dev_mode=OFF",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_dev_mode",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "7ccf6c7d0135bef4f730.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_dev_mode=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "7ccf6c7d0135bef4f730.stderr"
+  },
+  {
+    "argv": [
+      "--dev_mode",
+      "OFF",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--dev_mode=OFF",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--logging_level",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--logging_level=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--logging_level"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "a6119c08af03b2ca9e3a.stderr"
+  },
+  {
+    "argv": [
+      "--externs",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "b97e7cce631b68967a97.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--externs=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "b97e7cce631b68967a97.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--externs"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "c6c96258edc6f3a0c112.stderr"
+  },
+  {
+    "argv": [
+      "--js",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--js=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--js"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "4a0c4a4881164f71fafd.stderr"
+  },
+  {
+    "argv": [
+      "--jszip",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jszip=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jszip"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "8579f4a10eded8702b42.stderr"
+  },
+  {
+    "argv": [
+      "--js_output_file",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "c9d1df04d05cc73150e0.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--js_output_file=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "c9d1df04d05cc73150e0.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--js_output_file"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "171e4531fb20da1e5505.stderr"
+  },
+  {
+    "argv": [
+      "--chunk",
+      "base:0",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "cadce3a327be1810c340.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--chunk=base:0",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "cadce3a327be1810c340.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--chunk"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "0e24fd1dd77bde42e494.stderr"
+  },
+  {
+    "argv": [
+      "--filename_to_save_to",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--filename_to_save_to=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--filename_to_save_to"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "14dc2ccac11fafc22436.stderr"
+  },
+  {
+    "argv": [
+      "--filename_to_restore_from",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--filename_to_restore_from=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--filename_to_restore_from"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "22ca2b8e6201ebbf2c93.stderr"
+  },
+  {
+    "argv": [
+      "--segment_of_compilation_to_run",
+      "ENTIRE_COMPILATION",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--segment_of_compilation_to_run=ENTIRE_COMPILATION",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--segment_of_compilation_to_run",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "325755fee9aeffcffe2a.stderr"
+  },
+  {
+    "argv": [
+      "--segment_of_compilation_to_run=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "325755fee9aeffcffe2a.stderr"
+  },
+  {
+    "argv": [
+      "--variable_renaming_report",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "01a5f937499b6cfb3609.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--variable_renaming_report=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "01a5f937499b6cfb3609.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--variable_renaming_report"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "794142079e604f294162.stderr"
+  },
+  {
+    "argv": [
+      "--instrument_mapping_report",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--instrument_mapping_report=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--instrument_mapping_report"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "ae558a017471ffcb6fb0.stderr"
+  },
+  {
+    "argv": [
+      "--create_renaming_reports",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--create_renaming_reports=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--create_renaming_reports",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_include_content",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_include_content=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_include_content",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "23bcb1105a17429024df.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--property_renaming_report",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "bf5f24e435f0213d97c2.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--property_renaming_report=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "bf5f24e435f0213d97c2.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--property_renaming_report"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "94667e0b1de41dfd6cb1.stderr"
+  },
+  {
+    "argv": [
+      "--third_party",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--third_party=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--third_party",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "20c8cc00ed0ffbf63aed.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--summary_detail_level",
+      "1",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--summary_detail_level=1",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--summary_detail_level",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "9d53f8a9783b41e8f81c.stderr"
+  },
+  {
+    "argv": [
+      "--summary_detail_level=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "9d53f8a9783b41e8f81c.stderr"
+  },
+  {
+    "argv": [
+      "--isolation_mode",
+      "NONE",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--isolation_mode=NONE",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--isolation_mode",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "16382795d34d72d14883.stderr"
+  },
+  {
+    "argv": [
+      "--isolation_mode=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "16382795d34d72d14883.stderr"
+  },
+  {
+    "argv": [
+      "--output_wrapper",
+      "(%output%)",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "1e82a2a4a292064da75b.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--output_wrapper=(%output%)",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "1e82a2a4a292064da75b.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--output_wrapper"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "5f50554efbdd9997bba4.stderr"
+  },
+  {
+    "argv": [
+      "--output_wrapper_file",
+      "wrapper.txt",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "e696a8d23d82468a4266.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--output_wrapper_file=wrapper.txt",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "e696a8d23d82468a4266.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--output_wrapper_file"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "a44294459695b5cd7873.stderr"
+  },
+  {
+    "argv": [
+      "--chunk_wrapper",
+      "base:%s",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "24edf2ec36fad568cd0e.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--chunk_wrapper=base:%s",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "24edf2ec36fad568cd0e.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--chunk_wrapper"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "71e646057a920360dba8.stderr"
+  },
+  {
+    "argv": [
+      "--chunk_output_path_prefix",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "f232cb2f4a29348af4bc.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--chunk_output_path_prefix=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "f232cb2f4a29348af4bc.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--chunk_output_path_prefix"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "bfdb427a44e0ee67a8ae.stderr"
+  },
+  {
+    "argv": [
+      "--create_source_map",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "b1bcaa49055d6b32e06d.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--create_source_map=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "b1bcaa49055d6b32e06d.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--create_source_map"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "f3c50f7cc3404ca50fb2.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_format",
+      "DEFAULT",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_format=DEFAULT",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_format",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "8be6a76ca6235840b59b.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_format=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "8be6a76ca6235840b59b.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_location_mapping",
+      "src|dest",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "e35288823e73e35d7dc8.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_location_mapping=src|dest",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "e35288823e73e35d7dc8.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_location_mapping"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "a5c21869b5d7a63edd11.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_input",
+      "foo.js|foo.map",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "dbed2fac215c12dc6a91.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_input=foo.js|foo.map",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "dbed2fac215c12dc6a91.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_input"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "8671a9fe57f8fde3deab.stderr"
+  },
+  {
+    "argv": [
+      "--parse_inline_source_maps",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--parse_inline_source_maps=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--parse_inline_source_maps",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--apply_input_source_maps",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--apply_input_source_maps=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--apply_input_source_maps",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_error",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_error=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_error"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "e6decdcce27e003e6ced.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_warning",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_warning=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_warning"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "c22f32abfd2ca36825c6.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_off",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_off=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_off"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "828478e3c5741404a8b0.stderr"
+  },
+  {
+    "argv": [
+      "--define",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "1a341a9a016daf7fdff3.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--define=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "1a341a9a016daf7fdff3.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--define"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "ca09f12543b4c0055920.stderr"
+  },
+  {
+    "argv": [
+      "--D",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "1a341a9a016daf7fdff3.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--D=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "1a341a9a016daf7fdff3.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "-D",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "1a341a9a016daf7fdff3.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "-D=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "1a341a9a016daf7fdff3.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--charset",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "c7949c7fbb4b69579a1c.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--charset=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "c7949c7fbb4b69579a1c.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--charset"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "3da41ab0622b0243954b.stderr"
+  },
+  {
+    "argv": [
+      "--compilation_level",
+      "WHITESPACE_ONLY",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "fde126bb963daaae3a9d.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--compilation_level=WHITESPACE_ONLY",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "fde126bb963daaae3a9d.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--compilation_level"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "5fd5bb8413122eda50ef.stderr"
+  },
+  {
+    "argv": [
+      "-O",
+      "WHITESPACE_ONLY",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "fde126bb963daaae3a9d.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "-O=WHITESPACE_ONLY",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "fde126bb963daaae3a9d.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--num_parallel_threads",
+      "1",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--num_parallel_threads=1",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--num_parallel_threads",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "97f114afd00d8ae6d313.stderr"
+  },
+  {
+    "argv": [
+      "--num_parallel_threads=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "97f114afd00d8ae6d313.stderr"
+  },
+  {
+    "argv": [
+      "--checks_only",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--checks_only=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--checks_only",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "ed0e1fb0524b99ba445a.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--checks-only",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--checks-only=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--incremental_check_mode",
+      "OFF",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--incremental_check_mode=OFF",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--incremental_check_mode",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "f4a6ce756fcf89e45321.stderr"
+  },
+  {
+    "argv": [
+      "--incremental_check_mode=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "f4a6ce756fcf89e45321.stderr"
+  },
+  {
+    "argv": [
+      "--continue_after_errors",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--continue_after_errors=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--continue_after_errors",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--use_types_for_optimization",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "f75e01f7d4ca7d67ad25.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--use_types_for_optimization=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "f75e01f7d4ca7d67ad25.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--use_types_for_optimization",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--assume_function_wrapper",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--assume_function_wrapper=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--assume_function_wrapper",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "f5e5b395fe95aefed6ef.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--warning_level",
+      "QUIET",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "d52252082e5715d089cb.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--warning_level=QUIET",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "d52252082e5715d089cb.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--warning_level",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "8483f8d65906b27de2d9.stderr"
+  },
+  {
+    "argv": [
+      "--warning_level=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "8483f8d65906b27de2d9.stderr"
+  },
+  {
+    "argv": [
+      "-W",
+      "QUIET",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "d52252082e5715d089cb.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "-W=QUIET",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "d52252082e5715d089cb.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--typed_ast_output_file",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--typed_ast_output_file=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--typed_ast_output_file"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "5300ce8163fb8a04bf80.stderr"
+  },
+  {
+    "argv": [
+      "--generate_exports",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "c8362b50796bbc579c08.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--generate_exports=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "c8362b50796bbc579c08.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--generate_exports",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--export_local_property_definitions",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "3e9f36d665557fed7cb5.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--export_local_property_definitions=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "3e9f36d665557fed7cb5.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--export_local_property_definitions",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--formatting",
+      "PRETTY_PRINT",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "645998471af721a3f5eb.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--formatting=PRETTY_PRINT",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "645998471af721a3f5eb.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--formatting",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "2783e44257cf3363f680.stderr"
+  },
+  {
+    "argv": [
+      "--formatting=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "2783e44257cf3363f680.stderr"
+  },
+  {
+    "argv": [
+      "--process_common_js_modules",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--process_common_js_modules=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--process_common_js_modules",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "4c384ccf8cb7da2681a3.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--js_module_root",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "ff001b2d32c007cb1140.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--js_module_root=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "ff001b2d32c007cb1140.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--js_module_root"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "b4f48e630c075552befa.stderr"
+  },
+  {
+    "argv": [
+      "--process_closure_primitives",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "aaf4625a640bde38c3ae.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--process_closure_primitives=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "aaf4625a640bde38c3ae.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--process_closure_primitives",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--angular_pass",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--angular_pass=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--angular_pass",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "b0fadfde5c636e437adc.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--polymer_version",
+      "1",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "6a3a57506eadb6f25913.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--polymer_version=1",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "6a3a57506eadb6f25913.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--polymer_version",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "c25a646712fa45dc5a02.stderr"
+  },
+  {
+    "argv": [
+      "--polymer_version=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "c25a646712fa45dc5a02.stderr"
+  },
+  {
+    "argv": [
+      "--chrome_pass",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--chrome_pass=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--chrome_pass",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--j2cl_pass",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--j2cl_pass=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--j2cl_pass"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "3345c71774721b15bc11.stderr"
+  },
+  {
+    "argv": [
+      "--remove_j2cl_asserts",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--remove_j2cl_asserts=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--output_manifest",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "df0a1e8768a45666a0e0.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--output_manifest=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "df0a1e8768a45666a0e0.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--output_manifest"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "c48d5dee24a04be39b32.stderr"
+  },
+  {
+    "argv": [
+      "--output_chunk_dependencies",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "d7d5ecdbaf478d11365b.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--output_chunk_dependencies=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "d7d5ecdbaf478d11365b.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--output_chunk_dependencies"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "4c1c145706e3e2352f7c.stderr"
+  },
+  {
+    "argv": [
+      "--language_in",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "7ff0d57bf597641dcf1f.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--language_in=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "7ff0d57bf597641dcf1f.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--language_in"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "6957d45fe94e073f911b.stderr"
+  },
+  {
+    "argv": [
+      "--language_out",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "74e10efcc416be45b3b0.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--language_out=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "74e10efcc416be45b3b0.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--language_out"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "d8798be044d36db69fac.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "1d79037f7aaec825e10d.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--translations_file",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--translations_file=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--translations_file"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "3c4c4f833372e92bfe2c.stderr"
+  },
+  {
+    "argv": [
+      "--translations_project",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--translations_project=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--translations_project"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "3e6b37415204889016f4.stderr"
+  },
+  {
+    "argv": [
+      "--flagfile",
+      "flags-valid.txt",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "4bd93596b06798f2dfa0.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--flagfile=flags-valid.txt",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "4bd93596b06798f2dfa0.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--flagfile"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "2b7070d22f89b7549823.stderr"
+  },
+  {
+    "argv": [
+      "--warnings_allowlist_file",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "d40a7b24011e97286bcd.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--warnings_allowlist_file=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "d40a7b24011e97286bcd.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--warnings_allowlist_file"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "58738fd348cc05ee84f4.stderr"
+  },
+  {
+    "argv": [
+      "--warnings_whitelist_file",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "d40a7b24011e97286bcd.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--warnings_whitelist_file=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "d40a7b24011e97286bcd.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--hide_warnings_for",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "eea3d3f699349dcbf8fd.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--hide_warnings_for=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "eea3d3f699349dcbf8fd.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--hide_warnings_for"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "a2fa6ea4930b29abc17e.stderr"
+  },
+  {
+    "argv": [
+      "--extra_annotation_name",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "fa8326db4cccab76e98d.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--extra_annotation_name=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "fa8326db4cccab76e98d.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--extra_annotation_name"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "a71bbd1ec5e5c141e0be.stderr"
+  },
+  {
+    "argv": [
+      "--tracer_mode",
+      "ALL",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--tracer_mode=ALL",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--tracer_mode",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "1d529df8feceef8cab06.stderr"
+  },
+  {
+    "argv": [
+      "--tracer_mode=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "1d529df8feceef8cab06.stderr"
+  },
+  {
+    "argv": [
+      "--rename_variable_prefix",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "8136952a3686f761f9e0.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--rename_variable_prefix=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "8136952a3686f761f9e0.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--rename_variable_prefix"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "f080e51535d156e10906.stderr"
+  },
+  {
+    "argv": [
+      "--rename_prefix_namespace",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "14ca591334b2570af2bf.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--rename_prefix_namespace=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "14ca591334b2570af2bf.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--rename_prefix_namespace"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "0e5e3ef0f0caa9998a73.stderr"
+  },
+  {
+    "argv": [
+      "--conformance_configs",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "422afcc0bfa5218a0a8b.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--conformance_configs=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "422afcc0bfa5218a0a8b.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--conformance_configs"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "2723b1393be9683edcc4.stderr"
+  },
+  {
+    "argv": [
+      "--env",
+      "BROWSER",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--env=BROWSER",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--env",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "0619f6cf2592e37699b8.stderr"
+  },
+  {
+    "argv": [
+      "--env=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "0619f6cf2592e37699b8.stderr"
+  },
+  {
+    "argv": [
+      "--json_streams",
+      "NONE",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--json_streams=NONE",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--json_streams",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "10e5673ce5405944666a.stderr"
+  },
+  {
+    "argv": [
+      "--json_streams=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "10e5673ce5405944666a.stderr"
+  },
+  {
+    "argv": [
+      "--preserve_type_annotations",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--preserve_type_annotations=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--preserve_type_annotations",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--inject_libraries",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "2e929cd38d7dbb409642.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--inject_libraries=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "2e929cd38d7dbb409642.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--inject_libraries",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--force_inject_library",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "9f2865927a4b7c7d2ccf.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--force_inject_library=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "9f2865927a4b7c7d2ccf.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--force_inject_library"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "0c421498fdd24a8489e1.stderr"
+  },
+  {
+    "argv": [
+      "--dependency_mode",
+      "NONE",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "b25dd9208254e84710f4.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--dependency_mode=NONE",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "b25dd9208254e84710f4.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--dependency_mode",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "9494f903c90d5e90cd0c.stderr"
+  },
+  {
+    "argv": [
+      "--dependency_mode=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "9494f903c90d5e90cd0c.stderr"
+  },
+  {
+    "argv": [
+      "--entry_point",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "89475efa5e81bb505d28.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--entry_point=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "89475efa5e81bb505d28.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--entry_point"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "1723e896d701a279fba4.stderr"
+  },
+  {
+    "argv": [
+      "--rewrite_polyfills",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "c186c77d167f4ae25dea.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--rewrite_polyfills=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "c186c77d167f4ae25dea.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--rewrite_polyfills",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--isolate_polyfills",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--isolate_polyfills=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--isolate_polyfills",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "dd142c8e04510802aa4a.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--print_source_after_each_pass",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--print_source_after_each_pass=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--print_source_after_each_pass",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--module_resolution",
+      "BROWSER",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--module_resolution=BROWSER",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--module_resolution",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "5e1d9fa1522046d7f0d5.stderr"
+  },
+  {
+    "argv": [
+      "--module_resolution=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "5e1d9fa1522046d7f0d5.stderr"
+  },
+  {
+    "argv": [
+      "--browser_resolver_prefix_replacements",
+      "old=new",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--browser_resolver_prefix_replacements=old=new",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--browser_resolver_prefix_replacements"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "415122b624ae312c6949.stderr"
+  },
+  {
+    "argv": [
+      "--package_json_entry_names",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "14b6e410a4aa46244075.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--package_json_entry_names=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "14b6e410a4aa46244075.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--package_json_entry_names"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "ad76458025fb7c87046b.stderr"
+  },
+  {
+    "argv": [
+      "--error_format",
+      "STANDARD",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--error_format=STANDARD",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--error_format",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "6a6c8587faeafdfd12f8.stderr"
+  },
+  {
+    "argv": [
+      "--error_format=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "6a6c8587faeafdfd12f8.stderr"
+  },
+  {
+    "argv": [
+      "--renaming",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--renaming=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--renaming",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--help_markdown",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--help_markdown=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--help_markdown",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "c243b181e8a1c9570a67.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--instrument_for_coverage_option",
+      "NONE",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--instrument_for_coverage_option=NONE",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--instrument_for_coverage_option"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "0ca343a137635f0a0752.stderr"
+  },
+  {
+    "argv": [
+      "--production_instrumentation_array_name",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--production_instrumentation_array_name=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--production_instrumentation_array_name"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "7d222f3a3f2ea18a120d.stderr"
+  },
+  {
+    "argv": [
+      "--chunk_output_type",
+      "GLOBAL_NAMESPACE",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--chunk_output_type=GLOBAL_NAMESPACE",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--chunk_output_type",
+      "not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "0cca6c2996e1999aa71f.stderr"
+  },
+  {
+    "argv": [
+      "--chunk_output_type=not-a-value"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "0cca6c2996e1999aa71f.stderr"
+  },
+  {
+    "argv": [
+      "--allow_dynamic_import",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--allow_dynamic_import=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--allow_dynamic_import",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--dynamic_import_alias",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "ed772852bddd7afd1e90.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--dynamic_import_alias=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "ed772852bddd7afd1e90.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--dynamic_import_alias"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "79b1a979f64be8e80bfb.stderr"
+  },
+  {
+    "argv": [
+      "--assume_static_inheritance_is_not_used",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "16bb4d8b51dc85d234ac.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--assume_static_inheritance_is_not_used=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "16bb4d8b51dc85d234ac.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--assume_static_inheritance_is_not_used",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--assume_no_prototype_method_enumeration",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--assume_no_prototype_method_enumeration=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--assume_no_prototype_method_enumeration",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--variable_map_input_file",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--variable_map_input_file=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--variable_map_input_file"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "6c5eadcd7027e187be3a.stderr"
+  },
+  {
+    "argv": [
+      "--property_map_input_file",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--property_map_input_file=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--property_map_input_file"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "9228d1645266f7402483.stderr"
+  },
+  {
+    "argv": [
+      "--expected_diagnostics",
+      "value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--expected_diagnostics=value",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--expected_diagnostics"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "58de2276626a0dd7c6eb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "true",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=true",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "on",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=on",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "yes",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=yes",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "1",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=1",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "off",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=off",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "no",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=no",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "0",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=0",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "TRUE",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=TRUE",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "YES",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=YES",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "False",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=False",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "OFF",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=OFF",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "maybe",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=maybe",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug",
+      "",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "804a5b8ceb704efffc35.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "-O",
+      "simple",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "bd93ad700a74788c0484.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "-O",
+      "SIMPLE_OPTIMIZATIONS",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "42613fd762b175adbb3e.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "-O",
+      "Whitespace",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "499a47a4d62ec24161fd.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "-O",
+      "whitespace_only",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "9ecc2b08abe0ee8dbac5.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "-O",
+      "advanced",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "cfe22a7d54f1221dcd3d.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "-O",
+      "ADVANCED_OPTIMIZATIONS",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "a121199b215de4238ae9.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "-O",
+      "TRANSPILE_ONLY",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "5a7c262be8ca1c37e817.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--no_such_option"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "510e92513d656b9fd0ff.stderr"
+  },
+  {
+    "argv": [
+      "--help",
+      "--unknown"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "d899c0c6ca3f99b39217.stderr"
+  },
+  {
+    "argv": [
+      "--unknown",
+      "--version"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "d899c0c6ca3f99b39217.stderr"
+  },
+  {
+    "argv": [
+      "--"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "df457abb8e9fefe9574f.stderr"
+  },
+  {
+    "argv": [
+      "--flagfile",
+      "missing-flags.txt"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "0178e4d7a29befe86c8b.stderr"
+  },
+  {
+    "argv": [
+      "--flagfile",
+      "flags-nested.txt"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "61e69ae0e74ab769e9c9.stderr"
+  },
+  {
+    "argv": [
+      "--flagfile",
+      "flags-invalid.txt"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "eb535e6625a17109e90f.stderr"
+  },
+  {
+    "argv": [
+      "--flagfile",
+      "flags-quoted.txt"
+    ],
+    "exit_code": 0,
+    "stdout": "c2ff3b72a5a6d5a2c262.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "@at-valid.txt"
+    ],
+    "exit_code": 0,
+    "stdout": "4bd93596b06798f2dfa0.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "@at-equals.txt"
+    ],
+    "exit_code": 0,
+    "stdout": "4bd93596b06798f2dfa0.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "@at-invalid.txt"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "cbb37926aec047d7f5c4.stderr"
+  },
+  {
+    "argv": [
+      "@missing-at.txt"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "f022809ae412ae1c2a8a.stderr"
+  },
+  {
+    "argv": [
+      "--output_wrapper",
+      "invalid"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "df28e64d9d72f59166fa.stderr"
+  },
+  {
+    "argv": [
+      "--output_wrapper_file",
+      "missing-wrapper.txt"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "f69f1edae21bde940786.stderr"
+  },
+  {
+    "argv": [
+      "--output_wrapper",
+      "%output%",
+      "--isolation_mode",
+      "IIFE"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "cf194a91bb1f6efbbbeb.stderr"
+  },
+  {
+    "argv": [
+      "--compilation_level",
+      "BUNDLE"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "75e673621765c838aa67.stderr"
+  },
+  {
+    "argv": [
+      "--compilation_level",
+      "ADVANCED",
+      "--renaming",
+      "false"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "67693d987b2d961e40dc.stderr"
+  },
+  {
+    "argv": [
+      "--dependency_mode",
+      "PRUNE"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "c4dea0509828f216da43.stderr"
+  },
+  {
+    "argv": [
+      "--dependency_mode",
+      "NONE",
+      "--entry_point",
+      "goog:main"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "a4cb640879c53ebf6c37.stderr"
+  },
+  {
+    "argv": [
+      "--dependency_mode",
+      "SORT_ONLY",
+      "--entry_point",
+      "main"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "28961357a45463666833.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_input",
+      "bad"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "fbff40fa5b9204362789.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_location_mapping",
+      "bad"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "faea3d7a1447e743b604.stderr"
+  },
+  {
+    "argv": [
+      "--formatting",
+      "pretty-print",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "645998471af721a3f5eb.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--warning_level",
+      "vErBoSe",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "4bd93596b06798f2dfa0.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--debug=true",
+      "--version"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "1d79037f7aaec825e10d.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--help",
+      "--version"
+    ],
+    "exit_code": 0,
+    "stdout": "1d79037f7aaec825e10d.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--warning_level=\"VERBOSE\"",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "4bd93596b06798f2dfa0.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--warning_level='QUIET\"",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "d52252082e5715d089cb.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--js='foo.js'",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--js",
+      "\"foo.js\"",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_error",
+      "\"checkTypes\"",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_warning='deprecated'",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_warning",
+      "'checkTypes'",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--warning_level VERBOSE",
+      "--help"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "cbb37926aec047d7f5c4.stderr"
+  },
+  {
+    "argv": [
+      "--remove_j2cl_asserts=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "26ffd732f41688953875.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--logging_level",
+      "bogus"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--browser_featureset_year",
+      "2018",
+      "--language_out",
+      "ECMASCRIPT_NEXT"
+    ],
+    "exit_code": 1,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "684202a14d9a1ef496eb.stderr"
+  },
+  {
+    "argv": [
+      "--language_in",
+      "bogus"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "5c35b8cc6ddf8bdc5d34.stderr"
+  },
+  {
+    "argv": [
+      "--language_in",
+      "UNSUPPORTED"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "32abdab1c5c545643788.stderr"
+  },
+  {
+    "argv": [
+      "--language_out",
+      "bogus"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "5c35b8cc6ddf8bdc5d34.stderr"
+  },
+  {
+    "argv": [
+      "--language_out",
+      "UNSUPPORTED"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "843a824df573c07d4aca.stderr"
+  },
+  {
+    "argv": [
+      "--j2cl_pass",
+      "bogus"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "2f820cebd76337008154.stderr"
+  },
+  {
+    "argv": [
+      "--charset",
+      "bogus"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "9033cd608bb0daf9676a.stderr"
+  },
+  {
+    "argv": [
+      "--browser_featureset_year",
+      "2011"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "15ff7e0ffcc336703e3c.stderr"
+  },
+  {
+    "argv": [
+      "--browser_featureset_year",
+      "2015"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "ba1310101917514ea6c9.stderr"
+  },
+  {
+    "argv": [
+      "--browser_featureset_year",
+      "2027"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "2035dd8a010a37b33916.stderr"
+  },
+  {
+    "argv": [
+      "--chunk",
+      "foo"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "5c76418acc170175f997.stderr"
+  },
+  {
+    "argv": [
+      "--chunk",
+      "foo:-1"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "a54b14811ca51af69054.stderr"
+  },
+  {
+    "argv": [
+      "--chunk",
+      "foo:bad"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "5660eed9b99e1f8050f5.stderr"
+  },
+  {
+    "argv": [
+      "--chunk",
+      "foo:1:dep:extra:fifth"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "982175d1d8d48e2a497e.stderr"
+  },
+  {
+    "argv": [
+      "--chunk",
+      "foo:"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "8d0591062f0eb6dc6a71.stderr"
+  },
+  {
+    "argv": [
+      "--jscomp_error",
+      "not_a_group"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "149f2dc057db723996f1.stderr"
+  },
+  {
+    "argv": [
+      "--instrument_for_coverage_option",
+      "PRODUCTION"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "b53249af6729c556e24e.stderr"
+  },
+  {
+    "argv": [
+      "--logging_level",
+      "bogus"
+    ],
+    "exit_code": 254,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "997ff7175acd132528ce.stderr"
+  },
+  {
+    "argv": [
+      "--logging_level",
+      "warning"
+    ],
+    "exit_code": 254,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "5091ba6ae0c0d8951ac9.stderr"
+  },
+  {
+    "argv": [
+      "--logging_level",
+      " Warning "
+    ],
+    "exit_code": 254,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "48e3a43274fb7b39eae9.stderr"
+  },
+  {
+    "argv": [
+      "--logging_level",
+      ""
+    ],
+    "exit_code": 254,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "37019225c9dddf80b58a.stderr"
+  },
+  {
+    "argv": [
+      "--logging_level",
+      "0x10"
+    ],
+    "exit_code": 254,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "d84848966d16b761ca80.stderr"
+  },
+  {
+    "argv": [
+      "--logging_level",
+      "2147483648"
+    ],
+    "exit_code": 254,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "6c72bee1775c5f18b97c.stderr"
+  },
+  {
+    "argv": [
+      "--logging_level",
+      "-2147483649"
+    ],
+    "exit_code": 254,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "1057cd6072b619283ca1.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--logging_level",
+      "OFF"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--logging_level",
+      "SEVERE"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--logging_level",
+      "WARNING"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--logging_level",
+      "INFO"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--logging_level",
+      "CONFIG"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--logging_level",
+      "FINE"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--logging_level",
+      "FINER"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--logging_level",
+      "FINEST"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--logging_level",
+      "ALL"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--logging_level",
+      "123"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--logging_level",
+      "+123"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--logging_level",
+      "-123"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--version",
+      "--logging_level",
+      "\uff11\uff12\uff13"
+    ],
+    "exit_code": 0,
+    "stdout": "2414d51c719587ab0b92.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--logging_level",
+      "bogus",
+      "--language_in",
+      "bogus"
+    ],
+    "exit_code": 254,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "997ff7175acd132528ce.stderr"
+  },
+  {
+    "argv": [
+      "--instrument_mapping_report",
+      "map.txt"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "a014cf544c692cebe5e6.stderr"
+  },
+  {
+    "argv": [
+      "--instrument_for_coverage_option",
+      "PRODUCTION",
+      "--instrument_mapping_report",
+      "map.txt"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "c2c1edebd4c4ffd640ff.stderr"
+  },
+  {
+    "argv": [
+      "--chunk_output_type",
+      "ES_MODULES",
+      "--rename_prefix_namespace",
+      "root"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "e8b014d958e8868409de.stderr"
+  },
+  {
+    "argv": [
+      "--chunk_output_type",
+      "ES_MODULES",
+      "--emit_use_strict"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "bbd23780195650749e08.stderr"
+  },
+  {
+    "argv": [
+      "--chunk",
+      "a:0",
+      "--chunk",
+      "b:auto"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "a90086ccd83953d7f1a5.stderr"
+  },
+  {
+    "argv": [
+      "--js",
+      "fake.js",
+      "--chunk",
+      "1invalid:1"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "bc4ca5b9bce7f799824c.stderr"
+  },
+  {
+    "argv": [
+      "--js",
+      "fake.js",
+      "--chunk",
+      "a:1:missing"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "b5758b65fc75ead885ec.stderr"
+  },
+  {
+    "argv": [
+      "--js",
+      "fake.js",
+      "--chunk",
+      "a:0"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "99cb5bf5a92cf2b617fb.stderr"
+  },
+  {
+    "argv": [
+      "--js",
+      "fake.js",
+      "--chunk",
+      "a:2"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "7058f65936d638258f96.stderr"
+  },
+  {
+    "argv": [
+      "--js",
+      "fake.js",
+      "--chunk",
+      "a:1",
+      "--chunk",
+      "a:0"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "07dbf33c7ffef61f0e6b.stderr"
+  },
+  {
+    "argv": [
+      "-",
+      "--help"
+    ],
+    "exit_code": 255,
+    "stdout": "e3b0c44298fc1c149afb.stdout",
+    "stderr": "16f60631d98cdd311d7c.stderr"
+  }
+]

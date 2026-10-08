@@ -1,0 +1,9 @@
+{
+  "source": "test/com/google/javascript/jscomp/ReplaceTogglesTest.java getProcessor (lines 225-228): new ReplaceToggles(compiler). The test declares no fields and overrides no other harness hook.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.ReplaceToggles", "args": [{"compiler": true}]}
+    }
+  ]
+}

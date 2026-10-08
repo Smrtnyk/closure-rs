@@ -1,0 +1,26 @@
+{
+  "source": "test/com/google/javascript/jscomp/J2clAssertRemovalPassTest.java getProcessor (lines 25-28) and createCompiler (lines 30-35), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {
+          "list": [
+            {
+              "static": "com.google.javascript.jscomp.J2clSourceFileChecker",
+              "method": "markToRunJ2clPasses",
+              "args": [{"compiler": true}]
+            },
+            {
+              "new": "com.google.javascript.jscomp.J2clAssertRemovalPass",
+              "args": [{"compiler": true}]
+            }
+          ]
+        },
+        "method": "get",
+        "args": [{"int": 1}]
+      }
+    }
+  ],
+  "note": "createCompiler is overridden to call J2clSourceFileChecker.markToRunJ2clPasses(compiler) (compiler.setRunJ2clPasses(true)) on the plain Compiler it returns (recorded harness.effective.createCompiler is com.google.javascript.jscomp.Compiler, so ReplayCompilerTest uses the base createCompiler). Without the flag J2clAssertRemovalPass.process returns immediately (shouldRunJ2clPasses). As in J2clPropertyInlinerPassTest.json and J2clClinitPrunerPassTest.json, the descriptor makes the same call on the compiler passed to getProcessor: the list evaluates markToRunJ2clPasses first (void, yields null), then constructs the pass, and get(1) returns the pass. Equivalent because only the J2CL passes and ProcessDefines read runJ2clPasses and the harness runs none of them between createCompiler and getProcessor (no harness option is enabled in these records); the call is idempotent. The test has no setUp override and declares no fields. See the batch-27 'createCompiler hook' dsl_request."
+}

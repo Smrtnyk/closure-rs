@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6RewriteClassExtendsExpressionsTest.java getProcessor (lines 28-31), bb8c8e7. setUp (lines 33-45) only sets harness state (accepted language, language out, type check, ignored warnings, type info validation, colors, multistage compilation, generic name replacements), all restored from harness.fields; the per-test disableTypeCheck/disableTypeInfoValidation (lines 352-353) are restored the same way.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.Es6NormalizeClasses",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "The test class declares no fields; getProcessor is unconditional."
+}

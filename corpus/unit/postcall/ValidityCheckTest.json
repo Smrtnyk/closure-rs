@@ -1,0 +1,30 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.ValidityCheckTest",
+ "methods": [
+  {
+   "method": "testConstantAnnotationMismatch",
+   "status": "captured",
+   "note": "Review round 4: the former rust_unit_test reason named a value replay compares (outcome); former reason: asserts the message of the RuntimeException thrown by the hooked call (hasMessageThat().contains(\"The name x is not consistently annotated as constant.\")) after a test pass appended a NAME with IS_CONSTANT_NAME through the Java Node API. The record's outcome (status exception, class and full message) is compared exactly by Java replay, but the postcall schema accepts only postCall.*, testFieldsAft",
+   "via": [
+    "outcome"
+   ]
+  },
+  {
+   "method": "testUnnormalizeNodeTypes",
+   "status": "captured",
+   "note": "Review round 4: the former rust_unit_test reason named a value replay compares (outcome); former reason: asserts the message of the IllegalStateException thrown by the hooked call (hasMessageThat().contains(\"Expected BLOCK but was EMPTY\")) after a test pass appended IF(TRUE, EMPTY) through the Java Node API. The record's outcome (status exception, class and full message) is compared exactly by Java replay, but the postcall schema accepts only postCall.*, testFieldsAfter.* or postconditions as `via`, ",
+   "via": [
+    "outcome"
+   ]
+  },
+  {
+   "method": "testUnnormalized",
+   "status": "captured",
+   "note": "Review round 4: the former rust_unit_test reason named a value replay compares (outcome); former reason: asserts the message of the RuntimeException thrown by the hooked call (hasMessageThat().contains(\"Normalize constraints violated:\\nWHILE node\")) after a test pass set the life-cycle stage to NORMALIZED. The record's outcome (status exception, class and full message) is compared exactly by Java replay, but the postcall schema accepts only postCall.*, testFieldsAfter.* or postconditions as `via`, an",
+   "via": [
+    "outcome"
+   ]
+  }
+ ]
+}

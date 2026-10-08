@@ -1,0 +1,41 @@
+{
+  "source": "test/com/google/javascript/jscomp/TypedScopeCreatorTest.java getProcessor (lines 148-167), ScopeFinder (lines 116-139), LabeledStatement (lines 95-104); getOptions (lines 169-174) is captured by the record's options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {
+          "once": "test",
+          "value": {
+            "helper": "TypedScopeCreatorTest_Helpers"
+          }
+        },
+        "method": "getProcessor",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      },
+      "testFieldsAfter": {
+        "once": "test",
+        "value": {
+          "helper": "TypedScopeCreatorTest_Helpers"
+        }
+      },
+      "testFieldsAfterSkip": {
+        "registry": "JSTypeRegistry: the compiler's type registry (compiler.getTypeRegistry()), a cyclic hash-ordered object graph; the tests use it only to build expected types, and the types they assert are in globalScope/lastLocalScope/lastFunctionScope, which are compared"
+      },
+      "testFieldsAfterAlso": [
+        "globalScope",
+        "lastLocalScope",
+        "lastFunctionScope",
+        "labeledStatementMap"
+      ]
+    }
+  ],
+  "note": "The test's getProcessor body is copied verbatim into TypedScopeCreatorTest_Helpers; one holder instance, shared through {\"once\":\"test\"} by every getProcessor call and by the post-call check, stands in for the test instance. It resets registry and labeledStatementMap and the returned lambda writes globalScope/lastLocalScope/lastFunctionScope, so no recorded test field feeds the processor. Post-call check (fixer round 1): globalScope, lastLocalScope, lastFunctionScope (recorded as typedScope: every variable's name, type string and isTypeInferred, FORMAT.md) and labeledStatementMap are compared with the recorded testFieldsAfter; registry is skipped with the reason given. classMap maps the test's LabeledStatement to the helper's, so labeledStatementMap compares under the recorded class name. processClosurePrimitives only feeds getOptions (options.setClosurePass), which the record's options carry. Classify round 1 (D-017 item 6): testFieldsAfterAlso compares the four scope fields in every record, also when a call left one unchanged (expected value = its entry value), so a method's captured claims hold for each of its records.",
+  "classMap": {
+    "com.google.javascript.jscomp.TypedScopeCreatorTest$LabeledStatement": "com.google.javascript.jscomp.TypedScopeCreatorTest_Helpers$LabeledStatement"
+  }
+}

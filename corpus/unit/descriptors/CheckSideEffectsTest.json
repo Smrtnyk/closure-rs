@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckSideEffectsTest.java getProcessor (lines 35-38), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.CheckSideEffects",
+        "args": [{"compiler": true}, {"bool": true}, {"bool": true}]
+      }
+    }
+  ],
+  "note": "getProcessor is unconditional: new CheckSideEffects(compiler, true, true). setUp (lines 27-33) only calls enableParseTypeInfo() and allowExternsChanges(), both replayed from harness.fields. The only test field, e (a DiagnosticType constant), is not read by getProcessor."
+}

@@ -1,0 +1,241 @@
+OK
+requirement {
+  error_message: "eval is not allowed"
+  whitelist: "testcode"
+  type: BANNED_NAME
+  value: "eval"
+}
+
+=====
+OK
+
+=====
+OK
+requirement {
+  type: CUSTOM
+  java_class: "x"
+}
+
+=====
+OK
+requirement {
+  type: RESTRICTED_NAME_CALL
+  value: "abc"
+}
+
+=====
+OK
+requirement {
+  error_message: "tab\there \n nl \' sq \" dq \\ bs \a\b\f\v\r A A \303\251 \303\251 \360\237\230\200 \360\237\230\200"
+  value: "a"
+  value: "b"
+}
+
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:22: Enum type "jscomp.Requirement.Type" has no value named "NOPE".
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:22: Enum type "jscomp.Requirement.Type" has no value with number 99.
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:16: Input contains unknown fields and/or extensions:
+1:16:	jscomp.Requirement.foo
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:22: Expected ":".
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:23: String missing ending quote.
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:23: Invalid escape sequence: '\q'
+=====
+OK
+requirement {
+  rule_id: "r"
+  extends: "e"
+  report_loose_type_violations: false
+  severity: ERROR
+  type_matching_strategy: SUBTYPES
+  allow_extending_value: true
+  config_file: "f"
+}
+
+=====
+OK
+requirement {
+  allow_extending_value: true
+}
+
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:39: Expected "true" or "false". Found "yes".
+=====
+OK
+requirement {
+  rule_id: "b"
+}
+
+=====
+OK
+requirement {
+  whitelist_entry {
+    prefix: "q"
+  }
+  allowlist_entry {
+    reason: LEGACY
+    prefix: "p"
+    regexp: "r"
+    explanation: "x"
+    comment: "c1"
+    comment: "c2"
+    automatically_prune: true
+    do_not_record_violations_in_summary_because_this_is_gencode_and_always_safe: true
+  }
+}
+library_level_non_allowlisted_conformance_violations_behavior: RECORD_ONLY
+
+=====
+OK
+requirement {
+  whitelist: "a"
+  whitelist_regexp: "b"
+  only_apply_to: "e"
+  only_apply_to_regexp: "f"
+  allowlist: "c"
+  allowlist_regexp: "d"
+}
+
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+4:1: Expected "}".
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:29: Expected identifier. Found '}'
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:24: Input contains unknown fields and/or extensions:
+1:24:	jscomp.Requirement.[jscomp.foo]
+=====
+OK
+requirement {
+  value: "\000 \000 \001x \177 \357\277\275\357\277\275"
+}
+
+=====
+OK
+requirement {
+  value: "\357\277\275A"
+}
+
+=====
+OK
+requirement {
+  value: "ab"
+}
+
+=====
+OK
+requirement {
+}
+requirement {
+}
+
+=====
+OK
+requirement {
+  type: BANNED_NAME
+  value: "x"
+}
+
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:23: Expected string.
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:23: Expected string.
+=====
+OK
+requirement {
+  value: "\001\177"
+}
+
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:23: Invalid escape sequence: '\u' with too few hex chars
+=====
+OK
+requirement {
+  error_message: "x"
+}
+library_level_non_allowlisted_conformance_violations_behavior: UNSPECIFIED
+
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:46: Expected identifier. Found '}'
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:14: Expected "{".
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:23: String missing ending quote.
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:26: Enum type "jscomp.Requirement.Severity" has no value with number -1.
+=====
+OK
+requirement {
+  type_matching_strategy: STRICT_NULLABILITY
+}
+
+=====
+OK
+
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:27: Expected identifier. Found '/'
+=====
+OK
+requirement {
+  value: "?"
+}
+
+=====
+OK
+requirement {
+}
+
+=====
+OK
+requirement {
+  allowlist_entry {
+    prefix: "a"
+  }
+  allowlist_entry {
+    prefix: "b"
+  }
+}
+
+=====
+OK
+requirement {
+  allow_extending_value: true
+}
+
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:39: Expected "true" or "false". Found "TRUE".
+=====
+OK
+requirement {
+  allow_extending_value: false
+}
+
+=====
+OK
+requirement {
+  java_class: "abc"
+}
+
+=====

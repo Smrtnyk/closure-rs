@@ -1,0 +1,16 @@
+{
+  "source": "test/com/google/javascript/jscomp/CrossChunkCodeMotionTest.java getProcessor (lines 44-48)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.CrossChunkCodeMotion",
+        "args": [
+          {"compiler": true},
+          {"call": {"compiler": true}, "method": "getChunkGraph", "args": []},
+          {"field": "parentChunkCanSeeSymbolsDeclaredInChildren"}
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+[package]
+name = "minimize"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json = { workspace = true }
+
+# Only the oracle-backed self-test example (examples/selftest.rs) uses these.
+[dev-dependencies]
+fuzz-oracle = { workspace = true }
+jsgen = { workspace = true }
+mutate = { workspace = true }
+
+[[bin]]
+name = "minimize"
+path = "src/bin/minimize.rs"
+
+[lints]
+workspace = true

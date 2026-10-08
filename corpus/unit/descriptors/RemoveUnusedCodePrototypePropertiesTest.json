@@ -1,0 +1,274 @@
+{
+  "source": "test/com/google/javascript/jscomp/RemoveUnusedCodePrototypePropertiesTest.java getProcessor (lines 56-69): an anonymous CompilerPass (RemoveUnusedCodePrototypePropertiesTest$1) whose process builds new RemoveUnusedCode.Builder(compiler).removeLocalVars(!keepLocals).removeGlobals(!keepGlobals).removeUnusedPrototypeProperties(true).build() and runs it. One case per (keepLocals, keepGlobals) value; the negations are written out as constants. setUp (lines 78-89) and getOptions (lines 71-76) only reset the two fields and set harness state and options, which come from the record.",
+  "cases": [
+    {
+      "when": {
+        "testFields.keepLocals": true,
+        "testFields.keepGlobals": false
+      },
+      "processor": {
+        "lambda": [
+          "externs",
+          "root"
+        ],
+        "iface": "com.google.javascript.jscomp.CompilerPass",
+        "body": {
+          "do": [
+            {
+              "call": {
+                "call": {
+                  "call": {
+                    "call": {
+                      "call": {
+                        "new": "com.google.javascript.jscomp.RemoveUnusedCode$Builder",
+                        "args": [
+                          {
+                            "compiler": true
+                          }
+                        ]
+                      },
+                      "method": "removeLocalVars",
+                      "args": [
+                        {
+                          "bool": false
+                        }
+                      ]
+                    },
+                    "method": "removeGlobals",
+                    "args": [
+                      {
+                        "bool": true
+                      }
+                    ]
+                  },
+                  "method": "removeUnusedPrototypeProperties",
+                  "args": [
+                    {
+                      "bool": true
+                    }
+                  ]
+                },
+                "method": "build",
+                "args": []
+              },
+              "method": "process",
+              "args": [
+                {
+                  "var": "externs"
+                },
+                {
+                  "var": "root"
+                }
+              ]
+            }
+          ],
+          "value": {
+            "null": true
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "testFields.keepLocals": true,
+        "testFields.keepGlobals": true
+      },
+      "processor": {
+        "lambda": [
+          "externs",
+          "root"
+        ],
+        "iface": "com.google.javascript.jscomp.CompilerPass",
+        "body": {
+          "do": [
+            {
+              "call": {
+                "call": {
+                  "call": {
+                    "call": {
+                      "call": {
+                        "new": "com.google.javascript.jscomp.RemoveUnusedCode$Builder",
+                        "args": [
+                          {
+                            "compiler": true
+                          }
+                        ]
+                      },
+                      "method": "removeLocalVars",
+                      "args": [
+                        {
+                          "bool": false
+                        }
+                      ]
+                    },
+                    "method": "removeGlobals",
+                    "args": [
+                      {
+                        "bool": false
+                      }
+                    ]
+                  },
+                  "method": "removeUnusedPrototypeProperties",
+                  "args": [
+                    {
+                      "bool": true
+                    }
+                  ]
+                },
+                "method": "build",
+                "args": []
+              },
+              "method": "process",
+              "args": [
+                {
+                  "var": "externs"
+                },
+                {
+                  "var": "root"
+                }
+              ]
+            }
+          ],
+          "value": {
+            "null": true
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "testFields.keepLocals": false,
+        "testFields.keepGlobals": false
+      },
+      "processor": {
+        "lambda": [
+          "externs",
+          "root"
+        ],
+        "iface": "com.google.javascript.jscomp.CompilerPass",
+        "body": {
+          "do": [
+            {
+              "call": {
+                "call": {
+                  "call": {
+                    "call": {
+                      "call": {
+                        "new": "com.google.javascript.jscomp.RemoveUnusedCode$Builder",
+                        "args": [
+                          {
+                            "compiler": true
+                          }
+                        ]
+                      },
+                      "method": "removeLocalVars",
+                      "args": [
+                        {
+                          "bool": true
+                        }
+                      ]
+                    },
+                    "method": "removeGlobals",
+                    "args": [
+                      {
+                        "bool": true
+                      }
+                    ]
+                  },
+                  "method": "removeUnusedPrototypeProperties",
+                  "args": [
+                    {
+                      "bool": true
+                    }
+                  ]
+                },
+                "method": "build",
+                "args": []
+              },
+              "method": "process",
+              "args": [
+                {
+                  "var": "externs"
+                },
+                {
+                  "var": "root"
+                }
+              ]
+            }
+          ],
+          "value": {
+            "null": true
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "testFields.keepLocals": false,
+        "testFields.keepGlobals": true
+      },
+      "processor": {
+        "lambda": [
+          "externs",
+          "root"
+        ],
+        "iface": "com.google.javascript.jscomp.CompilerPass",
+        "body": {
+          "do": [
+            {
+              "call": {
+                "call": {
+                  "call": {
+                    "call": {
+                      "call": {
+                        "new": "com.google.javascript.jscomp.RemoveUnusedCode$Builder",
+                        "args": [
+                          {
+                            "compiler": true
+                          }
+                        ]
+                      },
+                      "method": "removeLocalVars",
+                      "args": [
+                        {
+                          "bool": true
+                        }
+                      ]
+                    },
+                    "method": "removeGlobals",
+                    "args": [
+                      {
+                        "bool": false
+                      }
+                    ]
+                  },
+                  "method": "removeUnusedPrototypeProperties",
+                  "args": [
+                    {
+                      "bool": true
+                    }
+                  ]
+                },
+                "method": "build",
+                "args": []
+              },
+              "method": "process",
+              "args": [
+                {
+                  "var": "externs"
+                },
+                {
+                  "var": "root"
+                }
+              ]
+            }
+          ],
+          "value": {
+            "null": true
+          }
+        }
+      }
+    }
+  ],
+  "note": "The anonymous pass (RemoveUnusedCodePrototypePropertiesTest$1) reads keepLocals/keepGlobals and builds RemoveUnusedCode inside process. Test bodies assign the fields only before their test(...) calls, so the values dumped at the hooked call are the ones process sees; one case per value pair, with the negations written as constants. Each case is a process-time lambda (DSL.md 'A pass built at process time'), so the Builder chain runs inside process, exactly as in the anonymous class."
+}

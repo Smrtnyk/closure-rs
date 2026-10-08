@@ -1,0 +1,21 @@
+[package]
+name = "closure-parsing"
+description = "Port of com.google.javascript.jscomp.parsing (the parser, IRFactory, JSDoc parser)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+closure-rhino = { path = "../rhino" }
+indexmap = { workspace = true }
+num-bigint = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+closure-jscomp = { path = "../jscomp" }
+closure-jstype = { path = "../jstype" }

@@ -1,0 +1,5 @@
+## RenameVarsTest (post-call assertions, gate 0.2 (a))
+
+Methods of `com.google.javascript.jscomp.RenameVarsTest` whose assertions after the hooked `test(...)` call inspect Java `Node` objects of the output AST that no neutral snapshot records. The record still replays (input, expected output, diagnostics, and `postCall.pass.variableMap`), but the asserted source positions are not compared, so its record is excluded from gate (a) counting under D-015 and the check is ported as a Rust unit test next to RenameVars. Every other flagged RenameVarsTest method asserts on `renameVars.getVariableMap()`, which replay compares as `postCall.pass.variableMap` (see `corpus/unit/postcall/RenameVarsTest.json`).
+
+- RenameVarsTest#testRenameSimple: asserts source positions (source file name, lineno, charno, length) of the output AST nodes of getLastCompiler().getRoot() after test(); Node source positions are in no test field or postcondition, the records' postCall key variableMap holds only the rename map (original name to new name), and Node.isEquivalentTo ignores positions

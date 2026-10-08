@@ -1,0 +1,670 @@
+{
+  "v": 1,
+  "class": "com.google.javascript.jscomp.AstValidatorTest",
+  "methods": [
+    {
+      "method": "testAwaitExpression",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after its testSame calls (whose lastCheckViolationMessages assertions are compared by replay, testFieldsAfter.lastCheckViolationMessages) the method builds Node trees by hand with the Java Node/IR API (new Node(Token...), IR.*, Node props such as source files and function flags) and calls AstValidator.validateStatement/validateExpression on them directly through doCheck (test lines 1789-1811), outside the harness and on a fresh Compiler; the asserted violation list depends only on those hand-built Java Node objects (a hand-built AWAIT node inside a hand-built async FUNCTION (Node.setIsAsyncFunction) validates as an expression with no violations), which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testClass",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after its testSame calls (whose lastCheckViolationMessages assertions are compared by replay, testFieldsAfter.lastCheckViolationMessages) the method builds Node trees by hand with the Java Node/IR API (new Node(Token...), IR.*, Node props such as source files and function flags) and calls AstValidator.validateStatement/validateExpression on them directly through doCheck (test lines 1789-1811), outside the harness and on a fresh Compiler; the asserted violation list depends only on those hand-built Java Node objects (a hand-built CLASS node with empty CLASS_MEMBERS is a valid statement; adding a MEMBER_FUNCTION_DEF without a name string, or one whose string is empty, makes it invalid), which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testClassComputedField",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testClassComputedFieldStatic",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testClassField",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testClassFieldStatic",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testClassField_super",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testClassStaticBlock",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testClassStaticBlock_invalidSuperConstructorCall",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testClassStaticBlock_superProperty",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testClassStaticBlock_this",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testCompoundAssign",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after its testSame calls (whose lastCheckViolationMessages assertions are compared by replay, testFieldsAfter.lastCheckViolationMessages) the method builds Node trees by hand with the Java Node/IR API (new Node(Token...), IR.*, Node props such as source files and function flags) and calls AstValidator.validateStatement/validateExpression on them directly through doCheck (test lines 1789-1811), outside the harness and on a fresh Compiler; the asserted violation list depends only on those hand-built Java Node objects (hand-built ASSIGN_ADD nodes whose target is an ARRAY_PATTERN or OBJECT_PATTERN are invalid expressions), which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testDebugger",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testDefaultParameter",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testFeatureValidation_arrayDestructuring",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_arrowFunctions",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_asyncFunctions",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_asyncGeneratorFunctions",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_blockScopedFunctionDeclaration",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_classComputedField",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_classField",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_classGetterSetter",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_classStaticBlock",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_classes",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_computedProperties",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_defaultParameters",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_exponentOp",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_extendedObjectLiterals",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_forAwaitOf",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_forOf",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_generatorFunctions",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_getter",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_logicalAssignmentOp",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_memberDeclarations",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_modules",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_newTarget",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_nullishCoalesceOp",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_objectDestructuring",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_objectLiteralsWithSpread",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_optChain",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_privateBrandCheck",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_privateClassField",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_privateGetter",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_privateMethod",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_privateSetter",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_restParameters",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_setter",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_spreadExpressions",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_staticPrivateClassField",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_staticPrivateGetter",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_staticPrivateMethod",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_staticPrivateSetter",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_super",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_taggedTemplateLiteralWithInvalidEscapes",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFeatureValidation_templateLiterals",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "each testFeatureValidation call (test lines 1833-1844) runs valid(code) (testSame; its lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages), then asserts that the Node.FEATURE_SET prop of the output SCRIPT node (NodeUtil.getFeatureSetOfScript on getLastCompiler().getJsRoot().getFirstChild()) contains the feature, replaces that prop with the feature removed (Node.putProp) and asserts that AstValidator.validateScript, called directly through doCheck, reports a violation; a SCRIPT node's FEATURE_SET prop is a Node prop that the printed output, the record and every postCall key leave out; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testFor",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testForAwaitOf",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after its testSame calls (whose lastCheckViolationMessages assertions are compared by replay, testFieldsAfter.lastCheckViolationMessages) the method builds Node trees by hand with the Java Node/IR API (new Node(Token...), IR.*, Node props such as source files and function flags) and calls AstValidator.validateStatement/validateExpression on them directly through doCheck (test lines 1789-1811), outside the harness and on a fresh Compiler; the asserted violation list depends only on those hand-built Java Node objects (hand-built FOR_AWAIT_OF nodes with an initialized VAR, CONST or destructuring declaration, wrapped in a SCRIPT with the Node.ES6_MODULE prop, are invalid statements), which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testForIn",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after its testSame calls (whose lastCheckViolationMessages assertions are compared by replay, testFieldsAfter.lastCheckViolationMessages) the method builds Node trees by hand with the Java Node/IR API (new Node(Token...), IR.*, Node props such as source files and function flags) and calls AstValidator.validateStatement/validateExpression on them directly through doCheck (test lines 1789-1811), outside the harness and on a fresh Compiler; the asserted violation list depends only on those hand-built Java Node objects (hand-built FOR_IN nodes with an initialized CONST or a destructuring VAR with an initializer are invalid statements), which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testForOf",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after its testSame calls (whose lastCheckViolationMessages assertions are compared by replay, testFieldsAfter.lastCheckViolationMessages) the method builds Node trees by hand with the Java Node/IR API (new Node(Token...), IR.*, Node props such as source files and function flags) and calls AstValidator.validateStatement/validateExpression on them directly through doCheck (test lines 1789-1811), outside the harness and on a fresh Compiler; the asserted violation list depends only on those hand-built Java Node objects (hand-built FOR_OF nodes with an initialized VAR, CONST or destructuring declaration are invalid statements), which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testGetter",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after its testSame calls (whose lastCheckViolationMessages assertions are compared by replay, testFieldsAfter.lastCheckViolationMessages) the method builds Node trees by hand with the Java Node/IR API (new Node(Token...), IR.*, Node props such as source files and function flags) and calls AstValidator.validateStatement/validateExpression on them directly through doCheck (test lines 1789-1811), outside the harness and on a fresh Compiler; the asserted violation list depends only on those hand-built Java Node objects (a hand-built CLASS with empty CLASS_MEMBERS is a valid statement; adding a GETTER_DEF whose function has a parameter or a function name, or a COMPUTED_PROP with the Node.COMPUTED_PROP_GETTER prop whose function has a parameter or a function name, makes it invalid), which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testIncDec",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after its testSame calls (whose lastCheckViolationMessages assertions are compared by replay, testFieldsAfter.lastCheckViolationMessages) the method builds Node trees by hand with the Java Node/IR API (new Node(Token...), IR.*, Node props such as source files and function flags) and calls AstValidator.validateStatement/validateExpression on them directly through doCheck (test lines 1789-1811), outside the harness and on a fresh Compiler; the asserted violation list depends only on those hand-built Java Node objects (hand-built INC nodes with two children, or with an ARRAY_PATTERN or OBJECT_PATTERN operand, are invalid expressions), which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testInvalidSuperConstructorCallInNonConstructor",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testNoAwaitExpressionInDefaultParams",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after parseValidScript's testSame (whose lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages) the method takes Node objects of the output AST (getLastCompiler().getJsRoot()), mutates them with the Java Node API and calls AstValidator directly on them through doCheck (test lines 1789-1811): after parseValidScript (testSame), the NAME node `replaceWithAwait` of the output AST is replaced by a hand-built AWAIT node; AstValidator.validateExpression on it must report a violation (await in a default parameter value); the asserted state is a property of those Java Node objects after hand mutation, which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testNoYieldExpressionInDefaultParams",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after parseValidScript's testSame (whose lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages) the method takes Node objects of the output AST (getLastCompiler().getJsRoot()), mutates them with the Java Node API and calls AstValidator directly on them through doCheck (test lines 1789-1811): after parseValidScript (testSame), the NAME node `replaceWithYield` of the output AST is replaced by a hand-built YIELD node; AstValidator.validateExpression on it must report a violation (yield in a default parameter value); the asserted state is a property of those Java Node objects after hand mutation, which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testObjectRestAssignment",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testQuestionableForIn",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testSetter",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after its testSame calls (whose lastCheckViolationMessages assertions are compared by replay, testFieldsAfter.lastCheckViolationMessages) the method builds Node trees by hand with the Java Node/IR API (new Node(Token...), IR.*, Node props such as source files and function flags) and calls AstValidator.validateStatement/validateExpression on them directly through doCheck (test lines 1789-1811), outside the harness and on a fresh Compiler; the asserted violation list depends only on those hand-built Java Node objects (a hand-built CLASS with empty CLASS_MEMBERS is a valid statement; adding a SETTER_DEF whose function has no parameter or has a function name, or a COMPUTED_PROP with the Node.COMPUTED_PROP_SETTER prop whose function has no parameter or has a function name, makes it invalid), which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testShadowContent_validatesSingularExpectedStructure",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after parseValidScript's testSame (whose lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages) the method takes Node objects of the output AST (getLastCompiler().getJsRoot()), mutates them with the Java Node API and calls AstValidator directly on them through doCheck (test lines 1789-1811): output SCRIPT nodes of parseValidScript (testSame) are detached and installed as the closure-unaware shadow (Node.setClosureUnawareShadow) of a hand-built NAME node; AstValidator.validateStatement must report exactly the expected shadow-structure violation message for each, and none for `sink(function(){})`; the asserted state is a property of those Java Node objects after hand mutation, which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testSuperConstructorCallInvalidInClassWithoutExtendsClause",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testSuperConstructorCallInvalidInObjectLiteralMethod",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testSuperInvalidAsAnExpression",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after parseValidScript's testSame (whose lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages) the method takes Node objects of the output AST (getLastCompiler().getJsRoot()), mutates them with the Java Node API and calls AstValidator directly on them through doCheck (test lines 1789-1811): after parseValidScript (testSame), the NAME node `replaceWithSuper` of the output AST is replaced by a SUPER node; AstValidator.validateScript on the output SCRIPT node must report a violation; the asserted state is a property of those Java Node objects after hand mutation, which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testSuperInvalidIfTypeInfoIsMissing",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after parseValidScript's testSame (whose lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages) the method takes Node objects of the output AST (getLastCompiler().getJsRoot()), mutates them with the Java Node API and calls AstValidator directly on them through doCheck (test lines 1789-1811): after parseValidScript (testSame), the type information of the SUPER node of the output AST is erased (Node.setJSType(null)); AstValidator.validateScript on the output SCRIPT node must report a violation; the asserted state is a property of those Java Node objects after hand mutation, which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testSuperInvalidInNonMemberFunction",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testSuperPropReferenceIsValidInClassWithoutExtendsClause",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testSuperPropReferenceIsValidInObjectLiteralMethod",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testSwitchStatement",
+      "status": "rust_unit_test",
+      "category": "node-identity",
+      "reason": "after parseValidScript's testSame (whose lastCheckViolationMessages assertion is compared by replay, testFieldsAfter.lastCheckViolationMessages) the method takes Node objects of the output AST (getLastCompiler().getJsRoot()), mutates them with the Java Node API and calls AstValidator directly on them through doCheck (test lines 1789-1811): after parseValidScript (testSame), a hand-built BLOCK is inserted as the first child of the first CASE node of the output AST; AstValidator.validateScript on the output SCRIPT node must report a violation; the asserted state is a property of those Java Node objects after hand mutation, which no record input or postCall key represents; the records carry no postCall.pass key; their postCall.compiler (v7) holds accessorSummary, allowableFeatures, moduleMapBoundNames and moduleMetadataByPath, none of which describes these Node objects (allowableFeatures is Compiler.getAllowableFeatures(), the feature set the language mode allows, not a SCRIPT node's FEATURE_SET prop; accessorSummary, moduleMapBoundNames and moduleMetadataByPath describe accessors, module bindings and module metadata of the compiled input, not hand-built or hand-mutated nodes)",
+      "fragment": "corpus/unit/rust_unit_tests/AstValidatorTest.md",
+      "note": "valid()/invalid()/parseValidScript() assert lastCheckViolationMessages (empty / non-empty) right after testSame (test lines 1755-1774); replay compares that field exactly in every record of this method (testFieldsAfter.lastCheckViolationMessages, descriptor testFieldsAfterAlso)."
+    },
+    {
+      "method": "testValidConst",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testValidDestructuringAssignment0",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testValidDestructuringAssignment1",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testValidDestructuringAssignment2",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testValidGetPropAndGetElem",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testValidRestParameter",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    },
+    {
+      "method": "testValidSuperConstructorCall",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.lastCheckViolationMessages"
+      ],
+      "note": "The only assertions after the hooked testSame calls are valid()/invalid() (test lines 1755-1758, 1771-1774): lastCheckViolationMessages, filled by createValidator's ViolationHandler during the call, is empty / non-empty. Replay compares the exact list in every record (descriptor testFieldsAfter + testFieldsAfterAlso), which is stronger than the emptiness check."
+    }
+  ]
+}

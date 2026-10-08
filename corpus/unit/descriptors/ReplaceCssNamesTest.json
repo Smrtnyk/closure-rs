@@ -1,0 +1,116 @@
+{
+  "source": "test/com/google/javascript/jscomp/ReplaceCssNamesTest.java getProcessor (lines 89-93), getPartialMap/getFullMap (lines 95-111), fields (lines 41-77); replayed through the holder helper ReplaceCssNamesTest_Helpers (bb8c8e7). setUp (lines 113-122: enableTypeCheck, enableRewriteClosureCode) affects harness fields only.",
+  "cases": [
+    {
+      "when": {
+        "testFields.renamingMap.object": "com.google.javascript.jscomp.ReplaceCssNamesTest$1"
+      },
+      "processor": {
+        "mutationPoint": "ReplaceCssNames",
+        "value": {
+          "call": {
+            "withFields": {
+              "once": "testInstance",
+              "value": {
+                "helper": "ReplaceCssNamesTest_Helpers"
+              }
+            },
+            "fields": {
+              "useReplacementMap": {
+                "field": "useReplacementMap"
+              },
+              "skiplist": {
+                "field": "skiplist"
+              },
+              "cssNames": {
+                "once": "cssNames",
+                "value": {
+                  "field": "cssNames"
+                }
+              },
+              "renamingMap": {
+                "call": {
+                  "once": "testInstance",
+                  "value": {
+                    "helper": "ReplaceCssNamesTest_Helpers"
+                  }
+                },
+                "method": "getPartialMap",
+                "args": []
+              }
+            }
+          },
+          "method": "getProcessor",
+          "args": [
+            {
+              "compiler": true
+            }
+          ]
+        }
+      },
+      "testFieldsAfter": {
+        "once": "testInstance",
+        "value": {
+          "helper": "ReplaceCssNamesTest_Helpers"
+        }
+      },
+      "testFieldsAfterAlso": ["cssNames"]
+    },
+    {
+      "when": {
+        "testFields.renamingMap.object": "com.google.javascript.jscomp.ReplaceCssNamesTest$2"
+      },
+      "processor": {
+        "mutationPoint": "ReplaceCssNames",
+        "value": {
+          "call": {
+            "withFields": {
+              "once": "testInstance",
+              "value": {
+                "helper": "ReplaceCssNamesTest_Helpers"
+              }
+            },
+            "fields": {
+              "useReplacementMap": {
+                "field": "useReplacementMap"
+              },
+              "skiplist": {
+                "field": "skiplist"
+              },
+              "cssNames": {
+                "once": "cssNames",
+                "value": {
+                  "field": "cssNames"
+                }
+              },
+              "renamingMap": {
+                "call": {
+                  "once": "testInstance",
+                  "value": {
+                    "helper": "ReplaceCssNamesTest_Helpers"
+                  }
+                },
+                "method": "getFullMap",
+                "args": []
+              }
+            }
+          },
+          "method": "getProcessor",
+          "args": [
+            {
+              "compiler": true
+            }
+          ]
+        }
+      },
+      "testFieldsAfter": {
+        "once": "testInstance",
+        "value": {
+          "helper": "ReplaceCssNamesTest_Helpers"
+        }
+      },
+      "testFieldsAfterAlso": ["cssNames"]
+    }
+  ],
+  "note": "testFields.renamingMap is an anonymous class of the test: ReplaceCssNamesTest$1 is the CssRenamingMap.ByPart from getPartialMap (set in setUp, line 121) and ReplaceCssNamesTest$2 the ByWhole from getFullMap (lines 269, 287, 365, 448). Both read the never-reassigned replacementMap/replacementMapFull initializers. The holder instance is shared across getProcessor calls of one record (\"once\"), like the test instance; cssNames (the CssNameCollector target, cssNames::add) only collects names for the test's own follow-up assertThat(cssNames) checks, which are not recorded. useReplacementMap=false records pass null as the renaming map, exactly as getProcessor does. testFieldsAfter is checked (opt-in): after the call, the holder's cssNames (the CssNameCollector target) must equal the recorded testFieldsAfter.cssNames, which stands in for the test's own follow-up assertThat(cssNames) checks. The processor is wrapped in mutationPoint ReplaceCssNames (getProcessor returns a new ReplaceCssNames), so --mutate-noop ReplaceCssNames reaches it."
+}

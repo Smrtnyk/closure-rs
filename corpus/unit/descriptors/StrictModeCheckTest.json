@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/StrictModeCheckTest.java getProcessor (lines 39-42), bb8c8e7; setUp (lines 32-37) only calls disableTypeCheck, which is in harness.fields; the constructor's externs are in inputs.externs",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.StrictModeCheck",
+        "args": [{"compiler": true}, {"enum": "com.google.javascript.jscomp.CheckLevel", "name": "WARNING"}]
+      }
+    }
+  ],
+  "note": "The test class declares only the static constant EXTERNS (not a test field)."
+}

@@ -1,0 +1,54 @@
+{
+ "source": "test/com/google/javascript/jscomp/serialization/SerializeTypedAstPassTest.java getProcessor (lines 73-77), createCompiler (lines 79-86), setUp (lines 63-71), bb8c8e7; the astConsumer field and lambda (lines 53, 489-490) are helper com.google.javascript.jscomp.serialization.SerializeTypedAstPassTest_Compile",
+ "cases": [
+  {
+   "when": {},
+   "processor": {
+    "new": "com.google.javascript.jscomp.serialization.SerializeTypedAstPass",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "getField": {
+       "once": "astConsumerHolder",
+       "value": {
+        "new": "com.google.javascript.jscomp.serialization.SerializeTypedAstPassTest_Compile",
+        "args": []
+       }
+      },
+      "name": "astConsumer"
+     },
+     {
+      "call": {
+       "call": {
+        "static": "com.google.javascript.jscomp.serialization.SerializationOptions",
+        "method": "builder",
+        "args": []
+       },
+       "method": "setIncludeDebugInfo",
+       "args": [
+        {
+         "bool": false
+        }
+       ]
+      },
+      "method": "build",
+      "args": []
+     }
+    ]
+   },
+   "testFieldsAfter": {
+    "once": "astConsumerHolder",
+    "value": {
+     "new": "com.google.javascript.jscomp.serialization.SerializeTypedAstPassTest_Compile",
+     "args": []
+    }
+   }
+  }
+ ],
+ "note": "Every record goes through the test's private compile(TestPart...) (lines 488-497), which assigns astConsumer = (ast) -> resultAst[0] = ast over a fresh TypedAst[1] immediately before test(...); the field is therefore always that lambda when getProcessor runs, and the record writes it as a class-name ref with its captures (FORMAT.md \"Referenceable values\"; no record lists it under unrepresentable). The lambda is rebuilt verbatim inside helper SerializeTypedAstPassTest_Compile (fix-8; it replaces the earlier class-based SerializeTypedAstPassTest_Helpers.AstConsumer so that the replayed field is a real lambda capturing a TypedAst[1], like the recorded one). The holder is shared through {\"once\":\"astConsumerHolder\"} and the case opts in to testFieldsAfter on it, so replay compares the recorded post-call astConsumer dump: the lambda's captured TypedAst[1] with the whole TypedAst message in the neutral protobuf encoding of the v7 records (harness round 2, D-017 item 2; FORMAT.md \"Neutral encodings\": type pool, string pool, source file pool, externs summary, and every LazyAst with its script decoded into the AstNode tree and its source_mapping_url). That is the state the test's follow-up assertions read through SerializationResult, so corpus/unit/postcall/SerializeTypedAstPassTest.json classifies all 13 flagged methods as captured via testFieldsAfter.astConsumer (classify round 2, batch 3). classMap maps the recorded lambda name SerializeTypedAstPassTest$$Lambda to SerializeTypedAstPassTest_Compile$$Lambda (replay applies classMap in reverse to the dump; no recorded value is decoded through it). createCompiler forward-declares each name in typesToForwardDeclare, which setUp resets to ImmutableSet.of() and no test changes (recorded as [] in all 14 records), so the base createCompiler is equivalent. setUp's enableTypeCheck, enableSourceInformationAnnotator and enableDebugLogging(true), and the per-test enableCreateModuleMap, allowExternsChanges, ensureLibraryInjected, enableGatherExternProperties and enableRewriteClosureCode, are harness fields restored from the record.",
+ "classMap": {
+  "com.google.javascript.jscomp.serialization.SerializeTypedAstPassTest$$Lambda": "com.google.javascript.jscomp.serialization.SerializeTypedAstPassTest_Compile$$Lambda"
+ }
+}

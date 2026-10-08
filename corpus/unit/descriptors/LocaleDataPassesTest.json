@@ -1,0 +1,23 @@
+{
+  "source": "test/com/google/javascript/jscomp/LocaleDataPassesTest.java getProcessor (lines 63-87: a switch over the testMode field returning one of two anonymous CompilerPasses), copied verbatim with the TestMode enum (lines 30-35) and the testMode field (lines 37-38) into helper LocaleDataPassesTest_Helpers, bb8c8e7",
+  "classMap": {
+    "com.google.javascript.jscomp.LocaleDataPassesTest$TestMode": "com.google.javascript.jscomp.LocaleDataPassesTest_Helpers$TestMode"
+  },
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "mutationPoint": "com.google.javascript.jscomp.LocaleDataPasses",
+        "value": {
+          "call": {
+            "withFields": {"helper": "LocaleDataPassesTest_Helpers"},
+            "fields": {"testMode": {"field": "testMode"}}
+          },
+          "method": "getProcessor",
+          "args": [{"compiler": true}]
+        }
+      }
+    }
+  ],
+  "note": "getProcessor reads only the test field testMode, an enum (LocaleDataPassesTest$TestMode) declared in the test class itself. Rule 6 keeps that class off the replay classpath, so classMap maps it to the helper's verbatim copy (LocaleDataPassesTest_Helpers$TestMode), and the recorded testFields.testMode is decoded onto the helper's testMode field. The verbatim switch then picks the pass: PROTECT_DATA runs new ProtectGoogLocale(compiler); REPLACE_PROTECTED_DATA runs ProtectGoogLocale and then new LocaleDataPasses.LocaleSubstitutions(compiler, compiler.getOptions().getLocale()). The two records cover both constants. getProcessor does not read the test field locale: the overridden getOptions() copies it into options.setLocale, which is replayed from the record's options diff (options.locale = en / es_ES). setUp's enableRewriteClosureCode/enableRewriteClosureProvides/enableClosurePassForExpected/enableNormalize and multiTest's allowExternsChanges are in harness.fields. Both passes are nested in LocaleDataPasses and are built inside the helper's anonymous CompilerPass, so the mutationPoint makes --mutate-noop LocaleDataPasses replace the whole processor with a no-op CompilerPass."
+}

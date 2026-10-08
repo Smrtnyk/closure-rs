@@ -1,0 +1,26 @@
+{
+  "source": "test/com/google/javascript/jscomp/J2clUtilGetDefineRewriterPassTest.java getProcessor (lines 32-40) and createCompiler (lines 42-47), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {
+          "list": [
+            {"static": "com.google.javascript.jscomp.J2clSourceFileChecker", "method": "markToRunJ2clPasses", "args": [{"compiler": true}]},
+            {"sequence": [
+              {"call": {"call": {"new": "com.google.javascript.jscomp.ProcessDefines$Builder", "args": [{"compiler": true}]},
+                        "method": "setMode",
+                        "args": [{"enum": "com.google.javascript.jscomp.ProcessDefines$Mode", "name": "OPTIMIZE"}]},
+               "method": "build",
+               "args": []},
+              {"new": "com.google.javascript.jscomp.J2clUtilGetDefineRewriterPass", "args": [{"compiler": true}]}
+            ]}
+          ]
+        },
+        "method": "get",
+        "args": [{"int": 1}]
+      }
+    }
+  ],
+  "note": "getProcessor returns a lambda (externs, root) -> { new ProcessDefines.Builder(compiler).setMode(Mode.OPTIMIZE).build().process(externs, root); new J2clUtilGetDefineRewriterPass(compiler).process(externs, root); }, which is exactly a DSL sequence. The lambda constructs both passes inside process() while the sequence constructs them in getProcessor, which the harness calls immediately before process(); the ProcessDefines constructor only copies builder state (it reads the type registry only in a check mode, and OPTIMIZE is not one) and the J2clUtilGetDefineRewriterPass constructor only stores the compiler, so the two are equivalent. The createCompiler override returns a plain Compiler (harness.effective.createCompiler) after J2clSourceFileChecker.markToRunJ2clPasses(compiler), which only sets the compiler's runJ2clPasses flag; the DSL has no createCompiler hook, so the descriptor makes the same call on the same compiler from getProcessor (list evaluated in order, get(1) returns the sequence), as in J2clClinitPrunerPassTest. Both readers here (ProcessDefines and J2clUtilGetDefineRewriterPass) run after getProcessor, nothing between createCompiler and getProcessor reads the flag, and the call is idempotent. The test class declares no instance fields and no setUp."
+}

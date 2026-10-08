@@ -1,0 +1,36 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckRegExpTest.java getProcessor (lines 55-59) and fields last/reportErrors/assumeAllGlobalRegexpUsagesVisible (lines 31-33), copied verbatim into helper CheckRegExpTest_Helpers, bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "mutationPoint": "com.google.javascript.jscomp.CheckRegExp",
+        "value": {
+          "call": {
+            "once": "test",
+            "value": {
+              "withFields": {"helper": "CheckRegExpTest_Helpers"},
+              "fields": {
+                "reportErrors": {"field": "reportErrors"},
+                "assumeAllGlobalRegexpUsagesVisible": {"field": "assumeAllGlobalRegexpUsagesVisible"}
+              }
+            }
+          },
+          "method": "getProcessor",
+          "args": [{"compiler": true}]
+        }
+      },
+      "testFieldsAfter": {
+        "once": "test",
+        "value": {
+          "withFields": {"helper": "CheckRegExpTest_Helpers"},
+          "fields": {
+            "reportErrors": {"field": "reportErrors"},
+            "assumeAllGlobalRegexpUsagesVisible": {"field": "assumeAllGlobalRegexpUsagesVisible"}
+          }
+        }
+      }
+    }
+  ],
+  "note": "getProcessor builds new CheckRegExp(compiler, assumeAllGlobalRegexpUsagesVisible, reportErrors) and also stores it in the test field `last`, which the test's own follow-up assertions read (last.isGlobalRegExpPropertiesUsed()). The helper holder (shared through {\"once\":\"test\"}) copies getProcessor and the three fields verbatim; reportErrors and assumeAllGlobalRegexpUsagesVisible are set from the recorded booleans (setUp sets both true; testDisableErrorReporting sets reportErrors=false, testCannotAssumeAllGlobalRegexpUsagesVisible sets assumeAllGlobalRegexpUsagesVisible=false). `last` is not restored: getProcessor overwrites it before anything reads it. The opt-in testFieldsAfter check compares the holder's `last` (reportErrors, assumeAllGlobalRegexpUsagesVisible, globalRegExpPropertiesUsed) with the recorded testFieldsAfter.last; the recorder lists `last` only when its dump changed during the call (8 of 40 records), so the other records check nothing extra. The constructor 'super(\"var RegExp;\")' default externs are in harness.fields.defaultExternsInputs, and getOptions() (CHECK_REGEXP at WARNING) is in the options diff. mutationPoint lets --mutate-noop CheckRegExp replace the pass."
+}

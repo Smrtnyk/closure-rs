@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/J2clSourceFileCheckerTest.java getProcessor (lines 34-38)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.J2clSourceFileChecker",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor also stores the compiler in the test field 'compiler', which only the test's own follow-up assertions (shouldRunJ2clPasses) read; it does not affect the pass."
+}

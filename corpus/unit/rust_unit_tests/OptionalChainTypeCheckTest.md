@@ -1,0 +1,3 @@
+Post-call assertions of OptionalChainTypeCheckTest (test/com/google/javascript/jscomp/OptionalChainTypeCheckTest.java, bb8c8e7) that inspect JSType objects on output AST nodes. The record is a `type_check` `observed_only` record, so its post-call state is never captured; port it as a Rust unit test of the type checker.
+
+- OptionalChainTypeCheckTest#testOptChainGetElemExpressions_nonNullObject: type-checks `/** @type {({b:number})} */ var a; var x; x = a?.[b]` and asserts that the assigned NAME `x` and the OPTCHAIN_GETELEM (or GETELEM) node both have the unknown JSType (nested class OptChainTestsNonParameterized, lines 589-603).

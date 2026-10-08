@@ -1,0 +1,16 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckMissingReturnTest.java getProcessor (lines 35-38). setUp (lines 28-33) affects only harness fields, which come from the record.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.CombinedCompilerPass",
+        "args": [
+          {"compiler": true},
+          {"array": "com.google.javascript.jscomp.NodeTraversal$Callback",
+           "items": [{"new": "com.google.javascript.jscomp.CheckMissingReturn", "args": [{"compiler": true}]}]}
+        ]
+      }
+    }
+  ]
+}

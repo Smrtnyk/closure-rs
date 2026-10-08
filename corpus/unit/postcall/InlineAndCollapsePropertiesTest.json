@@ -1,0 +1,13 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.InlineAndCollapsePropertiesTest",
+ "methods": [
+  {
+   "method": "testCollapseKeepsSourceInfoForAliases",
+   "status": "rust_unit_test",
+   "reason": "asserts source file name, line and column (lineno/charno) of the output AST nodes after collapsing; source positions are not recorded by any postCall key, test field or postcondition (no source map is generated in this test) and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/InlineAndCollapsePropertiesTest.md",
+   "category": "node-identity"
+  }
+ ]
+}

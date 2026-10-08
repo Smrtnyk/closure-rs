@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/PolymerPassSuppressBehaviorsAndProtectKeysTest.java getProcessor (lines 66-76), bb8c8e7: an anonymous CompilerPass, copied verbatim as helper PolymerPassSuppressBehaviorsAndProtectKeysTest_Helpers.GetProcessorPass",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"helper": "PolymerPassSuppressBehaviorsAndProtectKeysTest_Helpers.GetProcessorPass", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "The anonymous pass constructs a PolymerPassSuppressBehaviorsAndProtectKeys callback inside process() and traverses only root with it (NodeTraversal.traverse), which a DSL expression cannot express, so the body is a verbatim helper; consequently --mutate-noop cannot reach PolymerPassSuppressBehaviorsAndProtectKeys for this class. The constructor's super(EXTERNS) externs are in inputs.externs. setUp (lines 78-86: enableTypeCheck, allowExternsChanges, enableRunTypeCheckAfterProcessing, enableParseTypeInfo) and the per-test disableTypeCheck calls are restored from harness.fields. The test class declares no instance fields."
+}

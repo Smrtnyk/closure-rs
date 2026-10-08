@@ -1,0 +1,37 @@
+/*
+ * Copyright 2009 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+//   src/com/google/debugging/sourcemap/SourceMapGeneratorFactory.java.
+
+use crate::{
+    source_map_format::SourceMapFormat, source_map_generator::SourceMapGenerator,
+    source_map_generator_v3::SourceMapGeneratorV3,
+};
+pub struct SourceMapGeneratorFactory;
+impl SourceMapGeneratorFactory {
+    // port: SourceMapGeneratorFactory#SourceMapGeneratorFactory
+    #[allow(dead_code)]
+    fn new() -> Self {
+        Self
+    }
+
+    // port: SourceMapGeneratorFactory#getInstance
+    pub fn get_instance(format: SourceMapFormat) -> Box<dyn SourceMapGenerator> {
+        match format {
+            SourceMapFormat::DEFAULT | SourceMapFormat::V3 => Box::new(SourceMapGeneratorV3::new()),
+        }
+    }
+}

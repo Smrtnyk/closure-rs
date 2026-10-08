@@ -1,0 +1,12 @@
+{
+  "source": "test/com/google/javascript/jscomp/RemoveUnusedCodeNameAnalyzerTest.java getProcessor (lines 70-73), MarkNoSideEffectCallsAndRemoveUnusedCodeRunner (lines 75-99)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "helper": "RemoveUnusedCodeNameAnalyzerTest_Helpers.MarkNoSideEffectCallsAndRemoveUnusedCodeRunner",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

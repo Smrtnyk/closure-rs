@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/RewriteLogicalAssignmentOperatorsTest.java getProcessor (lines 40-43), bb8c8e7. setUp (lines 30-38) only calls enableTypeInfoValidation/enableTypeCheck/replaceTypesWithColors/enableMultistageCompilation, which are restored from harness.fields.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.RewriteLogicalAssignmentOperatorsPass",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "The test class declares no fields; getProcessor is unconditional."
+}

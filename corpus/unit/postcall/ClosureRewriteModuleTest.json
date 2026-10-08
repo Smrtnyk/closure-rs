@@ -1,0 +1,22 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.ClosureRewriteModuleTest",
+ "methods": [
+  {
+   "method": "testTypeAndSourceInfoOfGoogRequireFromModule",
+   "status": "rust_unit_test",
+   "reason": "after test() asserts, on the GETPROP `module$exports$mod$one.Bar` found with NodeUtil.findPreorder in the second script of getLastCompiler().getJsRoot(), hasJSTypeThat().getReferenceNameIsEqualTo('mod.one.Bar') (a JSType object attached to the node) and its source info (source file of the script, line 3, charno 4, length 3; its NAME child has equal source info); the AST comparison ignores JSTypes and positions; the record carries only compiler.accessorSummary (property accessor kinds) and compiler.moduleMetadataByPath (goog.module metadata), neither of which holds node types or positions; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/ClosureRewriteModuleTest.md",
+   "category": "jstype",
+   "note": "Source lines 4067-4109 (1 record)."
+  },
+  {
+   "method": "testTypeOfGoogRequireFromLegacyModule",
+   "status": "rust_unit_test",
+   "reason": "after test() asserts, on the GETPROP `mod.one.Bar` found with NodeUtil.findPreorder in the second script of getLastCompiler().getJsRoot(), hasJSTypeThat().getReferenceNameIsEqualTo('mod.one.Bar') (a JSType object attached to the node); the AST comparison ignores JSTypes; the record carries only compiler.accessorSummary and compiler.moduleMetadataByPath (goog.module metadata), neither of which holds node types; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/ClosureRewriteModuleTest.md",
+   "category": "jstype",
+   "note": "Source lines 4111-4146 (1 record)."
+  }
+ ]
+}

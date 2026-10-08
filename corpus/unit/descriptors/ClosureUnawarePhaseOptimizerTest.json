@@ -1,0 +1,68 @@
+{
+  "source": "test/com/google/javascript/jscomp/ClosureUnawarePhaseOptimizerTest.java getProcessor (lines 116-157) plus each test method's aditionalPasses prologue (lines 161-194, 236-269); copied verbatim into helper ClosureUnawarePhaseOptimizerTest_Helpers. setUp's allowExternsChanges/disableValidateAstChangeMarking are restored from harness.fields; getOptions' effect is in record.options.",
+  "cases": [
+    {
+      "when": {
+        "method": "testClosureUnawareCodePassModifiesMainAST_incorrectly"
+      },
+      "processor": {
+        "call": {
+          "once": "testInstance",
+          "value": {
+            "call": {
+              "helper": "ClosureUnawarePhaseOptimizerTest_Helpers"
+            },
+            "method": "testClosureUnawareCodePassModifiesMainAST_incorrectly"
+          }
+        },
+        "method": "getProcessor",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      },
+      "testFieldsAfter": {
+        "once": "testInstance",
+        "value": {
+          "call": {
+            "helper": "ClosureUnawarePhaseOptimizerTest_Helpers"
+          },
+          "method": "testClosureUnawareCodePassModifiesMainAST_incorrectly"
+        }
+      }
+    },
+    {
+      "when": {
+        "method": "testMainASTPassModifiesClosureUnawareCode_incorrectly"
+      },
+      "processor": {
+        "call": {
+          "once": "testInstance",
+          "value": {
+            "call": {
+              "helper": "ClosureUnawarePhaseOptimizerTest_Helpers"
+            },
+            "method": "testMainASTPassModifiesClosureUnawareCode_incorrectly"
+          }
+        },
+        "method": "getProcessor",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      },
+      "testFieldsAfter": {
+        "once": "testInstance",
+        "value": {
+          "call": {
+            "helper": "ClosureUnawarePhaseOptimizerTest_Helpers"
+          },
+          "method": "testMainASTPassModifiesClosureUnawareCode_incorrectly"
+        }
+      }
+    }
+  ],
+  "note": "The helper holder models the test instance: shadowNodes is shared between the gatherShadowNodes pass created in getProcessor and the passes added by the test prologue, so all of them must live on one holder instance; {\"once\"} keeps that instance (and the prologue's one-time aditionalPasses.add) per record. testFieldsAfter (opt-in) checks the holder's shadowNodes after the call against the recorded testFieldsAfter; the once key is the same, so it reads the holder the processor used."
+}

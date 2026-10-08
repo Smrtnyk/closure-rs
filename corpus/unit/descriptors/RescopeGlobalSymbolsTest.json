@@ -1,0 +1,18 @@
+{
+  "source": "test/com/google/javascript/jscomp/RescopeGlobalSymbolsTest.java getProcessor (lines 38-42); NAMESPACE is the static final constant \"_\" (line 32)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.RescopeGlobalSymbols",
+        "args": [
+          {"compiler": true},
+          {"string": "_"},
+          {"bool": false},
+          {"field": "assumeCrossChunkNames"},
+          {"field": "optimizeLocalAccess"}
+        ]
+      }
+    }
+  ]
+}

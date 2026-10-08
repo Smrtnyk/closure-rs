@@ -1,0 +1,19 @@
+[package]
+name = "closure-testing"
+description = "Test-support corpus reader and native unit replay harness. Not linked into the compiler."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+closure-rhino = { workspace = true }
+closure-parsing = { workspace = true }
+closure-jscomp = { workspace = true }
+closure-jstype = { workspace = true }
+flate2 = { workspace = true }
+indexmap = { workspace = true }

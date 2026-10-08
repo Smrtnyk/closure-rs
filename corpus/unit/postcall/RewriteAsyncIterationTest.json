@@ -1,0 +1,34 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.RewriteAsyncIterationTest",
+ "methods": [
+  {
+   "method": "testAsyncGenerator",
+   "status": "rust_unit_test",
+   "reason": "asserts the Color of the `$jscomp.AsyncGeneratorWrapper` reference (wrapper class color), of the NEW expression (union of its instance colors) and of the inner generator call (StandardColors.GENERATOR_ID) in the output AST; colors are Java-internal objects that no postCall key, test field or postcondition records, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/RewriteAsyncIterationTest.md",
+   "category": "color"
+  },
+  {
+   "method": "testAwaitInAsyncGenerator",
+   "status": "rust_unit_test",
+   "reason": "asserts output-AST Colors after each hooked call: the wrapper reference, NEW expression and inner generator call (record 0) and the `bar` assignment target typed NUMBER (record 1); colors are Java-internal objects that no postCall key, test field or postcondition records, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/RewriteAsyncIterationTest.md",
+   "category": "color"
+  },
+  {
+   "method": "testForAwaitOfDeclarations",
+   "status": "rust_unit_test",
+   "reason": "asserts tokens and Colors of the generated for-await temporaries (tempIterator, makeAsyncIterator call, next() call, done, value) in the output AST; the token shape is also covered by the replayed AST comparison, but the colors are Java-internal objects that no postCall key, test field or postcondition records",
+   "fragment": "corpus/unit/rust_unit_tests/RewriteAsyncIterationTest.md",
+   "category": "color"
+  },
+  {
+   "method": "testYieldInAsyncGenerator",
+   "status": "rust_unit_test",
+   "reason": "asserts output-AST Colors after each hooked call: the wrapper reference, NEW expression and inner generator call (record 0) and the `bar` assignment target typed UNKNOWN (record 1); colors are Java-internal objects that no postCall key, test field or postcondition records, and the AST comparison ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/RewriteAsyncIterationTest.md",
+   "category": "color"
+  }
+ ]
+}

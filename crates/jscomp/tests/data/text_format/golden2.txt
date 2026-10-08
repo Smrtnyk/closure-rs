@@ -1,0 +1,120 @@
+ERR com.google.protobuf.TextFormat$ParseException
+1:22: Expected identifier. Found ';'
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:22: Expected identifier. Found ','
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:31: Expected identifier. Found ';'
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:16: Input contains unknown fields and/or extensions:
+1:16:	jscomp.Requirement.foo
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:25: Expected "{".
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:16: Input contains unknown fields and/or extensions:
+1:16:	jscomp.Requirement.foo
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:21: Invalid field value: -
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:22: Couldn't parse integer: Number out of range for 32-bit signed integer: 2147483648
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:22: Couldn't parse integer: For input string: "zz" under radix 16
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:22: Couldn't parse integer: Number out of range for 32-bit signed integer: 99999999999999999
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:22: Couldn't parse integer: For input string: "09" under radix 8
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:22: Couldn't parse integer: For input string: ""
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:23: Invalid escape sequence: '\x' with no digits
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:23: Invalid escape sequence: '\U00110000' is not a valid code point value
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:23: Invalid escape sequence: '\u' refers to a surrogate
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:23: Invalid escape sequence: '\U' with too few hex chars
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:23: Invalid escape sequence: '\U0000D800' refers to a surrogate code unit
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:23: String missing ending quote.
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:23: String missing ending quote.
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:1: Input contains unknown fields and/or extensions:
+1:1:	jscomp.ConformanceConfig.Requirement
+=====
+OK
+requirement {
+  type: BANNED_NAME
+}
+requirement {
+  type: CUSTOM
+}
+requirement {
+}
+
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:29: Expected identifier. Found ';'
+=====
+OK
+requirement {
+  value: "\303\251\342\200\250x"
+}
+
+=====
+OK
+requirement {
+  value: "a"
+}
+requirement {
+  value: "b"
+}
+
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:33: Expected "{".
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:2: Input contains unknown fields and/or extensions:
+1:2:	jscomp.ConformanceConfig.[ext]
+=====
+OK
+requirement {
+  value: "ab"
+}
+
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:27: Expected ",".
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:22: Expected identifier. Found '['
+=====
+OK
+requirement {
+  value: "a"
+}
+
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:27: Expected identifier. Found ''
+=====

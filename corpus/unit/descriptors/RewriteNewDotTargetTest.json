@@ -1,0 +1,20 @@
+{
+  "source": "test/com/google/javascript/jscomp/RewriteNewDotTargetTest.java getProcessor (lines 41-45), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "static": "com.google.javascript.jscomp.PeepholeTranspilationsPass",
+        "method": "create",
+        "args": [
+          {"compiler": true},
+          {"static": "com.google.common.collect.ImmutableList", "method": "of", "args": [
+            {"new": "com.google.javascript.jscomp.RewriteNewDotTarget",
+             "args": [{"compiler": true}]}
+          ]}
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor reads no test fields (the class declares none), so one unconditional case covers every record. getOptions (lines 47-53: languageIn UNSTABLE, languageOut ECMASCRIPT5_STRICT) is replayed from the options diff. The @Before enableTypeCheckBeforePass (lines 32-39: enableNormalize, enableTypeCheck, enableTypeInfoValidation, replaceTypesWithColors, enableMultistageCompilation) is in harness.fields."
+}

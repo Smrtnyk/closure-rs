@@ -1,0 +1,95 @@
+{
+  "source": "test/com/google/javascript/jscomp/LateEs6ToEs3ConverterTest.java getProcessor (lines 64-72): a PhaseOptimizer(compiler, null) with two one-time passes, makePassFactory(\"injectTranspilationRuntimeLibraries\", InjectTranspilationRuntimeLibraries::new) and makePassFactory(\"lateEs6ToEs3Converter\", LateEs6ToEs3Converter::new), written with the DSL PhaseOptimizer and pass-factory patterns (DSL.md Patterns); makePassFactory is the package-private static CompilerTestCase#makePassFactory the test inherits. customSetUp (lines 52-62) affects only harness fields, which come from the record.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "let": [
+          [
+            "optimizer",
+            {
+              "new": "com.google.javascript.jscomp.PhaseOptimizer",
+              "args": [
+                {
+                  "compiler": true
+                },
+                {
+                  "null": true
+                }
+              ]
+            }
+          ]
+        ],
+        "in": {
+          "do": [
+            {
+              "call": {
+                "var": "optimizer"
+              },
+              "method": "addOneTimePass",
+              "args": [
+                {
+                  "static": "com.google.javascript.jscomp.CompilerTestCase",
+                  "method": "makePassFactory",
+                  "args": [
+                    {
+                      "string": "injectTranspilationRuntimeLibraries"
+                    },
+                    {
+                      "lambda": [
+                        "c"
+                      ],
+                      "iface": "java.util.function.Function",
+                      "body": {
+                        "new": "com.google.javascript.jscomp.InjectTranspilationRuntimeLibraries",
+                        "args": [
+                          {
+                            "var": "c"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "call": {
+                "var": "optimizer"
+              },
+              "method": "addOneTimePass",
+              "args": [
+                {
+                  "static": "com.google.javascript.jscomp.CompilerTestCase",
+                  "method": "makePassFactory",
+                  "args": [
+                    {
+                      "string": "lateEs6ToEs3Converter"
+                    },
+                    {
+                      "lambda": [
+                        "c"
+                      ],
+                      "iface": "java.util.function.Function",
+                      "body": {
+                        "new": "com.google.javascript.jscomp.LateEs6ToEs3Converter",
+                        "args": [
+                          {
+                            "var": "c"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "value": {
+            "var": "optimizer"
+          }
+        }
+      }
+    }
+  ]
+}

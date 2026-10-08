@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/RewriteDynamicImportsTest.java getProcessor (lines 74-99: a lambda CompilerPass running TypeCheck.processForTesting, Es6RewriteModules and RewriteDynamicImports(compiler, dynamicImportAlias, chunkOutputType)), replayed through helper RewriteDynamicImportsTest_Helpers.GetProcessor with dynamicImportAlias and chunkOutputType restored from testFields.",
+  "note": "setUp (lines 53-59: enableCreateModuleMap, enableTypeInfoValidation) only sets harness fields, which are restored from the record. getOptions (lines 61-72: setPrettyPrint, and setLanguage/setLanguageIn from the fields language/languageIn) is reproduced by record.options, so language and languageIn are not needed by the processor. The externs passed to the constructor (TestExternsBuilder().addPromise()) are in record.inputs. Recorded field combinations: dynamicImportAlias in {imprt_, null, ns.imprt_, import_, foo.import, fo'oo, foo.bar['chunk']}, chunkOutputType in {GLOBAL_NAMESPACE, ES_MODULES}; one case covers all of them. The 6 api=testExternChanges records (aliasExternInjectedSimple, aliasExternInjectedSimpleAlreadyDefined, aliasExternInjectedQualified, aliasExternInjectedQualifiedAlreadyDefinedComplete, aliasExternInjectedQualifiedAlreadyDefinedPartial, outputModulesExternInjected) use the same processor; the replay core supports that api since DSL v2. The aliasExternInjectedSimpleImport test calls getProcessor(compiler).process directly, outside the hooked harness API, so it has no record.",
+  "cases": [
+    {
+      "when": {"instanceClass": "com.google.javascript.jscomp.RewriteDynamicImportsTest"},
+      "processor": {
+        "call": {
+          "helper": "RewriteDynamicImportsTest_Helpers.GetProcessor",
+          "outer": ["dynamicImportAlias", "chunkOutputType"]
+        },
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

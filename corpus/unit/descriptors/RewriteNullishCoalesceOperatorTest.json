@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/RewriteNullishCoalesceOperatorTest.java getProcessor (lines 38-41), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.RewriteNullishCoalesceOperator",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor returns new RewriteNullishCoalesceOperator(compiler) unconditionally; the class declares no fields. customSetUp (lines 28-36: enableNormalize, setGenericNameReplacements, enableTypeCheck, enableTypeInfoValidation, replaceTypesWithColors, enableMultistageCompilation) only sets harness state, restored from harness.fields. With multistage compilation the compiler passed to getProcessor is the deserialized one, exactly as in the original."
+}

@@ -1,0 +1,102 @@
+requirement: {
+  type: BANNED_NAME
+  value: 'eval'
+  error_message: 'eval is not allowed'
+  whitelist: 'testcode'
+}
+
+=====
+
+=====
+requirement { type: CUSTOM java_class: 'x' }
+=====
+requirement < type: 7 ; value: "a" "b" 'c', >
+=====
+# comment
+requirement: { value: ['a', 'b'] error_message: 'tab\there \n nl \' sq \" dq \\ bs \a\b\f\v\r \x41 \101 \u00e9 é 😀 \U0001F600' }
+=====
+requirement: { type: NOPE }
+=====
+requirement: { type: 99 }
+=====
+requirement: { foo: 1 }
+=====
+requirement: { value 'x' }
+=====
+requirement: { value: 'unterminated }
+=====
+requirement: { value: 'bad \q escape' }
+=====
+requirement: { allow_extending_value: t report_loose_type_violations: False severity: ERROR type_matching_strategy: SUBTYPES rule_id: 'r' extends: 'e' config_file: 'f' }
+=====
+requirement: { allow_extending_value: 1 }
+=====
+requirement: { allow_extending_value: yes }
+=====
+requirement: { rule_id: 'a' rule_id: 'b' }
+=====
+library_level_non_allowlisted_conformance_violations_behavior: RECORD_ONLY
+requirement: { allowlist_entry { prefix: 'p' regexp: 'r' reason: LEGACY explanation: 'x' comment: 'c1' comment: 'c2' automatically_prune: true do_not_record_violations_in_summary_because_this_is_gencode_and_always_safe: true } whitelist_entry: < prefix: 'q' > }
+=====
+requirement: { whitelist: 'a' whitelist_regexp: 'b' allowlist: 'c' allowlist_regexp: 'd' only_apply_to: 'e' only_apply_to_regexp: 'f' }
+=====
+requirement: {
+  type: BANNED_NAME
+  value: 'eval'
+
+=====
+requirement: { value: 'a' } }
+=====
+requirement: { [jscomp.foo]: 1 }
+=====
+requirement: { value: "\0 \00 \1x \177 \200\377" }
+=====
+requirement: { value: "\xe9\x41" }
+=====
+requirement: { value: 'a'
+'b' }
+=====
+requirement: {}
+requirement {}
+=====
+requirement: { type: BANNED_NAME, value: 'x'; }
+=====
+requirement: { value: 5 }
+=====
+requirement: { value: ident }
+=====
+requirement { value: '' }
+=====
+requirement: { value: '\u00' }
+=====
+requirement: { error_message: 'x' } library_level_non_allowlisted_conformance_violations_behavior: 0
+=====
+requirement: { allow_extending_value: true } }
+=====
+requirement: 5
+=====
+requirement: { value: 'line1
+line2' }
+=====
+requirement: { severity: -1 }
+=====
+requirement: { type_matching_strategy: 0x2 }
+=====
+  	
+# only comment
+=====
+requirement: { value: 'a' /* c */ }
+=====
+requirement: { value: "\?" }
+=====
+requirement: { value: [] }
+=====
+requirement: { allowlist_entry: [ {prefix: 'a'}, <prefix: 'b'> ] }
+=====
+requirement: { allow_extending_value: True }
+=====
+requirement: { allow_extending_value: TRUE }
+=====
+requirement: { allow_extending_value: f }
+=====
+requirement: { java_class: 'a' 'b' "c" }

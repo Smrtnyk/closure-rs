@@ -1,0 +1,114 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6RewriteModulesBeforeTypeCheckingTest.java getProcessor (lines 92-107); setUp (lines 68-77) and getOptions (lines 79-90) are captured by the record's harness fields and options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "lambda": [
+          "externs",
+          "root"
+        ],
+        "iface": "com.google.javascript.jscomp.CompilerPass",
+        "body": {
+          "do": [
+            {
+              "call": {
+                "new": "com.google.javascript.jscomp.GatherModuleMetadata",
+                "args": [
+                  {
+                    "compiler": true
+                  },
+                  {
+                    "bool": false
+                  },
+                  {
+                    "enum": "com.google.javascript.jscomp.deps.ModuleLoader$ResolutionMode",
+                    "name": "BROWSER"
+                  }
+                ]
+              },
+              "method": "process",
+              "args": [
+                {
+                  "var": "externs"
+                },
+                {
+                  "var": "root"
+                }
+              ]
+            },
+            {
+              "call": {
+                "new": "com.google.javascript.jscomp.modules.ModuleMapCreator",
+                "args": [
+                  {
+                    "compiler": true
+                  },
+                  {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getModuleMetadataMap",
+                    "args": []
+                  }
+                ]
+              },
+              "method": "process",
+              "args": [
+                {
+                  "var": "externs"
+                },
+                {
+                  "var": "root"
+                }
+              ]
+            },
+            {
+              "call": {
+                "new": "com.google.javascript.jscomp.Es6RewriteModules",
+                "args": [
+                  {
+                    "compiler": true
+                  },
+                  {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getModuleMetadataMap",
+                    "args": []
+                  },
+                  {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getModuleMap",
+                    "args": []
+                  },
+                  {
+                    "null": true
+                  },
+                  {
+                    "null": true
+                  }
+                ]
+              },
+              "method": "process",
+              "args": [
+                {
+                  "var": "externs"
+                },
+                {
+                  "var": "root"
+                }
+              ]
+            }
+          ],
+          "value": {
+            "null": true
+          }
+        }
+      }
+    }
+  ],
+  "note": "getProcessor returns the lambda `(externs, root) -> {...}` capturing only the compiler; it is written as a DSL lambda (DSL.md \"lambda\") whose body runs at process time: GatherModuleMetadata(compiler, false, BROWSER), then ModuleMapCreator(compiler, compiler.getModuleMetadataMap()), then Es6RewriteModules(compiler, getModuleMetadataMap(), getModuleMap(), null, null). Each constructor's arguments are evaluated just before it, after the previous pass ran, as in Java. The `new` expressions are direct, so --mutate-noop Es6RewriteModules (and GatherModuleMetadata, ModuleMapCreator) reaches them. moduleRoots is read only by getOptions and is replayed from the options diff."
+}

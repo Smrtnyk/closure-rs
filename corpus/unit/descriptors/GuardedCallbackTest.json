@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/GuardedCallbackTest.java getProcessor (lines 29-37) and nested class GuardSwitchingCallback (lines 39-62), bb8c8e7; copied into helper GuardedCallbackTest_Helpers",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "helper": "GuardedCallbackTest_Helpers.GetProcessorPass",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor reads no test field (testFields is empty in every record) and returns an anonymous CompilerPass (recorded processor class GuardedCallbackTest$1) that traverses the main root with a new GuardSwitchingCallback(compiler). The helper is that anonymous class, named, with the captured compiler passed to its constructor. No other harness hook is overridden (harness.overrides lists only getProcessor); each test's externs come from the record's inputs."
+}

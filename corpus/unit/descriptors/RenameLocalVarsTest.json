@@ -1,0 +1,126 @@
+{
+  "source": "test/com/google/javascript/jscomp/RenameLocalVarsTest.java getProcessor (lines 41-66), bb8c8e7",
+  "cases": [
+    {
+      "when": {
+        "testFields.nameGenerator": {
+          "isNull": false
+        }
+      },
+      "processor": {
+        "once": "renameVars",
+        "value": {
+          "new": "com.google.javascript.jscomp.RenameVars",
+          "args": [
+            {
+              "compiler": true
+            },
+            {
+              "field": "prefix"
+            },
+            {
+              "bool": true
+            },
+            {
+              "bool": false
+            },
+            {
+              "bool": false
+            },
+            {
+              "null": true
+            },
+            {
+              "static": "com.google.common.collect.ImmutableSet",
+              "method": "of",
+              "args": []
+            },
+            {
+              "null": true
+            },
+            {
+              "field": "nameGenerator"
+            }
+          ]
+        }
+      },
+      "testFieldsAfter": {
+        "once": "renameVars",
+        "value": {
+          "new": "com.google.javascript.jscomp.RenameVars",
+          "args": [
+            {
+              "compiler": true
+            },
+            {
+              "field": "prefix"
+            },
+            {
+              "bool": true
+            },
+            {
+              "bool": false
+            },
+            {
+              "bool": false
+            },
+            {
+              "null": true
+            },
+            {
+              "static": "com.google.common.collect.ImmutableSet",
+              "method": "of",
+              "args": []
+            },
+            {
+              "null": true
+            },
+            {
+              "field": "nameGenerator"
+            }
+          ]
+        }
+      },
+      "note": "testFieldsAfter (D-015 a): testBias/testBias2 assign the test field nameGenerator before test(); getProcessor hands that same DefaultNameGenerator object to RenameVars, which keeps it in its field `nameGenerator` (RenameVars.java line 136/169) and mutates it (reset/generateNextName). The record's testFieldsAfter.nameGenerator is that object after the call. The processor is once-shared so the testFieldsAfter holder is the very RenameVars instance the call used (1 repetition), and its nameGenerator field is compared against testFieldsAfter.nameGenerator; postCall.pass.variableMap is compared too."
+    },
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.RenameVars",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "field": "prefix"
+          },
+          {
+            "bool": true
+          },
+          {
+            "bool": false
+          },
+          {
+            "bool": false
+          },
+          {
+            "null": true
+          },
+          {
+            "static": "com.google.common.collect.ImmutableSet",
+            "method": "of",
+            "args": []
+          },
+          {
+            "null": true
+          },
+          {
+            "new": "com.google.javascript.jscomp.DefaultNameGenerator",
+            "args": []
+          }
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor branches on the nameGenerator field: non-null passes that DefaultNameGenerator (testBias/testBias2 build it with favors(\"AAAAAAAAHH\") before test(); the recorded object dump, including its priorityLookupMap, is decoded onto a fresh instance), null passes `new DefaultNameGenerator()`. Both branches pass prefix (recorded), localRenamingOnly=true, generatePseudoNames=false, preferStableNames=false, prevUsedRenameMap=null, reservedCharacters=ImmutableSet.of(), reservedNames=null. setUp's disableValidateAstChangeMarking is harness state (harness.fields)."
+}

@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6CheckModuleTest.java getProcessor (lines 27-30), bb8c8e7; getOptions (lines 32-38) is captured by the record's options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.Es6CheckModule",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": "The test class has no fields; one unconditional case covers every record."
+}

@@ -1,0 +1,118 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.Es6ConvertSuperTest",
+ "methods": [
+  {
+   "method": "testCallingSuperInstanceProperty",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors, multistage) asserts with assertNode(...).hasColorThat() the Color objects of the rewritten nodes of getLastCompiler().getJsRoot() (colors read from the class definitions through CodeSubTree, and StandardColors), plus source positions (lineno/charno), the original name 'super' of `A.prototype`, isIndexable(false) of the synthesized `this`, tokens and qualified names; the AST comparison ignores colors, positions, original names and the indexable flag; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors, positions or node flags; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ConvertSuperTest.md",
+   "category": "color",
+   "note": "Source lines 76-170 (1 record)."
+  },
+  {
+   "method": "testCallingSuperInstanceElement",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors, multistage) asserts with assertNode(...).hasColorThat() the Color objects of the rewritten nodes of getLastCompiler().getJsRoot() (colors read from the class definitions through CodeSubTree, and StandardColors), plus source positions (lineno/charno), the original name 'super' of `A.prototype`, isIndexable(false) of the synthesized `this`, tokens and qualified names; the AST comparison ignores colors, positions, original names and the indexable flag; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors, positions or node flags; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ConvertSuperTest.md",
+   "category": "color",
+   "note": "Source lines 172-270 (1 record)."
+  },
+  {
+   "method": "testAccessingSuperInstanceProperty",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors, multistage) asserts with assertNode(...).hasColorThat() the Color objects of the rewritten nodes of getLastCompiler().getJsRoot() (colors read from the class definitions through CodeSubTree, and StandardColors), plus source positions (lineno/charno), the original name 'super' of `A.prototype` and qualified names; the AST comparison ignores colors, positions, original names and the indexable flag; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors, positions or node flags; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ConvertSuperTest.md",
+   "category": "color",
+   "note": "Source lines 272-339 (1 record)."
+  },
+  {
+   "method": "testAccessingSuperInstanceElement",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors, multistage) asserts with assertNode(...).hasColorThat() the Color objects of the rewritten nodes of getLastCompiler().getJsRoot() (colors read from the class definitions through CodeSubTree, and StandardColors), plus source positions (lineno/charno), the original name 'super' of `A.prototype`, tokens and qualified names; the AST comparison ignores colors, positions, original names and the indexable flag; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors, positions or node flags; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ConvertSuperTest.md",
+   "category": "color",
+   "note": "Source lines 341-407 (1 record)."
+  },
+  {
+   "method": "testCallingSuperStaticProperty",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors, multistage) asserts with assertNode(...).hasColorThat() the Color objects of the rewritten nodes of getLastCompiler().getJsRoot() (colors read from the class definitions through CodeSubTree, and StandardColors), plus source positions (lineno/charno), the original name 'super' of `A`, tokens and qualified names; the AST comparison ignores colors, positions, original names and the indexable flag; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors, positions or node flags; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ConvertSuperTest.md",
+   "category": "color",
+   "note": "Source lines 452-543 (1 record)."
+  },
+  {
+   "method": "testCallingSuperStaticElement",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors, multistage) asserts with assertNode(...).hasColorThat() the Color objects of the rewritten nodes of getLastCompiler().getJsRoot() (colors read from the class definitions through CodeSubTree, and StandardColors), plus source positions (lineno/charno), the original name 'super' of `A`, isIndexable(false) of the synthesized `this`, tokens and names; the AST comparison ignores colors, positions, original names and the indexable flag; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors, positions or node flags; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ConvertSuperTest.md",
+   "category": "color",
+   "note": "Source lines 545-637 (1 record)."
+  },
+  {
+   "method": "testAccessingSuperStaticProperty",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors, multistage) asserts with assertNode(...).hasColorThat() the Color objects of the rewritten nodes of getLastCompiler().getJsRoot() (colors read from the class definitions through CodeSubTree, and StandardColors), plus source positions (lineno/charno), the original name 'super' of `A` and qualified names; the AST comparison ignores colors, positions, original names and the indexable flag; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors, positions or node flags; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ConvertSuperTest.md",
+   "category": "color",
+   "note": "Source lines 639-704 (1 record)."
+  },
+  {
+   "method": "testAccessingSuperStaticElement",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors, multistage) asserts with assertNode(...).hasColorThat() the Color objects of the rewritten nodes of getLastCompiler().getJsRoot() (colors read from the class definitions through CodeSubTree, and StandardColors), plus source positions (lineno/charno), the original name 'super' of `A`, tokens and qualified names; the AST comparison ignores colors, positions, original names and the indexable flag; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors, positions or node flags; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ConvertSuperTest.md",
+   "category": "color",
+   "note": "Source lines 706-770 (1 record)."
+  },
+  {
+   "method": "testResolvingSuperInGetter",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors, multistage) asserts with assertNode(...).hasColorThat() the Color objects of the rewritten nodes of getLastCompiler().getJsRoot() (colors read from the class definitions through CodeSubTree, and StandardColors), plus source positions (lineno/charno), the original name 'super' of `A.prototype`, isIndexable(false) of the synthesized `this`, tokens and qualified names; the AST comparison ignores colors, positions, original names and the indexable flag; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors, positions or node flags; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ConvertSuperTest.md",
+   "category": "color",
+   "note": "Source lines 774-873 (1 record)."
+  },
+  {
+   "method": "testResolvingSuperInSetter",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors, multistage) asserts with assertNode(...).hasColorThat() the Color objects of the rewritten nodes of getLastCompiler().getJsRoot() (colors read from the class definitions through CodeSubTree, and StandardColors), plus source positions (lineno/charno), the original name 'super' of `A.prototype`, isIndexable(false) of the synthesized `this`, tokens and qualified names; the AST comparison ignores colors, positions, original names and the indexable flag; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors, positions or node flags; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ConvertSuperTest.md",
+   "category": "color",
+   "note": "Source lines 875-975 (1 record)."
+  },
+  {
+   "method": "testAccessingStaticGetterViaSuper",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors, multistage) asserts with assertNode(...).hasColorThat() the Color objects of the rewritten nodes of getLastCompiler().getJsRoot() (colors read from the class definitions through CodeSubTree, and StandardColors), plus the original name 'super' of the `Parent` argument, tokens, qualified names and the 'greeting' string of the rewritten Reflect.get(...) subtree (no positions); the AST comparison ignores colors, positions, original names and the indexable flag; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors, positions or node flags; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ConvertSuperTest.md",
+   "category": "color",
+   "note": "Source lines 977-1074 (1 record)."
+  },
+  {
+   "method": "testSynthesizingConstructorOfBaseClassInSource",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors, multistage) asserts with assertNode(...).hasColorThat() the Color objects of the rewritten nodes of getLastCompiler().getJsRoot() (colors read from the class definitions through CodeSubTree, and StandardColors), plus the source positions (lineno/charno) and isIndexable(false) of the synthesized MEMBER_FUNCTION_DEF and FUNCTION, and their tokens; the AST comparison ignores colors, positions, original names and the indexable flag; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors, positions or node flags; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ConvertSuperTest.md",
+   "category": "color",
+   "note": "Source lines 1078-1124 (1 record)."
+  },
+  {
+   "method": "testSynthesizingConstructorOfDerivedClassInSource",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors, multistage) asserts with assertNode(...).hasColorThat() the Color objects of the rewritten nodes of getLastCompiler().getJsRoot() (colors read from the class definitions through CodeSubTree, and StandardColors), plus the source positions (lineno/charno) and isIndexable(false) of the synthesized MEMBER_FUNCTION_DEF, FUNCTION, super(...) CALL, SUPER and `arguments` NAME, and their tokens; the AST comparison ignores colors, positions, original names and the indexable flag; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors, positions or node flags; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ConvertSuperTest.md",
+   "category": "color",
+   "note": "Source lines 1126-1208 (1 record)."
+  },
+  {
+   "method": "testSynthesizingConstructorOfBaseInterface",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors, multistage) asserts with assertNode(...).hasColorThat() the Color objects of the rewritten nodes of getLastCompiler().getJsRoot() (colors read from the class definitions through CodeSubTree, and StandardColors), plus the source positions (lineno/charno) and isIndexable(false) of the synthesized MEMBER_FUNCTION_DEF and FUNCTION, and their tokens; the AST comparison ignores colors, positions, original names and the indexable flag; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors, positions or node flags; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/Es6ConvertSuperTest.md",
+   "category": "color",
+   "note": "Source lines 1210-1240 (1 record)."
+  }
+ ]
+}

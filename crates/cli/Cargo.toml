@@ -1,0 +1,29 @@
+[package]
+name = "closure-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "closure-rs"
+path = "src/main.rs"
+
+[dependencies]
+closure-rhino = { path = "../rhino" }
+closure-parsing = { path = "../parsing" }
+closure-jscomp = { path = "../jscomp" }
+closure-resources = { path = "../resources" }
+closure-jstype.workspace = true
+indexmap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+flate2.workspace = true
+
+[dev-dependencies]
+zip.workspace = true
+closure-testing = { path = "../testing" }
+
+[lints]
+workspace = true

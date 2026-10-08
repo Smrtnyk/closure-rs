@@ -1,0 +1,20 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.ProcessClosurePrimitivesTest",
+ "methods": [
+  {
+   "method": "testAddDependency",
+   "status": "rust_unit_test",
+   "reason": "asserts JSTypeRegistry.isForwardDeclaredType(name) on getLastCompiler().getTypeRegistry() (test lines 103-108), state of the Java type registry; the records (record 84) carry no pass-level postCall key and no typeMismatches key, only compiler.accessorSummary and compiler.moduleMetadataByPath; moduleMetadataByPath lists goog.provide/require namespaces per file, not the registry's forward-declared type names (record 12: goog.forwardDeclare('A.B') in a module with A.B provided elsewhere leaves A.B not forward-declared in the registry, which no module metadata field shows)",
+   "fragment": "corpus/unit/rust_unit_tests/ProcessClosurePrimitivesTest.md",
+   "category": "jstype"
+  },
+  {
+   "method": "testForwardDeclarations",
+   "status": "rust_unit_test",
+   "reason": "asserts JSTypeRegistry.isForwardDeclaredType(name) on getLastCompiler().getTypeRegistry() (test lines 152-169), state of the Java type registry; the records (records 10, 11 and 12) carry no pass-level postCall key and no typeMismatches key, only compiler.accessorSummary and compiler.moduleMetadataByPath; moduleMetadataByPath lists goog.provide/require namespaces per file, not the registry's forward-declared type names (record 12: goog.forwardDeclare('A.B') in a module with A.B provided elsewhere leaves A.B not forward-declared in the registry, which no module metadata field shows)",
+   "fragment": "corpus/unit/rust_unit_tests/ProcessClosurePrimitivesTest.md",
+   "category": "jstype"
+  }
+ ]
+}

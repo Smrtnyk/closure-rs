@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/ProcessClosurePrimitivesTest.java getProcessor (lines 51-54); getOptions (lines 42-49) is captured by the record's options and harness.fieldsAfterGetOptions",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ProcessClosurePrimitives",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor is unconditional: new ProcessClosurePrimitives(compiler). The test's getOptions() (lines 42-49) calls enableCreateModuleMap() on the harness as a side effect and sets MODULE_LOAD to OFF. The MODULE_LOAD level is replayed from the options diff. The createModuleMap side effect is replayed by the harness from the record's harness.fieldsAfterGetOptions (format v2; FORMAT.md \"harness\"), which is non-empty ({createModuleMap: true}) in the 49 records with call=0, whose harness.fields were dumped at testInternal entry before getOptions() ran; the 36 later calls already carry createModuleMap=true in harness.fields. No descriptor work is needed for it."
+}

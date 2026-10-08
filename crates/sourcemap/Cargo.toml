@@ -1,0 +1,18 @@
+[package]
+name = "closure-sourcemap"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+closure-rhino = { path = "../rhino" }
+indexmap.workspace = true
+num-bigint.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

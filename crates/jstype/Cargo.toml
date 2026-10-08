@@ -1,0 +1,18 @@
+[package]
+name = "closure-jstype"
+description = "Port of com.google.javascript.rhino.jstype and its Rhino test support."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "closure_jstype"
+
+[lints]
+workspace = true
+
+[dependencies]
+closure-rhino = { path = "../rhino" }
+indexmap = { workspace = true }

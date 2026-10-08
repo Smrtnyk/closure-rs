@@ -1,0 +1,1163 @@
+{
+ "source": "test/com/google/javascript/jscomp/PureFunctionIdentifierTest.java getProcessor (lines 3822-3825): returns new NoSideEffectCallEnumerator(compiler), an inner CompilerPass; postcondition of assertPureCallsMarked (lines 3807-3820) and the `post` lambdas of 9 test methods. All copied verbatim (the Driver construction is hoisted into a constructor argument built with DSL `new`, so --mutate-noop reaches PureFunctionIdentifier itself) into PureFunctionIdentifierTest_Helpers",
+ "cases": [
+  {
+   "when": {
+    "method": "testFunctionProperties1",
+    "expected.postconditions": 1,
+    "expected.postconditionValues.0.captures.arg$3.unrepresentable": "com.google.javascript.jscomp.PureFunctionIdentifierTest$$Lambda"
+   },
+   "processor": {
+    "helper": "PureFunctionIdentifierTest_Helpers.NoSideEffectCallEnumerator",
+    "outerInstance": {
+     "once": "holder",
+     "value": {
+      "withFields": {
+       "helper": "PureFunctionIdentifierTest_Helpers",
+       "args": []
+      },
+      "fields": {
+       "regExpHaveSideEffects": {
+        "field": "regExpHaveSideEffects"
+       },
+       "enableArtificialPurityDebugError": {
+        "field": "enableArtificialPurityDebugError"
+       }
+      }
+     }
+    },
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "new": "com.google.javascript.jscomp.PureFunctionIdentifier$Driver",
+      "args": [
+       {
+        "compiler": true
+       }
+      ]
+     }
+    ]
+   },
+   "postconditions": [
+    {
+     "static": "com.google.javascript.jscomp.CompilerTestCase",
+     "method": "postcondition",
+     "args": [
+      {
+       "helper": "PureFunctionIdentifierTest_Helpers.AssertPureCallsMarkedPostcondition",
+       "outerInstance": {
+        "once": "holder",
+        "value": {
+         "withFields": {
+          "helper": "PureFunctionIdentifierTest_Helpers",
+          "args": []
+         },
+         "fields": {
+          "regExpHaveSideEffects": {
+           "field": "regExpHaveSideEffects"
+          },
+          "enableArtificialPurityDebugError": {
+           "field": "enableArtificialPurityDebugError"
+          }
+         }
+        }
+       },
+       "args": [
+        {
+         "record": "expected.postconditionValues.0.captures.arg$2"
+        },
+        {
+         "helper": "PureFunctionIdentifierTest_Helpers.Post_testFunctionProperties1",
+         "outerInstance": {
+          "once": "holder",
+          "value": {
+           "withFields": {
+            "helper": "PureFunctionIdentifierTest_Helpers",
+            "args": []
+           },
+           "fields": {
+            "regExpHaveSideEffects": {
+             "field": "regExpHaveSideEffects"
+            },
+            "enableArtificialPurityDebugError": {
+             "field": "enableArtificialPurityDebugError"
+            }
+           }
+          }
+         },
+         "args": []
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "testFieldsAfter": {
+    "once": "holder",
+    "value": {
+     "withFields": {
+      "helper": "PureFunctionIdentifierTest_Helpers",
+      "args": []
+     },
+     "fields": {
+      "regExpHaveSideEffects": {
+       "field": "regExpHaveSideEffects"
+      },
+      "enableArtificialPurityDebugError": {
+       "field": "enableArtificialPurityDebugError"
+      }
+     }
+    }
+   },
+   "note": "assertPureCallsMarked/assertNoPureCalls with a non-null `post` lambda (arg$3, captures only the test instance), rebuilt as helper Post_testFunctionProperties1"
+  },
+  {
+   "when": {
+    "method": "testTaggedTemplatelit_propagatesCalleeSideEffects",
+    "expected.postconditions": 1,
+    "expected.postconditionValues.0.captures.arg$3.unrepresentable": "com.google.javascript.jscomp.PureFunctionIdentifierTest$$Lambda"
+   },
+   "processor": {
+    "helper": "PureFunctionIdentifierTest_Helpers.NoSideEffectCallEnumerator",
+    "outerInstance": {
+     "once": "holder",
+     "value": {
+      "withFields": {
+       "helper": "PureFunctionIdentifierTest_Helpers",
+       "args": []
+      },
+      "fields": {
+       "regExpHaveSideEffects": {
+        "field": "regExpHaveSideEffects"
+       },
+       "enableArtificialPurityDebugError": {
+        "field": "enableArtificialPurityDebugError"
+       }
+      }
+     }
+    },
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "new": "com.google.javascript.jscomp.PureFunctionIdentifier$Driver",
+      "args": [
+       {
+        "compiler": true
+       }
+      ]
+     }
+    ]
+   },
+   "postconditions": [
+    {
+     "static": "com.google.javascript.jscomp.CompilerTestCase",
+     "method": "postcondition",
+     "args": [
+      {
+       "helper": "PureFunctionIdentifierTest_Helpers.AssertPureCallsMarkedPostcondition",
+       "outerInstance": {
+        "once": "holder",
+        "value": {
+         "withFields": {
+          "helper": "PureFunctionIdentifierTest_Helpers",
+          "args": []
+         },
+         "fields": {
+          "regExpHaveSideEffects": {
+           "field": "regExpHaveSideEffects"
+          },
+          "enableArtificialPurityDebugError": {
+           "field": "enableArtificialPurityDebugError"
+          }
+         }
+        }
+       },
+       "args": [
+        {
+         "record": "expected.postconditionValues.0.captures.arg$2"
+        },
+        {
+         "helper": "PureFunctionIdentifierTest_Helpers.Post_testTaggedTemplatelit_propagatesCalleeSideEffects",
+         "outerInstance": {
+          "once": "holder",
+          "value": {
+           "withFields": {
+            "helper": "PureFunctionIdentifierTest_Helpers",
+            "args": []
+           },
+           "fields": {
+            "regExpHaveSideEffects": {
+             "field": "regExpHaveSideEffects"
+            },
+            "enableArtificialPurityDebugError": {
+             "field": "enableArtificialPurityDebugError"
+            }
+           }
+          }
+         },
+         "args": []
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "testFieldsAfter": {
+    "once": "holder",
+    "value": {
+     "withFields": {
+      "helper": "PureFunctionIdentifierTest_Helpers",
+      "args": []
+     },
+     "fields": {
+      "regExpHaveSideEffects": {
+       "field": "regExpHaveSideEffects"
+      },
+      "enableArtificialPurityDebugError": {
+       "field": "enableArtificialPurityDebugError"
+      }
+     }
+    }
+   },
+   "note": "assertPureCallsMarked/assertNoPureCalls with a non-null `post` lambda (arg$3, captures only the test instance), rebuilt as helper Post_testTaggedTemplatelit_propagatesCalleeSideEffects"
+  },
+  {
+   "when": {
+    "method": "testCallCache",
+    "expected.postconditions": 1,
+    "expected.postconditionValues.0.captures.arg$3.unrepresentable": "com.google.javascript.jscomp.PureFunctionIdentifierTest$$Lambda"
+   },
+   "processor": {
+    "helper": "PureFunctionIdentifierTest_Helpers.NoSideEffectCallEnumerator",
+    "outerInstance": {
+     "once": "holder",
+     "value": {
+      "withFields": {
+       "helper": "PureFunctionIdentifierTest_Helpers",
+       "args": []
+      },
+      "fields": {
+       "regExpHaveSideEffects": {
+        "field": "regExpHaveSideEffects"
+       },
+       "enableArtificialPurityDebugError": {
+        "field": "enableArtificialPurityDebugError"
+       }
+      }
+     }
+    },
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "new": "com.google.javascript.jscomp.PureFunctionIdentifier$Driver",
+      "args": [
+       {
+        "compiler": true
+       }
+      ]
+     }
+    ]
+   },
+   "postconditions": [
+    {
+     "static": "com.google.javascript.jscomp.CompilerTestCase",
+     "method": "postcondition",
+     "args": [
+      {
+       "helper": "PureFunctionIdentifierTest_Helpers.AssertPureCallsMarkedPostcondition",
+       "outerInstance": {
+        "once": "holder",
+        "value": {
+         "withFields": {
+          "helper": "PureFunctionIdentifierTest_Helpers",
+          "args": []
+         },
+         "fields": {
+          "regExpHaveSideEffects": {
+           "field": "regExpHaveSideEffects"
+          },
+          "enableArtificialPurityDebugError": {
+           "field": "enableArtificialPurityDebugError"
+          }
+         }
+        }
+       },
+       "args": [
+        {
+         "record": "expected.postconditionValues.0.captures.arg$2"
+        },
+        {
+         "helper": "PureFunctionIdentifierTest_Helpers.Post_testCallCache",
+         "outerInstance": {
+          "once": "holder",
+          "value": {
+           "withFields": {
+            "helper": "PureFunctionIdentifierTest_Helpers",
+            "args": []
+           },
+           "fields": {
+            "regExpHaveSideEffects": {
+             "field": "regExpHaveSideEffects"
+            },
+            "enableArtificialPurityDebugError": {
+             "field": "enableArtificialPurityDebugError"
+            }
+           }
+          }
+         },
+         "args": []
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "testFieldsAfter": {
+    "once": "holder",
+    "value": {
+     "withFields": {
+      "helper": "PureFunctionIdentifierTest_Helpers",
+      "args": []
+     },
+     "fields": {
+      "regExpHaveSideEffects": {
+       "field": "regExpHaveSideEffects"
+      },
+      "enableArtificialPurityDebugError": {
+       "field": "enableArtificialPurityDebugError"
+      }
+     }
+    }
+   },
+   "note": "assertPureCallsMarked/assertNoPureCalls with a non-null `post` lambda (arg$3, captures only the test instance), rebuilt as helper Post_testCallCache"
+  },
+  {
+   "when": {
+    "method": "testCallCache_withKeyFn",
+    "expected.postconditions": 1,
+    "expected.postconditionValues.0.captures.arg$3.unrepresentable": "com.google.javascript.jscomp.PureFunctionIdentifierTest$$Lambda"
+   },
+   "processor": {
+    "helper": "PureFunctionIdentifierTest_Helpers.NoSideEffectCallEnumerator",
+    "outerInstance": {
+     "once": "holder",
+     "value": {
+      "withFields": {
+       "helper": "PureFunctionIdentifierTest_Helpers",
+       "args": []
+      },
+      "fields": {
+       "regExpHaveSideEffects": {
+        "field": "regExpHaveSideEffects"
+       },
+       "enableArtificialPurityDebugError": {
+        "field": "enableArtificialPurityDebugError"
+       }
+      }
+     }
+    },
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "new": "com.google.javascript.jscomp.PureFunctionIdentifier$Driver",
+      "args": [
+       {
+        "compiler": true
+       }
+      ]
+     }
+    ]
+   },
+   "postconditions": [
+    {
+     "static": "com.google.javascript.jscomp.CompilerTestCase",
+     "method": "postcondition",
+     "args": [
+      {
+       "helper": "PureFunctionIdentifierTest_Helpers.AssertPureCallsMarkedPostcondition",
+       "outerInstance": {
+        "once": "holder",
+        "value": {
+         "withFields": {
+          "helper": "PureFunctionIdentifierTest_Helpers",
+          "args": []
+         },
+         "fields": {
+          "regExpHaveSideEffects": {
+           "field": "regExpHaveSideEffects"
+          },
+          "enableArtificialPurityDebugError": {
+           "field": "enableArtificialPurityDebugError"
+          }
+         }
+        }
+       },
+       "args": [
+        {
+         "record": "expected.postconditionValues.0.captures.arg$2"
+        },
+        {
+         "helper": "PureFunctionIdentifierTest_Helpers.Post_testCallCache_withKeyFn",
+         "outerInstance": {
+          "once": "holder",
+          "value": {
+           "withFields": {
+            "helper": "PureFunctionIdentifierTest_Helpers",
+            "args": []
+           },
+           "fields": {
+            "regExpHaveSideEffects": {
+             "field": "regExpHaveSideEffects"
+            },
+            "enableArtificialPurityDebugError": {
+             "field": "enableArtificialPurityDebugError"
+            }
+           }
+          }
+         },
+         "args": []
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "testFieldsAfter": {
+    "once": "holder",
+    "value": {
+     "withFields": {
+      "helper": "PureFunctionIdentifierTest_Helpers",
+      "args": []
+     },
+     "fields": {
+      "regExpHaveSideEffects": {
+       "field": "regExpHaveSideEffects"
+      },
+      "enableArtificialPurityDebugError": {
+       "field": "enableArtificialPurityDebugError"
+      }
+     }
+    }
+   },
+   "note": "assertPureCallsMarked/assertNoPureCalls with a non-null `post` lambda (arg$3, captures only the test instance), rebuilt as helper Post_testCallCache_withKeyFn"
+  },
+  {
+   "when": {
+    "method": "testCallCache_anonymousFn",
+    "expected.postconditions": 1,
+    "expected.postconditionValues.0.captures.arg$3.unrepresentable": "com.google.javascript.jscomp.PureFunctionIdentifierTest$$Lambda"
+   },
+   "processor": {
+    "helper": "PureFunctionIdentifierTest_Helpers.NoSideEffectCallEnumerator",
+    "outerInstance": {
+     "once": "holder",
+     "value": {
+      "withFields": {
+       "helper": "PureFunctionIdentifierTest_Helpers",
+       "args": []
+      },
+      "fields": {
+       "regExpHaveSideEffects": {
+        "field": "regExpHaveSideEffects"
+       },
+       "enableArtificialPurityDebugError": {
+        "field": "enableArtificialPurityDebugError"
+       }
+      }
+     }
+    },
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "new": "com.google.javascript.jscomp.PureFunctionIdentifier$Driver",
+      "args": [
+       {
+        "compiler": true
+       }
+      ]
+     }
+    ]
+   },
+   "postconditions": [
+    {
+     "static": "com.google.javascript.jscomp.CompilerTestCase",
+     "method": "postcondition",
+     "args": [
+      {
+       "helper": "PureFunctionIdentifierTest_Helpers.AssertPureCallsMarkedPostcondition",
+       "outerInstance": {
+        "once": "holder",
+        "value": {
+         "withFields": {
+          "helper": "PureFunctionIdentifierTest_Helpers",
+          "args": []
+         },
+         "fields": {
+          "regExpHaveSideEffects": {
+           "field": "regExpHaveSideEffects"
+          },
+          "enableArtificialPurityDebugError": {
+           "field": "enableArtificialPurityDebugError"
+          }
+         }
+        }
+       },
+       "args": [
+        {
+         "record": "expected.postconditionValues.0.captures.arg$2"
+        },
+        {
+         "helper": "PureFunctionIdentifierTest_Helpers.Post_testCallCache_anonymousFn",
+         "outerInstance": {
+          "once": "holder",
+          "value": {
+           "withFields": {
+            "helper": "PureFunctionIdentifierTest_Helpers",
+            "args": []
+           },
+           "fields": {
+            "regExpHaveSideEffects": {
+             "field": "regExpHaveSideEffects"
+            },
+            "enableArtificialPurityDebugError": {
+             "field": "enableArtificialPurityDebugError"
+            }
+           }
+          }
+         },
+         "args": []
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "testFieldsAfter": {
+    "once": "holder",
+    "value": {
+     "withFields": {
+      "helper": "PureFunctionIdentifierTest_Helpers",
+      "args": []
+     },
+     "fields": {
+      "regExpHaveSideEffects": {
+       "field": "regExpHaveSideEffects"
+      },
+      "enableArtificialPurityDebugError": {
+       "field": "enableArtificialPurityDebugError"
+      }
+     }
+    }
+   },
+   "note": "assertPureCallsMarked/assertNoPureCalls with a non-null `post` lambda (arg$3, captures only the test instance), rebuilt as helper Post_testCallCache_anonymousFn"
+  },
+  {
+   "when": {
+    "method": "testCallCache_anonymousFn_hasSideEffects",
+    "expected.postconditions": 1,
+    "expected.postconditionValues.0.captures.arg$3.unrepresentable": "com.google.javascript.jscomp.PureFunctionIdentifierTest$$Lambda"
+   },
+   "processor": {
+    "helper": "PureFunctionIdentifierTest_Helpers.NoSideEffectCallEnumerator",
+    "outerInstance": {
+     "once": "holder",
+     "value": {
+      "withFields": {
+       "helper": "PureFunctionIdentifierTest_Helpers",
+       "args": []
+      },
+      "fields": {
+       "regExpHaveSideEffects": {
+        "field": "regExpHaveSideEffects"
+       },
+       "enableArtificialPurityDebugError": {
+        "field": "enableArtificialPurityDebugError"
+       }
+      }
+     }
+    },
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "new": "com.google.javascript.jscomp.PureFunctionIdentifier$Driver",
+      "args": [
+       {
+        "compiler": true
+       }
+      ]
+     }
+    ]
+   },
+   "postconditions": [
+    {
+     "static": "com.google.javascript.jscomp.CompilerTestCase",
+     "method": "postcondition",
+     "args": [
+      {
+       "helper": "PureFunctionIdentifierTest_Helpers.AssertPureCallsMarkedPostcondition",
+       "outerInstance": {
+        "once": "holder",
+        "value": {
+         "withFields": {
+          "helper": "PureFunctionIdentifierTest_Helpers",
+          "args": []
+         },
+         "fields": {
+          "regExpHaveSideEffects": {
+           "field": "regExpHaveSideEffects"
+          },
+          "enableArtificialPurityDebugError": {
+           "field": "enableArtificialPurityDebugError"
+          }
+         }
+        }
+       },
+       "args": [
+        {
+         "record": "expected.postconditionValues.0.captures.arg$2"
+        },
+        {
+         "helper": "PureFunctionIdentifierTest_Helpers.Post_testCallCache_anonymousFn_hasSideEffects",
+         "outerInstance": {
+          "once": "holder",
+          "value": {
+           "withFields": {
+            "helper": "PureFunctionIdentifierTest_Helpers",
+            "args": []
+           },
+           "fields": {
+            "regExpHaveSideEffects": {
+             "field": "regExpHaveSideEffects"
+            },
+            "enableArtificialPurityDebugError": {
+             "field": "enableArtificialPurityDebugError"
+            }
+           }
+          }
+         },
+         "args": []
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "testFieldsAfter": {
+    "once": "holder",
+    "value": {
+     "withFields": {
+      "helper": "PureFunctionIdentifierTest_Helpers",
+      "args": []
+     },
+     "fields": {
+      "regExpHaveSideEffects": {
+       "field": "regExpHaveSideEffects"
+      },
+      "enableArtificialPurityDebugError": {
+       "field": "enableArtificialPurityDebugError"
+      }
+     }
+    }
+   },
+   "note": "assertPureCallsMarked/assertNoPureCalls with a non-null `post` lambda (arg$3, captures only the test instance), rebuilt as helper Post_testCallCache_anonymousFn_hasSideEffects"
+  },
+  {
+   "when": {
+    "method": "testCallCache_hasSideEffects",
+    "expected.postconditions": 1,
+    "expected.postconditionValues.0.captures.arg$3.unrepresentable": "com.google.javascript.jscomp.PureFunctionIdentifierTest$$Lambda"
+   },
+   "processor": {
+    "helper": "PureFunctionIdentifierTest_Helpers.NoSideEffectCallEnumerator",
+    "outerInstance": {
+     "once": "holder",
+     "value": {
+      "withFields": {
+       "helper": "PureFunctionIdentifierTest_Helpers",
+       "args": []
+      },
+      "fields": {
+       "regExpHaveSideEffects": {
+        "field": "regExpHaveSideEffects"
+       },
+       "enableArtificialPurityDebugError": {
+        "field": "enableArtificialPurityDebugError"
+       }
+      }
+     }
+    },
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "new": "com.google.javascript.jscomp.PureFunctionIdentifier$Driver",
+      "args": [
+       {
+        "compiler": true
+       }
+      ]
+     }
+    ]
+   },
+   "postconditions": [
+    {
+     "static": "com.google.javascript.jscomp.CompilerTestCase",
+     "method": "postcondition",
+     "args": [
+      {
+       "helper": "PureFunctionIdentifierTest_Helpers.AssertPureCallsMarkedPostcondition",
+       "outerInstance": {
+        "once": "holder",
+        "value": {
+         "withFields": {
+          "helper": "PureFunctionIdentifierTest_Helpers",
+          "args": []
+         },
+         "fields": {
+          "regExpHaveSideEffects": {
+           "field": "regExpHaveSideEffects"
+          },
+          "enableArtificialPurityDebugError": {
+           "field": "enableArtificialPurityDebugError"
+          }
+         }
+        }
+       },
+       "args": [
+        {
+         "record": "expected.postconditionValues.0.captures.arg$2"
+        },
+        {
+         "helper": "PureFunctionIdentifierTest_Helpers.Post_testCallCache_hasSideEffects",
+         "outerInstance": {
+          "once": "holder",
+          "value": {
+           "withFields": {
+            "helper": "PureFunctionIdentifierTest_Helpers",
+            "args": []
+           },
+           "fields": {
+            "regExpHaveSideEffects": {
+             "field": "regExpHaveSideEffects"
+            },
+            "enableArtificialPurityDebugError": {
+             "field": "enableArtificialPurityDebugError"
+            }
+           }
+          }
+         },
+         "args": []
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "testFieldsAfter": {
+    "once": "holder",
+    "value": {
+     "withFields": {
+      "helper": "PureFunctionIdentifierTest_Helpers",
+      "args": []
+     },
+     "fields": {
+      "regExpHaveSideEffects": {
+       "field": "regExpHaveSideEffects"
+      },
+      "enableArtificialPurityDebugError": {
+       "field": "enableArtificialPurityDebugError"
+      }
+     }
+    }
+   },
+   "note": "assertPureCallsMarked/assertNoPureCalls with a non-null `post` lambda (arg$3, captures only the test instance), rebuilt as helper Post_testCallCache_hasSideEffects"
+  },
+  {
+   "when": {
+    "method": "testCallCache_withKeyFn_hasSideEffects",
+    "expected.postconditions": 1,
+    "expected.postconditionValues.0.captures.arg$3.unrepresentable": "com.google.javascript.jscomp.PureFunctionIdentifierTest$$Lambda"
+   },
+   "processor": {
+    "helper": "PureFunctionIdentifierTest_Helpers.NoSideEffectCallEnumerator",
+    "outerInstance": {
+     "once": "holder",
+     "value": {
+      "withFields": {
+       "helper": "PureFunctionIdentifierTest_Helpers",
+       "args": []
+      },
+      "fields": {
+       "regExpHaveSideEffects": {
+        "field": "regExpHaveSideEffects"
+       },
+       "enableArtificialPurityDebugError": {
+        "field": "enableArtificialPurityDebugError"
+       }
+      }
+     }
+    },
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "new": "com.google.javascript.jscomp.PureFunctionIdentifier$Driver",
+      "args": [
+       {
+        "compiler": true
+       }
+      ]
+     }
+    ]
+   },
+   "postconditions": [
+    {
+     "static": "com.google.javascript.jscomp.CompilerTestCase",
+     "method": "postcondition",
+     "args": [
+      {
+       "helper": "PureFunctionIdentifierTest_Helpers.AssertPureCallsMarkedPostcondition",
+       "outerInstance": {
+        "once": "holder",
+        "value": {
+         "withFields": {
+          "helper": "PureFunctionIdentifierTest_Helpers",
+          "args": []
+         },
+         "fields": {
+          "regExpHaveSideEffects": {
+           "field": "regExpHaveSideEffects"
+          },
+          "enableArtificialPurityDebugError": {
+           "field": "enableArtificialPurityDebugError"
+          }
+         }
+        }
+       },
+       "args": [
+        {
+         "record": "expected.postconditionValues.0.captures.arg$2"
+        },
+        {
+         "helper": "PureFunctionIdentifierTest_Helpers.Post_testCallCache_withKeyFn_hasSideEffects",
+         "outerInstance": {
+          "once": "holder",
+          "value": {
+           "withFields": {
+            "helper": "PureFunctionIdentifierTest_Helpers",
+            "args": []
+           },
+           "fields": {
+            "regExpHaveSideEffects": {
+             "field": "regExpHaveSideEffects"
+            },
+            "enableArtificialPurityDebugError": {
+             "field": "enableArtificialPurityDebugError"
+            }
+           }
+          }
+         },
+         "args": []
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "testFieldsAfter": {
+    "once": "holder",
+    "value": {
+     "withFields": {
+      "helper": "PureFunctionIdentifierTest_Helpers",
+      "args": []
+     },
+     "fields": {
+      "regExpHaveSideEffects": {
+       "field": "regExpHaveSideEffects"
+      },
+      "enableArtificialPurityDebugError": {
+       "field": "enableArtificialPurityDebugError"
+      }
+     }
+    }
+   },
+   "note": "assertPureCallsMarked/assertNoPureCalls with a non-null `post` lambda (arg$3, captures only the test instance), rebuilt as helper Post_testCallCache_withKeyFn_hasSideEffects"
+  },
+  {
+   "when": {
+    "method": "testCallCache_propagatesSideEffects",
+    "expected.postconditions": 1,
+    "expected.postconditionValues.0.captures.arg$3.unrepresentable": "com.google.javascript.jscomp.PureFunctionIdentifierTest$$Lambda"
+   },
+   "processor": {
+    "helper": "PureFunctionIdentifierTest_Helpers.NoSideEffectCallEnumerator",
+    "outerInstance": {
+     "once": "holder",
+     "value": {
+      "withFields": {
+       "helper": "PureFunctionIdentifierTest_Helpers",
+       "args": []
+      },
+      "fields": {
+       "regExpHaveSideEffects": {
+        "field": "regExpHaveSideEffects"
+       },
+       "enableArtificialPurityDebugError": {
+        "field": "enableArtificialPurityDebugError"
+       }
+      }
+     }
+    },
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "new": "com.google.javascript.jscomp.PureFunctionIdentifier$Driver",
+      "args": [
+       {
+        "compiler": true
+       }
+      ]
+     }
+    ]
+   },
+   "postconditions": [
+    {
+     "static": "com.google.javascript.jscomp.CompilerTestCase",
+     "method": "postcondition",
+     "args": [
+      {
+       "helper": "PureFunctionIdentifierTest_Helpers.AssertPureCallsMarkedPostcondition",
+       "outerInstance": {
+        "once": "holder",
+        "value": {
+         "withFields": {
+          "helper": "PureFunctionIdentifierTest_Helpers",
+          "args": []
+         },
+         "fields": {
+          "regExpHaveSideEffects": {
+           "field": "regExpHaveSideEffects"
+          },
+          "enableArtificialPurityDebugError": {
+           "field": "enableArtificialPurityDebugError"
+          }
+         }
+        }
+       },
+       "args": [
+        {
+         "record": "expected.postconditionValues.0.captures.arg$2"
+        },
+        {
+         "helper": "PureFunctionIdentifierTest_Helpers.Post_testCallCache_propagatesSideEffects",
+         "outerInstance": {
+          "once": "holder",
+          "value": {
+           "withFields": {
+            "helper": "PureFunctionIdentifierTest_Helpers",
+            "args": []
+           },
+           "fields": {
+            "regExpHaveSideEffects": {
+             "field": "regExpHaveSideEffects"
+            },
+            "enableArtificialPurityDebugError": {
+             "field": "enableArtificialPurityDebugError"
+            }
+           }
+          }
+         },
+         "args": []
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "testFieldsAfter": {
+    "once": "holder",
+    "value": {
+     "withFields": {
+      "helper": "PureFunctionIdentifierTest_Helpers",
+      "args": []
+     },
+     "fields": {
+      "regExpHaveSideEffects": {
+       "field": "regExpHaveSideEffects"
+      },
+      "enableArtificialPurityDebugError": {
+       "field": "enableArtificialPurityDebugError"
+      }
+     }
+    }
+   },
+   "note": "assertPureCallsMarked/assertNoPureCalls with a non-null `post` lambda (arg$3, captures only the test instance), rebuilt as helper Post_testCallCache_propagatesSideEffects"
+  },
+  {
+   "when": {
+    "expected.postconditions": 1,
+    "expected.postconditionValues.0.captures.arg$3": null
+   },
+   "processor": {
+    "helper": "PureFunctionIdentifierTest_Helpers.NoSideEffectCallEnumerator",
+    "outerInstance": {
+     "once": "holder",
+     "value": {
+      "withFields": {
+       "helper": "PureFunctionIdentifierTest_Helpers",
+       "args": []
+      },
+      "fields": {
+       "regExpHaveSideEffects": {
+        "field": "regExpHaveSideEffects"
+       },
+       "enableArtificialPurityDebugError": {
+        "field": "enableArtificialPurityDebugError"
+       }
+      }
+     }
+    },
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "new": "com.google.javascript.jscomp.PureFunctionIdentifier$Driver",
+      "args": [
+       {
+        "compiler": true
+       }
+      ]
+     }
+    ]
+   },
+   "postconditions": [
+    {
+     "static": "com.google.javascript.jscomp.CompilerTestCase",
+     "method": "postcondition",
+     "args": [
+      {
+       "helper": "PureFunctionIdentifierTest_Helpers.AssertPureCallsMarkedPostcondition",
+       "outerInstance": {
+        "once": "holder",
+        "value": {
+         "withFields": {
+          "helper": "PureFunctionIdentifierTest_Helpers",
+          "args": []
+         },
+         "fields": {
+          "regExpHaveSideEffects": {
+           "field": "regExpHaveSideEffects"
+          },
+          "enableArtificialPurityDebugError": {
+           "field": "enableArtificialPurityDebugError"
+          }
+         }
+        }
+       },
+       "args": [
+        {
+         "record": "expected.postconditionValues.0.captures.arg$2"
+        },
+        {
+         "record": "expected.postconditionValues.0.captures.arg$3"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "testFieldsAfter": {
+    "once": "holder",
+    "value": {
+     "withFields": {
+      "helper": "PureFunctionIdentifierTest_Helpers",
+      "args": []
+     },
+     "fields": {
+      "regExpHaveSideEffects": {
+       "field": "regExpHaveSideEffects"
+      },
+      "enableArtificialPurityDebugError": {
+       "field": "enableArtificialPurityDebugError"
+      }
+     }
+    }
+   },
+   "note": "assertPureCallsMarked/assertNoPureCalls with post == null: the postcondition lambda (captures this, expected = arg$2, post = arg$3) is rebuilt from the recorded captures"
+  },
+  {
+   "when": {
+    "expected.postconditions": 0
+   },
+   "processor": {
+    "helper": "PureFunctionIdentifierTest_Helpers.NoSideEffectCallEnumerator",
+    "outerInstance": {
+     "once": "holder",
+     "value": {
+      "withFields": {
+       "helper": "PureFunctionIdentifierTest_Helpers",
+       "args": []
+      },
+      "fields": {
+       "regExpHaveSideEffects": {
+        "field": "regExpHaveSideEffects"
+       },
+       "enableArtificialPurityDebugError": {
+        "field": "enableArtificialPurityDebugError"
+       }
+      }
+     }
+    },
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "new": "com.google.javascript.jscomp.PureFunctionIdentifier$Driver",
+      "args": [
+       {
+        "compiler": true
+       }
+      ]
+     }
+    ]
+   },
+   "testFieldsAfter": {
+    "once": "holder",
+    "value": {
+     "withFields": {
+      "helper": "PureFunctionIdentifierTest_Helpers",
+      "args": []
+     },
+     "fields": {
+      "regExpHaveSideEffects": {
+       "field": "regExpHaveSideEffects"
+      },
+      "enableArtificialPurityDebugError": {
+       "field": "enableArtificialPurityDebugError"
+      }
+     }
+    }
+   },
+   "note": "direct test/testError/testWarning calls without postconditions"
+  }
+ ],
+ "note": "One holder instance per record ({\"once\":\"holder\"}) stands for the test instance: the processor (inner NoSideEffectCallEnumerator) writes holder.noSideEffectCalls and the postcondition (inner AssertPureCallsMarkedPostcondition, the test's own assertion that exactly the expected callees are marked pure) reads it, as the original lambda reads this.noSideEffectCalls. regExpHaveSideEffects (read by the pass at process time) and enableArtificialPurityDebugError are restored from testFields; the latter only affects getOptions(), whose effect is already in the record's options. `expected` (arg$2) is decoded from expected.postconditionValues. The inner `post` lambdas capture only the test instance (for CompilerTestCase.findQualifiedNameNode(s), copied verbatim into the holder), so they are selected by test method; each of those 9 methods makes exactly one recorded call. testFieldsAfter is opted in: the holder's noSideEffectCalls dump must equal the recorded one. The processor is wrapped in mutationPoint com.google.javascript.jscomp.PureFunctionIdentifier: PureFunctionIdentifier.Driver is built inside the verbatim helper's process(), so under --mutate-noop PureFunctionIdentifier the whole enumerator (Driver plus call collection) is replaced by the no-op stand-in, leaving noSideEffectCalls null."
+}

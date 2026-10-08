@@ -1,0 +1,12 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckJSDocStyleTest.java getProcessor (lines 61-64); setUp (lines 54-59), getOptions (lines 66-72) and getCodingConvention (lines 74-77, consumed only by CompilerTestCase.getOptions) are captured by the record's harness fields and options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.lint.CheckJSDocStyle",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

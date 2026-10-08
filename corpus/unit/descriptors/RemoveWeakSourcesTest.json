@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/RemoveWeakSourcesTest.java getProcessor (lines 28-31), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.RemoveWeakSources", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "getProcessor is unconditional (return new RemoveWeakSources(compiler)); the test has no fields and no other overridden harness hooks. testMultipleChunks passes JSChunk inputs (inputs.chunks); its expected chunks are recorded flattened as the harness's expected SourceFile list (testcode0..5)."
+}

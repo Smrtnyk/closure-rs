@@ -1,0 +1,117 @@
+{
+ "source": "test/com/google/javascript/jscomp/ScopedAliasesTest.java getProcessor (lines 1526-1532); postcondition VERIFY_TYPES (lines 76-78) with nested class TypeVerifyingPass (lines 1534-1574), copied verbatim into helper ScopedAliasesTest_Helpers. setUp (lines 51-60) resets invalidModuleGetHandling, which comes from the record's testFields; the rest affects only harness fields.",
+ "cases": [
+  {
+   "when": {
+    "expected.postconditionValues.0.unrepresentable": "com.google.javascript.jscomp.ScopedAliasesTest$$Lambda",
+    "expected.postconditions": 1
+   },
+   "processor": {
+    "call": {
+     "call": {
+      "call": {
+       "static": "com.google.javascript.jscomp.ScopedAliases",
+       "method": "builder",
+       "args": [
+        {
+         "compiler": true
+        }
+       ]
+      },
+      "method": "setModuleMetadataMap",
+      "args": [
+       {
+        "call": {
+         "compiler": true
+        },
+        "method": "getModuleMetadataMap",
+        "args": []
+       }
+      ]
+     },
+     "method": "setInvalidModuleGetHandling",
+     "args": [
+      {
+       "field": "invalidModuleGetHandling"
+      }
+     ]
+    },
+    "method": "build",
+    "args": []
+   },
+   "postconditions": [
+    {
+     "lambda": [
+      "compiler"
+     ],
+     "iface": "com.google.javascript.jscomp.CompilerTestCase$Postcondition",
+     "body": {
+      "call": {
+       "helper": "ScopedAliasesTest_Helpers.TypeVerifyingPass",
+       "args": [
+        {
+         "var": "compiler"
+        }
+       ]
+      },
+      "method": "process",
+      "args": [
+       {
+        "call": {
+         "var": "compiler"
+        },
+        "method": "getExternsRoot",
+        "args": []
+       },
+       {
+        "call": {
+         "var": "compiler"
+        },
+        "method": "getJsRoot",
+        "args": []
+       }
+      ]
+     }
+    }
+   ],
+   "note": "Records whose only postcondition is the test's VERIFY_TYPES constant (ScopedAliasesTest.java lines 76-78, the class's only Postcondition; it captures nothing). It is rebuilt as a DSL lambda over the verbatim helper ScopedAliasesTest_Helpers.TypeVerifyingPass (lines 1534-1574)."
+  },
+  {
+   "when": {},
+   "processor": {
+    "call": {
+     "call": {
+      "call": {
+       "static": "com.google.javascript.jscomp.ScopedAliases",
+       "method": "builder",
+       "args": [
+        {
+         "compiler": true
+        }
+       ]
+      },
+      "method": "setModuleMetadataMap",
+      "args": [
+       {
+        "call": {
+         "compiler": true
+        },
+        "method": "getModuleMetadataMap",
+        "args": []
+       }
+      ]
+     },
+     "method": "setInvalidModuleGetHandling",
+     "args": [
+      {
+       "field": "invalidModuleGetHandling"
+      }
+     ]
+    },
+    "method": "build",
+    "args": []
+   }
+  }
+ ],
+ "unrepresentableAudit": "24 records list expected.postconditions[0] (the VERIFY_TYPES lambda, no captures) as unrepresentable. The first case replays it through 'postconditions'. Checked with scratch perturbations: pointing TypeVerifyingPass at getRoot() fails 23 of the 24, and appending assertThat(false).isTrue() fails 23 of the 24. The other record (#62, testTestTypes) ends in its recorded AssertionErrorWithFacts from the output comparison, before postconditions run, which is also what the original does. Re-checked in classify batch 17 (2026-10-07): appending assertThat(false).isTrue() to the replayed postcondition fails 23 of the 24 records (build/unit/fix-17/perturb-sa.jsonl), the count rule holds for all 24. Plan for (e): the records keep their recorder-level placeholder (expected.postconditionValues.0 = the VERIFY_TYPES lambda) and so stay in (e) under the current definition; nothing in this class's descriptor can remove it. A harness request (batch 17) asks for the recorder to write such lambdas as class-name refs (as it does for test-field lambdas) or for (e) to stop counting a postcondition placeholder that the selected case replays verbatim under the count rule."
+}

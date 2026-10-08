@@ -1,0 +1,628 @@
+[
+  {
+    "id": "closure-library-file-debug.errorcontext",
+    "source": "closure-library",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/closure-library/closure/goog/debug/errorcontext.js",
+        "code": "/**\n * @license\n * Copyright The Closure Library Authors.\n * SPDX-License-Identifier: Apache-2.0\n */\n\n/**\n * @fileoverview Provides methods dealing with context on error objects.\n */\n\ngoog.provide('goog.debug.errorcontext');\n\n\n/**\n * Adds key-value context to the error.\n * @param {!Error} err The error to add context to.\n * @param {string} contextKey Key for the context to be added.\n * @param {string} contextValue Value for the context to be added.\n */\ngoog.debug.errorcontext.addErrorContext = function(\n    err, contextKey, contextValue) {\n  'use strict';\n  if (!err[goog.debug.errorcontext.CONTEXT_KEY_]) {\n    err[goog.debug.errorcontext.CONTEXT_KEY_] = {};\n  }\n  err[goog.debug.errorcontext.CONTEXT_KEY_][contextKey] = contextValue;\n};\n\n\n/**\n * @param {!Error} err The error to get context from.\n * @return {!Object<string, string>} The context of the provided error.\n */\ngoog.debug.errorcontext.getErrorContext = function(err) {\n  'use strict';\n  return err[goog.debug.errorcontext.CONTEXT_KEY_] || {};\n};\n\n\n// TODO(user): convert this to a Symbol once goog.debug.ErrorReporter is\n// able to use ES6.\n/** @private @const {string} */\ngoog.debug.errorcontext.CONTEXT_KEY_ = '__closure__error__context__984382';\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "/*\n\n Copyright The Closure Library Authors.\n SPDX-License-Identifier: Apache-2.0\n*/\ngoog.provide(\"goog.debug.errorcontext\");goog.debug.errorcontext.addErrorContext=function(err,contextKey,contextValue){if(!err[goog.debug.errorcontext.CONTEXT_KEY_])err[goog.debug.errorcontext.CONTEXT_KEY_]={};err[goog.debug.errorcontext.CONTEXT_KEY_][contextKey]=contextValue};goog.debug.errorcontext.getErrorContext=function(err){return err[goog.debug.errorcontext.CONTEXT_KEY_]||{}};goog.debug.errorcontext.CONTEXT_KEY_=\"__closure__error__context__984382\";",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-library-file-events.mouseevents",
+    "source": "closure-library",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/closure-library/closure/goog/events/mouseevents.js",
+        "code": "/**\n * @license\n * Copyright The Closure Library Authors.\n * SPDX-License-Identifier: Apache-2.0\n */\n\ngoog.provide('goog.events.MouseEvents');\n\n\n/**\n * Mapping of mouse event names to underlying browser event names.\n * @typedef {{\n *     MOUSEDOWN: string,\n *     MOUSEUP: string,\n *     MOUSECANCEL: string,\n *     MOUSEMOVE: string,\n *     MOUSEOVER: string,\n *     MOUSEOUT: string,\n *     MOUSEENTER: string,\n *     MOUSELEAVE: string,\n * }}\n */\ngoog.events.MouseEvents;\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "/*\n\n Copyright The Closure Library Authors.\n SPDX-License-Identifier: Apache-2.0\n*/\ngoog.provide(\"goog.events.MouseEvents\");goog.events.MouseEvents;",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-library-file-labs.net.webchannel.connectionstate",
+    "source": "closure-library",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel/connectionstate.js",
+        "code": "/**\n * @license\n * Copyright The Closure Library Authors.\n * SPDX-License-Identifier: Apache-2.0\n */\n\n/**\n * @fileoverview This class manages the network connectivity state.\n *\n */\n\n\ngoog.provide('goog.labs.net.webChannel.ConnectionState');\n\n\n\n/**\n * The connectivity state of the channel.\n *\n * To be used for the new buffering-proxy detection algorithm.\n *\n * @constructor\n * @struct\n */\ngoog.labs.net.webChannel.ConnectionState = function() {\n  'use strict';\n  /**\n   * Handshake result.\n   * @type {?Array<string>}\n   */\n  this.handshakeResult = null;\n\n  /**\n   * The result of checking if there is a buffering proxy in the network.\n   * True means the connection is buffered, False means unbuffered,\n   * null means that the result is not available.\n   * @type {?boolean}\n   */\n  this.bufferingProxyResult = null;\n};\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "/*\n\n Copyright The Closure Library Authors.\n SPDX-License-Identifier: Apache-2.0\n*/\ngoog.provide(\"goog.labs.net.webChannel.ConnectionState\");goog.labs.net.webChannel.ConnectionState=function(){this.handshakeResult=null;this.bufferingProxyResult=null};",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-library-file-net.xpc.crosspagechannelrole",
+    "source": "closure-library",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/closure-library/closure/goog/net/xpc/crosspagechannelrole.js",
+        "code": "/**\n * @license\n * Copyright The Closure Library Authors.\n * SPDX-License-Identifier: Apache-2.0\n */\n\n/**\n * @fileoverview Provides the enum for the role of the CrossPageChannel.\n */\n\ngoog.provide('goog.net.xpc.CrossPageChannelRole');\n\n\n/**\n * The role of the peer.\n * @enum {number}\n */\ngoog.net.xpc.CrossPageChannelRole = {\n  OUTER: 0,\n  INNER: 1,\n};\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "/*\n\n Copyright The Closure Library Authors.\n SPDX-License-Identifier: Apache-2.0\n*/\ngoog.provide(\"goog.net.xpc.CrossPageChannelRole\");goog.net.xpc.CrossPageChannelRole={OUTER:0,INNER:1};",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-library-file-proto.serializer",
+    "source": "closure-library",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/closure-library/closure/goog/proto/serializer.js",
+        "code": "/**\n * @license\n * Copyright The Closure Library Authors.\n * SPDX-License-Identifier: Apache-2.0\n */\n\n/**\n * @fileoverview Protocol buffer serializer.\n */\n\n\n// TODO(arv): Serialize booleans as 0 and 1\n\n\ngoog.provide('goog.proto.Serializer');\n\n\ngoog.require('goog.json.Serializer');\ngoog.require('goog.string');\n\n\n\n/**\n * Object that can serialize objects or values to a protocol buffer string.\n * @constructor\n * @extends {goog.json.Serializer}\n * @final\n */\ngoog.proto.Serializer = function() {\n  'use strict';\n  goog.json.Serializer.call(this);\n};\ngoog.inherits(goog.proto.Serializer, goog.json.Serializer);\n\n\n/**\n * Serializes an array to a protocol buffer string. This overrides the JSON\n * method to don't output trailing null or undefined.\n * @param {Array<*>} arr The array to serialize.\n * @param {Array<string>} sb Array used as a string builder.\n * @override\n */\ngoog.proto.Serializer.prototype.serializeArray = function(arr, sb) {\n  'use strict';\n  const l = arr.length;\n  sb.push('[');\n  let emptySlots = 0;\n  let sep = '';\n  for (let i = 0; i < l; i++) {\n    if (arr[i] == null) {  // catches undefined as well\n      emptySlots++;\n    } else {\n      sb.push(sep);\n      if (emptySlots > 0) {\n        sb.push(goog.string.repeat('null,', emptySlots));\n        emptySlots = 0;\n      }\n      this.serializeInternal(arr[i], sb);\n      sep = ',';\n    }\n  }\n  sb.push(']');\n};\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "/*\n\n Copyright The Closure Library Authors.\n SPDX-License-Identifier: Apache-2.0\n*/\ngoog.provide(\"goog.proto.Serializer\");goog.require(\"goog.json.Serializer\");goog.require(\"goog.string\");goog.proto.Serializer=function(){goog.json.Serializer.call(this)};goog.inherits(goog.proto.Serializer,goog.json.Serializer);\ngoog.proto.Serializer.prototype.serializeArray=function(arr,sb){const l=arr.length;sb.push(\"[\");let emptySlots=0;let sep=\"\";for(let i=0;i<l;i++)if(arr[i]==null)emptySlots++;else{sb.push(sep);if(emptySlots>0){sb.push(goog.string.repeat(\"null,\",emptySlots));emptySlots=0}this.serializeInternal(arr[i],sb);sep=\",\"}sb.push(\"]\")};",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-library-file-pubsub.topicid",
+    "source": "closure-library",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/closure-library/closure/goog/pubsub/topicid.js",
+        "code": "/**\n * @license\n * Copyright The Closure Library Authors.\n * SPDX-License-Identifier: Apache-2.0\n */\n\ngoog.provide('goog.pubsub.TopicId');\n\n\n\n/**\n * A templated class that is used to register `goog.pubsub.PubSub`\n * subscribers.\n *\n * Typical usage for a publisher:\n * <code>\n *   /** @type {!goog.pubsub.TopicId<!zorg.State>}\n *   zorg.TopicId.STATE_CHANGE = new goog.pubsub.TopicId(\n *       goog.events.getUniqueId('state-change'));\n *\n *   // Compiler enforces that these types are correct.\n *   pubSub.publish(zorg.TopicId.STATE_CHANGE, zorg.State.STARTED);\n * </code>\n *\n * Typical usage for a subscriber:\n * <code>\n *   // Compiler enforces the callback parameter type.\n *   pubSub.subscribe(zorg.TopicId.STATE_CHANGE, function(state) {\n *     if (state == zorg.State.STARTED) {\n *       // Handle STARTED state.\n *     }\n *   });\n * </code>\n *\n * @param {string} topicId\n * @template PAYLOAD\n * @constructor\n * @final\n * @struct\n */\ngoog.pubsub.TopicId = function(topicId) {\n  'use strict';\n  /**\n   * @const\n   * @private\n   */\n  this.topicId_ = topicId;\n};\n\n\n/** @override */\ngoog.pubsub.TopicId.prototype.toString = function() {\n  'use strict';\n  return this.topicId_;\n};\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "/*\n\n Copyright The Closure Library Authors.\n SPDX-License-Identifier: Apache-2.0\n*/\ngoog.provide(\"goog.pubsub.TopicId\");goog.pubsub.TopicId=function(topicId){this.topicId_=topicId};goog.pubsub.TopicId.prototype.toString=function(){return this.topicId_};",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-library-file-ui.buttonside",
+    "source": "closure-library",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/closure-library/closure/goog/ui/buttonside.js",
+        "code": "/**\n * @license\n * Copyright The Closure Library Authors.\n * SPDX-License-Identifier: Apache-2.0\n */\n\n/**\n * @fileoverview Enum for button side constants. In its own file so as to not\n * cause a circular dependency with {@link goog.ui.ButtonRenderer}.\n */\n\ngoog.provide('goog.ui.ButtonSide');\n\n\n/**\n * Constants for button sides, see {@link goog.ui.Button.prototype.setCollapsed}\n * for details.\n * @enum {number}\n */\ngoog.ui.ButtonSide = {\n  /** Neither side. */\n  NONE: 0,\n  /** Left for LTR, right for RTL. */\n  START: 1,\n  /** Right for LTR, left for RTL. */\n  END: 2,\n  /** Both sides. */\n  BOTH: 3\n};\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "/*\n\n Copyright The Closure Library Authors.\n SPDX-License-Identifier: Apache-2.0\n*/\ngoog.provide(\"goog.ui.ButtonSide\");goog.ui.ButtonSide={NONE:0,START:1,END:2,BOTH:3};",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-library-file-ui.idgenerator",
+    "source": "closure-library",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/closure-library/closure/goog/ui/idgenerator.js",
+        "code": "/**\n * @license\n * Copyright The Closure Library Authors.\n * SPDX-License-Identifier: Apache-2.0\n */\n\n/**\n * @fileoverview Generator for unique element IDs.\n */\n\ngoog.provide('goog.ui.IdGenerator');\n\n\n\n/**\n * Creates a new id generator.\n * @constructor\n * @final\n */\ngoog.ui.IdGenerator = function() {};\ngoog.addSingletonGetter(goog.ui.IdGenerator);\n\n\n/**\n * Next unique ID to use\n * @type {number}\n * @private\n */\ngoog.ui.IdGenerator.prototype.nextId_ = 0;\n\n\n/**\n * Random ID prefix to help avoid collisions with other closure JavaScript on\n * the same page that may initialize its own IdGenerator singleton.\n * @type {string}\n * @private\n */\ngoog.ui.IdGenerator.prototype.idPrefix_ = '';\n\n\n/**\n * Sets the ID prefix for this singleton. This is a temporary workaround to be\n * backwards compatible with code relying on the undocumented, but consistent,\n * behavior. In the future this will be removed and the prefix will be set to\n * a randomly generated string.\n * @param {string} idPrefix\n */\ngoog.ui.IdGenerator.prototype.setIdPrefix = function(idPrefix) {\n  'use strict';\n  this.idPrefix_ = idPrefix;\n};\n\n\n/**\n * Gets the next unique ID.\n * @return {string} The next unique identifier.\n */\ngoog.ui.IdGenerator.prototype.getNextUniqueId = function() {\n  'use strict';\n  return this.idPrefix_ + ':' + (this.nextId_++).toString(36);\n};\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "/*\n\n Copyright The Closure Library Authors.\n SPDX-License-Identifier: Apache-2.0\n*/\ngoog.provide(\"goog.ui.IdGenerator\");goog.ui.IdGenerator=function(){};goog.addSingletonGetter(goog.ui.IdGenerator);goog.ui.IdGenerator.prototype.nextId_=0;goog.ui.IdGenerator.prototype.idPrefix_=\"\";goog.ui.IdGenerator.prototype.setIdPrefix=function(idPrefix){this.idPrefix_=idPrefix};goog.ui.IdGenerator.prototype.getNextUniqueId=function(){return this.idPrefix_+\":\"+(this.nextId_++).toString(36)};",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-self-rt-base",
+    "source": "closure-self",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "reference/closure-compiler/src/com/google/javascript/jscomp/js/base.js",
+        "code": "/*\n * Copyright 2012 The Closure Compiler Authors.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\n\n/**\n * @fileoverview The base namespace for code injected by the compiler\n * at compile-time.\n */\n\n/** @const */\nvar $jscomp = $jscomp || {};\n\n/** @const Locals for goog.scope */\n$jscomp.scope = {};\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "var $jscomp=$jscomp||{};$jscomp.scope={};",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-self-rt-es6-dart-runtime",
+    "source": "closure-self",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "reference/closure-compiler/src/com/google/javascript/jscomp/js/base.js",
+        "code": "/*\n * Copyright 2012 The Closure Compiler Authors.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\n\n/**\n * @fileoverview The base namespace for code injected by the compiler\n * at compile-time.\n */\n\n/** @const */\nvar $jscomp = $jscomp || {};\n\n/** @const Locals for goog.scope */\n$jscomp.scope = {};\n"
+      },
+      {
+        "name": "reference/closure-compiler/src/com/google/javascript/jscomp/js/es6_dart_runtime.js",
+        "code": "/*\n * Copyright 2014 The Closure Compiler Authors.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\n/**\n * @fileoverview  Additional runtime functions required for transpilation from\n * ES6 to ES5 of code generated by the Dart Dev Compiler.\n *\n * Note that DDC's output cannot currently be lowered to ES3 (heavy use of\n * getters or setters, including in the runtime), so these helpers make no\n * attempt of fallback behaviour when methods like Object.getPrototypeOf or\n * Object.getOwnPropertyDescriptor are undefined (unlike helpers in es6/*.js).\n */\n'require base';\n\n/**\n * Gets a property descriptor for a target instance, skipping its class\n * and walking up the super-classes hierarchy.\n *\n * @private\n * @param {!Object} target\n * @param {!string} name\n * @return {?}\n */\n$jscomp.getSuperPropertyDescriptor_ = function(target, name) {\n  var getPrototypeOf = Object.getPrototypeOf;\n  var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;\n  var cls = getPrototypeOf(target);\n  while (cls != null) {\n    cls = getPrototypeOf(cls);\n    if (cls != null) {\n      var desc = getOwnPropertyDescriptor(cls, name);\n      if (desc != null) {\n        return desc;\n      }\n    }\n  }\n  return undefined;\n};\n\n/**\n * Gets a property of a target instance using its super class getter or value,\n * or returns undefined if that property is not defined on any ancestor.\n *\n * @param {!Object} target\n * @param {!string} propertyName\n * @return {*}\n */\n$jscomp.superGet = function(target, propertyName) {\n  var desc = $jscomp.getSuperPropertyDescriptor_(target, propertyName);\n  return desc && (desc.get ? desc.get.call(target) : desc.value);\n};\n\n/**\n * Sets a property on a target instance using its super setter if is defined\n * on any ancestor, or setting it as a simple property on the target otherwise.\n *\n * @template T\n * @param {!Object} target\n * @param {!string} propertyName\n * @param {T} value\n * @return {T}\n */\n$jscomp.superSet = function(target, propertyName, value) {\n  var desc = $jscomp.getSuperPropertyDescriptor_(target, propertyName);\n  if (desc) {\n    if (!desc.set) {\n      throw new TypeError('No setter for super.' + propertyName);\n    }\n    desc.set.call(target, value);\n  } else {\n    target[propertyName] = value;\n  }\n  return value;\n};\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "var $jscomp=$jscomp||{};$jscomp.scope={};\"require base\";$jscomp.getSuperPropertyDescriptor_=function(target,name){var getPrototypeOf=Object.getPrototypeOf;var getOwnPropertyDescriptor=Object.getOwnPropertyDescriptor;var cls=getPrototypeOf(target);while(cls!=null){cls=getPrototypeOf(cls);if(cls!=null){var desc=getOwnPropertyDescriptor(cls,name);if(desc!=null)return desc}}return undefined};\n$jscomp.superGet=function(target,propertyName){var desc=$jscomp.getSuperPropertyDescriptor_(target,propertyName);return desc&&(desc.get?desc.get.call(target):desc.value)};$jscomp.superSet=function(target,propertyName,value){var desc=$jscomp.getSuperPropertyDescriptor_(target,propertyName);if(desc){if(!desc.set)throw new TypeError(\"No setter for super.\"+propertyName);desc.set.call(target,value)}else target[propertyName]=value;return value};",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-self-ext-es5",
+    "source": "closure-self",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "corpus/d2/shims/closure-self-ext-es5/entry.js",
+        "code": "/**\n * @fileoverview closure-rs D2 corpus shim (collector closure-self). Exercises the\n *     declarations of externs/es5.js under type checking.\n *     Generated by corpus/d2/candidates/closure-self.gen.py from\n *     google/closure-compiler@bb8c8e7. Do not edit.\n */\n\n/**\n * @param {!ObjectPropertyDescriptor} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseObjectPropertyDescriptor(obj) {\n  return [\n    obj.value,\n    obj.get,\n    obj.set,\n    obj.writable,\n    obj.enumerable,\n    obj.configurable\n  ];\n}\nglobalThis['closureSelfUseObjectPropertyDescriptor'] = closureSelfUseObjectPropertyDescriptor;\n\n/**\n * @param {!JSONType} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseJSONType(obj) {\n  return [\n    obj.parse,\n    obj.stringify\n  ];\n}\nglobalThis['closureSelfUseJSONType'] = closureSelfUseJSONType;\n\n/**\n * @param {!Function} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseFunction(obj) {\n  return [\n    obj.bind\n  ];\n}\nglobalThis['closureSelfUseFunction'] = closureSelfUseFunction;\n\n/**\n * @param {string} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseString(obj) {\n  return [\n    obj.trim,\n    obj.trimLeft,\n    obj.trimRight\n  ];\n}\nglobalThis['closureSelfUseString'] = closureSelfUseString;\n\n/**\n * @param {!Object} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseObject(obj) {\n  return [\n    obj.toJSON()\n  ];\n}\nglobalThis['closureSelfUseObject'] = closureSelfUseObject;\n\n/**\n * @param {!Date} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseDate(obj) {\n  return [\n    obj.toISOString(),\n    obj.toJSON()\n  ];\n}\nglobalThis['closureSelfUseDate'] = closureSelfUseDate;\n\n/**\n * @return {!Array<*>}\n */\nfunction closureSelfUseGlobals() {\n  return [\n    Object.create,\n    Object.defineProperty,\n    Object.getOwnPropertyDescriptor,\n    Object.keys,\n    Object.getPrototypeOf,\n    Object.preventExtensions,\n    Object.freeze,\n    Object.isExtensible,\n    Object.isFrozen,\n    JSON\n  ];\n}\nglobalThis['closureSelfUseGlobals'] = closureSelfUseGlobals;\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "function closureSelfUseObjectPropertyDescriptor(obj){return[obj.value,obj.get,obj.set,obj.writable,obj.enumerable,obj.configurable]}globalThis[\"closureSelfUseObjectPropertyDescriptor\"]=closureSelfUseObjectPropertyDescriptor;function closureSelfUseJSONType(obj){return[obj.parse,obj.stringify]}globalThis[\"closureSelfUseJSONType\"]=closureSelfUseJSONType;function closureSelfUseFunction(obj){return[obj.bind]}globalThis[\"closureSelfUseFunction\"]=closureSelfUseFunction;\nfunction closureSelfUseString(obj){return[obj.trim,obj.trimLeft,obj.trimRight]}globalThis[\"closureSelfUseString\"]=closureSelfUseString;function closureSelfUseObject(obj){return[obj.toJSON()]}globalThis[\"closureSelfUseObject\"]=closureSelfUseObject;function closureSelfUseDate(obj){return[obj.toISOString(),obj.toJSON()]}globalThis[\"closureSelfUseDate\"]=closureSelfUseDate;\nfunction closureSelfUseGlobals(){return[Object.create,Object.defineProperty,Object.getOwnPropertyDescriptor,Object.keys,Object.getPrototypeOf,Object.preventExtensions,Object.freeze,Object.isExtensible,Object.isFrozen,JSON]}globalThis[\"closureSelfUseGlobals\"]=closureSelfUseGlobals;",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-self-ext-es6-collections",
+    "source": "closure-self",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "corpus/d2/shims/closure-self-ext-es6-collections/entry.js",
+        "code": "/**\n * @fileoverview closure-rs D2 corpus shim (collector closure-self). Exercises the\n *     declarations of externs/es6_collections.js under type checking.\n *     Generated by corpus/d2/candidates/closure-self.gen.py from\n *     google/closure-compiler@bb8c8e7. Do not edit.\n */\n\n/**\n * @param {!ReadonlyMap} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseReadonlyMap(obj) {\n  return [\n    obj.forEach,\n    obj.get,\n    obj.has,\n    obj.keys,\n    obj.size,\n    obj.entries(),\n    obj.values()\n  ];\n}\nglobalThis['closureSelfUseReadonlyMap'] = closureSelfUseReadonlyMap;\n\n/**\n * @param {!Map} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseMap(obj) {\n  return [\n    obj.delete,\n    obj.forEach,\n    obj.getOrInsert,\n    obj.getOrInsertComputed,\n    obj.keys,\n    obj.size,\n    obj.clear(),\n    obj.values()\n  ];\n}\nglobalThis['closureSelfUseMap'] = closureSelfUseMap;\n\n/**\n * @param {!WeakMap} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseWeakMap(obj) {\n  return [\n    obj.delete,\n    obj.get,\n    obj.getOrInsert,\n    obj.getOrInsertComputed,\n    obj.has,\n    obj.set,\n    obj.clear()\n  ];\n}\nglobalThis['closureSelfUseWeakMap'] = closureSelfUseWeakMap;\n\n/**\n * @param {!SetLike} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseSetLike(obj) {\n  return [\n    obj.has,\n    obj.size,\n    obj.keys()\n  ];\n}\nglobalThis['closureSelfUseSetLike'] = closureSelfUseSetLike;\n\n/**\n * @param {!ReadonlySetLike} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseReadonlySetLike(obj) {\n  return [\n    obj.has,\n    obj.size,\n    obj.keys()\n  ];\n}\nglobalThis['closureSelfUseReadonlySetLike'] = closureSelfUseReadonlySetLike;\n\n/**\n * @param {!ReadonlySet} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseReadonlySet(obj) {\n  return [\n    obj.forEach,\n    obj.size,\n    obj.union,\n    obj.difference,\n    obj.isSubsetOf,\n    obj.isDisjointFrom,\n    obj.entries(),\n    obj.values()\n  ];\n}\nglobalThis['closureSelfUseReadonlySet'] = closureSelfUseReadonlySet;\n\n/**\n * @param {!Set} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseSet(obj) {\n  return [\n    obj.add,\n    obj.forEach,\n    obj.keys,\n    obj.difference,\n    obj.isSupersetOf,\n    obj.size,\n    obj.clear(),\n    obj.values()\n  ];\n}\nglobalThis['closureSelfUseSet'] = closureSelfUseSet;\n\n/**\n * @param {!WeakSet} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseWeakSet(obj) {\n  return [\n    obj.add,\n    obj.delete,\n    obj.has,\n    obj.clear()\n  ];\n}\nglobalThis['closureSelfUseWeakSet'] = closureSelfUseWeakSet;\n\n/**\n * @return {!Array<*>}\n */\nfunction closureSelfUseGlobals() {\n  return [\n    Map.groupBy\n  ];\n}\nglobalThis['closureSelfUseGlobals'] = closureSelfUseGlobals;\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "function closureSelfUseReadonlyMap(obj){return[obj.forEach,obj.get,obj.has,obj.keys,obj.size,obj.entries(),obj.values()]}globalThis[\"closureSelfUseReadonlyMap\"]=closureSelfUseReadonlyMap;function closureSelfUseMap(obj){return[obj.delete,obj.forEach,obj.getOrInsert,obj.getOrInsertComputed,obj.keys,obj.size,obj.clear(),obj.values()]}globalThis[\"closureSelfUseMap\"]=closureSelfUseMap;\nfunction closureSelfUseWeakMap(obj){return[obj.delete,obj.get,obj.getOrInsert,obj.getOrInsertComputed,obj.has,obj.set,obj.clear()]}globalThis[\"closureSelfUseWeakMap\"]=closureSelfUseWeakMap;function closureSelfUseSetLike(obj){return[obj.has,obj.size,obj.keys()]}globalThis[\"closureSelfUseSetLike\"]=closureSelfUseSetLike;function closureSelfUseReadonlySetLike(obj){return[obj.has,obj.size,obj.keys()]}globalThis[\"closureSelfUseReadonlySetLike\"]=closureSelfUseReadonlySetLike;\nfunction closureSelfUseReadonlySet(obj){return[obj.forEach,obj.size,obj.union,obj.difference,obj.isSubsetOf,obj.isDisjointFrom,obj.entries(),obj.values()]}globalThis[\"closureSelfUseReadonlySet\"]=closureSelfUseReadonlySet;function closureSelfUseSet(obj){return[obj.add,obj.forEach,obj.keys,obj.difference,obj.isSupersetOf,obj.size,obj.clear(),obj.values()]}globalThis[\"closureSelfUseSet\"]=closureSelfUseSet;function closureSelfUseWeakSet(obj){return[obj.add,obj.delete,obj.has,obj.clear()]}\nglobalThis[\"closureSelfUseWeakSet\"]=closureSelfUseWeakSet;function closureSelfUseGlobals(){return[Map.groupBy]}globalThis[\"closureSelfUseGlobals\"]=closureSelfUseGlobals;",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-self-ext-asynccontext",
+    "source": "closure-self",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "corpus/d2/shims/closure-self-ext-asynccontext/entry.js",
+        "code": "/**\n * @fileoverview closure-rs D2 corpus shim (collector closure-self). Exercises the\n *     declarations of externs/asynccontext.js under type checking.\n *     Generated by corpus/d2/candidates/closure-self.gen.py from\n *     google/closure-compiler@bb8c8e7. Do not edit.\n */\n\n/**\n * @param {!AsyncContext.VariableOpts} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseAsyncContextVariableOpts(obj) {\n  return [\n    obj.name,\n    obj.defaultValue\n  ];\n}\nglobalThis['closureSelfUseAsyncContextVariableOpts'] = closureSelfUseAsyncContextVariableOpts;\n\n/**\n * @param {!AsyncContext.Variable} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseAsyncContextVariable(obj) {\n  return [\n    obj.name,\n    obj.run,\n    obj.get()\n  ];\n}\nglobalThis['closureSelfUseAsyncContextVariable'] = closureSelfUseAsyncContextVariable;\n\n/**\n * @param {!AsyncContext.Snapshot} obj\n * @return {!Array<*>}\n */\nfunction closureSelfUseAsyncContextSnapshot(obj) {\n  return [\n    obj.run\n  ];\n}\nglobalThis['closureSelfUseAsyncContextSnapshot'] = closureSelfUseAsyncContextSnapshot;\n\n/**\n * @return {!Array<*>}\n */\nfunction closureSelfUseGlobals() {\n  return [\n    AsyncContext.Snapshot.wrap\n  ];\n}\nglobalThis['closureSelfUseGlobals'] = closureSelfUseGlobals;\n"
+      }
+    ],
+    "externs": [
+      {
+        "name": "reference/closure-compiler/externs/asynccontext.js",
+        "code": "/*\n * Copyright 2026 The Closure Compiler Authors\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\n/**\n * @fileoverview The spec of the AsyncContext API.\n * @externs\n * @see https://github.com/tc39/proposal-async-context/\n */\n\n/** @const */\nvar AsyncContext = {};\n\n/**\n * @record\n * @template T\n */\nAsyncContext.VariableOpts = function() {\n  /** @type {string|undefined} */\n  this.name;\n  /** @type {T|undefined} */\n  this.defaultValue;\n};\n\n/**\n * @constructor @struct\n * @param {AsyncContext.VariableOpts=} opts\n * @template T\n */\nAsyncContext.Variable = function(opts) {};\n\n/** @const {string} */\nAsyncContext.Variable.prototype.name;\n\n/** @return {T} */\nAsyncContext.Variable.prototype.get = function() {};\n\n/**\n * @param {T} value\n * @param {function(...?): R} fn\n * @param {...*} var_args\n * @return {R}\n * @template R\n */\nAsyncContext.Variable.prototype.run = function(value, fn, var_args) {};\n\n/** @constructor @struct */\nAsyncContext.Snapshot = function() {};\n\n/**\n * @param {function(...?): R} fn\n * @param {...*} var_args\n * @return {R}\n * @template R\n */\nAsyncContext.Snapshot.prototype.run = function(fn, var_args) {};\n\n/**\n * @param {F} fn\n * @return {F}\n * @template F\n */\nAsyncContext.Snapshot.wrap = function(fn) {};\n"
+      }
+    ],
+    "expected": {
+      "output": "function closureSelfUseAsyncContextVariableOpts(obj){return[obj.name,obj.defaultValue]}globalThis[\"closureSelfUseAsyncContextVariableOpts\"]=closureSelfUseAsyncContextVariableOpts;function closureSelfUseAsyncContextVariable(obj){return[obj.name,obj.run,obj.get()]}globalThis[\"closureSelfUseAsyncContextVariable\"]=closureSelfUseAsyncContextVariable;function closureSelfUseAsyncContextSnapshot(obj){return[obj.run]}globalThis[\"closureSelfUseAsyncContextSnapshot\"]=closureSelfUseAsyncContextSnapshot;\nfunction closureSelfUseGlobals(){return[AsyncContext.Snapshot.wrap]}globalThis[\"closureSelfUseGlobals\"]=closureSelfUseGlobals;",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-self-ext-browser-fido",
+    "source": "closure-self",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "corpus/d2/shims/closure-self-ext-browser-fido/entry.js",
+        "code": "/**\n * @fileoverview closure-rs D2 corpus shim (collector closure-self). Exercises the\n *     declarations of externs/browser/fido.js under type checking.\n *     Generated by corpus/d2/candidates/closure-self.gen.py from\n *     google/closure-compiler@bb8c8e7. Do not edit.\n */\n\n/**\n * @return {!Array<*>}\n */\nfunction closureSelfUseGlobals() {\n  return [\n    u2f.sign,\n    u2f.register\n  ];\n}\nglobalThis['closureSelfUseGlobals'] = closureSelfUseGlobals;\n\n/**\n * @param {!u2f.Transport} t0\n * @param {!u2f.RegisteredKey} t1\n * @param {!u2f.SignResponse} t2\n * @param {!u2f.RegisterRequest} t3\n * @return {!Array<*>}\n */\nfunction closureSelfUseTypedefs(t0, t1, t2, t3) {\n  return [\n    t0,\n    t1,\n    t2,\n    t3\n  ];\n}\nglobalThis['closureSelfUseTypedefs'] = closureSelfUseTypedefs;\n"
+      }
+    ],
+    "externs": [
+      {
+        "name": "reference/closure-compiler/externs/browser/fido.js",
+        "code": "/*\n * Copyright 2018 The Closure Compiler Authors.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\n/**\n * @fileoverview Definitions from the FIDO Specifications\n * @see https://fidoalliance.org/download/\n *\n * @externs\n * @author arnarbi@gmail.com (Arnar Birgisson)\n */\n\n/**\n * U2F JavaScript API namespace\n * @see https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-javascript-api-v1.2-ps-20170411.html\n * @const\n */\nvar u2f = {};\n\n/**\n * Data object for a single sign request.\n * @typedef {string}\n */\nu2f.Transport;\n\n/**\n * Data object for a registered key.\n * @typedef {{\n *   version: string,\n *   keyHandle: string,\n *   transports: (!Array<!u2f.Transport>|undefined),\n *   appId: ?string\n * }}\n */\nu2f.RegisteredKey;\n\n/**\n * An error object for responses\n * @typedef {{\n *   errorCode: number,\n *   errorMessage: ?string\n * }}\n */\nu2f.Error;\n\n/**\n * Data object for a sign response.\n * @typedef {{\n *   keyHandle: string,\n *   signatureData: string,\n *   clientData: string\n * }}\n */\nu2f.SignResponse;\n\n/**\n * @typedef {{\n *   version: string,\n *   challenge: string\n * }}\n */\nu2f.RegisterRequest\n\n/**\n * @param {string} appId\n * @param {string} challenge\n * @param {!Array<!u2f.RegisteredKey>} registeredKeys\n * @param {function((!u2f.Error|!u2f.SignResponse))} callback\n * @param {number=} opt_timeoutSeconds\n */\nu2f.sign = function(\n    appId, challenge, registeredKeys, callback, opt_timeoutSeconds) {};\n\n/**\n * @param {string} appId\n * @param {!Array<!u2f.RegisterRequest>} registerRequests\n * @param {!Array<!u2f.RegisteredKey>} registeredKeys\n * @param {function((!u2f.Error|!u2f.SignResponse))} callback\n * @param {number=} opt_timeoutSeconds\n */\nu2f.register = function(\n    appId, registerRequests, registeredKeys, callback, opt_timeoutSeconds) {};\n"
+      }
+    ],
+    "expected": {
+      "output": "function closureSelfUseGlobals(){return[u2f.sign,u2f.register]}globalThis[\"closureSelfUseGlobals\"]=closureSelfUseGlobals;function closureSelfUseTypedefs(t0,t1,t2,t3){return[t0,t1,t2,t3]}globalThis[\"closureSelfUseTypedefs\"]=closureSelfUseTypedefs;",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-self-ext-browser-google-legacy",
+    "source": "closure-self",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "corpus/d2/shims/closure-self-ext-browser-google-legacy/entry.js",
+        "code": "/**\n * @fileoverview closure-rs D2 corpus shim (collector closure-self). Exercises the\n *     declarations of externs/browser/google_legacy.js under type checking.\n *     Generated by corpus/d2/candidates/closure-self.gen.py from\n *     google/closure-compiler@bb8c8e7. Do not edit.\n */\n\n/**\n * @return {!Array<*>}\n */\nfunction closureSelfUseGlobals() {\n  return [\n    google\n  ];\n}\nglobalThis['closureSelfUseGlobals'] = closureSelfUseGlobals;\n"
+      }
+    ],
+    "externs": [
+      {
+        "name": "reference/closure-compiler/externs/browser/google_legacy.js",
+        "code": "/*\n * Copyright 2010 The Closure Compiler Authors\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\n/**\n * @fileoverview Declaration of the type level google namespace.\n * @externs\n * @author nicksantos@google.com (Nick Santos)\n */\n\n/**\n * Suppresses the compiler warning when multiple externs files declare the\n * google namespace.\n * @suppress {duplicate,strictMissingProperties}\n * NOTE: This definition should be marked \\@const, and when it is we can remove\n * the \"strictMissingProperties\" suppression.\n */\n// TODO(nicksantos): Consolidate to one google namespace declaration.\nvar google = {};\n"
+      }
+    ],
+    "expected": {
+      "output": "function closureSelfUseGlobals(){return[google]}globalThis[\"closureSelfUseGlobals\"]=closureSelfUseGlobals;",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "closure-self-ext-browser-page-visibility",
+    "source": "closure-self",
+    "license": "Apache-2.0",
+    "inputs": [
+      {
+        "name": "corpus/d2/shims/closure-self-ext-browser-page-visibility/entry.js",
+        "code": "/**\n * @fileoverview closure-rs D2 corpus shim (collector closure-self). Exercises the\n *     declarations of externs/browser/page_visibility.js under type checking.\n *     Generated by corpus/d2/candidates/closure-self.gen.py from\n *     google/closure-compiler@bb8c8e7. Do not edit.\n */\n\n/**\n * @param {!VisibilityState} t0\n * @return {!Array<*>}\n */\nfunction closureSelfUseTypedefs(t0) {\n  return [\n    t0\n  ];\n}\nglobalThis['closureSelfUseTypedefs'] = closureSelfUseTypedefs;\n"
+      }
+    ],
+    "externs": [
+      {
+        "name": "reference/closure-compiler/externs/browser/page_visibility.js",
+        "code": "/*\n * Copyright 2015 The Closure Compiler Authors\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n/**\n * @fileoverview Externs for Page Visibility.\n *\n * @see http://www.w3.org/TR/page-visibility\n * @externs\n */\n\n/**\n * Set of possible values: 'hidden', 'visible', 'prerender', 'unloaded'.\n * @typedef {string}\n * @see http://www.w3.org/TR/page-visibility/#VisibilityState\n */\nvar VisibilityState;\n"
+      }
+    ],
+    "expected": {
+      "output": "function closureSelfUseTypedefs(t0){return[t0]}globalThis[\"closureSelfUseTypedefs\"]=closureSelfUseTypedefs;",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "npm-express-5.2.1-f-index.js",
+    "source": "npm",
+    "license": "MIT",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/npm/express@5.2.1/package/index.js",
+        "code": "/*!\n * express\n * Copyright(c) 2009-2013 TJ Holowaychuk\n * Copyright(c) 2013 Roman Shtylman\n * Copyright(c) 2014-2015 Douglas Christopher Wilson\n * MIT Licensed\n */\n\n'use strict';\n\nmodule.exports = require('./lib/express');\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "/*\n express\n Copyright(c) 2009-2013 TJ Holowaychuk\n Copyright(c) 2013 Roman Shtylman\n Copyright(c) 2014-2015 Douglas Christopher Wilson\n MIT Licensed\n*/\nmodule.exports=require(\"./lib/express\");",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "npm-graphql-17.0.2-f-jsutils--keyMap.mjs",
+    "source": "npm",
+    "license": "MIT",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/npm/graphql@17.0.2/package/jsutils/keyMap.mjs",
+        "code": "export function keyMap(list, keyFn) {\n    const result = Object.create(null);\n    for (const item of list) {\n        result[keyFn(item)] = item;\n    }\n    return result;\n}\n//# sourceMappingURL=keyMap.js.map"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "export function keyMap(list,keyFn){const result=Object.create(null);for(const item of list)result[keyFn(item)]=item;return result};",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "npm-navigo-8.11.1-f-lib--es--middlewares--checkForForceOp.js",
+    "source": "npm",
+    "license": "MIT",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/npm/navigo@8.11.1/package/lib/es/middlewares/checkForForceOp.js",
+        "code": "export default function checkForForceOp(context, done) {\n  if (context.navigateOptions.force === true) {\n    context.instance._setCurrent([context.instance._pathToMatchObject(context.to)]);\n\n    done(false);\n  } else {\n    done();\n  }\n}"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "export default function checkForForceOp(context,done){if(context.navigateOptions.force===true){context.instance._setCurrent([context.instance._pathToMatchObject(context.to)]);done(false)}else done()};",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "npm-react-19.3.0-f-jsx-runtime.js",
+    "source": "npm",
+    "license": "MIT",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/npm/react@19.3.0/package/jsx-runtime.js",
+        "code": "'use strict';\n\nif (process.env.NODE_ENV === 'production') {\n  module.exports = require('./cjs/react-jsx-runtime.production.js');\n} else {\n  module.exports = require('./cjs/react-jsx-runtime.development.js');\n}\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "if(process.env.NODE_ENV===\"production\")module.exports=require(\"./cjs/react-jsx-runtime.production.js\");else module.exports=require(\"./cjs/react-jsx-runtime.development.js\");",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "npm-reduxjs__toolkit-2.13.0-f-dist--react--cjs--index.js",
+    "source": "npm",
+    "license": "MIT",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/npm/@reduxjs/toolkit@2.13.0/package/dist/react/cjs/index.js",
+        "code": "'use strict'\nif (process.env.NODE_ENV === 'production') {\n  module.exports = require('./redux-toolkit-react.production.min.cjs')\n} else {\n  module.exports = require('./redux-toolkit-react.development.cjs')\n}"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "if(process.env.NODE_ENV===\"production\")module.exports=require(\"./redux-toolkit-react.production.min.cjs\");else module.exports=require(\"./redux-toolkit-react.development.cjs\");",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "npm-regenerator-runtime-0.14.1-f-path.js",
+    "source": "npm",
+    "license": "MIT",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/npm/regenerator-runtime@0.14.1/package/path.js",
+        "code": "/**\n * Copyright (c) 2014-present, Facebook, Inc.\n *\n * This source code is licensed under the MIT license found in the\n * LICENSE file in the root directory of this source tree.\n */\n\nexports.path = require(\"path\").join(\n  __dirname,\n  \"runtime.js\"\n);\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "exports.path=require(\"path\").join(__dirname,\"runtime.js\");",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "npm-resize-observer-polyfill-1.5.1-f-src--utils--isBrowser.js",
+    "source": "npm",
+    "license": "MIT",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/npm/resize-observer-polyfill@1.5.1/package/src/utils/isBrowser.js",
+        "code": "/**\r\n * Detects whether window and document objects are available in current environment.\r\n */\r\nexport default typeof window !== 'undefined' && typeof document !== 'undefined' && window.document === document;\r\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "export default typeof window!==\"undefined\"&&typeof document!==\"undefined\"&&window.document===document;",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "npm-terser-5.51.2-f-tools--exit.cjs",
+    "source": "npm",
+    "license": "BSD-2-Clause",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/npm/terser@5.51.2/package/tools/exit.cjs",
+        "code": "// workaround for tty output truncation upon process.exit()\n// https://github.com/nodejs/node/issues/6456\n\n[process.stdout, process.stderr].forEach((s) => {\n  s && s.isTTY && s._handle && s._handle.setBlocking &&\n    s._handle.setBlocking(true)\n});\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "[process.stdout,process.stderr].forEach(s=>{s&&s.isTTY&&s._handle&&s._handle.setBlocking&&s._handle.setBlocking(true)});",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "test262-built-ins--Math--atan--S15.8.2.4_A1",
+    "source": "test262",
+    "license": "BSD-3-Clause",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/test262/harness/assert.js",
+        "code": "// Copyright (C) 2017 Ecma International.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n/*---\ndescription: |\n    Collection of assertion functions used throughout test262\ndefines:\n  - assert\n  - compareArray\n  - formatIdentityFreeValue\n  - formatSimpleValue\n  - isNegativeZero\n  - isPrimitive\n---*/\n\n\nfunction isNegativeZero(value) {\n  return value === 0 && 1 / value === -Infinity;\n}\n\nfunction isPrimitive(value) {\n  return !value || (typeof value !== 'object' && typeof value !== 'function');\n}\n\nfunction formatIdentityFreeValue(value) {\n  switch (value === null ? 'null' : typeof value) {\n    case 'string':\n      return typeof JSON !== \"undefined\" ? JSON.stringify(value) : '\"' + value + '\"';\n    case 'bigint':\n      return String(value) + \"n\";\n    case 'number':\n      if (isNegativeZero(value)) return '-0';\n      // falls through\n    case 'boolean':\n    case 'undefined':\n    case 'null':\n      return String(value);\n  }\n}\n\nfunction formatSimpleValue(value) {\n  var basic = formatIdentityFreeValue(value);\n  if (basic) return basic;\n  try {\n    return String(value);\n  } catch (err) {\n    if (err.name === 'TypeError') {\n      return Object.prototype.toString.call(value);\n    }\n    throw err;\n  }\n}\n\nfunction assert(mustBeTrue, message) {\n  if (mustBeTrue === true) {\n    return;\n  }\n\n  if (message === undefined) {\n    message = 'Expected true but got ' + assert._toString(mustBeTrue);\n  }\n  throw new Test262Error(message);\n}\n\nassert._isSameValue = function (a, b) {\n  if (a === b) {\n    // Handle +/-0 vs. -/+0\n    return a !== 0 || 1 / a === 1 / b;\n  }\n\n  // Handle NaN vs. NaN\n  return a !== a && b !== b;\n};\n\nassert.sameValue = function (actual, expected, message) {\n  try {\n    if (assert._isSameValue(actual, expected)) {\n      return;\n    }\n  } catch (error) {\n    throw new Test262Error(message + ' (_isSameValue operation threw) ' + error);\n    return;\n  }\n\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  message += 'Expected SameValue(\u00ab' + assert._toString(actual) + '\u00bb, \u00ab' + assert._toString(expected) + '\u00bb) to be true';\n\n  throw new Test262Error(message);\n};\n\nassert.notSameValue = function (actual, unexpected, message) {\n  if (!assert._isSameValue(actual, unexpected)) {\n    return;\n  }\n\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  message += 'Expected SameValue(\u00ab' + assert._toString(actual) + '\u00bb, \u00ab' + assert._toString(unexpected) + '\u00bb) to be false';\n\n  throw new Test262Error(message);\n};\n\nassert.throws = function (expectedErrorConstructor, func, message) {\n  var expectedName, actualName;\n  if (typeof func !== \"function\") {\n    throw new Test262Error('assert.throws requires two arguments: the error constructor ' +\n      'and a function to run');\n    return;\n  }\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  try {\n    func();\n  } catch (thrown) {\n    if (typeof thrown !== 'object' || thrown === null) {\n      message += 'Thrown value was not an object!';\n      throw new Test262Error(message);\n    } else if (thrown.constructor !== expectedErrorConstructor) {\n      expectedName = expectedErrorConstructor.name;\n      actualName = thrown.constructor.name;\n      if (expectedName === actualName) {\n        message += 'Expected a ' + expectedName + ' but got a different error constructor with the same name';\n      } else {\n        message += 'Expected a ' + expectedName + ' but got a ' + actualName;\n      }\n      throw new Test262Error(message);\n    }\n    return;\n  }\n\n  message += 'Expected a ' + expectedErrorConstructor.name + ' to be thrown but no exception was thrown at all';\n  throw new Test262Error(message);\n};\n\nassert.compareArray = function (actual, expected, message) {\n  message = message === undefined ? '' : message;\n\n  if (typeof message === 'symbol') {\n    message = message.toString();\n  }\n\n  if (isPrimitive(actual)) {\n    assert(false, \"Actual argument [\" + actual + \"] shouldn't be primitive. \" + String(message));\n  } else if (isPrimitive(expected)) {\n    assert(false, \"Expected argument [\" + expected + \"] shouldn't be primitive. \" + String(message));\n  }\n  var result = compareArray(actual, expected);\n  if (result) return;\n\n  var format = compareArray.format;\n  assert(false, \"Actual \" + format(actual) + \" and expected \" + format(expected) + \" should have the same contents. \" + String(message));\n};\n\nfunction compareArray(a, b) {\n  if (b.length !== a.length) {\n    return false;\n  }\n  for (var i = 0; i < a.length; i++) {\n    if (!assert._isSameValue(b[i], a[i])) {\n      return false;\n    }\n  }\n  return true;\n}\n\ncompareArray.format = function (arrayLike) {\n  return \"[\" + Array.prototype.map.call(arrayLike, String).join(\", \") + \"]\";\n};\n\nassert._formatIdentityFreeValue = formatIdentityFreeValue;\n\nassert._toString = formatSimpleValue;\n"
+      },
+      {
+        "name": "corpus-cache/d2/test262/harness/sta.js",
+        "code": "// Copyright (c) 2012 Ecma International.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n/*---\ndescription: |\n    Provides both:\n\n    - An error class to avoid false positives when testing for thrown exceptions\n    - A function to explicitly throw an exception using the Test262Error class\ndefines: [Test262Error, $DONOTEVALUATE]\n---*/\n\n\nfunction Test262Error(message) {\n  if (!(this instanceof Test262Error)) return new Test262Error(message);\n  this.message = message || \"\";\n}\n\nTest262Error.prototype.toString = function () {\n  return \"Test262Error: \" + this.message;\n};\n\nTest262Error.thrower = function (message) {\n  throw new Test262Error(message);\n};\n\nfunction $DONOTEVALUATE() {\n  throw \"Test262: This statement should not be evaluated.\";\n}\n"
+      },
+      {
+        "name": "corpus-cache/d2/test262/test/built-ins/Math/atan/S15.8.2.4_A1.js",
+        "code": "// Copyright 2009 the Sputnik authors.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n\n/*---\ninfo: If x is NaN, Math.atan(x) is NaN\nes5id: 15.8.2.4_A1\ndescription: Checking if Math.atan(NaN) is NaN\n---*/\n\nassert.sameValue(Math.atan(NaN), NaN);\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "function isNegativeZero(value){return value===0&&1/value===-Infinity}function isPrimitive(value){return!value||typeof value!==\"object\"&&typeof value!==\"function\"}function formatIdentityFreeValue(value){switch(value===null?\"null\":typeof value){case \"string\":return typeof JSON!==\"undefined\"?JSON.stringify(value):'\"'+value+'\"';case \"bigint\":return String(value)+\"n\";case \"number\":if(isNegativeZero(value))return\"-0\";case \"boolean\":case \"undefined\":case \"null\":return String(value)}}\nfunction formatSimpleValue(value){var basic=formatIdentityFreeValue(value);if(basic)return basic;try{return String(value)}catch(err){if(err.name===\"TypeError\")return Object.prototype.toString.call(value);throw err;}}function assert(mustBeTrue,message){if(mustBeTrue===true)return;if(message===undefined)message=\"Expected true but got \"+assert._toString(mustBeTrue);throw new Test262Error(message);}assert._isSameValue=function(a,b){if(a===b)return a!==0||1/a===1/b;return a!==a&&b!==b};\nassert.sameValue=function(actual,expected,message){try{if(assert._isSameValue(actual,expected))return}catch(error){throw new Test262Error(message+\" (_isSameValue operation threw) \"+error);return}if(message===undefined)message=\"\";else message+=\" \";message+=\"Expected SameValue(\\u00ab\"+assert._toString(actual)+\"\\u00bb, \\u00ab\"+assert._toString(expected)+\"\\u00bb) to be true\";throw new Test262Error(message);};\nassert.notSameValue=function(actual,unexpected,message){if(!assert._isSameValue(actual,unexpected))return;if(message===undefined)message=\"\";else message+=\" \";message+=\"Expected SameValue(\\u00ab\"+assert._toString(actual)+\"\\u00bb, \\u00ab\"+assert._toString(unexpected)+\"\\u00bb) to be false\";throw new Test262Error(message);};\nassert.throws=function(expectedErrorConstructor,func,message){var expectedName,actualName;if(typeof func!==\"function\"){throw new Test262Error(\"assert.throws requires two arguments: the error constructor \"+\"and a function to run\");return}if(message===undefined)message=\"\";else message+=\" \";try{func()}catch(thrown){if(typeof thrown!==\"object\"||thrown===null){message+=\"Thrown value was not an object!\";throw new Test262Error(message);}else if(thrown.constructor!==expectedErrorConstructor){expectedName=\nexpectedErrorConstructor.name;actualName=thrown.constructor.name;if(expectedName===actualName)message+=\"Expected a \"+expectedName+\" but got a different error constructor with the same name\";else message+=\"Expected a \"+expectedName+\" but got a \"+actualName;throw new Test262Error(message);}return}message+=\"Expected a \"+expectedErrorConstructor.name+\" to be thrown but no exception was thrown at all\";throw new Test262Error(message);};\nassert.compareArray=function(actual,expected,message){message=message===undefined?\"\":message;if(typeof message===\"symbol\")message=message.toString();if(isPrimitive(actual))assert(false,\"Actual argument [\"+actual+\"] shouldn't be primitive. \"+String(message));else if(isPrimitive(expected))assert(false,\"Expected argument [\"+expected+\"] shouldn't be primitive. \"+String(message));var result=compareArray(actual,expected);if(result)return;var format=compareArray.format;assert(false,\"Actual \"+format(actual)+\n\" and expected \"+format(expected)+\" should have the same contents. \"+String(message))};function compareArray(a,b){if(b.length!==a.length)return false;for(var i=0;i<a.length;i++)if(!assert._isSameValue(b[i],a[i]))return false;return true}compareArray.format=function(arrayLike){return\"[\"+Array.prototype.map.call(arrayLike,String).join(\", \")+\"]\"};assert._formatIdentityFreeValue=formatIdentityFreeValue;assert._toString=formatSimpleValue;function Test262Error(message){if(!(this instanceof Test262Error))return new Test262Error(message);this.message=message||\"\"}Test262Error.prototype.toString=function(){return\"Test262Error: \"+this.message};Test262Error.thrower=function(message){throw new Test262Error(message);};function $DONOTEVALUATE(){throw\"Test262: This statement should not be evaluated.\";};assert.sameValue(Math.atan(NaN),NaN);",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "test262-language--asi--S7.9_A10_T3",
+    "source": "test262",
+    "license": "BSD-3-Clause",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/test262/harness/assert.js",
+        "code": "// Copyright (C) 2017 Ecma International.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n/*---\ndescription: |\n    Collection of assertion functions used throughout test262\ndefines:\n  - assert\n  - compareArray\n  - formatIdentityFreeValue\n  - formatSimpleValue\n  - isNegativeZero\n  - isPrimitive\n---*/\n\n\nfunction isNegativeZero(value) {\n  return value === 0 && 1 / value === -Infinity;\n}\n\nfunction isPrimitive(value) {\n  return !value || (typeof value !== 'object' && typeof value !== 'function');\n}\n\nfunction formatIdentityFreeValue(value) {\n  switch (value === null ? 'null' : typeof value) {\n    case 'string':\n      return typeof JSON !== \"undefined\" ? JSON.stringify(value) : '\"' + value + '\"';\n    case 'bigint':\n      return String(value) + \"n\";\n    case 'number':\n      if (isNegativeZero(value)) return '-0';\n      // falls through\n    case 'boolean':\n    case 'undefined':\n    case 'null':\n      return String(value);\n  }\n}\n\nfunction formatSimpleValue(value) {\n  var basic = formatIdentityFreeValue(value);\n  if (basic) return basic;\n  try {\n    return String(value);\n  } catch (err) {\n    if (err.name === 'TypeError') {\n      return Object.prototype.toString.call(value);\n    }\n    throw err;\n  }\n}\n\nfunction assert(mustBeTrue, message) {\n  if (mustBeTrue === true) {\n    return;\n  }\n\n  if (message === undefined) {\n    message = 'Expected true but got ' + assert._toString(mustBeTrue);\n  }\n  throw new Test262Error(message);\n}\n\nassert._isSameValue = function (a, b) {\n  if (a === b) {\n    // Handle +/-0 vs. -/+0\n    return a !== 0 || 1 / a === 1 / b;\n  }\n\n  // Handle NaN vs. NaN\n  return a !== a && b !== b;\n};\n\nassert.sameValue = function (actual, expected, message) {\n  try {\n    if (assert._isSameValue(actual, expected)) {\n      return;\n    }\n  } catch (error) {\n    throw new Test262Error(message + ' (_isSameValue operation threw) ' + error);\n    return;\n  }\n\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  message += 'Expected SameValue(\u00ab' + assert._toString(actual) + '\u00bb, \u00ab' + assert._toString(expected) + '\u00bb) to be true';\n\n  throw new Test262Error(message);\n};\n\nassert.notSameValue = function (actual, unexpected, message) {\n  if (!assert._isSameValue(actual, unexpected)) {\n    return;\n  }\n\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  message += 'Expected SameValue(\u00ab' + assert._toString(actual) + '\u00bb, \u00ab' + assert._toString(unexpected) + '\u00bb) to be false';\n\n  throw new Test262Error(message);\n};\n\nassert.throws = function (expectedErrorConstructor, func, message) {\n  var expectedName, actualName;\n  if (typeof func !== \"function\") {\n    throw new Test262Error('assert.throws requires two arguments: the error constructor ' +\n      'and a function to run');\n    return;\n  }\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  try {\n    func();\n  } catch (thrown) {\n    if (typeof thrown !== 'object' || thrown === null) {\n      message += 'Thrown value was not an object!';\n      throw new Test262Error(message);\n    } else if (thrown.constructor !== expectedErrorConstructor) {\n      expectedName = expectedErrorConstructor.name;\n      actualName = thrown.constructor.name;\n      if (expectedName === actualName) {\n        message += 'Expected a ' + expectedName + ' but got a different error constructor with the same name';\n      } else {\n        message += 'Expected a ' + expectedName + ' but got a ' + actualName;\n      }\n      throw new Test262Error(message);\n    }\n    return;\n  }\n\n  message += 'Expected a ' + expectedErrorConstructor.name + ' to be thrown but no exception was thrown at all';\n  throw new Test262Error(message);\n};\n\nassert.compareArray = function (actual, expected, message) {\n  message = message === undefined ? '' : message;\n\n  if (typeof message === 'symbol') {\n    message = message.toString();\n  }\n\n  if (isPrimitive(actual)) {\n    assert(false, \"Actual argument [\" + actual + \"] shouldn't be primitive. \" + String(message));\n  } else if (isPrimitive(expected)) {\n    assert(false, \"Expected argument [\" + expected + \"] shouldn't be primitive. \" + String(message));\n  }\n  var result = compareArray(actual, expected);\n  if (result) return;\n\n  var format = compareArray.format;\n  assert(false, \"Actual \" + format(actual) + \" and expected \" + format(expected) + \" should have the same contents. \" + String(message));\n};\n\nfunction compareArray(a, b) {\n  if (b.length !== a.length) {\n    return false;\n  }\n  for (var i = 0; i < a.length; i++) {\n    if (!assert._isSameValue(b[i], a[i])) {\n      return false;\n    }\n  }\n  return true;\n}\n\ncompareArray.format = function (arrayLike) {\n  return \"[\" + Array.prototype.map.call(arrayLike, String).join(\", \") + \"]\";\n};\n\nassert._formatIdentityFreeValue = formatIdentityFreeValue;\n\nassert._toString = formatSimpleValue;\n"
+      },
+      {
+        "name": "corpus-cache/d2/test262/harness/sta.js",
+        "code": "// Copyright (c) 2012 Ecma International.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n/*---\ndescription: |\n    Provides both:\n\n    - An error class to avoid false positives when testing for thrown exceptions\n    - A function to explicitly throw an exception using the Test262Error class\ndefines: [Test262Error, $DONOTEVALUATE]\n---*/\n\n\nfunction Test262Error(message) {\n  if (!(this instanceof Test262Error)) return new Test262Error(message);\n  this.message = message || \"\";\n}\n\nTest262Error.prototype.toString = function () {\n  return \"Test262Error: \" + this.message;\n};\n\nTest262Error.thrower = function (message) {\n  throw new Test262Error(message);\n};\n\nfunction $DONOTEVALUATE() {\n  throw \"Test262: This statement should not be evaluated.\";\n}\n"
+      },
+      {
+        "name": "corpus-cache/d2/test262/test/language/asi/S7.9_A10_T3.js",
+        "code": "// Copyright 2009 the Sputnik authors.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n\n/*---\ninfo: Check {} for automatic semicolon insertion\nes5id: 7.9_A10_T3\ndescription: Checking if execution of \"({}) * 1\" passes\n---*/\n\n//CHECK#1\n({}) * 1\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "function isNegativeZero(value){return value===0&&1/value===-Infinity}function isPrimitive(value){return!value||typeof value!==\"object\"&&typeof value!==\"function\"}function formatIdentityFreeValue(value){switch(value===null?\"null\":typeof value){case \"string\":return typeof JSON!==\"undefined\"?JSON.stringify(value):'\"'+value+'\"';case \"bigint\":return String(value)+\"n\";case \"number\":if(isNegativeZero(value))return\"-0\";case \"boolean\":case \"undefined\":case \"null\":return String(value)}}\nfunction formatSimpleValue(value){var basic=formatIdentityFreeValue(value);if(basic)return basic;try{return String(value)}catch(err){if(err.name===\"TypeError\")return Object.prototype.toString.call(value);throw err;}}function assert(mustBeTrue,message){if(mustBeTrue===true)return;if(message===undefined)message=\"Expected true but got \"+assert._toString(mustBeTrue);throw new Test262Error(message);}assert._isSameValue=function(a,b){if(a===b)return a!==0||1/a===1/b;return a!==a&&b!==b};\nassert.sameValue=function(actual,expected,message){try{if(assert._isSameValue(actual,expected))return}catch(error){throw new Test262Error(message+\" (_isSameValue operation threw) \"+error);return}if(message===undefined)message=\"\";else message+=\" \";message+=\"Expected SameValue(\\u00ab\"+assert._toString(actual)+\"\\u00bb, \\u00ab\"+assert._toString(expected)+\"\\u00bb) to be true\";throw new Test262Error(message);};\nassert.notSameValue=function(actual,unexpected,message){if(!assert._isSameValue(actual,unexpected))return;if(message===undefined)message=\"\";else message+=\" \";message+=\"Expected SameValue(\\u00ab\"+assert._toString(actual)+\"\\u00bb, \\u00ab\"+assert._toString(unexpected)+\"\\u00bb) to be false\";throw new Test262Error(message);};\nassert.throws=function(expectedErrorConstructor,func,message){var expectedName,actualName;if(typeof func!==\"function\"){throw new Test262Error(\"assert.throws requires two arguments: the error constructor \"+\"and a function to run\");return}if(message===undefined)message=\"\";else message+=\" \";try{func()}catch(thrown){if(typeof thrown!==\"object\"||thrown===null){message+=\"Thrown value was not an object!\";throw new Test262Error(message);}else if(thrown.constructor!==expectedErrorConstructor){expectedName=\nexpectedErrorConstructor.name;actualName=thrown.constructor.name;if(expectedName===actualName)message+=\"Expected a \"+expectedName+\" but got a different error constructor with the same name\";else message+=\"Expected a \"+expectedName+\" but got a \"+actualName;throw new Test262Error(message);}return}message+=\"Expected a \"+expectedErrorConstructor.name+\" to be thrown but no exception was thrown at all\";throw new Test262Error(message);};\nassert.compareArray=function(actual,expected,message){message=message===undefined?\"\":message;if(typeof message===\"symbol\")message=message.toString();if(isPrimitive(actual))assert(false,\"Actual argument [\"+actual+\"] shouldn't be primitive. \"+String(message));else if(isPrimitive(expected))assert(false,\"Expected argument [\"+expected+\"] shouldn't be primitive. \"+String(message));var result=compareArray(actual,expected);if(result)return;var format=compareArray.format;assert(false,\"Actual \"+format(actual)+\n\" and expected \"+format(expected)+\" should have the same contents. \"+String(message))};function compareArray(a,b){if(b.length!==a.length)return false;for(var i=0;i<a.length;i++)if(!assert._isSameValue(b[i],a[i]))return false;return true}compareArray.format=function(arrayLike){return\"[\"+Array.prototype.map.call(arrayLike,String).join(\", \")+\"]\"};assert._formatIdentityFreeValue=formatIdentityFreeValue;assert._toString=formatSimpleValue;function Test262Error(message){if(!(this instanceof Test262Error))return new Test262Error(message);this.message=message||\"\"}Test262Error.prototype.toString=function(){return\"Test262Error: \"+this.message};Test262Error.thrower=function(message){throw new Test262Error(message);};function $DONOTEVALUATE(){throw\"Test262: This statement should not be evaluated.\";};({})*1;",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "test262-language--asi--S7.9_A7_T4",
+    "source": "test262",
+    "license": "BSD-3-Clause",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/test262/harness/assert.js",
+        "code": "// Copyright (C) 2017 Ecma International.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n/*---\ndescription: |\n    Collection of assertion functions used throughout test262\ndefines:\n  - assert\n  - compareArray\n  - formatIdentityFreeValue\n  - formatSimpleValue\n  - isNegativeZero\n  - isPrimitive\n---*/\n\n\nfunction isNegativeZero(value) {\n  return value === 0 && 1 / value === -Infinity;\n}\n\nfunction isPrimitive(value) {\n  return !value || (typeof value !== 'object' && typeof value !== 'function');\n}\n\nfunction formatIdentityFreeValue(value) {\n  switch (value === null ? 'null' : typeof value) {\n    case 'string':\n      return typeof JSON !== \"undefined\" ? JSON.stringify(value) : '\"' + value + '\"';\n    case 'bigint':\n      return String(value) + \"n\";\n    case 'number':\n      if (isNegativeZero(value)) return '-0';\n      // falls through\n    case 'boolean':\n    case 'undefined':\n    case 'null':\n      return String(value);\n  }\n}\n\nfunction formatSimpleValue(value) {\n  var basic = formatIdentityFreeValue(value);\n  if (basic) return basic;\n  try {\n    return String(value);\n  } catch (err) {\n    if (err.name === 'TypeError') {\n      return Object.prototype.toString.call(value);\n    }\n    throw err;\n  }\n}\n\nfunction assert(mustBeTrue, message) {\n  if (mustBeTrue === true) {\n    return;\n  }\n\n  if (message === undefined) {\n    message = 'Expected true but got ' + assert._toString(mustBeTrue);\n  }\n  throw new Test262Error(message);\n}\n\nassert._isSameValue = function (a, b) {\n  if (a === b) {\n    // Handle +/-0 vs. -/+0\n    return a !== 0 || 1 / a === 1 / b;\n  }\n\n  // Handle NaN vs. NaN\n  return a !== a && b !== b;\n};\n\nassert.sameValue = function (actual, expected, message) {\n  try {\n    if (assert._isSameValue(actual, expected)) {\n      return;\n    }\n  } catch (error) {\n    throw new Test262Error(message + ' (_isSameValue operation threw) ' + error);\n    return;\n  }\n\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  message += 'Expected SameValue(\u00ab' + assert._toString(actual) + '\u00bb, \u00ab' + assert._toString(expected) + '\u00bb) to be true';\n\n  throw new Test262Error(message);\n};\n\nassert.notSameValue = function (actual, unexpected, message) {\n  if (!assert._isSameValue(actual, unexpected)) {\n    return;\n  }\n\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  message += 'Expected SameValue(\u00ab' + assert._toString(actual) + '\u00bb, \u00ab' + assert._toString(unexpected) + '\u00bb) to be false';\n\n  throw new Test262Error(message);\n};\n\nassert.throws = function (expectedErrorConstructor, func, message) {\n  var expectedName, actualName;\n  if (typeof func !== \"function\") {\n    throw new Test262Error('assert.throws requires two arguments: the error constructor ' +\n      'and a function to run');\n    return;\n  }\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  try {\n    func();\n  } catch (thrown) {\n    if (typeof thrown !== 'object' || thrown === null) {\n      message += 'Thrown value was not an object!';\n      throw new Test262Error(message);\n    } else if (thrown.constructor !== expectedErrorConstructor) {\n      expectedName = expectedErrorConstructor.name;\n      actualName = thrown.constructor.name;\n      if (expectedName === actualName) {\n        message += 'Expected a ' + expectedName + ' but got a different error constructor with the same name';\n      } else {\n        message += 'Expected a ' + expectedName + ' but got a ' + actualName;\n      }\n      throw new Test262Error(message);\n    }\n    return;\n  }\n\n  message += 'Expected a ' + expectedErrorConstructor.name + ' to be thrown but no exception was thrown at all';\n  throw new Test262Error(message);\n};\n\nassert.compareArray = function (actual, expected, message) {\n  message = message === undefined ? '' : message;\n\n  if (typeof message === 'symbol') {\n    message = message.toString();\n  }\n\n  if (isPrimitive(actual)) {\n    assert(false, \"Actual argument [\" + actual + \"] shouldn't be primitive. \" + String(message));\n  } else if (isPrimitive(expected)) {\n    assert(false, \"Expected argument [\" + expected + \"] shouldn't be primitive. \" + String(message));\n  }\n  var result = compareArray(actual, expected);\n  if (result) return;\n\n  var format = compareArray.format;\n  assert(false, \"Actual \" + format(actual) + \" and expected \" + format(expected) + \" should have the same contents. \" + String(message));\n};\n\nfunction compareArray(a, b) {\n  if (b.length !== a.length) {\n    return false;\n  }\n  for (var i = 0; i < a.length; i++) {\n    if (!assert._isSameValue(b[i], a[i])) {\n      return false;\n    }\n  }\n  return true;\n}\n\ncompareArray.format = function (arrayLike) {\n  return \"[\" + Array.prototype.map.call(arrayLike, String).join(\", \") + \"]\";\n};\n\nassert._formatIdentityFreeValue = formatIdentityFreeValue;\n\nassert._toString = formatSimpleValue;\n"
+      },
+      {
+        "name": "corpus-cache/d2/test262/harness/sta.js",
+        "code": "// Copyright (c) 2012 Ecma International.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n/*---\ndescription: |\n    Provides both:\n\n    - An error class to avoid false positives when testing for thrown exceptions\n    - A function to explicitly throw an exception using the Test262Error class\ndefines: [Test262Error, $DONOTEVALUATE]\n---*/\n\n\nfunction Test262Error(message) {\n  if (!(this instanceof Test262Error)) return new Test262Error(message);\n  this.message = message || \"\";\n}\n\nTest262Error.prototype.toString = function () {\n  return \"Test262Error: \" + this.message;\n};\n\nTest262Error.thrower = function (message) {\n  throw new Test262Error(message);\n};\n\nfunction $DONOTEVALUATE() {\n  throw \"Test262: This statement should not be evaluated.\";\n}\n"
+      },
+      {
+        "name": "corpus-cache/d2/test262/test/language/asi/S7.9_A7_T4.js",
+        "code": "// Copyright 2009 the Sputnik authors.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n\n/*---\ninfo: Check Var Statement for automatic semicolon insertion\nes5id: 7.9_A7_T4\ndescription: Checking if execution of \"var \\n x\" passes\n---*/\n\n//CHECK#1\nvar\nx\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "function isNegativeZero(value){return value===0&&1/value===-Infinity}function isPrimitive(value){return!value||typeof value!==\"object\"&&typeof value!==\"function\"}function formatIdentityFreeValue(value){switch(value===null?\"null\":typeof value){case \"string\":return typeof JSON!==\"undefined\"?JSON.stringify(value):'\"'+value+'\"';case \"bigint\":return String(value)+\"n\";case \"number\":if(isNegativeZero(value))return\"-0\";case \"boolean\":case \"undefined\":case \"null\":return String(value)}}\nfunction formatSimpleValue(value){var basic=formatIdentityFreeValue(value);if(basic)return basic;try{return String(value)}catch(err){if(err.name===\"TypeError\")return Object.prototype.toString.call(value);throw err;}}function assert(mustBeTrue,message){if(mustBeTrue===true)return;if(message===undefined)message=\"Expected true but got \"+assert._toString(mustBeTrue);throw new Test262Error(message);}assert._isSameValue=function(a,b){if(a===b)return a!==0||1/a===1/b;return a!==a&&b!==b};\nassert.sameValue=function(actual,expected,message){try{if(assert._isSameValue(actual,expected))return}catch(error){throw new Test262Error(message+\" (_isSameValue operation threw) \"+error);return}if(message===undefined)message=\"\";else message+=\" \";message+=\"Expected SameValue(\\u00ab\"+assert._toString(actual)+\"\\u00bb, \\u00ab\"+assert._toString(expected)+\"\\u00bb) to be true\";throw new Test262Error(message);};\nassert.notSameValue=function(actual,unexpected,message){if(!assert._isSameValue(actual,unexpected))return;if(message===undefined)message=\"\";else message+=\" \";message+=\"Expected SameValue(\\u00ab\"+assert._toString(actual)+\"\\u00bb, \\u00ab\"+assert._toString(unexpected)+\"\\u00bb) to be false\";throw new Test262Error(message);};\nassert.throws=function(expectedErrorConstructor,func,message){var expectedName,actualName;if(typeof func!==\"function\"){throw new Test262Error(\"assert.throws requires two arguments: the error constructor \"+\"and a function to run\");return}if(message===undefined)message=\"\";else message+=\" \";try{func()}catch(thrown){if(typeof thrown!==\"object\"||thrown===null){message+=\"Thrown value was not an object!\";throw new Test262Error(message);}else if(thrown.constructor!==expectedErrorConstructor){expectedName=\nexpectedErrorConstructor.name;actualName=thrown.constructor.name;if(expectedName===actualName)message+=\"Expected a \"+expectedName+\" but got a different error constructor with the same name\";else message+=\"Expected a \"+expectedName+\" but got a \"+actualName;throw new Test262Error(message);}return}message+=\"Expected a \"+expectedErrorConstructor.name+\" to be thrown but no exception was thrown at all\";throw new Test262Error(message);};\nassert.compareArray=function(actual,expected,message){message=message===undefined?\"\":message;if(typeof message===\"symbol\")message=message.toString();if(isPrimitive(actual))assert(false,\"Actual argument [\"+actual+\"] shouldn't be primitive. \"+String(message));else if(isPrimitive(expected))assert(false,\"Expected argument [\"+expected+\"] shouldn't be primitive. \"+String(message));var result=compareArray(actual,expected);if(result)return;var format=compareArray.format;assert(false,\"Actual \"+format(actual)+\n\" and expected \"+format(expected)+\" should have the same contents. \"+String(message))};function compareArray(a,b){if(b.length!==a.length)return false;for(var i=0;i<a.length;i++)if(!assert._isSameValue(b[i],a[i]))return false;return true}compareArray.format=function(arrayLike){return\"[\"+Array.prototype.map.call(arrayLike,String).join(\", \")+\"]\"};assert._formatIdentityFreeValue=formatIdentityFreeValue;assert._toString=formatSimpleValue;function Test262Error(message){if(!(this instanceof Test262Error))return new Test262Error(message);this.message=message||\"\"}Test262Error.prototype.toString=function(){return\"Test262Error: \"+this.message};Test262Error.thrower=function(message){throw new Test262Error(message);};function $DONOTEVALUATE(){throw\"Test262: This statement should not be evaluated.\";};var x;",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "test262-language--comments--hashbang--line-terminator-paragraph-separator",
+    "source": "test262",
+    "license": "BSD-3-Clause",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/test262/test/language/comments/hashbang/line-terminator-paragraph-separator.js",
+        "code": "#! this comment ends with a Paragraph Separator (U+2029)\u2029{\n}\n\n// Copyright (C) 2019 Mike Pennisi. All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n\n/*---\nesid: pending\ndescription: >\n    Hashbang comments are terminated by the first LineTerminator: Paragraph Separator\ninfo: |\n    HashbangComment::\n      #! SingleLineCommentChars[opt]\n\n    SingleLineCommentChars::\n      SingleLineCommentChar SingleLineCommentChars[opt]\n\n    SingleLineCommentChar::\n      SourceCharacter but not LineTerminator\n\n    LineTerminator::\n      <LF>\n      <CR>\n      <LS>\n      <PS>\nflags: [raw]\nfeatures: [hashbang]\n---*/\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "{};",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "test262-language--expressions--unary-minus--11.4.7-4-1",
+    "source": "test262",
+    "license": "BSD-3-Clause",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/test262/harness/assert.js",
+        "code": "// Copyright (C) 2017 Ecma International.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n/*---\ndescription: |\n    Collection of assertion functions used throughout test262\ndefines:\n  - assert\n  - compareArray\n  - formatIdentityFreeValue\n  - formatSimpleValue\n  - isNegativeZero\n  - isPrimitive\n---*/\n\n\nfunction isNegativeZero(value) {\n  return value === 0 && 1 / value === -Infinity;\n}\n\nfunction isPrimitive(value) {\n  return !value || (typeof value !== 'object' && typeof value !== 'function');\n}\n\nfunction formatIdentityFreeValue(value) {\n  switch (value === null ? 'null' : typeof value) {\n    case 'string':\n      return typeof JSON !== \"undefined\" ? JSON.stringify(value) : '\"' + value + '\"';\n    case 'bigint':\n      return String(value) + \"n\";\n    case 'number':\n      if (isNegativeZero(value)) return '-0';\n      // falls through\n    case 'boolean':\n    case 'undefined':\n    case 'null':\n      return String(value);\n  }\n}\n\nfunction formatSimpleValue(value) {\n  var basic = formatIdentityFreeValue(value);\n  if (basic) return basic;\n  try {\n    return String(value);\n  } catch (err) {\n    if (err.name === 'TypeError') {\n      return Object.prototype.toString.call(value);\n    }\n    throw err;\n  }\n}\n\nfunction assert(mustBeTrue, message) {\n  if (mustBeTrue === true) {\n    return;\n  }\n\n  if (message === undefined) {\n    message = 'Expected true but got ' + assert._toString(mustBeTrue);\n  }\n  throw new Test262Error(message);\n}\n\nassert._isSameValue = function (a, b) {\n  if (a === b) {\n    // Handle +/-0 vs. -/+0\n    return a !== 0 || 1 / a === 1 / b;\n  }\n\n  // Handle NaN vs. NaN\n  return a !== a && b !== b;\n};\n\nassert.sameValue = function (actual, expected, message) {\n  try {\n    if (assert._isSameValue(actual, expected)) {\n      return;\n    }\n  } catch (error) {\n    throw new Test262Error(message + ' (_isSameValue operation threw) ' + error);\n    return;\n  }\n\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  message += 'Expected SameValue(\u00ab' + assert._toString(actual) + '\u00bb, \u00ab' + assert._toString(expected) + '\u00bb) to be true';\n\n  throw new Test262Error(message);\n};\n\nassert.notSameValue = function (actual, unexpected, message) {\n  if (!assert._isSameValue(actual, unexpected)) {\n    return;\n  }\n\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  message += 'Expected SameValue(\u00ab' + assert._toString(actual) + '\u00bb, \u00ab' + assert._toString(unexpected) + '\u00bb) to be false';\n\n  throw new Test262Error(message);\n};\n\nassert.throws = function (expectedErrorConstructor, func, message) {\n  var expectedName, actualName;\n  if (typeof func !== \"function\") {\n    throw new Test262Error('assert.throws requires two arguments: the error constructor ' +\n      'and a function to run');\n    return;\n  }\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  try {\n    func();\n  } catch (thrown) {\n    if (typeof thrown !== 'object' || thrown === null) {\n      message += 'Thrown value was not an object!';\n      throw new Test262Error(message);\n    } else if (thrown.constructor !== expectedErrorConstructor) {\n      expectedName = expectedErrorConstructor.name;\n      actualName = thrown.constructor.name;\n      if (expectedName === actualName) {\n        message += 'Expected a ' + expectedName + ' but got a different error constructor with the same name';\n      } else {\n        message += 'Expected a ' + expectedName + ' but got a ' + actualName;\n      }\n      throw new Test262Error(message);\n    }\n    return;\n  }\n\n  message += 'Expected a ' + expectedErrorConstructor.name + ' to be thrown but no exception was thrown at all';\n  throw new Test262Error(message);\n};\n\nassert.compareArray = function (actual, expected, message) {\n  message = message === undefined ? '' : message;\n\n  if (typeof message === 'symbol') {\n    message = message.toString();\n  }\n\n  if (isPrimitive(actual)) {\n    assert(false, \"Actual argument [\" + actual + \"] shouldn't be primitive. \" + String(message));\n  } else if (isPrimitive(expected)) {\n    assert(false, \"Expected argument [\" + expected + \"] shouldn't be primitive. \" + String(message));\n  }\n  var result = compareArray(actual, expected);\n  if (result) return;\n\n  var format = compareArray.format;\n  assert(false, \"Actual \" + format(actual) + \" and expected \" + format(expected) + \" should have the same contents. \" + String(message));\n};\n\nfunction compareArray(a, b) {\n  if (b.length !== a.length) {\n    return false;\n  }\n  for (var i = 0; i < a.length; i++) {\n    if (!assert._isSameValue(b[i], a[i])) {\n      return false;\n    }\n  }\n  return true;\n}\n\ncompareArray.format = function (arrayLike) {\n  return \"[\" + Array.prototype.map.call(arrayLike, String).join(\", \") + \"]\";\n};\n\nassert._formatIdentityFreeValue = formatIdentityFreeValue;\n\nassert._toString = formatSimpleValue;\n"
+      },
+      {
+        "name": "corpus-cache/d2/test262/harness/sta.js",
+        "code": "// Copyright (c) 2012 Ecma International.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n/*---\ndescription: |\n    Provides both:\n\n    - An error class to avoid false positives when testing for thrown exceptions\n    - A function to explicitly throw an exception using the Test262Error class\ndefines: [Test262Error, $DONOTEVALUATE]\n---*/\n\n\nfunction Test262Error(message) {\n  if (!(this instanceof Test262Error)) return new Test262Error(message);\n  this.message = message || \"\";\n}\n\nTest262Error.prototype.toString = function () {\n  return \"Test262Error: \" + this.message;\n};\n\nTest262Error.thrower = function (message) {\n  throw new Test262Error(message);\n};\n\nfunction $DONOTEVALUATE() {\n  throw \"Test262: This statement should not be evaluated.\";\n}\n"
+      },
+      {
+        "name": "corpus-cache/d2/test262/test/language/expressions/unary-minus/11.4.7-4-1.js",
+        "code": "// Copyright (c) 2012 Ecma International.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n\n/*---\nes5id: 11.4.7-4-1\ndescription: -\"\" should be zero\n---*/\n\nassert.sameValue(-\"\", -0, '-\"\"');\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "function isNegativeZero(value){return value===0&&1/value===-Infinity}function isPrimitive(value){return!value||typeof value!==\"object\"&&typeof value!==\"function\"}function formatIdentityFreeValue(value){switch(value===null?\"null\":typeof value){case \"string\":return typeof JSON!==\"undefined\"?JSON.stringify(value):'\"'+value+'\"';case \"bigint\":return String(value)+\"n\";case \"number\":if(isNegativeZero(value))return\"-0\";case \"boolean\":case \"undefined\":case \"null\":return String(value)}}\nfunction formatSimpleValue(value){var basic=formatIdentityFreeValue(value);if(basic)return basic;try{return String(value)}catch(err){if(err.name===\"TypeError\")return Object.prototype.toString.call(value);throw err;}}function assert(mustBeTrue,message){if(mustBeTrue===true)return;if(message===undefined)message=\"Expected true but got \"+assert._toString(mustBeTrue);throw new Test262Error(message);}assert._isSameValue=function(a,b){if(a===b)return a!==0||1/a===1/b;return a!==a&&b!==b};\nassert.sameValue=function(actual,expected,message){try{if(assert._isSameValue(actual,expected))return}catch(error){throw new Test262Error(message+\" (_isSameValue operation threw) \"+error);return}if(message===undefined)message=\"\";else message+=\" \";message+=\"Expected SameValue(\\u00ab\"+assert._toString(actual)+\"\\u00bb, \\u00ab\"+assert._toString(expected)+\"\\u00bb) to be true\";throw new Test262Error(message);};\nassert.notSameValue=function(actual,unexpected,message){if(!assert._isSameValue(actual,unexpected))return;if(message===undefined)message=\"\";else message+=\" \";message+=\"Expected SameValue(\\u00ab\"+assert._toString(actual)+\"\\u00bb, \\u00ab\"+assert._toString(unexpected)+\"\\u00bb) to be false\";throw new Test262Error(message);};\nassert.throws=function(expectedErrorConstructor,func,message){var expectedName,actualName;if(typeof func!==\"function\"){throw new Test262Error(\"assert.throws requires two arguments: the error constructor \"+\"and a function to run\");return}if(message===undefined)message=\"\";else message+=\" \";try{func()}catch(thrown){if(typeof thrown!==\"object\"||thrown===null){message+=\"Thrown value was not an object!\";throw new Test262Error(message);}else if(thrown.constructor!==expectedErrorConstructor){expectedName=\nexpectedErrorConstructor.name;actualName=thrown.constructor.name;if(expectedName===actualName)message+=\"Expected a \"+expectedName+\" but got a different error constructor with the same name\";else message+=\"Expected a \"+expectedName+\" but got a \"+actualName;throw new Test262Error(message);}return}message+=\"Expected a \"+expectedErrorConstructor.name+\" to be thrown but no exception was thrown at all\";throw new Test262Error(message);};\nassert.compareArray=function(actual,expected,message){message=message===undefined?\"\":message;if(typeof message===\"symbol\")message=message.toString();if(isPrimitive(actual))assert(false,\"Actual argument [\"+actual+\"] shouldn't be primitive. \"+String(message));else if(isPrimitive(expected))assert(false,\"Expected argument [\"+expected+\"] shouldn't be primitive. \"+String(message));var result=compareArray(actual,expected);if(result)return;var format=compareArray.format;assert(false,\"Actual \"+format(actual)+\n\" and expected \"+format(expected)+\" should have the same contents. \"+String(message))};function compareArray(a,b){if(b.length!==a.length)return false;for(var i=0;i<a.length;i++)if(!assert._isSameValue(b[i],a[i]))return false;return true}compareArray.format=function(arrayLike){return\"[\"+Array.prototype.map.call(arrayLike,String).join(\", \")+\"]\"};assert._formatIdentityFreeValue=formatIdentityFreeValue;assert._toString=formatSimpleValue;function Test262Error(message){if(!(this instanceof Test262Error))return new Test262Error(message);this.message=message||\"\"}Test262Error.prototype.toString=function(){return\"Test262Error: \"+this.message};Test262Error.thrower=function(message){throw new Test262Error(message);};function $DONOTEVALUATE(){throw\"Test262: This statement should not be evaluated.\";};assert.sameValue(-\"\",-0,'-\"\"');",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "test262-language--identifiers--val-dollar-sign",
+    "source": "test262",
+    "license": "BSD-3-Clause",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/test262/harness/assert.js",
+        "code": "// Copyright (C) 2017 Ecma International.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n/*---\ndescription: |\n    Collection of assertion functions used throughout test262\ndefines:\n  - assert\n  - compareArray\n  - formatIdentityFreeValue\n  - formatSimpleValue\n  - isNegativeZero\n  - isPrimitive\n---*/\n\n\nfunction isNegativeZero(value) {\n  return value === 0 && 1 / value === -Infinity;\n}\n\nfunction isPrimitive(value) {\n  return !value || (typeof value !== 'object' && typeof value !== 'function');\n}\n\nfunction formatIdentityFreeValue(value) {\n  switch (value === null ? 'null' : typeof value) {\n    case 'string':\n      return typeof JSON !== \"undefined\" ? JSON.stringify(value) : '\"' + value + '\"';\n    case 'bigint':\n      return String(value) + \"n\";\n    case 'number':\n      if (isNegativeZero(value)) return '-0';\n      // falls through\n    case 'boolean':\n    case 'undefined':\n    case 'null':\n      return String(value);\n  }\n}\n\nfunction formatSimpleValue(value) {\n  var basic = formatIdentityFreeValue(value);\n  if (basic) return basic;\n  try {\n    return String(value);\n  } catch (err) {\n    if (err.name === 'TypeError') {\n      return Object.prototype.toString.call(value);\n    }\n    throw err;\n  }\n}\n\nfunction assert(mustBeTrue, message) {\n  if (mustBeTrue === true) {\n    return;\n  }\n\n  if (message === undefined) {\n    message = 'Expected true but got ' + assert._toString(mustBeTrue);\n  }\n  throw new Test262Error(message);\n}\n\nassert._isSameValue = function (a, b) {\n  if (a === b) {\n    // Handle +/-0 vs. -/+0\n    return a !== 0 || 1 / a === 1 / b;\n  }\n\n  // Handle NaN vs. NaN\n  return a !== a && b !== b;\n};\n\nassert.sameValue = function (actual, expected, message) {\n  try {\n    if (assert._isSameValue(actual, expected)) {\n      return;\n    }\n  } catch (error) {\n    throw new Test262Error(message + ' (_isSameValue operation threw) ' + error);\n    return;\n  }\n\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  message += 'Expected SameValue(\u00ab' + assert._toString(actual) + '\u00bb, \u00ab' + assert._toString(expected) + '\u00bb) to be true';\n\n  throw new Test262Error(message);\n};\n\nassert.notSameValue = function (actual, unexpected, message) {\n  if (!assert._isSameValue(actual, unexpected)) {\n    return;\n  }\n\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  message += 'Expected SameValue(\u00ab' + assert._toString(actual) + '\u00bb, \u00ab' + assert._toString(unexpected) + '\u00bb) to be false';\n\n  throw new Test262Error(message);\n};\n\nassert.throws = function (expectedErrorConstructor, func, message) {\n  var expectedName, actualName;\n  if (typeof func !== \"function\") {\n    throw new Test262Error('assert.throws requires two arguments: the error constructor ' +\n      'and a function to run');\n    return;\n  }\n  if (message === undefined) {\n    message = '';\n  } else {\n    message += ' ';\n  }\n\n  try {\n    func();\n  } catch (thrown) {\n    if (typeof thrown !== 'object' || thrown === null) {\n      message += 'Thrown value was not an object!';\n      throw new Test262Error(message);\n    } else if (thrown.constructor !== expectedErrorConstructor) {\n      expectedName = expectedErrorConstructor.name;\n      actualName = thrown.constructor.name;\n      if (expectedName === actualName) {\n        message += 'Expected a ' + expectedName + ' but got a different error constructor with the same name';\n      } else {\n        message += 'Expected a ' + expectedName + ' but got a ' + actualName;\n      }\n      throw new Test262Error(message);\n    }\n    return;\n  }\n\n  message += 'Expected a ' + expectedErrorConstructor.name + ' to be thrown but no exception was thrown at all';\n  throw new Test262Error(message);\n};\n\nassert.compareArray = function (actual, expected, message) {\n  message = message === undefined ? '' : message;\n\n  if (typeof message === 'symbol') {\n    message = message.toString();\n  }\n\n  if (isPrimitive(actual)) {\n    assert(false, \"Actual argument [\" + actual + \"] shouldn't be primitive. \" + String(message));\n  } else if (isPrimitive(expected)) {\n    assert(false, \"Expected argument [\" + expected + \"] shouldn't be primitive. \" + String(message));\n  }\n  var result = compareArray(actual, expected);\n  if (result) return;\n\n  var format = compareArray.format;\n  assert(false, \"Actual \" + format(actual) + \" and expected \" + format(expected) + \" should have the same contents. \" + String(message));\n};\n\nfunction compareArray(a, b) {\n  if (b.length !== a.length) {\n    return false;\n  }\n  for (var i = 0; i < a.length; i++) {\n    if (!assert._isSameValue(b[i], a[i])) {\n      return false;\n    }\n  }\n  return true;\n}\n\ncompareArray.format = function (arrayLike) {\n  return \"[\" + Array.prototype.map.call(arrayLike, String).join(\", \") + \"]\";\n};\n\nassert._formatIdentityFreeValue = formatIdentityFreeValue;\n\nassert._toString = formatSimpleValue;\n"
+      },
+      {
+        "name": "corpus-cache/d2/test262/harness/sta.js",
+        "code": "// Copyright (c) 2012 Ecma International.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n/*---\ndescription: |\n    Provides both:\n\n    - An error class to avoid false positives when testing for thrown exceptions\n    - A function to explicitly throw an exception using the Test262Error class\ndefines: [Test262Error, $DONOTEVALUATE]\n---*/\n\n\nfunction Test262Error(message) {\n  if (!(this instanceof Test262Error)) return new Test262Error(message);\n  this.message = message || \"\";\n}\n\nTest262Error.prototype.toString = function () {\n  return \"Test262Error: \" + this.message;\n};\n\nTest262Error.thrower = function (message) {\n  throw new Test262Error(message);\n};\n\nfunction $DONOTEVALUATE() {\n  throw \"Test262: This statement should not be evaluated.\";\n}\n"
+      },
+      {
+        "name": "corpus-cache/d2/test262/test/language/identifiers/val-dollar-sign.js",
+        "code": "// Copyright 2009 the Sputnik authors.  All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n\n/*---\ninfo: \"IdentifierStart :: $\"\nes5id: 7.6_A1.2_T1\ndescription: Create variable $\n---*/\n\n//CHECK#1\nvar $ = 1;\n\nassert.sameValue($, 1);\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "function isNegativeZero(value){return value===0&&1/value===-Infinity}function isPrimitive(value){return!value||typeof value!==\"object\"&&typeof value!==\"function\"}function formatIdentityFreeValue(value){switch(value===null?\"null\":typeof value){case \"string\":return typeof JSON!==\"undefined\"?JSON.stringify(value):'\"'+value+'\"';case \"bigint\":return String(value)+\"n\";case \"number\":if(isNegativeZero(value))return\"-0\";case \"boolean\":case \"undefined\":case \"null\":return String(value)}}\nfunction formatSimpleValue(value){var basic=formatIdentityFreeValue(value);if(basic)return basic;try{return String(value)}catch(err){if(err.name===\"TypeError\")return Object.prototype.toString.call(value);throw err;}}function assert(mustBeTrue,message){if(mustBeTrue===true)return;if(message===undefined)message=\"Expected true but got \"+assert._toString(mustBeTrue);throw new Test262Error(message);}assert._isSameValue=function(a,b){if(a===b)return a!==0||1/a===1/b;return a!==a&&b!==b};\nassert.sameValue=function(actual,expected,message){try{if(assert._isSameValue(actual,expected))return}catch(error){throw new Test262Error(message+\" (_isSameValue operation threw) \"+error);return}if(message===undefined)message=\"\";else message+=\" \";message+=\"Expected SameValue(\\u00ab\"+assert._toString(actual)+\"\\u00bb, \\u00ab\"+assert._toString(expected)+\"\\u00bb) to be true\";throw new Test262Error(message);};\nassert.notSameValue=function(actual,unexpected,message){if(!assert._isSameValue(actual,unexpected))return;if(message===undefined)message=\"\";else message+=\" \";message+=\"Expected SameValue(\\u00ab\"+assert._toString(actual)+\"\\u00bb, \\u00ab\"+assert._toString(unexpected)+\"\\u00bb) to be false\";throw new Test262Error(message);};\nassert.throws=function(expectedErrorConstructor,func,message){var expectedName,actualName;if(typeof func!==\"function\"){throw new Test262Error(\"assert.throws requires two arguments: the error constructor \"+\"and a function to run\");return}if(message===undefined)message=\"\";else message+=\" \";try{func()}catch(thrown){if(typeof thrown!==\"object\"||thrown===null){message+=\"Thrown value was not an object!\";throw new Test262Error(message);}else if(thrown.constructor!==expectedErrorConstructor){expectedName=\nexpectedErrorConstructor.name;actualName=thrown.constructor.name;if(expectedName===actualName)message+=\"Expected a \"+expectedName+\" but got a different error constructor with the same name\";else message+=\"Expected a \"+expectedName+\" but got a \"+actualName;throw new Test262Error(message);}return}message+=\"Expected a \"+expectedErrorConstructor.name+\" to be thrown but no exception was thrown at all\";throw new Test262Error(message);};\nassert.compareArray=function(actual,expected,message){message=message===undefined?\"\":message;if(typeof message===\"symbol\")message=message.toString();if(isPrimitive(actual))assert(false,\"Actual argument [\"+actual+\"] shouldn't be primitive. \"+String(message));else if(isPrimitive(expected))assert(false,\"Expected argument [\"+expected+\"] shouldn't be primitive. \"+String(message));var result=compareArray(actual,expected);if(result)return;var format=compareArray.format;assert(false,\"Actual \"+format(actual)+\n\" and expected \"+format(expected)+\" should have the same contents. \"+String(message))};function compareArray(a,b){if(b.length!==a.length)return false;for(var i=0;i<a.length;i++)if(!assert._isSameValue(b[i],a[i]))return false;return true}compareArray.format=function(arrayLike){return\"[\"+Array.prototype.map.call(arrayLike,String).join(\", \")+\"]\"};assert._formatIdentityFreeValue=formatIdentityFreeValue;assert._toString=formatSimpleValue;function Test262Error(message){if(!(this instanceof Test262Error))return new Test262Error(message);this.message=message||\"\"}Test262Error.prototype.toString=function(){return\"Test262Error: \"+this.message};Test262Error.thrower=function(message){throw new Test262Error(message);};function $DONOTEVALUATE(){throw\"Test262: This statement should not be evaluated.\";};var $=1;assert.sameValue($,1);",
+      "errors": [],
+      "warnings": []
+    }
+  },
+  {
+    "id": "test262-negparse-language--comments--hashbang--escaped-bang-u21",
+    "source": "test262",
+    "license": "BSD-3-Clause",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/test262/test/language/comments/hashbang/escaped-bang-u21.js",
+        "code": "#\\u{21}\n\n// Copyright (C) 2019 Leo Balter. All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n\n/*---\nesid: pending\ndescription: >\n    Hashbang comments should not be allowed to have encoded characters \\u{21}\ninfo: |\n    HashbangComment::\n      #! SingleLineCommentChars[opt]\nflags: [raw]\nnegative:\n  phase: parse\n  type: SyntaxError\nfeatures: [hashbang]\n---*/\n\nthrow \"Test262: This statement should not be evaluated.\";\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "",
+      "errors": [
+        {
+          "type": "JSC_PARSE_ERROR",
+          "description": "Parse error. Invalid escape sequence",
+          "source": "corpus-cache/d2/test262/test/language/comments/hashbang/escaped-bang-u21.js",
+          "line": 1,
+          "column": 7,
+          "length": 0
+        }
+      ],
+      "warnings": []
+    }
+  },
+  {
+    "id": "test262-negparse-language--comments--hashbang--preceding-hashbang",
+    "source": "test262",
+    "license": "BSD-3-Clause",
+    "inputs": [
+      {
+        "name": "corpus-cache/d2/test262/test/language/comments/hashbang/preceding-hashbang.js",
+        "code": "#!\n#!\n\n// Copyright (C) 2019 Leo Balter. All rights reserved.\n// This code is governed by the BSD license found in the LICENSE file.\n\n/*---\nesid: pending\ndescription: >\n    Hashbang comments should only be allowed at the start of source texts and should not be preceded by Hashbang comments.\ninfo: |\n    HashbangComment::\n      #! SingleLineCommentChars[opt]\nflags: [raw]\nnegative:\n  phase: parse\n  type: SyntaxError\nfeatures: [hashbang]\n---*/\n\nthrow \"Test262: This statement should not be evaluated.\";\n"
+      }
+    ],
+    "externs": [],
+    "expected": {
+      "output": "",
+      "errors": [
+        {
+          "type": "JSC_PARSE_ERROR",
+          "description": "Parse error. Shebang comment must be at the start of the file",
+          "source": "corpus-cache/d2/test262/test/language/comments/hashbang/preceding-hashbang.js",
+          "line": 2,
+          "column": 1,
+          "length": 0
+        }
+      ],
+      "warnings": []
+    }
+  }
+]

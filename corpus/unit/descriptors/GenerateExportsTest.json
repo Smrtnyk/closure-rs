@@ -1,0 +1,26 @@
+{
+  "source": "test/com/google/javascript/jscomp/GenerateExportsTest.java getProcessor (lines 44-48), bb8c8e7. setUp (lines 50-61) resets allowNonGlobalExports/exportSymbolFunction/exportPropertyFunction; test bodies reassign them (lines 217-272, 737, 763-777). All three are read from the record's testFields.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.GenerateExports",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "field": "allowNonGlobalExports"
+          },
+          {
+            "field": "exportSymbolFunction"
+          },
+          {
+            "field": "exportPropertyFunction"
+          }
+        ]
+      }
+    }
+  ],
+  "note": "Recorded combinations: allowNonGlobalExports in {true,false}; exportSymbolFunction in {goog.exportSymbol, exportSymbol, null}; exportPropertyFunction in {goog.exportProperty, null}. The 14 api=testExternChanges records (CompilerTestCase.testExternChanges) use the same processor; replay supports that api since DSL v2."
+}

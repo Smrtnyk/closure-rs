@@ -1,0 +1,20 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6RewriteSpreadExpressionsTest.java getProcessor (lines 37-43): a lambda CompilerPass, copied verbatim as helper Es6RewriteSpreadExpressionsTest_Helpers.GetProcessorLambda, bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "mutationPoint": "com.google.javascript.jscomp.Es6RewriteSpreadExpressions",
+        "value": {
+          "helper": "Es6RewriteSpreadExpressionsTest_Helpers.GetProcessorLambda",
+          "args": [
+            {
+              "compiler": true
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "note": "getProcessor returns the lambda (externs, root) -> { new InjectTranspilationRuntimeLibraries(compiler).process(externs, root); new Es6RewriteSpreadExpressions(compiler).process(externs, root); }, kept as a verbatim helper. It constructs Es6RewriteSpreadExpressions only after the injection pass has run; that constructor calls compiler.getTranspilationNamespace(), which eagerly builds and caches a GlobalNamespace (Compiler.java lines 2032-2048), so a {sequence} (which builds both passes up front) is not faithful. The equivalent DSL {lambda} form (DSL.md 'A pass built at process time') replays 35/36: the evaluator's reflective call wraps the pass's RuntimeException in new RuntimeException(cause), so testSpreadIntoSuperThrows (assertThrows) sees message 'java.lang.RuntimeException: INTERNAL COMPILER ERROR...' instead of 'INTERNAL COMPILER ERROR...'. The helper rethrows unchanged. mutationPoint makes --mutate-noop Es6RewriteSpreadExpressions replace the whole processor (both passes) with the no-op stand-in. customSetUp's enableNormalize/setGenericNameReplacements/setAcceptedLanguage/setLanguageOut/enableTypeInfoValidation/enableTypeCheck/replaceTypesWithColors/enableMultistageCompilation are restored from harness.fields; the EXTERNS_BASE constructor externs are in harness.fields.defaultExternsInputs."
+}

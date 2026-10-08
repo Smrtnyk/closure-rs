@@ -1,0 +1,18 @@
+{
+  "source": "test/com/google/javascript/jscomp/MinimizeExitPointsTest.java getProcessor (lines 39-42): new PeepholeOptimizationsPass(compiler, getName(), new MinimizeExitPoints()). setUp (lines 31-37) only calls enableNormalize(), a harness field that comes from the record.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+        "args": [
+          {"compiler": true},
+          {"record": "harness.effective.getName"},
+          {"array": "com.google.javascript.jscomp.AbstractPeepholeOptimization", "items": [
+            {"new": "com.google.javascript.jscomp.MinimizeExitPoints", "args": []}
+          ]}
+        ]
+      }
+    }
+  ]
+}

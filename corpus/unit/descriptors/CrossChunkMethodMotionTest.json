@@ -1,0 +1,18 @@
+{
+  "source": "test/com/google/javascript/jscomp/CrossChunkMethodMotionTest.java getProcessor (lines 33-36); getOptions (lines 38-44) and customSetUp (lines 46-51) are captured by the record's options and harness fields",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.CrossChunkMethodMotion",
+        "args": [
+          {"compiler": true},
+          {"new": "com.google.javascript.jscomp.IdGenerator", "args": []},
+          {"field": "canMoveExterns"},
+          {"field": "noStubs"}
+        ]
+      }
+    }
+  ],
+  "note": "A fresh IdGenerator per getProcessor call, as in the test. canMoveExterns and noStubs are always recorded as booleans."
+}

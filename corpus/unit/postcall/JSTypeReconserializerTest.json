@@ -1,0 +1,255 @@
+{
+  "v": 1,
+  "class": "com.google.javascript.jscomp.serialization.JSTypeReconserializerTest",
+  "methods": [
+    {
+      "method": "debugInfo_mismatchLocations",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.labelToPointer"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 723-763): the TypePool's debug-info mismatch list (source ref and involved colors, built from labelToPointer pointers and the constructors' instance_type/prototype pointers read from this.typePool). typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "discards_differentTemplatizationsOfSameRawType",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.labelToPointer"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 491-515): the TypePool's type list contains the object protos built from labelToPointer pointers. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "doesntCrashOnFunctionWithNonObjectThisType",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 518-538): the TypePool's type list contains the expected constructor ObjectTypeProto. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "doesntSerializeForwardDeclaredType",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 582-587): the TypePool's type list equals the native-object pool of an empty compile (nativeObjects()). typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "doesntSerializeMissingType",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 590-595): the TypePool's type list equals the native-object pool of an empty compile. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "doesntSerializeNullOrUndefinedUnion",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 575-579): the TypePool's type list equals the native-object pool of an empty compile. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "marksClosureAssertions",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 389-410): the TypePool's type list contains the closure_assert/is_invalidating object protos. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "reconcile_literalFunctions_toNativeType",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.stringPoolBuilder"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 458-488): the TypePool's type list equals the native objects plus one object proto whose own_property is the string-pool offset of `f`. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "reconcile_setClosureAssert",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 663-686): the TypePool's type list contains an object proto with closure_assert set. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "reconcile_setInstanceColors",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.labelToPointer"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 604-632): the TypePool's type list contains a constructor proto whose instance_type list holds the FOO and BAR label pointers. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "reconcile_setInvalidating",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 695-714): the TypePool's type list contains an object proto with is_invalidating set. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "reconcile_setOwnProperties",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.stringPoolBuilder"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 640-660): the TypePool's type list contains an object proto whose own_property list is the string-pool offsets of a, b, constructor. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "serializesTemplateTypesAsUnknown",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.labelToPointer"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 427-455): the TypePool's type list contains the protos built from labelToPointer pointers and has exactly native-object count + 3 entries. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "supertypeListForInterface_includesIllegalExtendedTypes",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.labelToPointer"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 541-572): the TypePool's disambiguation edges from the BAZ label pointer lead to exactly the expected object protos. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testBoxableScalarTypesKeepOriginalName",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 378-386): the TypePool's type list contains an object proto with properties_keep_original_name set. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testDisambiguationEdges_dont_pointFromPrototypeToInstance",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.labelToPointer"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 309-314): the TypePool has no non-axiomatic disambiguation edge from the FOO_PROTOTYPE label pointer. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testDisambiguationEdges_pointFromInstanceToInterface",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.labelToPointer"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 276-291): the TypePool's disambiguation edges from the FOO label pointer reach an object proto. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testDisambiguationEdges_pointFromInstanceToPrototype",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.labelToPointer"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 252-258): the TypePool's disambiguation edges from the FOO label pointer reach an object proto. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testDisambiguationEdges_pointFromInterfaceToPrototype",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.labelToPointer"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 261-273): the TypePool's disambiguation edges from the IFOO label pointer reach an object proto. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testDisambiguationEdges_pointFromSubctorToSuperctor",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.labelToPointer"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 294-306): the TypePool's disambiguation edges from the BAR_CTOR label pointer lead to exactly one marked-constructor proto. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testEnumElementSerializesToPrimitive",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 367-375): the TypePool's type list contains an object proto with properties_keep_original_name set. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testNativeTypesAreNotSerialized",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 131-160): for nine primitive-typed declarations the TypePool's type list equals the native-object pool of an empty compile. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testNativeTypes_serializesFunctionToTopFunction",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.labelToPointer"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 162-175): the FOO and GOO label pointers in labelToPointer are axiomatic offsets that map (static TypePointers table) to TOP_FUNCTION. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testNativeTypes_serializesGbigint",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.labelToPointer"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 177-186): the GB label pointer in labelToPointer is an axiomatic offset that maps (static TypePointers table) to GBIGINT. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testObjectTypeSerializationFormat",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.labelToPointer",
+        "testFieldsAfter.stringPoolBuilder"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 188-221): the TypePool's type list contains the constructor, prototype and instance object protos built from label pointers and string-pool offsets. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testObjectTypeSerializationFormat_canAvoidSerializingProperty",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.stringPoolBuilder"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 223-249): the TypePool's type list contains an object proto whose own_property list is the string-pool offsets of constructor and serializeMe only. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testSerializeObjectLiteralTypesAsInvalidating",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool",
+        "testFieldsAfter.stringPoolBuilder"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 412-424): the TypePool's type list contains an invalidating object proto whose own_property is the string-pool offset of x. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testSerializedInstanceTypeHasClassName",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 359-364): the TypePool's type list contains an object proto. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    },
+    {
+      "method": "testUnion_proxyLikeTypes_dontPreventUnionCollapsing",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.typePool"
+      ],
+      "note": "Asserted after the hooked testNoWarning call(s) of compileToTypePool (test lines 321-357): no union proto in the TypePool contains a union member, and the pool contains the collapsed boolean|string|number|symbol union. typePool, labelToPointer and stringPoolBuilder are the test fields getProcessor's pass writes; the descriptor compares all three in every record (testFieldsAfter + testFieldsAfterAlso). findInStringPool reads (and could extend) stringPoolBuilder; pointerForLabel reads labelToPointer. Verified on the v7 records (D-017 item 2, harness round 2): typePool is recorded in the neutral protobuf encoding (every set TypeProto/ObjectTypeProto/UnionTypeProto/SubtypingEdge/DebugInfo field by descriptor name, nested in full), labelToPointer as a LinkedHashMap and stringPoolBuilder's pool as a LinkedHashMap; replay compares all three JSON-equal (post state checked, no rule-1a demotion). Tamper test (classify round 2): editing marked_constructor, a labelToPointer pointer, a string-pool entry or a DebugInfo source_ref in a copy of the records fails the record with 'testFieldsAfter differs'."
+    }
+  ],
+  "note": "Classify round 2 batch 2: testMultipleAnonymousTypesDoesntCrash and serializesSourceOfSyntheticCodeDoesntCrash were listed in round 1 only because their records had post state unclassified (rule 1a demoted the old depth-limited protobuf dump). On v7 their records are checked and the scan does not flag them (no assertion after the call), so they have no entry (an entry would be an extra-entry schema error)."
+}

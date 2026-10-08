@@ -1,0 +1,9 @@
+# class	path	utf8_len	sha256  (ResourceLoader.loadTextResource)
+com.google.javascript.jscomp.RewritePolyfills	js/polyfills.txt	11335	b985293ed061c35481aacfb66525d105ed88a6b320450089e5d23a6b220ee333
+com.google.javascript.jscomp.IsolatePolyfills	js/polyfills.txt	11335	b985293ed061c35481aacfb66525d105ed88a6b320450089e5d23a6b220ee333
+com.google.javascript.jscomp.RemoveUnusedCode	js/polyfills.txt	11335	b985293ed061c35481aacfb66525d105ed88a6b320450089e5d23a6b220ee333
+com.google.javascript.jscomp.js.RuntimeJsLibManager	transpilation_libs.txt	3813	169ca40c700c30efe1775f0f8cc3667741f6978dab0b665191e58adbaa563b25
+com.google.javascript.jscomp.Compiler	js/base.js	814	cd3e1241396639ff554347384519fd34e1f14347945cbfbbb2176f72ec1b5c36
+com.google.javascript.jscomp.Compiler	js/es6/set.js	4755	03e7f145a65f9ffaa9cd3407fe39afa996fa94d164975a067de0ad52dfb3e9bc
+com.google.javascript.jscomp.Compiler	js/util/global.js	3572	aabe30eb433fd4457153ccadf6465ffcd6ffe71131525c872479d0cfaecc4463
+com.google.javascript.jscomp.Compiler	/com/google/javascript/jscomp/js/es6_runtime.js	1202	c415c0d4d6f7ff671426e09578e8b0d7936ad401ddc42ccf98539f66056b769b

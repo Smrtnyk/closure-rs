@@ -1,0 +1,30 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.RuntimeLibraryTypedAstInjectionTest",
+ "methods": [
+  {
+   "method": "testInjection_carriesReconciledTypeInformation",
+   "status": "rust_unit_test",
+   "reason": "after test() (line 50, record index 2: enableTypeCheck and replaceTypesWithColors from setUp, util/owns injected) the test walks getLastCompiler().getRoot() for NAME Object nodes (exactly 2, line 64), asserts their source file names contain util/owns and testcode (lines 68-69), and that both carry the same non-null Color object (getColor(), isNotNull and isSameInstanceAs, lines 71-74): Color objects of Java Node objects. The records' post-call snapshot carries only postCall.compiler.accessorSummary (an empty map), postCall.compiler.moduleMetadataByPath (module metadata of the externs and testcode inputs), and postCall.compiler.typeMismatchesError (java.lang.IllegalStateException: type checking ran and its type information was then replaced by colors, so getTypeMismatches() throws; it holds no Color); no postCall.pass key and no postCall.postcondition (no postcondition ran), and none of these holds a node's Color, its source file name or the AST's CAST nodes; the AST comparison ignores colors and source files. The processor is the no-op lambda (externs, root) -> {} (lines 41-44), so the class is otherwise vacuous",
+   "fragment": "corpus/unit/rust_unit_tests/RuntimeLibraryTypedAstInjectionTest.md",
+   "category": "color",
+   "note": "Classify round 1 batch 14: re-read the source; category color kept (the decisive assertions are on Color objects of output-AST nodes); the reason now names every postCall key the method's record carries."
+  },
+  {
+   "method": "testInjection_excludesTypeInformation_ifTypecheckingHasNotRun",
+   "status": "rust_unit_test",
+   "reason": "after test() (line 82, record index 1: util/owns injected, type checking disabled) the test walks getLastCompiler().getRoot() for NAME Object nodes (exactly 2, line 96), asserts their source file names contain util/owns and testcode (lines 100-101), and that neither has a Color object (assertNode(..).hasColorThat().isNull(), lines 103-104): Color objects of Java Node objects. The records' post-call snapshot carries only postCall.compiler.accessorSummary (an empty map) and postCall.compiler.moduleMetadataByPath (module metadata of the externs and testcode inputs); no postCall.pass key and no postCall.postcondition (no postcondition ran), and none of these holds a node's Color, its source file name or the AST's CAST nodes; the AST comparison ignores colors and source files. The processor is the no-op lambda (externs, root) -> {} (lines 41-44), so the class is otherwise vacuous",
+   "fragment": "corpus/unit/rust_unit_tests/RuntimeLibraryTypedAstInjectionTest.md",
+   "category": "color",
+   "note": "Classify round 1 batch 14: re-read the source; category color kept (the decisive assertions are on Color objects of output-AST nodes); the reason now names every postCall key the method's record carries."
+  },
+  {
+   "method": "testInjection_doesntCrashOnLibrariesWithCasts_ifTypecheckingHasNotRun",
+   "status": "rust_unit_test",
+   "reason": "after testNoWarning() (line 114, record index 0: util/global injected, type checking disabled, no expected output) the test walks getLastCompiler().getRoot() for NAME globalThis nodes (exactly 4, line 118), asserts the source file names of the first and fourth contain util/global and testcode (lines 123-124), that neither has a Color object (hasColorThat().isNull(), lines 126-127) and that the AST holds no CAST node (lines 130-132): Color objects of Java Node objects. The records' post-call snapshot carries only postCall.compiler.accessorSummary (an empty map) and postCall.compiler.moduleMetadataByPath (module metadata of the externs and testcode inputs); no postCall.pass key and no postCall.postcondition (no postcondition ran), and none of these holds a node's Color, its source file name or the AST's CAST nodes; the AST comparison ignores colors and source files. The processor is the no-op lambda (externs, root) -> {} (lines 41-44), so the class is otherwise vacuous",
+   "fragment": "corpus/unit/rust_unit_tests/RuntimeLibraryTypedAstInjectionTest.md",
+   "category": "color",
+   "note": "Classify round 1 batch 14: re-read the source; category color kept (the decisive assertions are on Color objects of output-AST nodes); the reason now names every postCall key the method's record carries."
+  }
+ ]
+}

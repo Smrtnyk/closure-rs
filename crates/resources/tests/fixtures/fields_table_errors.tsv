@@ -1,0 +1,5 @@
+# case	result	message  (RuntimeJsLibManager.FieldsTable with transpilation_libs.txt replaced, see gen/GenFieldsTableError.java)
+# malformed: "a,x/y\nfoo\n"; duplicate: "a,x/y\nb,z\na,w\n"; extracomma: "\n\na,x,y\n\nb,\n"
+malformed	java.lang.IllegalStateException	[foo]
+duplicate	java.lang.IllegalArgumentException	Multiple entries with same key: a=w and a=x/y
+extracomma	ok	{a=x,y, b=}

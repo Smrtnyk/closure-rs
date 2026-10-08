@@ -1,0 +1,9 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6RewriteArrowFunctionTest.java getProcessor (lines 60-63): new Es6RewriteArrowFunction(compiler). setUp (lines 35-51: accepted language, enableNormalize/TypeInfoValidation/TypeCheck, replaceTypesWithColors, enableMultistageCompilation, generic name replacements) and the per-test disableTypeCheck/disableTypeInfoValidation are harness fields restored from the record; getOptions (lines 53-58, setLanguageOut(languageOut)) is reproduced by record.options.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.Es6RewriteArrowFunction", "args": [{"compiler": true}]}
+    }
+  ]
+}

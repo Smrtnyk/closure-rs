@@ -1,0 +1,14 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.MakeDeclaredNamesUniqueTest",
+ "methods": [
+  {
+   "method": "assertOnChange_throwsException",
+   "status": "captured",
+   "note": "Review round 4: asserts the message of the RuntimeException thrown by the hooked call; replay compares the outcome's status, class and message exactly",
+   "via": [
+    "outcome"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,4 @@
+Post-call assertions of CollapseAnonymousFunctionsTest (test/com/google/javascript/jscomp/CollapseAnonymousFunctionsTest.java, bb8c8e7) that inspect a per-node boolean property of the output AST. Neither the AST comparison (`isEquivalentTo` does not compare `IS_CONSTANT_NAME`) nor the post-call snapshot records it. Port each as a Rust unit test: normalize the input, run CollapseAnonymousFunctions, then check the property on the two NAME nodes.
+
+- CollapseAnonymousFunctionsTest#testLet: after `let f = function() {};` and `let f = function() {}; f();` are collapsed to `function f() {}`, the function's NAME node `f` and the called NAME `f` must NOT carry `Node.IS_CONSTANT_NAME` (lines 62-83).
+- CollapseAnonymousFunctionsTest#testConst: after `const f = function() {};` and `const f = function() {}; f();` are collapsed, the function's NAME node `f` and the called NAME `f` MUST carry `Node.IS_CONSTANT_NAME` (lines 85-104).

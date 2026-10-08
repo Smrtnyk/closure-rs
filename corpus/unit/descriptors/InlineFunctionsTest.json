@@ -1,0 +1,48 @@
+{
+  "source": "test/com/google/javascript/jscomp/InlineFunctionsTest.java getProcessor (lines 66-74); the test-instance field uniqueIdSupplier (line 46) and the nested class UniqueIdSupplier (lines 76-83) are copied verbatim into helper InlineFunctionsTest_Helpers (bb8c8e7).",
+  "classMap": {
+    "com.google.javascript.jscomp.InlineFunctionsTest$UniqueIdSupplier": "com.google.javascript.jscomp.InlineFunctionsTest_Helpers$UniqueIdSupplier"
+  },
+  "note": "classify batch 16 (D-015 a, post-call state). The test's uniqueIdSupplier is a test-instance field shared by every repetition (getNumRepetitions() = 3) and by every test() call of one method (setUp makes a new one per method); InlineFunctions draws temporary-name ids from it, so its nextId changes in 180 of the 449 records (testFieldsAfter). Replay builds one InlineFunctionsTest_Helpers holder per record (once \"holder\"), restores holder.uniqueIdSupplier from testFields.uniqueIdSupplier (classMap maps the recorded class to the verbatim helper class, so the object decodes with its recorded nextId), passes that same supplier to each repetition's InlineFunctions, and compares holder.uniqueIdSupplier after the call (testFieldsAfter + testFieldsAfterAlso, so records where the call draws no id are compared too: nextId must stay at its entry value). The first case only differs for test6671158, whose test() runs on an anonymous subclass (new InlineFunctionsTest() {...}) and therefore records the field as InlineFunctionsTest.uniqueIdSupplier (declaring-class prefix, FORMAT.md field naming).",
+  "cases": [
+    {
+      "when": {"method": "test6671158"},
+      "processor": {
+        "new": "com.google.javascript.jscomp.InlineFunctions",
+        "args": [
+          {"compiler": true},
+          {"getField": {"once": "holder",
+                        "value": {"withFields": {"helper": "InlineFunctionsTest_Helpers"},
+                                  "fields": {"uniqueIdSupplier": {"field": "uniqueIdSupplier"}}}},
+           "name": "uniqueIdSupplier"},
+          {"field": "inliningReach"},
+          {"field": "assumeStrictThis"},
+          {"field": "assumeMinimumCapture"},
+          {"field": "maxSizeAfterInlining"}
+        ]
+      },
+      "testFieldsAfterUnchecked": "test6671158 calls test() on an anonymous subclass instance (InlineFunctionsTest lines 3946-3953), so the recorder names the changed field by its declaring class: testFieldsAfter key 'InlineFunctionsTest.uniqueIdSupplier'. A testFieldsAfter holder must declare that field in a superclass whose simple name is InlineFunctionsTest (ReplayValues.findField), and rule 6 keeps every class with that name off the replay classpath, so the supplier's post-call nextId (5) cannot be compared here. The test asserts nothing on the supplier; the ids it handed out (v0..v3) are in the expected output, which replay compares. Harness request filed (fix-16): let findField resolve a 'Declaring.f' key through the descriptor's classMap."
+    },
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.InlineFunctions",
+        "args": [
+          {"compiler": true},
+          {"getField": {"once": "holder",
+                        "value": {"withFields": {"helper": "InlineFunctionsTest_Helpers"},
+                                  "fields": {"uniqueIdSupplier": {"field": "uniqueIdSupplier"}}}},
+           "name": "uniqueIdSupplier"},
+          {"field": "inliningReach"},
+          {"field": "assumeStrictThis"},
+          {"field": "assumeMinimumCapture"},
+          {"field": "maxSizeAfterInlining"}
+        ]
+      },
+      "testFieldsAfter": {"once": "holder",
+                          "value": {"withFields": {"helper": "InlineFunctionsTest_Helpers"},
+                                    "fields": {"uniqueIdSupplier": {"field": "uniqueIdSupplier"}}}},
+      "testFieldsAfterAlso": ["uniqueIdSupplier"]
+    }
+  ]
+}

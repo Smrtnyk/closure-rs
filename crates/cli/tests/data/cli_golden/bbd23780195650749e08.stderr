@@ -1,0 +1,1 @@
+Expected --emit_use_strict should not be specified when --chunk_output_type is set to ES_MODULES.

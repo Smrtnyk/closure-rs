@@ -1,0 +1,286 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6RewriteModulesTest.java getProcessor (lines 100-123); setUp (lines 77-84) and getOptions (lines 86-98) are captured by the record's harness fields and options",
+  "cases": [
+    {
+      "when": {
+        "testFields.chunkOutputType": {
+          "enum": "com.google.javascript.jscomp.CompilerOptions$ChunkOutputType",
+          "name": "ES_MODULES"
+        }
+      },
+      "processor": {
+        "lambda": [
+          "externs",
+          "root"
+        ],
+        "iface": "com.google.javascript.jscomp.CompilerPass",
+        "body": {
+          "let": [
+            [
+              "rai",
+              {
+                "new": "com.google.javascript.jscomp.type.SemanticReverseAbstractInterpreter",
+                "args": [
+                  {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getTypeRegistry",
+                    "args": []
+                  }
+                ]
+              }
+            ],
+            [
+              "globalTypedScope",
+              {
+                "static": "com.google.common.base.Preconditions",
+                "method": "checkNotNull",
+                "args": [
+                  {
+                    "call": {
+                      "new": "com.google.javascript.jscomp.TypeCheck",
+                      "args": [
+                        {
+                          "compiler": true
+                        },
+                        {
+                          "var": "rai"
+                        },
+                        {
+                          "call": {
+                            "compiler": true
+                          },
+                          "method": "getTypeRegistry",
+                          "args": []
+                        }
+                      ]
+                    },
+                    "method": "processForTesting",
+                    "args": [
+                      {
+                        "var": "externs"
+                      },
+                      {
+                        "var": "root"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          ],
+          "in": {
+            "do": [
+              {
+                "call": {
+                  "compiler": true
+                },
+                "method": "setTypeCheckingHasRun",
+                "args": [
+                  {
+                    "bool": true
+                  }
+                ]
+              },
+              {
+                "call": {
+                  "new": "com.google.javascript.jscomp.Es6RewriteModules",
+                  "args": [
+                    {
+                      "compiler": true
+                    },
+                    {
+                      "call": {
+                        "compiler": true
+                      },
+                      "method": "getModuleMetadataMap",
+                      "args": []
+                    },
+                    {
+                      "call": {
+                        "compiler": true
+                      },
+                      "method": "getModuleMap",
+                      "args": []
+                    },
+                    {
+                      "null": true
+                    },
+                    {
+                      "var": "globalTypedScope"
+                    },
+                    {
+                      "field": "chunkOutputType"
+                    }
+                  ]
+                },
+                "method": "process",
+                "args": [
+                  {
+                    "var": "externs"
+                  },
+                  {
+                    "var": "root"
+                  }
+                ]
+              },
+              {
+                "call": {
+                  "new": "com.google.javascript.jscomp.ConvertChunksToESModules",
+                  "args": [
+                    {
+                      "compiler": true
+                    }
+                  ]
+                },
+                "method": "process",
+                "args": [
+                  {
+                    "var": "externs"
+                  },
+                  {
+                    "var": "root"
+                  }
+                ]
+              }
+            ],
+            "value": {
+              "null": true
+            }
+          }
+        }
+      },
+      "note": "chunkOutputType == ES_MODULES: the lambda's trailing `if` runs ConvertChunksToESModules (testImportMetaESModuleOutput only)."
+    },
+    {
+      "when": {},
+      "processor": {
+        "lambda": [
+          "externs",
+          "root"
+        ],
+        "iface": "com.google.javascript.jscomp.CompilerPass",
+        "body": {
+          "let": [
+            [
+              "rai",
+              {
+                "new": "com.google.javascript.jscomp.type.SemanticReverseAbstractInterpreter",
+                "args": [
+                  {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getTypeRegistry",
+                    "args": []
+                  }
+                ]
+              }
+            ],
+            [
+              "globalTypedScope",
+              {
+                "static": "com.google.common.base.Preconditions",
+                "method": "checkNotNull",
+                "args": [
+                  {
+                    "call": {
+                      "new": "com.google.javascript.jscomp.TypeCheck",
+                      "args": [
+                        {
+                          "compiler": true
+                        },
+                        {
+                          "var": "rai"
+                        },
+                        {
+                          "call": {
+                            "compiler": true
+                          },
+                          "method": "getTypeRegistry",
+                          "args": []
+                        }
+                      ]
+                    },
+                    "method": "processForTesting",
+                    "args": [
+                      {
+                        "var": "externs"
+                      },
+                      {
+                        "var": "root"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          ],
+          "in": {
+            "do": [
+              {
+                "call": {
+                  "compiler": true
+                },
+                "method": "setTypeCheckingHasRun",
+                "args": [
+                  {
+                    "bool": true
+                  }
+                ]
+              },
+              {
+                "call": {
+                  "new": "com.google.javascript.jscomp.Es6RewriteModules",
+                  "args": [
+                    {
+                      "compiler": true
+                    },
+                    {
+                      "call": {
+                        "compiler": true
+                      },
+                      "method": "getModuleMetadataMap",
+                      "args": []
+                    },
+                    {
+                      "call": {
+                        "compiler": true
+                      },
+                      "method": "getModuleMap",
+                      "args": []
+                    },
+                    {
+                      "null": true
+                    },
+                    {
+                      "var": "globalTypedScope"
+                    },
+                    {
+                      "field": "chunkOutputType"
+                    }
+                  ]
+                },
+                "method": "process",
+                "args": [
+                  {
+                    "var": "externs"
+                  },
+                  {
+                    "var": "root"
+                  }
+                ]
+              }
+            ],
+            "value": {
+              "null": true
+            }
+          }
+        }
+      },
+      "note": "chunkOutputType is GLOBAL_NAMESPACE (the field initialiser) in every other record, so the trailing `if` is skipped."
+    }
+  ],
+  "note": "getProcessor returns the lambda `(externs, root) -> {...}`; it is written as a DSL lambda (DSL.md \"lambda\") whose body is evaluated at process time, so TypeCheck.processForTesting runs first, then setTypeCheckingHasRun(true), and only then are compiler.getModuleMetadataMap()/getModuleMap() read as Es6RewriteModules' constructor arguments, in the original order. The lambda reads the test field chunkOutputType; the field is never changed during a call (testFieldsAfter is empty for every record), so it is decoded from testFields, and the `if (chunkOutputType == ES_MODULES)` is resolved by case selection on the same field. The `new` expressions are direct, so --mutate-noop Es6RewriteModules (or TypeCheck, ConvertChunksToESModules) reaches them. moduleRoots is read only by getOptions and is replayed from the options diff. The record with processor=null (testImport_missing, a parse error) never calls the lambda."
+}

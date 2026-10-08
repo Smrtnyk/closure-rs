@@ -1,0 +1,13 @@
+{
+  "vacuityNoopClass": "com.google.javascript.jscomp.TypeCheck",
+  "source": "test/com/google/javascript/jscomp/TypeValidatorTest.java getProcessor (lines 47-55), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "helper": "TypeValidatorTest_Helpers.Anon1"
+      }
+    }
+  ],
+  "note": "getProcessor returns the anonymous no-op CompilerPass TypeValidatorTest$1 (recorded processor class), copied verbatim into TypeValidatorTest_Helpers.Anon1. The records test the harness type check (setUp lines 40-45: enableTypeCheck, in harness.fields). Not recorded: the follow-up assertThatRecordedMismatches() checks on getLastCompiler().getTypeMismatches() after test(). Fix-2 (2026-10-07), gate 0.2 (a)/(e) plan: the processor is a no-op by the test's design, so the whole-processor no-op run (--noop-processor) cannot fail any record, and the review-round-2 vacuity rule moves all 50 records to notCaptured. No record has post-call state to compare: testFieldsAfter is empty (the class has no fields), and the postCall snapshot has only compiler.accessorSummary and compiler.moduleMetadataByPath, which the test does not assert. The 8 methods that assert on getLastCompiler().getTypeMismatches() after testWarning are classified rust_unit_test in corpus/unit/postcall/TypeValidatorTest.json. The 50 records come back only through (1) a recorder key compiler.typeMismatches (the (found, required) type pairs of Compiler.getTypeMismatches(), in order), which would capture those 8 methods but would not make the class non-vacuous by itself, and (2) a vacuity rule for classes whose recorded processor is a verbatim no-op, which would mutate the harness pass that produces the expected diagnostics instead. Both are requested in the fix-2 report. Measured: the class-level no-op of com.google.javascript.jscomp.TypeCheck fails 14 of the 22 change-expecting records with a Truth ComparisonFailure. The remaining diagnostics come from TypeValidator calls outside TypeCheck, for example in TypedScopeCreator."
+}

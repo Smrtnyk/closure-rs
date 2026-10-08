@@ -1,0 +1,97 @@
+{
+  "source": "test/com/google/javascript/jscomp/InferJSDocInfoTest.java getProcessor (lines 65-78): an anonymous CompilerPass (InferJSDocInfoTest$1), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "let": [
+          [
+            "compiler",
+            {
+              "compiler": true
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "root"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "scopeCreator",
+                {
+                  "new": "com.google.javascript.jscomp.TypedScopeCreator",
+                  "args": [
+                    {
+                      "var": "compiler"
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.TypeInferencePass",
+                    "args": [
+                      {
+                        "var": "compiler"
+                      },
+                      {
+                        "call": {
+                          "var": "compiler"
+                        },
+                        "method": "getReverseAbstractInterpreter",
+                        "args": []
+                      },
+                      {
+                        "var": "scopeCreator"
+                      }
+                    ]
+                  },
+                  "method": "inferAllScopes",
+                  "args": [
+                    {
+                      "call": {
+                        "var": "root"
+                      },
+                      "method": "getParent",
+                      "args": []
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.InferJSDocInfo",
+                    "args": [
+                      {
+                        "var": "compiler"
+                      }
+                    ]
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "root"
+                    }
+                  ]
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "note": "The anonymous CompilerPass's process(externs, root) is written as a DSL lambda for CompilerPass: it creates a TypedScopeCreator, runs new TypeInferencePass(compiler, compiler.getReverseAbstractInterpreter(), scopeCreator).inferAllScopes(root.getParent()), then new InferJSDocInfo(compiler).process(externs, root). The let binds the getProcessor argument the anonymous class captures. The class declares no instance fields (DeclarationKeyword is a static nested enum used only to build inputs). getOptions (lines 58-63) only sets parseJsDocDocumentation, which the record's options carry; the per-test enableTypeCheck/ignoreWarnings calls are harness fields restored from the record. The tests' follow-up assertions on inferred JSDoc (inferredTypeOfName(...).getJSDocInfo()) inspect the compiler after the call and are not part of the record."
+}

@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckConstantCaseNamesTest.java getProcessor (lines 33-36), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.lint.CheckConstantCaseNames", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "getOptions() (lines 38-43) only adds setWarningLevel(DiagnosticGroups.LINT_CHECKS, WARNING); it is replayed from the recorded options diff (warningsGuard)."
+}

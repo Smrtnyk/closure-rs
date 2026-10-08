@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "class": "com.google.javascript.jscomp.ReplaceMessagesTest",
+  "note": "classify batch 16 (D-015 a); re-checked by classify batch 13 (D-017).",
+  "methods": [
+    {
+      "method": "testProtectedMessagesAndFallbackAreRemovable",
+      "status": "unclassified",
+      "note": "the assertNode(...).isName(...) checks in the same block are implied by the replayed output comparison; the test reads MSG_A's call twice (line 263), so MSG_B's call is not actually checked; classify batch 13 (D-017) re-checked the source and the record's postCall keys",
+      "pending": "D-017 item 1 sideEffectFlags encoding (Review fixer round 1): asserts Node.getSideEffectFlags() == NO_SIDE_EFFECTS on output CALL nodes, the neutral sideEffectFlags encoding; not produced for this record. Captured once the recorder writes it as a postCall key here.",
+      "formerRustUnitTestReason": "asserts Node.getSideEffectFlags() == SideEffectFlags.NO_SIDE_EFFECTS on the CALL nodes that initialise MSG_A and x in the output AST (ReplaceMessagesTest.java:249-270), a Node property; the harness's AST comparison ignores side-effect flags (compareExpectedToActualAsTree uses Node equivalence with SideEffectComparison.IGNORE); the record ran no postcondition (expected.postconditions = 0), so its postCall has no postcondition.sideEffectFlags, and its postCall keys (compiler.accessorSummary, compiler.moduleMetadataByPath, compiler.typeMismatchesError; no pass key) hold no side-effect flags",
+      "formerCategory": "node-identity"
+    }
+  ]
+}

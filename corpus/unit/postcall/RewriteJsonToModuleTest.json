@@ -1,0 +1,55 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.RewriteJsonToModuleTest",
+ "methods": [
+  {
+   "method": "testJsonFile",
+   "status": "captured",
+   "via": [
+    "postCallAbsent.compiler.packageJsonMainEntries"
+   ],
+   "note": "asserts getLastCompiler().getModuleLoader().getPackageJsonMainEntries() isEmpty() after test(); postCall.compiler.packageJsonMainEntries is written only when the map is non-empty (and packageJsonMainEntriesError when the accessor throws), so its absence from the record's postCall.compiler, which replay compares with exact key sets (D-017 item 3), is the asserted empty map"
+  },
+  {
+   "method": "testPackageJsonFile",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.packageJsonMainEntries"
+   ],
+   "note": "asserts getLastCompiler().getModuleLoader().getPackageJsonMainEntries() after test(); the recorder writes it as postCall.compiler.packageJsonMainEntries (Compiler.getModuleLoader().getPackageJsonMainEntries(), present only when non-empty, D-017 item 2), which replay compares by JSON equality: the recorded map holds the asserted entries; recorded {/package.json: /foo/bar/baz.js} covers hasSize(1), containsKey and containsEntry"
+  },
+  {
+   "method": "testPackageJsonWithoutMain",
+   "status": "captured",
+   "via": [
+    "postCallAbsent.compiler.packageJsonMainEntries"
+   ],
+   "note": "asserts getLastCompiler().getModuleLoader().getPackageJsonMainEntries() isEmpty() after test(); postCall.compiler.packageJsonMainEntries is written only when the map is non-empty (and packageJsonMainEntriesError when the accessor throws), so its absence from the record's postCall.compiler, which replay compares with exact key sets (D-017 item 3), is the asserted empty map"
+  },
+  {
+   "method": "testPackageJsonFileBrowserField",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.packageJsonMainEntries"
+   ],
+   "note": "asserts getLastCompiler().getModuleLoader().getPackageJsonMainEntries() after test(); the recorder writes it as postCall.compiler.packageJsonMainEntries (Compiler.getModuleLoader().getPackageJsonMainEntries(), present only when non-empty, D-017 item 2), which replay compares by JSON equality: the recorded map holds the asserted entries; recorded {/package.json: /browser/foo.js} covers containsExactly"
+  },
+  {
+   "method": "testPackageJsonFileBrowserFieldAdvancedUsage",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.packageJsonMainEntries"
+   ],
+   "note": "asserts getLastCompiler().getModuleLoader().getPackageJsonMainEntries() after test(); the recorder writes it as postCall.compiler.packageJsonMainEntries (Compiler.getModuleLoader().getPackageJsonMainEntries(), present only when non-empty, D-017 item 2), which replay compares by JSON equality: the recorded map holds the asserted entries; recorded 5 entries (including /dont/include.js -> ModuleLoader.JSC_BROWSER_SKIPLISTED_MARKER $jscomp$browser$skiplisted) cover hasSize(5) and the five containsEntry"
+  },
+  {
+   "method": "testPackageJsonBrowserFieldAdvancedUsageGH2625",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.packageJsonMainEntries"
+   ],
+   "note": "asserts getLastCompiler().getModuleLoader().getPackageJsonMainEntries() after test(); the recorder writes it as postCall.compiler.packageJsonMainEntries (Compiler.getModuleLoader().getPackageJsonMainEntries(), present only when non-empty, D-017 item 2), which replay compares by JSON equality: the recorded map holds the asserted entries; recorded 3 entries cover containsExactly"
+  }
+ ],
+ "note": "Classify round 2 batch 5 (v7 records, D-017 item 2 key packageJsonMainEntries). The class's recorded processor is an empty CompilerPass, so the whole-processor no-op cannot fail a record; the descriptor names vacuityNoopClass com.google.javascript.jscomp.RewriteJsonToModule (the pass Compiler.processJsonInputs runs right after parsing, in every record's passTrace), whose class-level no-op is the gate's vacuity mutation for this class."
+}

@@ -1,0 +1,14 @@
+{
+  "source": "test/com/google/javascript/jscomp/CollapsePropertiesTest.java getProcessor (lines 53-68): a PhaseOptimizer built with two makePassFactory lambdas, copied verbatim into CollapsePropertiesTestHelpers",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "helper": "CollapsePropertiesTestHelpers.Processor",
+        "outer": ["propertyCollapseLevel"],
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "propertyCollapseLevel (ALL, or MODULE_EXPORT after setupModuleExportsOnly) is read inside the inlineAndCollapseProperties factory lambda at process time from the outer instance; it is restored from testFields as a holder field. customSetUp/setupModuleExportsOnly only change harness fields (normalize, compareJsDoc, genericNameReplacements, processCommonJsModules, transpile), which the replay restores from harness.fields."
+}

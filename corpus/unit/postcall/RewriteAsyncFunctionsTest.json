@@ -1,0 +1,41 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.RewriteAsyncFunctionsTest",
+ "methods": [
+  {
+   "method": "testDefaultParameterUsingThis",
+   "status": "rust_unit_test",
+   "reason": "asserts the Color objects (class instance colors, A.prototype.m's color, registry ARGUMENTS color, StandardColors) on alias and super-wrapper nodes of the output AST after test(); colors are compiler-internal, not in any postCall key, test field or postcondition, and Node.isEquivalentTo ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/RewriteAsyncFunctionsTest.md",
+   "category": "color"
+  },
+  {
+   "method": "testInnerArrowFunctionUsingThis",
+   "status": "rust_unit_test",
+   "reason": "asserts the Color objects (class instance colors, A.prototype.m's color, registry ARGUMENTS color, StandardColors) on alias and super-wrapper nodes of the output AST after test(); colors are compiler-internal, not in any postCall key, test field or postcondition, and Node.isEquivalentTo ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/RewriteAsyncFunctionsTest.md",
+   "category": "color"
+  },
+  {
+   "method": "testInnerSuperCall",
+   "status": "rust_unit_test",
+   "reason": "asserts the Color objects (class instance colors, A.prototype.m's color, registry ARGUMENTS color, StandardColors) on alias and super-wrapper nodes of the output AST after test(); colors are compiler-internal, not in any postCall key, test field or postcondition, and Node.isEquivalentTo ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/RewriteAsyncFunctionsTest.md",
+   "category": "color"
+  },
+  {
+   "method": "testInnerSuperReference",
+   "status": "rust_unit_test",
+   "reason": "asserts the Color objects (class instance colors, A.prototype.m's color, registry ARGUMENTS color, StandardColors) on alias and super-wrapper nodes of the output AST after test(); colors are compiler-internal, not in any postCall key, test field or postcondition, and Node.isEquivalentTo ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/RewriteAsyncFunctionsTest.md",
+   "category": "color"
+  },
+  {
+   "method": "testInnerArrowFunctionUsingArguments",
+   "status": "rust_unit_test",
+   "reason": "asserts the Color objects (class instance colors, A.prototype.m's color, registry ARGUMENTS color, StandardColors) on alias and super-wrapper nodes of the output AST after test(); colors are compiler-internal, not in any postCall key, test field or postcondition, and Node.isEquivalentTo ignores them",
+   "fragment": "corpus/unit/rust_unit_tests/RewriteAsyncFunctionsTest.md",
+   "category": "color"
+  }
+ ]
+}

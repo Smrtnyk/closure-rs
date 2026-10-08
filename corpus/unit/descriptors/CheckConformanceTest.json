@@ -1,0 +1,318 @@
+{
+ "source": "test/com/google/javascript/jscomp/CheckConformanceTest.java getProcessor (lines 96-117)",
+ "cases": [
+  {
+   "when": {
+    "testFields.baseConfiguration": {
+     "isNull": false
+    },
+    "testFields.extendingConfiguration": {
+     "isNull": false
+    }
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.CheckConformance",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "list": [
+       {
+        "static": "com.google.protobuf.TextFormat",
+        "method": "parse",
+        "args": [
+         {
+          "field": "configuration"
+         },
+         {
+          "static": "java.lang.Class",
+          "method": "forName",
+          "args": [
+           {
+            "string": "com.google.javascript.jscomp.ConformanceConfig"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "static": "com.google.protobuf.TextFormat",
+        "method": "parse",
+        "args": [
+         {
+          "field": "baseConfiguration"
+         },
+         {
+          "static": "java.lang.Class",
+          "method": "forName",
+          "args": [
+           {
+            "string": "com.google.javascript.jscomp.ConformanceConfig"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "static": "com.google.protobuf.TextFormat",
+        "method": "parse",
+        "args": [
+         {
+          "field": "extendingConfiguration"
+         },
+         {
+          "static": "java.lang.Class",
+          "method": "forName",
+          "args": [
+           {
+            "string": "com.google.javascript.jscomp.ConformanceConfig"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "field": "reportingMode"
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "testFields.baseConfiguration": {
+     "isNull": false
+    },
+    "testFields.extendingConfiguration": {
+     "isNull": true
+    }
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.CheckConformance",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "list": [
+       {
+        "static": "com.google.protobuf.TextFormat",
+        "method": "parse",
+        "args": [
+         {
+          "field": "configuration"
+         },
+         {
+          "static": "java.lang.Class",
+          "method": "forName",
+          "args": [
+           {
+            "string": "com.google.javascript.jscomp.ConformanceConfig"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "static": "com.google.protobuf.TextFormat",
+        "method": "parse",
+        "args": [
+         {
+          "field": "baseConfiguration"
+         },
+         {
+          "static": "java.lang.Class",
+          "method": "forName",
+          "args": [
+           {
+            "string": "com.google.javascript.jscomp.ConformanceConfig"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "call": {
+         "static": "com.google.javascript.jscomp.ConformanceConfig",
+         "method": "newBuilder",
+         "args": []
+        },
+        "method": "build",
+        "args": []
+       }
+      ]
+     },
+     {
+      "field": "reportingMode"
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "testFields.baseConfiguration": {
+     "isNull": true
+    },
+    "testFields.extendingConfiguration": {
+     "isNull": false
+    }
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.CheckConformance",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "list": [
+       {
+        "static": "com.google.protobuf.TextFormat",
+        "method": "parse",
+        "args": [
+         {
+          "field": "configuration"
+         },
+         {
+          "static": "java.lang.Class",
+          "method": "forName",
+          "args": [
+           {
+            "string": "com.google.javascript.jscomp.ConformanceConfig"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "call": {
+         "static": "com.google.javascript.jscomp.ConformanceConfig",
+         "method": "newBuilder",
+         "args": []
+        },
+        "method": "build",
+        "args": []
+       },
+       {
+        "static": "com.google.protobuf.TextFormat",
+        "method": "parse",
+        "args": [
+         {
+          "field": "extendingConfiguration"
+         },
+         {
+          "static": "java.lang.Class",
+          "method": "forName",
+          "args": [
+           {
+            "string": "com.google.javascript.jscomp.ConformanceConfig"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "field": "reportingMode"
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "testFields.baseConfiguration": {
+     "isNull": true
+    },
+    "testFields.extendingConfiguration": {
+     "isNull": true
+    }
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.CheckConformance",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "list": [
+       {
+        "static": "com.google.protobuf.TextFormat",
+        "method": "parse",
+        "args": [
+         {
+          "field": "configuration"
+         },
+         {
+          "static": "java.lang.Class",
+          "method": "forName",
+          "args": [
+           {
+            "string": "com.google.javascript.jscomp.ConformanceConfig"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "call": {
+         "static": "com.google.javascript.jscomp.ConformanceConfig",
+         "method": "newBuilder",
+         "args": []
+        },
+        "method": "build",
+        "args": []
+       },
+       {
+        "call": {
+         "static": "com.google.javascript.jscomp.ConformanceConfig",
+         "method": "newBuilder",
+         "args": []
+        },
+        "method": "build",
+        "args": []
+       }
+      ]
+     },
+     {
+      "field": "reportingMode"
+     }
+    ]
+   }
+  }
+ ],
+ "note": "getProcessor merges each text-format config into a fresh ConformanceConfig.Builder and builds it; a null baseConfiguration/extendingConfiguration leaves its builder empty. TextFormat.parse(text, ConformanceConfig.class) is protobuf's own newBuilderForType()+merge(text, builder)+build() (identical bytecode path to the test's TextFormat.merge into ConformanceConfig.newBuilder()), and an unset config is ConformanceConfig.newBuilder().build(), exactly as in the test. A ParseException surfaces as RuntimeException(cause) in both the test and the DSL. The class literal ConformanceConfig.class is written as Class.forName(name), since the DSL has no class-literal expression. testCustom4-7 name java_class CheckConformanceTest$CustomRuleMissingPublicConstructor / $CustomRule / $CustomRuleReport, which compiler code loads with Class.forName (classMap cannot reach it). Review round 2: these records (indexes 253-256) are descriptor-unrepresentable, because any stand-in class would carry a binary name nested under the original *Test class CheckConformanceTest, which rule 6 forbids; the former verbatim helper CheckConformanceTest_CustomRules.java was removed (archived under build/review-r2-archive/). testCustom3 remains unrepresentable (see 'unrepresentable').",
+ "unrepresentable": [
+  {
+   "index": 252,
+   "method": "testCustom3",
+   "call": 0,
+   "reason": "the conformance config names java_class 'com.google.javascript.jscomp.CheckConformanceTest', and the recorded diagnostic ('JavaClass is not a rule.') requires ConformanceRules.CustomRule.getRuleClass's Class.forName to find a class with exactly that name that is not a Rule. That class is the original test class itself, which rule 6 keeps off the replay classpath, and any stand-in would itself be a class named CheckConformanceTest (a *Test class). Replay reports 'JavaClass not found.' instead. Changing the config would change the recorded input and the diagnostic text, which embeds the class name."
+  },
+  {
+   "index": 253,
+   "method": "testCustom4",
+   "call": 0,
+   "reason": "the conformance config names java_class 'com.google.javascript.jscomp.CheckConformanceTest$CustomRuleMissingPublicConstructor', which compiler code loads with Class.forName. That binary name is nested under the original *Test class CheckConformanceTest, and rule 6 (Review round 2) forbids any replay-classpath class whose binary name equals or is nested under an original *Test class, whatever its source file. Changing the config would change the recorded input and diagnostics. Same treatment as testCustom3."
+  },
+  {
+   "index": 254,
+   "method": "testCustom5",
+   "call": 0,
+   "reason": "the conformance config names java_class 'com.google.javascript.jscomp.CheckConformanceTest$CustomRule', which compiler code loads with Class.forName. That binary name is nested under the original *Test class CheckConformanceTest, and rule 6 (Review round 2) forbids any replay-classpath class whose binary name equals or is nested under an original *Test class, whatever its source file. Changing the config would change the recorded input and diagnostics. Same treatment as testCustom3."
+  },
+  {
+   "index": 255,
+   "method": "testCustom6",
+   "call": 0,
+   "reason": "the conformance config names java_class 'com.google.javascript.jscomp.CheckConformanceTest$CustomRule', which compiler code loads with Class.forName. That binary name is nested under the original *Test class CheckConformanceTest, and rule 6 (Review round 2) forbids any replay-classpath class whose binary name equals or is nested under an original *Test class, whatever its source file. Changing the config would change the recorded input and diagnostics. Same treatment as testCustom3."
+  },
+  {
+   "index": 256,
+   "method": "testCustom7",
+   "call": 0,
+   "reason": "the conformance config names java_class 'com.google.javascript.jscomp.CheckConformanceTest$CustomRuleReport', which compiler code loads with Class.forName. That binary name is nested under the original *Test class CheckConformanceTest, and rule 6 (Review round 2) forbids any replay-classpath class whose binary name equals or is nested under an original *Test class, whatever its source file. Changing the config would change the recorded input and diagnostics. Same treatment as testCustom3."
+  }
+ ]
+}

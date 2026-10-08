@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es7RewriteExponentialOperatorTest.java getProcessor (lines 46-49), bb8c8e7; setUp (lines 31-40: enableTypeInfoValidation, enableTypeCheck, replaceTypesWithColors, enableNormalize, enableMultistageCompilation) and the per-test setAcceptedLanguage/setLanguageOut/disableTypeCheck/disableTypeInfoValidation calls are harness fields restored from the record; the constructor's TestExternsBuilder externs (addMath) reach the record as inputs.externs",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.Es7RewriteExponentialOperator", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "The test class declares no instance fields; getProcessor is unconditional."
+}

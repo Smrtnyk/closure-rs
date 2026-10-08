@@ -1,0 +1,12 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckGoogModuleTypeScriptNameTest.java getProcessor (lines 36-39). getOptions (lines 41-46) affects only options, which come from the record.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.lint.CheckGoogModuleTypeScriptName",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

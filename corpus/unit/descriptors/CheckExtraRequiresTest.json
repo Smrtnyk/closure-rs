@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckExtraRequiresTest.java getProcessor (lines 48-51), bb8c8e7. getOptions (lines 40-46: EXTRA_REQUIRE at ERROR, MODULE_LOAD OFF) is captured by the record's options.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.lint.CheckExtraRequires",
+        "args": [{"compiler": true}, {"null": true}]
+      }
+    }
+  ],
+  "note": "The test class declares no fields; getProcessor is unconditional."
+}

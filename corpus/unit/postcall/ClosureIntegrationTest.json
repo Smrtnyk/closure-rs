@@ -1,0 +1,109 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.integration.ClosureIntegrationTest",
+ "methods": [
+  {
+   "method": "testCrossChunkDepCheck_forProvide_withRequire",
+   "status": "captured",
+   "note": "Source lines 1502-1524. After compile() (record api 'compile', 1 record) the test asserts no error, exactly 1 warning, and DiagnosticGroups.STRICT_MODULE_DEP_CHECK matches that warning (by its type key JSC_XMODULE_REQUIRE_ERROR, recorded in observed.warnings[0].key). That state is the record's observed.errors, observed.warnings; Java replay compares every recorded observed key JSON-equal and the record must pass, which gate (a) verifies for the claim.",
+   "via": [
+    "observed.errors",
+    "observed.warnings"
+   ]
+  },
+  {
+   "method": "testCrossChunkDepCheck_inModule_withRequire",
+   "status": "captured",
+   "note": "Source lines 1477-1500. After compile() (record api 'compile', 1 record) the test asserts no error, exactly 1 warning, and DiagnosticGroups.STRICT_MODULE_DEP_CHECK matches that warning (by its type key JSC_XMODULE_REQUIRE_ERROR, recorded in observed.warnings[0].key). That state is the record's observed.errors, observed.warnings; Java replay compares every recorded observed key JSON-equal and the record must pass, which gate (a) verifies for the claim.",
+   "via": [
+    "observed.errors",
+    "observed.warnings"
+   ]
+  },
+  {
+   "method": "testEsModuleInterop_esModuleUsingGoogRequireType",
+   "status": "captured",
+   "note": "Source lines 156-186. After compile() (record api 'compile', 1 record) the test asserts the warnings are exactly one with the given type-mismatch description (DESCRIPTION_EQUALITY) and there is no error. That state is the record's observed.errors, observed.warnings; Java replay compares every recorded observed key JSON-equal and the record must pass, which gate (a) verifies for the claim.",
+   "via": [
+    "observed.errors",
+    "observed.warnings"
+   ]
+  },
+  {
+   "method": "testFileoverviewVisibility_overridenOnLegacyGoogModuleExport",
+   "status": "captured",
+   "note": "Source lines 1819-1867. After compile() (record api 'compile', 1 record) the test asserts no warning, exactly 1 error, whose description contains 'Access to package-private property protectedMethod'. That state is the record's observed.errors, observed.warnings; Java replay compares every recorded observed key JSON-equal and the record must pass, which gate (a) verifies for the claim.",
+   "via": [
+    "observed.errors",
+    "observed.warnings"
+   ]
+  },
+  {
+   "method": "testFunctionDeclarationInGoogScope_usingGoogModuleGetType",
+   "status": "captured",
+   "note": "Source lines 121-154. After compile() (record api 'compile', 1 record) the test asserts the warnings are exactly one with the given type-mismatch description (DESCRIPTION_EQUALITY) and there is no error. That state is the record's observed.errors, observed.warnings; Java replay compares every recorded observed key JSON-equal and the record must pass, which gate (a) verifies for the claim.",
+   "via": [
+    "observed.errors",
+    "observed.warnings"
+   ]
+  },
+  {
+   "method": "testGoogDefine_missingDefineAnnotationErrors_checksOnly",
+   "status": "captured",
+   "note": "Source lines 719-731. After compile() (record api 'compile', 1 record) the test asserts exactly 1 error, whose description contains '@define'. That state is the record's observed.errors; Java replay compares every recorded observed key JSON-equal and the record must pass, which gate (a) verifies for the claim.",
+   "via": [
+    "observed.errors"
+   ]
+  },
+  {
+   "method": "testGoogForwardDeclareInExterns_doesNotBlockVariableRenaming",
+   "status": "captured",
+   "note": "Source lines 1589-1605. After compile() (record api 'compile', 1 record) the test asserts lastCompiler.toSource() starts with 'var a;' (observed.output is compiler.toSource(), FORMAT.md). That state is the record's observed.output; Java replay compares every recorded observed key JSON-equal and the record must pass, which gate (a) verifies for the claim.",
+   "via": [
+    "observed.output"
+   ]
+  },
+  {
+   "method": "testReferencingMangledModuleNames_rewriteModulesAfterTypechecking",
+   "status": "captured",
+   "note": "Source lines 94-119. After compile() (record api 'compile', 1 record) the test asserts the warnings are exactly the two 'Bad type annotation. Unknown type ...' descriptions (DESCRIPTION_EQUALITY). That state is the record's observed.warnings; Java replay compares every recorded observed key JSON-equal and the record must pass, which gate (a) verifies for the claim.",
+   "via": [
+    "observed.warnings"
+   ]
+  },
+  {
+   "method": "testReferencingMangledModuleNames_rewriteModulesBeforeTypechecking",
+   "status": "captured",
+   "note": "Source lines 68-92. After compile() (record api 'compile', 1 record) the test asserts the warnings are exactly the two 'Bad type annotation. Unknown type ...' descriptions (DESCRIPTION_EQUALITY). That state is the record's observed.warnings; Java replay compares every recorded observed key JSON-equal and the record must pass, which gate (a) verifies for the claim.",
+   "via": [
+    "observed.warnings"
+   ]
+  },
+  {
+   "method": "testTypecheckClass_assignedInNestedAssignInGoogModule",
+   "status": "captured",
+   "note": "Source lines 1720-1745. After compile() (record api 'compile', 1 record) the test asserts errors + warnings count is 0 (checkUnexpectedErrorsOrWarnings(lastCompiler, 0)). That state is the record's observed.errors, observed.warnings; Java replay compares every recorded observed key JSON-equal and the record must pass, which gate (a) verifies for the claim.",
+   "via": [
+    "observed.errors",
+    "observed.warnings"
+   ]
+  },
+  {
+   "method": "testTypedefChildProvide_withTypechecking",
+   "status": "captured",
+   "note": "Source lines 643-661. After compile() (record api 'compile', 1 record) the test asserts exactly 1 error, whose description contains 'provide foo.Bar.Type'. That state is the record's observed.errors; Java replay compares every recorded observed key JSON-equal and the record must pass, which gate (a) verifies for the claim.",
+   "via": [
+    "observed.errors"
+   ]
+  },
+  {
+   "method": "testGetOriginalQualifiedNameAfterEs6RewriteClasses",
+   "status": "rust_unit_test",
+   "reason": "after test() (record api 'test', 1 record) asserts Node.getOriginalQualifiedName() == 'Foo.method' and Node.getOriginalName() == 'method' on the callee GETPROP `module$contents$a_Foo.method` of the CALL in Bar.prototype.foo of the compiled AST (lastCompiler.getRoot()); original names are a Java Node property that neither the AST comparison nor observed.output (toSource) represents; integration records have no postCall snapshot, so no postCall key is carried",
+   "fragment": "corpus/unit/rust_unit_tests/ClosureIntegrationTest.md",
+   "note": "Source lines 1354-1396. The FUNCTION and CALL token checks on the path to that node are implied by the recorded expected-output comparison; the two original-name assertions are not, so the record is excluded from (a) counting and the assertions are a Rust unit test.",
+   "category": "node-identity"
+  }
+ ],
+ "note": "Classify round 1, batch 4. 11 of the 12 flagged methods call compile() (api 'compile') and then assert only on the compiler's errors, warnings or toSource(); the record holds exactly that state in observed.errors / observed.warnings / observed.output and Java replay compares it JSON-equal, so these assertions are representable. They are rust_unit_test only as an interim classification (records stay excluded, nothing is counted green) because replay forces api=compile records notCaptured and the postcall schema has no observed.* claim; see the harness request. testGetOriginalQualifiedNameAfterEs6RewriteClasses is a genuine Rust unit test (Node original-name properties)."
+}

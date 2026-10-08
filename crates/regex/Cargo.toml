@@ -1,0 +1,18 @@
+[package]
+name = "closure-regex"
+description = "Port of com.google.javascript.jscomp.regex (RegExpTree, CharRanges, CaseCanonicalize)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+closure-rhino = { path = "../rhino" }
+indexmap = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

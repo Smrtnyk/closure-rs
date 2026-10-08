@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/CoalesceVariableNamesTest.java getProcessor (lines 41-53; anonymous CompilerPass CoalesceVariableNamesTest$1 reading the field usePseudoName), replayed through helper CoalesceVariableNamesTest_Helpers.GetProcessor with usePseudoName restored from testFields. setUp (lines 34-39) only resets usePseudoName, which comes from the record.",
+  "cases": [
+    {
+      "when": {"instanceClass": "com.google.javascript.jscomp.CoalesceVariableNamesTest"},
+      "processor": {
+        "call": {"helper": "CoalesceVariableNamesTest_Helpers.GetProcessor", "outer": ["usePseudoName"]},
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

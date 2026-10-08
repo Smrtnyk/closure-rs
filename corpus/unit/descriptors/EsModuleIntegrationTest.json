@@ -1,0 +1,1 @@
+{"source":"IntegrationTestCase subclass (test/com/google/javascript/jscomp/integration/EsModuleIntegrationTest.java, bb8c8e7): records replay through ReplayIntegrationTest; options are built inline in each test and come from the record, there is no processor.","cases":[]}

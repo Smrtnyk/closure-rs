@@ -1,0 +1,24 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.CheckRegExpTest",
+ "methods": [
+  {
+   "method": "testRegExp",
+   "status": "captured",
+   "via": ["postCall.pass.globalRegExpPropertiesUsed"],
+   "note": "testReference (source lines 61-68) asserts last.isGlobalRegExpPropertiesUsed() after each hooked call; the CheckRegExp producer key pass.globalRegExpPropertiesUsed is in every record's postCall and replay compares it. The descriptor's testFieldsAfter opt-in compares no field (empty compared set), so the method is no longer captured mechanically."
+  },
+  {
+   "method": "testCanAssumeAllGlobalRegexpUsagesVisible",
+   "status": "captured",
+   "via": ["postCall.pass.globalRegExpPropertiesUsed"],
+   "note": "Source lines 156-163: after testSame(\"\") with assumeAllGlobalRegexpUsagesVisible = true the only assertion is assertThat(last.isGlobalRegExpPropertiesUsed()).isFalse(). `last` is the CheckRegExp getProcessor built; its isGlobalRegExpPropertiesUsed() result is exactly the producer key pass.globalRegExpPropertiesUsed (FORMAT.md 'Post-call snapshot': producer CheckRegExp, accessor isGlobalRegExpPropertiesUsed()). The method's single record carries it (false) and replay compares postCall by exact JSON equality."
+  },
+  {
+   "method": "testCannotAssumeAllGlobalRegexpUsagesVisible",
+   "status": "captured",
+   "via": ["postCall.pass.globalRegExpPropertiesUsed"],
+   "note": "Source lines 165-172: after testSame(\"\") with assumeAllGlobalRegexpUsagesVisible = false the only assertion is assertThat(last.isGlobalRegExpPropertiesUsed()).isTrue(). The accessor's result is the producer key pass.globalRegExpPropertiesUsed, recorded as true in the method's single record (the testFieldsAfter.last dump shows the raw field globalRegExpPropertiesUsed = false, because the accessor also returns true when usages cannot be assumed visible; the snapshot key holds the accessor's value, which is what the test asserts). Replay compares postCall by exact JSON equality."
+  }
+ ]
+}

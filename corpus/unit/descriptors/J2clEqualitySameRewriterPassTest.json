@@ -1,0 +1,32 @@
+{
+  "source": "test/com/google/javascript/jscomp/J2clEqualitySameRewriterPassTest.java getProcessor (lines 49-53), createCompiler (lines 55-60), setUp (lines 39-47) and constructor (lines 35-37), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {
+          "list": [
+            {
+              "static": "com.google.javascript.jscomp.J2clSourceFileChecker",
+              "method": "markToRunJ2clPasses",
+              "args": [{"compiler": true}]
+            },
+            {
+              "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+              "args": [
+                {"compiler": true},
+                {"record": "harness.effective.getName"},
+                {"array": "com.google.javascript.jscomp.AbstractPeepholeOptimization", "items": [
+                  {"new": "com.google.javascript.jscomp.J2clEqualitySameRewriterPass", "args": [{"field": "useTypes"}]}
+                ]}
+              ]
+            }
+          ]
+        },
+        "method": "get",
+        "args": [{"int": 1}]
+      }
+    }
+  ],
+  "note": "getProcessor reads only the test field useTypes (recorded as a boolean in every record: false after setUp, true in the six methods that set it: testRewriteEqualitySame_useColors, testNotRewriteEqualitySame_useColors, testRewriteFunction, testRewriteTopObject_skippedToAvoidRewritingGBigint, testRewriteGBigInt_skipped and testRewriteInterface_optimized) and getName(); the varargs parameter is passed as an AbstractPeepholeOptimization[] array. setUp's enableTypeCheck/replaceTypesWithColors/disableCompareJsDoc (and the per-test repeats of the last two) and the constructor's super(MINIMAL_EXTERNS + EXTERN) (defaultExternsInputs) are restored from harness.fields. The createCompiler override returns a plain Compiler (harness.effective.createCompiler) after J2clSourceFileChecker.markToRunJ2clPasses(compiler), which only sets the compiler's runJ2clPasses flag; without it J2clEqualitySameRewriterPass.beginTraversal records shouldRunJ2clPasses=false and optimizeSubtree never rewrites. The DSL has no createCompiler hook, so (as in J2clClinitPrunerPassTest, batch 27) the descriptor makes the same call on the same compiler from getProcessor: the list evaluates its items in order (the void markToRunJ2clPasses call yields null, then the pass) and get(1) returns the pass. Equivalent because the flag's only readers in src/ are the J2CL passes and ProcessDefines; between createCompiler and getProcessor the harness only parses, type-checks and converts types to colors, none of which reads the flag; the call is idempotent (getNumRepetitions is 1). The expected-output parse uses a separate createCompiler() compiler that runs no J2CL pass, so its missing flag is unobservable."
+}

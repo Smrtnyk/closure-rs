@@ -1,0 +1,12 @@
+{
+  "source": "test/com/google/javascript/jscomp/CollapseVariableDeclarationsTest.java getProcessor (lines 165-168)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.CollapseVariableDeclarations",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

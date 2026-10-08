@@ -1,0 +1,94 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckMissingRequiresTest.java getProcessor (lines 30-39): it returns a lambda (externs, root) -> { GatherModuleMetadata(compiler, false, ResolutionMode.BROWSER).process; new CheckMissingRequires(compiler, compiler.getModuleMetadataMap()).process }, written here with the DSL \"pass built at process time\" pattern (DSL.md Patterns); the let binding of compiler models the lambda's capture. getOptions (lines 41-46) affects only options, which come from the record.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "let": [
+          [
+            "compiler",
+            {
+              "compiler": true
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "root"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "gatherModuleMetadata",
+                {
+                  "new": "com.google.javascript.jscomp.GatherModuleMetadata",
+                  "args": [
+                    {
+                      "var": "compiler"
+                    },
+                    {
+                      "bool": false
+                    },
+                    {
+                      "enum": "com.google.javascript.jscomp.deps.ModuleLoader$ResolutionMode",
+                      "name": "BROWSER"
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "call": {
+                    "var": "gatherModuleMetadata"
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "root"
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.CheckMissingRequires",
+                    "args": [
+                      {
+                        "var": "compiler"
+                      },
+                      {
+                        "call": {
+                          "var": "compiler"
+                        },
+                        "method": "getModuleMetadataMap",
+                        "args": []
+                      }
+                    ]
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "root"
+                    }
+                  ]
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

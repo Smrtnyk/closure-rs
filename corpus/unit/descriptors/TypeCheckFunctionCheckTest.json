@@ -1,0 +1,18 @@
+{
+  "vacuityNoopClass": "com.google.javascript.jscomp.TypeCheck",
+  "source": "test/com/google/javascript/jscomp/TypeCheckFunctionCheckTest.java getProcessor (lines 36-42): an anonymous no-op CompilerPass (TypeCheckFunctionCheckTest$1), copied verbatim as helper TypeCheckFunctionCheckTest_Helpers.GetProcessorPass, bb8c8e7",
+  "classMap": {
+    "com.google.javascript.jscomp.TypeCheckFunctionCheckTest$1": "com.google.javascript.jscomp.TypeCheckFunctionCheckTest_Helpers$GetProcessorPass"
+  },
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "helper": "TypeCheckFunctionCheckTest_Helpers.GetProcessorPass",
+        "args": []
+      }
+    }
+  ],
+  "note": "The pass under test does nothing: every diagnostic comes from the harness's own type check (setUp: enableParseTypeInfo, enableTypeCheck; restored from harness.fields). getCodingConvention() returns the test field `convention` (GoogleCodingConvention from setUp; CodingConventions.getDefault() in testFunctionWithDefaultCodingConvention). Its only effect is CompilerTestCase.getOptions() line 376, options.setCodingConvention(getCodingConvention()), so it is replayed from the recorded options.codingConvention, which dumps the full proxy chain (GoogleCodingConvention -> ClosureCodingConvention -> CodingConventions$DefaultCodingConvention) and is decodable. The record-level `unrepresentable` entry (test.convention.Proxy.nextConvention.Proxy.nextConvention, 42 records) is in testFields.convention only, which this descriptor never reads; it does not affect replay.",
+  "noteVacuity": "Informational only (gate 0.2 does not read this key; it is not a vacuityAudit). Classify batch 0, 2026-10-07: the class has no method flagged by the post-call scan (every assertion is inside the hooked testSame/testWarning/test calls) and no test-instance state changes during a call (testFieldsAfter is {} in all 45 records), so there is no post-call state to capture. getProcessor is a verbatim no-op pass: the behaviour under test is the harness's own TypeCheck (enableTypeCheck), so the whole-processor no-op run cannot fail any record and the class is vacuous by construction; its 45 records stay notCaptured under the mechanical rule (excluded from (a), counted toward the 3% exclusion cap and (e)). Measured with scripts/unit_replay.sh --mutate-noop com.google.javascript.jscomp.TypeCheck (class-level NoopAgent; process, shouldTraverse and visit rewritten): 18 of the 21 diagnostic-expecting records fail with assertion-type failures (missing WRONG_ARGUMENT_COUNT / CONSTRUCTOR_NOT_CALLABLE warnings); the 3 that pass expect FunctionTypeBuilder diagnostics (VAR_ARGS_MUST_BE_LAST, OPTIONAL_ARG_AT_END) reported while the type registry is built, outside TypeCheck's rewritten entry points; the 24 no-change records pass, as expected. Keeping these records counted needs a gate rule that measures the harness-run pass instead of the no-op processor (requested via harness_requests, classify batch 0); no descriptor-side change can honestly do it."
+}

@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/ExtractPrototypeMemberDeclarationsTest.java getProcessor (lines 45-48), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ExtractPrototypeMemberDeclarations",
+        "args": [{"compiler": true}, {"field": "pattern"}]
+      }
+    }
+  ],
+  "note": "pattern is always recorded as an ExtractPrototypeMemberDeclarations$Pattern enum (USE_GLOBAL_TEMP from setUp; USE_IIFE / USE_CHUNK_TEMP set by individual tests). setUp's enableNormalize/enableNormalizeExpectedOutput are in harness.fields."
+}

@@ -1,0 +1,18 @@
+{
+  "v": 1,
+  "class": "com.google.javascript.jscomp.J2clSourceFileCheckerTest",
+  "methods": [
+    {
+      "method": "testShouldRunJ2clPassesWithoutJ2clSources",
+      "status": "captured",
+      "via": ["postCallAbsent.compiler.runJ2clPasses"],
+      "note": "the test asserts J2clSourceFileChecker.shouldRunJ2clPasses(compiler) is false after testSame(\"\"); shouldRunJ2clPasses returns Compiler.runJ2clPasses(), the boolean the pass sets with compiler.setRunJ2clPasses(true) only for a *.java.js script. The snapshot writes postCall.compiler.runJ2clPasses only when that boolean is true (FORMAT.md 'Post-call snapshot'), so false is exactly the absence of the key; the record's postCall.compiler has no runJ2clPasses key (and no runJ2clPassesError), and ReplayMain compares postCall key sets exactly (D-017 item 3), so a replay in which the flag became true fails the record with 'postCall differs'. The record's testFieldsAfter key 'compiler' (the test field the getProcessor override assigns) is only a class-name reference and holds nothing the assertion reads."
+    },
+    {
+      "method": "testShouldRunJ2clPassesWithJ2clSources",
+      "status": "captured",
+      "via": ["postCall.compiler.runJ2clPasses"],
+      "note": "the test asserts J2clSourceFileChecker.shouldRunJ2clPasses(compiler) is true, i.e. Compiler.runJ2clPasses(), the flag the pass sets for the script jar:file://foo.js.zip!foo/bar.impl.java.js; the recorded postCall holds compiler.runJ2clPasses = true and replay compares the whole postCall (under the whole-processor no-op the key is missing and the record fails with 'postCall differs')."
+    }
+  ]
+}

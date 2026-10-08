@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/OptimizeConstructorsTest.java getProcessor (lines 31-34), bb8c8e7; setUp (lines 36-44) only calls enableNormalize/enableNormalizeExpectedOutput/enableGatherExternProperties, which are restored from harness.fields; the constructor's externs are the record's inputs",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.OptimizeConstructors",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": "The test class has no fields; one unconditional case covers every record."
+}

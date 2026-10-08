@@ -1,0 +1,6123 @@
+[
+  {
+    "input": "[]",
+    "result": {
+      "files": [],
+      "output": [
+        91,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[null]",
+    "result": {
+      "files": [
+        null
+      ],
+      "output": [
+        91,
+        110,
+        117,
+        108,
+        108,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[null,{}]",
+    "result": {
+      "files": [
+        null,
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        110,
+        117,
+        108,
+        108,
+        44,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":\"x\",\"path\":\"a.js\",\"source_map\":\"map\",\"webpack_id\":\"0\"}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            120
+          ],
+          "path": [
+            97,
+            46,
+            106,
+            115
+          ],
+          "source_map": [
+            109,
+            97,
+            112
+          ],
+          "webpack_id": [
+            48
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        120,
+        34,
+        44,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        97,
+        46,
+        106,
+        115,
+        34,
+        44,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        109,
+        97,
+        112,
+        34,
+        44,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        48,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":null}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":null}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":null}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":null}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":null}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":null}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":null}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":true}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            116,
+            114,
+            117,
+            101
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        116,
+        114,
+        117,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":true}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            116,
+            114,
+            117,
+            101
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        116,
+        114,
+        117,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":true}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            116,
+            114,
+            117,
+            101
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        116,
+        114,
+        117,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":true}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            116,
+            114,
+            117,
+            101
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        116,
+        114,
+        117,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":true}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            116,
+            114,
+            117,
+            101
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        116,
+        114,
+        117,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":true}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            116,
+            114,
+            117,
+            101
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        116,
+        114,
+        117,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":true}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":false}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            102,
+            97,
+            108,
+            115,
+            101
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        102,
+        97,
+        108,
+        115,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":false}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            102,
+            97,
+            108,
+            115,
+            101
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        102,
+        97,
+        108,
+        115,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":false}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            102,
+            97,
+            108,
+            115,
+            101
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        102,
+        97,
+        108,
+        115,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":false}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            102,
+            97,
+            108,
+            115,
+            101
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        102,
+        97,
+        108,
+        115,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":false}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            102,
+            97,
+            108,
+            115,
+            101
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        102,
+        97,
+        108,
+        115,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":false}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            102,
+            97,
+            108,
+            115,
+            101
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        102,
+        97,
+        108,
+        115,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":false}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":TRUE}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            116,
+            114,
+            117,
+            101
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        116,
+        114,
+        117,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":TRUE}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            116,
+            114,
+            117,
+            101
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        116,
+        114,
+        117,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":TRUE}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            116,
+            114,
+            117,
+            101
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        116,
+        114,
+        117,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":TRUE}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            116,
+            114,
+            117,
+            101
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        116,
+        114,
+        117,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":TRUE}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            116,
+            114,
+            117,
+            101
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        116,
+        114,
+        117,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":TRUE}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            116,
+            114,
+            117,
+            101
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        116,
+        114,
+        117,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":TRUE}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":FALSE}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            102,
+            97,
+            108,
+            115,
+            101
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        102,
+        97,
+        108,
+        115,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":FALSE}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            102,
+            97,
+            108,
+            115,
+            101
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        102,
+        97,
+        108,
+        115,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":FALSE}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            102,
+            97,
+            108,
+            115,
+            101
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        102,
+        97,
+        108,
+        115,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":FALSE}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            102,
+            97,
+            108,
+            115,
+            101
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        102,
+        97,
+        108,
+        115,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":FALSE}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            102,
+            97,
+            108,
+            115,
+            101
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        102,
+        97,
+        108,
+        115,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":FALSE}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            102,
+            97,
+            108,
+            115,
+            101
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        102,
+        97,
+        108,
+        115,
+        101,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":FALSE}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":1}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            49
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":1}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            49
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":1}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            49
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":1}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            49
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":1}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            49
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":1}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            49
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":1}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":-0}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            45,
+            48
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        45,
+        48,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":-0}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            45,
+            48
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        45,
+        48,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":-0}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            45,
+            48
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        45,
+        48,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":-0}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            45,
+            48
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        45,
+        48,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":-0}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            45,
+            48
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        45,
+        48,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":-0}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            45,
+            48
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        45,
+        48,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":-0}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":1e3}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            49,
+            101,
+            51
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        49,
+        101,
+        51,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":1e3}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            49,
+            101,
+            51
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        49,
+        101,
+        51,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":1e3}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            49,
+            101,
+            51
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        49,
+        101,
+        51,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":1e3}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            49,
+            101,
+            51
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        49,
+        101,
+        51,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":1e3}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            49,
+            101,
+            51
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        49,
+        101,
+        51,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":1e3}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            49,
+            101,
+            51
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        49,
+        101,
+        51,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":1e3}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":1.0}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            49,
+            46,
+            48
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        49,
+        46,
+        48,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":1.0}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            49,
+            46,
+            48
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        49,
+        46,
+        48,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":1.0}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            49,
+            46,
+            48
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        49,
+        46,
+        48,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":1.0}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            49,
+            46,
+            48
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        49,
+        46,
+        48,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":1.0}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            49,
+            46,
+            48
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        49,
+        46,
+        48,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":1.0}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            49,
+            46,
+            48
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        49,
+        46,
+        48,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":1.0}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":01}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            48,
+            49
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        48,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":01}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            48,
+            49
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        48,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":01}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            48,
+            49
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        48,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":01}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            48,
+            49
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        48,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":01}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            48,
+            49
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        48,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":01}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            48,
+            49
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        48,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":01}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":0x1}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            48,
+            120,
+            49
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        48,
+        120,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":0x1}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            48,
+            120,
+            49
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        48,
+        120,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":0x1}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            48,
+            120,
+            49
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        48,
+        120,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":0x1}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            48,
+            120,
+            49
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        48,
+        120,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":0x1}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            48,
+            120,
+            49
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        48,
+        120,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":0x1}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            48,
+            120,
+            49
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        48,
+        120,
+        49,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":0x1}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":NaN}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            78,
+            97,
+            78
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        78,
+        97,
+        78,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":NaN}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            78,
+            97,
+            78
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        78,
+        97,
+        78,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":NaN}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            78,
+            97,
+            78
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        78,
+        97,
+        78,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":NaN}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            78,
+            97,
+            78
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        78,
+        97,
+        78,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":NaN}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            78,
+            97,
+            78
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        78,
+        97,
+        78,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":NaN}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            78,
+            97,
+            78
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        78,
+        97,
+        78,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":NaN}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":Infinity}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            73,
+            110,
+            102,
+            105,
+            110,
+            105,
+            116,
+            121
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        73,
+        110,
+        102,
+        105,
+        110,
+        105,
+        116,
+        121,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":Infinity}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            73,
+            110,
+            102,
+            105,
+            110,
+            105,
+            116,
+            121
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        73,
+        110,
+        102,
+        105,
+        110,
+        105,
+        116,
+        121,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":Infinity}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            73,
+            110,
+            102,
+            105,
+            110,
+            105,
+            116,
+            121
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        73,
+        110,
+        102,
+        105,
+        110,
+        105,
+        116,
+        121,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":Infinity}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            73,
+            110,
+            102,
+            105,
+            110,
+            105,
+            116,
+            121
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        73,
+        110,
+        102,
+        105,
+        110,
+        105,
+        116,
+        121,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":Infinity}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            73,
+            110,
+            102,
+            105,
+            110,
+            105,
+            116,
+            121
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        73,
+        110,
+        102,
+        105,
+        110,
+        105,
+        116,
+        121,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":Infinity}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            73,
+            110,
+            102,
+            105,
+            110,
+            105,
+            116,
+            121
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        73,
+        110,
+        102,
+        105,
+        110,
+        105,
+        116,
+        121,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":Infinity}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":\"x\"}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            120
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":\"x\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            120
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":\"x\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            120
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":\"x\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            120
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":\"x\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            120
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":\"x\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            120
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":\"x\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":'x'}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            120
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":'x'}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            120
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":'x'}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            120
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":'x'}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            120
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":'x'}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            120
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":'x'}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            120
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":'x'}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":unquoted}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            117,
+            110,
+            113,
+            117,
+            111,
+            116,
+            101,
+            100
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        117,
+        110,
+        113,
+        117,
+        111,
+        116,
+        101,
+        100,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":unquoted}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            117,
+            110,
+            113,
+            117,
+            111,
+            116,
+            101,
+            100
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        117,
+        110,
+        113,
+        117,
+        111,
+        116,
+        101,
+        100,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":unquoted}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            117,
+            110,
+            113,
+            117,
+            111,
+            116,
+            101,
+            100
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        117,
+        110,
+        113,
+        117,
+        111,
+        116,
+        101,
+        100,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":unquoted}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            117,
+            110,
+            113,
+            117,
+            111,
+            116,
+            101,
+            100
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        117,
+        110,
+        113,
+        117,
+        111,
+        116,
+        101,
+        100,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":unquoted}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            117,
+            110,
+            113,
+            117,
+            111,
+            116,
+            101,
+            100
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        117,
+        110,
+        113,
+        117,
+        111,
+        116,
+        101,
+        100,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":unquoted}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            117,
+            110,
+            113,
+            117,
+            111,
+            116,
+            101,
+            100
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        117,
+        110,
+        113,
+        117,
+        111,
+        116,
+        101,
+        100,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":unquoted}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":\"\\ud800\"}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            55296
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        63,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":\"\\ud800\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            55296
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        63,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":\"\\ud800\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            55296
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        63,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":\"\\ud800\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            55296
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        63,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":\"\\ud800\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            55296
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        63,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":\"\\ud800\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            55296
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        63,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":\"\\ud800\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":\"\\udc00\"}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            56320
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        63,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":\"\\udc00\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            56320
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        63,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":\"\\udc00\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            56320
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        63,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":\"\\udc00\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            56320
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        63,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":\"\\udc00\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            56320
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        63,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":\"\\udc00\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            56320
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        63,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":\"\\udc00\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":\"\\ud83d\\ude00\"}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            55357,
+            56832
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        240,
+        159,
+        152,
+        128,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":\"\\ud83d\\ude00\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            55357,
+            56832
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        240,
+        159,
+        152,
+        128,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":\"\\ud83d\\ude00\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            55357,
+            56832
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        240,
+        159,
+        152,
+        128,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":\"\\ud83d\\ude00\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            55357,
+            56832
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        240,
+        159,
+        152,
+        128,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":\"\\ud83d\\ude00\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            55357,
+            56832
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        240,
+        159,
+        152,
+        128,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":\"\\ud83d\\ude00\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            55357,
+            56832
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        240,
+        159,
+        152,
+        128,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":\"\\ud83d\\ude00\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":\"\\u2028\\u2029<>&=\\t\\n\"}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            8232,
+            8233,
+            60,
+            62,
+            38,
+            61,
+            9,
+            10
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        92,
+        117,
+        50,
+        48,
+        50,
+        56,
+        92,
+        117,
+        50,
+        48,
+        50,
+        57,
+        60,
+        62,
+        38,
+        61,
+        92,
+        116,
+        92,
+        110,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":\"\\u2028\\u2029<>&=\\t\\n\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            8232,
+            8233,
+            60,
+            62,
+            38,
+            61,
+            9,
+            10
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        92,
+        117,
+        50,
+        48,
+        50,
+        56,
+        92,
+        117,
+        50,
+        48,
+        50,
+        57,
+        60,
+        62,
+        38,
+        61,
+        92,
+        116,
+        92,
+        110,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":\"\\u2028\\u2029<>&=\\t\\n\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            8232,
+            8233,
+            60,
+            62,
+            38,
+            61,
+            9,
+            10
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        92,
+        117,
+        50,
+        48,
+        50,
+        56,
+        92,
+        117,
+        50,
+        48,
+        50,
+        57,
+        60,
+        62,
+        38,
+        61,
+        92,
+        116,
+        92,
+        110,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":\"\\u2028\\u2029<>&=\\t\\n\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            8232,
+            8233,
+            60,
+            62,
+            38,
+            61,
+            9,
+            10
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        92,
+        117,
+        50,
+        48,
+        50,
+        56,
+        92,
+        117,
+        50,
+        48,
+        50,
+        57,
+        60,
+        62,
+        38,
+        61,
+        92,
+        116,
+        92,
+        110,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":\"\\u2028\\u2029<>&=\\t\\n\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            8232,
+            8233,
+            60,
+            62,
+            38,
+            61,
+            9,
+            10
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        92,
+        117,
+        50,
+        48,
+        50,
+        56,
+        92,
+        117,
+        50,
+        48,
+        50,
+        57,
+        60,
+        62,
+        38,
+        61,
+        92,
+        116,
+        92,
+        110,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":\"\\u2028\\u2029<>&=\\t\\n\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            8232,
+            8233,
+            60,
+            62,
+            38,
+            61,
+            9,
+            10
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        92,
+        117,
+        50,
+        48,
+        50,
+        56,
+        92,
+        117,
+        50,
+        48,
+        50,
+        57,
+        60,
+        62,
+        38,
+        61,
+        92,
+        116,
+        92,
+        110,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":\"\\u2028\\u2029<>&=\\t\\n\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":\"a\\q\"}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "com.google.gson.stream.MalformedJsonException: Invalid escape sequence at line 1 column 13 path $[0].src"
+    }
+  },
+  {
+    "input": "[{\"path\":\"a\\q\"}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "com.google.gson.stream.MalformedJsonException: Invalid escape sequence at line 1 column 14 path $[0].path"
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":\"a\\q\"}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "com.google.gson.stream.MalformedJsonException: Invalid escape sequence at line 1 column 19 path $[0].sourceMap"
+    }
+  },
+  {
+    "input": "[{\"source_map\":\"a\\q\"}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "com.google.gson.stream.MalformedJsonException: Invalid escape sequence at line 1 column 20 path $[0].source_map"
+    }
+  },
+  {
+    "input": "[{\"webpackId\":\"a\\q\"}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "com.google.gson.stream.MalformedJsonException: Invalid escape sequence at line 1 column 19 path $[0].webpackId"
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":\"a\\q\"}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "com.google.gson.stream.MalformedJsonException: Invalid escape sequence at line 1 column 20 path $[0].webpack_id"
+    }
+  },
+  {
+    "input": "[{\"unknown\":\"a\\q\"}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "com.google.gson.stream.MalformedJsonException: Invalid escape sequence at line 1 column 17 path $[0].unknown"
+    }
+  },
+  {
+    "input": "[{\"src\":\"\\uabcd\"}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            43981
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        234,
+        175,
+        141,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"path\":\"\\uabcd\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": [
+            43981
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        234,
+        175,
+        141,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":\"\\uabcd\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            43981
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        234,
+        175,
+        141,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"source_map\":\"\\uabcd\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            43981
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        234,
+        175,
+        141,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpackId\":\"\\uabcd\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            43981
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        234,
+        175,
+        141,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":\"\\uabcd\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": [
+            43981
+          ]
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        119,
+        101,
+        98,
+        112,
+        97,
+        99,
+        107,
+        95,
+        105,
+        100,
+        34,
+        58,
+        34,
+        234,
+        175,
+        141,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"unknown\":\"\\uabcd\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":\"\\uZZZZ\"}]",
+    "result": {
+      "error_class": "java.lang.NumberFormatException",
+      "error": "\\uZZZZ"
+    }
+  },
+  {
+    "input": "[{\"path\":\"\\uZZZZ\"}]",
+    "result": {
+      "error_class": "java.lang.NumberFormatException",
+      "error": "\\uZZZZ"
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":\"\\uZZZZ\"}]",
+    "result": {
+      "error_class": "java.lang.NumberFormatException",
+      "error": "\\uZZZZ"
+    }
+  },
+  {
+    "input": "[{\"source_map\":\"\\uZZZZ\"}]",
+    "result": {
+      "error_class": "java.lang.NumberFormatException",
+      "error": "\\uZZZZ"
+    }
+  },
+  {
+    "input": "[{\"webpackId\":\"\\uZZZZ\"}]",
+    "result": {
+      "error_class": "java.lang.NumberFormatException",
+      "error": "\\uZZZZ"
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":\"\\uZZZZ\"}]",
+    "result": {
+      "error_class": "java.lang.NumberFormatException",
+      "error": "\\uZZZZ"
+    }
+  },
+  {
+    "input": "[{\"unknown\":\"\\uZZZZ\"}]",
+    "result": {
+      "error_class": "java.lang.NumberFormatException",
+      "error": "\\uZZZZ"
+    }
+  },
+  {
+    "input": "[{\"src\":[]}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected a string but was BEGIN_ARRAY at line 1 column 10 path $[0].src"
+    }
+  },
+  {
+    "input": "[{\"path\":[]}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected a string but was BEGIN_ARRAY at line 1 column 11 path $[0].path"
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":[]}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected a string but was BEGIN_ARRAY at line 1 column 16 path $[0].sourceMap"
+    }
+  },
+  {
+    "input": "[{\"source_map\":[]}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected a string but was BEGIN_ARRAY at line 1 column 17 path $[0].source_map"
+    }
+  },
+  {
+    "input": "[{\"webpackId\":[]}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected a string but was BEGIN_ARRAY at line 1 column 16 path $[0].webpackId"
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":[]}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected a string but was BEGIN_ARRAY at line 1 column 17 path $[0].webpack_id"
+    }
+  },
+  {
+    "input": "[{\"unknown\":[]}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":{}}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected a string but was BEGIN_OBJECT at line 1 column 10 path $[0].src"
+    }
+  },
+  {
+    "input": "[{\"path\":{}}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected a string but was BEGIN_OBJECT at line 1 column 11 path $[0].path"
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":{}}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected a string but was BEGIN_OBJECT at line 1 column 16 path $[0].sourceMap"
+    }
+  },
+  {
+    "input": "[{\"source_map\":{}}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected a string but was BEGIN_OBJECT at line 1 column 17 path $[0].source_map"
+    }
+  },
+  {
+    "input": "[{\"webpackId\":{}}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected a string but was BEGIN_OBJECT at line 1 column 16 path $[0].webpackId"
+    }
+  },
+  {
+    "input": "[{\"webpack_id\":{}}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected a string but was BEGIN_OBJECT at line 1 column 17 path $[0].webpack_id"
+    }
+  },
+  {
+    "input": "[{\"unknown\":{}}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "",
+    "result": {
+      "error_class": "java.io.EOFException",
+      "error": "End of input at line 1 column 1 path $"
+    }
+  },
+  {
+    "input": "null",
+    "result": {
+      "error_class": "java.lang.IllegalStateException",
+      "error": "Expected BEGIN_ARRAY but was NULL at line 1 column 5 path $"
+    }
+  },
+  {
+    "input": "{}",
+    "result": {
+      "error_class": "java.lang.IllegalStateException",
+      "error": "Expected BEGIN_ARRAY but was BEGIN_OBJECT at line 1 column 2 path $"
+    }
+  },
+  {
+    "input": "[",
+    "result": {
+      "error_class": "java.io.EOFException",
+      "error": "End of input at line 1 column 2 path $[0]"
+    }
+  },
+  {
+    "input": "[{}",
+    "result": {
+      "error_class": "java.io.EOFException",
+      "error": "End of input at line 1 column 4 path $[1]"
+    }
+  },
+  {
+    "input": "[{},]",
+    "result": {
+      "error_class": "com.google.gson.stream.MalformedJsonException",
+      "error": "Use JsonReader.setLenient(true) to accept malformed JSON at line 1 column 6 path $[1]"
+    }
+  },
+  {
+    "input": "[,{}]",
+    "result": {
+      "error_class": "com.google.gson.stream.MalformedJsonException",
+      "error": "Use JsonReader.setLenient(true) to accept malformed JSON at line 1 column 3 path $[0]"
+    }
+  },
+  {
+    "input": "[{};{}]",
+    "result": {
+      "error_class": "com.google.gson.stream.MalformedJsonException",
+      "error": "Use JsonReader.setLenient(true) to accept malformed JSON at line 1 column 5 path $[1]"
+    }
+  },
+  {
+    "input": "[{src:x,path:\"a\"}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            120
+          ],
+          "path": [
+            97
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        120,
+        34,
+        44,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        97,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[/*x*/{}]",
+    "result": {
+      "error_class": "com.google.gson.stream.MalformedJsonException",
+      "error": "Use JsonReader.setLenient(true) to accept malformed JSON at line 1 column 3 path $[0]"
+    }
+  },
+  {
+    "input": "[{/*x*/src:\"x\"}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            120
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\"=\"x\"}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            120
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\"=>\"x\"}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            120
+          ],
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        120,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":\"x\",}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "com.google.gson.stream.MalformedJsonException: Expected name at line 1 column 14 path $[0].src"
+    }
+  },
+  {
+    "input": "[{\"src\":\"x\";\"path\":\"a\"}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            120
+          ],
+          "path": [
+            97
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        120,
+        34,
+        44,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        97,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{'src':'x','path':'a'}]",
+    "result": {
+      "files": [
+        {
+          "src": [
+            120
+          ],
+          "path": [
+            97
+          ],
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        114,
+        99,
+        34,
+        58,
+        34,
+        120,
+        34,
+        44,
+        34,
+        112,
+        97,
+        116,
+        104,
+        34,
+        58,
+        34,
+        97,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"sourceMap\":\"a\",\"source_map\":\"b\"}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": [
+            98
+          ],
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        34,
+        115,
+        111,
+        117,
+        114,
+        99,
+        101,
+        95,
+        109,
+        97,
+        112,
+        34,
+        58,
+        34,
+        98,
+        34,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "[{\"src\":[{}]}]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected a string but was BEGIN_ARRAY at line 1 column 10 path $[0].src"
+    }
+  },
+  {
+    "input": "[{}] trailing",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": "\ufeff[{}]",
+    "result": {
+      "files": [
+        {
+          "src": null,
+          "path": null,
+          "source_map": null,
+          "webpack_id": null
+        }
+      ],
+      "output": [
+        91,
+        123,
+        125,
+        93
+      ]
+    }
+  },
+  {
+    "input": ")]}'\n[{}]",
+    "result": {
+      "error_class": "com.google.gson.stream.MalformedJsonException",
+      "error": "Use JsonReader.setLenient(true) to accept malformed JSON at line 1 column 1 path $"
+    }
+  },
+  {
+    "input": "[true]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected BEGIN_OBJECT but was BOOLEAN at line 1 column 6 path $[0]"
+    }
+  },
+  {
+    "input": "[1]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected BEGIN_OBJECT but was NUMBER at line 1 column 3 path $[0]"
+    }
+  },
+  {
+    "input": "[\"x\"]",
+    "result": {
+      "error_class": "com.google.gson.JsonSyntaxException",
+      "error": "java.lang.IllegalStateException: Expected BEGIN_OBJECT but was STRING at line 1 column 3 path $[0]"
+    }
+  }
+]

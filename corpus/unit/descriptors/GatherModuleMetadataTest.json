@@ -1,0 +1,31 @@
+{
+  "source": "test/com/google/javascript/jscomp/GatherModuleMetadataTest.java getProcessor (lines 61-70), bb8c8e7",
+  "cases": [
+    {
+      "when": {"testFields.rewriteScriptsToModules": true},
+      "processor": {
+        "sequence": [
+          {"new": "com.google.javascript.jscomp.Es6RewriteScriptsToModules", "args": [{"compiler": true}]},
+          {"new": "com.google.javascript.jscomp.GatherModuleMetadata",
+           "args": [
+             {"compiler": true},
+             {"bool": true},
+             {"enum": "com.google.javascript.jscomp.deps.ModuleLoader$ResolutionMode", "name": "BROWSER"}
+           ]}
+        ]
+      }
+    },
+    {
+      "when": {"testFields.rewriteScriptsToModules": false},
+      "processor": {
+        "new": "com.google.javascript.jscomp.GatherModuleMetadata",
+        "args": [
+          {"compiler": true},
+          {"bool": true},
+          {"enum": "com.google.javascript.jscomp.deps.ModuleLoader$ResolutionMode", "name": "BROWSER"}
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor returns a lambda that runs new Es6RewriteScriptsToModules(compiler).process(externs, root) when the test field rewriteScriptsToModules is true, then new GatherModuleMetadata(compiler, /* processCommonJsModules= */ true, ResolutionMode.BROWSER).process(externs, root). The field is only assigned in test bodies before test()/testSame(), so it is constant for the lifetime of the pass and the two cases (DSL sequence vs. the single pass) are behaviourally identical to the lambda without needing a helper; this also lets --mutate-noop reach both passes. getOptions (lines 49-59) turns entryPoints/sortOnly into DependencyOptions, which is replayed from the recorded options diff (dependencyOptions). setUp (lines 40-47) sets the fields to their defaults and calls setLanguageOut(ECMASCRIPT5), replayed from testFields and harness.fields. The test bodies' follow-up assertions on getLastCompiler().getModuleMetadataMap() are classified in corpus/unit/postcall/GatherModuleMetadataTest.json: those on top-level modules are compared through postCall.compiler.moduleMetadataByPath (format v5 snapshot, no descriptor opt-in needed); the 7 methods that inspect nested goog.loadModule modules are rust_unit_test (corpus/unit/rust_unit_tests/GatherModuleMetadataTest.md) because the snapshot records nested modules only as a count."
+}

@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/DeadAssignmentsEliminationTest.java getProcessor (lines 37-41): a lambda CompilerPass, copied verbatim as helper DeadAssignmentsEliminationTest_Helpers.GetProcessorLambda",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"helper": "DeadAssignmentsEliminationTest_Helpers.GetProcessorLambda", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "The lambda traverses with a fresh DeadAssignmentsElimination callback and deliberately bypasses DeadAssignmentsElimination.process (which adds checkNotNull/checkState(isNormalized)). Because the pass is constructed inside the helper, --mutate-noop DeadAssignmentsElimination does not reach it (see dsl_requests: 'traverse')."
+}

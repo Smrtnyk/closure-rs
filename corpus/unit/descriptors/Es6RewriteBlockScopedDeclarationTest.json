@@ -1,0 +1,101 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6RewriteBlockScopedDeclarationTest.java getProcessor (lines 52-61): a lambda CompilerPass that, if the field runVarCheck is set, runs new VarCheck(compiler).process(externs, root), then new Es6RewriteBlockScopedDeclaration(compiler).process(externs, root). customSetUp (lines 42-50) and getOptions (lines 35-40) only affect harness fields and options, which come from the record.",
+  "cases": [
+    {
+      "when": {
+        "testFields.runVarCheck": true
+      },
+      "processor": {
+        "lambda": [
+          "externs",
+          "root"
+        ],
+        "iface": "com.google.javascript.jscomp.CompilerPass",
+        "body": {
+          "do": [
+            {
+              "call": {
+                "new": "com.google.javascript.jscomp.VarCheck",
+                "args": [
+                  {
+                    "compiler": true
+                  }
+                ]
+              },
+              "method": "process",
+              "args": [
+                {
+                  "var": "externs"
+                },
+                {
+                  "var": "root"
+                }
+              ]
+            },
+            {
+              "call": {
+                "new": "com.google.javascript.jscomp.Es6RewriteBlockScopedDeclaration",
+                "args": [
+                  {
+                    "compiler": true
+                  }
+                ]
+              },
+              "method": "process",
+              "args": [
+                {
+                  "var": "externs"
+                },
+                {
+                  "var": "root"
+                }
+              ]
+            }
+          ],
+          "value": {
+            "null": true
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "testFields.runVarCheck": false
+      },
+      "processor": {
+        "lambda": [
+          "externs",
+          "root"
+        ],
+        "iface": "com.google.javascript.jscomp.CompilerPass",
+        "body": {
+          "do": [
+            {
+              "call": {
+                "new": "com.google.javascript.jscomp.Es6RewriteBlockScopedDeclaration",
+                "args": [
+                  {
+                    "compiler": true
+                  }
+                ]
+              },
+              "method": "process",
+              "args": [
+                {
+                  "var": "externs"
+                },
+                {
+                  "var": "root"
+                }
+              ]
+            }
+          ],
+          "value": {
+            "null": true
+          }
+        }
+      }
+    }
+  ],
+  "note": "The lambda reads runVarCheck at process time. Test bodies assign it only before their test(...) call (line 278), so the value dumped at the hooked call is the one the lambda sees; the if-branch becomes one case per value. Each case is a process-time lambda (DSL.md 'A pass built at process time'), so VarCheck is constructed and run, then Es6RewriteBlockScopedDeclaration is constructed and run, in the same order as the original lambda."
+}

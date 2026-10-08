@@ -1,0 +1,12 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckAccessControlsTest.java getProcessor (lines 68-71); setUp (lines 57-66) and getOptions (lines 73-80) are captured by the record's harness fields and options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.CheckAccessControls",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

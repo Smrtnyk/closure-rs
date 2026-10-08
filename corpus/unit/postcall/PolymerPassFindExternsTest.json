@@ -1,0 +1,39 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.PolymerPassFindExternsTest",
+ "note": "classify round 1 batch 8 (D-017 item 6), re-read from test/com/google/javascript/jscomp/PolymerPassFindExternsTest.java (bb8c8e7). Each record's testFieldsAfter.findExternsCallback is compared by Java replay (descriptor testFieldsAfter opt-in, comparedFields [findExternsCallback]), but its dump holds polymerElementProps as a Guava com.google.common.collect.ImmutableList$Builder object dump, so gate (a) demotes all 4 records from checked to unclassified (FORMAT.md rule 1a). The records carry no postCall.pass key; their compiler keys are accessorSummary, moduleMetadataByPath, allowableFeatures and moduleMapBoundNames (v7 recording). Classify round 2 batch 8: the v7 recorder encodes protobuf messages and Guava Tables neutrally (D-017 item 2, harness round 2), but not Guava collection builders; polymerElementProps is still a generic object dump of com.google.common.collect.ImmutableList$Builder (fields contents, size, copyOnWrite), so rule 1a still demotes all 4 records.",
+ "methods": [
+  {
+   "method": "testFindsPolymerElementProps",
+   "status": "rust_unit_test",
+   "category": "node-identity",
+   "reason": "lines 134-140 assert on the Node objects findExternsCallback.getPolymerElementProps() returns: the list size and, per Node, the name the test-local getPropertyName derives from the Node structure (first child; its second child isFunction and the node is not a GETPROP -> first child; getString). The records' testFieldsAfter.findExternsCallback dump writes each Node only as a class-name reference, so the names are not in any record; the records carry no postCall.pass key, and their compiler keys accessorSummary, moduleMetadataByPath, allowableFeatures and moduleMapBoundNames (v7 recording) hold no externs Node",
+   "fragment": "corpus/unit/rust_unit_tests/PolymerPassFindExternsTest.md",
+   "note": "the record (index 0) is excluded from (a): its post state is demoted by rule 1a (Guava ImmutableList$Builder in the compared field), so this rust_unit_test entry resolves it as excluded, not as counted"
+  },
+  {
+   "method": "testFindsPolymerElementRoot",
+   "status": "rust_unit_test",
+   "category": "node-identity",
+   "reason": "lines 94-98 assert on the Node findExternsCallback.getPolymerElementExterns() returns: not null, Node.isVar(), and getFirstChild().matchesQualifiedName(\"PolymerElement\"). The records' testFieldsAfter.findExternsCallback dump writes that Node only as a class-name reference, so its token and name are not in any record; the records carry no postCall.pass key, and their compiler keys accessorSummary, moduleMetadataByPath, allowableFeatures and moduleMapBoundNames (v7 recording) hold no externs Node",
+   "fragment": "corpus/unit/rust_unit_tests/PolymerPassFindExternsTest.md",
+   "note": "the record (index 2) is excluded from (a): its post state is demoted by rule 1a (Guava ImmutableList$Builder in the compared field), so this rust_unit_test entry resolves it as excluded, not as counted"
+  },
+  {
+   "method": "testFindsPolymerElementRoot_inTypeSummary",
+   "status": "rust_unit_test",
+   "category": "node-identity",
+   "reason": "lines 104-110 assert on the Node findExternsCallback.getPolymerElementExterns() returns: not null, Node.isVar(), getFirstChild().matchesQualifiedName(\"PolymerElement\"), getParent().isScript(), and NodeUtil.isFromTypeSummary(getParent()) (the SCRIPT node's JSDoc @typeSummary). The records' testFieldsAfter.findExternsCallback dump writes that Node only as a class-name reference, so its token, name and parent are not in any record; the records carry no postCall.pass key, and their compiler keys accessorSummary, moduleMetadataByPath, allowableFeatures and moduleMapBoundNames (v7 recording) hold no externs Node",
+   "fragment": "corpus/unit/rust_unit_tests/PolymerPassFindExternsTest.md",
+   "note": "the record (index 1) is excluded from (a): its post state is demoted by rule 1a (Guava ImmutableList$Builder in the compared field), so this rust_unit_test entry resolves it as excluded, not as counted"
+  },
+  {
+   "method": "testFindsPolymerElementRoot_inTypeSummary_ignoresModule",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.findExternsCallback"
+   ],
+   "note": "line 126 asserts only that findExternsCallback.getPolymerElementExterns() is null. The record's (index 3) testFieldsAfter.findExternsCallback (null at entry, assigned during the hooked call) holds polymerElementExterns: null, and Java replay compares it (comparedFields [findExternsCallback]; replay passes, v7 records, classify round 2 batch 8). Gate (a) rejects the claim because rule 1a demotes the record: the same compared dump holds polymerElementProps as a generic object dump of com.google.common.collect.ImmutableList$Builder (contents array with 4 null slots, size 0, copyOnWrite false). D-017 item 2 names this record among the 275 it covers, but the harness round 2 neutral encodings cover protobuf messages and Guava Tables only. A neutral encoding of Guava ImmutableCollection builders (the first size elements as a list) is requested from the recorder owner; with it the record's post state becomes checked and this claim holds. Not relabelled rust_unit_test: the asserted value (no Node found) is a neutral null in the record, and FORMAT.md forbids rust_unit_test for neutral values."
+  }
+ ]
+}

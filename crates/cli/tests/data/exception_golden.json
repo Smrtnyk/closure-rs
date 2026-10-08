@@ -1,0 +1,117 @@
+[
+  {
+    "name": "output-directory",
+    "args": [
+      "--compilation_level=WHITESPACE_ONLY",
+      "--js_output_file=/tmp"
+    ],
+    "stdin": "",
+    "exit": 254,
+    "stdout": "",
+    "stderr": "The compiler is waiting for input via stdin.\njava.io.FileNotFoundException: /tmp (Is a directory)\n\tat java.base/java.io.FileOutputStream.open0(Native Method)\n\tat java.base/java.io.FileOutputStream.open(FileOutputStream.java:289)\n\tat java.base/java.io.FileOutputStream.<init>(FileOutputStream.java:230)\n\tat java.base/java.io.FileOutputStream.<init>(FileOutputStream.java:118)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.filenameToOutputStream(AbstractCommandLineRunner.java:1899)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.fileNameToLegacyOutputWriter(AbstractCommandLineRunner.java:1876)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.createDefaultOutput(AbstractCommandLineRunner.java:1128)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.outputSingleBinary(AbstractCommandLineRunner.java:1605)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.processResults(AbstractCommandLineRunner.java:1537)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.doRun(AbstractCommandLineRunner.java:1325)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.run(AbstractCommandLineRunner.java:536)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2256)\n"
+  },
+  {
+    "name": "output-missing",
+    "args": [
+      "--compilation_level=WHITESPACE_ONLY",
+      "--js_output_file=/dev/null/out.js"
+    ],
+    "stdin": "",
+    "exit": 254,
+    "stdout": "",
+    "stderr": "The compiler is waiting for input via stdin.\njava.io.FileNotFoundException: /dev/null/out.js (Not a directory)\n\tat java.base/java.io.FileOutputStream.open0(Native Method)\n\tat java.base/java.io.FileOutputStream.open(FileOutputStream.java:289)\n\tat java.base/java.io.FileOutputStream.<init>(FileOutputStream.java:230)\n\tat java.base/java.io.FileOutputStream.<init>(FileOutputStream.java:118)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.filenameToOutputStream(AbstractCommandLineRunner.java:1899)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.fileNameToLegacyOutputWriter(AbstractCommandLineRunner.java:1876)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.createDefaultOutput(AbstractCommandLineRunner.java:1128)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.outputSingleBinary(AbstractCommandLineRunner.java:1605)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.processResults(AbstractCommandLineRunner.java:1537)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.doRun(AbstractCommandLineRunner.java:1325)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.run(AbstractCommandLineRunner.java:536)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2256)\n"
+  },
+  {
+    "name": "bad-json-start",
+    "args": [
+      "--json_streams=IN"
+    ],
+    "stdin": "{}",
+    "exit": 254,
+    "stdout": "",
+    "stderr": "java.lang.IllegalStateException: Expected BEGIN_ARRAY but was BEGIN_OBJECT at line 1 column 2 path $\n\tat com.google.gson.stream.JsonReader.beginArray(JsonReader.java:360)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.parseJsonFilesFromInputStream(AbstractCommandLineRunner.java:556)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.doRun(AbstractCommandLineRunner.java:1195)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.run(AbstractCommandLineRunner.java:536)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2256)\n"
+  },
+  {
+    "name": "bad-json-array",
+    "args": [
+      "--json_streams=IN"
+    ],
+    "stdin": "[",
+    "exit": 254,
+    "stdout": "",
+    "stderr": "java.io.EOFException: End of input at line 1 column 2 path $[0]\n\tat com.google.gson.stream.JsonReader.nextNonWhitespace(JsonReader.java:1406)\n\tat com.google.gson.stream.JsonReader.doPeek(JsonReader.java:559)\n\tat com.google.gson.stream.JsonReader.hasNext(JsonReader.java:424)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.parseJsonFilesFromInputStream(AbstractCommandLineRunner.java:557)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.doRun(AbstractCommandLineRunner.java:1195)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.run(AbstractCommandLineRunner.java:536)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2256)\n"
+  },
+  {
+    "name": "bad-json-object",
+    "args": [
+      "--json_streams=IN"
+    ],
+    "stdin": "[1]",
+    "exit": 254,
+    "stdout": "",
+    "stderr": "com.google.gson.JsonSyntaxException: java.lang.IllegalStateException: Expected BEGIN_OBJECT but was NUMBER at line 1 column 3 path $[0]\n\tat com.google.gson.internal.bind.ReflectiveTypeAdapterFactory$Adapter.read(ReflectiveTypeAdapterFactory.java:270)\n\tat com.google.gson.Gson.fromJson(Gson.java:1058)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.parseJsonFilesFromInputStream(AbstractCommandLineRunner.java:558)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.doRun(AbstractCommandLineRunner.java:1195)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.run(AbstractCommandLineRunner.java:536)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2256)\nCaused by: java.lang.IllegalStateException: Expected BEGIN_OBJECT but was NUMBER at line 1 column 3 path $[0]\n\tat com.google.gson.stream.JsonReader.beginObject(JsonReader.java:395)\n\tat com.google.gson.internal.bind.ReflectiveTypeAdapterFactory$Adapter.read(ReflectiveTypeAdapterFactory.java:259)\n\t... 5 more\n"
+  },
+  {
+    "name": "bad-json-string",
+    "args": [
+      "--json_streams=IN"
+    ],
+    "stdin": "[{\"src\":\"oops}]",
+    "exit": 254,
+    "stdout": "",
+    "stderr": "com.google.gson.JsonSyntaxException: com.google.gson.stream.MalformedJsonException: Unterminated string at line 1 column 16 path $[0].src\n\tat com.google.gson.Gson.fromJson(Gson.java:1073)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.parseJsonFilesFromInputStream(AbstractCommandLineRunner.java:558)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.doRun(AbstractCommandLineRunner.java:1195)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.run(AbstractCommandLineRunner.java:536)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2256)\nCaused by: com.google.gson.stream.MalformedJsonException: Unterminated string at line 1 column 16 path $[0].src\n\tat com.google.gson.stream.JsonReader.syntaxError(JsonReader.java:1607)\n\tat com.google.gson.stream.JsonReader.nextQuotedValue(JsonReader.java:1041)\n\tat com.google.gson.stream.JsonReader.nextString(JsonReader.java:825)\n\tat com.google.gson.internal.bind.TypeAdapters$15.read(TypeAdapters.java:394)\n\tat com.google.gson.internal.bind.TypeAdapters$15.read(TypeAdapters.java:382)\n\tat com.google.gson.internal.bind.ReflectiveTypeAdapterFactory$1.read(ReflectiveTypeAdapterFactory.java:161)\n\tat com.google.gson.internal.bind.ReflectiveTypeAdapterFactory$Adapter.read(ReflectiveTypeAdapterFactory.java:266)\n\tat com.google.gson.Gson.fromJson(Gson.java:1058)\n\t... 4 more\n"
+  },
+  {
+    "name": "bad-json-null",
+    "args": [
+      "--json_streams=IN"
+    ],
+    "stdin": "[null]",
+    "exit": 254,
+    "stdout": "",
+    "stderr": "java.lang.NullPointerException: Cannot invoke \"com.google.javascript.jscomp.AbstractCommandLineRunner$JsonFileSpec.getSourceMap()\" because \"jsonFile\" is null\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.doRun(AbstractCommandLineRunner.java:1202)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.run(AbstractCommandLineRunner.java:536)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2256)\n"
+  },
+  {
+    "name": "conformance-missing",
+    "args": [
+      "--conformance_configs=/nonexistent-cli-config"
+    ],
+    "stdin": "",
+    "exit": 254,
+    "stdout": "",
+    "stderr": "java.lang.RuntimeException: Error loading conformance config\n\tat com.google.javascript.jscomp.CommandLineRunner.loadConformanceConfigs(CommandLineRunner.java:2101)\n\tat com.google.javascript.jscomp.CommandLineRunner.createOptions(CommandLineRunner.java:1962)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.doRun(AbstractCommandLineRunner.java:1164)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.run(AbstractCommandLineRunner.java:536)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2256)\nCaused by: java.io.FileNotFoundException: /nonexistent-cli-config (No such file or directory)\n\tat java.base/java.io.FileInputStream.open0(Native Method)\n\tat java.base/java.io.FileInputStream.open(FileInputStream.java:213)\n\tat java.base/java.io.FileInputStream.<init>(FileInputStream.java:152)\n\tat com.google.common.io.Files$FileByteSource.openStream(Files.java:132)\n\tat com.google.common.io.Files$FileByteSource.read(Files.java:156)\n\tat com.google.common.io.ByteSource$AsCharSource.read(ByteSource.java:486)\n\tat com.google.javascript.jscomp.CommandLineRunner.loadConformanceConfig(CommandLineRunner.java:2109)\n\tat com.google.javascript.jscomp.CommandLineRunner.loadConformanceConfigs(CommandLineRunner.java:2099)\n\t... 4 more\n"
+  },
+  {
+    "name": "xtb-missing",
+    "args": [
+      "--translations_file=/nonexistent-cli-xtb"
+    ],
+    "stdin": "",
+    "exit": 254,
+    "stdout": "",
+    "stderr": "java.lang.RuntimeException: Reading XTB file\n\tat com.google.javascript.jscomp.CommandLineRunner.createOptions(CommandLineRunner.java:1947)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.doRun(AbstractCommandLineRunner.java:1164)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.run(AbstractCommandLineRunner.java:536)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2256)\nCaused by: java.io.FileNotFoundException: /nonexistent-cli-xtb (No such file or directory)\n\tat java.base/java.io.FileInputStream.open0(Native Method)\n\tat java.base/java.io.FileInputStream.open(FileInputStream.java:213)\n\tat java.base/java.io.FileInputStream.<init>(FileInputStream.java:152)\n\tat java.base/java.io.FileInputStream.<init>(FileInputStream.java:106)\n\tat com.google.javascript.jscomp.CommandLineRunner.createOptions(CommandLineRunner.java:1943)\n\t... 3 more\n"
+  },
+  {
+    "name": "variable-map-missing",
+    "args": [
+      "--variable_map_input_file=/nonexistent-cli-map"
+    ],
+    "stdin": "",
+    "exit": 254,
+    "stdout": "",
+    "stderr": "java.io.FileNotFoundException: /nonexistent-cli-map (No such file or directory)\n\tat java.base/java.io.FileInputStream.open0(Native Method)\n\tat java.base/java.io.FileInputStream.open(FileInputStream.java:213)\n\tat java.base/java.io.FileInputStream.<init>(FileInputStream.java:152)\n\tat com.google.common.io.Files$FileByteSource.openStream(Files.java:132)\n\tat com.google.common.io.Files$FileByteSource.read(Files.java:156)\n\tat com.google.common.io.Files.toByteArray(Files.java:238)\n\tat com.google.javascript.jscomp.VariableMap.load(VariableMap.java:86)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.setRunOptions(AbstractCommandLineRunner.java:423)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.doRun(AbstractCommandLineRunner.java:1165)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.run(AbstractCommandLineRunner.java:536)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2256)\n"
+  },
+  {
+    "name": "variable-map-malformed",
+    "args": [
+      "--variable_map_input_file={tmp}/malformed-map.txt"
+    ],
+    "stdin": "",
+    "exit": 254,
+    "stdout": "",
+    "stderr": "java.io.IOException: java.text.ParseException: Bad line: bad-map-line\n\tat com.google.javascript.jscomp.VariableMap.load(VariableMap.java:89)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.setRunOptions(AbstractCommandLineRunner.java:423)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.doRun(AbstractCommandLineRunner.java:1165)\n\tat com.google.javascript.jscomp.AbstractCommandLineRunner.run(AbstractCommandLineRunner.java:536)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2256)\nCaused by: java.text.ParseException: Bad line: bad-map-line\n\tat com.google.javascript.jscomp.VariableMap.fromLines(VariableMap.java:160)\n\tat com.google.javascript.jscomp.VariableMap.fromBytes(VariableMap.java:117)\n\tat com.google.javascript.jscomp.VariableMap.load(VariableMap.java:86)\n\t... 4 more\n",
+    "files": {
+      "{tmp}/malformed-map.txt": "bad-map-line\n"
+    }
+  }
+]

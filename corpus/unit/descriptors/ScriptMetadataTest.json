@@ -1,0 +1,18 @@
+{
+  "source": "test/com/google/javascript/refactoring/ScriptMetadataTest.java getProcessor (lines 33-37, a lambda CompilerPass that stores ScriptMetadata.create(root.getOnlyChild(), compiler) into the lastMetadata field, line 31), copied verbatim into helper ScriptMetadataTest_Helpers, bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "mutationPoint": "com.google.javascript.refactoring.ScriptMetadata",
+        "value": {
+          "call": {"once": "test", "value": {"helper": "ScriptMetadataTest_Helpers"}},
+          "method": "getProcessor",
+          "args": [{"compiler": true}]
+        }
+      },
+      "testFieldsAfter": {"once": "test", "value": {"helper": "ScriptMetadataTest_Helpers"}}
+    }
+  ],
+  "note": "getProcessor is unconditional. The lambda only writes the test field lastMetadata, which getProcessor never reads (recorded as null at entry), so no field is restored. The record is a testSame followed by assertions on lastMetadata.getAlias(...). Those assertions are covered by the opt-in testFieldsAfter check: the helper holder is shared through {\"once\":\"test\"} between the processor and the check, and its lastMetadata (requireAliases a.b.Foo->Foo, a.b.Bar->Bar, a.b.Qux->Qux; namesInUse; supportsRequireAliases) must equal the recorded testFieldsAfter.lastMetadata. The mutationPoint lets --mutate-noop ScriptMetadata replace the lambda pass with a no-op CompilerPass; testFieldsAfter then fails (lastMetadata stays null)."
+}

@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6RewriteScriptsToModulesTest.java getProcessor (lines 31-34); getOptions (lines 36-41) is captured by the record's options diff. testImportedScript calls compiler.init/parseInputs directly (no harness test API), so only testNonImportedScript produces a record",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.Es6RewriteScriptsToModules",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": " Fix-2 (2026-10-07), gate 0.2 (a)/(e) plan: the single record (testNonImportedScript) expects no change. It checks that a script nobody imports is not rewritten into a module, and the AST comparison would catch a wrongly added MODULE_BODY. Records that expect no change pass under a no-op by construction (D-015 (d)). Because it is the class's only record, the review-round-2 vacuity rule moves it to notCaptured. It has no post-call state: testFieldsAfter is empty, and postCall has only compiler.accessorSummary. testImportedScript, the method that would expect a change, calls compiler.init and process directly and has no record. This stays one excluded record unless the vacuity rule exempts records that expect no change in classes that have no change-expecting record (proposal in the fix-2 report)."
+}

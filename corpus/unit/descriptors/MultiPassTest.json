@@ -1,0 +1,601 @@
+{
+ "source": "test/com/google/javascript/jscomp/MultiPassTest.java getProcessor (lines 46-58) and the passes-building helpers addNormalization..addInjectTranspilationRuntimeLibraries (lines 430-549), bb8c8e7",
+ "cases": [
+  {
+   "when": {
+    "method": "testInlineVarsAndPeephole"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addInlineVariables"
+        },
+        {
+         "string": "addPeephole"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testInlineVarsAndDeadCodeElim"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addInlineVariables"
+        },
+        {
+         "string": "addPeephole"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testTopScopeChange"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addInlineVariables"
+        },
+        {
+         "string": "addPeephole"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testInlineFunctionsAndPeephole"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addInlineFunctions"
+        },
+        {
+         "string": "addPeephole"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testCollapseObjectLiteralsScopeChange"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addCollapseObjectLiterals"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testRemoveUnusedClassPropertiesScopeChange"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addRemoveUnusedClassProperties"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testRemoveUnusedVariablesScopeChange"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addRemoveUnusedVars"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testDestructuringResultOfArrowFunction"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addInjectTranspilationRuntimeLibraries"
+        },
+        {
+         "string": "addNormalization"
+        },
+        {
+         "string": "addDestructuringPass"
+        },
+        {
+         "string": "addArrowFunctionPass"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testArrayDestructuringAssign"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addInjectTranspilationRuntimeLibraries"
+        },
+        {
+         "string": "addNormalization"
+        },
+        {
+         "string": "addDestructuringPass"
+        },
+        {
+         "string": "addArrowFunctionPass"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testDestructuringInsideArrowFunction"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addInjectTranspilationRuntimeLibraries"
+        },
+        {
+         "string": "addNormalization"
+        },
+        {
+         "string": "addDestructuringPass"
+        },
+        {
+         "string": "addArrowFunctionPass"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testDestructuringInsideVanillaFunction"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addInjectTranspilationRuntimeLibraries"
+        },
+        {
+         "string": "addNormalization"
+        },
+        {
+         "string": "addDestructuringPass"
+        },
+        {
+         "string": "addArrowFunctionPass"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testDestructuringInForLoopHeader"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addInjectTranspilationRuntimeLibraries"
+        },
+        {
+         "string": "addNormalization"
+        },
+        {
+         "string": "addDestructuringPass"
+        },
+        {
+         "string": "addArrowFunctionPass"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testDestructuringInForLoopHeaderUsedInBody"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addInjectTranspilationRuntimeLibraries"
+        },
+        {
+         "string": "addNormalization"
+        },
+        {
+         "string": "addDestructuringPass"
+        },
+        {
+         "string": "addArrowFunctionPass"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testDestructuringInForLoopHeaderWithInitializer"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addInjectTranspilationRuntimeLibraries"
+        },
+        {
+         "string": "addNormalization"
+        },
+        {
+         "string": "addDestructuringPass"
+        },
+        {
+         "string": "addArrowFunctionPass"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testObjectDestructuringNestedAssign"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addInjectTranspilationRuntimeLibraries"
+        },
+        {
+         "string": "addNormalization"
+        },
+        {
+         "string": "addDestructuringPass"
+        },
+        {
+         "string": "addArrowFunctionPass"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testObjectDestructuringNestedAssignAndDeclaration"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addInjectTranspilationRuntimeLibraries"
+        },
+        {
+         "string": "addNormalization"
+        },
+        {
+         "string": "addDestructuringPass"
+        },
+        {
+         "string": "addArrowFunctionPass"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  },
+  {
+   "when": {
+    "method": "testArrowFunctionWithDestructuringInsideDeclaration"
+   },
+   "processor": {
+    "call": {
+     "helper": "MultiPassTest_Helpers.GetProcessor",
+     "args": [
+      {
+       "record": "harness.effective.getName"
+      },
+      {
+       "array": "java.lang.String",
+       "items": [
+        {
+         "string": "addInjectTranspilationRuntimeLibraries"
+        },
+        {
+         "string": "addNormalization"
+        },
+        {
+         "string": "addDestructuringPass"
+        },
+        {
+         "string": "addArrowFunctionPass"
+        }
+       ]
+      }
+     ]
+    },
+    "method": "getProcessor",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  }
+ ],
+ "note": "getProcessor builds a PhaseOptimizer over the test field `passes` (a List<PassFactory> whose internal factories are lambdas, so the record lists them as unrepresentable; only each factory's name is recorded). Every test method sets `passes = new ArrayList<>()` and then calls a fixed sequence of add*() methods (the destructuring tests do so through setDestructuringArrowFunctionOptions); cases are therefore keyed on the test method, and each case names that method's add*() sequence. The recorded factory names confirm each sequence: inlineVariables+peepholeOptimizations, inlineFunctions+peepholeOptimizations, collapseObjectLiterals, removeUnusedClassProperties, removeUnusedVars, and injectTranspilationRuntimeLibraries+normalization+destructuringPass+arrowFunctionPass. The helper MultiPassTest_Helpers.GetProcessor rebuilds `passes` with verbatim copies of the add*() methods and returns the verbatim getProcessor's PhaseOptimizer. addPeephole's getName() is the recorded harness.effective.getName. getOptions()'s setPrintSourceAfterEachPass(true) is replayed from record.options; setUp's and setDestructuringArrowFunctionOptions's harness setters are in harness.fields."
+}

@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/ImplicitNullabilityCheckTest.java getProcessor (lines 36-39), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.ImplicitNullabilityCheck", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "getProcessor returns new ImplicitNullabilityCheck(compiler) unconditionally. getOptions (lines 29-34: ANALYZER_CHECKS at WARNING) is replayed from the options diff; setUp (lines 41-47: enableCreateModuleMap, enableTypeCheck) from harness.fields. The test has no instance fields."
+}

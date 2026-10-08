@@ -1,0 +1,5 @@
+# Pinned to the host's installed stable toolchain (rustc 1.95.0, 2026-04-14).
+[toolchain]
+channel = "1.95.0"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

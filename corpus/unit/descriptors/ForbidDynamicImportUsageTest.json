@@ -1,0 +1,12 @@
+{
+  "source": "test/com/google/javascript/jscomp/ForbidDynamicImportUsageTest.java getProcessor (lines 37-40)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ForbidDynamicImportUsage",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "source": "test/com/google/javascript/jscomp/DenormalizeTest.java getProcessor (lines 34-37): new NormalizeAndDenormalizePass(compiler, outputFeatureSet); the static nested NormalizeAndDenormalizePass (lines 401-422) is expressed in the DSL (constructor: new Denormalize(compiler, outputFeatureSet), then new NormalizeStatements(compiler, false, null); process: NodeTraversal.traverse(compiler, root, normalizePass), then denormalizePass.process(externs, root)), bb8c8e7.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "let": [
+          [
+            "denormalizePass",
+            {
+              "new": "com.google.javascript.jscomp.Denormalize",
+              "args": [
+                {
+                  "compiler": true
+                },
+                {
+                  "field": "outputFeatureSet"
+                }
+              ]
+            }
+          ],
+          [
+            "normalizePass",
+            {
+              "new": "com.google.javascript.jscomp.Normalize$NormalizeStatements",
+              "args": [
+                {
+                  "compiler": true
+                },
+                {
+                  "bool": false
+                },
+                {
+                  "null": true
+                }
+              ]
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "root"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "do": [
+              {
+                "static": "com.google.javascript.jscomp.NodeTraversal",
+                "method": "traverse",
+                "args": [
+                  {
+                    "compiler": true
+                  },
+                  {
+                    "var": "root"
+                  },
+                  {
+                    "var": "normalizePass"
+                  }
+                ]
+              },
+              {
+                "call": {
+                  "var": "denormalizePass"
+                },
+                "method": "process",
+                "args": [
+                  {
+                    "var": "externs"
+                  },
+                  {
+                    "var": "root"
+                  }
+                ]
+              }
+            ],
+            "value": {
+              "null": true
+            }
+          }
+        }
+      }
+    }
+  ],
+  "note": "outputFeatureSet is FeatureSet.ES_UNSUPPORTED by default (line 32) and FeatureSet.BROWSER_2020 in testLogicalAssignShorthandBrowser2020 (line 316); the record dumps it as a FeatureSet object whose only field is the features set, which decodes to an equal FeatureSet (Denormalize only calls outputFeatureSet.has(...), Denormalize.java:229). Both passes are built when getProcessor runs (as in the NormalizeAndDenormalizePass constructor, Denormalize first) and run in process order; Denormalize is a DSL 'new', so --mutate-noop Denormalize replaces only it. Round 1 replayed the same code through a verbatim helper; round 2 removed it in favour of this DSL expression."
+}

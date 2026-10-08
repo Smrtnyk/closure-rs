@@ -1,0 +1,18 @@
+[package]
+name = "closure-rhino"
+description = "Port of com.google.javascript.rhino (Node, Token, IR, JSDocInfo, strings, dtoa)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+regex = { workspace = true }
+indexmap = { workspace = true }
+num-bigint = { workspace = true }
+num-integer = { workspace = true }
+flate2 = { workspace = true }

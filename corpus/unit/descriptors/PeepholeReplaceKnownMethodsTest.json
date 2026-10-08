@@ -1,0 +1,19 @@
+{
+  "source": "test/com/google/javascript/jscomp/PeepholeReplaceKnownMethodsTest.java getProcessor (lines 60-64); fields late/useTypes (lines 29-30) are reset in setUp (lines 54-55) and mutated by individual tests",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+        "args": [
+          {"compiler": true},
+          {"record": "harness.effective.getName"},
+          {"array": "com.google.javascript.jscomp.AbstractPeepholeOptimization", "items": [
+            {"new": "com.google.javascript.jscomp.PeepholeReplaceKnownMethods",
+             "args": [{"field": "late"}, {"field": "useTypes"}]}
+          ]}
+        ]
+      }
+    }
+  ]
+}

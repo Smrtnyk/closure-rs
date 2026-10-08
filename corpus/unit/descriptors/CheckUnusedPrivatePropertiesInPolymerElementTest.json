@@ -1,0 +1,20 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckUnusedPrivatePropertiesInPolymerElementTest.java getProcessor (lines 53-65), bb8c8e7, replayed through helper CheckUnusedPrivatePropertiesInPolymerElementTest_Helpers.GetProcessorHost (getProcessor copied verbatim, including its anonymous CompilerPass CheckUnusedPrivatePropertiesInPolymerElementTest$1)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {
+          "helper": "CheckUnusedPrivatePropertiesInPolymerElementTest_Helpers.GetProcessorHost"
+        },
+        "method": "getProcessor",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": "The anonymous pass runs PolymerPass, TypeCheck.processForTesting and CheckUnusedPrivateProperties in order, each constructed inside process() as in the original; it reads no test field (the class declares only the static EXTERNS, which reaches the records as defaultExternsInputs/inputs.externs). setUp (lines 45-51: enableCreateModuleMap, enableGatherExternProperties) and the per-test allowExternsChanges() are harness fields; getOptions() (lines 67-75) is replayed from record.options. Vacuity (fix-12, 2026-10-07; superseded by the classify round 2 batch 8 measurement below): all 3 records are testNoWarning calls (expected output null, no diagnostics, no postconditions, no test-instance fields, testFieldsAfter empty) that check CheckUnusedPrivateProperties does not report a Polymer observer as unused. Classify round 2 batch 8 (v7 records, 2026-10-07, build/unit/fix-8/noop): under --noop-processor records 0 and 1 fail with 'postCall differs' (the replayed postCall snapshot, whose first section is compiler.externProperties, differs from the recorded one when the anonymous pass does nothing), which gate (a) counts as an assertion-type failure; record 2 passes. The class is therefore not vacuous and its 3 records are counted in (a) (3/3 pass). Nothing in this descriptor changed for that; the earlier statement that the postCall snapshot is equal under the no-op no longer holds for the v7 snapshot."
+}

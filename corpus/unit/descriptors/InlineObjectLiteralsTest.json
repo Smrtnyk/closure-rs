@@ -1,0 +1,16 @@
+{
+  "source": "test/com/google/javascript/jscomp/InlineObjectLiteralsTest.java getProcessor (lines 46-49), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.InlineObjectLiterals",
+        "args": [
+          {"compiler": true},
+          {"call": {"compiler": true}, "method": "getUniqueNameIdSupplier", "args": []}
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor: new InlineObjectLiterals(compiler, compiler.getUniqueNameIdSupplier()), evaluated per repetition on that repetition's compiler. getNumRepetitions (lines 40-44) returns 2 and is replayed from harness.effective.getNumRepetitions. setUp (lines 31-38) calls enableNormalize() and enableNormalizeExpectedOutput(), replayed from harness.fields. The class has no instance fields (LOCAL_PREFIX/LOCAL_POSTFIX are static constants used only to build inputs)."
+}

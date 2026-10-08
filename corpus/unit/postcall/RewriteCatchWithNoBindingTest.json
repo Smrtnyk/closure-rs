@@ -1,0 +1,21 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.RewriteCatchWithNoBindingTest",
+ "methods": [
+  {
+   "method": "transpileCatchWithoutBinding",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.allowableFeatures"
+   ],
+   "note": "the test asserts getLastCompiler().getAllowableFeatures().contains(Feature.OPTIONAL_CATCH_BINDING) is false after test(...) (the transpilation removes the feature from the allowed set). Compiler.getAllowableFeatures() is a FeatureSet, a set of feature names: a neutral value that D-017 item 2 makes the snapshot key compiler.allowableFeatures (harness round 2, v7 recording), read from the test's lastCompiler (the compiler getLastCompiler() returns, after the multistage round trip of this class's setUp). The method's one record (2) holds postCall.compiler.allowableFeatures with 57 feature names and without OPTIONAL_CATCH_BINDING; ReplayMain compares the whole postCall by JSON equality, so a replay that left the feature allowed fails the record with 'postCall differs'. The record's other keys (compiler.externProperties, compiler.accessorSummary, compiler.typeMismatchesError) do not bear on the assertion."
+  },
+  {
+   "method": "typeOfAddedBindingIsUnknown",
+   "status": "rust_unit_test",
+   "reason": "asserts the Color of the added catch binding NAME UNUSED_CATCH$0 of the output AST (getLastCompiler().getRoot() > ROOT > SCRIPT > TRY > BLOCK > CATCH > NAME, assertNode(...).hasColorThat().isEqualTo(StandardColors.UNKNOWN)); Color objects are compiler-internal and Node.isEquivalentTo does not compare them. The record (1) carries no postCall.pass key; its postCall.compiler keys are externProperties (extern property names), accessorSummary (getter/setter summary), allowableFeatures (feature names) and typeMismatchesError (exception class of the type-mismatch accessor), none of which holds node colors",
+   "fragment": "corpus/unit/rust_unit_tests/RewriteCatchWithNoBindingTest.md",
+   "category": "color"
+  }
+ ]
+}

@@ -1,0 +1,47 @@
+{
+ "source": "test/com/google/javascript/jscomp/DevirtualizeMethodsTest.java getProcessor (lines 1785-1792): OptimizeCalls.builder().setCompiler(compiler).setConsiderExterns(false).addPass(new DevirtualizeMethods(compiler)).build(). The constructor (lines 42-44, externs) and customSetUp (lines 46-50) only set harness state that comes from the record.",
+ "cases": [
+  {
+   "when": {},
+   "processor": {
+    "call": {
+     "call": {
+      "call": {
+       "call": {
+        "static": "com.google.javascript.jscomp.OptimizeCalls",
+        "method": "builder",
+        "args": []
+       },
+       "method": "setCompiler",
+       "args": [
+        {
+         "compiler": true
+        }
+       ]
+      },
+      "method": "setConsiderExterns",
+      "args": [
+       {
+        "bool": false
+       }
+      ]
+     },
+     "method": "addPass",
+     "args": [
+      {
+       "new": "com.google.javascript.jscomp.DevirtualizeMethods",
+       "args": [
+        {
+         "compiler": true
+        }
+       ]
+      }
+     ]
+    },
+    "method": "build",
+    "args": []
+   }
+  }
+ ],
+ "note": "testRewritePrototypeMethodsWithCorrectColors (lines 57-104) makes follow-up color assertions on getLastCompiler() after test() (checkColorOfRewrittenMethods, lines 106-121); those assertions inspect Color objects of the output AST, which no record holds. They are classified rust_unit_test in corpus/unit/postcall/DevirtualizeMethodsTest.json (D-015 a), replacing the former postCallAssertions entry."
+}

@@ -1,0 +1,14 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6ConvertSuperTest.java getProcessor (lines 66-72; a PhaseOptimizer of makePassFactory method references), replayed through helper Es6ConvertSuperTest_Helpers.GetProcessor. setUp (lines 53-64) affects only harness fields (enableNormalize, setAcceptedLanguage, setLanguageOut, enableTypeCheck, enableTypeInfoValidation, replaceTypesWithColors, enableMultistageCompilation), which come from the record.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {"helper": "Es6ConvertSuperTest_Helpers.GetProcessor"},
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "The test class declares no instance fields. Not recorded: the Color assertions on getLastCompiler() that follow test() in several methods (the test's own follow-up assertions)."
+}

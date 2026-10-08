@@ -1,0 +1,192 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6RewriteModulesWithGoogInteropTest.java getProcessor (lines 123-146), bb8c8e7: a lambda (externs, root) -> {...} that builds TypeCheck and Es6RewriteModules at process time (DSL.md pattern 'A pass built at process time'). setUp (lines 105-112: enableTypeInfoValidation, enableCreateModuleMap) and getOptions (lines 114-121: LINT_CHECKS at ERROR) affect only harness fields and options, which come from the record.",
+  "cases": [
+    {
+      "when": {
+        "testFields.runTypeChecker": true
+      },
+      "note": "runTypeChecker == true branch (lines 126-134): TypeCheck.processForTesting gives globalTypedScope (checkNotNull), then compiler.setTypeCheckingHasRun(true), then Es6RewriteModules (lines 139-145). Evaluation order is the Java order: rai, then new TypeCheck(compiler, rai, compiler.getTypeRegistry()), processForTesting, checkNotNull.",
+      "processor": {
+        "lambda": [
+          "externs",
+          "root"
+        ],
+        "iface": "com.google.javascript.jscomp.CompilerPass",
+        "body": {
+          "let": [
+            [
+              "rai",
+              {
+                "new": "com.google.javascript.jscomp.type.SemanticReverseAbstractInterpreter",
+                "args": [
+                  {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getTypeRegistry",
+                    "args": []
+                  }
+                ]
+              }
+            ],
+            [
+              "globalTypedScope",
+              {
+                "static": "com.google.common.base.Preconditions",
+                "method": "checkNotNull",
+                "args": [
+                  {
+                    "call": {
+                      "new": "com.google.javascript.jscomp.TypeCheck",
+                      "args": [
+                        {
+                          "compiler": true
+                        },
+                        {
+                          "var": "rai"
+                        },
+                        {
+                          "call": {
+                            "compiler": true
+                          },
+                          "method": "getTypeRegistry",
+                          "args": []
+                        }
+                      ]
+                    },
+                    "method": "processForTesting",
+                    "args": [
+                      {
+                        "var": "externs"
+                      },
+                      {
+                        "var": "root"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          ],
+          "in": {
+            "do": [
+              {
+                "call": {
+                  "compiler": true
+                },
+                "method": "setTypeCheckingHasRun",
+                "args": [
+                  {
+                    "bool": true
+                  }
+                ]
+              },
+              {
+                "call": {
+                  "new": "com.google.javascript.jscomp.Es6RewriteModules",
+                  "args": [
+                    {
+                      "compiler": true
+                    },
+                    {
+                      "call": {
+                        "compiler": true
+                      },
+                      "method": "getModuleMetadataMap",
+                      "args": []
+                    },
+                    {
+                      "call": {
+                        "compiler": true
+                      },
+                      "method": "getModuleMap",
+                      "args": []
+                    },
+                    {
+                      "null": true
+                    },
+                    {
+                      "var": "globalTypedScope"
+                    }
+                  ]
+                },
+                "method": "process",
+                "args": [
+                  {
+                    "var": "externs"
+                  },
+                  {
+                    "var": "root"
+                  }
+                ]
+              }
+            ],
+            "value": {
+              "null": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "testFields.runTypeChecker": false
+      },
+      "note": "runTypeChecker == false branch (line 136, set by the test body at line 888): globalTypedScope = null, then Es6RewriteModules (lines 139-145).",
+      "processor": {
+        "lambda": [
+          "externs",
+          "root"
+        ],
+        "iface": "com.google.javascript.jscomp.CompilerPass",
+        "body": {
+          "do": [
+            {
+              "call": {
+                "new": "com.google.javascript.jscomp.Es6RewriteModules",
+                "args": [
+                  {
+                    "compiler": true
+                  },
+                  {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getModuleMetadataMap",
+                    "args": []
+                  },
+                  {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getModuleMap",
+                    "args": []
+                  },
+                  {
+                    "null": true
+                  },
+                  {
+                    "null": true
+                  }
+                ]
+              },
+              "method": "process",
+              "args": [
+                {
+                  "var": "externs"
+                },
+                {
+                  "var": "root"
+                }
+              ]
+            }
+          ],
+          "value": {
+            "null": true
+          }
+        }
+      }
+    }
+  ],
+  "note": "The lambda reads the test field runTypeChecker (true by default, line 103; false at line 888) when it runs; the test body sets it before calling test(...), so the value recorded in testFields at entry is the value the lambda read, and it selects the case. The lambda body reads compiler.getModuleMetadataMap()/getModuleMap() at process time, after the harness has gathered module metadata; the DSL lambda body is evaluated at call time too. Es6RewriteModules and TypeCheck are DSL 'new's, so --mutate-noop Es6RewriteModules reaches them. Round 1 replayed the same code through a verbatim helper; round 2 removed it in favour of this DSL lambda."
+}

@@ -1,0 +1,9 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckUselessBlocksTest.java getProcessor (lines 34-37): new CheckUselessBlocks(compiler). The overridden getOptions (lines 39-44, LINT_CHECKS at WARNING) is reproduced by record.options.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.lint.CheckUselessBlocks", "args": [{"compiler": true}]}
+    }
+  ]
+}

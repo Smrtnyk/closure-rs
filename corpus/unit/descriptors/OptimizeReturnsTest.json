@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/OptimizeReturnsTest.java getProcessor (lines 27-30), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.OptimizeReturns",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor is unconditional and the test class declares no fields. setUp's enableNormalize/enableNormalizeExpectedOutput/enableGatherExternProperties are replayed from harness.fields; the constructor's externs (DEFAULT_EXTERNS + EXTERNAL_SYMBOLS) are in inputs.externs."
+}

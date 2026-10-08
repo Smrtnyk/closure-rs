@@ -1,0 +1,14 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.ScopedAliasesTest",
+ "methods": [
+  {
+   "method": "testSourceInfo",
+   "status": "rust_unit_test",
+   "reason": "after testScoped() (a helper that makes one hooked test() call; record index 10, no postcondition) the test takes getLastCompiler().getRoot(), finds the qualified-name nodes dom and event of the output AST and asserts dom.getLineno() > event.getLineno() (ScopedAliasesTest.java:105-119): source line numbers of Java Node objects of the output AST. The AST comparison ignores line numbers; the record's post-call snapshot carries only postCall.compiler.accessorSummary (an empty map) and postCall.compiler.moduleMetadataByPath (module metadata of the externs and testcode inputs), no postCall.pass key and no postCall.postcondition (its jsdocTypes, written only when a postcondition runs, would list only JSDoc-typed nodes), and no test field holds node positions",
+   "fragment": "corpus/unit/rust_unit_tests/ScopedAliasesTest.md",
+   "category": "node-identity",
+   "note": "Classify round 1 batch 14: re-read the source; category node-identity kept (source positions of Node objects); the reason now names every postCall key the record carries."
+  }
+ ]
+}

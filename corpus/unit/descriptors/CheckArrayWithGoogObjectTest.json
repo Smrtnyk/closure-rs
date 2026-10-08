@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckArrayWithGoogObjectTest.java getProcessor (lines 42-45), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.lint.CheckArrayWithGoogObject",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor reads no test fields (the class declares only the static GOOG_OBJECT), so one unconditional case covers every record. getOptions (lines 47-52: setWarningLevel(LINT_CHECKS, WARNING)) is replayed from the options diff. setUp (lines 54-64: enableTranspile, allowExternsChanges, enableTypeCheck) is in harness.fields. The private testGoogObjectWarning/testNoGoogObjectWarning wrappers pass externs(DEFAULT_EXTERNS) explicitly; those externs are in the record's inputs."
+}

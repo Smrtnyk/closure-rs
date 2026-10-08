@@ -1,0 +1,5 @@
+     01.000 Start       [A] outer
+   5 01.005 Start       |  [A] inner
+   5 01.010 Done   5 ms |  [A] inner
+   5 01.015 Done  15 ms [A] outer
+ TOTAL A 3 (25 ms)

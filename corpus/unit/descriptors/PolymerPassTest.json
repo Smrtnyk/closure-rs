@@ -1,0 +1,96 @@
+{
+  "source": "test/com/google/javascript/jscomp/PolymerPassTest.java getProcessor (lines 151-154); testSimpleBehavior's postcondition (lines 2659-2667) with nested class DoSomethingFunFinder (lines 2714-2724), copied verbatim into helper PolymerPassTest_Helpers. getOptions (lines 156-161) and setUp (lines 163-184) affect only options/harness fields, which come from the record.",
+  "cases": [
+    {
+      "when": {
+        "method": "testSimpleBehavior",
+        "expected.postconditionValues.0.unrepresentable": "com.google.javascript.jscomp.PolymerPassTest$$Lambda",
+        "expected.postconditions": 1
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.PolymerPass",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      },
+      "postconditions": [
+        {
+          "lambda": [
+            "compiler"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerTestCase$Postcondition",
+          "body": {
+            "let": [
+              [
+                "root",
+                {
+                  "call": {
+                    "var": "compiler"
+                  },
+                  "method": "getRoot",
+                  "args": []
+                }
+              ],
+              [
+                "visitor",
+                {
+                  "helper": "PolymerPassTest_Helpers.DoSomethingFunFinder"
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "static": "com.google.javascript.jscomp.NodeUtil",
+                  "method": "visitPreOrder",
+                  "args": [
+                    {
+                      "var": "root"
+                    },
+                    {
+                      "var": "visitor"
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "static": "com.google.common.truth.Truth",
+                    "method": "assertThat",
+                    "args": [
+                      {
+                        "getField": {
+                          "var": "visitor"
+                        },
+                        "name": "found"
+                      }
+                    ]
+                  },
+                  "method": "isTrue",
+                  "args": []
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      ],
+      "note": "testSimpleBehavior's postcondition lambda (PolymerPassTest.java lines 2659-2667, the class's only Postcondition; it captures nothing), rebuilt as a DSL lambda over the verbatim helper PolymerPassTest_Helpers.DoSomethingFunFinder (lines 2714-2724)."
+    },
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.PolymerPass",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "unrepresentableAudit": "1 record (#133, testSimpleBehavior) lists expected.postconditions[0] (a lambda, no captures) as unrepresentable. The first case replays it through 'postconditions'. Checked with a scratch perturbation (isTrue to isFalse), which makes exactly this record fail."
+}

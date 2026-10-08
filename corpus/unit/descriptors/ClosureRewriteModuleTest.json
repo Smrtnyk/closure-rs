@@ -1,0 +1,62 @@
+{
+  "source": "test/com/google/javascript/jscomp/ClosureRewriteModuleTest.java getProcessor (lines 55-68), bb8c8e7: the CompilerPass lambda (externs, main) -> {...} is written in the DSL (pattern 'A pass built at process time'). The getProcessor parameter `compiler` that the lambda captures is bound by the outer let. Body: rai = new SemanticReverseAbstractInterpreter(compiler.getTypeRegistry()); globalTypedScope = checkNotNull(new TypeCheck(compiler, rai, compiler.getTypeRegistry()).processForTesting(externs, main)); compiler.setTypeCheckingHasRun(true); new ClosureRewriteModule(compiler, null, globalTypedScope).process(externs, main). No helper.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "let": [["compiler", {"compiler": true}]],
+        "in": {
+          "lambda": ["externs", "main"],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "rai",
+                {
+                  "new": "com.google.javascript.jscomp.type.SemanticReverseAbstractInterpreter",
+                  "args": [{"call": {"var": "compiler"}, "method": "getTypeRegistry", "args": []}]
+                }
+              ],
+              [
+                "globalTypedScope",
+                {
+                  "static": "com.google.common.base.Preconditions",
+                  "method": "checkNotNull",
+                  "args": [
+                    {
+                      "call": {
+                        "new": "com.google.javascript.jscomp.TypeCheck",
+                        "args": [
+                          {"var": "compiler"},
+                          {"var": "rai"},
+                          {"call": {"var": "compiler"}, "method": "getTypeRegistry", "args": []}
+                        ]
+                      },
+                      "method": "processForTesting",
+                      "args": [{"var": "externs"}, {"var": "main"}]
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {"call": {"var": "compiler"}, "method": "setTypeCheckingHasRun", "args": [{"bool": true}]},
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.ClosureRewriteModule",
+                    "args": [{"var": "compiler"}, {"null": true}, {"var": "globalTypedScope"}]
+                  },
+                  "method": "process",
+                  "args": [{"var": "externs"}, {"var": "main"}]
+                }
+              ],
+              "value": {"null": true}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "note": "preserveClosurePrimitives and allowMissingSources only affect getOptions(), whose effect is the record's options diff. setUp's enableCreateModuleMap/enableTypeInfoValidation are harness fields restored from the record. The 10 records with processor null never reached getProcessor (the expected parse/diagnostic happened first)."
+}

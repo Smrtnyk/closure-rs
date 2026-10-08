@@ -1,0 +1,21 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.ProcessClosureProvidesAndRequiresTest",
+ "methods": [
+  {
+   "method": "testGoogExportSymbolRecording",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.lastProcessor"
+   ],
+   "note": "asserts lastProcessor.getExportedVariableNames() == [a, foo, b]; getExportedVariableNames() returns the field exportedVariables, which is part of the compared testFieldsAfter.lastProcessor dump (descriptor case testFieldsAfter = the shared helper holder)"
+  },
+  {
+   "method": "testSourcePositionPreservation",
+   "status": "rust_unit_test",
+   "reason": "asserts getLineno()/getCharno() of output AST nodes; source positions are compared neither by the AST comparison nor by the post-call snapshot (the compared lastProcessor dump does not hold them)",
+   "fragment": "corpus/unit/rust_unit_tests/ProcessClosureProvidesAndRequiresTest.md",
+   "category": "node-identity"
+  }
+ ]
+}

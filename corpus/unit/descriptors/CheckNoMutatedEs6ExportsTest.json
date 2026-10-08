@@ -1,0 +1,17 @@
+{
+ "source": "test/com/google/javascript/jscomp/lint/CheckNoMutatedEs6ExportsTest.java getProcessor (lines 31-34), bb8c8e7",
+ "cases": [
+  {
+   "when": {},
+   "processor": {
+    "new": "com.google.javascript.jscomp.lint.CheckNoMutatedEs6Exports",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  }
+ ],
+ "note": "The class overrides only getProcessor and declares no instance fields; every test uses testSame/testWarning with the default harness state, which comes from the record."
+}

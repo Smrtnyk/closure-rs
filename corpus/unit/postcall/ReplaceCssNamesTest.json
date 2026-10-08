@@ -1,0 +1,62 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.ReplaceCssNamesTest",
+ "methods": [
+  {
+   "method": "testDoNotUseReplacementMap",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.cssNames"
+   ],
+   "note": "Asserts, after its three test(...) calls with useReplacementMap=false, cssNames containsExactly goog-footer-active, goog-colorswatch-disabled, active-buttonbar. The set accumulates across the calls; the last record's testFieldsAfter.cssNames is exactly that set, and each record's value is compared. The test field cssNames (a HashSet<String>, reset to an empty set in setUp) is the consumer the processor is built with (getProcessor: new ReplaceCssNames(compiler, map, cssNames::add, skiplist)); the descriptor rebuilds it through ReplaceCssNamesTest_Helpers with the same field and opts in with testFieldsAfterAlso [cssNames], so replay compares its post-call value in every record (neutral equality: HashSet is UNORDERED, compared as a multiset, which matches Truth's containsExactly without inOrder)."
+  },
+  {
+   "method": "testIgnoreReferencesInCssTsFiles",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.cssNames"
+   ],
+   "note": "Asserts cssNames isEmpty() after one test(...) on a @sassGeneratedCssTs file: the pass renames the classes object's goog.getCssName calls but must not report them to the consumer. Replay compares cssNames after the call through testFieldsAfterAlso (empty set before and after); a port that reported names would fail the record. Known gate result: cssNames is unchanged during this method's only call, so the gate's Review round 4 rule (the field must change in at least one record of the method) rejects this claim and the method stays unclassified. The test field cssNames (a HashSet<String>, reset to an empty set in setUp) is the consumer the processor is built with (getProcessor: new ReplaceCssNames(compiler, map, cssNames::add, skiplist)); the descriptor rebuilds it through ReplaceCssNamesTest_Helpers with the same field and opts in with testFieldsAfterAlso [cssNames], so replay compares its post-call value in every record (neutral equality: HashSet is UNORDERED, compared as a multiset, which matches Truth's containsExactly without inOrder)."
+  },
+  {
+   "method": "testMixedVariableAndStringReferences",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.cssNames"
+   ],
+   "note": "Asserts cssNames containsExactly fooStylesBar, active after one test(...); the record's testFieldsAfter.cssNames is exactly {fooStylesBar, active}. The test field cssNames (a HashSet<String>, reset to an empty set in setUp) is the consumer the processor is built with (getProcessor: new ReplaceCssNames(compiler, map, cssNames::add, skiplist)); the descriptor rebuilds it through ReplaceCssNamesTest_Helpers with the same field and opts in with testFieldsAfterAlso [cssNames], so replay compares its post-call value in every record (neutral equality: HashSet is UNORDERED, compared as a multiset, which matches Truth's containsExactly without inOrder)."
+  },
+  {
+   "method": "testOneArgWithCompositeClassNames",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.cssNames"
+   ],
+   "note": "Through the non-@Test helper oneArgWithCompositeClassNames: after three test(...) calls, cssNames containsExactly goog-footer-active, goog-colorswatch-disabled, active-buttonbar (the last record's testFieldsAfter.cssNames). The test field cssNames (a HashSet<String>, reset to an empty set in setUp) is the consumer the processor is built with (getProcessor: new ReplaceCssNames(compiler, map, cssNames::add, skiplist)); the descriptor rebuilds it through ReplaceCssNamesTest_Helpers with the same field and opts in with testFieldsAfterAlso [cssNames], so replay compares its post-call value in every record (neutral equality: HashSet is UNORDERED, compared as a multiset, which matches Truth's containsExactly without inOrder)."
+  },
+  {
+   "method": "testOneArgWithSimpleStringLiterals",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.cssNames"
+   ],
+   "note": "Through the non-@Test helper oneArgWithSimpleStringLiterals: after three test(...) calls, cssNames containsExactly buttonbar, colorswatch, elephant (the last record's testFieldsAfter.cssNames). The test field cssNames (a HashSet<String>, reset to an empty set in setUp) is the consumer the processor is built with (getProcessor: new ReplaceCssNames(compiler, map, cssNames::add, skiplist)); the descriptor rebuilds it through ReplaceCssNamesTest_Helpers with the same field and opts in with testFieldsAfterAlso [cssNames], so replay compares its post-call value in every record (neutral equality: HashSet is UNORDERED, compared as a multiset, which matches Truth's containsExactly without inOrder)."
+  },
+  {
+   "method": "testVariableReferencesToCssClasses",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.cssNames"
+   ],
+   "note": "Asserts cssNames containsExactly fooStylesBar after one test(...) (record testFieldsAfter.cssNames = {fooStylesBar}). The test field cssNames (a HashSet<String>, reset to an empty set in setUp) is the consumer the processor is built with (getProcessor: new ReplaceCssNames(compiler, map, cssNames::add, skiplist)); the descriptor rebuilds it through ReplaceCssNamesTest_Helpers with the same field and opts in with testFieldsAfterAlso [cssNames], so replay compares its post-call value in every record (neutral equality: HashSet is UNORDERED, compared as a multiset, which matches Truth's containsExactly without inOrder)."
+  },
+  {
+   "method": "testVariableReferencesToXidCssClasses",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.cssNames"
+   ],
+   "note": "Asserts cssNames containsExactly fooStylesBar after one test(...) (record testFieldsAfter.cssNames = {fooStylesBar}). The test field cssNames (a HashSet<String>, reset to an empty set in setUp) is the consumer the processor is built with (getProcessor: new ReplaceCssNames(compiler, map, cssNames::add, skiplist)); the descriptor rebuilds it through ReplaceCssNamesTest_Helpers with the same field and opts in with testFieldsAfterAlso [cssNames], so replay compares its post-call value in every record (neutral equality: HashSet is UNORDERED, compared as a multiset, which matches Truth's containsExactly without inOrder)."
+  }
+ ]
+}

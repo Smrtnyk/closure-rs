@@ -1,0 +1,99 @@
+{
+  "source": "test/com/google/javascript/jscomp/ReplaceMessagesTest.java getProcessor (lines 94-103); SimpleMessageBundle (lines 2741-2756) and TEST_ID_GENERATOR (lines 42-61) are copied into oracle/replay/helpers/com/google/javascript/jscomp/ReplaceMessagesTest_Helpers.java",
+  "cases": [
+    {
+      "when": {
+        "testFields.testMode": {
+          "enum": "com.google.javascript.jscomp.ReplaceMessagesTest$TestMode",
+          "name": "FULL_REPLACE"
+        }
+      },
+      "processor": {
+        "call": {
+          "new": "com.google.javascript.jscomp.ReplaceMessages",
+          "args": [
+            {
+              "compiler": true
+            },
+            {
+              "helper": "ReplaceMessagesTest_Helpers.SimpleMessageBundle",
+              "outer": [
+                "messages",
+                "useTestIdGenerator"
+              ],
+              "args": []
+            },
+            {
+              "field": "strictReplacement"
+            }
+          ]
+        },
+        "method": "getFullReplacementPass",
+        "args": []
+      }
+    },
+    {
+      "when": {
+        "testFields.testMode": {
+          "enum": "com.google.javascript.jscomp.ReplaceMessagesTest$TestMode",
+          "name": "PROTECT_MSGS"
+        }
+      },
+      "processor": {
+        "call": {
+          "new": "com.google.javascript.jscomp.ReplaceMessages",
+          "args": [
+            {
+              "compiler": true
+            },
+            {
+              "helper": "ReplaceMessagesTest_Helpers.SimpleMessageBundle",
+              "outer": [
+                "messages",
+                "useTestIdGenerator"
+              ],
+              "args": []
+            },
+            {
+              "field": "strictReplacement"
+            }
+          ]
+        },
+        "method": "getMsgProtectionPass",
+        "args": []
+      }
+    },
+    {
+      "when": {
+        "testFields.testMode": {
+          "enum": "com.google.javascript.jscomp.ReplaceMessagesTest$TestMode",
+          "name": "REPLACE_PROTECTED_MSGS"
+        }
+      },
+      "processor": {
+        "call": {
+          "new": "com.google.javascript.jscomp.ReplaceMessages",
+          "args": [
+            {
+              "compiler": true
+            },
+            {
+              "helper": "ReplaceMessagesTest_Helpers.SimpleMessageBundle",
+              "outer": [
+                "messages",
+                "useTestIdGenerator"
+              ],
+              "args": []
+            },
+            {
+              "field": "strictReplacement"
+            }
+          ]
+        },
+        "method": "getReplacementCompletionPass",
+        "args": []
+      }
+    }
+  ],
+  "note": "One case per TestMode switch arm. The bundle reads the test's messages map and useTestIdGenerator flag through its outer instance, so both are restored as outer fields from testFields."
+}

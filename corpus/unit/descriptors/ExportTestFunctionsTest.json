@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/ExportTestFunctionsTest.java getProcessor (lines 43-46), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.ExportTestFunctions",
+        "args": [
+          {"compiler": true},
+          {"string": "google_exportSymbol"},
+          {"string": "google_exportProperty"}
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor is unconditional with two string literals; the test class declares only static final String constants (no instance fields) and overrides no other hook."
+}

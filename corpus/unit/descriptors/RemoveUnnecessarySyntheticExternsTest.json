@@ -1,0 +1,1314 @@
+{
+  "source": "test/com/google/javascript/jscomp/RemoveUnnecessarySyntheticExternsTest.java: getProcessor (lines 41-51, a CompilerPass lambda over the test field syntheticExternsToAdd) is written in the DSL; setUp's field initialisation (line 39), createUnfulfilledDeclaration (lines 174-180) and each test method's syntheticExternsToAdd.add(...) prologue are copied verbatim into helper RemoveUnnecessarySyntheticExternsTest_Helpers, bb8c8e7.",
+  "cases": [
+    {
+      "when": {
+        "method": "doesntChangeSyntheticExternThatIsNotDeclaredInCode"
+      },
+      "processor": {
+        "let": [
+          [
+            "this",
+            {
+              "once": "testInstance",
+              "value": {
+                "call": {
+                  "call": {
+                    "helper": "RemoveUnnecessarySyntheticExternsTest_Helpers"
+                  },
+                  "method": "setUp"
+                },
+                "method": "doesntChangeSyntheticExternThatIsNotDeclaredInCode"
+              }
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "js"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "syntheticRoot",
+                {
+                  "call": {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getSynthesizedExternsInput"
+                  },
+                  "method": "getAstRoot",
+                  "args": [
+                    {
+                      "compiler": true
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "call": {
+                    "getField": {
+                      "var": "this"
+                    },
+                    "name": "syntheticExternsToAdd"
+                  },
+                  "method": "forEach",
+                  "args": [
+                    {
+                      "lambda": [
+                        "declaration"
+                      ],
+                      "iface": "java.util.function.Consumer",
+                      "body": {
+                        "call": {
+                          "var": "syntheticRoot"
+                        },
+                        "method": "addChildToBack",
+                        "args": [
+                          {
+                            "call": {
+                              "var": "declaration"
+                            },
+                            "method": "cloneTree"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnnecessarySyntheticExterns",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "js"
+                    }
+                  ]
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "method": "doesntRemoveSyntheticExternIfShadowedInCode"
+      },
+      "processor": {
+        "let": [
+          [
+            "this",
+            {
+              "once": "testInstance",
+              "value": {
+                "call": {
+                  "call": {
+                    "helper": "RemoveUnnecessarySyntheticExternsTest_Helpers"
+                  },
+                  "method": "setUp"
+                },
+                "method": "doesntRemoveSyntheticExternIfShadowedInCode"
+              }
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "js"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "syntheticRoot",
+                {
+                  "call": {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getSynthesizedExternsInput"
+                  },
+                  "method": "getAstRoot",
+                  "args": [
+                    {
+                      "compiler": true
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "call": {
+                    "getField": {
+                      "var": "this"
+                    },
+                    "name": "syntheticExternsToAdd"
+                  },
+                  "method": "forEach",
+                  "args": [
+                    {
+                      "lambda": [
+                        "declaration"
+                      ],
+                      "iface": "java.util.function.Consumer",
+                      "body": {
+                        "call": {
+                          "var": "syntheticRoot"
+                        },
+                        "method": "addChildToBack",
+                        "args": [
+                          {
+                            "call": {
+                              "var": "declaration"
+                            },
+                            "method": "cloneTree"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnnecessarySyntheticExterns",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "js"
+                    }
+                  ]
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "method": "removesSyntheticExternDeclaredInCode"
+      },
+      "processor": {
+        "let": [
+          [
+            "this",
+            {
+              "once": "testInstance",
+              "value": {
+                "call": {
+                  "call": {
+                    "helper": "RemoveUnnecessarySyntheticExternsTest_Helpers"
+                  },
+                  "method": "setUp"
+                },
+                "method": "removesSyntheticExternDeclaredInCode"
+              }
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "js"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "syntheticRoot",
+                {
+                  "call": {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getSynthesizedExternsInput"
+                  },
+                  "method": "getAstRoot",
+                  "args": [
+                    {
+                      "compiler": true
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "call": {
+                    "getField": {
+                      "var": "this"
+                    },
+                    "name": "syntheticExternsToAdd"
+                  },
+                  "method": "forEach",
+                  "args": [
+                    {
+                      "lambda": [
+                        "declaration"
+                      ],
+                      "iface": "java.util.function.Consumer",
+                      "body": {
+                        "call": {
+                          "var": "syntheticRoot"
+                        },
+                        "method": "addChildToBack",
+                        "args": [
+                          {
+                            "call": {
+                              "var": "declaration"
+                            },
+                            "method": "cloneTree"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnnecessarySyntheticExterns",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "js"
+                    }
+                  ]
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "method": "removesSyntheticExternDeclaredInGoogProvide"
+      },
+      "processor": {
+        "let": [
+          [
+            "this",
+            {
+              "once": "testInstance",
+              "value": {
+                "call": {
+                  "call": {
+                    "helper": "RemoveUnnecessarySyntheticExternsTest_Helpers"
+                  },
+                  "method": "setUp"
+                },
+                "method": "removesSyntheticExternDeclaredInGoogProvide"
+              }
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "js"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "syntheticRoot",
+                {
+                  "call": {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getSynthesizedExternsInput"
+                  },
+                  "method": "getAstRoot",
+                  "args": [
+                    {
+                      "compiler": true
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "call": {
+                    "getField": {
+                      "var": "this"
+                    },
+                    "name": "syntheticExternsToAdd"
+                  },
+                  "method": "forEach",
+                  "args": [
+                    {
+                      "lambda": [
+                        "declaration"
+                      ],
+                      "iface": "java.util.function.Consumer",
+                      "body": {
+                        "call": {
+                          "var": "syntheticRoot"
+                        },
+                        "method": "addChildToBack",
+                        "args": [
+                          {
+                            "call": {
+                              "var": "declaration"
+                            },
+                            "method": "cloneTree"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnnecessarySyntheticExterns",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "js"
+                    }
+                  ]
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "method": "doesNotRemovesSyntheticExternForLegacyGoogModule"
+      },
+      "processor": {
+        "let": [
+          [
+            "this",
+            {
+              "once": "testInstance",
+              "value": {
+                "call": {
+                  "call": {
+                    "helper": "RemoveUnnecessarySyntheticExternsTest_Helpers"
+                  },
+                  "method": "setUp"
+                },
+                "method": "doesNotRemovesSyntheticExternForLegacyGoogModule"
+              }
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "js"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "syntheticRoot",
+                {
+                  "call": {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getSynthesizedExternsInput"
+                  },
+                  "method": "getAstRoot",
+                  "args": [
+                    {
+                      "compiler": true
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "call": {
+                    "getField": {
+                      "var": "this"
+                    },
+                    "name": "syntheticExternsToAdd"
+                  },
+                  "method": "forEach",
+                  "args": [
+                    {
+                      "lambda": [
+                        "declaration"
+                      ],
+                      "iface": "java.util.function.Consumer",
+                      "body": {
+                        "call": {
+                          "var": "syntheticRoot"
+                        },
+                        "method": "addChildToBack",
+                        "args": [
+                          {
+                            "call": {
+                              "var": "declaration"
+                            },
+                            "method": "cloneTree"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnnecessarySyntheticExterns",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "js"
+                    }
+                  ]
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "method": "removesSyntheticExternDeclaredInLegacyGoogModuleNamespace"
+      },
+      "processor": {
+        "let": [
+          [
+            "this",
+            {
+              "once": "testInstance",
+              "value": {
+                "call": {
+                  "call": {
+                    "helper": "RemoveUnnecessarySyntheticExternsTest_Helpers"
+                  },
+                  "method": "setUp"
+                },
+                "method": "removesSyntheticExternDeclaredInLegacyGoogModuleNamespace"
+              }
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "js"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "syntheticRoot",
+                {
+                  "call": {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getSynthesizedExternsInput"
+                  },
+                  "method": "getAstRoot",
+                  "args": [
+                    {
+                      "compiler": true
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "call": {
+                    "getField": {
+                      "var": "this"
+                    },
+                    "name": "syntheticExternsToAdd"
+                  },
+                  "method": "forEach",
+                  "args": [
+                    {
+                      "lambda": [
+                        "declaration"
+                      ],
+                      "iface": "java.util.function.Consumer",
+                      "body": {
+                        "call": {
+                          "var": "syntheticRoot"
+                        },
+                        "method": "addChildToBack",
+                        "args": [
+                          {
+                            "call": {
+                              "var": "declaration"
+                            },
+                            "method": "cloneTree"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnnecessarySyntheticExterns",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "js"
+                    }
+                  ]
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "method": "removesSyntheticExternDeclaredInOtherExterns"
+      },
+      "processor": {
+        "let": [
+          [
+            "this",
+            {
+              "once": "testInstance",
+              "value": {
+                "call": {
+                  "call": {
+                    "helper": "RemoveUnnecessarySyntheticExternsTest_Helpers"
+                  },
+                  "method": "setUp"
+                },
+                "method": "removesSyntheticExternDeclaredInOtherExterns"
+              }
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "js"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "syntheticRoot",
+                {
+                  "call": {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getSynthesizedExternsInput"
+                  },
+                  "method": "getAstRoot",
+                  "args": [
+                    {
+                      "compiler": true
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "call": {
+                    "getField": {
+                      "var": "this"
+                    },
+                    "name": "syntheticExternsToAdd"
+                  },
+                  "method": "forEach",
+                  "args": [
+                    {
+                      "lambda": [
+                        "declaration"
+                      ],
+                      "iface": "java.util.function.Consumer",
+                      "body": {
+                        "call": {
+                          "var": "syntheticRoot"
+                        },
+                        "method": "addChildToBack",
+                        "args": [
+                          {
+                            "call": {
+                              "var": "declaration"
+                            },
+                            "method": "cloneTree"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnnecessarySyntheticExterns",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "js"
+                    }
+                  ]
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "method": "removesDistinctSyntheticExternsDeclaredInCode"
+      },
+      "processor": {
+        "let": [
+          [
+            "this",
+            {
+              "once": "testInstance",
+              "value": {
+                "call": {
+                  "call": {
+                    "helper": "RemoveUnnecessarySyntheticExternsTest_Helpers"
+                  },
+                  "method": "setUp"
+                },
+                "method": "removesDistinctSyntheticExternsDeclaredInCode"
+              }
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "js"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "syntheticRoot",
+                {
+                  "call": {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getSynthesizedExternsInput"
+                  },
+                  "method": "getAstRoot",
+                  "args": [
+                    {
+                      "compiler": true
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "call": {
+                    "getField": {
+                      "var": "this"
+                    },
+                    "name": "syntheticExternsToAdd"
+                  },
+                  "method": "forEach",
+                  "args": [
+                    {
+                      "lambda": [
+                        "declaration"
+                      ],
+                      "iface": "java.util.function.Consumer",
+                      "body": {
+                        "call": {
+                          "var": "syntheticRoot"
+                        },
+                        "method": "addChildToBack",
+                        "args": [
+                          {
+                            "call": {
+                              "var": "declaration"
+                            },
+                            "method": "cloneTree"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnnecessarySyntheticExterns",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "js"
+                    }
+                  ]
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "method": "removesDuplicateUnfulfilledSyntheticDeclarations"
+      },
+      "processor": {
+        "let": [
+          [
+            "this",
+            {
+              "once": "testInstance",
+              "value": {
+                "call": {
+                  "call": {
+                    "helper": "RemoveUnnecessarySyntheticExternsTest_Helpers"
+                  },
+                  "method": "setUp"
+                },
+                "method": "removesDuplicateUnfulfilledSyntheticDeclarations"
+              }
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "js"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "syntheticRoot",
+                {
+                  "call": {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getSynthesizedExternsInput"
+                  },
+                  "method": "getAstRoot",
+                  "args": [
+                    {
+                      "compiler": true
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "call": {
+                    "getField": {
+                      "var": "this"
+                    },
+                    "name": "syntheticExternsToAdd"
+                  },
+                  "method": "forEach",
+                  "args": [
+                    {
+                      "lambda": [
+                        "declaration"
+                      ],
+                      "iface": "java.util.function.Consumer",
+                      "body": {
+                        "call": {
+                          "var": "syntheticRoot"
+                        },
+                        "method": "addChildToBack",
+                        "args": [
+                          {
+                            "call": {
+                              "var": "declaration"
+                            },
+                            "method": "cloneTree"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnnecessarySyntheticExterns",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "js"
+                    }
+                  ]
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "method": "removesSyntheticExternDeclaredInCode_multipleCodeDeclarations"
+      },
+      "processor": {
+        "let": [
+          [
+            "this",
+            {
+              "once": "testInstance",
+              "value": {
+                "call": {
+                  "call": {
+                    "helper": "RemoveUnnecessarySyntheticExternsTest_Helpers"
+                  },
+                  "method": "setUp"
+                },
+                "method": "removesSyntheticExternDeclaredInCode_multipleCodeDeclarations"
+              }
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "js"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "syntheticRoot",
+                {
+                  "call": {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getSynthesizedExternsInput"
+                  },
+                  "method": "getAstRoot",
+                  "args": [
+                    {
+                      "compiler": true
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "call": {
+                    "getField": {
+                      "var": "this"
+                    },
+                    "name": "syntheticExternsToAdd"
+                  },
+                  "method": "forEach",
+                  "args": [
+                    {
+                      "lambda": [
+                        "declaration"
+                      ],
+                      "iface": "java.util.function.Consumer",
+                      "body": {
+                        "call": {
+                          "var": "syntheticRoot"
+                        },
+                        "method": "addChildToBack",
+                        "args": [
+                          {
+                            "call": {
+                              "var": "declaration"
+                            },
+                            "method": "cloneTree"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnnecessarySyntheticExterns",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "js"
+                    }
+                  ]
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "method": "doesntChangeSyntheticExtern_declaredInCodeNotMarkedUnfulfilled"
+      },
+      "processor": {
+        "let": [
+          [
+            "this",
+            {
+              "once": "testInstance",
+              "value": {
+                "call": {
+                  "call": {
+                    "helper": "RemoveUnnecessarySyntheticExternsTest_Helpers"
+                  },
+                  "method": "setUp"
+                },
+                "method": "doesntChangeSyntheticExtern_declaredInCodeNotMarkedUnfulfilled"
+              }
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "js"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "syntheticRoot",
+                {
+                  "call": {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getSynthesizedExternsInput"
+                  },
+                  "method": "getAstRoot",
+                  "args": [
+                    {
+                      "compiler": true
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "call": {
+                    "getField": {
+                      "var": "this"
+                    },
+                    "name": "syntheticExternsToAdd"
+                  },
+                  "method": "forEach",
+                  "args": [
+                    {
+                      "lambda": [
+                        "declaration"
+                      ],
+                      "iface": "java.util.function.Consumer",
+                      "body": {
+                        "call": {
+                          "var": "syntheticRoot"
+                        },
+                        "method": "addChildToBack",
+                        "args": [
+                          {
+                            "call": {
+                              "var": "declaration"
+                            },
+                            "method": "cloneTree"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnnecessarySyntheticExterns",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "js"
+                    }
+                  ]
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "method": "removesOnlyUnfulfilledSyntheticExterns_ifMixOfFulfilledAndUnfulfilled"
+      },
+      "processor": {
+        "let": [
+          [
+            "this",
+            {
+              "once": "testInstance",
+              "value": {
+                "call": {
+                  "call": {
+                    "helper": "RemoveUnnecessarySyntheticExternsTest_Helpers"
+                  },
+                  "method": "setUp"
+                },
+                "method": "removesOnlyUnfulfilledSyntheticExterns_ifMixOfFulfilledAndUnfulfilled"
+              }
+            }
+          ]
+        ],
+        "in": {
+          "lambda": [
+            "externs",
+            "js"
+          ],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "let": [
+              [
+                "syntheticRoot",
+                {
+                  "call": {
+                    "call": {
+                      "compiler": true
+                    },
+                    "method": "getSynthesizedExternsInput"
+                  },
+                  "method": "getAstRoot",
+                  "args": [
+                    {
+                      "compiler": true
+                    }
+                  ]
+                }
+              ]
+            ],
+            "in": {
+              "do": [
+                {
+                  "call": {
+                    "getField": {
+                      "var": "this"
+                    },
+                    "name": "syntheticExternsToAdd"
+                  },
+                  "method": "forEach",
+                  "args": [
+                    {
+                      "lambda": [
+                        "declaration"
+                      ],
+                      "iface": "java.util.function.Consumer",
+                      "body": {
+                        "call": {
+                          "var": "syntheticRoot"
+                        },
+                        "method": "addChildToBack",
+                        "args": [
+                          {
+                            "call": {
+                              "var": "declaration"
+                            },
+                            "method": "cloneTree"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "call": {
+                    "new": "com.google.javascript.jscomp.RemoveUnnecessarySyntheticExterns",
+                    "args": [
+                      {
+                        "compiler": true
+                      }
+                    ]
+                  },
+                  "method": "process",
+                  "args": [
+                    {
+                      "var": "externs"
+                    },
+                    {
+                      "var": "js"
+                    }
+                  ]
+                }
+              ],
+              "value": {
+                "null": true
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "note": "The recorded testFields.syntheticExternsToAdd holds only {\"ref\": Node} entries (Node values are not dumped), so the set is rebuilt by the verbatim test-method prologue on a holder created once per record ({\"once\":\"testInstance\"}); the set sizes match the record (1-4 nodes). Records with two testExternChanges calls (removesDuplicateUnfulfilledSyntheticDeclarations, removesOnlyUnfulfilledSyntheticExterns_ifMixOfFulfilledAndUnfulfilled) are separate records that each rebuild the holder, as the test's single instance keeps the set unchanged between its calls. All 27 records use api=testExternChanges."
+}

@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/RewriteJsonToModuleTest.java getProcessor (lines 33-41), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "sequence": []
+      }
+    }
+  ],
+  "vacuityNoopClass": "com.google.javascript.jscomp.RewriteJsonToModule",
+  "note": "getProcessor returns an anonymous CompilerPass (RewriteJsonToModuleTest$1) whose process body is empty: RewriteJsonToModule runs directly after parsing, driven by getOptions() (lines 43-51: setProcessCommonJSModules(true), setModuleResolutionMode(NODE), setPackageJsonEntryNames([browser, main])), which is replayed from the record's options diff. An empty sequence is exactly a CompilerPass that does nothing (CheckTemplateParamsTest precedent). The follow-up assertions on getLastCompiler().getModuleLoader().getPackageJsonMainEntries() are checked through postCall.compiler.packageJsonMainEntries (corpus/unit/postcall/RewriteJsonToModuleTest.json). The test class declares no fields. vacuityNoopClass (classify round 2 batch 5): the empty processor makes the whole-processor no-op identical to the original, so gate (a)'s noop phase also replays the class with the class-level NoopAgent on RewriteJsonToModule, the pass Compiler.processJsonInputs runs after parsing (it is in every record's passTrace)."
+}

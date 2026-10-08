@@ -1,0 +1,46 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.PureFunctionIdentifierTest",
+ "methods": [
+  {
+   "method": "testAmbiguousExternAndSourceWithNoSideEffectsJsDoc",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.noSideEffectCalls"
+   ],
+   "note": "Asserts noSideEffectCalls isEmpty() after one test(...) (no postcondition); the record's testFieldsAfter.noSideEffectCalls is an empty list. noSideEffectCalls is the List<Node> test field that the processor (the test's NoSideEffectCallEnumerator, rebuilt by the descriptor) resets to a new ArrayList and fills with the callee node of every CALL/NEW the AstAnalyzer reports side-effect free; it is null before the first call, so the call changes it in every record. The descriptor opts in to testFieldsAfter, and replay compares the list in order; its items are Node objects, written as class-name refs, so the comparison checks the list's size and the node classes, which is exactly what isEmpty()/hasSize(n) assert."
+  },
+  {
+   "method": "testAnnotationInExternStubs4",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.noSideEffectCalls"
+   ],
+   "note": "Asserts noSideEffectCalls isEmpty() after one testSame(...) with enableTypeCheck (no postcondition); the record's testFieldsAfter.noSideEffectCalls is an empty list. noSideEffectCalls is the List<Node> test field that the processor (the test's NoSideEffectCallEnumerator, rebuilt by the descriptor) resets to a new ArrayList and fills with the callee node of every CALL/NEW the AstAnalyzer reports side-effect free; it is null before the first call, so the call changes it in every record. The descriptor opts in to testFieldsAfter, and replay compares the list in order; its items are Node objects, written as class-name refs, so the comparison checks the list's size and the node classes, which is exactly what isEmpty()/hasSize(n) assert."
+  },
+  {
+   "method": "testAnnotationInExternStubs5",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.noSideEffectCalls"
+   ],
+   "note": "Asserts noSideEffectCalls isEmpty() after one testSame(...) with enableTypeCheck (no postcondition); the record's testFieldsAfter.noSideEffectCalls is an empty list. noSideEffectCalls is the List<Node> test field that the processor (the test's NoSideEffectCallEnumerator, rebuilt by the descriptor) resets to a new ArrayList and fills with the callee node of every CALL/NEW the AstAnalyzer reports side-effect free; it is null before the first call, so the call changes it in every record. The descriptor opts in to testFieldsAfter, and replay compares the list in order; its items are Node objects, written as class-name refs, so the comparison checks the list's size and the node classes, which is exactly what isEmpty()/hasSize(n) assert."
+  },
+  {
+   "method": "testMultipleFunctionDefinitionsOnlyOneWithNoSideEffectsJsDoc",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.noSideEffectCalls"
+   ],
+   "note": "Asserts noSideEffectCalls hasSize(1) after one test(...) (no postcondition); the record's testFieldsAfter.noSideEffectCalls is a one-item list (a Node$StringNode ref, the callee NAME b). noSideEffectCalls is the List<Node> test field that the processor (the test's NoSideEffectCallEnumerator, rebuilt by the descriptor) resets to a new ArrayList and fills with the callee node of every CALL/NEW the AstAnalyzer reports side-effect free; it is null before the first call, so the call changes it in every record. The descriptor opts in to testFieldsAfter, and replay compares the list in order; its items are Node objects, written as class-name refs, so the comparison checks the list's size and the node classes, which is exactly what isEmpty()/hasSize(n) assert."
+  },
+  {
+   "method": "testCallGenerator1",
+   "status": "captured",
+   "via": [
+    "postCall.postcondition.sideEffectFlags"
+   ],
+   "note": "After assertNoPureCalls(source) (a hooked testSame whose postcondition lambda is in-call, D-017 item 7, and replayed under the count rule), the method reads the CALL node of f() in getLastCompiler().getRoot().getLastChild() and asserts isNoSideEffectsCall() is false and getSideEffectFlags() == Node.SideEffectFlags.ALL_SIDE_EFFECTS. That is exactly postCall.postcondition.sideEffectFlags (D-017 item 1: [node, callee qualified name, Node.getSideEffectFlags()] for every CALL/NEW/TAGGED_TEMPLATELIT/OPTCHAIN_CALL of externs and JS, read from the compiler the postconditions verify; the record runs with multistageCompilation, and CompilerTestCase reassigns lastCompiler to the deserialized compiler (CompilerTestCase.java:1207) that the postcondition loop verifies (lines 1356-1357), so it is the compiler getLastCompiler() returns); the record holds [\"CALL testcode:8:8\", \"f\", 15], and isNoSideEffectsCall() is a function of those flags. Replay recomputes postCall.postcondition on the replayed compiler and compares it by postCall equality. Since harness round 2 the gate's _postcall_key accepts the postCall.postcondition section (it is part of the postCall object replay compares by JSON equality); class-limited gate (a) run, fix-6 round 2: claim verified for the method's record."
+  }
+ ]
+}

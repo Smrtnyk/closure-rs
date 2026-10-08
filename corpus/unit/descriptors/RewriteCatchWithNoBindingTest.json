@@ -1,0 +1,20 @@
+{
+  "source": "test/com/google/javascript/jscomp/RewriteCatchWithNoBindingTest.java getProcessor (lines 49-53), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "static": "com.google.javascript.jscomp.PeepholeTranspilationsPass",
+        "method": "create",
+        "args": [
+          {"compiler": true},
+          {"static": "com.google.common.collect.ImmutableList", "method": "of", "args": [
+            {"new": "com.google.javascript.jscomp.RewriteCatchWithNoBinding",
+             "args": [{"compiler": true}]}
+          ]}
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor reads no test fields (the class declares only the static SPECIAL_VARIABLE_MAP), so one unconditional case covers every record. getOptions (lines 55-60: languageOut ECMASCRIPT_2018) is replayed from the options diff. The @Before customSetUp (lines 39-47: enableNormalize, enableTypeCheck, enableTypeInfoValidation, replaceTypesWithColors, enableMultistageCompilation, setGenericNameReplacements(SPECIAL_VARIABLE_MAP)) is in harness.fields. Not replayed: the test's own follow-up assertions on getLastCompiler() (allowable features, the binding's color) after test()."
+}

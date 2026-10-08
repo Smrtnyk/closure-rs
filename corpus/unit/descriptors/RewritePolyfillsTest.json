@@ -1,0 +1,64 @@
+{
+  "source": "test/com/google/javascript/jscomp/RewritePolyfillsTest.java getProcessor (lines 72-81): new RewritePolyfills(compiler, createRuntimeJsLibManager(compiler), Polyfills.fromTable(Joiner.on(\"\\n\").join(polyfillTable)), injectPolyfills, isolatePolyfills, injectPolyfillsNewerThan). createRuntimeJsLibManager (lines 91-103) builds a RuntimeJsLibManager whose resource-provider lambda reads the field injectableLibraries and pre-injects every library in the field injectBeforePass; it is copied verbatim as helper RewritePolyfillsTest_Helpers.CreateRuntimeJsLibManager with both fields restored from testFields. setUp (lines 61-70) and getOptions (lines 83-89) only reset the fields and set harness state and options, which come from the record.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.RewritePolyfills",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "call": {
+              "helper": "RewritePolyfillsTest_Helpers.CreateRuntimeJsLibManager",
+              "outer": [
+                "injectableLibraries",
+                "injectBeforePass"
+              ]
+            },
+            "method": "create",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          },
+          {
+            "static": "com.google.javascript.jscomp.PolyfillUsageFinder$Polyfills",
+            "method": "fromTable",
+            "args": [
+              {
+                "call": {
+                  "static": "com.google.common.base.Joiner",
+                  "method": "on",
+                  "args": [
+                    {
+                      "string": "\n"
+                    }
+                  ]
+                },
+                "method": "join",
+                "args": [
+                  {
+                    "field": "polyfillTable"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "field": "injectPolyfills"
+          },
+          {
+            "field": "isolatePolyfills"
+          },
+          {
+            "field": "injectPolyfillsNewerThan"
+          }
+        ]
+      }
+    }
+  ],
+  "note": "Arguments are evaluated left to right, as in Java, so the runtime library manager (and any injectBeforePass injection) is created before the polyfill table is parsed. The 2 records with api=testExternChanges (testAddsPolyfillMethodToExterns, testNoCodeChangesIfInjectionDisabled) use the same processor; the v2 replay harness runs them through CompilerTestCase.testExternChanges."
+}

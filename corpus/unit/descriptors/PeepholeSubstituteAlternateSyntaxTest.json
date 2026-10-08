@@ -1,0 +1,23 @@
+{
+  "source": "test/com/google/javascript/jscomp/PeepholeSubstituteAlternateSyntaxTest.java getProcessor (lines 58-65)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "withFields": {
+          "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+          "args": [
+            {"compiler": true},
+            {"record": "harness.effective.getName"},
+            {"array": "com.google.javascript.jscomp.AbstractPeepholeOptimization", "items": [
+              {"new": "com.google.javascript.jscomp.PeepholeSubstituteAlternateSyntax",
+               "args": [{"field": "late"}]}
+            ]}
+          ]
+        },
+        "fields": {"retraverseOnChange": {"field": "retraverseOnChange"}}
+      }
+    }
+  ],
+  "note": "peepholePass.setRetraverseOnChange(retraverseOnChange) is a void @VisibleForTesting setter whose body is exactly this.retraverseOnChange = retraverse, so it is expressed as withFields."
+}

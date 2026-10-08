@@ -1,0 +1,1 @@
+{"source":"IntegrationTestCase subclass (test/com/google/javascript/jscomp/integration/OptionalChainingIntegrationTest.java): records replay through ReplayIntegrationTest; options (built per test from createCompilerOptions, lines 36-49 with its javadoc; method at lines 37-49) come from the record, there is no processor.","cases":[]}

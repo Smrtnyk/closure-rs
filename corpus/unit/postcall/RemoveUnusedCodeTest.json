@@ -1,0 +1,28 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.RemoveUnusedCodeTest",
+ "methods": [
+  {
+   "method": "testRemoveUnusedPolyfills_guardedGlobals",
+   "status": "rust_unit_test",
+   "reason": "the only statements the scan takes for post-call assertions are calls of PolyfillRemovalTester.addPolyfill, whose checkArgument(!polyfills.contains(polyfill)) (RemoveUnusedCodeTest.java:2448-2454) guards the test-local polyfill list (a LinkedHashSet of the local tester object, used to build the next call's input) against duplicates; it inspects no compiler state; the records' postCall keys (compiler.accessorSummary, compiler.externProperties; no pass key) do not hold that list, and every hooked call is a record whose output replay compares",
+   "fragment": "corpus/unit/rust_unit_tests/RemoveUnusedCodeTest.md",
+   "category": "test-local-object"
+  },
+  {
+   "method": "testRemoveUnusedPolyfills_prototypeProperty_untyped",
+   "status": "rust_unit_test",
+   "reason": "the only statements the scan takes for post-call assertions are calls of PolyfillRemovalTester.addPolyfill, whose checkArgument(!polyfills.contains(polyfill)) (RemoveUnusedCodeTest.java:2448-2454) guards the test-local polyfill list (a LinkedHashSet of the local tester object, used to build the next call's input) against duplicates; it inspects no compiler state; the records' postCall keys (compiler.accessorSummary, compiler.externProperties; no pass key) do not hold that list, and every hooked call is a record whose output replay compares",
+   "fragment": "corpus/unit/rust_unit_tests/RemoveUnusedCodeTest.md",
+   "category": "test-local-object"
+  },
+  {
+   "method": "testRemoveUnusedPolyfills_staticProperty_untyped",
+   "status": "rust_unit_test",
+   "reason": "the only statements the scan takes for post-call assertions are calls of PolyfillRemovalTester.addPolyfill, whose checkArgument(!polyfills.contains(polyfill)) (RemoveUnusedCodeTest.java:2448-2454) guards the test-local polyfill list (a LinkedHashSet of the local tester object, used to build the next call's input) against duplicates; it inspects no compiler state; the records' postCall keys (compiler.accessorSummary, compiler.externProperties; no pass key) do not hold that list, and every hooked call is a record whose output replay compares",
+   "fragment": "corpus/unit/rust_unit_tests/RemoveUnusedCodeTest.md",
+   "category": "test-local-object"
+  }
+ ],
+ "note": "re-checked by classify batch 13 (D-017): the methods' only post-call statements are addPolyfill guards on test-local input construction."
+}

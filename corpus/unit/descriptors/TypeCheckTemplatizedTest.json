@@ -1,0 +1,5 @@
+{
+  "source": "test/com/google/javascript/jscomp/TypeCheckTemplatizedTest.java: TypeCheckTestCase subclass; records replay through ReplayTypeCheckTest; there is no processor.",
+  "cases": [],
+  "note": "All 43 records are TypeTestBuilder.run (newTest()...run()) with diagnostic descriptions compared in order. Not recorded: testTemplatizedTypeSubtypes2 (lines 543-548), a direct JSType subtype assertion that never calls a harness test API (44 tests run, 43 records), and the @Ignore'd test at line 425."
+}

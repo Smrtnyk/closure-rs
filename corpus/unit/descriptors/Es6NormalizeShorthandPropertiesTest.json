@@ -1,0 +1,39 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6NormalizeShorthandPropertiesTest.java getProcessor (lines 48-52); postcondition of testNormalizationInSource (lines 63-67)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "static": "com.google.javascript.jscomp.PeepholeTranspilationsPass",
+        "method": "create",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "static": "com.google.common.collect.ImmutableList",
+            "method": "of",
+            "args": [
+              {
+                "new": "com.google.javascript.jscomp.Es6NormalizeShorthandProperties",
+                "args": [
+                  {
+                    "compiler": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "postconditions": [
+        {
+          "static": "com.google.javascript.jscomp.Es6NormalizeShorthandPropertiesTest_Helpers",
+          "method": "testNormalizationInSourcePostcondition",
+          "args": []
+        }
+      ]
+    }
+  ],
+  "note": "The only record (testNormalizationInSource) has one postcondition lambda with no captures (expected.postconditionValues.0.captures is {}): (compiler) -> NodeUtil.visitPreOrder(compiler.getRoot(), Es6NormalizeShorthandPropertiesTest::assertNotShorthandProperty). The lambda expression and the referenced private static method are copied verbatim into oracle/replay/helpers/com/google/javascript/jscomp/Es6NormalizeShorthandPropertiesTest_Helpers.java (the method reference names the holder); the descriptor calls the generated factory testNormalizationInSourcePostcondition(). Classify batch 3 (2026-10-07): this replaces the earlier DSL-lambda rebuild, because ReplayDsl.invoke rethrows the postcondition's Truth AssertionError wrapped in RuntimeException, so under the whole-processor no-op the record failed with a non-assertion exception and the class was reported vacuous; with a real Java lambda the AssertionError reaches testInternal unchanged, as in the original test."
+}

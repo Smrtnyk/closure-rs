@@ -1,0 +1,38 @@
+{
+  "source": "test/com/google/javascript/jscomp/StripCodeTest.java getProcessor (lines 65-68) -> getStripCodeInstance (lines 41-63); setUp (lines 164-169) is captured by the record's harness fields",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.StripCode",
+        "args": [
+          {"compiler": true},
+          {"set": [
+            {"string": "goog.debug.DebugWindow"},
+            {"string": "goog.debug.FancyWindow"},
+            {"string": "goog.debug.Formatter"},
+            {"string": "goog.debug.HtmlFormatter"},
+            {"string": "goog.debug.TextFormatter"},
+            {"string": "goog.debug.Logger"},
+            {"string": "goog.debug.LogManager"},
+            {"string": "goog.debug.LogRecord"},
+            {"string": "goog.net.BrowserChannel.LogSaver"},
+            {"string": "goog.log"},
+            {"string": "GA_GoogleDebugger"}
+          ]},
+          {"set": [
+            {"string": "logger"},
+            {"string": "logger_"},
+            {"string": "debugWindow"},
+            {"string": "debugWindow_"},
+            {"string": "logFormatter_"},
+            {"string": "logBuffer_"}
+          ]},
+          {"set": [{"string": "trace"}]},
+          {"bool": false}
+        ]
+      }
+    }
+  ],
+  "note": "ImmutableSet.of(...) is written as DSL sets; the evaluator copies them into ImmutableSet (insertion order kept), which is what the ImmutableSet parameters receive."
+}

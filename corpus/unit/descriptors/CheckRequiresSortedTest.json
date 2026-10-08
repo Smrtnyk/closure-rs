@@ -1,0 +1,14 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckRequiresSortedTest.java getProcessor (lines 39-49), an anonymous CompilerPass around a CheckRequiresSorted(COLLECT_AND_REPORT) callback, replayed through helper CheckRequiresSortedTest_Helpers (getProcessor copied verbatim), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {"helper": "CheckRequiresSortedTest_Helpers"},
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "The test class declares no fields, so one unconditional case covers every record. getOptions (lines 51-61: JsDoc parsing INCLUDE_DESCRIPTIONS_WITH_WHITESPACE, preserveDetailedSourceInfo, prettyPrint, preserveTypeAnnotations, preferSingleQuotes, emitUseStrict false) is replayed from the options diff."
+}

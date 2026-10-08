@@ -1,0 +1,14 @@
+{
+  "source": "test/com/google/javascript/jscomp/InlineVariablesConstantsTest.java getProcessor (lines 32-35), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.InlineVariables",
+        "args": [{"compiler": true},
+                 {"enum": "com.google.javascript.jscomp.InlineVariables$Mode", "name": "CONSTANTS_ONLY"}]
+      }
+    }
+  ],
+  "note": "getProcessor is unconditional: new InlineVariables(compiler, InlineVariables.Mode.CONSTANTS_ONLY). setUp's enableNormalize() is restored from harness.fields. The class declares no fields."
+}

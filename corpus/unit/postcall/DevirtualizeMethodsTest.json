@@ -1,0 +1,14 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.DevirtualizeMethodsTest",
+ "methods": [
+  {
+   "method": "testRewritePrototypeMethodsWithCorrectColors",
+   "status": "rust_unit_test",
+   "reason": "after test() (enableTypeCheck + replaceTypesWithColors) checkColorOfRewrittenMethods() asserts the Color objects of the labelled output expressions: the rewritten calls JSCompiler_StaticMethods_foo(o)/bar(o, 2)/baz(o) have colors StandardColors.NUMBER, NUMBER, NULL_OR_VOID and their callee NAMEs TOP_FUNCTION; the AST comparison ignores colors; the record carries compiler.externProperties, compiler.accessorSummary and compiler.typeMismatchesError (java.lang.IllegalStateException: the TypeValidator was cleared when JSTypes were replaced by colors), none of which holds node colors; no test fields, no postconditions",
+   "fragment": "corpus/unit/rust_unit_tests/DevirtualizeMethodsTest.md",
+   "category": "color",
+   "note": "Source lines 57-104, helper checkColorOfRewrittenMethods lines 106-121 (1 record)."
+  }
+ ]
+}

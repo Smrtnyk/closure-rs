@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/Es6RelativizeImportPathsTest.java getProcessor (lines 56-59), bb8c8e7.",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.Es6RelativizeImportPaths",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      }
+    }
+  ],
+  "note": "The test fields prefixReplacements, moduleResolutionMode and moduleRoots (set in setUp lines 37-44 and by test methods) are read only by getOptions (lines 46-54), whose effect (browserResolverPrefixReplacements, moduleResolutionMode, moduleRoots, pathEscaper) is replayed from record.options."
+}

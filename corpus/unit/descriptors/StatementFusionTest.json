@@ -1,0 +1,19 @@
+{
+  "source": "test/com/google/javascript/jscomp/StatementFusionTest.java getProcessor (lines 27-30), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+        "args": [
+          {"compiler": true},
+          {"record": "harness.effective.getName"},
+          {"array": "com.google.javascript.jscomp.AbstractPeepholeOptimization", "items": [
+            {"new": "com.google.javascript.jscomp.StatementFusion", "args": []}
+          ]}
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor returns new PeepholeOptimizationsPass(compiler, getName(), new StatementFusion()) unconditionally; the varargs become an AbstractPeepholeOptimization array. The test has no fields and overrides no other hook; per-test enableNormalize / setAcceptedLanguage / setExpectParseWarningsInThisTest calls are in harness.fields."
+}

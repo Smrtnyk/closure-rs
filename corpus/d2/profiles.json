@@ -1,0 +1,103 @@
+{
+  "schema": 1,
+  "doc": "corpus/d2/PROFILES.md",
+  "reference": {
+    "commit": "bb8c8e7cb8d0b14b27ff5e969d186bb97017eb06",
+    "jar": "build/reference/closure-compiler.jar",
+    "jar_sha256": "4ef5a893f30378aad76e53efc20353e06830289a4d835be0a12cd34bab2af821"
+  },
+  "out_dir_template": "build/golden-tmp/{case_id}/{profile}",
+  "argv_order": ["profile.flags", "case.extra_flags", "--externs", "--js (inputs, then shims)", "--chunk (chunk profiles)", "output flag"],
+  "precedence": "Single-valued flags: the case's extra_flags win and the profile's occurrence of the same key is dropped, unless the profile lists the key in 'locked' (then the pair is invalid and case_args raises). Multi-valued flags (multi_valued_flags) accumulate, profile values first. Runner-owned flags (--js, --externs, --js_output_file, --chunk, --chunk_output_path_prefix, --create_source_map, --flagfile, --json_streams) may not appear in a case's extra_flags.",
+  "matrix": "docs/PORTING.md §4.4: every input runs under every option profile. Every profile is auto_apply, so case_args.case_profiles() gives a candidate case its own list followed by every other profile that applies to it (chunk profiles: multi_input only). Pairs are removed only by the drop rules in corpus/d2/FORMAT.md (Java crash/timeout, trivial ADVANCED).",
+  "multi_valued_flags": [
+    "--chunk", "--chunk_wrapper", "--conformance_configs", "--define", "--D", "-D",
+    "--entry_point", "--expected_diagnostics", "--externs", "--extra_annotation_name",
+    "--flagfile", "--force_inject_library", "--formatting", "--hide_warnings_for", "--js",
+    "--js_module_root", "--jscomp_error", "--jscomp_off", "--jscomp_warning", "--jszip",
+    "--source_map_input", "--source_map_location_mapping"
+  ],
+  "profiles": {
+    "ws": {
+      "spec": "WHITESPACE_ONLY",
+      "flags": ["--compilation_level=WHITESPACE_ONLY"],
+      "locked": ["--compilation_level"],
+      "output": "single",
+      "auto_apply": true
+    },
+    "simple": {
+      "spec": "SIMPLE",
+      "flags": ["--compilation_level=SIMPLE"],
+      "locked": ["--compilation_level"],
+      "output": "single",
+      "auto_apply": true
+    },
+    "advanced": {
+      "spec": "ADVANCED",
+      "flags": ["--compilation_level=ADVANCED"],
+      "locked": ["--compilation_level"],
+      "output": "single",
+      "auto_apply": true
+    },
+    "advanced_strict": {
+      "spec": "ADVANCED with --jscomp_error=* and type checking",
+      "flags": ["--compilation_level=ADVANCED", "--warning_level=VERBOSE", "--jscomp_error=*"],
+      "locked": ["--compilation_level", "--warning_level"],
+      "output": "single",
+      "auto_apply": true
+    },
+    "lang_es5": {
+      "spec": "--language_out=ECMASCRIPT5",
+      "flags": ["--compilation_level=SIMPLE", "--language_out=ECMASCRIPT5"],
+      "locked": ["--compilation_level", "--language_out"],
+      "output": "single",
+      "auto_apply": true
+    },
+    "lang_es2015": {
+      "spec": "--language_out=ECMASCRIPT_2015",
+      "flags": ["--compilation_level=SIMPLE", "--language_out=ECMASCRIPT_2015"],
+      "locked": ["--compilation_level", "--language_out"],
+      "output": "single",
+      "auto_apply": true
+    },
+    "lang_next": {
+      "spec": "--language_out=ECMASCRIPT_NEXT",
+      "flags": ["--compilation_level=SIMPLE", "--language_out=ECMASCRIPT_NEXT"],
+      "locked": ["--compilation_level", "--language_out"],
+      "output": "single",
+      "auto_apply": true
+    },
+    "pretty": {
+      "spec": "--formatting=PRETTY_PRINT",
+      "flags": ["--compilation_level=SIMPLE", "--formatting=PRETTY_PRINT"],
+      "locked": ["--compilation_level"],
+      "output": "single",
+      "auto_apply": true
+    },
+    "sourcemap": {
+      "spec": "--create_source_map",
+      "flags": ["--compilation_level=SIMPLE", "--create_source_map={out_dir}/out.js.map"],
+      "locked": ["--compilation_level"],
+      "output": "single",
+      "auto_apply": true
+    },
+    "chunks2": {
+      "spec": "2 chunks (c0, then c1 depending on c0), ADVANCED",
+      "flags": ["--compilation_level=ADVANCED"],
+      "locked": ["--compilation_level"],
+      "output": "chunks",
+      "chunks": {"names": ["c0", "c1"], "split": "ceil_half"},
+      "applies_to": "multi_input",
+      "auto_apply": true
+    },
+    "chunks3": {
+      "spec": "3 chunks, fan-out graph (c0, then c1 and c2 each depending only on c0), ADVANCED",
+      "flags": ["--compilation_level=ADVANCED"],
+      "locked": ["--compilation_level"],
+      "output": "chunks",
+      "chunks": {"names": ["c0", "c1", "c2"], "deps": {"c1": ["c0"], "c2": ["c0"]}, "split": "fanout_thirds"},
+      "applies_to": "multi_input",
+      "auto_apply": true
+    }
+  }
+}

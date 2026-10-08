@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/CreateSyntheticBlocksTest.java getProcessor (lines 50-68: an anonymous CompilerPass running CreateSyntheticBlocks(compiler, START_MARKER, END_MARKER), Normalize.createNormalizeForOptimizations, a PeepholeOptimizationsPass named getName() and Denormalize), replayed through helper CreateSyntheticBlocksTest_Helpers.GetProcessor whose getName() returns the recorded harness.effective.getName.",
+  "note": "setUp (lines 34-40: disableCompareAsTree) only sets a harness field, restored from the record; getOptions (lines 42-48: setSyntheticBlockStartMarker) is reproduced by record.options. The test declares no instance fields (START_MARKER/END_MARKER are static constants, copied into the helper). Not replayed: the follow-up assertions on getLastCompiler().getJsRoot() in testSyntheticBlock_doesNotCreateNewScope (lines 182-188), which are test-side checks after testSame().",
+  "cases": [
+    {
+      "when": {"instanceClass": "com.google.javascript.jscomp.CreateSyntheticBlocksTest"},
+      "processor": {
+        "call": {
+          "helper": "CreateSyntheticBlocksTest_Helpers.GetProcessor",
+          "args": [{"record": "harness.effective.getName"}]
+        },
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

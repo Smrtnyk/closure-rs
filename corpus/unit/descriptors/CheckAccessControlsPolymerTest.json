@@ -1,0 +1,12 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckAccessControlsPolymerTest.java getProcessor (lines 55-58)",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.CheckAccessControls",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

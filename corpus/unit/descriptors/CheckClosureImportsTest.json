@@ -1,0 +1,382 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckClosureImportsTest.java getProcessor (lines 103-135): new CheckClosureImports(compiler, metadata), where metadata is either compiler.getModuleMetadataMap() (useDefaultModuleMetadata false) or a new ModuleMetadataMap built from the static ModuleMetadata constants PROVIDES_SYMBOL_METADATA, ES_MODULE_METADATA, EXTERN_METADATA (lines 59-80) and testMetadata (lines 105-111, built from the field moduleType), with the path constants PROVIDES_SYMBOL_PATH 'symbol.js', ES_MODULE_PATH 'es_module.js' and TEST_CODE_PATH 'testcode' (lines 47-57). reset (lines 90-94) and getOptions (lines 96-101) only set the two fields and the options, which come from the record.",
+  "cases": [
+    {
+      "when": {
+        "testFields.useDefaultModuleMetadata": false
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.CheckClosureImports",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "call": {
+              "compiler": true
+            },
+            "method": "getModuleMetadataMap",
+            "args": []
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.useDefaultModuleMetadata": true
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.CheckClosureImports",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "new": "com.google.javascript.jscomp.modules.ModuleMetadataMap",
+            "args": [
+              {
+                "static": "com.google.common.collect.ImmutableMap",
+                "method": "of",
+                "args": [
+                  {
+                    "string": "symbol.js"
+                  },
+                  {
+                    "once": "PROVIDES_SYMBOL_METADATA",
+                    "value": {
+                      "call": {
+                        "call": {
+                          "call": {
+                            "call": {
+                              "call": {
+                                "static": "com.google.javascript.jscomp.modules.ModuleMetadataMap$ModuleMetadata",
+                                "method": "builder",
+                                "args": []
+                              },
+                              "method": "addGoogNamespace",
+                              "args": [
+                                {
+                                  "string": "symbol"
+                                }
+                              ]
+                            },
+                            "method": "moduleType",
+                            "args": [
+                              {
+                                "enum": "com.google.javascript.jscomp.modules.ModuleMetadataMap$ModuleType",
+                                "name": "GOOG_PROVIDE"
+                              }
+                            ]
+                          },
+                          "method": "usesClosure",
+                          "args": [
+                            {
+                              "bool": true
+                            }
+                          ]
+                        },
+                        "method": "isTestOnly",
+                        "args": [
+                          {
+                            "bool": false
+                          }
+                        ]
+                      },
+                      "method": "build",
+                      "args": []
+                    }
+                  },
+                  {
+                    "string": "es_module.js"
+                  },
+                  {
+                    "once": "ES_MODULE_METADATA",
+                    "value": {
+                      "call": {
+                        "call": {
+                          "call": {
+                            "call": {
+                              "call": {
+                                "static": "com.google.javascript.jscomp.modules.ModuleMetadataMap$ModuleMetadata",
+                                "method": "builder",
+                                "args": []
+                              },
+                              "method": "addGoogNamespace",
+                              "args": [
+                                {
+                                  "string": "es.module"
+                                }
+                              ]
+                            },
+                            "method": "moduleType",
+                            "args": [
+                              {
+                                "enum": "com.google.javascript.jscomp.modules.ModuleMetadataMap$ModuleType",
+                                "name": "ES6_MODULE"
+                              }
+                            ]
+                          },
+                          "method": "usesClosure",
+                          "args": [
+                            {
+                              "bool": true
+                            }
+                          ]
+                        },
+                        "method": "isTestOnly",
+                        "args": [
+                          {
+                            "bool": false
+                          }
+                        ]
+                      },
+                      "method": "build",
+                      "args": []
+                    }
+                  },
+                  {
+                    "string": "testcode"
+                  },
+                  {
+                    "once": "testMetadata",
+                    "value": {
+                      "call": {
+                        "call": {
+                          "call": {
+                            "call": {
+                              "call": {
+                                "static": "com.google.javascript.jscomp.modules.ModuleMetadataMap$ModuleMetadata",
+                                "method": "builder",
+                                "args": []
+                              },
+                              "method": "addGoogNamespace",
+                              "args": [
+                                {
+                                  "string": "test"
+                                }
+                              ]
+                            },
+                            "method": "moduleType",
+                            "args": [
+                              {
+                                "field": "moduleType"
+                              }
+                            ]
+                          },
+                          "method": "usesClosure",
+                          "args": [
+                            {
+                              "bool": true
+                            }
+                          ]
+                        },
+                        "method": "isTestOnly",
+                        "args": [
+                          {
+                            "bool": false
+                          }
+                        ]
+                      },
+                      "method": "build",
+                      "args": []
+                    }
+                  },
+                  {
+                    "string": "externs"
+                  },
+                  {
+                    "once": "EXTERN_METADATA",
+                    "value": {
+                      "call": {
+                        "call": {
+                          "call": {
+                            "call": {
+                              "static": "com.google.javascript.jscomp.modules.ModuleMetadataMap$ModuleMetadata",
+                              "method": "builder",
+                              "args": []
+                            },
+                            "method": "moduleType",
+                            "args": [
+                              {
+                                "enum": "com.google.javascript.jscomp.modules.ModuleMetadataMap$ModuleType",
+                                "name": "SCRIPT"
+                              }
+                            ]
+                          },
+                          "method": "usesClosure",
+                          "args": [
+                            {
+                              "bool": false
+                            }
+                          ]
+                        },
+                        "method": "isTestOnly",
+                        "args": [
+                          {
+                            "bool": false
+                          }
+                        ]
+                      },
+                      "method": "build",
+                      "args": []
+                    }
+                  }
+                ]
+              },
+              {
+                "static": "com.google.common.collect.ImmutableMap",
+                "method": "of",
+                "args": [
+                  {
+                    "string": "symbol"
+                  },
+                  {
+                    "once": "PROVIDES_SYMBOL_METADATA",
+                    "value": {
+                      "call": {
+                        "call": {
+                          "call": {
+                            "call": {
+                              "call": {
+                                "static": "com.google.javascript.jscomp.modules.ModuleMetadataMap$ModuleMetadata",
+                                "method": "builder",
+                                "args": []
+                              },
+                              "method": "addGoogNamespace",
+                              "args": [
+                                {
+                                  "string": "symbol"
+                                }
+                              ]
+                            },
+                            "method": "moduleType",
+                            "args": [
+                              {
+                                "enum": "com.google.javascript.jscomp.modules.ModuleMetadataMap$ModuleType",
+                                "name": "GOOG_PROVIDE"
+                              }
+                            ]
+                          },
+                          "method": "usesClosure",
+                          "args": [
+                            {
+                              "bool": true
+                            }
+                          ]
+                        },
+                        "method": "isTestOnly",
+                        "args": [
+                          {
+                            "bool": false
+                          }
+                        ]
+                      },
+                      "method": "build",
+                      "args": []
+                    }
+                  },
+                  {
+                    "string": "es.module"
+                  },
+                  {
+                    "once": "ES_MODULE_METADATA",
+                    "value": {
+                      "call": {
+                        "call": {
+                          "call": {
+                            "call": {
+                              "call": {
+                                "static": "com.google.javascript.jscomp.modules.ModuleMetadataMap$ModuleMetadata",
+                                "method": "builder",
+                                "args": []
+                              },
+                              "method": "addGoogNamespace",
+                              "args": [
+                                {
+                                  "string": "es.module"
+                                }
+                              ]
+                            },
+                            "method": "moduleType",
+                            "args": [
+                              {
+                                "enum": "com.google.javascript.jscomp.modules.ModuleMetadataMap$ModuleType",
+                                "name": "ES6_MODULE"
+                              }
+                            ]
+                          },
+                          "method": "usesClosure",
+                          "args": [
+                            {
+                              "bool": true
+                            }
+                          ]
+                        },
+                        "method": "isTestOnly",
+                        "args": [
+                          {
+                            "bool": false
+                          }
+                        ]
+                      },
+                      "method": "build",
+                      "args": []
+                    }
+                  },
+                  {
+                    "string": "test"
+                  },
+                  {
+                    "once": "testMetadata",
+                    "value": {
+                      "call": {
+                        "call": {
+                          "call": {
+                            "call": {
+                              "call": {
+                                "static": "com.google.javascript.jscomp.modules.ModuleMetadataMap$ModuleMetadata",
+                                "method": "builder",
+                                "args": []
+                              },
+                              "method": "addGoogNamespace",
+                              "args": [
+                                {
+                                  "string": "test"
+                                }
+                              ]
+                            },
+                            "method": "moduleType",
+                            "args": [
+                              {
+                                "field": "moduleType"
+                              }
+                            ]
+                          },
+                          "method": "usesClosure",
+                          "args": [
+                            {
+                              "bool": true
+                            }
+                          ]
+                        },
+                        "method": "isTestOnly",
+                        "args": [
+                          {
+                            "bool": false
+                          }
+                        ]
+                      },
+                      "method": "build",
+                      "args": []
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "note": "ModuleMetadata uses reference equality (ModuleMetadataMap.java lines 219-229), and each constant appears in both maps, so each is evaluated once and shared through {\"once\"}. For the static constants this matches the test exactly (static finals are shared across all calls). testMetadata is a getProcessor local in the test; {\"once\"} shares it across repetitions of one record, which is identical here because every record has getNumRepetitions 1. In the useDefaultModuleMetadata=false case the test still builds testMetadata but never uses it; ModuleMetadata.builder().build() has no side effects, so it is omitted."
+}

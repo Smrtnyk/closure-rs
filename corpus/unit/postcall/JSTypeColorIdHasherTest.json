@@ -1,0 +1,102 @@
+{
+  "v": 1,
+  "class": "com.google.javascript.jscomp.serialization.JSTypeColorIdHasherTest",
+  "methods": [
+    {
+      "method": "haveDifferentIds_anonymousTypes_withDifferentPropertyNames",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.labelToColorId"
+      ],
+      "note": "asserts on labelToColorId (values: containsNoDuplicates/hasSize; keys: containsExactly); the descriptor's testFieldsAfter check compares the whole map (label -> ColorId.rightAligned) after the call; every record's post state is checked (mechanical)."
+    },
+    {
+      "method": "haveDifferentIds_classWithSameName_inDifferentGoogModules",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.labelToColorId"
+      ],
+      "note": "asserts on labelToColorId (values: containsNoDuplicates/hasSize; keys: containsExactly); the descriptor's testFieldsAfter check compares the whole map (label -> ColorId.rightAligned) after the call; every record's post state is checked (mechanical)."
+    },
+    {
+      "method": "haveDifferentIds_classWithSameName_inDifferentGoogModules_inLoadModuleFile",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.labelToColorId"
+      ],
+      "note": "asserts on labelToColorId (values: containsNoDuplicates/hasSize; keys: containsExactly); the descriptor's testFieldsAfter check compares the whole map (label -> ColorId.rightAligned) after the call; every record's post state is checked (mechanical)."
+    },
+    {
+      "method": "haveDifferentIds_classWithSameName_insideAndOutsideGoogModule",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.labelToColorId"
+      ],
+      "note": "asserts on labelToColorId (values: containsNoDuplicates/hasSize; keys: containsExactly); the descriptor's testFieldsAfter check compares the whole map (label -> ColorId.rightAligned) after the call; every record's post state is checked (mechanical)."
+    },
+    {
+      "method": "haveDifferentIds_ctorInstancePrototype",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.labelToColorId"
+      ],
+      "note": "asserts on labelToColorId (values: containsNoDuplicates/hasSize; keys: containsExactly); the descriptor's testFieldsAfter check compares the whole map (label -> ColorId.rightAligned) after the call; every record's post state is checked (mechanical)."
+    },
+    {
+      "method": "haveDifferentIds_qnamesWithSameEnding",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.labelToColorId"
+      ],
+      "note": "asserts on labelToColorId (values: containsNoDuplicates/hasSize; keys: containsExactly); the descriptor's testFieldsAfter check compares the whole map (label -> ColorId.rightAligned) after the call; every record's post state is checked (mechanical)."
+    },
+    {
+      "method": "haveHeaderDerivableIds_anonymousTypes",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.labelToColorId"
+      ],
+      "note": "asserts the labelToColorId maps of two testSame calls are equal and non-empty; the descriptor compares labelToColorId after every call (testFieldsAfterAlso): the second call's expected value is its entry value, i.e. the first call's map, so the equality is checked by replay. isNotSameInstanceAs is Java identity of two maps getProcessor creates freshly. On the second call the field's dump is unchanged, so it is compared through testFieldsAfterAlso rather than the record's testFieldsAfter; every record's post state is checked (mechanical)."
+    },
+    {
+      "method": "haveHeaderDerivableIds_nominalTypes",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.labelToColorId"
+      ],
+      "note": "asserts the labelToColorId maps of two testSame calls are equal and non-empty; the descriptor compares labelToColorId after every call (testFieldsAfterAlso): the second call's expected value is its entry value, i.e. the first call's map, so the equality is checked by replay. isNotSameInstanceAs is Java identity of two maps getProcessor creates freshly. On the second call the field's dump is unchanged, so it is compared through testFieldsAfterAlso rather than the record's testFieldsAfter; every record's post state is checked (mechanical)."
+    },
+    {
+      "method": "haveRecompileStableIds_anonymousTypes",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.labelToColorId"
+      ],
+      "note": "asserts the labelToColorId maps of two testSame calls are equal and non-empty; the descriptor compares labelToColorId after every call (testFieldsAfterAlso): the second call's expected value is its entry value, i.e. the first call's map, so the equality is checked by replay. isNotSameInstanceAs is Java identity of two maps getProcessor creates freshly. On the second call the field's dump is unchanged, so it is compared through testFieldsAfterAlso rather than the record's testFieldsAfter; every record's post state is checked (mechanical)."
+    },
+    {
+      "method": "haveRecompileStableIds_nominalTypes",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.labelToColorId"
+      ],
+      "note": "asserts the labelToColorId maps of two testSame calls are equal and non-empty; the descriptor compares labelToColorId after every call (testFieldsAfterAlso): the second call's expected value is its entry value, i.e. the first call's map, so the equality is checked by replay. isNotSameInstanceAs is Java identity of two maps getProcessor creates freshly. On the second call the field's dump is unchanged, so it is compared through testFieldsAfterAlso rather than the record's testFieldsAfter; every record's post state is checked (mechanical)."
+    },
+    {
+      "method": "haveSameIds_anonymousTypes_withSamePropertyNames_andDiffererntPropertyTypes",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.labelToColorId"
+      ],
+      "note": "asserts on labelToColorId (values: containsNoDuplicates/hasSize; keys: containsExactly); the descriptor's testFieldsAfter check compares the whole map (label -> ColorId.rightAligned) after the call; every record's post state is checked (mechanical)."
+    },
+    {
+      "method": "haveSameIds_nominalTypes_fromDifferentScopes_fromSameGoogModule",
+      "status": "captured",
+      "via": [
+        "testFieldsAfter.labelToColorId"
+      ],
+      "note": "asserts on labelToColorId (values: containsNoDuplicates/hasSize; keys: containsExactly); the descriptor's testFieldsAfter check compares the whole map (label -> ColorId.rightAligned) after the call; every record's post state is checked (mechanical)."
+    }
+  ]
+}

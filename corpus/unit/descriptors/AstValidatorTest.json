@@ -1,0 +1,66 @@
+{
+  "source": "test/com/google/javascript/jscomp/AstValidatorTest.java getProcessor (lines 59-62) -> createValidator (lines 71-87); setUp (lines 88-95) and getOptions (lines 64-69) are captured by the record's harness fields and options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "do": [
+          {
+            "withFields": {
+              "once": "test",
+              "value": {
+                "helper": "AstValidatorTest_Helpers"
+              }
+            },
+            "fields": {
+              "lastCheckViolationMessages": {
+                "list": []
+              }
+            }
+          }
+        ],
+        "value": {
+          "call": {
+            "new": "com.google.javascript.jscomp.AstValidator",
+            "args": [
+              {
+                "compiler": true
+              },
+              {
+                "helper": "AstValidatorTest_Helpers.CreateValidatorViolationHandler",
+                "outerInstance": {
+                  "once": "test",
+                  "value": {
+                    "helper": "AstValidatorTest_Helpers"
+                  }
+                }
+              },
+              {
+                "bool": true
+              },
+              {
+                "bool": true
+              }
+            ]
+          },
+          "method": "setTypeValidationMode",
+          "args": [
+            {
+              "field": "typeInfoValidationMode"
+            }
+          ]
+        }
+      },
+      "testFieldsAfter": {
+        "once": "test",
+        "value": {
+          "helper": "AstValidatorTest_Helpers"
+        }
+      },
+      "testFieldsAfterAlso": [
+        "lastCheckViolationMessages"
+      ]
+    }
+  ],
+  "note": "createValidator's anonymous ViolationHandler is the helper AstValidatorTest_Helpers.CreateValidatorViolationHandler. The holder is shared through {\"once\":\"test\"} by the processor and the post-call check; each processor evaluation first resets lastCheckViolationMessages to a fresh list, as createValidator's `lastCheckViolationMessages = new ArrayList<>()` does (lines 71-87). The post-call check (fixer round 1) compares the holder's lastCheckViolationMessages with the recorded post-call value (testFieldsAfter if it changed during the call, else its entry value via testFieldsAfterAlso), which is what valid()/invalid() assert after testSame (lines 1755-1774). setTypeValidationMode returns the validator itself."
+}

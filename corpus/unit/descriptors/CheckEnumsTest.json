@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckEnumsTest.java getProcessor (lines 38-41), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.lint.CheckEnums",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor is unconditional and reads no test field (the class declares none). getOptions (lines 43-48) only sets LINT_CHECKS to WARNING, which the record's options (warningsGuard) carry."
+}

@@ -1,0 +1,55 @@
+{
+  "source": "test/com/google/javascript/jscomp/disambiguate/ColorGraphBuilderTest.java getProcessor (lines 82-86), createCompiler (lines 77-80), setUp (lines 88-96) and the processor assignment in createBuilderIncludingCode (lines 104-137), bb8c8e7; copied into helper com.google.javascript.jscomp.disambiguate.ColorGraphBuilderTest_Helpers",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {
+          "once": "testInstance",
+          "value": {
+            "call": {
+              "new": "com.google.javascript.jscomp.disambiguate.ColorGraphBuilderTest_Helpers",
+              "args": [
+                {
+                  "compiler": true
+                }
+              ]
+            },
+            "method": "prepareProcessor",
+            "args": []
+          }
+        },
+        "method": "getProcessor",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      },
+      "testFieldsAfter": {
+        "once": "testInstance",
+        "value": {
+          "call": {
+            "new": "com.google.javascript.jscomp.disambiguate.ColorGraphBuilderTest_Helpers",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          },
+          "method": "prepareProcessor",
+          "args": []
+        }
+      },
+      "note": "classify round 1 (batch 9): post-call check. The holder that built the processor (shared through once \"testInstance\") stands in for the test instance; its fields labelToId (label -> ColorId of the labelled expression, filled by the processor's traversal) and graphNodeFactory (typeIndex: one ColorGraphNode per Color the processor collected) are compared with the record's testFieldsAfter; processor is skipped (testFieldsAfterSkip). classMap maps the holder class and its lambda class back to the recorded test class names for the processor-identity comparison.",
+      "testFieldsAfterSkip": {
+        "processor": "the recorded value is the test's processor lambda, whose arg$1 capture is the test instance, which the recorder writes as a class-name ref (UnitRecorder.isHarnessInstance), while the replayed lambda captures the helper holder, which the same dump writes as an object; the lambda's state is compared through the holder's own fields instead: graphNodeFactory (the lambda's arg$3, whose typeIndex holds every ColorGraphNode the processor created, so also the values of the local testTypes map in arg$2) and labelToId"
+      }
+    }
+  ],
+  "note": "getProcessor returns the test field `processor`, which is a lambda (unrepresentable in the record) in every recorded call: each of the 12 recorded test methods makes exactly one testSame, from createBuilderIncludingCode, right after assigning `processor` (and resetting labelToId and the local testTypes map). The holder replays that assignment (prepareProcessor) and then the verbatim getProcessor body. A fresh holder per getProcessor call is equivalent to the test instance because getNumRepetitions is 1 in every record, JUnit creates a new test instance per method, and the only state the lambda reads besides the AST is the graphNodeFactory, which the test also creates once per instance. The graph built afterwards from testTypes/labelToId and the test's assertions on it are not replayed; the side output they read (labelToId, the graphNodeFactory's nodes, and testTypes inside the processor lambda's captures) is compared post-call through testFieldsAfter (classify round 1, batch 9). createCompiler returns the test's `compiler` field, a plain `new Compiler()` built at construction (harness.effective.createCompiler is Compiler), so the replay's CompilerTestCase.createCompiler() is used instead: it differs only by setAllowableFeatures(acceptedLanguage) (overwritten by Compiler.initOptions from the same options.languageIn), setPreferRegexParser(false) (the Compiler default) and an empty webpackModulesById. The one unreproduced effect is that the test's createCompiler returns the same instance on every call, so the harness's expected-output parse (parseExpectedJs, after the processing and warning checks) re-initialises the compiler that produced the result, while the replay parses the expected output on a fresh compiler; the recorded observed errors and warnings are empty in all 12 records and the recorded outcome is normal, so nothing observable depends on it. setUp's enableTypeCheck/replaceTypesWithColors/disableCompareJsDoc are restored from harness.fields.",
+  "classMap": {
+    "com.google.javascript.jscomp.disambiguate.ColorGraphBuilderTest": "com.google.javascript.jscomp.disambiguate.ColorGraphBuilderTest_Helpers",
+    "com.google.javascript.jscomp.disambiguate.ColorGraphBuilderTest$$Lambda": "com.google.javascript.jscomp.disambiguate.ColorGraphBuilderTest_Helpers$$Lambda"
+  }
+}

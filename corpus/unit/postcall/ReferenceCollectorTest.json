@@ -1,0 +1,177 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.ReferenceCollectorTest",
+ "methods": [
+  {
+   "method": "nullishCoalesce",
+   "status": "rust_unit_test",
+   "reason": "asserts Reference.getBasicBlock().getRoot() (BasicBlock graph objects) inside the Behavior callback; postCall.pass.referenceMap encodes each reference's node and declaration/lvalue flags but not its BasicBlock, so replay does not check it",
+   "fragment": "corpus/unit/rust_unit_tests/ReferenceCollectorTest.md",
+   "category": "graph"
+  },
+  {
+   "method": "optChain",
+   "status": "rust_unit_test",
+   "reason": "asserts Reference.getBasicBlock().getRoot() (BasicBlock graph objects) inside the Behavior callback; postCall.pass.referenceMap encodes each reference's node and declaration/lvalue flags but not its BasicBlock, so replay does not check it",
+   "fragment": "corpus/unit/rust_unit_tests/ReferenceCollectorTest.md",
+   "category": "graph"
+  },
+  {
+   "method": "testBasicBlocks",
+   "status": "rust_unit_test",
+   "reason": "asserts Reference.getBasicBlock().getRoot() (BasicBlock graph objects) inside the Behavior callback; postCall.pass.referenceMap encodes each reference's node and declaration/lvalue flags but not its BasicBlock, so replay does not check it",
+   "fragment": "corpus/unit/rust_unit_tests/ReferenceCollectorTest.md",
+   "category": "graph"
+  },
+  {
+   "method": "testBasicBlocksInConditionals",
+   "status": "rust_unit_test",
+   "reason": "asserts Reference.getBasicBlock().getRoot() (BasicBlock graph objects) inside the Behavior callback; postCall.pass.referenceMap encodes each reference's node and declaration/lvalue flags but not its BasicBlock, so replay does not check it",
+   "fragment": "corpus/unit/rust_unit_tests/ReferenceCollectorTest.md",
+   "category": "graph"
+  },
+  {
+   "method": "testClass",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testClassExpression_assignedToConst_andInstantiated",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testClass_withInstantiation",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testImport1",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testImport2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testImport2_alternate",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testImport3",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testImport4",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testIterableRest_declaration",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testLetAssignedOnceInLifetime1",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testLetAssignedOnceInLifetime2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testModifiedParameterNotAssignedOnlyOnceInLifetime",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testNamedClassExpression_assignedToConst_andInstantiated",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testObjectRest_declaration",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testParameterAssignedOnlyOnceInLifetime",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testThis",
+   "status": "rust_unit_test",
+   "reason": "asserts ReferenceCollection.isEscaped() inside the Behavior callback; postCall.pass.referenceMap encodes isAssignedOnceInLifetime, isWellDefined and per-reference declaration/lvalue flags but not isEscaped, so replay does not check it",
+   "fragment": "corpus/unit/rust_unit_tests/ReferenceCollectorTest.md",
+   "category": "graph"
+  },
+  {
+   "method": "testVarAssignedOnceInLifetime2",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  },
+  {
+   "method": "testVarInBlock",
+   "status": "captured",
+   "via": [
+    "postCall.pass.referenceMap"
+   ],
+   "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
+  }
+ ]
+}

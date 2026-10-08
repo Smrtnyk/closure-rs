@@ -1,0 +1,13 @@
+{
+  "source": "test/com/google/javascript/jscomp/lint/CheckUnusedPrivatePropertiesTest.java getProcessor (lines 61-64), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.lint.CheckUnusedPrivateProperties",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor is unconditional. getOptions() (lines 66-71) only sets LINT_CHECKS to WARNING, which is replayed from the options diff; setUp's enableGatherExternProperties is in harness.fields."
+}

@@ -1,0 +1,12 @@
+{
+  "source": "test/com/google/javascript/jscomp/UnusedLocalsCheckTest.java getProcessor (lines 47-51); setUp (lines 34-38, ignoreWarnings) and getOptions (lines 40-45) are captured by the record's harness fields and options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.VariableReferenceCheck",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

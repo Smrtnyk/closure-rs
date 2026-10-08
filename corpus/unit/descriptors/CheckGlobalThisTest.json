@@ -1,0 +1,30 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckGlobalThisTest.java getProcessor (lines 35-38); setUp (lines 28-33, enableParseTypeInfo) is captured by the record's harness fields",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.CombinedCompilerPass",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "array": "com.google.javascript.jscomp.NodeTraversal$Callback",
+            "items": [
+              {
+                "new": "com.google.javascript.jscomp.CheckGlobalThis",
+                "args": [
+                  {
+                    "compiler": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "note": "The varargs call CombinedCompilerPass(compiler, Callback...) is written as an explicit NodeTraversal.Callback[] array. Under DSL v2 the no-op stand-in keeps the replaced class's roles, so --mutate-noop CheckGlobalThis yields a Callback stand-in that fits the array (32/85 records fail; the other 53 expect no diagnostics and unchanged code)."
+}

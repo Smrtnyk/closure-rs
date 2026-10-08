@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/RemovePropertyRenamingCallsTest.java getProcessor (lines 27-30), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.RemovePropertyRenamingCalls", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "getProcessor is unconditional (return new RemovePropertyRenamingCalls(compiler)); the test has no fields and no other overridden harness hooks."
+}

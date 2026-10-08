@@ -1,0 +1,19 @@
+{
+  "source": "test/com/google/javascript/jscomp/PeepholeCollectPropertyAssignmentsTest.java getProcessor (lines 26-30), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.PeepholeOptimizationsPass",
+        "args": [
+          {"compiler": true},
+          {"record": "harness.effective.getName"},
+          {"array": "com.google.javascript.jscomp.AbstractPeepholeOptimization", "items": [
+            {"new": "com.google.javascript.jscomp.PeepholeCollectPropertyAssignments", "args": []}
+          ]}
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor is unconditional (varargs constructor, modelled as an AbstractPeepholeOptimization[]); the test class declares no fields and overrides no other hook."
+}

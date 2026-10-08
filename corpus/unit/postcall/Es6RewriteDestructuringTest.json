@@ -1,0 +1,63 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.Es6RewriteDestructuringTest",
+ "methods": [
+  {
+   "method": "testArrayDestructuringRest_getsCorrectTypes",
+   "status": "rust_unit_test",
+   "reason": "asserts the Color objects (StandardColors constants, ColorRegistry colors, color identity with another node) on nodes of the output AST (getLastCompiler().getJsRoot()) after test(); colors are compiler-internal, not in any postCall key, test field or postcondition, and Node.isEquivalentTo ignores them; the record carries no postCall.pass key, and its postCall.compiler keys (externProperties, accessorSummary, allowableFeatures, typeMismatchesError and, for some records, injectedLibraries) hold names, the getter/setter summary, feature names, an exception class and the injected runtime libraries, not node colors or node properties",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteDestructuringTest.md",
+   "category": "color"
+  },
+  {
+   "method": "testArrayDestructuring_getsCorrectTypes",
+   "status": "rust_unit_test",
+   "reason": "asserts the Color objects (StandardColors constants, ColorRegistry colors, color identity with another node) on nodes of the output AST (getLastCompiler().getJsRoot()) after test(); colors are compiler-internal, not in any postCall key, test field or postcondition, and Node.isEquivalentTo ignores them; the record carries no postCall.pass key, and its postCall.compiler keys (externProperties, accessorSummary, allowableFeatures, typeMismatchesError and, for some records, injectedLibraries) hold names, the getter/setter summary, feature names, an exception class and the injected runtime libraries, not node colors or node properties",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteDestructuringTest.md",
+   "category": "color"
+  },
+  {
+   "method": "testObjectDestructuringComputedPropWithDefault_getsCorrectTypes",
+   "status": "rust_unit_test",
+   "reason": "asserts the Color objects (StandardColors constants, ColorRegistry colors, color identity with another node) on nodes of the output AST (getLastCompiler().getJsRoot()) after test(); colors are compiler-internal, not in any postCall key, test field or postcondition, and Node.isEquivalentTo ignores them; the record carries no postCall.pass key, and its postCall.compiler keys (externProperties, accessorSummary, allowableFeatures, typeMismatchesError and, for some records, injectedLibraries) hold names, the getter/setter summary, feature names, an exception class and the injected runtime libraries, not node colors or node properties",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteDestructuringTest.md",
+   "category": "color"
+  },
+  {
+   "method": "testObjectDestructuringDefaultValue_getsCorrectTypes",
+   "status": "rust_unit_test",
+   "reason": "asserts the Color objects (StandardColors constants, ColorRegistry colors, color identity with another node) on nodes of the output AST (getLastCompiler().getJsRoot()) after test(); colors are compiler-internal, not in any postCall key, test field or postcondition, and Node.isEquivalentTo ignores them; the record carries no postCall.pass key, and its postCall.compiler keys (externProperties, accessorSummary, allowableFeatures, typeMismatchesError and, for some records, injectedLibraries) hold names, the getter/setter summary, feature names, an exception class and the injected runtime libraries, not node colors or node properties",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteDestructuringTest.md",
+   "category": "color"
+  },
+  {
+   "method": "testObjectDestructuringRest_typesRestAsObject",
+   "status": "rust_unit_test",
+   "reason": "asserts the Color objects (StandardColors constants, ColorRegistry colors, color identity with another node) on nodes of the output AST (getLastCompiler().getJsRoot()) after test(); colors are compiler-internal, not in any postCall key, test field or postcondition, and Node.isEquivalentTo ignores them; the record carries no postCall.pass key, and its postCall.compiler keys (externProperties, accessorSummary, allowableFeatures, typeMismatchesError and, for some records, injectedLibraries) hold names, the getter/setter summary, feature names, an exception class and the injected runtime libraries, not node colors or node properties",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteDestructuringTest.md",
+   "category": "color"
+  },
+  {
+   "method": "testObjectDestructuring_getsCorrectTypes",
+   "status": "rust_unit_test",
+   "reason": "asserts the Color objects (StandardColors constants, ColorRegistry colors, color identity with another node) on nodes of the output AST (getLastCompiler().getJsRoot()) after test(); colors are compiler-internal, not in any postCall key, test field or postcondition, and Node.isEquivalentTo ignores them; the record carries no postCall.pass key, and its postCall.compiler keys (externProperties, accessorSummary, allowableFeatures, typeMismatchesError and, for some records, injectedLibraries) hold names, the getter/setter summary, feature names, an exception class and the injected runtime libraries, not node colors or node properties",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteDestructuringTest.md",
+   "category": "color"
+  },
+  {
+   "method": "testSimpleDestructuring_constAnnotationAdded",
+   "status": "rust_unit_test",
+   "reason": "asserts Node.getBooleanProp(IS_CONSTANT_NAME) on the NAME $jscomp$destructuring$var1 of the output AST after test(); that node property is in no postCall key, test field or postcondition, and Node.isEquivalentTo does not compare it; the record carries no postCall.pass key, and its postCall.compiler keys (externProperties, accessorSummary, allowableFeatures, typeMismatchesError and, for some records, injectedLibraries) hold names, the getter/setter summary, feature names, an exception class and the injected runtime libraries, not node colors or node properties",
+   "fragment": "corpus/unit/rust_unit_tests/Es6RewriteDestructuringTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testObjectPatternInAssignExpression_inGeneratorUsingYield",
+   "status": "captured",
+   "via": [
+    "outcome"
+   ],
+   "note": "the only assertion after the first hooked call is assertThat(ex).hasMessageThat().contains(\"Cannot transpile yet: destructuring assignment referencing await or yield in lhs\") on the RuntimeException that assertThrows takes from the method's second hooked test(...) call (lines 1692-1707). That exception is record 49's outcome {status exception, exceptionClass java.lang.RuntimeException, assertion false, message 'INTERNAL COMPILER ERROR. ... Cannot transpile yet: destructuring assignment referencing await or yield in lhs, in nested sub-expression: OBJECT_PATTERN ...'}, which ReplayMain compares exactly (status, class, message), so the asserted state is replay-compared. Gate (a) checks a via for every record of the method, and the method's first record (48, the yield-in-RHS rewrite, outcome normal) has no exception outcome and no post-call assertion of its own, so the gate reports this claim invalid for record 48 ('outcome claim needs a non-assertion exception with a message') until a via can be restricted to the record whose outcome the assertion inspects (not adopted: it changes a gate definition, D-017 freeze). Record 49 alone satisfies the outcome rule. No other via names the asserted state: record 48's postCall keys (compiler externProperties, accessorSummary, allowableFeatures, injectedLibraries, typeMismatchesError) say nothing about the exception, and a rust_unit_test 'exception' entry would contradict the replay-compared outcome."
+  }
+ ]
+}

@@ -1,0 +1,2407 @@
+{
+ "source": "test/com/google/javascript/jscomp/ProcessDefinesTest.java getProcessor (lines 62-68) and inner class ProcessDefinesWithInjectedNamespace (lines 1159-1179), replayed through helper ProcessDefinesTest_Helpers.GetProcessorHost. setUp (lines 49-60) and getOptions (lines 74-85) affect only testFields/options/harness fields, which come from the record.",
+ "note": "The test field overrides is a Map<String, Node>; the recorder dumps Node values only as {ref}. For records with a non-empty overrides map, each case matches the test method and the recorded map, and rebuilds the values from the overrides.put calls in that method (cited per case), as a java.util.HashMap with the recorded key order. ProcessDefines clones the replacement nodes (ProcessDefines.java lines 284/286), so fresh Node objects per record are equivalent to the test's shared ones. Every processor is wrapped in mutationPoint com.google.javascript.jscomp.ProcessDefines: ProcessDefines is built inside the verbatim helper's ProcessDefinesWithInjectedNamespace.process, so under --mutate-noop ProcessDefines the whole processor (GlobalNamespace construction plus ProcessDefines) is replaced by the no-op stand-in; GlobalNamespace construction alone changes neither the AST nor the diagnostics. Classify batch 16 (D-015 a, post-call state): the GetProcessorHost is shared per record through once \"host\", like the test instance is shared by every repetition, and each case names it in testFieldsAfter (+ testFieldsAfterAlso namespace). The verbatim ProcessDefinesWithInjectedNamespace.process stores the GlobalNamespace it builds in the host's field namespace, as the test stores it in its own field; replay compares that field's dump (GlobalNamespace with its globalNames/nameMap Name objects, their get/set counts and property bits, depth 2, ordered containers only) with the record's testFieldsAfter.namespace (or, when the call left the dump unchanged, its testFields.namespace). The test asserts nothing on namespace after the call (the static audit flags no method); this check is stricter than the test.",
+ "cases": [
+  {
+   "when": {
+    "method": "testDefineAssignedToQualifiedNameAlias",
+    "testFields.overrides": {
+     "map": [
+      [
+       "DEF1",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "DEF1"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 411",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "DEF1"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testUnknownDefineWarning",
+    "testFields.overrides": {
+     "map": [
+      [
+       "a.B",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "a.B"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 136",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "a.B"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testOverridingString2",
+    "testFields.overrides": {
+     "map": [
+      [
+       "DEF_OVERRIDE_STRING",
+       {
+        "ref": "com.google.javascript.rhino.Node$StringNode"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "DEF_OVERRIDE_STRING"
+             },
+             {
+              "static": "com.google.javascript.rhino.Node",
+              "method": "newString",
+              "args": [
+               {
+                "string": "foo"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 296",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "DEF_OVERRIDE_STRING"
+           },
+           {
+            "static": "com.google.javascript.rhino.Node",
+            "method": "newString",
+            "args": [
+             {
+              "string": "foo"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testOverridingString3",
+    "testFields.overrides": {
+     "map": [
+      [
+       "DEF_OVERRIDE_STRING",
+       {
+        "ref": "com.google.javascript.rhino.Node$StringNode"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "DEF_OVERRIDE_STRING"
+             },
+             {
+              "static": "com.google.javascript.rhino.Node",
+              "method": "newString",
+              "args": [
+               {
+                "string": "foo"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 304",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "DEF_OVERRIDE_STRING"
+           },
+           {
+            "static": "com.google.javascript.rhino.Node",
+            "method": "newString",
+            "args": [
+             {
+              "string": "foo"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testCompiledIsKnownDefine",
+    "testFields.overrides": {
+     "map": [
+      [
+       "COMPILED",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "COMPILED"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 321",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "COMPILED"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testNamespacedDefine2a",
+    "testFields.overrides": {
+     "map": [
+      [
+       "a.B",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "a.B"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 571",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "a.B"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testNamespacedDefine2b",
+    "testFields.overrides": {
+     "map": [
+      [
+       "a.B",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "a.B"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 579",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "a.B"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testNamespacedDefine2c",
+    "testFields.overrides": {
+     "map": [
+      [
+       "a.B",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "a.B"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 587",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "a.B"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testAssignBeforeDeclaration_var_withOverride",
+    "testFields.overrides": {
+     "map": [
+      [
+       "DEF_OVERRIDE_TO_TRUE",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "DEF_OVERRIDE_TO_TRUE"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 466",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "DEF_OVERRIDE_TO_TRUE"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testGoogDefine_overridden",
+    "testFields.overrides": {
+     "map": [
+      [
+       "a.B",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "a.B"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 616",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "a.B"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testOverriding1",
+    "testFields.overrides": {
+     "map": [
+      [
+       "DEF_OVERRIDE_TO_FALSE",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ],
+      [
+       "DEF_OVERRIDE_TO_TRUE",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "DEF_OVERRIDE_TO_FALSE"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "FALSE"
+               }
+              ]
+             }
+            ],
+            [
+             {
+              "string": "DEF_OVERRIDE_TO_TRUE"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 250, 249",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "DEF_OVERRIDE_TO_FALSE"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "FALSE"
+             }
+            ]
+           }
+          ],
+          [
+           {
+            "string": "DEF_OVERRIDE_TO_TRUE"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testOverriding2",
+    "testFields.overrides": {
+     "map": [
+      [
+       "DEF_OVERRIDE_TO_TRUE",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "DEF_OVERRIDE_TO_TRUE"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 264",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "DEF_OVERRIDE_TO_TRUE"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testOverriding3",
+    "testFields.overrides": {
+     "map": [
+      [
+       "DEF_OVERRIDE_TO_TRUE",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "DEF_OVERRIDE_TO_TRUE"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 274",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "DEF_OVERRIDE_TO_TRUE"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testClosureDefineValues_replacementWithOverriddenDefine",
+    "testFields.overrides": {
+     "map": [
+      [
+       "FOO",
+       {
+        "ref": "com.google.javascript.rhino.Node$StringNode"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "FOO"
+             },
+             {
+              "static": "com.google.javascript.rhino.IR",
+              "method": "string",
+              "args": [
+               {
+                "string": "override"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 966",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "FOO"
+           },
+           {
+            "static": "com.google.javascript.rhino.IR",
+            "method": "string",
+            "args": [
+             {
+              "string": "override"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testNamespacedDefine3",
+    "testFields.overrides": {
+     "map": [
+      [
+       "a.B",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "a.B"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 595",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "a.B"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testNamespacedDefine4",
+    "testFields.overrides": {
+     "map": [
+      [
+       "a.B",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "a.B"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 601",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "a.B"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testConstOverriding1",
+    "testFields.overrides": {
+     "map": [
+      [
+       "DEF_OVERRIDE_TO_TRUE",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "DEF_OVERRIDE_TO_TRUE"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 741",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "DEF_OVERRIDE_TO_TRUE"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testDefineAssignedToDefineAlias",
+    "testFields.overrides": {
+     "map": [
+      [
+       "DEF2",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "DEF2"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 395",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "DEF2"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testConstProducesUnknownDefineWarning",
+    "testFields.overrides": {
+     "map": [
+      [
+       "a.B",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "a.B"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 757",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "a.B"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "method": "testMisspelledOverride",
+    "testFields.overrides": {
+     "map": [
+      [
+       "DEF_BAD_OVERIDE",
+       {
+        "ref": "com.google.javascript.rhino.Node"
+       }
+      ]
+     ],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "new": "java.util.HashMap",
+         "args": [
+          {
+           "map": [
+            [
+             {
+              "string": "DEF_BAD_OVERIDE"
+             },
+             {
+              "new": "com.google.javascript.rhino.Node",
+              "args": [
+               {
+                "enum": "com.google.javascript.rhino.Token",
+                "name": "TRUE"
+               }
+              ]
+             }
+            ]
+           ]
+          }
+         ]
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "note": "overrides.put at line(s) 312",
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "new": "java.util.HashMap",
+       "args": [
+        {
+         "map": [
+          [
+           {
+            "string": "DEF_BAD_OVERIDE"
+           },
+           {
+            "new": "com.google.javascript.rhino.Node",
+            "args": [
+             {
+              "enum": "com.google.javascript.rhino.Token",
+              "name": "TRUE"
+             }
+            ]
+           }
+          ]
+         ]
+        }
+       ]
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  },
+  {
+   "when": {
+    "testFields.overrides": {
+     "map": [],
+     "impl": "java.util.HashMap"
+    }
+   },
+   "processor": {
+    "mutationPoint": "com.google.javascript.jscomp.ProcessDefines",
+    "value": {
+     "call": {
+      "once": "host",
+      "value": {
+       "withFields": {
+        "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+       },
+       "fields": {
+        "overrides": {
+         "field": "overrides"
+        },
+        "mode": {
+         "field": "mode"
+        },
+        "recognizeClosureDefines": {
+         "field": "recognizeClosureDefines"
+        },
+        "enableJ2clPasses": {
+         "field": "enableJ2clPasses"
+        }
+       }
+      }
+     },
+     "method": "getProcessor",
+     "args": [
+      {
+       "compiler": true
+      }
+     ]
+    }
+   },
+   "testFieldsAfter": {
+    "once": "host",
+    "value": {
+     "withFields": {
+      "helper": "ProcessDefinesTest_Helpers.GetProcessorHost"
+     },
+     "fields": {
+      "overrides": {
+       "field": "overrides"
+      },
+      "mode": {
+       "field": "mode"
+      },
+      "recognizeClosureDefines": {
+       "field": "recognizeClosureDefines"
+      },
+      "enableJ2clPasses": {
+       "field": "enableJ2clPasses"
+      }
+     }
+    }
+   },
+   "testFieldsAfterAlso": [
+    "namespace"
+   ]
+  }
+ ],
+ "unrepresentableAudit": "41 records list nested values under test.namespace (a GlobalNamespace left over from an earlier call in the same test method, dumped at entry). ProcessDefinesWithInjectedNamespace.process writes namespace before it is read, so it is not restored. testFieldsAfter (namespace, 118 records) is deliberately not opted in. It is a deep dump of Java-internal GlobalNamespace state, and no test assertion reads namespace."
+}

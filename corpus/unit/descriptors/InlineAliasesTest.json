@@ -1,0 +1,116 @@
+{
+  "source": "test/com/google/javascript/jscomp/InlineAliasesTest.java getProcessor (lines 31-43), getOptions (lines 50-56), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "let": [
+          [
+            "compiler",
+            {
+              "compiler": true
+            }
+          ],
+          [
+            "optimizer",
+            {
+              "new": "com.google.javascript.jscomp.PhaseOptimizer",
+              "args": [
+                {
+                  "var": "compiler"
+                },
+                {
+                  "null": true
+                }
+              ]
+            }
+          ]
+        ],
+        "in": {
+          "do": [
+            {
+              "call": {
+                "var": "optimizer"
+              },
+              "method": "addOneTimePass",
+              "args": [
+                {
+                  "static": "com.google.javascript.jscomp.CompilerTestCase",
+                  "method": "makePassFactory",
+                  "args": [
+                    {
+                      "string": "es6NormalizeClasses"
+                    },
+                    {
+                      "lambda": [
+                        "c"
+                      ],
+                      "iface": "java.util.function.Function",
+                      "body": {
+                        "new": "com.google.javascript.jscomp.Es6NormalizeClasses",
+                        "args": [
+                          {
+                            "var": "c"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "call": {
+                "var": "optimizer"
+              },
+              "method": "addOneTimePass",
+              "args": [
+                {
+                  "static": "com.google.javascript.jscomp.CompilerTestCase",
+                  "method": "makePassFactory",
+                  "args": [
+                    {
+                      "string": "inlineAndCollapseProperties"
+                    },
+                    {
+                      "lambda": [
+                        "comp"
+                      ],
+                      "iface": "java.util.function.Function",
+                      "body": {
+                        "call": {
+                          "call": {
+                            "static": "com.google.javascript.jscomp.InlineAndCollapseProperties",
+                            "method": "builder",
+                            "args": [
+                              {
+                                "var": "compiler"
+                              }
+                            ]
+                          },
+                          "method": "setPropertyCollapseLevel",
+                          "args": [
+                            {
+                              "enum": "com.google.javascript.jscomp.CompilerOptions$PropertyCollapseLevel",
+                              "name": "NONE"
+                            }
+                          ]
+                        },
+                        "method": "build",
+                        "args": []
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "value": {
+            "var": "optimizer"
+          }
+        }
+      }
+    }
+  ],
+  "note": "getProcessor builds a PhaseOptimizer(compiler, null) with two one-time pass factories (DSL.md 'Patterns'): makePassFactory(\"es6NormalizeClasses\", Es6NormalizeClasses::new) and makePassFactory(\"inlineAndCollapseProperties\", (comp) -> InlineAndCollapseProperties.builder(compiler).setPropertyCollapseLevel(PropertyCollapseLevel.NONE).build()). As in the original, the second factory ignores its parameter comp and uses the captured getProcessor compiler (bound by the let). The passes are created when the optimizer runs the factories. The class declares no instance fields. customSetUp's setGenericNameReplacements is a harness field restored from the record. getOptions calls enableTypeInfoValidation() and enableTypeCheck(); their effect on the harness fields is recorded in harness.fieldsAfterGetOptions (43 records, call 0) and applied by the replay core each time getOptions() runs, so these records are type-checked and type-info-validated as in the original."
+}

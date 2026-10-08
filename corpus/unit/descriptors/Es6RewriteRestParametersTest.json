@@ -1,0 +1,17 @@
+{
+ "source": "test/com/google/javascript/jscomp/Es6RewriteRestParametersTest.java getProcessor (lines 38-44), bb8c8e7; the lambda CompilerPass it returns is helper Es6RewriteRestParametersTest_Helpers.GetProcessorPass",
+ "cases": [
+  {
+   "when": {},
+   "processor": {
+    "helper": "Es6RewriteRestParametersTest_Helpers.GetProcessorPass",
+    "args": [
+     {
+      "compiler": true
+     }
+    ]
+   }
+  }
+ ],
+ "note": "getProcessor returns a lambda that, inside process, constructs and runs new InjectTranspilationRuntimeLibraries(compiler) and then new Es6RewriteRestParameters(compiler). The DSL sequence is not equivalent: it would construct Es6RewriteRestParameters in getProcessor, before the injection runs, and its constructor calls compiler.getTranspilationNamespace(), which builds and caches the GlobalNamespace that must see the injected runtime libraries. The lambda is therefore a verbatim helper capturing the compiler. Because the passes are created inside the helper, --mutate-noop Es6RewriteRestParameters does not reach them. customSetUp (lines 46-55) only sets harness state (enableNormalize, setAcceptedLanguage, setLanguageOut, enableTypeInfoValidation, enableTypeCheck, replaceTypesWithColors, enableMultistageCompilation), restored from harness.fields; the constructor's EXTERNS_BASE is in inputs.externs. The class declares no instance fields."
+}

@@ -1,0 +1,103 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.integration.AdvancedOptimizationsIntegrationTest",
+ "methods": [
+  {
+   "method": "testAngularPropertyNameRestrictions",
+   "status": "rust_unit_test",
+   "reason": "walks the compiled output AST as Java Node objects (EXPR_RESULT/ASSIGN/GETPROP tokens) and checks each renamed property's first char against CompilerOptions.getAngularPropertyReservedFirstChars(); only the errors+warnings==0 part is in observed (integration compile record, notCaptured by rule)",
+   "fragment": "corpus/unit/rust_unit_tests/AdvancedOptimizationsIntegrationTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testES6StaticsAreRemoved1",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.output"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): not Java-internal: errors empty and toSource(main root) non-empty without 'No one ever calls me'; replay compares the same as observed.errors and observed.output, but integration compile records are notCaptured by rule and the postcall vocabulary has no observed.* via (harness request filed)"
+  },
+  {
+   "method": "testES6StaticsAreRemoved2",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.output"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): not Java-internal: errors empty and toSource(main root) non-empty without 'No one ever calls me'; replay compares the same as observed.errors and observed.output, but integration compile records are notCaptured by rule and the postcall vocabulary has no observed.* via (harness request filed)"
+  },
+  {
+   "method": "testExports",
+   "status": "captured",
+   "via": [
+    "observed.errors"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): not Java-internal: the only post-call assertion, lastCompiler.getErrors() hasSize(1) after compile(), is observed.errors of record 0, compared by replay, but integration compile records are notCaptured by rule and the postcall vocabulary has no observed.* via (harness request filed); records 1-5 (test/test_warning) have only in-call checks"
+  },
+  {
+   "method": "testInjectPolyfillsNewerThan_noDeadCodeRemovalForUnusedPolyfills",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.output"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): not Java-internal: errors empty and lastCompiler.toSource() contains/doesNotContain polyfill names; replay compares the same as observed.errors and observed.output, but integration compile records are notCaptured by rule and the postcall vocabulary has no observed.* via (harness request filed)"
+  },
+  {
+   "method": "testInjectPolyfillsNewerThan_noDeadCodeRemovalForUnusedPolyfills_withForceInjectLibrary",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.output"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): not Java-internal: errors empty and lastCompiler.toSource() contains/doesNotContain polyfill names; replay compares the same as observed.errors and observed.output, but integration compile records are notCaptured by rule and the postcall vocabulary has no observed.* via (harness request filed)"
+  },
+  {
+   "method": "testShouldValidateRequiredInlings_throwsIfSetWithoutSufficientlyAdvancedOptimizations",
+   "status": "captured",
+   "via": [
+    "outcome"
+   ],
+   "note": "Classify round 1 batch 5: assertThrows(IllegalStateException) then hasMessageThat().contains('shouldValidateRequiredInlinings') and contains('missing property collapsing'); the record's outcome is that exception (class java.lang.IllegalStateException, assertion false, full message containing both substrings), which replay compares status, class and message exactly."
+  },
+  {
+   "method": "testSourceInfoForReferenceToImportedSymbol",
+   "status": "rust_unit_test",
+   "reason": "asserts the source file name, line and charno of a Java Node in the compiled output AST (the renamed reference `a` in `use(a())`); source positions of output nodes are in no snapshot (observed.output is the printed code)",
+   "fragment": "corpus/unit/rust_unit_tests/AdvancedOptimizationsIntegrationTest.md",
+   "category": "node-identity"
+  },
+  {
+   "method": "testSyntheticBlockCrashAroundModuleExport",
+   "status": "captured",
+   "via": [
+    "observed.output"
+   ],
+   "note": "Review round 3 reclassification (was rust_unit_test, reason said the state is in the record): not Java-internal: result.toSource() isEqualTo the expected program; replay compares compiler.toSource() as observed.output, but integration compile records are notCaptured by rule and the postcall vocabulary has no observed.* via (harness request filed)"
+  },
+  {
+   "method": "testImportMeta",
+   "status": "captured",
+   "via": [
+    "observed.errors"
+   ],
+   "note": "Classify round 1 batch 5: after compile(), asserts compiler.getResult().success is false and compiler.getErrors() containsExactly one error with description 'This code cannot be transpiled. import.meta. Use --chunk_output_type=ES_MODULES to allow passthrough support.' (DESCRIPTION_EQUALITY). Result.success is errors.isEmpty() (Result.java:55), so both facts are the record's observed.errors (exactly that one JSC_CANNOT_CONVERT error), which replay compares JSON-equal."
+  },
+  {
+   "method": "testRequireAndEncourageInlining_complexCase",
+   "status": "rust_unit_test",
+   "category": "exception",
+   "reason": "after the fourth test() call (record 3) asserts the Java exception chain of the RuntimeException that assertThrows caught: hasCauseThat().isInstanceOf(IllegalStateException.class) and the cause's cause message contains '@requireInlining node failed to be inlined'. The record keeps only the top-level exception class and message ('Validity check failed for earlyInlineVariables'), not Throwable.getCause(); the cause chain is a Java exception object graph. Integration records carry no postCall snapshot, so there is no postCall.pass.* key to name. Records 0-2 of the method have only in-call checks.",
+   "fragment": "corpus/unit/rust_unit_tests/AdvancedOptimizationsIntegrationTest.md"
+  }
+ ],
+ "pendingNeutralKey": {
+  "methods": [
+   "testArrayValuesIsPolyfilledForEs2015Out",
+   "testBug123583793"
+  ],
+  "key": "compiler.injectedLibraries (D-017 item 2) for integration records",
+  "note": "both assert lastCompiler.getRuntimeJsLibManager().getInjectedLibraries() (a list of strings: containsExactly es6/array/values in testArrayValuesIsPolyfilledForEs2015Out) after the call; neutral, so never a Rust unit test. compiler.injectedLibraries exists since v7 for compiler_test_case records only; these records are kind=integration and carry no postCall, so the methods stay unclassified (harness request: post-call snapshot for integration records). Not read by the gate."
+ }
+}

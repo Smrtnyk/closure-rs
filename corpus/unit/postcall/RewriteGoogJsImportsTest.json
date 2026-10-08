@@ -1,0 +1,22 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.RewriteGoogJsImportsTest",
+ "methods": [
+  {
+   "method": "testImportStar",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMapBoundNames"
+   ],
+   "note": "After one test(...), asserts getLastCompiler().getModuleMap().getModule(getModuleLoader().resolve(\"testcode\")).boundNames().keySet() isEmpty(): the bound names of the module map RewriteGoogJsImports installs with compiler.setModuleMap. Since harness round 2 (D-017 item 2, v7 recording) the method's record carries postCall.compiler.moduleMapBoundNames (module path -> bound names; the testcode module is module$testcode), and replay compares it by postCall JSON equality (class-limited gate (a) run, fix-6 round 2: claim verified, record passes). It is not a Rust unit test: the asserted value is a set of strings, a neutral value (FORMAT.md, D-017 item 2); postCall.compiler.moduleMetadataByPath does not hold it (module metadata, not the ES module map's bindings)."
+  },
+  {
+   "method": "testKnownBadPropertyAccess",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMapBoundNames"
+   ],
+   "note": "After one test(...), asserts getLastCompiler().getModuleMap().getModule(getModuleLoader().resolve(\"testcode\")).boundNames().keySet() containsExactly \"$goog\": the bound names of the module map RewriteGoogJsImports installs with compiler.setModuleMap. Since harness round 2 (D-017 item 2, v7 recording) the method's record carries postCall.compiler.moduleMapBoundNames (module path -> bound names; the testcode module is module$testcode), and replay compares it by postCall JSON equality (class-limited gate (a) run, fix-6 round 2: claim verified, record passes). It is not a Rust unit test: the asserted value is a set of strings, a neutral value (FORMAT.md, D-017 item 2); postCall.compiler.moduleMetadataByPath does not hold it (module metadata, not the ES module map's bindings)."
+  }
+ ]
+}

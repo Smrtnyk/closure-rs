@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/RuntimeLibraryTypedAstInjectionTest.java getProcessor (lines 41-44), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"sequence": []}
+    }
+  ],
+  "note": "getProcessor returns the no-op lambda `(externs, root) -> {}`; an empty sequence is exactly a CompilerPass that does nothing (CheckTemplateParamsTest.json precedent). What the tests exercise happens in the harness: setUp (lines 33-39) enableTypeCheck and replaceTypesWithColors, the per-test ensureLibraryInjected('util/owns' or 'util/global', recorded in harness.fields.librariesToInject) and disableTypeCheck (harness.fields.typeCheckEnabled=false), all restored from harness.fields. Not part of the records: the tests' follow-up assertions on getLastCompiler().getRoot() after test()/testNoWarning() (findNodesNamed/findAllCastNodes source-file and color checks, lines 62-74, 94-104, 116-132)."
+}

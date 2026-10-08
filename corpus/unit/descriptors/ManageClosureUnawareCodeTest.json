@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/ManageClosureUnawareCodeTest.java getProcessor (lines 69-106: a PhaseOptimizer of a gatherShadowNodes pass and, when runUnwrapPass, ManageClosureUnawareCode::unwrap), replayed through helper ManageClosureUnawareCodeTest_Helpers.GetProcessor with runUnwrapPass restored from testFields.",
+  "note": "Recorded field combinations: runUnwrapPass in {false (first test() of doTest), true (second test() of doTest, and the direct testError/test calls)}; languageInOverride is always Optional.empty(). setUp (lines 36-46: allowExternsChanges, disableValidateAstChangeMarking, disableCompareJsDoc) only sets harness fields, restored from the record; getOptions (lines 60-67: setLanguageIn from languageInOverride) is reproduced by record.options; tearDown (lines 48-54) only resets the two fields between tests. gatheredShadowNodeRoot (recorded as a Node ref) only collects shadow clones for doTest's follow-up assertNode (lines 111-122), which is a test-side assertion after test() and is not replayed; the helper keeps the field's fresh IR.root() initializer.",
+  "cases": [
+    {
+      "when": {"instanceClass": "com.google.javascript.jscomp.ManageClosureUnawareCodeTest"},
+      "processor": {
+        "call": {
+          "helper": "ManageClosureUnawareCodeTest_Helpers.GetProcessor",
+          "outer": ["runUnwrapPass"]
+        },
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      }
+    }
+  ]
+}

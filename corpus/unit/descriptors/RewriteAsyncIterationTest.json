@@ -1,0 +1,99 @@
+{
+  "source": "test/com/google/javascript/jscomp/RewriteAsyncIterationTest.java getProcessor (lines 67-76; a PhaseOptimizer(compiler, null) with two addOneTimePass(makePassFactory(...)) calls: InjectTranspilationRuntimeLibraries::new, then RewriteAsyncIteration::create; no test fields read), written in the DSL, bb8c8e7.",
+  "cases": [
+    {
+      "when": {
+        "instanceClass": "com.google.javascript.jscomp.RewriteAsyncIterationTest"
+      },
+      "processor": {
+        "let": [
+          [
+            "optimizer",
+            {
+              "new": "com.google.javascript.jscomp.PhaseOptimizer",
+              "args": [
+                {
+                  "compiler": true
+                },
+                {
+                  "null": true
+                }
+              ]
+            }
+          ]
+        ],
+        "in": {
+          "do": [
+            {
+              "call": {
+                "var": "optimizer"
+              },
+              "method": "addOneTimePass",
+              "args": [
+                {
+                  "static": "com.google.javascript.jscomp.CompilerTestCase",
+                  "method": "makePassFactory",
+                  "args": [
+                    {
+                      "string": "injectTranspilationRuntimeLibraries"
+                    },
+                    {
+                      "lambda": [
+                        "c"
+                      ],
+                      "iface": "java.util.function.Function",
+                      "body": {
+                        "new": "com.google.javascript.jscomp.InjectTranspilationRuntimeLibraries",
+                        "args": [
+                          {
+                            "var": "c"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "call": {
+                "var": "optimizer"
+              },
+              "method": "addOneTimePass",
+              "args": [
+                {
+                  "static": "com.google.javascript.jscomp.CompilerTestCase",
+                  "method": "makePassFactory",
+                  "args": [
+                    {
+                      "string": "rewriteAsyncIteration"
+                    },
+                    {
+                      "lambda": [
+                        "c"
+                      ],
+                      "iface": "java.util.function.Function",
+                      "body": {
+                        "static": "com.google.javascript.jscomp.RewriteAsyncIteration",
+                        "method": "create",
+                        "args": [
+                          {
+                            "var": "c"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "value": {
+            "var": "optimizer"
+          }
+        }
+      }
+    }
+  ],
+  "note": "The constructor's TestExternsBuilder externs are in record.inputs.externs / harness.fields.defaultExternsInputs. The @Before enableTypeCheckBeforePass (lines 50-58) only calls harness setters (enableNormalize, enableTypeCheck, enableTypeInfoValidation, allowExternsChanges, replaceTypesWithColors, enableMultistageCompilation), restored from harness.fields. getOptions (lines 60-65) sets languageOut ECMASCRIPT_2017, replayed from record.options. Not recorded: the getLastCompiler()/color assertions some tests make after test()."
+}

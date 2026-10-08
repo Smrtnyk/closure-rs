@@ -1,0 +1,14 @@
+{
+  "source": "test/com/google/javascript/jscomp/InstrumentAsyncContextTest.java getProcessor (lines 102-116), bb8c8e7; replayed through helper InstrumentAsyncContextTest_Helpers.GetProcessor",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {"helper": "InstrumentAsyncContextTest_Helpers.GetProcessor", "outer": ["instrumentAwait"]},
+        "method": "getProcessor",
+        "args": [{"compiler": true}]
+      }
+    }
+  ],
+  "note": "getProcessor builds a PhaseOptimizer with two makePassFactory lambdas (InjectTranspilationRuntimeLibraries with shouldInstrumentAsyncContext=true, then InstrumentAsyncContext(compiler, instrumentAwait)). Lambdas and the void addOneTimePass calls are not expressible in the DSL, so the method is copied verbatim into InstrumentAsyncContextTest_Helpers.GetProcessor (the Es6RewriteDestructuringTest pattern), with the field instrumentAwait (recorded boolean: true in 45 records, false in 4) restored on the holder. setUp (lines 93-100: instrumentAwait=true, enableNormalize, setGenericNameReplacements) is replayed from harness.fields and testFields; getOptions (lines 118-123: MISSING_POLYFILL at WARNING) from the options diff."
+}

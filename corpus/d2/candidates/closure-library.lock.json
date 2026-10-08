@@ -1,0 +1,2545 @@
+{
+ "collector": "closure-library",
+ "source": "closure-library",
+ "git_url": "https://github.com/google/closure-library.git",
+ "tag": "v20230802",
+ "commit": "ccf3f1dcd7258ff413406daa45bad79277d40afd",
+ "cache_dir": "corpus-cache/d2/closure-library",
+ "fetch": "git clone --depth 1 --branch v20230802 https://github.com/google/closure-library.git corpus-cache/d2/closure-library",
+ "license": {
+  "default": "Apache-2.0",
+  "license_file": "corpus-cache/d2/closure-library/LICENSE",
+  "license_file_sha256": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9",
+  "exceptions": {
+   "corpus-cache/d2/closure-library/third_party/closure/goog/mochikit/": {
+    "license": "MIT",
+    "license_file": "corpus-cache/d2/closure-library/third_party/closure/goog/mochikit/LICENSE",
+    "license_file_sha256": "607364be6bdbb3fdde9a84cea7e90a50c4ee4b023c720351fc2f29ace8cfe61c"
+   }
+  }
+ },
+ "generator": "corpus/d2/candidates/closure-library.gen.py",
+ "files": {
+  "corpus-cache/d2/closure-library/closure/goog/a11y/aria/announcer.js": {
+   "sha256": "953772cc2afb7431d2255740c76615f38b2822f1a9220f8734f2185690a189f4",
+   "bytes": 4553
+  },
+  "corpus-cache/d2/closure-library/closure/goog/a11y/aria/announcer_test.js": {
+   "sha256": "509639dd75ae7d94f1af85059cca064ce2b30a278ca14c3ec23813b50514e5a5",
+   "bytes": 6073
+  },
+  "corpus-cache/d2/closure-library/closure/goog/a11y/aria/aria.js": {
+   "sha256": "33c330ca561eb9ae32908947039ca70b7dd3a97a5c58af90d97f21c5bf44c98b",
+   "bytes": 15042
+  },
+  "corpus-cache/d2/closure-library/closure/goog/a11y/aria/attributes.js": {
+   "sha256": "917449128340dbce20c9effde840a6f8c3df455dd39df8c770a0ff33bbcb2193",
+   "bytes": 12500
+  },
+  "corpus-cache/d2/closure-library/closure/goog/a11y/aria/datatables.js": {
+   "sha256": "09e0bb65891bae49cff4cedf7b3339d770116b34375cf73157e5564571f04498",
+   "bytes": 1621
+  },
+  "corpus-cache/d2/closure-library/closure/goog/a11y/aria/roles.js": {
+   "sha256": "d37030b9826697bcf7e732bbfadc1de1d510a68ad3483cd4cd248ea54025ab22",
+   "bytes": 5499
+  },
+  "corpus-cache/d2/closure-library/closure/goog/array/array.js": {
+   "sha256": "ab0ea6974f691e3da4df1326b1a1e5e793b7b53b299d3d0843956e856e9f21e4",
+   "bytes": 61531
+  },
+  "corpus-cache/d2/closure-library/closure/goog/asserts/asserts.js": {
+   "sha256": "dc5b34f8a4e7e7fcf5ceb1f2f6c119820ba7fd95674178d5275fc6580402e574",
+   "bytes": 15996
+  },
+  "corpus-cache/d2/closure-library/closure/goog/asserts/dom.js": {
+   "sha256": "34f4214c38b4d8c253076c45b6cec9e66c53119d4af53e4de398b901893c1959",
+   "bytes": 8688
+  },
+  "corpus-cache/d2/closure-library/closure/goog/async/animationdelay.js": {
+   "sha256": "6d8e2e90533c3f5730c68cc1b51ac61f3abc4155c2be8cc6b07197141d65d0f9",
+   "bytes": 7784
+  },
+  "corpus-cache/d2/closure-library/closure/goog/async/debouncer.js": {
+   "sha256": "27fb833153f65f60b5c42a60f858b080b3230a2ea47a70c91abf7d5896b7cb57",
+   "bytes": 5740
+  },
+  "corpus-cache/d2/closure-library/closure/goog/async/delay.js": {
+   "sha256": "b596620cf0139891dbdad614c3dae15f6f7960e66ae3148265a703c0bc9cfabc",
+   "bytes": 4416
+  },
+  "corpus-cache/d2/closure-library/closure/goog/async/freelist.js": {
+   "sha256": "2ee91ef7519275ab5e48ca37165853ed70c781180f752b6ad9672a33eb7f3b19",
+   "bytes": 1539
+  },
+  "corpus-cache/d2/closure-library/closure/goog/async/nexttick.js": {
+   "sha256": "b1a71e8d8d1fc7e63ded89c2d7fdd97d5835c19d85a110402563413b9363cc5d",
+   "bytes": 8890
+  },
+  "corpus-cache/d2/closure-library/closure/goog/async/promises.js": {
+   "sha256": "0c85fd1e22ce848101c315a94743c23fb76d00a0c70198a6cc4c8fe004610bfb",
+   "bytes": 1261
+  },
+  "corpus-cache/d2/closure-library/closure/goog/async/run.js": {
+   "sha256": "2a270676e376fa1ba07bba27d0c3e37ae79d9b8493b5330a4fcbb1df7b2438f7",
+   "bytes": 3792
+  },
+  "corpus-cache/d2/closure-library/closure/goog/async/run_test.js": {
+   "sha256": "baf46b61b95d32ceb6950af9c525026d169f0724ccdbdc2d10b8a79115c20447",
+   "bytes": 4847
+  },
+  "corpus-cache/d2/closure-library/closure/goog/async/throttle.js": {
+   "sha256": "b151002bc43fd976ab959ccfa47f12506e55578b909b0ca0b4772cab36579d98",
+   "bytes": 4253
+  },
+  "corpus-cache/d2/closure-library/closure/goog/async/throwexception.js": {
+   "sha256": "4d148e64aebee41f6ec446a56056aa09720a76df274d0a8921c238b49178994f",
+   "bytes": 746
+  },
+  "corpus-cache/d2/closure-library/closure/goog/async/workqueue.js": {
+   "sha256": "f309dcdd4c39d68d80f591463b8380f352b8066c377618152097693f47a4926d",
+   "bytes": 2555
+  },
+  "corpus-cache/d2/closure-library/closure/goog/base.js": {
+   "sha256": "e3196e1abe214378331e48a83f6634de5846cf0dde87c5c82b45f5cd014fd6d5",
+   "bytes": 115178
+  },
+  "corpus-cache/d2/closure-library/closure/goog/bootstrap/webworkers.js": {
+   "sha256": "18e9e7ae9d0909399a4da5ade6309ed070dfe01549bca753bf40bf58a3c91282",
+   "bytes": 1414
+  },
+  "corpus-cache/d2/closure-library/closure/goog/collections/iters.js": {
+   "sha256": "b816de19099a049fa334ba6fb4f9bcc511e5df060ab87f30cb82b065b273153a",
+   "bytes": 6142
+  },
+  "corpus-cache/d2/closure-library/closure/goog/collections/maps.js": {
+   "sha256": "c960cca56d1474ea110775abeb44ac70e50b9575e9f3debdc156309b2d48551d",
+   "bytes": 4822
+  },
+  "corpus-cache/d2/closure-library/closure/goog/color/alpha.js": {
+   "sha256": "16cd6863518e588d9ae8dc62e4e0f4ba20a987e046f7beea04a05ae760f75013",
+   "bytes": 17456
+  },
+  "corpus-cache/d2/closure-library/closure/goog/color/color.js": {
+   "sha256": "ce1720e9e524362fb73bd26a416409a6838a494b7d8747b4e952775cfb8b9fc1",
+   "bytes": 22309
+  },
+  "corpus-cache/d2/closure-library/closure/goog/color/names.js": {
+   "sha256": "7b5ae683fdff5db5ac34d6480539833a2ac6319b9c9d7684e5df1931cffe00e0",
+   "bytes": 4361
+  },
+  "corpus-cache/d2/closure-library/closure/goog/crypt/base64.js": {
+   "sha256": "d94fee53cd0559e838b63a50a21d96e8adf556c36a587d52c64a580f5cf24640",
+   "bytes": 20563
+  },
+  "corpus-cache/d2/closure-library/closure/goog/crypt/crypt.js": {
+   "sha256": "cfdbcff2b11bd4ddd4a2bbee3090d0cfa1568b1fd5deea4062ddb67bcb207062",
+   "bytes": 8189
+  },
+  "corpus-cache/d2/closure-library/closure/goog/crypt/hash32.js": {
+   "sha256": "64f8e505fe795bca7d9ef5885672454e65f8f43f8283b3b8c0b7ee3f3160dc9e",
+   "bytes": 6043
+  },
+  "corpus-cache/d2/closure-library/closure/goog/cssom/cssom.js": {
+   "sha256": "f802cfd297ffc08602910ef415027a6b3b5086a8c1742d7d0982bc3e3d11da5f",
+   "bytes": 17706
+  },
+  "corpus-cache/d2/closure-library/closure/goog/cssom/iframe/style.js": {
+   "sha256": "5eb8f6fb4206bcb809071f82df07a71ffebc7d7ef11b46795c6852294b2db6e3",
+   "bytes": 34652
+  },
+  "corpus-cache/d2/closure-library/closure/goog/date/date.js": {
+   "sha256": "eef63f6aeebffcba0a268ec1e5cf6368e13e568552c9a8c3c9176379c74e712e",
+   "bytes": 56906
+  },
+  "corpus-cache/d2/closure-library/closure/goog/date/daterange.js": {
+   "sha256": "1c1cb18c466788817f6b4f2ee7c5494be6888bc3be074842d6a1c162787ff18e",
+   "bytes": 12807
+  },
+  "corpus-cache/d2/closure-library/closure/goog/date/utcdatetime.js": {
+   "sha256": "8b31cded35789608e1cdf457d9300afb50cbf679d9fea56d4efeeaf428915f27",
+   "bytes": 5020
+  },
+  "corpus-cache/d2/closure-library/closure/goog/db/cursor.js": {
+   "sha256": "2a77b5f6a096969d59e2dca07835bd970ec38578da4e5b6a898e03ac088bcbad",
+   "bytes": 5633
+  },
+  "corpus-cache/d2/closure-library/closure/goog/db/db.js": {
+   "sha256": "c597a208d8547e9fe3fff31521f300223dc3ec24f86d161193dd7a15731958bd",
+   "bytes": 6950
+  },
+  "corpus-cache/d2/closure-library/closure/goog/db/error.js": {
+   "sha256": "9ddf2e13f52c3fff46ae8e8d056485f97aa31664e422ad3be5c278e4a44eabea",
+   "bytes": 12870
+  },
+  "corpus-cache/d2/closure-library/closure/goog/db/index.js": {
+   "sha256": "aad7c9ca58e11c322f8b148fae8bb2b4665bcdab5238f56d24e61d75fc9c586a",
+   "bytes": 7315
+  },
+  "corpus-cache/d2/closure-library/closure/goog/db/indexeddb.js": {
+   "sha256": "6d96b44f39ae1d86a370df4bd7665eb9f88433b2f80aaa865ad645b50074999e",
+   "bytes": 8897
+  },
+  "corpus-cache/d2/closure-library/closure/goog/db/keyrange.js": {
+   "sha256": "4b612c0e3149085a0fd7ecf37eaa7e8217c2c5b0056cf4ace335b34d44abef3b",
+   "bytes": 3251
+  },
+  "corpus-cache/d2/closure-library/closure/goog/db/objectstore.js": {
+   "sha256": "30f595066244ac4f7de746000c395df4f212a4d2367b231d3842eac39a528711",
+   "bytes": 13724
+  },
+  "corpus-cache/d2/closure-library/closure/goog/db/transaction.js": {
+   "sha256": "8890abce6e2e187994d0c6e0b1abcf40c3a0e09d29e8dc0a28f64a74e6aded39",
+   "bytes": 6639
+  },
+  "corpus-cache/d2/closure-library/closure/goog/debug/asyncstacktag.js": {
+   "sha256": "934ada478667a62bd8b81b72c43801573ce216f735813551bddd6c309a93fd7f",
+   "bytes": 1553
+  },
+  "corpus-cache/d2/closure-library/closure/goog/debug/console.js": {
+   "sha256": "e4d91c52e9e8dc9ca441110001249377e9d6424bf818ad5de7ffd0a1a2391c4b",
+   "bytes": 5917
+  },
+  "corpus-cache/d2/closure-library/closure/goog/debug/debug.js": {
+   "sha256": "691a0f59793dca026f16aa1aa8aeaaf81aa555dd569f1edb5847bc4dac5e7582",
+   "bytes": 21966
+  },
+  "corpus-cache/d2/closure-library/closure/goog/debug/devcss/devcss.js": {
+   "sha256": "ce08fc26b11d8af98d57bc9e14ed3fc7769d2b89b66034a43313d8790cab5c30",
+   "bytes": 14856
+  },
+  "corpus-cache/d2/closure-library/closure/goog/debug/entrypointregistry.js": {
+   "sha256": "f96d3332d85fe0823d95b9196628aba1199f6abe8b72953a266bfda8715b0b1d",
+   "bytes": 5211
+  },
+  "corpus-cache/d2/closure-library/closure/goog/debug/error.js": {
+   "sha256": "ea89152940c93038d827650e8a987d91499830d0c134d17bc95aacc18953ca0b",
+   "bytes": 1724
+  },
+  "corpus-cache/d2/closure-library/closure/goog/debug/errorcontext.js": {
+   "sha256": "2cffcba53e587ae6a9fd2929b460aa0a2dffa8f1c6cae57892c63df1a2dee8a2",
+   "bytes": 1219
+  },
+  "corpus-cache/d2/closure-library/closure/goog/debug/errorhandler.js": {
+   "sha256": "c16d0e0dd4bbe2d3a065efead1f5e085c008fe6a4eb8f391fc7c6d5903e9d0c6",
+   "bytes": 11957
+  },
+  "corpus-cache/d2/closure-library/closure/goog/debug/errorreporter.js": {
+   "sha256": "532d4d208cb74b8181b807790052dcb15997602170624de3c46c6230ddcd647d",
+   "bytes": 14273
+  },
+  "corpus-cache/d2/closure-library/closure/goog/debug/formatter.js": {
+   "sha256": "0289d44db75da6413e851368e38dcc6ec1cc307281af7f35d69f7e50f6769701",
+   "bytes": 14602
+  },
+  "corpus-cache/d2/closure-library/closure/goog/debug/relativetimeprovider.js": {
+   "sha256": "5289288596de1997b7f2395a6e302fc49b4948b911e563a470bb087c8acbf7cf",
+   "bytes": 1957
+  },
+  "corpus-cache/d2/closure-library/closure/goog/defineclass_test.js": {
+   "sha256": "663c61c01757488357917325026e12c3222b4cb2f290264a2ab5b9da54b49662",
+   "bytes": 2603
+  },
+  "corpus-cache/d2/closure-library/closure/goog/delegate/delegates.js": {
+   "sha256": "3449802e0dc8f32df9e9adbc91eb840bffcdc5a9d9df9bc14fe37c1575627a7a",
+   "bytes": 1476
+  },
+  "corpus-cache/d2/closure-library/closure/goog/demos/graphics/tigerdata.js": {
+   "sha256": "7c4d9bf8827fdbf06fdd5cdb1837f8b120bcc00ac422b34171ca3b58253ea686",
+   "bytes": 163910
+  },
+  "corpus-cache/d2/closure-library/closure/goog/demos/tree/testdata.js": {
+   "sha256": "b8498f3090ed2a18f30327fcd56d0e82232ea91e30a6d17d3e74a312bf09479e",
+   "bytes": 6250
+  },
+  "corpus-cache/d2/closure-library/closure/goog/demos/xpc/xpcdemo.js": {
+   "sha256": "718e25c14b9ff74f867b5a79e24e58ef53ab493e06daf8f152b7d83252c53b0c",
+   "bytes": 9046
+  },
+  "corpus-cache/d2/closure-library/closure/goog/disposable/disposable.js": {
+   "sha256": "aa243bca3021069739479d5c4033dc95679ded44fc07ccca2c5fb36f3ff2f07d",
+   "bytes": 8440
+  },
+  "corpus-cache/d2/closure-library/closure/goog/disposable/dispose.js": {
+   "sha256": "7c1a2274c27f937b0b4586e57204747f5e7baaec6bf6305fe4aab3cc43e54226",
+   "bytes": 560
+  },
+  "corpus-cache/d2/closure-library/closure/goog/disposable/disposeall.js": {
+   "sha256": "96bf238fc0edd3abda1882c19a91922f65f6a2647178276e681de36956d2166d",
+   "bytes": 904
+  },
+  "corpus-cache/d2/closure-library/closure/goog/disposable/idisposable.js": {
+   "sha256": "d7c9c15fbb7be35064bfe57b1de3706ec6f5b5c34bb712a8b3884af36207c7e7",
+   "bytes": 1352
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/abstractmultirange.js": {
+   "sha256": "b60b00641475219077ee00dcafe3ebe48861b462b9d1fa7b2d62c230f2ea2aa9",
+   "bytes": 2144
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/abstractrange.js": {
+   "sha256": "f3788801e1a4efe58eabbbf69591b191c1cfbaa3419dc80a43e76825401c0187",
+   "bytes": 14784
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/abstractrange_test.js": {
+   "sha256": "7b610458a0eebd94d85c532657aa9a84b36dceab8141c1d33498e86d0cee13c6",
+   "bytes": 3521
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/animationframe/animationframe.js": {
+   "sha256": "de51ac28fd0fd8cc0273d156d4f8c5517b430d55dc98796e62332dae97124d34",
+   "bytes": 7545
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/animationframe/polyfill.js": {
+   "sha256": "fe1fa38bbb2e333157fd769739f02ba788ead9d6aa10a21071eb256409090240",
+   "bytes": 1771
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/asserts.js": {
+   "sha256": "76087d972557378ed991dac68cb3f0b753a87eaae081a9b4f8e12548f368874c",
+   "bytes": 4420
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/browserfeature.js": {
+   "sha256": "4d87c89830661756a968c4a65ae645d8be8a6c92ce1de4c0aa05b6155dd18435",
+   "bytes": 2884
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/browserrange/abstractrange.js": {
+   "sha256": "299226efdaa028e516f36aa1f09a5d735dda09fcbe833e57de48abd7dd4525a1",
+   "bytes": 12218
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/browserrange/browserrange.js": {
+   "sha256": "43e4174ab97ca46cdde33dc86f2965d0791e72c2524db267f9b31bf3db9e089c",
+   "bytes": 4195
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/browserrange/geckorange.js": {
+   "sha256": "7cf55bec28624ed6bf82a8f94a264a5889ba9c02e9c643e8515caae6def17c00",
+   "bytes": 2723
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/browserrange/w3crange.js": {
+   "sha256": "f064fb064057b9434aa287787b42afccf13496dfec53f247250859b377253ba2",
+   "bytes": 12520
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/browserrange/webkitrange.js": {
+   "sha256": "88cb46ca255926440b274249b603b53c2599b3800dd3b2e0b42cf9ee1263a4b1",
+   "bytes": 2632
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/classlist.js": {
+   "sha256": "7bfdb463b8fcc5e3a129088e4f789a670050f9eb2399e607e8b2981ffe75901e",
+   "bytes": 10579
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/controlrange.js": {
+   "sha256": "6c5d1e8ffb61617b33b577503046755bf4022087ae7c10774bc524fd92b57e9e",
+   "bytes": 13426
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/dataset.js": {
+   "sha256": "630a769654583c93bf32c75c0940376c5bc4d769497ccf8114b7bff95a840096",
+   "bytes": 6747
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/dom.js": {
+   "sha256": "31e9a0f63747998355d434f2e02678425fbdcfb770149d493a2f75e64dd84611",
+   "bytes": 116390
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/element.js": {
+   "sha256": "a968757e84bef727f821af8587cd437d3a855e116073d2bb4a0eac47c69514fe",
+   "bytes": 4856
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/forms.js": {
+   "sha256": "484f343ac7135b64f251e96e49998fea216d23345f5bf924a14e789383297d1a",
+   "bytes": 15875
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/htmlelement.js": {
+   "sha256": "cf1a9434d2b3946b1b1807cde42b28463fac9850aaa52d33998699ff0329c2b3",
+   "bytes": 626
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/iframe.js": {
+   "sha256": "a3cbee8b5c7b702edf5dbdd7055f0e0223518de52f9474338c53853f7e952c01",
+   "bytes": 7210
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/inputtype.js": {
+   "sha256": "2b6790c4d39d52b309169f925bf75cdc7b5b4a372d1999a27eaf7351750363f4",
+   "bytes": 1518
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/iter.js": {
+   "sha256": "6210f0f918ceb5a625905d757c74f60b17afaa43decd3b3f24b00c24b1304fdb",
+   "bytes": 3242
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/multirange.js": {
+   "sha256": "7f65fadef0b1a957af1b605352de0281ecbdacebbbbb8e636cd7b2a0ec98a824",
+   "bytes": 14817
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/nodeiterator.js": {
+   "sha256": "2c62191c74ef383d5be1e18811daf70eccdf7a2a9ea59c11ad6817d4ec0b6054",
+   "bytes": 2421
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/nodetype.js": {
+   "sha256": "b5cc73fda1b5028390b464d063a49a8b597c08718dd305fa260afa694704eaae",
+   "bytes": 923
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/range.js": {
+   "sha256": "f229aa2b2bf87486e49459a42a22bf33ce5809b4c1868d79579860e0bb47f4f9",
+   "bytes": 7445
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/rangeendpoint.js": {
+   "sha256": "5db4568b4d35fd1de93089dca64ab7eb06ed5a55c5615bb2acdd492a4872809c",
+   "bytes": 326
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/safe.js": {
+   "sha256": "77f3adf3c9c1c67f9a2be392281475deed83f12ccbf2d538cf252f7bcd19ffe9",
+   "bytes": 31685
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/savedcaretrange.js": {
+   "sha256": "42bae8ed4eb0016ae20220e2f0c8cd8511160f392df73f1afbc67e0427efccde",
+   "bytes": 6697
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/savedrange.js": {
+   "sha256": "6b88d9020473eb342a66a06bce2df4e81fbc3a03d4238f634f4c7887c850364b",
+   "bytes": 3279
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/selection.js": {
+   "sha256": "9b4f7eaa1b1d179d4d40a07c8eb0602ddecb4b335af1e5aab65763182c0e3702",
+   "bytes": 14948
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/tagiterator.js": {
+   "sha256": "4bb0a946dc4f661625a268c16cf6148b0d5fd4f0315b6ab08cb9aa760337a877",
+   "bytes": 10436
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/tagname.js": {
+   "sha256": "18dc03cc76efa80c7a3cb35cb9ca20dc1924e0772d5326943e39f68f78f74984",
+   "bytes": 15731
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/tags.js": {
+   "sha256": "10ea2e14fda3ce15e9657f5fe74d80cedde2587364daa29dfe639fd5ac8f3f36",
+   "bytes": 878
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/textrange.js": {
+   "sha256": "09a66f12252edb0e5ceab533bc23a350205273198b5c0dba4ef25039dfe0b6c9",
+   "bytes": 18351
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/textrangeiterator.js": {
+   "sha256": "98fcc9e70cd931b63eaa20b80bc14cab3130bf3c4587c980806b1c4e9ba8e469",
+   "bytes": 8265
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/vendor.js": {
+   "sha256": "2b3541cb706b36e71cb84fcba420ea7bfa9535bf62f65062d8be95aac1303c28",
+   "bytes": 2207
+  },
+  "corpus-cache/d2/closure-library/closure/goog/dom/xml.js": {
+   "sha256": "f395712c6cdde673fc1a1e8fd3ce22864001f6db05961f59b591fcf388557709",
+   "bytes": 9092
+  },
+  "corpus-cache/d2/closure-library/closure/goog/editor/browserfeature.js": {
+   "sha256": "974f29c87cdc680657397fab406d0ee1d616192ca8158c5587f9764baa77e515",
+   "bytes": 10220
+  },
+  "corpus-cache/d2/closure-library/closure/goog/editor/command.js": {
+   "sha256": "3a81d091ed0b6ae0578fb943e89f5489de43ffe967fa98fca11db13a13a109ab",
+   "bytes": 2002
+  },
+  "corpus-cache/d2/closure-library/closure/goog/editor/defines.js": {
+   "sha256": "ed8a88560a506de08952f1a118a6e9198003cb16f13841068d669eb3d445240a",
+   "bytes": 940
+  },
+  "corpus-cache/d2/closure-library/closure/goog/editor/field.js": {
+   "sha256": "7764a282d25273b0572528a81111c17cc9e8822122770c97f783af8b6aca433f",
+   "bytes": 90586
+  },
+  "corpus-cache/d2/closure-library/closure/goog/editor/icontent.js": {
+   "sha256": "9f3cf2b301d6a6c05af3fec372e5d0bb013bb1aca845f11ea67bd1cc12a805b9",
+   "bytes": 10170
+  },
+  "corpus-cache/d2/closure-library/closure/goog/editor/node.js": {
+   "sha256": "6f880c8543928ef4f8630405942a1d03c277fd85e5ccd3174f3a4c25b2bb2936",
+   "bytes": 16425
+  },
+  "corpus-cache/d2/closure-library/closure/goog/editor/plugin_impl.js": {
+   "sha256": "dfb586788992a23bec435cb675a0e079868fd7121a8c0895bac7af08a8eaa1b0",
+   "bytes": 15992
+  },
+  "corpus-cache/d2/closure-library/closure/goog/editor/range.js": {
+   "sha256": "65c5a080946066a57213c4577efbf4a7287518dd9e05396578844cb23adda312",
+   "bytes": 22322
+  },
+  "corpus-cache/d2/closure-library/closure/goog/editor/seamlessfield.js": {
+   "sha256": "1f6dfbd5021a24b0eff0944a3549684838814d9b876599390bc4433f3144600d",
+   "bytes": 24083
+  },
+  "corpus-cache/d2/closure-library/closure/goog/editor/style.js": {
+   "sha256": "275b266f379528e2000b9b35e0bf5c8ac8dfbb07904a3eecf0465bef0d73b9f6",
+   "bytes": 7804
+  },
+  "corpus-cache/d2/closure-library/closure/goog/editor/style_test.js": {
+   "sha256": "8fdd232801b45a1ab49df55292e9c40ea7258a091c7a2c240e3c1552e14e55cc",
+   "bytes": 5210
+  },
+  "corpus-cache/d2/closure-library/closure/goog/editor/tablerow.js": {
+   "sha256": "85ec2c38e2cbf5786e608f790a0da4b4efe4fcdc785f161f80337556808b1918",
+   "bytes": 742
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/browserevent.js": {
+   "sha256": "7c0830cc2c5df48c691f2edfcdc6036cbe3752ad9b8ab5e8d24e0c21a33c5e36",
+   "bytes": 13093
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/browserfeature.js": {
+   "sha256": "ec02a1bc040444e29a71ae68872b15d55e84866b05e216a5579f0ec7b1483164",
+   "bytes": 2269
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/event.js": {
+   "sha256": "1f2fdcf44e09b3d44c4556ed1df6bb9f374b02810b8c06aadb2635a002c89db3",
+   "bytes": 3137
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/eventhandler.js": {
+   "sha256": "b6e04a5fc9dec9b97f80c42d15e86ff48d4816762432c1b781022ba155bfa11e",
+   "bytes": 17510
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/eventid.js": {
+   "sha256": "d982b51ee49fc266385726715033b911566fb48cb6cb2b5523ef3f0b569bc11f",
+   "bytes": 864
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/eventlike.js": {
+   "sha256": "5cd65892812c96fbc4da2a7418ef34281a3bcd61773ef931c48be45498b18af5",
+   "bytes": 755
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/events.js": {
+   "sha256": "5ee735387578a167d89c73b94dcbfa5b017bcbc6561e3671bb74c398253f7eb4",
+   "bytes": 32717
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/eventtarget.js": {
+   "sha256": "90fbcf223199df262cf8aea19beffbc6cc97c95fbe34a2b52f4172ff605340b9",
+   "bytes": 16430
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/eventtype.js": {
+   "sha256": "219ac4b9b8bc044d45556610079745bbd229f158e1bbf7c2bf44c3b8affe4d9a",
+   "bytes": 8312
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/eventtypehelpers.js": {
+   "sha256": "02357d1bf8e7a1948bae778341fbd4c856f28888dff6f271e8d9839ae06be0fd",
+   "bytes": 1370
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/eventwrapper.js": {
+   "sha256": "a4a25bce7e8feb6b88392cbe6f66e4d2f4771b0f42c8a7b35f27c90a1d610872",
+   "bytes": 1882
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/focushandler.js": {
+   "sha256": "a02b0d305ee1e6705c861fada89a225c78395b391c2e816fecbee9e1df6e35e8",
+   "bytes": 2938
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/keycodes.js": {
+   "sha256": "0a0ce19ab0f2394c8703fddb4a509781a71382e11012de05433ae3484a7533fb",
+   "bytes": 14614
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/keyevent.js": {
+   "sha256": "2f409c15b49fe186e6e225d70a6931b8194f6e6ba826ba9ef6406fedcd7763fe",
+   "bytes": 1445
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/keyhandler.js": {
+   "sha256": "68641aa0b63cc9157142b773d78d0042db1c9b53f5563eac18aff559c190d30a",
+   "bytes": 17970
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/keynames.js": {
+   "sha256": "09ffecc97d25d71fb9893d61753a77e5664d2e25f0e1107c7848ee9f5dbfc78e",
+   "bytes": 2279
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/keys.js": {
+   "sha256": "bfac6801f6a0e0662add72155fa684611827ff4233ad9d235bbd7180f7bd7199",
+   "bytes": 740
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/listenable.js": {
+   "sha256": "257bf84ae9af68474350e19297c5d2d304f08a423825af2d24a26fd04591d421",
+   "bytes": 9543
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/listenablekey.js": {
+   "sha256": "ca9633e530f512963c35af5660cd739ee31e7e3da9cab26ff4540fc7b829ef74",
+   "bytes": 1546
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/listener.js": {
+   "sha256": "409211cd72234a7ca474b05cdb0fc7f6676d3aa8ac1ff6cf62011eff5df8ccf8",
+   "bytes": 3107
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/listenermap.js": {
+   "sha256": "bad886a5cfa1a030a2d711b6ceae52a85460f3970cca57369511054d68ea2031",
+   "bytes": 9366
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/mouseasmouseeventtype.js": {
+   "sha256": "02645d4f7db72b5da497bcc2afb7d34f6919e9715804f78a4c7d95d6a1567a24",
+   "bytes": 788
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/mouseevents.js": {
+   "sha256": "19b461503d6a69a46f2d660cb2ddd83d5a3fca3d81db734f3f7309453d5b082c",
+   "bytes": 475
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/pointerasmouseeventtype.js": {
+   "sha256": "7ff1570989c44452af34c077360fe67a662d6020b24b059dc3ed18bc5fca7778",
+   "bytes": 968
+  },
+  "corpus-cache/d2/closure-library/closure/goog/events/pointerfallbackeventtype.js": {
+   "sha256": "77cd42f782993fa40b014284f51168e7dcf202f6a32a464ffb0e45c85e53b625",
+   "bytes": 2373
+  },
+  "corpus-cache/d2/closure-library/closure/goog/flags/flags.js": {
+   "sha256": "a3d149089dd66dcec1c50732596c9674dbd2b8dbba0335945d4ffa208f708082",
+   "bytes": 261
+  },
+  "corpus-cache/d2/closure-library/closure/goog/format/emailaddress.js": {
+   "sha256": "e2a09e6632b3739e1922890fcd6a4cfb30f84d76582b4d157d05a9e265d472e2",
+   "bytes": 14376
+  },
+  "corpus-cache/d2/closure-library/closure/goog/format/format.js": {
+   "sha256": "217e3d322c3a2490589c9af131291b5a7863d25c8c174177d2970b4913a8454a",
+   "bytes": 17081
+  },
+  "corpus-cache/d2/closure-library/closure/goog/format/internationalizedemailaddress.js": {
+   "sha256": "349c5e902e302a5c0522a9b1c6dbb9bf6e7c364da935309aa3f340013b935b9e",
+   "bytes": 8001
+  },
+  "corpus-cache/d2/closure-library/closure/goog/format/jsonprettyprinter.js": {
+   "sha256": "b1f21398d355bba1de103880294f3d51ed91357577b12bab41f7a63cd390b831",
+   "bytes": 14692
+  },
+  "corpus-cache/d2/closure-library/closure/goog/format/jsonprettyprinter_test.js": {
+   "sha256": "c5d33a49bd86a66c995b6e1dce5ee80f64e2bc59891b831aff9e6a62617a3f21",
+   "bytes": 2267
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fs/blob.js": {
+   "sha256": "dd1181ae8f9856b3c5c25abecd34caa00851ad9e1aa8c2e70b39d735d8e24616",
+   "bytes": 2438
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fs/entry.js": {
+   "sha256": "f738212a882663ed88a74725e562f542d6cb5d7d2fb980c3826049a99f3295ad",
+   "bytes": 7436
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fs/entryimpl.js": {
+   "sha256": "81d932f24f8ad7baddd975d733514994f3f9c18da49bf134d7e78d3ae085b3d3",
+   "bytes": 11364
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fs/error.js": {
+   "sha256": "d258c5be2e3406b6b4cbbc27d34f9a8b20cce147a9f1912b0ba6843cc1917dea",
+   "bytes": 5517
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fs/filereader.js": {
+   "sha256": "d4297156cc35cdf5cb7aea36c3d093fb37ccedc677c7b279d73fde25c1afd4db",
+   "bytes": 7519
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fs/filesaver.js": {
+   "sha256": "ce515c0585af9e29dc48f8074a0bf52d576c633d5a9cb68f6734c49cd6994f28",
+   "bytes": 3950
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fs/filesystem.js": {
+   "sha256": "efe4aea88b30ef2ba68e6bd92c10ddfdab2af1e58060a3572f136ee1fba7d81b",
+   "bytes": 590
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fs/filesystemimpl.js": {
+   "sha256": "33c55c3004bf91b580251ecb6eb6c5b6aaf521ec1a22acd13814d6c411fca275",
+   "bytes": 1277
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fs/filewriter.js": {
+   "sha256": "383e825ca98cfd4a1c5a8e748e251c8ce291e04f3aea1a3d4427702843f69e80",
+   "bytes": 2300
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fs/fs.js": {
+   "sha256": "9da967f89b5a08988d06ca85c7ddaa926685da1cae50bcfa56be35d8da12ce6f",
+   "bytes": 3733
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fs/progressevent.js": {
+   "sha256": "b5f643c1b68af51f0b8e256ccb32dca4f1db46ec11771e6039587e678114f44a",
+   "bytes": 1416
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fs/url.js": {
+   "sha256": "903bc3f5621a49e3ca54b83a4362371cadeb655c9f01c69386d6296cce02dd79",
+   "bytes": 2852
+  },
+  "corpus-cache/d2/closure-library/closure/goog/functions/functions.js": {
+   "sha256": "995fc7e5b7ea220913248132dc1c8e0a2b9ba223e3a778d248b681b47fcf15bd",
+   "bytes": 16818
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fx/abstractdragdrop.js": {
+   "sha256": "eeecc207f5aef9443fef987246526d8ed096a37dddd8f583f740ac5c2e7c0e71",
+   "bytes": 49355
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fx/anim/anim.js": {
+   "sha256": "9e4379021479c02d3e26d2d87e956a08cd9dc9ed94ddc134a81b6723a5509eca",
+   "bytes": 5843
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fx/animation.js": {
+   "sha256": "d3dff6d4ed43c96087b604a3bafc76753167254a1978c59645848330da1d6dc1",
+   "bytes": 13193
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fx/css3/fx.js": {
+   "sha256": "a7fe2d196a8ca7d66040b6d04962ae67359b3839c5ddab840b1660c6cfcec7db",
+   "bytes": 1655
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fx/css3/transition.js": {
+   "sha256": "bd85778a12023ead348b5d717fb017e5a73e5bab185715bcc631e54841450994",
+   "bytes": 5289
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fx/dom.js": {
+   "sha256": "aa93b6b1f001abf0051784276348f47f9d758bf6dfb341b9c73a3de2e9dc7587",
+   "bytes": 22220
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fx/dragdrop.js": {
+   "sha256": "4a82e60ab830c4767a279389146cb2f80631f048e00bfde04eef6c60974d7dec",
+   "bytes": 1134
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fx/dragger.js": {
+   "sha256": "58a4585d1ad205b6001dba10a70eb3d2ca3d598b70fc56a342fb57f6a9c35b08",
+   "bytes": 25238
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fx/draglistgroup.js": {
+   "sha256": "bb564fd99b799c9d94e5d01456a7091bc4f0e890b31590294c40ac4a61d89b6a",
+   "bytes": 52050
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fx/draglistgroup_test.js": {
+   "sha256": "a9e52fa0edc58ebe95648418757449f646f5393a0d98e0f61e94458dc202190c",
+   "bytes": 29305
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fx/transition.js": {
+   "sha256": "efa4170fd46f97bb72c0c3f8a1e7d32c66d72abf6e99648e22cf1cdc2c5dad57",
+   "bytes": 1414
+  },
+  "corpus-cache/d2/closure-library/closure/goog/fx/transitionbase.js": {
+   "sha256": "85ec4dae75cce3d174148094b4dbaf84d75acddbcbfb155abac46b19fcb3d843",
+   "bytes": 5938
+  },
+  "corpus-cache/d2/closure-library/closure/goog/goog.js": {
+   "sha256": "a2592bae0d5015fd1c7b73b3eb7a66c4cf9e3268b71c2fbc0971d1958962f594",
+   "bytes": 4404
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/abstractgraphics.js": {
+   "sha256": "094fdcd3b606b61aacef9a620b129c1834d56b1aa244bb05614b6344630be50c",
+   "bytes": 14464
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/affinetransform.js": {
+   "sha256": "0389f5cedd0571f9817cbbded1b6f70e153d112f1241727249a8393a55574e6e",
+   "bytes": 17749
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/canvaselement.js": {
+   "sha256": "e5f8566def2f3df46a1de4fd0da0c73e10ebae214ad29ccaffeb03f62efd8a78",
+   "bytes": 23422
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/canvasgraphics.js": {
+   "sha256": "fdb39c91fe1e05472d1732be552b9c50833f781256c591acb5349e6dbd60a578",
+   "bytes": 23684
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/element.js": {
+   "sha256": "5ab4c54c803194598dad4099a97162cc03f279c3136c1dcadd6f8310ee326182",
+   "bytes": 4878
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/ellipseelement.js": {
+   "sha256": "e8235e1e53c04371da2cbf852ea55c9930a53dfe3eb7849702176e256c85bf6e",
+   "bytes": 1878
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/ext/coordinates.js": {
+   "sha256": "59fbf6c0e25605ccc6815cd5ef729089d1cb82a0a312d0e801659e5c9ac76244",
+   "bytes": 5017
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/ext/element.js": {
+   "sha256": "0b6420fdf3ed34ee0eaf79d8aff45515fad7951b0484f3f672ce6f562b5e72e9",
+   "bytes": 27471
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/ext/graphics.js": {
+   "sha256": "71f7068274a055ae05b26fea04048c6469139261a664bd62cd6495b2232d22c9",
+   "bytes": 6773
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/ext/group.js": {
+   "sha256": "affa85c1c9c308c964bfc8aaa93baa5ac667285519a66e2c1abbec6435f0a5ea",
+   "bytes": 5411
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/ext/path.js": {
+   "sha256": "ad48beeeb7c52288e400f2a4dd8598bcb34668ed4f7e9beec52bb7461d9c0fa1",
+   "bytes": 3853
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/ext/shape.js": {
+   "sha256": "afe20f5f316f0eed747f3b3a2f36b1b7b72417624d46dea43770e4bd4a2a1847",
+   "bytes": 4148
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/ext/strokeandfillelement.js": {
+   "sha256": "2bb03b80e852f0a256581f528aea5f8b100f9270cf2a3ff2ffa2aab27ca0c89d",
+   "bytes": 2061
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/fill.js": {
+   "sha256": "846596c884d8d84f91d5326c71f88977b662807bbc3f927c2d2f10ff2747a0c8",
+   "bytes": 753
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/font.js": {
+   "sha256": "37b2431189ca9656c35d6dd173524de20d934907360f74dd2e18462ed839dbfb",
+   "bytes": 1218
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/graphics.js": {
+   "sha256": "4d3176767df9bf9955640ed4868a510d73907143930247846f46689c898a4f4d",
+   "bytes": 4196
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/groupelement.js": {
+   "sha256": "10a31d962c26081a726c7f59ed4d7531aaed7eaa974baf2be6a39c8fb502c3e4",
+   "bytes": 1466
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/imageelement.js": {
+   "sha256": "8bcf162ba73624db51ee565f53e15fc6cbdeede87eb6f3e060a12085e9f86fb5",
+   "bytes": 1734
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/lineargradient.js": {
+   "sha256": "2687194d1b211d2818d0891d6eacc04b8b4489d2d4ac88bbcc2421f29e3aebe9",
+   "bytes": 3735
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/path.js": {
+   "sha256": "b7d81118c925d0035894aafb160224bea3edf4d220b50f7bde714fffbf4000aa",
+   "bytes": 15608
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/pathelement.js": {
+   "sha256": "2e061c70b32430259452ecd69386abcdb0f1d7a0350cc8397597580068fa31e5",
+   "bytes": 1635
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/rectelement.js": {
+   "sha256": "9a63743d5d5b0f42e286c5986e17caf058d40b93d5608144779506b2206f8151",
+   "bytes": 1846
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/solidfill.js": {
+   "sha256": "114247d81ff901a8ed1ea7500c5f79dbca7c4bca319701f222e197d2d105a391",
+   "bytes": 1501
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/stroke.js": {
+   "sha256": "de6bbf2f9785424812ebeaf97104b711ece3d8bddc7fd3c720b91740ed2033b9",
+   "bytes": 1678
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/strokeandfillelement.js": {
+   "sha256": "795988e7c185793561ecb3a7cb989d28c17f84c28a199a28d7fc69604f280c5b",
+   "bytes": 3000
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/svgelement.js": {
+   "sha256": "9a696f453b1bc92b44e087a7f075c808e2f2189e795d7bfd6755a57fb7831e15",
+   "bytes": 10007
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/svggraphics.js": {
+   "sha256": "5a07b8c88a0f251ed5121327f61261995dcd97921a6672234c7755b07ac91cfa",
+   "bytes": 28712
+  },
+  "corpus-cache/d2/closure-library/closure/goog/graphics/textelement.js": {
+   "sha256": "c38c4b79a9641c05a20ba9714a71f646c5e3666dd72267294a476b4e71e3d7c1",
+   "bytes": 1600
+  },
+  "corpus-cache/d2/closure-library/closure/goog/history/event.js": {
+   "sha256": "d493cf5c7b5f46bfc2b1ca51dab6086b661ca7d3e2752a267139ab66a8255ed9",
+   "bytes": 1212
+  },
+  "corpus-cache/d2/closure-library/closure/goog/history/eventtype.js": {
+   "sha256": "a0865ff4f2d7e1ae78f4fe7aa5dab9acb5ceb15004eca38fdc4726900bd3befd",
+   "bytes": 313
+  },
+  "corpus-cache/d2/closure-library/closure/goog/history/html5history.js": {
+   "sha256": "0d00cbde5308798d290897fb200ec7edede388f9f07e3b0f524cc9ad22a86d64",
+   "bytes": 10112
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/cssspecificity.js": {
+   "sha256": "135cf6a10ff9b06b675adfda8cb9c23ec54a2e15efbda32edb8b4398b3990772",
+   "bytes": 5893
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/javascript_url_test_vectors.js": {
+   "sha256": "3dbadeaaf210220632af2e6cbf9a0b3c14ba7c03942a231eca23e908e0d3acfd",
+   "bytes": 3997
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/legacyconversions.js": {
+   "sha256": "29bff1534211ed722abb60d2b495288f9f89781232c944b25da7a74ffd0d50a2",
+   "bytes": 7170
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/safehtml.js": {
+   "sha256": "3a7877fdde13a73e9896ffb08e95645fbe76df315eb19dc40bdaeed270b58c54",
+   "bytes": 37581
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/safescript.js": {
+   "sha256": "cb8b2e26d75b4c4d199bfa7d437b29214d3c19aae601e3dc812a05f8d20db301",
+   "bytes": 8714
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/safestyle.js": {
+   "sha256": "9580b8ef1ae8091b21a80f58b35b95a24d39094b47df1d8b44ca083199cca5a7",
+   "bytes": 19970
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/safestylesheet.js": {
+   "sha256": "dc8bbcd1f51b941641439e8d3d7b276689d04f4812d39fdc04e7897c090485dd",
+   "bytes": 10887
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/safeurl.js": {
+   "sha256": "be822f94527da128cfa8e60918de9f4eec1351a4758f6ca34067500877a8a19d",
+   "bytes": 30450
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/sanitizer/attributeallowlists.js": {
+   "sha256": "4e3f8940d1cd0a28006a18178e1c075bc90885cd85606720a040bc42abfa155c",
+   "bytes": 3384
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/sanitizer/csspropertysanitizer.js": {
+   "sha256": "7113322ab885c829d1b67b6f63ce7dad31913a38c62383067255854cfd7226af",
+   "bytes": 5491
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/sanitizer/csssanitizer.js": {
+   "sha256": "c1add5b39ce619f4873602fb327b7eb96c2ef8155a1b5e3db2265e7c4ec36d79",
+   "bytes": 18012
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/sanitizer/elementweakmap.js": {
+   "sha256": "5adb80997aa98e74b678aad9fdff7a9015e244f474a41104594c8327d5e0a461",
+   "bytes": 2979
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/sanitizer/html_test_vectors.js": {
+   "sha256": "3ae177cdf24c896c0c9612dcb545fa177ad4308721e1dd00162cb439929e0517",
+   "bytes": 333277
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/sanitizer/htmlsanitizer.js": {
+   "sha256": "c67e46195ae6a99d1c9c2316848a95721b695b108214564d7675aba1ada1e9dd",
+   "bytes": 45905
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/sanitizer/noclobber.js": {
+   "sha256": "6cd30d248a130273a2f8188cec179ed2b97feaba2a8f99e47d2d1177e9e6b9e7",
+   "bytes": 16315
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/sanitizer/safedomtreeprocessor.js": {
+   "sha256": "9fe71bd06c5cefae7ca058cda60eaba925070d9155d621b491c4c9011297cb87",
+   "bytes": 12396
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/sanitizer/tagblacklist.js": {
+   "sha256": "71ce2e5ba93ee92b29164b97acfbae3e4eebe52cf159eb55834f9e289caf132b",
+   "bytes": 1625
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/sanitizer/tagwhitelist.js": {
+   "sha256": "c3a07a2d96e20a4f13cdb158384755fec93327d4a33f113b2c75d0144208d96a",
+   "bytes": 4454
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/sanitizer/unsafe.js": {
+   "sha256": "d1a91dacf9e871ac18c1661c6279e6e6821abd5f214619b928b6fd52ccd6810f",
+   "bytes": 4060
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/textextractor_test.js": {
+   "sha256": "ff5cda243d6f0d8ee84c158c207ee5def6baf19b4e93dde2be4782a790fe27e2",
+   "bytes": 3060
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/trustedresourceurl.js": {
+   "sha256": "14877dbfc6df2b8d1bea70a239daf24c69e8a6ceead1eca6b11ebcf889ec75c8",
+   "bytes": 19000
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/trustedtypes.js": {
+   "sha256": "e46cca8038b5cc5d85d361c11ca8a77c64191782047bf989265db080051bfb90",
+   "bytes": 1603
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/uncheckedconversions.js": {
+   "sha256": "ea7894ed9a3c2fe8faf48e5bac1bc10381bea2b3acb10a5a5633f2168d038073",
+   "bytes": 8767
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/utils.js": {
+   "sha256": "a2c9834288d547a4614c615cc256c5f62ef9041653fab1da72a489c591cabbfd",
+   "bytes": 1921
+  },
+  "corpus-cache/d2/closure-library/closure/goog/html/utils_test.js": {
+   "sha256": "502d28d6cee3c818a0c833f54887d42efecc962674d62115755483bb83df2645",
+   "bytes": 3914
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/bidi.js": {
+   "sha256": "3817d925a72ca142501ef47cea0c22d8df9114ee1c3951aaeb0520b4987fed16",
+   "bytes": 31564
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/charpickerdata.js": {
+   "sha256": "1e2eb167cede488b31abd3c9b78a7aa81c313723d411c240d9bf93ed6e74ce70",
+   "bytes": 129507
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/cldrversion.js": {
+   "sha256": "77b64de96324d2fbdfc562cc69f97d93b7231226583236d730e33c79a136f9eb",
+   "bytes": 801
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/collation.js": {
+   "sha256": "550439ab707b8b2af73185a4797b7e31844a3628f8a242dd34e78332e75df539",
+   "bytes": 1908
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/compactnumberformatsymbols.js": {
+   "sha256": "f67c847cdb755124a9e90261730d058551f0d5f15d26427498acde96f664e784",
+   "bytes": 165133
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/currency.js": {
+   "sha256": "9ad4ed049b523eb8ff1cde476cb8d580afd57e8eeec5953459b29d00aeafd355",
+   "bytes": 18613
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/datetimeformat.js": {
+   "sha256": "e35ac2e151a33689b4068b5d03b8f87753f249d1e290b04fb31590c1dcf58e05",
+   "bytes": 48861
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/datetimepatterns.js": {
+   "sha256": "a9c50bfd8b92eece61e3fce7f12ba24b3d3aa55d97752c2d28fa63cb81e87654",
+   "bytes": 80136
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/datetimepatternstype.js": {
+   "sha256": "305d58c4e63fd1129b3b0ca9fb452d4f58cee80d45bcee8716c1dd807eec2546",
+   "bytes": 1128
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/datetimesymbols.js": {
+   "sha256": "3f2e4e902b42fd2961353f4a99ec223fa27d65edfa0898606f93214e1f76376f",
+   "bytes": 244903
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/datetimesymbolsext.js": {
+   "sha256": "7755638f497c94ac7a9b6656f6b64ed745386580ec63ef11eb7f468b9891c7a1",
+   "bytes": 1058947
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/dayperiodsymbols.js": {
+   "sha256": "ce2a9be5ea6f4137679ffc3e8ce9dbc2d0fb30b807bc10557965771d88e542c9",
+   "bytes": 3101
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/graphemebreak.js": {
+   "sha256": "9ead7e9d0ac5dc5341c83dfa2baf7652d7960438eee419652d0080ce7845fab1",
+   "bytes": 19610
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/listsymbols.js": {
+   "sha256": "16461699e2978d81f2c46f4e3b154d14ccd6f1c4f87624b1e98d82ce911b4a67",
+   "bytes": 61085
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/localefeature.js": {
+   "sha256": "bcecdb101df56f0b1b9c1e57232d868e085ca427866c1408f1de4296717acf17",
+   "bytes": 23074
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/messageformat.js": {
+   "sha256": "531fa20c105b7ab3d0ff25ba252fd84593d3a9b8ac9da031d07bf66bc4226e4b",
+   "bytes": 26928
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/nativelocaledigits.js": {
+   "sha256": "d1efa96eed0ab60c94e5f4efa5b06824009d20583c0f645a58678cfdf5810b59",
+   "bytes": 930
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/numberformat.js": {
+   "sha256": "a2145de5c081d2adf0634954c9990e6755e3ea1432d9ed0a635bce7f3a19d23b",
+   "bytes": 73327
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/numberformatsymbols.js": {
+   "sha256": "d167320fd200e217adb4f0433fb68181094e2a4a41d85d7421b7465c374ba05b",
+   "bytes": 82324
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/numberformatsymbolstype.js": {
+   "sha256": "80cfbff89d66347eed61f3417d9109b6aa8c6aaafab7bb81d998a1632eb739c7",
+   "bytes": 1131
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/ordinalrules.js": {
+   "sha256": "8d35470a969b3cbe6f8abf498b65308dadd8531e64dc59c147212b96e541a1a7",
+   "bytes": 27775
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/pluralrules.js": {
+   "sha256": "0e92f06a3f1dfbd17c47f082dc7532dae4e2bdb8646a7a3e95210e682c10b08b",
+   "bytes": 37335
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/timezone.js": {
+   "sha256": "b14cc568c6bed17b0ef3a1e3d7abedbbbd9f9b8df54ca8c685fbaf35e5bb1cfb",
+   "bytes": 14187
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/uchar.js": {
+   "sha256": "bf30efab9c6750beafeb74e1cbe49288c41ba1f12639047ff1f41698a3641863",
+   "bytes": 9985
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/uchar/namefetcher.js": {
+   "sha256": "ad01fa9b24792c0740e5499aff0b907f33378c73624e8ee3536d302b6bed992b",
+   "bytes": 1728
+  },
+  "corpus-cache/d2/closure-library/closure/goog/i18n/uchar/remotenamefetcher.js": {
+   "sha256": "85f29181ae177b60f37c2bbb4a07a609bef9ed3fda191fb17dca9392c17436f7",
+   "bytes": 7896
+  },
+  "corpus-cache/d2/closure-library/closure/goog/iter/es6.js": {
+   "sha256": "da185b5167a8ebbe798956f4255aeb9e3853198a208ed166dd5410f3cbb26288",
+   "bytes": 4326
+  },
+  "corpus-cache/d2/closure-library/closure/goog/iter/iter.js": {
+   "sha256": "0cd9dea8fb594dee0b43a32788bc196780c2fcb558503d142039cf354c839127",
+   "bytes": 50094
+  },
+  "corpus-cache/d2/closure-library/closure/goog/json/hybrid.js": {
+   "sha256": "7b97e95c4068c640719f2b392bdf1d6b402f4fee8395a36cb2fc6ee1a1025d1c",
+   "bytes": 2242
+  },
+  "corpus-cache/d2/closure-library/closure/goog/json/json.js": {
+   "sha256": "e5967c75eda9b35ef81639febb8d3c9233dfd53ccca361d26b97b4f5f1325e3e",
+   "bytes": 11545
+  },
+  "corpus-cache/d2/closure-library/closure/goog/json/nativejsonprocessor.js": {
+   "sha256": "97abbc23dc314b1ed0afa8d28733b9d1a95254cca31b687848760e49fa28197c",
+   "bytes": 1886
+  },
+  "corpus-cache/d2/closure-library/closure/goog/json/types.js": {
+   "sha256": "d7c3d2ff48ee3c06c446ba80d738473c9c297d71dbc2651ff2a7341289b95d65",
+   "bytes": 666
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/dom/pagevisibilityevent.js": {
+   "sha256": "2837f05b6a0a39bc81dff50e23bb3ead29dfe773fa43e10d590f109ede4eca7d",
+   "bytes": 1124
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/dom/pagevisibilitystate.js": {
+   "sha256": "c6029969469d0618f3eb877c551f009d729e33c65593dc73a7b3927e93270795",
+   "bytes": 434
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/events/touch.js": {
+   "sha256": "77a0b530fc170b10e361b50494e919ffadeb3a95fbd669e2356c8f2db08b58b8",
+   "bytes": 1974
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/format/csv.js": {
+   "sha256": "149ea2d75e1235ebd48f5d6838ae36810ab4a4f1506f9edcbba0ba832da5b92f",
+   "bytes": 11715
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/mock/mock.js": {
+   "sha256": "8a1bec365aaeede76c78bd95bdf3d855e73bd23b0765b5ab85311f8c8ef8fe35",
+   "bytes": 39379
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/mock/timeoutmode.js": {
+   "sha256": "c589829038da8e1fec3f9074baf7ec17a8071fd5e63ce1870e96dfb06e95149b",
+   "bytes": 1118
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/mock/verificationmode.js": {
+   "sha256": "e96331e9522f318c83872f48006b0a9235ffd69d346a44ffece7793c30004316",
+   "bytes": 6345
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel.js": {
+   "sha256": "cdacb7fb7ca31d87985018466dae4ddd46344403914c48ec7d26e41b4086d17c",
+   "bytes": 31229
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel/channel.js": {
+   "sha256": "33d78e29b95473439ae050256c8fa411af6afe91d211cdd3f0e69682c576d50b",
+   "bytes": 6022
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel/channelrequest.js": {
+   "sha256": "2d2bea587bfdf5455116e4982fd267b189a29a487430f646f2fbab86ed5362b7",
+   "bytes": 40409
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel/connectionstate.js": {
+   "sha256": "7ccf68953c809a6344336f1551d449398b187bbca0f885d540bc13df2a14e52f",
+   "bytes": 822
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel/environment.js": {
+   "sha256": "ce7b4f6dabd2a290478612b81ee7197fc961ca6826a6f390626815f410be8293",
+   "bytes": 6502
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel/forwardchannelrequestpool.js": {
+   "sha256": "4d7f9b3fcd9f87adf313fe7a58db329977022d36cdd757611a65397113ac2328",
+   "bytes": 7819
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel/netutils.js": {
+   "sha256": "55e2a8e62c399fef4559336b7b53ba9821cd2e930538555bc5aca8fa5a02fcfb",
+   "bytes": 5049
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel/requeststats.js": {
+   "sha256": "36068afe933f95610faa35da733388998858cf5f3b44b10329afdb9dfb16b366",
+   "bytes": 10180
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel/testing/fakewebchannel.js": {
+   "sha256": "ca863dedba6a25ba28cd21ad64191981c254a2e9f82762ff2738fc86b285fa84",
+   "bytes": 2091
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel/webchannelbase.js": {
+   "sha256": "d54a636c462f2179cf17a18f2e6c96b16c193e220ec2593e2e9a103008110d7d",
+   "bytes": 81145
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel/webchannelbasetransport.js": {
+   "sha256": "4a25c3c8b522f0e991e2107d258eafe419bf6544fe51529fa958054f7a645257",
+   "bytes": 15238
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel/webchanneldebug.js": {
+   "sha256": "6b61fe76ea38856f62bf1f5e58d4dd7e450b645eda5ffd0007efb1c59d9599b7",
+   "bytes": 7193
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel/wire.js": {
+   "sha256": "57dbe8255525d2813d167ab96ebcc84f759f3f7a57f7f0d55171ffa7fb624fe9",
+   "bytes": 2020
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchannel/wirev8.js": {
+   "sha256": "af51615b6886df2ecd152869e6eb9e4a37b66c745b12e2c9d0cf4864f44e7460",
+   "bytes": 4352
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchanneltransport.js": {
+   "sha256": "1f6638d67a6f616d5098395ebd719a9d0cfe501d9dd171175db3c8ddbd29aa50",
+   "bytes": 2341
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/net/webchanneltransportfactory.js": {
+   "sha256": "ba5222744a15ad71a9d00e06c6ba6583336296d47e5c33c3fb25a63af4a3a854",
+   "bytes": 799
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/pubsub/broadcastpubsub.js": {
+   "sha256": "417e7d8242fc80ebfd54e8efab24e26302e60c16403479e7468415ebef18030f",
+   "bytes": 19861
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/storage/boundedcollectablestorage.js": {
+   "sha256": "aa75ef28a840647b61aabd3e6fa93c248c364d91269352728b4b3d40f746abb6",
+   "bytes": 8467
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/style/pixeldensitymonitor.js": {
+   "sha256": "c2bb02cf9b8fce0f565b8f8f0573e22ca10819d0a105f0da30340fc61bcce8be",
+   "bytes": 5898
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/testing/assertthat.js": {
+   "sha256": "fc85a3f7bf5db50a423f38496380d9a115e8ebbb4d1e07e9adb4de46cc3de29f",
+   "bytes": 1103
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/testing/assertthat_test.js": {
+   "sha256": "f179fcb0d07f609e5d2ced08ee9fa724c773096d8c5d68731b28fb4e6228e7ef",
+   "bytes": 2138
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/testing/dictionarymatcher.js": {
+   "sha256": "fa21c76bf0c948aa190a1cda75cf7f170dc4577de1e3a6c89242ef01737385ff",
+   "bytes": 6572
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/testing/environment.js": {
+   "sha256": "9ae1ab0d09ec7fd3194944aff02d36dde65b6c85275c0c1ae7df1ad67fe40bee",
+   "bytes": 7039
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/testing/environmentbase.js": {
+   "sha256": "813451ff9635a738b64c17ade6d192aa12ee0dc2ddcb5e8e2bbb358fa6d5ff81",
+   "bytes": 9490
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/testing/matcher.js": {
+   "sha256": "8014258896cce061121636027b1c5d0282744e8c30900b542e3790d5de79f92c",
+   "bytes": 1782
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/testing/matchererror.js": {
+   "sha256": "d1de079aff17a2be7ba985471672ec0c36fbdc2b9a528b37b849342bdc15c8c7",
+   "bytes": 734
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/useragent/browser.js": {
+   "sha256": "1635747fb9216553b44b330db0148fa2cb265ba87d81a8011a5b81a867b20661",
+   "bytes": 28447
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/useragent/engine.js": {
+   "sha256": "aafa5eadf3ca224f75ae08b0afe3143b387a80bd674c4bca2434100aad82b1fd",
+   "bytes": 3766
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/useragent/highentropy/highentropydata.js": {
+   "sha256": "02a76fa553a4d979817a6dbf3736b7b240716b1592590b823ee37f15d75b2f2e",
+   "bytes": 680
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/useragent/highentropy/highentropyvalue.js": {
+   "sha256": "756650785e013735eb8364333520cc008510f7d7d8f0464e53ca15ba81dfbc95",
+   "bytes": 4058
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/useragent/platform.js": {
+   "sha256": "952ae3bc4f5149a853690ca28d86b7580a8dbcbd32b22771b3ba6ec057baa3bb",
+   "bytes": 9010
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/useragent/test_agents.js": {
+   "sha256": "9632b8e7271d8fd393b8fce7ba94167a242c5a53e4e8585f1164c085a14bdc8d",
+   "bytes": 15404
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/useragent/testutil.js": {
+   "sha256": "f969c9c1f11f5acb65400e2f74ea496c8fd70f7d1f2aea4b2c4dbf090fc73386",
+   "bytes": 1359
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/useragent/useragent.js": {
+   "sha256": "326cc68f0f0a3b0fbd935bd47dae5bd1277feba51f7fa532c772a4c9b78a5808",
+   "bytes": 2275
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/useragent/util.js": {
+   "sha256": "8091cc562b984f6e99832875828f0eb251ad7b8c985069014eb3c19943ec4ff4",
+   "bytes": 5972
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/useragent/util_test.js": {
+   "sha256": "2c758b9965f81d71bdd71a4fa550ead3f15608d326d18ea4b63c525423a37622",
+   "bytes": 2285
+  },
+  "corpus-cache/d2/closure-library/closure/goog/labs/useragent/verifier.js": {
+   "sha256": "94f6ff9dd17d7db6987d2509173a3cccb5e8d63608b600508afaccfaa8678a29",
+   "bytes": 3144
+  },
+  "corpus-cache/d2/closure-library/closure/goog/loader/abstractmodulemanager.js": {
+   "sha256": "07ce7012025c7efa7992d53d34133cfba76605a019f2e80040fbf01fa904f0bb",
+   "bytes": 12993
+  },
+  "corpus-cache/d2/closure-library/closure/goog/loader/activemodulemanager.js": {
+   "sha256": "f1428bbf6916c82f50ca973d741a0558b94f213705fe285dd00d7a74e6ad5a8e",
+   "bytes": 3482
+  },
+  "corpus-cache/d2/closure-library/closure/goog/locale/countries.js": {
+   "sha256": "1f00461bfc62c7aba07c40fee03d2aad2968dae179c4b2ea760c6ad7a2765f4b",
+   "bytes": 6163
+  },
+  "corpus-cache/d2/closure-library/closure/goog/locale/nativenameconstants.js": {
+   "sha256": "93a6101b5c44d6d9f29cfba19280b619ee1ea7dd5d2c6ea4b3b58e043c3a0ca4",
+   "bytes": 38184
+  },
+  "corpus-cache/d2/closure-library/closure/goog/locale/timezonedetection.js": {
+   "sha256": "e07162d7fabbd5563ec622667ecc69b30c4fa5ab9e64b9192e41aee560e72ee3",
+   "bytes": 6225
+  },
+  "corpus-cache/d2/closure-library/closure/goog/locale/timezonefingerprint.js": {
+   "sha256": "253f4ac577ec2f021c361dfb858577fcd6dae8c92c087fc825448c0e97860fa0",
+   "bytes": 12320
+  },
+  "corpus-cache/d2/closure-library/closure/goog/locale/timezonelist.js": {
+   "sha256": "974202735d7450a409cc25d478cbb4d01d7a7b2c5f3687e266db21ab76e76255",
+   "bytes": 4298
+  },
+  "corpus-cache/d2/closure-library/closure/goog/log/log.js": {
+   "sha256": "92bf3698a97c35a96ef6e5c851e03e05302743d38cc4acad730e1d5b8d2f8233",
+   "bytes": 30326
+  },
+  "corpus-cache/d2/closure-library/closure/goog/log/logbuffer_test.js": {
+   "sha256": "cc1bbb57af58c40facc2876ce95cf5297f310c076a15d4995162618031ef5ee6",
+   "bytes": 2643
+  },
+  "corpus-cache/d2/closure-library/closure/goog/math/box.js": {
+   "sha256": "3c6c42bdf41ac432293cb0fdb601ee4e9d2d41d6790cc170b7952eddad9cc0c5",
+   "bytes": 10952
+  },
+  "corpus-cache/d2/closure-library/closure/goog/math/coordinate.js": {
+   "sha256": "80eb59b3766531eaf58f952300a60abe4c2adec842c36336c01b5623e1bf33f1",
+   "bytes": 7960
+  },
+  "corpus-cache/d2/closure-library/closure/goog/math/coordinate3.js": {
+   "sha256": "b6347cd7a3f845077ea91b260878764513853f96f1366291dbc9010cb888f406",
+   "bytes": 4275
+  },
+  "corpus-cache/d2/closure-library/closure/goog/math/integer.js": {
+   "sha256": "d4c01e0a2dfbbad292768445b109ac683b436394f9f3984b3550da96ddb7b28a",
+   "bytes": 26777
+  },
+  "corpus-cache/d2/closure-library/closure/goog/math/interpolator/interpolator1.js": {
+   "sha256": "ba7ad332a898842cc1a501cd1f20cf3b36cd3a61658db727dba2b75f8b64aeaf",
+   "bytes": 1942
+  },
+  "corpus-cache/d2/closure-library/closure/goog/math/interpolator/spline1.js": {
+   "sha256": "f65ccf4ed8911d26610a23a427049abe3e04e492d817d3b2db8b6b442512355b",
+   "bytes": 6041
+  },
+  "corpus-cache/d2/closure-library/closure/goog/math/irect.js": {
+   "sha256": "0371a79b825542b51216c879d3120c3c59bde317c48d2714bda84850fef947fc",
+   "bytes": 676
+  },
+  "corpus-cache/d2/closure-library/closure/goog/math/long.js": {
+   "sha256": "93f8b7994ed21e43505d9525533882f90e88c74df712db8128df5fb5a04a2c32",
+   "bytes": 29200
+  },
+  "corpus-cache/d2/closure-library/closure/goog/math/math.js": {
+   "sha256": "43eff984882740275ba9277d1eb613ae84f28cae028dd3ddc499646b631da47a",
+   "bytes": 14615
+  },
+  "corpus-cache/d2/closure-library/closure/goog/math/matrix.js": {
+   "sha256": "6b8bfe723389730d07c6e00e367f22aa2222f5a3e05897e16d89c72585128690",
+   "bytes": 21671
+  },
+  "corpus-cache/d2/closure-library/closure/goog/math/rect.js": {
+   "sha256": "4fa80bb542ac6a48600aa8b83347afe3b69b8fc19275b050d30b749fde3d302e",
+   "bytes": 14395
+  },
+  "corpus-cache/d2/closure-library/closure/goog/math/size.js": {
+   "sha256": "3ded9aff9df59f50ca6525e7cb0b7ed2168523455d558bb7dd0b61ae5e844005",
+   "bytes": 5737
+  },
+  "corpus-cache/d2/closure-library/closure/goog/math/tdma.js": {
+   "sha256": "9864ea59e5c480a891a5477bd011fb31cf6bf6514b949a0dae288453da1273a6",
+   "bytes": 2200
+  },
+  "corpus-cache/d2/closure-library/closure/goog/memoize/memoize.js": {
+   "sha256": "0bd55f5cc08e0bae4a66a25efb1d943a57611a315f76f8120a7931b56ea9fb0d",
+   "bytes": 3573
+  },
+  "corpus-cache/d2/closure-library/closure/goog/messaging/abstractchannel.js": {
+   "sha256": "b0ec070c5564a3434b11fd2c52e5857a7835ca1c5fbc21750d11be58a0c0f179",
+   "bytes": 6013
+  },
+  "corpus-cache/d2/closure-library/closure/goog/messaging/deferredchannel.js": {
+   "sha256": "f0b8c4f4873736fb587062cd48f48e514c025616c3200cdd53e82638985c3fdd",
+   "bytes": 2557
+  },
+  "corpus-cache/d2/closure-library/closure/goog/messaging/messagechannel.js": {
+   "sha256": "49fd58119594e7d9d2c5584d42a847b86a6b45c82615e20a74042e0e36758b17",
+   "bytes": 4130
+  },
+  "corpus-cache/d2/closure-library/closure/goog/messaging/messaging.js": {
+   "sha256": "d2e782a3e8d55a15b64504769aa93d42a0fc9b72fe3ac7a4b1ad444912a944e2",
+   "bytes": 687
+  },
+  "corpus-cache/d2/closure-library/closure/goog/messaging/portchannel.js": {
+   "sha256": "cadf893d5f50790bd500a6b39cde5c1682d5c3db9bee4c9c803a7b7160a40494",
+   "bytes": 15056
+  },
+  "corpus-cache/d2/closure-library/closure/goog/messaging/portnetwork.js": {
+   "sha256": "03f6a0b6ef4abc28fe0fb0e9f0f39cce004b9e9dfab8258ed24d29206c878afe",
+   "bytes": 2379
+  },
+  "corpus-cache/d2/closure-library/closure/goog/messaging/portoperator.js": {
+   "sha256": "0dafb97bac5518becefdb935d8426daea0f062326b9f3140c44f56a987fb8af6",
+   "bytes": 6055
+  },
+  "corpus-cache/d2/closure-library/closure/goog/module/abstractmoduleloader.js": {
+   "sha256": "fcbb07cd665a9b1e954b5a40c9191b3b2c7c94253c027ee20b30fe16ae5f3fdb",
+   "bytes": 2468
+  },
+  "corpus-cache/d2/closure-library/closure/goog/module/basemodule.js": {
+   "sha256": "d63c2fa0f06f6d96ec3c1c82d06b8143605ce4bc73c2a99873862e38970c2cb4",
+   "bytes": 914
+  },
+  "corpus-cache/d2/closure-library/closure/goog/module/module.js": {
+   "sha256": "c7be5d6fec423357a9a9e7ca7f14027c358828507bae8bc5a67e9538190db10b",
+   "bytes": 705
+  },
+  "corpus-cache/d2/closure-library/closure/goog/module/moduleinfo.js": {
+   "sha256": "633d73c74f9875ebcf8613da7c3f33a1fa095628dc96234c505c4d4f25336379",
+   "bytes": 10666
+  },
+  "corpus-cache/d2/closure-library/closure/goog/module/moduleloadcallback.js": {
+   "sha256": "c7fcd564564c2ef46ddea072ddd2b431770a4174f3fb86c99b9a7a35bc6ca349",
+   "bytes": 1968
+  },
+  "corpus-cache/d2/closure-library/closure/goog/module/moduleloadfailure.js": {
+   "sha256": "042b75cac6ed2aeb8881e61967715ce9d2880393b7dbfcfeb0bd496d27fd87a2",
+   "bytes": 2112
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/browserchannelexecutionhooks.js": {
+   "sha256": "8b060a5349d0d7629330e783b3d4c691d656fb8c986bd067d7a3071811e2e4a7",
+   "bytes": 2391
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/browserchannelserverreachability.js": {
+   "sha256": "14b611a39b8da59204ed0571e12cd979405c99710ff544e46250421c33cd9878",
+   "bytes": 545
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/channelrequest.js": {
+   "sha256": "b72d15302984f3e9d036995cd0192e28f03c2a2da132e4ecca45cc5d70584798",
+   "bytes": 40673
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/cookies.js": {
+   "sha256": "ab9dce9bf7f62e61c52d0db6bcf2abebdbed8a35d21798bf73e9884eaa1785a8",
+   "bytes": 13866
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/errorcode.js": {
+   "sha256": "7b72566a7d45bbf382a6ffd305cbf8425f035e177364bba1c4938e374edf3442",
+   "bytes": 2778
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/eventtype.js": {
+   "sha256": "b7b5ca8ed424fb4047805edef1935d5ad6f0b10bcfd5d8730bfa2889b00bb485",
+   "bytes": 760
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/fetchxmlhttpfactory.js": {
+   "sha256": "24496db6ca9a98232a8d9bff04642947b7cc054ed461f04960622cd94b61048b",
+   "bytes": 14627
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/filedownloader.js": {
+   "sha256": "9a35262ec980b1bb79d496135f48532556c56cc5c330ac32dcf91478517f3c00",
+   "bytes": 25055
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/httpstatus.js": {
+   "sha256": "fa1a23984667803ce37d3986c6b58ec0e3490983411d1eef219c60cbd3c5526d",
+   "bytes": 3018
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/imageloader.js": {
+   "sha256": "a78d741ffe5c860aac483462e22ff228e08beec1c03a1f8b540bd81dfafcf4c6",
+   "bytes": 11459
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/jsloader.js": {
+   "sha256": "c2d0545d5037e507012720733e544a53a8cb1860011c812c254cfb8c1f60c529",
+   "bytes": 13483
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/rpc/httpcors.js": {
+   "sha256": "e479aef6cbc86cbf998da3f05af5227d46dc72935d6e904aca25572f32cb2031",
+   "bytes": 2860
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/wrapperxmlhttpfactory.js": {
+   "sha256": "30927bfd4d46aa0cf27f6cf80400ab1310ce3a81429eddbe350ac21f352d0c3e",
+   "bytes": 1645
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/xhrio.js": {
+   "sha256": "0a2fb0bd72edc277d33ac1740e478217543097c31f4b1345206a75ac5ed4f435",
+   "bytes": 46861
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/xhriopool.js": {
+   "sha256": "e8cfb3544020e7dd76c30365f07e239f2c836796cb1e118c933355ee0384d0f5",
+   "bytes": 2990
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/xhrlike.js": {
+   "sha256": "a6d07f0dd5460f9787aec360a3e3f5841845afd5f4bde56727a40dec0fe80934",
+   "bytes": 3082
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/xmlhttp.js": {
+   "sha256": "45462fc7f33e3e63992fd9be881db23ccbfe286e5fe170ec33848245d7ea49b6",
+   "bytes": 6769
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/xmlhttpfactory.js": {
+   "sha256": "095d86b7a42f9bb260f4431ebdf46afed40ba65a079a4a51246ae27d3727ea64",
+   "bytes": 1346
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/xpc/crosspagechannel.js": {
+   "sha256": "7a7f596c866ed09275069602dcfc4c1104bd576c604116261a7c6ba2addcbc03",
+   "bytes": 28097
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/xpc/crosspagechannelrole.js": {
+   "sha256": "b2fa7194a1ba8ef1eac0cbbc7e35c781fd6c71bcb00b470b199053b9422627ed",
+   "bytes": 353
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/xpc/nativemessagingtransport.js": {
+   "sha256": "db3d0ccd34dda84a15a1e6087d33e32c5544fede14b7bf7fad567cd716121627",
+   "bytes": 22294
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/xpc/transport.js": {
+   "sha256": "51b1b46d2c88e98202cfe7a750ad4157efab485a2221e22cf4369288839ee7b2",
+   "bytes": 2268
+  },
+  "corpus-cache/d2/closure-library/closure/goog/net/xpc/xpc.js": {
+   "sha256": "ac49c16992909c853a3db9e6c1ae27a29bdf43c2c42fb49b76cfccef47cead05",
+   "bytes": 8107
+  },
+  "corpus-cache/d2/closure-library/closure/goog/object/object.js": {
+   "sha256": "a0fb11f851a1313f2989e14392545c15a65eea38c08b2ccfb9aa731645cc3de0",
+   "bytes": 21503
+  },
+  "corpus-cache/d2/closure-library/closure/goog/positioning/abstractposition.js": {
+   "sha256": "5451d56a8e395d91c8b03770ff3109311a836104909016a4eae2e8ad5dc807fe",
+   "bytes": 1068
+  },
+  "corpus-cache/d2/closure-library/closure/goog/positioning/anchoredposition.js": {
+   "sha256": "89e5ee25c5b27b14861547dfa66fbcf65ff65be9ac1434134d2c29c6bbec0e9e",
+   "bytes": 2477
+  },
+  "corpus-cache/d2/closure-library/closure/goog/positioning/anchoredviewportposition.js": {
+   "sha256": "077655e7032b66b9e624384c0ec5326225229746f29fba6d2b27e959562d420f",
+   "bytes": 6509
+  },
+  "corpus-cache/d2/closure-library/closure/goog/positioning/anchoredviewportposition_test.js": {
+   "sha256": "658a561e9d24ef64fc557cd019de2105f0b4574dd4fec93e7317c959eb40d644",
+   "bytes": 5892
+  },
+  "corpus-cache/d2/closure-library/closure/goog/positioning/clientposition.js": {
+   "sha256": "f35e18488a72f949e93a27538ff0dbea865bb3df82e3745bd075a7ff14e937ca",
+   "bytes": 2835
+  },
+  "corpus-cache/d2/closure-library/closure/goog/positioning/menuanchoredposition.js": {
+   "sha256": "0b8eb73e2bb72db0cc6ab5e47a715c46e8d9e1a43b9011c9be83ddc7a7c22c9b",
+   "bytes": 2099
+  },
+  "corpus-cache/d2/closure-library/closure/goog/positioning/positioning.js": {
+   "sha256": "6947351c0b246faab4e2fe7d4f4e04a0344ffc0614cd01607525184883677841",
+   "bytes": 22280
+  },
+  "corpus-cache/d2/closure-library/closure/goog/positioning/viewportclientposition.js": {
+   "sha256": "94660bfee867d3b25dec9a2bd14fd0ced1d9bb4a99bd2fba204050058a904c8f",
+   "bytes": 4129
+  },
+  "corpus-cache/d2/closure-library/closure/goog/positioning/viewportposition.js": {
+   "sha256": "0ed10f756dae1e1adae35b07d0ceb3a5a1edd3df93ea64f4088e12f2f9a52528",
+   "bytes": 2063
+  },
+  "corpus-cache/d2/closure-library/closure/goog/promise/nativeresolver.js": {
+   "sha256": "926a500a37943e1fe3d1143987bcecaf0d27fe2031098c73afeeedbb1a3eef15",
+   "bytes": 685
+  },
+  "corpus-cache/d2/closure-library/closure/goog/promise/promise.js": {
+   "sha256": "a2cb6b5e903ef06d0a855353c0c634ceeeda8f63c78812fd699510208144acf4",
+   "bytes": 46973
+  },
+  "corpus-cache/d2/closure-library/closure/goog/promise/resolver.js": {
+   "sha256": "de3388a4353e317fcb846f94a4ed57b4e6eaef22c97f998554aa802d441f2437",
+   "bytes": 1027
+  },
+  "corpus-cache/d2/closure-library/closure/goog/promise/thenable.js": {
+   "sha256": "7237c3ebf53966bab09768ee7c0c97b03a8b77b0fe3fb02db28aba9bc2eed61a",
+   "bytes": 3883
+  },
+  "corpus-cache/d2/closure-library/closure/goog/proto/proto.js": {
+   "sha256": "e845531b06c9b9645fc84bb7617be819ef11840568ce4c87af5ed7e77d6d0294",
+   "bytes": 738
+  },
+  "corpus-cache/d2/closure-library/closure/goog/proto/serializer.js": {
+   "sha256": "c8b8604bd8e518a8ee8f948b561fd41f7e950c8375b512212cf7c522164e8b79",
+   "bytes": 1383
+  },
+  "corpus-cache/d2/closure-library/closure/goog/proto2/descriptor.js": {
+   "sha256": "548b2fa3d831babafb8474561694e827adf2b64b5c3ee0d394dd65f0cdbb507f",
+   "bytes": 5058
+  },
+  "corpus-cache/d2/closure-library/closure/goog/proto2/fielddescriptor.js": {
+   "sha256": "8ec3087bf729fd0790690af408c952d31cfa89df7deeed345582f08699a6d7ee",
+   "bytes": 8244
+  },
+  "corpus-cache/d2/closure-library/closure/goog/proto2/lazydeserializer.js": {
+   "sha256": "d3c638a83ee575af0049357db0339a36d85d614f6023734439c4b4fe1f38791f",
+   "bytes": 1824
+  },
+  "corpus-cache/d2/closure-library/closure/goog/proto2/message.js": {
+   "sha256": "892de16e3df9f8eaea67b5dae8945e2cbd003c1fd8226cd6ec18528872a49dc2",
+   "bytes": 20465
+  },
+  "corpus-cache/d2/closure-library/closure/goog/proto2/objectserializer.js": {
+   "sha256": "9072133c4efc198a12594eef904ea7a20add2bc5582a1b958bba65b68f4c4e79",
+   "bytes": 8568
+  },
+  "corpus-cache/d2/closure-library/closure/goog/proto2/serializer.js": {
+   "sha256": "6950092742736cd2b727fd642f600f06ffff510da20bfec1a1bfbd4c5555e9dd",
+   "bytes": 5915
+  },
+  "corpus-cache/d2/closure-library/closure/goog/pubsub/pubsub.js": {
+   "sha256": "4cc366bd76f8d2ed876c31ffe8eab5061e28ba0e55338812a3f962ac509c00fb",
+   "bytes": 12481
+  },
+  "corpus-cache/d2/closure-library/closure/goog/pubsub/topicid.js": {
+   "sha256": "ef0ba577211cc61746f8a5cf4105e0863f3949a887cc7a72647a5b134beddec9",
+   "bytes": 1183
+  },
+  "corpus-cache/d2/closure-library/closure/goog/reflect/reflect.js": {
+   "sha256": "29cba29225ab4e83709f8693a423a10b30dac4b3500c4b79da474a3c65319354",
+   "bytes": 4090
+  },
+  "corpus-cache/d2/closure-library/closure/goog/singleton/singleton.js": {
+   "sha256": "72363fae17017664a7013ecacec409b1e0754a3615ddf46b3858df6533a5a03e",
+   "bytes": 1626
+  },
+  "corpus-cache/d2/closure-library/closure/goog/spell/spellcheck.js": {
+   "sha256": "00d0d46074b4aa00e30b33ac1a9ebfebfba21e2d8d5b842f3daa01358ee0f097",
+   "bytes": 12023
+  },
+  "corpus-cache/d2/closure-library/closure/goog/stats/basicstat.js": {
+   "sha256": "9a12c1e40370750249ee995addbd40694409dfe38e010411abc71b83a2248de6",
+   "bytes": 7707
+  },
+  "corpus-cache/d2/closure-library/closure/goog/storage/collectablestorage.js": {
+   "sha256": "301c289189e18f3ef49708f84404bc17dedd6f7d70a120dcd8879c6ac8cba884",
+   "bytes": 3652
+  },
+  "corpus-cache/d2/closure-library/closure/goog/storage/errorcode.js": {
+   "sha256": "e591983fd51f12e66a65e8ef9803b9f95b3fae78d1864034a43b00dea39ab893",
+   "bytes": 426
+  },
+  "corpus-cache/d2/closure-library/closure/goog/storage/expiringstorage.js": {
+   "sha256": "c942a5370eac5d0770c063af313b1d1dac865c7d88703a12a59b0d3f31763979",
+   "bytes": 3842
+  },
+  "corpus-cache/d2/closure-library/closure/goog/storage/mechanism/errorcode.js": {
+   "sha256": "369eb25ecba241966168d0d9440e34f7c7f618823b726cc65a295bad7e3a3f96",
+   "bytes": 524
+  },
+  "corpus-cache/d2/closure-library/closure/goog/storage/mechanism/html5localstorage.js": {
+   "sha256": "2a0cd39a29691e4c5c6db6e2d7f9e6fb4aea947914665de6786056d13c83e4a1",
+   "bytes": 1066
+  },
+  "corpus-cache/d2/closure-library/closure/goog/storage/mechanism/html5webstorage.js": {
+   "sha256": "b036718785b8d3e443cd58957b1e0f165042ee6224d55c290bab4061f82712a2",
+   "bytes": 5012
+  },
+  "corpus-cache/d2/closure-library/closure/goog/storage/mechanism/iterablemechanism.js": {
+   "sha256": "e384bcc3d0fd8fb7ea86d7cfc5fccb79cfa920e73eec8610718ec22830697085",
+   "bytes": 2429
+  },
+  "corpus-cache/d2/closure-library/closure/goog/storage/mechanism/mechanism.js": {
+   "sha256": "8fd22869b940301c3a4ccad125aede0658eb60e2888897eb85429afc645689b6",
+   "bytes": 1030
+  },
+  "corpus-cache/d2/closure-library/closure/goog/storage/richstorage.js": {
+   "sha256": "4114045adaf40b1e4343099a5f8b91492dd92d5914e4b173c8ea2f8eb728b8ef",
+   "bytes": 4301
+  },
+  "corpus-cache/d2/closure-library/closure/goog/storage/storage.js": {
+   "sha256": "6b93e158bb5d9917d12336d03a033e2a98395bc488539ecbad1b6421afacb9a4",
+   "bytes": 2076
+  },
+  "corpus-cache/d2/closure-library/closure/goog/streams/defines.js": {
+   "sha256": "7fb03c6f2c5846e1f2427087f694ec452525e59badd63fce5ae7944ea0a7ae8a",
+   "bytes": 437
+  },
+  "corpus-cache/d2/closure-library/closure/goog/streams/full_impl.js": {
+   "sha256": "a7685cdfe7f2695e9336acebdc2fef54fbdb3b0629a19dc030d7f6e691a8176c",
+   "bytes": 15719
+  },
+  "corpus-cache/d2/closure-library/closure/goog/streams/full_types.js": {
+   "sha256": "b9b04bc0250a3d49e9dd0f36f5fb982726bb8d694b566ba9126b107223af1ed2",
+   "bytes": 4697
+  },
+  "corpus-cache/d2/closure-library/closure/goog/streams/lite.js": {
+   "sha256": "bf899d1eabfc1a588d7e13983383fe25aef2ac32d1b046c81e5b8f9e145398c1",
+   "bytes": 1367
+  },
+  "corpus-cache/d2/closure-library/closure/goog/streams/lite_impl.js": {
+   "sha256": "a8186f59580f31e2a2a2ca3080adea3ae542c108e2bc121e6d5fe04d3683f623",
+   "bytes": 13016
+  },
+  "corpus-cache/d2/closure-library/closure/goog/streams/lite_native_impl.js": {
+   "sha256": "9b3e31cda96210c4414f01b6dd543e9c5224cb5925b303947ef16e88c70b60b0",
+   "bytes": 2553
+  },
+  "corpus-cache/d2/closure-library/closure/goog/streams/lite_types.js": {
+   "sha256": "9a5eaaa52cd6a2cbb2de37fd5c9b93b9a4c84f99842d43a3d04e36dc8d1f9b8a",
+   "bytes": 3722
+  },
+  "corpus-cache/d2/closure-library/closure/goog/string/const.js": {
+   "sha256": "85ff113e213f0c6486460e28bed41fcb35af44a14167c9170723dc9d66ee7a49",
+   "bytes": 5768
+  },
+  "corpus-cache/d2/closure-library/closure/goog/string/internal.js": {
+   "sha256": "da0b09eba8c02200d088a2f8540de22166875d732a00d88b1a41b337dc0ce71c",
+   "bytes": 12247
+  },
+  "corpus-cache/d2/closure-library/closure/goog/string/newlines.js": {
+   "sha256": "3818c954ada6cc1e4e167796aa2971dcb2a8e00df521809e581b65bcdba26231",
+   "bytes": 4134
+  },
+  "corpus-cache/d2/closure-library/closure/goog/string/parser.js": {
+   "sha256": "8c8d114d495e576ca6efb8440337d4e709fb2b908f1f9d3b910565046af5d3f7",
+   "bytes": 581
+  },
+  "corpus-cache/d2/closure-library/closure/goog/string/string.js": {
+   "sha256": "f240e0e11a804b9c37d346d9df4af593e5d7e1450006d579de89c064781dd191",
+   "bytes": 47111
+  },
+  "corpus-cache/d2/closure-library/closure/goog/string/stringbuffer.js": {
+   "sha256": "bbbaae943f3a7c02cbd76ce6ae650e6c45fdb18cfe56b8b4d36a7204c750a955",
+   "bytes": 2271
+  },
+  "corpus-cache/d2/closure-library/closure/goog/string/stringformat.js": {
+   "sha256": "042332c41ee7ea40e56295d554b5ff9f9b18dea1dffe1fa81fab67dcb587a5d7",
+   "bytes": 7830
+  },
+  "corpus-cache/d2/closure-library/closure/goog/string/stringifier.js": {
+   "sha256": "1994f0c3043606db234e52bff99485b81a7fd1f87abe03e7e488572004895ac2",
+   "bytes": 618
+  },
+  "corpus-cache/d2/closure-library/closure/goog/string/typedstring.js": {
+   "sha256": "962a1a6493f54282282a829aaf67bd3f4d0287684c3ac519d8bab76a91307b95",
+   "bytes": 1214
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/avltree.js": {
+   "sha256": "988ddd7994e0de1e442b5a4f3bc7b5f3b0536251816eef8ca4e32a1cab80b289",
+   "bytes": 26283
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/circularbuffer.js": {
+   "sha256": "2b34764237943d52374a43d7154cba2a3e96d8f163de0a8543bc770056a6ab30",
+   "bytes": 5561
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/collection.js": {
+   "sha256": "18ee274671b3f2677f70199780610ba35cc12067b0ae3a2258c39b1e6bebefae",
+   "bytes": 840
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/heap.js": {
+   "sha256": "5bbd868c7caa425846a66699a2895c324c688eb41378c258fdb265d05e34744e",
+   "bytes": 8230
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/inversionmap.js": {
+   "sha256": "1cd2044fabad74e3c3aac395171a010773d8ed36528785b5a8334c94db484fef",
+   "bytes": 4639
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/linkedmap.js": {
+   "sha256": "41015b42eb14d5edcf5d072d8118be7a371d27c896e6d61daac4dfda65b1192b",
+   "bytes": 14892
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/map.js": {
+   "sha256": "f6c8960e6a56c33b842475598ab795b326344375261676fd88a004b901ea68f9",
+   "bytes": 15913
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/node.js": {
+   "sha256": "68bb547ca399ba6e67a85a0826277a1532cdd08a86c28e4858f46dcf0b5ec7ab",
+   "bytes": 1203
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/pool.js": {
+   "sha256": "fb90745c9f4a3e90560eafe77482ee1ee3f62c908f2f606fdace405f833fbb04",
+   "bytes": 9985
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/prioritypool.js": {
+   "sha256": "9fd153513b94573a5331fdbe4f971d9158b38f04c8b0e4d2e8d3c14f72497773",
+   "bytes": 5181
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/priorityqueue.js": {
+   "sha256": "a1dc33c6904feff35e7df47869996b6db01adf607683d8bc28dfa796a81aa155",
+   "bytes": 1286
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/queue.js": {
+   "sha256": "68a91e7e365956e1e884ca04755fa179b236093fb800993cb2aca491536a048c",
+   "bytes": 4629
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/set.js": {
+   "sha256": "bcaaf4ffc37096f3e772dab999cea85b34843ed9fbaabcbf9d804339cf40f568",
+   "bytes": 11889
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/stringset_test.js": {
+   "sha256": "afce75c87a8856c9fca2c81312e195f4f07297a0c6d34c385d19aa8faec182f2",
+   "bytes": 9105
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/structs.js": {
+   "sha256": "48e617b5b342999db6cb38c8b9bed33499f9d61b63c93d493a8582325bcc6056",
+   "bytes": 12363
+  },
+  "corpus-cache/d2/closure-library/closure/goog/structs/trie.js": {
+   "sha256": "a48bb218fc35a78c35a62f82defefd959a527907e4df09f7f877fc233eb75f38",
+   "bytes": 12007
+  },
+  "corpus-cache/d2/closure-library/closure/goog/style/bidi.js": {
+   "sha256": "f3b91f171eb12db63c2f184f96ae2b9d2b441f49d3d2a1344ef1a1f4c3763a21",
+   "bytes": 7402
+  },
+  "corpus-cache/d2/closure-library/closure/goog/style/style.js": {
+   "sha256": "4608ee335263be8a3635e33b7f81ef6ee0f5ee864421018116155ca13d3b1092",
+   "bytes": 74216
+  },
+  "corpus-cache/d2/closure-library/closure/goog/style/transform.js": {
+   "sha256": "deb1503d2d51e00175f1ccc5b5ddabd2f90f8134e17d66aed358d2e27dd2a5a3",
+   "bytes": 5454
+  },
+  "corpus-cache/d2/closure-library/closure/goog/style/transform_test.js": {
+   "sha256": "b929584e57470a0cc8a1726682bf241906050a3b78aac4f1e8e8108662e860ce",
+   "bytes": 4202
+  },
+  "corpus-cache/d2/closure-library/closure/goog/style/transition.js": {
+   "sha256": "a8608443bd120da249cbc61c0e0cfa9f8afaf6a5c3af21eaa851bd35f788910e",
+   "bytes": 3988
+  },
+  "corpus-cache/d2/closure-library/closure/goog/test_module.js": {
+   "sha256": "1c9be132a0ace77042da2b454b9bd8093bed5bcece86a4d16b924e6d1c46916e",
+   "bytes": 1361
+  },
+  "corpus-cache/d2/closure-library/closure/goog/test_module_dep.js": {
+   "sha256": "5b4e9c61977cd83eb87f88edd56ebe9b7a7d99b206313fe24b3a2c922d8ce33f",
+   "bytes": 877
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/asserts.js": {
+   "sha256": "d84ec65e85a8b1c543c5bf2aae59924bf928f99aed2d49ea9edd7088776fea78",
+   "bytes": 66710
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/async/mockcontrol.js": {
+   "sha256": "55a2d7745745be1a5ecb75b021a8b0ecb2dd4776c9032c517052cbec31f6b736",
+   "bytes": 5923
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/cspviolationobserver.js": {
+   "sha256": "6ee686d4666ed4fd4ea3822c5a834e00cf8b9298c23b6aa4e3b1098467a5e975",
+   "bytes": 3575
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/editor/fieldmock.js": {
+   "sha256": "5212f088f1fc555ba138f09e2b9b5ca5a353261b0a8b823f0015a83c8a952f6a",
+   "bytes": 3175
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/events/eventobserver.js": {
+   "sha256": "1dccc1df6c655da8aedcccc4e90dd28449828306661c2a92d8e5b8e6d0c59ba3",
+   "bytes": 2431
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/events/events.js": {
+   "sha256": "c9930ccf4c882a35c6bed08f45b99bfdccab24cf51977d12649da9fd306fe44d",
+   "bytes": 34611
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/fs/blob.js": {
+   "sha256": "671844a47eadb7094fc8024c7893d99cc5b774ca0d5bca1ebce7e5af7071c5b2",
+   "bytes": 5281
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/fs/entry.js": {
+   "sha256": "049240d676e404b8cca6b0eacb9b16a223e864a179369d176be540a9a405395e",
+   "bytes": 20562
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/fs/file.js": {
+   "sha256": "c9fa202ff2faaf24823ec223d5fed40901424a0b0fd4cf7d1d563fe39d6b69d9",
+   "bytes": 1146
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/fs/filesystem.js": {
+   "sha256": "482317500b6ee6741635581c26827813c53fc302e554f3817e8ed04feb95f13a",
+   "bytes": 1165
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/fs/filewriter.js": {
+   "sha256": "0468d2784990e7f73456419650b7a50bae86be823734f0686b2b694ef0a4f0da",
+   "bytes": 7198
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/fs/fs.js": {
+   "sha256": "2abe22e098045d16a105e04b85467b5ca064a1074e137446df77ec44356b40fa",
+   "bytes": 5614
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/fs/progressevent.js": {
+   "sha256": "d05e72e5eccb3d5322c101bc6bd71b8650d7b4a06565b7769ba0e753b8555ae5",
+   "bytes": 1808
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/functionmock.js": {
+   "sha256": "bef65afb6967200ce4ee02a4e6f8499c859a3d53f4a77549b1adfcd279754abd",
+   "bytes": 7282
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/i18n/asserts.js": {
+   "sha256": "0d95985c113a8a189b968a2adb11c276bdfac00072b6b987053611a227dcd011",
+   "bytes": 5522
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/i18n/whitespace.js": {
+   "sha256": "bf18560cdcaa71b70e8c35297994bb44ddf511c5cd3f1e070366406fdca3ec57",
+   "bytes": 1641
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/jsunit.js": {
+   "sha256": "300dd31d4922aef8d62fa0478840ea3d6b6f5a203ca5449e31a107eaed819491",
+   "bytes": 6978
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/jsunitexception.js": {
+   "sha256": "a1daebe58513fa5b2d677ef5e5edc176f2f79d1613072514c595574c2d598cdc",
+   "bytes": 1550
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/loosemock.js": {
+   "sha256": "b61d80c94ee12980c6332373cb029a6590c78cf81585cab534b3d3276a90e4b3",
+   "bytes": 9810
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/messaging/mockmessageevent.js": {
+   "sha256": "aba627a9242ff828b50077f9d3dd7d32ef6c9ef1b4ef37dd6dd4ce13cf4bceeb",
+   "bytes": 2920
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/messaging/mockmessageport.js": {
+   "sha256": "49bf0079978efeed33fcedcbea5a0fc22cd8889974ec7cd1bca5264ecf84c0f7",
+   "bytes": 2021
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/mock.js": {
+   "sha256": "71255594ee4511984cb201d01281a18d3232b1d3127dc266f34de6288ed4fb1a",
+   "bytes": 21957
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/mockclock.js": {
+   "sha256": "a63093f2a1d79294ac35684f2bedfedfb56cd57aa08b6da1e9f2f76a547c305e",
+   "bytes": 31277
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/mockcontrol.js": {
+   "sha256": "3f7223319b18f57a3d96d900d6403d67fe404a25aa1b82400a08b0b35cb2c1e6",
+   "bytes": 7426
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/mockinterface.js": {
+   "sha256": "60689f49d19035da40f18b1426c4ef8adbfa7945218fa763620a78aae0ce8909",
+   "bytes": 1012
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/mockmatchers.js": {
+   "sha256": "bab667a751bed23140bdda09efb9a9d512e74071eb03e0faed03d0b6a05a82d4",
+   "bytes": 13128
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/multitestrunner.js": {
+   "sha256": "e1e615a130f676d48f07008cd859ca37ad5cd8cafe2cc1dbee262c1539a9c9f5",
+   "bytes": 43154
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/net/xhrio.js": {
+   "sha256": "62e08eec83e1924f26996237fa7f52ce306bfd781854d60a6884c6c14c35f747",
+   "bytes": 26497
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/parallel_closure_test_suite.js": {
+   "sha256": "67444198766c968c4df45746051292f62e81a51bc6db45191c5b99688656d8ed",
+   "bytes": 4599
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/propertyreplacer.js": {
+   "sha256": "f3c184c17c5c0c65ec2262ba110f38f93ccad793a94dcdc8b471c32563d388a6",
+   "bytes": 10626
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/proto2/proto2.js": {
+   "sha256": "bf691cc2201cfd6eed4a903e190f98a3b7e6d7a3603c9b3179711ffa44e4203a",
+   "bytes": 4770
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/recordfunction.js": {
+   "sha256": "780af33c7814dacf7dc3217fc6b059fff23544566eabf1ce67753341b0716b3e",
+   "bytes": 9065
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/stacktrace.js": {
+   "sha256": "36d15cf87b53c835db5e2f00eeefb0de481e3217473819de67b6e86e81708bd8",
+   "bytes": 16471
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/storage/fakemechanism.js": {
+   "sha256": "3aeef9dee5275cb9167875bc4e94b942316038f1535c39c23330929321d33dad",
+   "bytes": 2044
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/strictmock.js": {
+   "sha256": "dfa4ae3293dab627b61d4783e32bd780d4c67233faf54628360d9b74b35e5f6b",
+   "bytes": 5543
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/style/style.js": {
+   "sha256": "56b02fa9c82facfe94a981b4c0eeba68d62617c2cd5d310a29291c47284aa72e",
+   "bytes": 2431
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/testcase.js": {
+   "sha256": "cf030804465aa727928770a0ff3fe11f8c87878ca3650b67cec6ad22178aedfb",
+   "bytes": 73371
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/testqueue.js": {
+   "sha256": "6bc9ed44ade5adad3ac66b482ca49a87296658c208b60ff77301a3c33d2adab7",
+   "bytes": 1300
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/testrunner.js": {
+   "sha256": "a9efbc0e83f1698259c0313f65026a914c12258d6d89703ba659c1163b832012",
+   "bytes": 16023
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/testsuite.js": {
+   "sha256": "960db281a028620fa40fea8fc1a446c08678ccf1d30edd853c93d090c1fba29b",
+   "bytes": 2388
+  },
+  "corpus-cache/d2/closure-library/closure/goog/testing/ui/rendererasserts.js": {
+   "sha256": "4b965492a0d5d4c6ce158507d7b61d02c2902a605c9bf023fd694a471c25a127",
+   "bytes": 1504
+  },
+  "corpus-cache/d2/closure-library/closure/goog/timer/timer.js": {
+   "sha256": "88d6f29e6fbf80d49af5f55c9d475014c8b64100e82c42390c2503851ec27044",
+   "bytes": 9312
+  },
+  "corpus-cache/d2/closure-library/closure/goog/tweak/entries.js": {
+   "sha256": "1402844aed4af70dbb618dc936c19fc4a75a1f5204c12b22526d8b74537010fe",
+   "bytes": 26022
+  },
+  "corpus-cache/d2/closure-library/closure/goog/tweak/registry.js": {
+   "sha256": "ddc916371b2c1d60658bea7f24d12ebe77e2ee06126df9f56489767537a68966",
+   "bytes": 8568
+  },
+  "corpus-cache/d2/closure-library/closure/goog/tweak/registry_test.js": {
+   "sha256": "21b925f488670744bce2101d008f89ddc06c5a3a9697085c829a8b347226ca33",
+   "bytes": 3799
+  },
+  "corpus-cache/d2/closure-library/closure/goog/tweak/testhelpers.js": {
+   "sha256": "57f856673c1ca1182db359058b1bc28ba230339c4657e01cc4e6646ec9186228",
+   "bytes": 3233
+  },
+  "corpus-cache/d2/closure-library/closure/goog/tweak/tweak.js": {
+   "sha256": "3623f2d8841d5eec55bf2d126df806fdb456d415ce9b09adb5c9a750b429946b",
+   "bytes": 9545
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/abstractspellchecker.js": {
+   "sha256": "7efbf296f7f0d4318197724d28cefbdb9398d061718940be18617ee641675ad1",
+   "bytes": 34523
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/ac/autocomplete.js": {
+   "sha256": "fb97990a00b98bdfc48757d4bdc55f536c5e5f3b5f8bef7e5bdbbbbe548484fb",
+   "bytes": 27448
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/ac/inputhandler.js": {
+   "sha256": "64c799016fc860fa8282b0840578011802a8218324f75a2ce9b9c2a82822fa51",
+   "bytes": 40145
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/ac/remote.js": {
+   "sha256": "d002e2a2c032b9647c166e66b654cae7604322ee8d67ff5a6d52ce28e4453ef5",
+   "bytes": 3571
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/ac/remotearraymatcher.js": {
+   "sha256": "be7400350ab9c3d668c8c099620a1c2472b69123c5890cc5426cf7f5e12c9fab",
+   "bytes": 8512
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/ac/renderer.js": {
+   "sha256": "3ea1f4ee761058782e6f126a699030e31c564e477e14a618fcaf924e9050a61f",
+   "bytes": 35017
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/ac/renderoptions.js": {
+   "sha256": "bfd56484fd263e020633a71dcc70820aa27056479c979499332d7d50cb2d80f2",
+   "bytes": 1608
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/ac/richinputhandler.js": {
+   "sha256": "9859e16602d641aa92a064e1114b8ccd0c4aad4c06aeee57131adb89eb076f90",
+   "bytes": 1647
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/ac/richremote.js": {
+   "sha256": "ed9a1532d9ca4b47fa84c7b9cb9151794569ab773f2334ab8d1937ffd2618ee9",
+   "bytes": 4093
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/ac/richremotearraymatcher.js": {
+   "sha256": "06b668a13e5a70a14f9c75b1650d0e2a42a029c35b139fc8db80508517c720ad",
+   "bytes": 5189
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/button.js": {
+   "sha256": "4d6383593802a6101a63e3d9bd1b1bbe2993077dd45a4ee6dd4f34fb442a4a6c",
+   "bytes": 6448
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/buttonrenderer.js": {
+   "sha256": "226814b93e7b3e287e3af68c8305236e4997fc484092d9991d7371f118f7f091",
+   "bytes": 7194
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/buttonside.js": {
+   "sha256": "b4e8cf665fb7b6ddd6d897359467dee38faa82a9047203f535d0ea5c839d7ae7",
+   "bytes": 607
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/component.js": {
+   "sha256": "588069065b940b379ce1734189b9fc21137eb340bf2072adadc0feae9eaa2813",
+   "bytes": 45216
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/componentutil.js": {
+   "sha256": "f87b26e2bbd97ec2ccf03419106786b6943947da9962df64eb8651ee252e733a",
+   "bytes": 777
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/container.js": {
+   "sha256": "a6ddbc3b32084a897a1ef870b8e87a5bc5c7f86506b102624611eae5a08a989d",
+   "bytes": 44644
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/containerrenderer.js": {
+   "sha256": "9fa072e6a210894b3dec31a8e7c8f9228d61016528d52d9055dabf4918cbe489",
+   "bytes": 13599
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/control.js": {
+   "sha256": "95929c098e977c080b66e0c59b6eee4063069c45d0074f4a4256e50bb8fbe4ee",
+   "bytes": 57352
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/controlcontent.js": {
+   "sha256": "0c11df0c1a8b7a6ee7346711460c302af533b72b7dae45fa55fb28fbf6d737e1",
+   "bytes": 406
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/controlrenderer.js": {
+   "sha256": "4303fe125e7e46c2c421db93728175b11bfda766c26c79ad2cd0b02993ef75b6",
+   "bytes": 34851
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/cssnames.js": {
+   "sha256": "b84e2e606f3d576a77c87266cb4e9f21949a6888797e957cee0359b6b97e4712",
+   "bytes": 403
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/custombuttonrenderer.js": {
+   "sha256": "cedb7498da1c7b9e0cb6141e65d2f60df277154014033f541705d421c4ad5941",
+   "bytes": 9647
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/datepicker.js": {
+   "sha256": "78462a005346db128005b4393b7b72a08d312f12981bbf1d8bb156a147256d40",
+   "bytes": 48846
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/datepickerrenderer.js": {
+   "sha256": "aed651dabc7b9d7dd362d8159513b4024e30a0760d6005d9e30434b109ccd2f8",
+   "bytes": 1421
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/defaultdatepickerrenderer.js": {
+   "sha256": "c76eb826fd95a551eb1f436c3b3359b5e63a3ac088da6373ab4acd521d0ccccb",
+   "bytes": 6976
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/dialog.js": {
+   "sha256": "3e8506615ad60f1e4d3d9d6ddfa05176790592ea1a9539bb221c0068e88cb5c0",
+   "bytes": 53241
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/dimensionpickerrenderer.js": {
+   "sha256": "8a5590dc95010993e561a40da88e20be2163fac5e0670339acfbf3b7128a156c",
+   "bytes": 14570
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/emoji/emoji.js": {
+   "sha256": "e9360c4a31f3827537a715680179ee0ea9cd4494d4a737a47ad3baecb6910e65",
+   "bytes": 2723
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/emoji/emojipalette.js": {
+   "sha256": "95cb807eaf27660e44f704272605d8f49e7b2f8df8362885a1211aa778ac8771",
+   "bytes": 8735
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/emoji/emojipaletterenderer.js": {
+   "sha256": "b4b340a11ee523215efc7bdeb1fff643be0555dbc1a3ed6be5af1e6cb4860f27",
+   "bytes": 6905
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/emoji/emojipicker.js": {
+   "sha256": "e36afd438c2cdd14e676fa312ab48e9f4ee83a41c0c2edeb53fd1b9d266b181d",
+   "bytes": 23385
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/emoji/popupemojipicker.js": {
+   "sha256": "9510a8f7e4a9ea2d8ee1bbfce4ca8fc2e08d44138e64b63ebb8c0fcfadff4ffc",
+   "bytes": 11849
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/emoji/progressiveemojipaletterenderer.js": {
+   "sha256": "2de31593ee497a8196c7aa931d105acbda3437b9b9640dd1af863ab17d8aa95e",
+   "bytes": 2762
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/emoji/spriteinfo.js": {
+   "sha256": "4f949d41d36fea876fa9de2a168a3a231a9c0c6e2cb18e60ae1cebed1c25c7c0",
+   "bytes": 5736
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/idgenerator.js": {
+   "sha256": "d142adc9399c49ed0e3982b3fa1abb5686362775cdfb8fe3ffbae692331cce9b",
+   "bytes": 1338
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/map.js": {
+   "sha256": "eeec38ec458e9c0c0c16e773b4f50d74e200da1e5a7399b9b1ed324a77e4878b",
+   "bytes": 5231
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/menu.js": {
+   "sha256": "be516131ef8ff07a6ab72336d717ba69683cd71fb500667a891d06e4d477647d",
+   "bytes": 15506
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/menuheader.js": {
+   "sha256": "9267f1cea4a2d277adc49534707c0d79f0feea64a479d9719537daba6b0f4fc5",
+   "bytes": 1819
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/menuheaderrenderer.js": {
+   "sha256": "ed897c19604315858be3465098491276d65305043397913f83062d5dbb929952",
+   "bytes": 1081
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/menuitem.js": {
+   "sha256": "a2d6813e4d98d634a24c3b5e25ef1f34b80344d4e0d278b448b1d6cc9e3a1050",
+   "bytes": 10078
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/menuitemrenderer.js": {
+   "sha256": "d73bd1001e4ad3c9b3b7d77edbe13dbb2b6d8e2e430ff3cce29d58fa2d910ecb",
+   "bytes": 12414
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/menurenderer.js": {
+   "sha256": "8664e91988d39ebcafb34627daf458bc2aa6187819b50a16c45ba0df5e78c38c",
+   "bytes": 3368
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/menuseparator.js": {
+   "sha256": "3363109b890219489b63ae62c957ba5c3e303ee9efc69128254f9615e4c7e86e",
+   "bytes": 1244
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/menuseparatorrenderer.js": {
+   "sha256": "d912de1db3a454845be0bdb632b9f4372bbde9ab361c0fb67b5c9736cbaca156",
+   "bytes": 3047
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/modalariavisibilityhelper.js": {
+   "sha256": "b16072334ea3df7add64362daea0cf14f7b5f3b711a0a9fec667c0b8cfdce7a3",
+   "bytes": 2303
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/modalpopup.js": {
+   "sha256": "67f3e07b0fe386f9910229c5297e022de6b04c6e0aeed6912542a9ac1ebbb0fc",
+   "bytes": 25152
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/nativebuttonrenderer.js": {
+   "sha256": "b4c820cf705f5e29299269fb59eb7cd51691523b0b79af71b6c40c013cf553e5",
+   "bytes": 6881
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/palette.js": {
+   "sha256": "fe557678d0f15babdd1961fb37da94e76b78457b72705ab9a287371f58708f02",
+   "bytes": 22194
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/paletterenderer.js": {
+   "sha256": "31d11e4348408aef411cce6e5fc6892724e1deb4319d039c28a2c9df84fcb29d",
+   "bytes": 13863
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/paletterenderer_test.js": {
+   "sha256": "3f14f12af4fb7ee2e8e578b09907ad2bd93d398980dfd10ba664473d9e80b507",
+   "bytes": 6168
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/popup.js": {
+   "sha256": "eac6199a1328216507a5e67e53be21972e9347a3a8531516b5b9ae2b40161de8",
+   "bytes": 4642
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/popupbase.js": {
+   "sha256": "9d7dccc506167565907a5fd62c90c9ab002dbca28cec30c6aff1bd7f2499b9ca",
+   "bytes": 25639
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/popupmenu.js": {
+   "sha256": "c38ed664c952f750ee00d97af536cc7cda9b4bdd7d411bb5b41b1bbeb00cf562",
+   "bytes": 21439
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/registry.js": {
+   "sha256": "7386a2bc2f7d4d7c4e603f8a934f8adfb95dce42c905d6a7f77f0de99a571a47",
+   "bytes": 5844
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/richtextspellchecker.js": {
+   "sha256": "610e7f3a5f706f8462a2e3f1ccacc0bdf0953d9bb960540ad995709249f104d2",
+   "bytes": 22623
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/selectionmodel.js": {
+   "sha256": "3cf8dc2581cdb381ac160906dcddbadb2a836830c87dc110021950eb83d3af17",
+   "bytes": 8470
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/separator.js": {
+   "sha256": "c059896f8d7adedc8a07576ffe0262aa28ac32eca314c780bf5167a397564576",
+   "bytes": 2467
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/serverchart.js": {
+   "sha256": "ff67e2b75cda346eaccea5b0c09b7784389bda746046dddc14aa2e5020b6a865",
+   "bytes": 54497
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/style/app/buttonrenderer.js": {
+   "sha256": "3f0d25f7e0e3c0272efa8cd3f9c940cd4c2287a0d4bb9647273b02d50c8e64c5",
+   "bytes": 6949
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/style/app/primaryactionbuttonrenderer.js": {
+   "sha256": "80b19e3b977fd903c818b8b478240f2334cb8d4a77626b74207359ad438c576b",
+   "bytes": 2456
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/tablesorter.js": {
+   "sha256": "546bfdf4ab48715cb78fb662791935023b4d3483b7af6284d40ce97984935f87",
+   "bytes": 9317
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/tabpane.js": {
+   "sha256": "9eef81412760b4def25110581bad525a79b775811ad898b7c0567dda9af21d9b",
+   "bytes": 17988
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/toolbarbutton.js": {
+   "sha256": "5e8e8fbf75e3998416202f50e11b4fc891b50a47f143d26ddbff15813854c0ba",
+   "bytes": 1448
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/tooltip.js": {
+   "sha256": "8f8de0d5f75da63f356cf60d1d1b817e51d4c60f5745b3e3f97328222623aafd",
+   "bytes": 30314
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/tree/basenode.js": {
+   "sha256": "82f87431adaa83a6246610a696a6a7b22e1dc58d5fc472d7544adadfb6eb97b4",
+   "bytes": 40583
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/tree/treecontrol.js": {
+   "sha256": "8a8952fe55ea3df79552d8596422582f628ac415bb78d1b0e582e249c3056fab",
+   "bytes": 16424
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/tree/treenode.js": {
+   "sha256": "b0f2be9f12bc3d8c1c226ae5b28c9a33bb29e9c36fb3e2a94f6c834bc2df1cb0",
+   "bytes": 2641
+  },
+  "corpus-cache/d2/closure-library/closure/goog/ui/tree/typeahead.js": {
+   "sha256": "2b35ab73a53bcf903f9e626a337dcb9fd06d1a2eb14b3f57e372d75f85f797b8",
+   "bytes": 9057
+  },
+  "corpus-cache/d2/closure-library/closure/goog/uri/uri.js": {
+   "sha256": "d21e940708c76de1c7a2a85c3c86d73daa79b2fdfc1dfc2227d7f77f7cd8d259",
+   "bytes": 44189
+  },
+  "corpus-cache/d2/closure-library/closure/goog/uri/utils.js": {
+   "sha256": "1905cf183459b3a737b8f024899ec0a57745422931103204121c2ef0f7d3ebd6",
+   "bytes": 37879
+  },
+  "corpus-cache/d2/closure-library/closure/goog/url/url.js": {
+   "sha256": "fadc0f9712a217626e7b196f0a1f2367dcb55ed575600f2ee42e6e8957c60568",
+   "bytes": 25052
+  },
+  "corpus-cache/d2/closure-library/closure/goog/useragent/keyboard.js": {
+   "sha256": "0e332cf8bf8580867ef0ebe8b782368c1b75dc62ec022af2981237ec1e4a3180",
+   "bytes": 1102
+  },
+  "corpus-cache/d2/closure-library/closure/goog/useragent/platform.js": {
+   "sha256": "a01f25f84e7cea4f14f430a469109d4aa77b22bf89be97c9d2ffd4917cbb6312",
+   "bytes": 2280
+  },
+  "corpus-cache/d2/closure-library/closure/goog/useragent/product.js": {
+   "sha256": "771c5171acdf5c4bd0bca59beded2a29e2c7b84df4c5e54c695227a89643c825",
+   "bytes": 4887
+  },
+  "corpus-cache/d2/closure-library/closure/goog/useragent/product_isversion.js": {
+   "sha256": "b0ac7f76b750971fae5491917865a2b1825528e5e082bd0ab2de2cb1569aa07e",
+   "bytes": 4930
+  },
+  "corpus-cache/d2/closure-library/closure/goog/useragent/useragent.js": {
+   "sha256": "208a3a17a3151cdaabdc75dee0bbb1de3e1171bb39717897d682d0abc4a2a232",
+   "bytes": 17481
+  },
+  "corpus-cache/d2/closure-library/closure/goog/useragent/useragent_test.js": {
+   "sha256": "d157abf9eac081e4c623f8beb64ae3801f121174ce9a4551e440255fea4d64a9",
+   "bytes": 11504
+  },
+  "corpus-cache/d2/closure-library/closure/goog/useragent/useragenttestutil.js": {
+   "sha256": "13398b6af2eeab53215d3d8333dad57be4e0199b32f4fdcaf2e3803b36bff185",
+   "bytes": 4571
+  },
+  "corpus-cache/d2/closure-library/closure/goog/vec/float32array.js": {
+   "sha256": "ed922ec584df77854f1d0476ba98c7d9497ee9d32f8f6911f2714439ba713e18",
+   "bytes": 3203
+  },
+  "corpus-cache/d2/closure-library/closure/goog/vec/float64array.js": {
+   "sha256": "5382f1e3ac5f44d9af51e0cb384e9d0763ae760e4f7a0026ec4a7d79ac813c78",
+   "bytes": 3443
+  },
+  "corpus-cache/d2/closure-library/closure/goog/vec/mat4.js": {
+   "sha256": "4becedef8866b0c53380c1b43730da0757233190afe3e1545aecf645536f872b",
+   "bytes": 59850
+  },
+  "corpus-cache/d2/closure-library/closure/goog/vec/mat4f.js": {
+   "sha256": "7cbd4b933a8902816b3b2d280759aab242b7e8977b5d9487d6e097321cadb0a0",
+   "bytes": 60667
+  },
+  "corpus-cache/d2/closure-library/closure/goog/vec/quaternion.js": {
+   "sha256": "7bfe9c18ec23556893a3cabdc47d72c0cfb2778acb9f46eca9cb1a71d984cb85",
+   "bytes": 24288
+  },
+  "corpus-cache/d2/closure-library/closure/goog/vec/vec.js": {
+   "sha256": "fe1c513dd333613f0185b58027826576530248d64f8a0d7c01a4242b729043cc",
+   "bytes": 1387
+  },
+  "corpus-cache/d2/closure-library/closure/goog/vec/vec3.js": {
+   "sha256": "5e9c4cf91f514b411b69ecad3ccf6a984bf48316a9558e891cd0225b1e930ce4",
+   "bytes": 16703
+  },
+  "corpus-cache/d2/closure-library/closure/goog/vec/vec3f.js": {
+   "sha256": "b8fa5de1dfaa846d2705af6e2c2f2c95e827d7e8b7b6cb5ac99f80f90d68d1cb",
+   "bytes": 17151
+  },
+  "corpus-cache/d2/closure-library/closure/goog/vec/vec4.js": {
+   "sha256": "87b38b9104b08f610f4f5cacaf0f388558402faf410f4f0157dcfbd49c0cda7f",
+   "bytes": 15040
+  },
+  "corpus-cache/d2/closure-library/closure/goog/vec/vec4f.js": {
+   "sha256": "3144cf6f9442e7baa33c5010909e0b6e5a33bae429a0719c0736ec8f06c6f6a6",
+   "bytes": 12650
+  },
+  "corpus-cache/d2/closure-library/closure/goog/window/window.js": {
+   "sha256": "3a114fd8a61283ff87d58467b60b563c23f2bde979f1516837cce06b6f0031ff",
+   "bytes": 15097
+  },
+  "corpus-cache/d2/closure-library/third_party/closure/goog/mochikit/async/deferred.js": {
+   "sha256": "c7ebf4e9e51f26ffeb9e43061aa8aa1ca1262b4e8debe6e72dd13b7bfc05cbd3",
+   "bytes": 32512
+  },
+  "corpus-cache/d2/closure-library/third_party/closure/goog/mochikit/async/deferred_test.js": {
+   "sha256": "336983f803ff2287926d8e444ba65c8a1dae00633262ef2b8948b3a507afe8c0",
+   "bytes": 35920
+  },
+  "corpus-cache/d2/closure-library/third_party/closure/goog/mochikit/async/deferredlist.js": {
+   "sha256": "a116886be7fa98418c996aba72e7d85b37291944e14f67c63936e785d930ca58",
+   "bytes": 7392
+  },
+  "corpus-cache/d2/closure-library/third_party/closure/goog/mochikit/async/deferredlist_test.js": {
+   "sha256": "89f001978d92bf3e95ffd2d59df696ffa0301df19ee676ff47bb6a1218095e1c",
+   "bytes": 11252
+  }
+ },
+ "shims": {
+  "corpus/d2/shims/closure-library-prune-goog.a11y.aria.datatables/entry.js": "5f74cbc10d03277de3c97554ec6e645ac892b2c533eb83d864f44d6abece075e",
+  "corpus/d2/shims/closure-library-prune-goog.a11y.aria/entry.js": "c584516833c2cdd43e03bc9bac7a7cf4356ab83976db4ae59f1f4eb1e921c860",
+  "corpus/d2/shims/closure-library-prune-goog.array/entry.js": "2d8fc1a6516d004174688936e2a17aae235c513df8b75d07cbaf99dbe2c03bfd",
+  "corpus/d2/shims/closure-library-prune-goog.asserts/entry.js": "2d486f1dc64b44d4d670771789f2955a0fa34412345255434b7188128b890652",
+  "corpus/d2/shims/closure-library-prune-goog.async.debouncer/entry.js": "0040eca57dc086a2dec514806e7ea9389b263c93edfcde99d26b74b010dac452",
+  "corpus/d2/shims/closure-library-prune-goog.async.deferred/entry.js": "3020623b366735b94d63b728a9416413954a1216fdba9aaaa51c36cfe3cade71",
+  "corpus/d2/shims/closure-library-prune-goog.async.delay/entry.js": "63eb9c2652513d456253cba692bd4d0958fd4c702c5012abb214e3a0cd9c0e48",
+  "corpus/d2/shims/closure-library-prune-goog.async.nexttick/entry.js": "0f2b56f690e3d0ebe725633aa2249fed9c6c0b261d2f125713a137847d5c7c47",
+  "corpus/d2/shims/closure-library-prune-goog.async.throttle/entry.js": "22b774da6129c3769243bf44eac9f7b28b27a8255a520ca918894cdc9c2f9501",
+  "corpus/d2/shims/closure-library-prune-goog.color.alpha/entry.js": "2e30cd81ed274d138798a056828163e9796eee4fb4142ef4107c60a1f05469e1",
+  "corpus/d2/shims/closure-library-prune-goog.color/entry.js": "97ee31cd57632741383c44689b667bae6a014bc120373815530fb423d30d9c73",
+  "corpus/d2/shims/closure-library-prune-goog.cssom/entry.js": "7dfdcc87c5c179965f85fcd14f4366b5fcc38fe8056f2d837df95d3b760594ef",
+  "corpus/d2/shims/closure-library-prune-goog.date.utcdatetime/entry.js": "42d16e726222465ce7c878765e4fad72a74a812b80c345d545372df911012c95",
+  "corpus/d2/shims/closure-library-prune-goog.date/entry.js": "d2c8e92ae5b736a68562c3607c210ee0741a522ec7a10d85e52faf4b2a35c3a5",
+  "corpus/d2/shims/closure-library-prune-goog.db.index/entry.js": "d4cf47e3f25ec48b8bee81df09b77ca9479b53af0f820f58391d4545bad6a1a1",
+  "corpus/d2/shims/closure-library-prune-goog.db/entry.js": "b1b089c77af313fe6ec5483b7533c8e8427077137880dc28bd9d3be4a3516c78",
+  "corpus/d2/shims/closure-library-prune-goog.debug.console/entry.js": "a2618a25291ae5ab98acb0e81dd5f92f0a107006c76846ef9525b7188ed368a6",
+  "corpus/d2/shims/closure-library-prune-goog.debug.devcss/entry.js": "75420d9d14a92392eeb6c45925f2dcdc1470629b2f8bb314cad71fa015cb6761",
+  "corpus/d2/shims/closure-library-prune-goog.debug.error/entry.js": "9d656422f2ca952f773f207c110a1747e9231f3e46119f9c11ac1c70ccddb84b",
+  "corpus/d2/shims/closure-library-prune-goog.debug.errorreporter/entry.js": "c6e379bbf388799d8a66dd7160f4dcd992f935d28324b35864a88fbd1cb740ef",
+  "corpus/d2/shims/closure-library-prune-goog.delegate.delegates/entry.js": "e38f4795ae991b84c4d1a2109cb97f9e706ba0d8291d03b1acb0ee617803dfda",
+  "corpus/d2/shims/closure-library-prune-goog.dom.animationframe/entry.js": "055984176b72e5e1c937acd8b4b02c79af9ad5654a21615c07e91c69217b5755",
+  "corpus/d2/shims/closure-library-prune-goog.dom.browserrange.abstractrange/entry.js": "e471f4cdc8f9a7630c77708aba52b5ed7ef70acd5fbced41bb28d15b580cd395",
+  "corpus/d2/shims/closure-library-prune-goog.dom.browserrange/entry.js": "746b2ec1af82e167793e8c6160bd22aa4f8d1c6cdff1838f492c2e9dd235d988",
+  "corpus/d2/shims/closure-library-prune-goog.dom.classlist/entry.js": "b7bd503d1cbf9588306ec8c661bf34732a89dea54fa1316557fe0bf1ae83a68f",
+  "corpus/d2/shims/closure-library-prune-goog.dom.forms/entry.js": "97df32e1ea891169b242e49f8074215d57be1521f0c1240981d829023681e131",
+  "corpus/d2/shims/closure-library-prune-goog.dom.safe/entry.js": "5e727162cb59e6b6f22fc4da90c4a8880309fe72b5b7004651252614a71169b9",
+  "corpus/d2/shims/closure-library-prune-goog.dom.tagname/entry.js": "8e920c8813d18e5e226d7d9fc7f96ee533cd453e75e7a14ac0b445b7b92fb6ea",
+  "corpus/d2/shims/closure-library-prune-goog.dom/entry.js": "401291934dbffc4cedf884ebfb024cfc81cfe1d77ede395cb90e6bb87360b93d",
+  "corpus/d2/shims/closure-library-prune-goog.editor.command/entry.js": "93b8e732d789028b412ae0a5fcbdc96d82e51bbc919425ce4caf933c39d4394f",
+  "corpus/d2/shims/closure-library-prune-goog.editor.field/entry.js": "343c58e9b10d25e1d1e8b2727b1429d84eebbb80660810046fb9e5763aa38503",
+  "corpus/d2/shims/closure-library-prune-goog.editor.seamlessfield/entry.js": "6e4bea4e6b1c3f48d486e19300f684f8800767f503f29c9538f86c32b3be5d75",
+  "corpus/d2/shims/closure-library-prune-goog.editor.style/entry.js": "6c97c9d947bb739652724d5d01d2162ee8f18a57bb1ba3d2a00cb85807067d62",
+  "corpus/d2/shims/closure-library-prune-goog.events.browserevent/entry.js": "88ac8f80d5364d01c9c2d69555203ee157eec3eb93a74e47422606b13a091cdc",
+  "corpus/d2/shims/closure-library-prune-goog.events.eventhandler/entry.js": "06bfc155f8ba0ff105aeb47b3fd8779601fa62c7b6a7165c67eb80fcb4a3ec1d",
+  "corpus/d2/shims/closure-library-prune-goog.events.eventtarget/entry.js": "9ddde6fd230cf099c536f3fee25062f40523da2ccdfb418c79e55b9955391cb1",
+  "corpus/d2/shims/closure-library-prune-goog.events.keyhandler/entry.js": "84057f39715da203e993f87b9adf22345a8fbac9291e63b40d7e98f801f99a13",
+  "corpus/d2/shims/closure-library-prune-goog.events/entry.js": "f4f815e3f3dd647de95c861cbaafb260905112ae643ca9998974b7a536485f29",
+  "corpus/d2/shims/closure-library-prune-goog.flags/entry.js": "ada0b8341d3fca8737477dbff0039b58924451d111644928c31985da4f524acc",
+  "corpus/d2/shims/closure-library-prune-goog.format.internationalizedemailaddress/entry.js": "e93b74ed372a9639b23dd10c0d30cdc0aa94f77f075c1c16430cbe85d03bcf62",
+  "corpus/d2/shims/closure-library-prune-goog.format/entry.js": "b95e5aff27efbad0f01a8003cc675395bc782ce0075ad24c6b1ae5c394f575d2",
+  "corpus/d2/shims/closure-library-prune-goog.fs.blob/entry.js": "70166afb169e96180f17802d6e41e520a96bc412cb57f6afa986bb1911c06e41",
+  "corpus/d2/shims/closure-library-prune-goog.fs.filesaver/entry.js": "f22f623543578bef9997278f9b07a2caf31a5f1dd7d93a3b10fbe200cc280ad0",
+  "corpus/d2/shims/closure-library-prune-goog.fs/entry.js": "252a4c00080a6bb9eaa03d6bc93e981c8ef355ccad30a870e3c9d42c0201b686",
+  "corpus/d2/shims/closure-library-prune-goog.functions/entry.js": "9bbec6715ca0433860b088f592635445e20be85bf99032433d950b615db7866c",
+  "corpus/d2/shims/closure-library-prune-goog.fx.anim/entry.js": "05c701ed2401fdfa564d76d53cecbab84617ebe18f4f1f7641027cdd9b28d736",
+  "corpus/d2/shims/closure-library-prune-goog.fx.animation/entry.js": "9543896bfe2ac001660957ea3ceb0e203dbc545d0810c5ccaa74e3f429bcb81c",
+  "corpus/d2/shims/closure-library-prune-goog.fx.css3/entry.js": "83a1b405c016eafd7a3363c62b3a4654fbba6386c54d807f1417ae5e1d5ab6d5",
+  "corpus/d2/shims/closure-library-prune-goog.fx.dragdrop/entry.js": "aeac1f7a11c870b14282ff4f76240bbe905c1fe5d47aab72f8628abdd751ea0e",
+  "corpus/d2/shims/closure-library-prune-goog.fx.dragger/entry.js": "bb376dc7c508010147e702a6aebb8aea683030963f567a1662a56c3b8abbcdff",
+  "corpus/d2/shims/closure-library-prune-goog.graphics.affinetransform/entry.js": "b72175e9f75ffda6614a493a863c632cc82df693345518c180c28acec2ee8e36",
+  "corpus/d2/shims/closure-library-prune-goog.graphics.ellipseelement/entry.js": "8bd747bc1d57f08d820ae4fc40b055e39f1fcb5ce15e0b07644efa4c4bbda2ce",
+  "corpus/d2/shims/closure-library-prune-goog.graphics.ext.group/entry.js": "1d8b9e8ffb866617682a94aa340605cea7c81d6fc21002fc4d3018646ca66edf",
+  "corpus/d2/shims/closure-library-prune-goog.graphics.ext.path/entry.js": "5dcbb6565b9b843df7c294a116dbd13fe10710678398a6cb55e52b9da5d0d064",
+  "corpus/d2/shims/closure-library-prune-goog.graphics.ext.shape/entry.js": "2b381f3e48146ae3d70ec7effeab8552bfa2963713fc633c310e9fdfbe25c442",
+  "corpus/d2/shims/closure-library-prune-goog.graphics.svggraphics/entry.js": "18e6dc27136815d050894e3fba3d483bbc2686ea50fd7deaf74ce8c7a3a161ae",
+  "corpus/d2/shims/closure-library-prune-goog.graphics/entry.js": "67387a4fcf20d199dcf8c35ff17ffb6e73c412c6aa746ffa7611f3f47bd1a8ed",
+  "corpus/d2/shims/closure-library-prune-goog.history.event/entry.js": "cbc8ede37ffd61302cec6d0311a900daf4ed9d58b32512a8daed66f2e304bf51",
+  "corpus/d2/shims/closure-library-prune-goog.history.html5history/entry.js": "3843019efc0fc2d0fcb728493bd59e532c46709ae6807856d852e80335bd6e4a",
+  "corpus/d2/shims/closure-library-prune-goog.html.legacyconversions/entry.js": "0bda996e139b8cd149d095c057fa7e810b292c54032014b6f4e5476595fcfa0d",
+  "corpus/d2/shims/closure-library-prune-goog.html.safehtml/entry.js": "2a7df2c1c2f77d7ed04e303abd90ada5dd10b2f49fcb3bd846c498698eae566b",
+  "corpus/d2/shims/closure-library-prune-goog.html.safeurl/entry.js": "e1f7f3e0eacee8760c892f01d02a0b9dce58e112305383b3429e63ec9d284e85",
+  "corpus/d2/shims/closure-library-prune-goog.html.sanitizer.attributeallowlists/entry.js": "34af34f77f60e81fa902a9aa5434fb8ab0b4e4709ad2429b7f3b8808a3ff4100",
+  "corpus/d2/shims/closure-library-prune-goog.html.sanitizer.htmlsanitizer/entry.js": "115fa954af261e4bd7e46cb8b6b7ba931ece437ae5d93629288fade9a3b4b30e",
+  "corpus/d2/shims/closure-library-prune-goog.html.sanitizer.unsafe/entry.js": "dfb996675136fe948fc1bd6d1ae36a15148c16907f451dd5b302cc49ca67e91e",
+  "corpus/d2/shims/closure-library-prune-goog.i18n.bidi/entry.js": "7609b8fbd603b928b37f1eecbcd1a439e0bf3f2bc3c13e0c8cd697fad6cb8e2c",
+  "corpus/d2/shims/closure-library-prune-goog.i18n.collation/entry.js": "4002f5f7dc3f216d94a00098f3acf9720a32cb654c088a8d42a92161d04a4cc9",
+  "corpus/d2/shims/closure-library-prune-goog.i18n.datetimeformat/entry.js": "58fa3b0e40067b1f13c1cd20c67c0120d1137a37ce065a2a11b86dc2fdd70972",
+  "corpus/d2/shims/closure-library-prune-goog.i18n.messageformat/entry.js": "6d613c2450a25e2b14390970835f5583d2b82fa7a7583c3d0604334d63860f60",
+  "corpus/d2/shims/closure-library-prune-goog.i18n.numberformat/entry.js": "7512c989a38cf72b197886bc545e28f7eeccac4ba01517df4200a7ee39a98907",
+  "corpus/d2/shims/closure-library-prune-goog.i18n.uchar.remotenamefetcher/entry.js": "c3908bbf5be3a745fcb57a19b2cb9dfe1203f2b769427d5a3d782da1de193420",
+  "corpus/d2/shims/closure-library-prune-goog.iter/entry.js": "5688f37b0b9b1cfed7723d7104644dfa6d9e6105f0d5f05b1746540315f55de2",
+  "corpus/d2/shims/closure-library-prune-goog.json.hybrid/entry.js": "ee773fab37480ba9cea3d695d47360fa36138afbf7f13148813164a20d5b097f",
+  "corpus/d2/shims/closure-library-prune-goog.json/entry.js": "7e743e3def633eca927ce46ff5af40b4941b2bb2032bb7e244495576d013305a",
+  "corpus/d2/shims/closure-library-prune-goog.labs.dom.pagevisibilityevent/entry.js": "b61093b5de2148bca31b3c2f82d93c1606bcee771a359db90f43c606f1ec3129",
+  "corpus/d2/shims/closure-library-prune-goog.labs.events.touch/entry.js": "5463a592ffcca6ecb5a7727c866c82e859184823f8a6c595901253003ece6ecc",
+  "corpus/d2/shims/closure-library-prune-goog.labs.format.csv/entry.js": "d04f00df85065fd03e9e35250d8738ebb6b7d210fa870eaecf35046fd78fadaa",
+  "corpus/d2/shims/closure-library-prune-goog.labs.mock/entry.js": "7e08071129ea7d206e0c8351780e7a310435d93d5a9f70611157d1a5fffaa9b4",
+  "corpus/d2/shims/closure-library-prune-goog.labs.net.webchannel.connectionstate/entry.js": "33b37f9f46599640a57ce2e4588c307fa0490470149ee8d51b04efd8ad3f6432",
+  "corpus/d2/shims/closure-library-prune-goog.labs.net.webchannel.testing.fakewebchannel/entry.js": "9b9b482e2790004752da32939d5b0022e2679ae712e38516a59b5e58e274f019",
+  "corpus/d2/shims/closure-library-prune-goog.labs.net.webchannel.webchannelbase/entry.js": "39f1d5d17c3a11b923da1b28ac528b6d1c661571a8f10c3fdef998b51c023e5e",
+  "corpus/d2/shims/closure-library-prune-goog.labs.net.webchannel.webchannelbasetransport/entry.js": "1b4a06a93c8894e851af100be649e643669044646c051aa4b00ed750aecb073e",
+  "corpus/d2/shims/closure-library-prune-goog.labs.pubsub.broadcastpubsub/entry.js": "6b8d82c24662b7c81d8316aeccb331ce01a2c1b19389c575c0823a84d412d5a3",
+  "corpus/d2/shims/closure-library-prune-goog.labs.storage.boundedcollectablestorage/entry.js": "0f6636a86a823f289a1cb423adb3f46867675f19d770dffb0395dd10293eff3a",
+  "corpus/d2/shims/closure-library-prune-goog.labs.style.pixeldensitymonitor/entry.js": "d29e6a2b88ed222c4c156aa723252e2704eea3737c3aea60799e643046a8f6ba",
+  "corpus/d2/shims/closure-library-prune-goog.labs.testing.dictionarymatcher/entry.js": "5caea9d15a9b963cca2b0ad730b6901fb2cae8544e4f75171d2ef0c586a8e5d1",
+  "corpus/d2/shims/closure-library-prune-goog.labs.testing.environment/entry.js": "1e3638a0e22465d85f9447e126c6ed5c1eb7ee5aef95f607f125714b8a7fdef6",
+  "corpus/d2/shims/closure-library-prune-goog.labs.testing.matcher/entry.js": "fe2ddaea20eff5f62a9a0449c6fe4d69229e38dd5cbae370fbd2a8d98cdd44f2",
+  "corpus/d2/shims/closure-library-prune-goog.labs.useragent.browser/entry.js": "2d2d205d593336ce8659e202e08dc7b33ba5643b836a2eb0449554fea7ccec1b",
+  "corpus/d2/shims/closure-library-prune-goog.labs.useragent.highentropy.highentropydata/entry.js": "d8b624b19177ae9a4a9d828dee8e5f4f71bacad1d8838b1bb7f6318b3d964cd3",
+  "corpus/d2/shims/closure-library-prune-goog.labs.useragent.testagents/entry.js": "b8f33321f1f3fdf2be6641aebf43331b3636a37d3207052afa6a593a87f1135e",
+  "corpus/d2/shims/closure-library-prune-goog.labs.useragent.testutil/entry.js": "b3b4827ac1d505aa6525a0986c9bb14b734082df39084ac238cbb48f519ae2c0",
+  "corpus/d2/shims/closure-library-prune-goog.loader.activemodulemanager/entry.js": "f9f9cd4fe29b3ae9c50628503d0f83a7a862bd1244b217e0d37c4649b347dfc4",
+  "corpus/d2/shims/closure-library-prune-goog.locale.countries/entry.js": "4474290e9d1083ff179c81ed1c8d6af2e408210ad4e009304acb8302be9953dc",
+  "corpus/d2/shims/closure-library-prune-goog.locale.timezonedetection/entry.js": "81cd013399ba413698e6b03a0daefaa4d3fdaec0d138dda191957a5125367fa4",
+  "corpus/d2/shims/closure-library-prune-goog.log/entry.js": "ec47bbbf72d3eba288c26a26cc1768991bb2b8c1ef3a02183377200934870b38",
+  "corpus/d2/shims/closure-library-prune-goog.math.box/entry.js": "0e1f3619716518731bf810fd9f5291fb95f986e57b40215c910f86d9c16b13b4",
+  "corpus/d2/shims/closure-library-prune-goog.math.integer/entry.js": "a3248142246bdb08c40d242a79e7c66d0edcfe94d54c98e8fd8bb2926d2aed02",
+  "corpus/d2/shims/closure-library-prune-goog.math.interpolator.spline1/entry.js": "f6988e0d9addcfe203d638d5243f2d86c920268abdd6a7f6203ae59caf082c61",
+  "corpus/d2/shims/closure-library-prune-goog.math.long/entry.js": "6e3bdd4cebfff85ac3a90968cf542fccaee89f9daeb0aa819c8ff8b66423b51c",
+  "corpus/d2/shims/closure-library-prune-goog.math.matrix/entry.js": "a176bdb348d947e5d7f87d76fc9cdba6d1bbb8004b0a3eb75058f9f71bab4d5a",
+  "corpus/d2/shims/closure-library-prune-goog.math.rect/entry.js": "337d8da4ea091a5d42724f3a1a5005b895dd67ac66ee90cc68edc67e2f96b0ee",
+  "corpus/d2/shims/closure-library-prune-goog.math/entry.js": "65e8e14b1a6aedcb410425a63880d9ffd4cf8483880a7e25a457ba29520905a4",
+  "corpus/d2/shims/closure-library-prune-goog.memoize/entry.js": "1ca69d0aab47b11f9a0ba98e78e0379bb15ad0b87be5dc9787667f2d3bae43cc",
+  "corpus/d2/shims/closure-library-prune-goog.messaging.portchannel/entry.js": "8bc11f10855992e33bbb41dff9ce737c4a79468056ea6095cc26d40719951270",
+  "corpus/d2/shims/closure-library-prune-goog.messaging.portoperator/entry.js": "1aa9ffbd4d7ec9025a626026d1fc341fe2ccbabebe1882f2b263238cfa2cf10f",
+  "corpus/d2/shims/closure-library-prune-goog.messaging/entry.js": "fd926b7bcb791c031ac378967dd86b3d5f0bbf6c5bcda8ed911bf2a0e51336cf",
+  "corpus/d2/shims/closure-library-prune-goog.net.browserchannelinternal.hooks/entry.js": "e2b0c07dc1cb3275cb1412ebb3bfcddea826cb4e6e81005ae1c4f184dac6fb59",
+  "corpus/d2/shims/closure-library-prune-goog.net.cookies/entry.js": "ddbda01d54b38049541f906aadc4341c0aef73971f548836e28404e32be2479d",
+  "corpus/d2/shims/closure-library-prune-goog.net.createwebchanneltransport/entry.js": "53b07b4e97d1a73edd27f74d9fd50a7d2ff8c77d3d9c06b8962a363b65f5ddac",
+  "corpus/d2/shims/closure-library-prune-goog.net.filedownloader/entry.js": "35a85ef8757cc4021c6729bd53ff6c5b0e2fa2e242f9b64e0c98f1a4d2d92a84",
+  "corpus/d2/shims/closure-library-prune-goog.net.jsloader/entry.js": "4d83e303802ba41c67699da9387a33efdcd989f393b24ee7bdb12891129fd8f5",
+  "corpus/d2/shims/closure-library-prune-goog.net.webchannel/entry.js": "0fda6a435998fcf428abd25a65c18a2970568fa538bd95c98fd8c55809fc5188",
+  "corpus/d2/shims/closure-library-prune-goog.net.xhrio/entry.js": "f88d9ea6bbb86b5127fa1099959329ef27ca28b03564171bb405e33c14061633",
+  "corpus/d2/shims/closure-library-prune-goog.net.xpc.crosspagechannelrole/entry.js": "2883955541f8aaaf6d8deba1520c0198c6efdbfa5732485a7be7f7a5566073d4",
+  "corpus/d2/shims/closure-library-prune-goog.net.xpc.nativemessagingtransport/entry.js": "3ed4d67481997afd093dff7e803a89ffc34f442ab4e77491ab8bbc0fa0f322bd",
+  "corpus/d2/shims/closure-library-prune-goog.object/entry.js": "03532d6d49e980525c9bff6f74bd541aa265f72d8065b677f21248a4407f848d",
+  "corpus/d2/shims/closure-library-prune-goog.positioning.anchoredposition/entry.js": "b055a9637a074a7c7dbd2e9dbf93e1349c987ef4e65dff381cd20c68a2335be2",
+  "corpus/d2/shims/closure-library-prune-goog.positioning.menuanchoredposition/entry.js": "3cf38055813182bec2a31940e218a4eb199e0ad21f499b2862d97c97bceffa9f",
+  "corpus/d2/shims/closure-library-prune-goog.positioning/entry.js": "da497648528b59831823cd40553578531e1fbe36df4140e007b0705f5a077884",
+  "corpus/d2/shims/closure-library-prune-goog.promise/entry.js": "d1fe3522d0520f592a50c752215edd9a4bf475145a945f193e23beebe6d1f30c",
+  "corpus/d2/shims/closure-library-prune-goog.proto/entry.js": "d8791867b0b371e83c092ba6b1232cdc29fb6667101b1a21b477f87786e986fa",
+  "corpus/d2/shims/closure-library-prune-goog.pubsub.pubsub/entry.js": "9f6e612a722b343f6ea6142c7eec756f1b75747d593bbefa02cdf04a65d0a69e",
+  "corpus/d2/shims/closure-library-prune-goog.reflect/entry.js": "9b203bf0c6584821cc40c0c7004c79547683fe0342db88a7a3d858b980c11ee2",
+  "corpus/d2/shims/closure-library-prune-goog.singleton/entry.js": "0fbf2fdbb8eca654ea7cf11b7e74210abbcbffc446af70f825406f3805c5fedf",
+  "corpus/d2/shims/closure-library-prune-goog.spell.spellcheck/entry.js": "eab71e25342c5693624f7a4a27e26cea577fd8999d155eeb1e05a208154288e0",
+  "corpus/d2/shims/closure-library-prune-goog.stats.basicstat/entry.js": "071cfb589d9ea169fa22f4731384388a0e628c2f6d7164fefa5011edac5c27cf",
+  "corpus/d2/shims/closure-library-prune-goog.storage.collectablestorage/entry.js": "aa91d5c87aa218b893f7701d128177cd7641d329139f3d15eeaddd76d1647ac1",
+  "corpus/d2/shims/closure-library-prune-goog.storage.storage/entry.js": "7775f9b275c5a963c6c77077f6cee9fdb02f008706097c507c04d8b83d08d76d",
+  "corpus/d2/shims/closure-library-prune-goog.streams.fullimpl/entry.js": "d034bee71368951dd98af1354f846f048c015822e9e4203997929d3bca605ad0",
+  "corpus/d2/shims/closure-library-prune-goog.streams.lite/entry.js": "c8c112e7904b7ddb5f52bb80972f7e2feaaf7ec159b6789966f7b1eb4913f71b",
+  "corpus/d2/shims/closure-library-prune-goog.string.format/entry.js": "bcbc4129b14ea4f2ee1d82fb9c0388d314755d2949833a7d3276960222efa971",
+  "corpus/d2/shims/closure-library-prune-goog.string/entry.js": "1e83869fc4706201f662ad6f669a14b6af8dc9dbea84d613668423bbaa268d7a",
+  "corpus/d2/shims/closure-library-prune-goog.structs.avltree/entry.js": "a0bfdb12c26d4f223b7a0eeca2cbf6f8f488216e5b86eacff3fa946314aac6ff",
+  "corpus/d2/shims/closure-library-prune-goog.structs.linkedmap/entry.js": "a937cdb31b91d229afc9b4b8989f0859b27f011a537a7fa363ddfd6141093c98",
+  "corpus/d2/shims/closure-library-prune-goog.structs.map/entry.js": "5bf0aca29d87acd2ed06dc3b4597ec18de02ad1ac432b19c7cdb1b67fec3096c",
+  "corpus/d2/shims/closure-library-prune-goog.structs.priorityqueue/entry.js": "b3816bf941e7a212ca408c1034a39812276a9ff871f89cbd621d5a260e739861",
+  "corpus/d2/shims/closure-library-prune-goog.structs.set/entry.js": "9f9d3492e388c326695e85c2310eb1a97d80d6f49baad26a3a949b7edabd0a41",
+  "corpus/d2/shims/closure-library-prune-goog.structs/entry.js": "b9089c3aaa1864ecfb07d584c4d2bbcd561cac450cbd336f31984a93ae62f11f",
+  "corpus/d2/shims/closure-library-prune-goog.style.transform/entry.js": "e922362437331e97c6cedf36c745a6593ce1213db073e35b644c5e6d218cc46a",
+  "corpus/d2/shims/closure-library-prune-goog.style/entry.js": "039baf7a26cd79fbf0acf3adbb310f1414b2538df108d73d90b459b69e959b3b",
+  "corpus/d2/shims/closure-library-prune-goog.test_module/entry.js": "a8c9b8ef4e426e8677fd1624ce1a318e6960e74fd70fc56e2fd2997ec0064ee0",
+  "corpus/d2/shims/closure-library-prune-goog.testing.asserts/entry.js": "047bf59546e4e641ea193aad4ffa135a8e23082fa691107e740359a54b026a27",
+  "corpus/d2/shims/closure-library-prune-goog.testing.async.mockcontrol/entry.js": "41acd21ed8dd2a56c7e736415f7da4462855b936f92c9f71ea8746f1e294b9eb",
+  "corpus/d2/shims/closure-library-prune-goog.testing.cspviolationobserver/entry.js": "6ddf69b11f01e85b5fc48db1d87a977e50b5f126a116af5c9de9381402d418a7",
+  "corpus/d2/shims/closure-library-prune-goog.testing.editor.fieldmock/entry.js": "f2a5ad29966e2eeb0775de0d7d2710914c68bcbf837430b4f2e89f43ed81da28",
+  "corpus/d2/shims/closure-library-prune-goog.testing.events.eventobserver/entry.js": "144aa7fa96fea09c0ff115878176b6b395f1ee6c736e6d1d8f07e4db35c8cb76",
+  "corpus/d2/shims/closure-library-prune-goog.testing.events/entry.js": "849533abfba7f58c38a1eb3b939029cff83bf85a0208b7ed0d347acf9727b977",
+  "corpus/d2/shims/closure-library-prune-goog.testing.fs.blob/entry.js": "31c4086c50dab6d5ad25f0fc9c553a1352a7efeb44b442756fbdae9c4a2eb9cd",
+  "corpus/d2/shims/closure-library-prune-goog.testing.fs/entry.js": "e3cb205f99af908c357636ae09c8cd31ba0d97e0a52677476b70bc3910c43443",
+  "corpus/d2/shims/closure-library-prune-goog.testing.i18n.asserts/entry.js": "a7524ffc61e0b8b3fb089149379d164219485c4292adca8aa6547cfe618bb873",
+  "corpus/d2/shims/closure-library-prune-goog.testing.messaging.mockmessageevent/entry.js": "07b02bdb565823dd5ab97673a348f839614e1242152fc7056cae8e186ce24331",
+  "corpus/d2/shims/closure-library-prune-goog.testing.messaging.mockmessageport/entry.js": "e35fe5bc52c0c31cd647e39f78283a109d820cc6fee9767cd0c97b00f9b36add",
+  "corpus/d2/shims/closure-library-prune-goog.testing.mock/entry.js": "d41f560713268ba40e25d53e86b470ec7cb073f7517fe5e8f61cf6bcd0ea4020",
+  "corpus/d2/shims/closure-library-prune-goog.testing.mockclock/entry.js": "1755eb3666de6ea23c3d45507669f54108645a19444310f941f267f2accf310c",
+  "corpus/d2/shims/closure-library-prune-goog.testing.net.xhrio/entry.js": "6f7350607f7ae68fd6f21f3428d75015d930226ffeca348650144959ef27e32a",
+  "corpus/d2/shims/closure-library-prune-goog.testing.parallelclosuretestsuite/entry.js": "7610e6f8a651e793fd3c682e43e41d341fa553e78ff89db0df7e7a8db8cc5577",
+  "corpus/d2/shims/closure-library-prune-goog.testing.proto2/entry.js": "874a1de65e3acb8d6cb93971c6428bf909f5dba335cd0dfcc73bf8dc24cbb790",
+  "corpus/d2/shims/closure-library-prune-goog.testing.storage.fakemechanism/entry.js": "6ad187d22ecf72bcbd127c2462a48c0499374d934a642eab63506158af783d30",
+  "corpus/d2/shims/closure-library-prune-goog.testing.style/entry.js": "4795ba56f56026c2a3bfd24b8bddf1782ca46cb15880b058699bb9df382376f6",
+  "corpus/d2/shims/closure-library-prune-goog.testing.ui.rendererasserts/entry.js": "3a28810a84f3041bda6f55fabd5e719334395fdde737c354d5044f9e0b9369e0",
+  "corpus/d2/shims/closure-library-prune-goog.timer/entry.js": "3cc4733f6019579bcb361e651b1e66af723a8c420edcc67c411b27e208a17bbc",
+  "corpus/d2/shims/closure-library-prune-goog.tweak.registry/entry.js": "8c5c42daa0e2103c11bf7cf23adac2ddf0c0fcd068311dbd66a9b325b3542c40",
+  "corpus/d2/shims/closure-library-prune-goog.tweak/entry.js": "424c6f8732450461cce30393e72e22b296cfb25258d081873fc6f00ba815c32d",
+  "corpus/d2/shims/closure-library-prune-goog.ui.ac.autocomplete/entry.js": "f9137aea4d88e573f0f29451ab0a2a3839b55222aa8438d617bd5cf55b2c3ba5",
+  "corpus/d2/shims/closure-library-prune-goog.ui.ac.renderoptions/entry.js": "4edcead7b5223eb7d4be1da2b6d0f1c15fe3b0b6f141608cbe5c4bada4999e46",
+  "corpus/d2/shims/closure-library-prune-goog.ui.ac.richremote/entry.js": "8b3e1d176fb74fc6d46ac2dc10e8be735008257908a7b19e147e18c74432456a",
+  "corpus/d2/shims/closure-library-prune-goog.ui.buttonside/entry.js": "13494266ef178febf9769a07d7ee3e4d2b8f09d87491e8809a0b686eea457dd6",
+  "corpus/d2/shims/closure-library-prune-goog.ui.component/entry.js": "5b48d1fa6240d1388901d9fe1f4bae864a2b88e55c0e47eada98ea38e49f407c",
+  "corpus/d2/shims/closure-library-prune-goog.ui.container/entry.js": "18e231ace69f7f043cdd00383d1d4e277d43e73c679f42bca5a7711c5f749e07",
+  "corpus/d2/shims/closure-library-prune-goog.ui.control/entry.js": "e3ee4a92c152fbbb678447971737cde066e1560f1f702b26bf3dff65c933ad9f",
+  "corpus/d2/shims/closure-library-prune-goog.ui.datepicker/entry.js": "0cc8f8689aa774e100658480c45f29da169a851475f2e313a8a77dadca7aa46c",
+  "corpus/d2/shims/closure-library-prune-goog.ui.dialog/entry.js": "dfd6c24e15c76ff1856552890fa95227b2b658ae028cbf0916a7ceea5a8bc4ae",
+  "corpus/d2/shims/closure-library-prune-goog.ui.emoji.emoji/entry.js": "90d0fdd2047adbc8602e31b0e8edaab4a0dc040ff6fded7891a9b6ac4eb63c31",
+  "corpus/d2/shims/closure-library-prune-goog.ui.emoji.popupemojipicker/entry.js": "948b25b567f457938b8eeb02015315733449ed099fb9805e8ef415cd20e72f72",
+  "corpus/d2/shims/closure-library-prune-goog.ui.menu/entry.js": "cd2491f11d02e2b3abc8c374d7cbdef6c02c136e62f0dd8c907de02b08251c32",
+  "corpus/d2/shims/closure-library-prune-goog.ui.menuitemrenderer/entry.js": "8fefb440b45bfbd967a1df34d943e9a7f7fa7449e83ff844d1d94ffe415fbd4e",
+  "corpus/d2/shims/closure-library-prune-goog.ui.richtextspellchecker/entry.js": "79bc3f238b4781661df137c63bbecab98d3472796e15beb0b013b34a50c639ba",
+  "corpus/d2/shims/closure-library-prune-goog.ui.style.app.primaryactionbuttonrenderer/entry.js": "f02657f3a7fb6ed05cb7fd21a1ef54ded53d5f2dc24273f08a164331c7ea1889",
+  "corpus/d2/shims/closure-library-prune-goog.ui.tooltip/entry.js": "40b58731dbabaf6da97b313eebdf53e7418fe99e62de1377503520ede71080b3",
+  "corpus/d2/shims/closure-library-prune-goog.ui.tree.treecontrol/entry.js": "37a015a21992351da8a4ec39e29979b25af35b4a78666547d3abea2cb2a270f0",
+  "corpus/d2/shims/closure-library-prune-goog.ui.tree.treenode/entry.js": "bf51706934aff4aef9b0d306f62e670ee643ca9f6c9dfdb2654cbacf696a1adf",
+  "corpus/d2/shims/closure-library-prune-goog.uri.utils/entry.js": "41c8ce889ee20119ca8a17ec1b96508a7d671da9601ede52bafd02732380b609",
+  "corpus/d2/shims/closure-library-prune-goog.uri/entry.js": "1b237ba8e231554a9f1302d1eb9cecdc8741e08e202cebc8c4e9e12d6771e053",
+  "corpus/d2/shims/closure-library-prune-goog.url/entry.js": "da0c8e8bfa4c13f57652027a366cb1d4c3dfb518802f9899ab7af662462bb818",
+  "corpus/d2/shims/closure-library-prune-goog.useragent.keyboard/entry.js": "9532b291f45a0d3c03d0f4ff7b362025f199bf5db1cbca430bc6f58b6275ef2d",
+  "corpus/d2/shims/closure-library-prune-goog.useragent/entry.js": "1a53e2173c26fa7c9e5bc6b1b38b8563935c8ca93f4320b629e92a46091c2c0c",
+  "corpus/d2/shims/closure-library-prune-goog.useragenttestutil/entry.js": "09fa5c2aadc9fbc8b98f436628ee09c322fac0006912d6b31c07a21788e1c487",
+  "corpus/d2/shims/closure-library-prune-goog.vec.float32array/entry.js": "64d7c7e5f4791436a9474700161e141ed5c68ae067099e585c13558395c6c76f",
+  "corpus/d2/shims/closure-library-prune-goog.vec.mat4/entry.js": "1c4fc7089009b7f7951cbbdbde47f3456cb63e238bd06559e5202d9fdbc57d66",
+  "corpus/d2/shims/closure-library-prune-goog.vec.mat4f/entry.js": "097db0c115667068eb62d1fffff04ed3a4fcee07f869d040cf80a3f4b533e002",
+  "corpus/d2/shims/closure-library-prune-goog.vec.vec4/entry.js": "ea162cc53b4dc7ade255f25efd27acbdab1d0455a093b0ed89595f4c633c5194",
+  "corpus/d2/shims/closure-library-prune-goog.window/entry.js": "bc36c8a32c2fb9e6c2190ad09a04497428b2debef52964c0b63261c844a5e857",
+  "corpus/d2/shims/closure-library-prune-xpcdemo/entry.js": "d247d2cc7abe16e2b1b5e7fb817ae370e80a0b4bc78b653dc63ede462a8e99b3",
+  "corpus/d2/shims/closure-library-test-goog.a11y.aria.announcertest/entry.js": "7f3f6991a9de0a754b9e9b3551bfc0e1ad829932745a5526d5395020a192eb1d",
+  "corpus/d2/shims/closure-library-test-goog.async.deferredtest/entry.js": "1cd82a9354f94e4134761ed1e9c5223bcdc8c8071aa63b7bc3b8dccaabf434d3",
+  "corpus/d2/shims/closure-library-test-goog.async.runtest/entry.js": "b9979a4d0fef4d682372e8f2cde6d320b3bf52a205558646a42e27b08f3c95cc",
+  "corpus/d2/shims/closure-library-test-goog.defineclasstest/entry.js": "976f7dfb300178349b29fd9c323a80b4f42b944e989829f31a2c29f466af1707",
+  "corpus/d2/shims/closure-library-test-goog.format.jsonprettyprintertest/entry.js": "eec349fe10b8344ebc13b8563cef02e24d86c8d978cb3eca978e1dc30a77e446",
+  "corpus/d2/shims/closure-library-test-goog.fx.draglistgrouptest/entry.js": "d2561cfb36f865cd79aedb1b2309936a935cc2fa07ed2f46227aff81aa076ab2",
+  "corpus/d2/shims/closure-library-test-goog.html.utilstest/entry.js": "2b2920579dd962e1887059f8f38f4eb475c695c541902741022f82393fb5c2b4",
+  "corpus/d2/shims/closure-library-test-goog.labs.testing.assertthattest/entry.js": "f6f184fad26a7e8730b3d759542f2d2c6f8bf50e4d5618a7eb7a643e3f898cc4",
+  "corpus/d2/shims/closure-library-test-goog.log.logbuffertest/entry.js": "e10dc431ebd95153942723ba90c57bf4dcef8001bf7f3ceb11eb11a0f0a974e8",
+  "corpus/d2/shims/closure-library-test-goog.positioning.anchoredviewportpositiontest/entry.js": "4e991a4b722c164f7d512fe2c87eb43a27f1c56325935c15f4e60186d18b80d2",
+  "corpus/d2/shims/closure-library-test-goog.style.transformtest/entry.js": "eb73cb25b75d3b6cfa15a88b4baa60e6c273acd176594838c79806f9c3fae8e6",
+  "corpus/d2/shims/closure-library-test-goog.tweak.registrytest/entry.js": "e615b1f6d530b2ee5465361f8c22ca0f55b537b56fc7a4a1ec2ac56ac2077731",
+  "corpus/d2/shims/closure-library-test-goog.useragenttest/entry.js": "7cff50fbb0e456395c2cfd4e08275b860372c232e1869298baa94d26789ba994"
+ }
+}

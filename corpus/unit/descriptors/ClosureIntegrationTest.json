@@ -1,0 +1,5 @@
+{
+ "source": "test/com/google/javascript/jscomp/integration/ClosureIntegrationTest.java: IntegrationTestCase subclass; records replay through ReplayIntegrationTest; options come from the record, there is no processor.",
+ "cases": [],
+ "note": "Classify round 1, batch 4: the legacy postCallAssertions entry (testTypecheckClass_assignedInNestedAssignInGoogModule) was moved to corpus/unit/postcall/ClosureIntegrationTest.json, which now classifies all 12 flagged methods (FORMAT.md: descriptor postCallAssertions no longer classify anything)."
+}

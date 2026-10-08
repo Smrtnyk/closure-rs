@@ -1,0 +1,2764 @@
+{
+  "v": 2,
+  "class": "com.google.javascript.jscomp.CompilerOptions",
+  "depth": 4,
+  "fields": {
+    "emitUseStrict": {
+      "object": "com.google.common.base.Absent",
+      "fields": {}
+    },
+    "languageIn": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$LanguageMode",
+      "name": "ECMASCRIPT_NEXT"
+    },
+    "outputFeatureSet": {
+      "object": "com.google.common.base.Absent",
+      "fields": {}
+    },
+    "experimentalOutputFeatureSet": {
+      "object": "com.google.common.base.Absent",
+      "fields": {}
+    },
+    "languageOutIsDefaultStrict": {
+      "object": "com.google.common.base.Absent",
+      "fields": {}
+    },
+    "environment": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$Environment",
+      "name": "BROWSER"
+    },
+    "browserFeaturesetYear": null,
+    "instrumentForCoverageOnly": false,
+    "typedAstOutputFile": null,
+    "mergedPrecompiledLibraries": false,
+    "inferConsts": true,
+    "assumeStrictThis": false,
+    "preserveDetailedSourceInfo": false,
+    "preserveNonJSDocComments": false,
+    "continueAfterErrors": false,
+    "incrementalCheckMode": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$IncrementalCheckMode",
+      "name": "OFF"
+    },
+    "parseJsDocDocumentation": {
+      "enum": "com.google.javascript.jscomp.parsing.Config$JsDocParsing",
+      "name": "TYPES_ONLY"
+    },
+    "printExterns": false,
+    "inferTypes": false,
+    "skipNonTranspilationPasses": false,
+    "devMode": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$DevMode",
+      "name": "OFF"
+    },
+    "checkDeterminism": false,
+    "dependencyOptions": {
+      "object": "com.google.javascript.jscomp.DependencyOptions",
+      "fields": {
+        "mode": {
+          "enum": "com.google.javascript.jscomp.DependencyOptions$DependencyMode",
+          "name": "NONE"
+        },
+        "entryPoints": {
+          "list": [],
+          "impl": "com.google.common.collect.RegularImmutableList"
+        }
+      }
+    },
+    "messageBundle": null,
+    "strictMessageReplacement": false,
+    "checkSymbols": false,
+    "checkSuspiciousCode": false,
+    "checkTypes": false,
+    "extraAnnotationNames": null,
+    "numParallelThreads": 1,
+    "foldConstants": false,
+    "deadAssignmentElimination": false,
+    "deadPropertyAssignmentElimination": {
+      "enum": "com.google.javascript.jscomp.base.Tri",
+      "name": "UNKNOWN"
+    },
+    "inlineConstantVars": false,
+    "maxFunctionSizeAfterInlining": -1,
+    "assumeClosuresOnlyCaptureReferences": false,
+    "inlineProperties": false,
+    "crossChunkCodeMotion": false,
+    "crossChunkCodeMotionNoStubMethods": false,
+    "parentChunkCanSeeSymbolsDeclaredInChildren": false,
+    "coalesceVariableNames": false,
+    "optimizeLetAndConst": true,
+    "assumeGlobalScopeIsIsolated": false,
+    "crossChunkMethodMotion": false,
+    "inlineGetters": false,
+    "inlineVariables": false,
+    "inlineLocalVariables": false,
+    "flowSensitiveInlineVariables": false,
+    "smartNameRemoval": false,
+    "extractPrototypeMemberDeclarations": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$ExtractPrototypeMemberDeclarationsMode",
+      "name": "OFF"
+    },
+    "removeUnusedPrototypeProperties": false,
+    "removeUnusedClassProperties": false,
+    "removeUnusedVars": false,
+    "removeUnusedLocalVars": false,
+    "collapseVariableDeclarations": false,
+    "collapseAnonymousFunctions": false,
+    "aliasStringsMode": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$AliasStringsMode",
+      "name": "NONE"
+    },
+    "outputJsStringUsage": false,
+    "convertToDottedProperties": false,
+    "rewriteFunctionExpressions": false,
+    "optimizeCalls": false,
+    "optimizeESClassConstructors": false,
+    "useTypesForLocalOptimization": false,
+    "useSizeHeuristicToStopOptimizationLoop": true,
+    "optimizationLoopMaxIterations": 0,
+    "variableRenaming": {
+      "enum": "com.google.javascript.jscomp.VariableRenamingPolicy",
+      "name": "OFF"
+    },
+    "propertyRenaming": {
+      "enum": "com.google.javascript.jscomp.PropertyRenamingPolicy",
+      "name": "OFF"
+    },
+    "propertyRenamingOnlyCompilationMode": false,
+    "labelRenaming": false,
+    "reserveRawExports": false,
+    "preferStableNames": false,
+    "generatePseudoNames": false,
+    "renamePrefix": null,
+    "renamePrefixNamespace": null,
+    "renamePrefixNamespaceAssumeCrossChunkNames": false,
+    "optimizeLocalAccessForGlobalSymbolNamespace": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$OptimizeLocalAccess",
+      "name": "DISABLED"
+    },
+    "collapsePropertiesLevel": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$PropertyCollapseLevel",
+      "name": "NONE"
+    },
+    "collapseObjectLiterals": false,
+    "devirtualizeMethods": false,
+    "computeFunctionSideEffects": false,
+    "disambiguateProperties": false,
+    "ambiguateProperties": false,
+    "inputSourceMaps": {
+      "map": [],
+      "impl": "com.google.common.collect.RegularImmutableMap"
+    },
+    "inputVariableMap": null,
+    "inputPropertyMap": null,
+    "exportTestFunctions": false,
+    "nameGenerator": {
+      "object": "com.google.javascript.jscomp.DefaultNameGenerator",
+      "fields": {
+        "priorityLookupMap": {
+          "map": [
+            [
+              {
+                "char": "a"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "a"
+                  },
+                  "occurrence": 0,
+                  "order": 0
+                }
+              }
+            ],
+            [
+              {
+                "char": "b"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "b"
+                  },
+                  "occurrence": 0,
+                  "order": 1
+                }
+              }
+            ],
+            [
+              {
+                "char": "c"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "c"
+                  },
+                  "occurrence": 0,
+                  "order": 2
+                }
+              }
+            ],
+            [
+              {
+                "char": "d"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "d"
+                  },
+                  "occurrence": 0,
+                  "order": 3
+                }
+              }
+            ],
+            [
+              {
+                "char": "e"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "e"
+                  },
+                  "occurrence": 0,
+                  "order": 4
+                }
+              }
+            ],
+            [
+              {
+                "char": "f"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "f"
+                  },
+                  "occurrence": 0,
+                  "order": 5
+                }
+              }
+            ],
+            [
+              {
+                "char": "g"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "g"
+                  },
+                  "occurrence": 0,
+                  "order": 6
+                }
+              }
+            ],
+            [
+              {
+                "char": "h"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "h"
+                  },
+                  "occurrence": 0,
+                  "order": 7
+                }
+              }
+            ],
+            [
+              {
+                "char": "i"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "i"
+                  },
+                  "occurrence": 0,
+                  "order": 8
+                }
+              }
+            ],
+            [
+              {
+                "char": "j"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "j"
+                  },
+                  "occurrence": 0,
+                  "order": 9
+                }
+              }
+            ],
+            [
+              {
+                "char": "k"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "k"
+                  },
+                  "occurrence": 0,
+                  "order": 10
+                }
+              }
+            ],
+            [
+              {
+                "char": "l"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "l"
+                  },
+                  "occurrence": 0,
+                  "order": 11
+                }
+              }
+            ],
+            [
+              {
+                "char": "m"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "m"
+                  },
+                  "occurrence": 0,
+                  "order": 12
+                }
+              }
+            ],
+            [
+              {
+                "char": "n"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "n"
+                  },
+                  "occurrence": 0,
+                  "order": 13
+                }
+              }
+            ],
+            [
+              {
+                "char": "o"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "o"
+                  },
+                  "occurrence": 0,
+                  "order": 14
+                }
+              }
+            ],
+            [
+              {
+                "char": "p"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "p"
+                  },
+                  "occurrence": 0,
+                  "order": 15
+                }
+              }
+            ],
+            [
+              {
+                "char": "q"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "q"
+                  },
+                  "occurrence": 0,
+                  "order": 16
+                }
+              }
+            ],
+            [
+              {
+                "char": "r"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "r"
+                  },
+                  "occurrence": 0,
+                  "order": 17
+                }
+              }
+            ],
+            [
+              {
+                "char": "s"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "s"
+                  },
+                  "occurrence": 0,
+                  "order": 18
+                }
+              }
+            ],
+            [
+              {
+                "char": "t"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "t"
+                  },
+                  "occurrence": 0,
+                  "order": 19
+                }
+              }
+            ],
+            [
+              {
+                "char": "u"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "u"
+                  },
+                  "occurrence": 0,
+                  "order": 20
+                }
+              }
+            ],
+            [
+              {
+                "char": "v"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "v"
+                  },
+                  "occurrence": 0,
+                  "order": 21
+                }
+              }
+            ],
+            [
+              {
+                "char": "w"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "w"
+                  },
+                  "occurrence": 0,
+                  "order": 22
+                }
+              }
+            ],
+            [
+              {
+                "char": "x"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "x"
+                  },
+                  "occurrence": 0,
+                  "order": 23
+                }
+              }
+            ],
+            [
+              {
+                "char": "y"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "y"
+                  },
+                  "occurrence": 0,
+                  "order": 24
+                }
+              }
+            ],
+            [
+              {
+                "char": "z"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "z"
+                  },
+                  "occurrence": 0,
+                  "order": 25
+                }
+              }
+            ],
+            [
+              {
+                "char": "A"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "A"
+                  },
+                  "occurrence": 0,
+                  "order": 26
+                }
+              }
+            ],
+            [
+              {
+                "char": "B"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "B"
+                  },
+                  "occurrence": 0,
+                  "order": 27
+                }
+              }
+            ],
+            [
+              {
+                "char": "C"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "C"
+                  },
+                  "occurrence": 0,
+                  "order": 28
+                }
+              }
+            ],
+            [
+              {
+                "char": "D"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "D"
+                  },
+                  "occurrence": 0,
+                  "order": 29
+                }
+              }
+            ],
+            [
+              {
+                "char": "E"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "E"
+                  },
+                  "occurrence": 0,
+                  "order": 30
+                }
+              }
+            ],
+            [
+              {
+                "char": "F"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "F"
+                  },
+                  "occurrence": 0,
+                  "order": 31
+                }
+              }
+            ],
+            [
+              {
+                "char": "G"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "G"
+                  },
+                  "occurrence": 0,
+                  "order": 32
+                }
+              }
+            ],
+            [
+              {
+                "char": "H"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "H"
+                  },
+                  "occurrence": 0,
+                  "order": 33
+                }
+              }
+            ],
+            [
+              {
+                "char": "I"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "I"
+                  },
+                  "occurrence": 0,
+                  "order": 34
+                }
+              }
+            ],
+            [
+              {
+                "char": "J"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "J"
+                  },
+                  "occurrence": 0,
+                  "order": 35
+                }
+              }
+            ],
+            [
+              {
+                "char": "K"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "K"
+                  },
+                  "occurrence": 0,
+                  "order": 36
+                }
+              }
+            ],
+            [
+              {
+                "char": "L"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "L"
+                  },
+                  "occurrence": 0,
+                  "order": 37
+                }
+              }
+            ],
+            [
+              {
+                "char": "M"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "M"
+                  },
+                  "occurrence": 0,
+                  "order": 38
+                }
+              }
+            ],
+            [
+              {
+                "char": "N"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "N"
+                  },
+                  "occurrence": 0,
+                  "order": 39
+                }
+              }
+            ],
+            [
+              {
+                "char": "O"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "O"
+                  },
+                  "occurrence": 0,
+                  "order": 40
+                }
+              }
+            ],
+            [
+              {
+                "char": "P"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "P"
+                  },
+                  "occurrence": 0,
+                  "order": 41
+                }
+              }
+            ],
+            [
+              {
+                "char": "Q"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "Q"
+                  },
+                  "occurrence": 0,
+                  "order": 42
+                }
+              }
+            ],
+            [
+              {
+                "char": "R"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "R"
+                  },
+                  "occurrence": 0,
+                  "order": 43
+                }
+              }
+            ],
+            [
+              {
+                "char": "S"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "S"
+                  },
+                  "occurrence": 0,
+                  "order": 44
+                }
+              }
+            ],
+            [
+              {
+                "char": "T"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "T"
+                  },
+                  "occurrence": 0,
+                  "order": 45
+                }
+              }
+            ],
+            [
+              {
+                "char": "U"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "U"
+                  },
+                  "occurrence": 0,
+                  "order": 46
+                }
+              }
+            ],
+            [
+              {
+                "char": "V"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "V"
+                  },
+                  "occurrence": 0,
+                  "order": 47
+                }
+              }
+            ],
+            [
+              {
+                "char": "W"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "W"
+                  },
+                  "occurrence": 0,
+                  "order": 48
+                }
+              }
+            ],
+            [
+              {
+                "char": "X"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "X"
+                  },
+                  "occurrence": 0,
+                  "order": 49
+                }
+              }
+            ],
+            [
+              {
+                "char": "Y"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "Y"
+                  },
+                  "occurrence": 0,
+                  "order": 50
+                }
+              }
+            ],
+            [
+              {
+                "char": "Z"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "Z"
+                  },
+                  "occurrence": 0,
+                  "order": 51
+                }
+              }
+            ],
+            [
+              {
+                "char": "_"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "_"
+                  },
+                  "occurrence": 0,
+                  "order": 52
+                }
+              }
+            ],
+            [
+              {
+                "char": "0"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "0"
+                  },
+                  "occurrence": 0,
+                  "order": 53
+                }
+              }
+            ],
+            [
+              {
+                "char": "1"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "1"
+                  },
+                  "occurrence": 0,
+                  "order": 54
+                }
+              }
+            ],
+            [
+              {
+                "char": "2"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "2"
+                  },
+                  "occurrence": 0,
+                  "order": 55
+                }
+              }
+            ],
+            [
+              {
+                "char": "3"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "3"
+                  },
+                  "occurrence": 0,
+                  "order": 56
+                }
+              }
+            ],
+            [
+              {
+                "char": "4"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "4"
+                  },
+                  "occurrence": 0,
+                  "order": 57
+                }
+              }
+            ],
+            [
+              {
+                "char": "5"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "5"
+                  },
+                  "occurrence": 0,
+                  "order": 58
+                }
+              }
+            ],
+            [
+              {
+                "char": "6"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "6"
+                  },
+                  "occurrence": 0,
+                  "order": 59
+                }
+              }
+            ],
+            [
+              {
+                "char": "7"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "7"
+                  },
+                  "occurrence": 0,
+                  "order": 60
+                }
+              }
+            ],
+            [
+              {
+                "char": "8"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "8"
+                  },
+                  "occurrence": 0,
+                  "order": 61
+                }
+              }
+            ],
+            [
+              {
+                "char": "9"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "9"
+                  },
+                  "occurrence": 0,
+                  "order": 62
+                }
+              }
+            ],
+            [
+              {
+                "char": "$"
+              },
+              {
+                "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+                "fields": {
+                  "name": {
+                    "char": "$"
+                  },
+                  "occurrence": 0,
+                  "order": 63
+                }
+              }
+            ]
+          ],
+          "impl": "java.util.LinkedHashMap"
+        },
+        "reservedNames": {
+          "set": [],
+          "impl": "java.util.LinkedHashSet"
+        },
+        "prefix": "",
+        "nameCount": 0,
+        "firstChars": {
+          "arrayOf": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+          "items": [
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "a"
+                },
+                "occurrence": 0,
+                "order": 0
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "b"
+                },
+                "occurrence": 0,
+                "order": 1
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "c"
+                },
+                "occurrence": 0,
+                "order": 2
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "d"
+                },
+                "occurrence": 0,
+                "order": 3
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "e"
+                },
+                "occurrence": 0,
+                "order": 4
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "f"
+                },
+                "occurrence": 0,
+                "order": 5
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "g"
+                },
+                "occurrence": 0,
+                "order": 6
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "h"
+                },
+                "occurrence": 0,
+                "order": 7
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "i"
+                },
+                "occurrence": 0,
+                "order": 8
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "j"
+                },
+                "occurrence": 0,
+                "order": 9
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "k"
+                },
+                "occurrence": 0,
+                "order": 10
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "l"
+                },
+                "occurrence": 0,
+                "order": 11
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "m"
+                },
+                "occurrence": 0,
+                "order": 12
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "n"
+                },
+                "occurrence": 0,
+                "order": 13
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "o"
+                },
+                "occurrence": 0,
+                "order": 14
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "p"
+                },
+                "occurrence": 0,
+                "order": 15
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "q"
+                },
+                "occurrence": 0,
+                "order": 16
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "r"
+                },
+                "occurrence": 0,
+                "order": 17
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "s"
+                },
+                "occurrence": 0,
+                "order": 18
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "t"
+                },
+                "occurrence": 0,
+                "order": 19
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "u"
+                },
+                "occurrence": 0,
+                "order": 20
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "v"
+                },
+                "occurrence": 0,
+                "order": 21
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "w"
+                },
+                "occurrence": 0,
+                "order": 22
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "x"
+                },
+                "occurrence": 0,
+                "order": 23
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "y"
+                },
+                "occurrence": 0,
+                "order": 24
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "z"
+                },
+                "occurrence": 0,
+                "order": 25
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "A"
+                },
+                "occurrence": 0,
+                "order": 26
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "B"
+                },
+                "occurrence": 0,
+                "order": 27
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "C"
+                },
+                "occurrence": 0,
+                "order": 28
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "D"
+                },
+                "occurrence": 0,
+                "order": 29
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "E"
+                },
+                "occurrence": 0,
+                "order": 30
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "F"
+                },
+                "occurrence": 0,
+                "order": 31
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "G"
+                },
+                "occurrence": 0,
+                "order": 32
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "H"
+                },
+                "occurrence": 0,
+                "order": 33
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "I"
+                },
+                "occurrence": 0,
+                "order": 34
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "J"
+                },
+                "occurrence": 0,
+                "order": 35
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "K"
+                },
+                "occurrence": 0,
+                "order": 36
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "L"
+                },
+                "occurrence": 0,
+                "order": 37
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "M"
+                },
+                "occurrence": 0,
+                "order": 38
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "N"
+                },
+                "occurrence": 0,
+                "order": 39
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "O"
+                },
+                "occurrence": 0,
+                "order": 40
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "P"
+                },
+                "occurrence": 0,
+                "order": 41
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "Q"
+                },
+                "occurrence": 0,
+                "order": 42
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "R"
+                },
+                "occurrence": 0,
+                "order": 43
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "S"
+                },
+                "occurrence": 0,
+                "order": 44
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "T"
+                },
+                "occurrence": 0,
+                "order": 45
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "U"
+                },
+                "occurrence": 0,
+                "order": 46
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "V"
+                },
+                "occurrence": 0,
+                "order": 47
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "W"
+                },
+                "occurrence": 0,
+                "order": 48
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "X"
+                },
+                "occurrence": 0,
+                "order": 49
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "Y"
+                },
+                "occurrence": 0,
+                "order": 50
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "Z"
+                },
+                "occurrence": 0,
+                "order": 51
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "$"
+                },
+                "occurrence": 0,
+                "order": 63
+              }
+            }
+          ]
+        },
+        "nonFirstChars": {
+          "arrayOf": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+          "items": [
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "a"
+                },
+                "occurrence": 0,
+                "order": 0
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "b"
+                },
+                "occurrence": 0,
+                "order": 1
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "c"
+                },
+                "occurrence": 0,
+                "order": 2
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "d"
+                },
+                "occurrence": 0,
+                "order": 3
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "e"
+                },
+                "occurrence": 0,
+                "order": 4
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "f"
+                },
+                "occurrence": 0,
+                "order": 5
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "g"
+                },
+                "occurrence": 0,
+                "order": 6
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "h"
+                },
+                "occurrence": 0,
+                "order": 7
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "i"
+                },
+                "occurrence": 0,
+                "order": 8
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "j"
+                },
+                "occurrence": 0,
+                "order": 9
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "k"
+                },
+                "occurrence": 0,
+                "order": 10
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "l"
+                },
+                "occurrence": 0,
+                "order": 11
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "m"
+                },
+                "occurrence": 0,
+                "order": 12
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "n"
+                },
+                "occurrence": 0,
+                "order": 13
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "o"
+                },
+                "occurrence": 0,
+                "order": 14
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "p"
+                },
+                "occurrence": 0,
+                "order": 15
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "q"
+                },
+                "occurrence": 0,
+                "order": 16
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "r"
+                },
+                "occurrence": 0,
+                "order": 17
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "s"
+                },
+                "occurrence": 0,
+                "order": 18
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "t"
+                },
+                "occurrence": 0,
+                "order": 19
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "u"
+                },
+                "occurrence": 0,
+                "order": 20
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "v"
+                },
+                "occurrence": 0,
+                "order": 21
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "w"
+                },
+                "occurrence": 0,
+                "order": 22
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "x"
+                },
+                "occurrence": 0,
+                "order": 23
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "y"
+                },
+                "occurrence": 0,
+                "order": 24
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "z"
+                },
+                "occurrence": 0,
+                "order": 25
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "A"
+                },
+                "occurrence": 0,
+                "order": 26
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "B"
+                },
+                "occurrence": 0,
+                "order": 27
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "C"
+                },
+                "occurrence": 0,
+                "order": 28
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "D"
+                },
+                "occurrence": 0,
+                "order": 29
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "E"
+                },
+                "occurrence": 0,
+                "order": 30
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "F"
+                },
+                "occurrence": 0,
+                "order": 31
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "G"
+                },
+                "occurrence": 0,
+                "order": 32
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "H"
+                },
+                "occurrence": 0,
+                "order": 33
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "I"
+                },
+                "occurrence": 0,
+                "order": 34
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "J"
+                },
+                "occurrence": 0,
+                "order": 35
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "K"
+                },
+                "occurrence": 0,
+                "order": 36
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "L"
+                },
+                "occurrence": 0,
+                "order": 37
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "M"
+                },
+                "occurrence": 0,
+                "order": 38
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "N"
+                },
+                "occurrence": 0,
+                "order": 39
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "O"
+                },
+                "occurrence": 0,
+                "order": 40
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "P"
+                },
+                "occurrence": 0,
+                "order": 41
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "Q"
+                },
+                "occurrence": 0,
+                "order": 42
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "R"
+                },
+                "occurrence": 0,
+                "order": 43
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "S"
+                },
+                "occurrence": 0,
+                "order": 44
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "T"
+                },
+                "occurrence": 0,
+                "order": 45
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "U"
+                },
+                "occurrence": 0,
+                "order": 46
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "V"
+                },
+                "occurrence": 0,
+                "order": 47
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "W"
+                },
+                "occurrence": 0,
+                "order": 48
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "X"
+                },
+                "occurrence": 0,
+                "order": 49
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "Y"
+                },
+                "occurrence": 0,
+                "order": 50
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "Z"
+                },
+                "occurrence": 0,
+                "order": 51
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "_"
+                },
+                "occurrence": 0,
+                "order": 52
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "0"
+                },
+                "occurrence": 0,
+                "order": 53
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "1"
+                },
+                "occurrence": 0,
+                "order": 54
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "2"
+                },
+                "occurrence": 0,
+                "order": 55
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "3"
+                },
+                "occurrence": 0,
+                "order": 56
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "4"
+                },
+                "occurrence": 0,
+                "order": 57
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "5"
+                },
+                "occurrence": 0,
+                "order": 58
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "6"
+                },
+                "occurrence": 0,
+                "order": 59
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "7"
+                },
+                "occurrence": 0,
+                "order": 60
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "8"
+                },
+                "occurrence": 0,
+                "order": 61
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "9"
+                },
+                "occurrence": 0,
+                "order": 62
+              }
+            },
+            {
+              "object": "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
+              "fields": {
+                "name": {
+                  "char": "$"
+                },
+                "occurrence": 0,
+                "order": 63
+              }
+            }
+          ]
+        }
+      }
+    },
+    "replaceMessagesWithChromeI18n": false,
+    "tcProjectId": null,
+    "codingConvention": null,
+    "syntheticBlockStartMarker": null,
+    "syntheticBlockEndMarker": null,
+    "locale": null,
+    "doLateLocalization": false,
+    "markAsCompiled": false,
+    "closurePass": false,
+    "preserveClosurePrimitives": false,
+    "angularPass": false,
+    "polymerPass": false,
+    "chromePass": false,
+    "j2clPassMode": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$J2clPassMode",
+      "name": "AUTO"
+    },
+    "j2clMinifierEnabled": true,
+    "j2clMinifierPruningManifest": null,
+    "removeAbstractMethods": false,
+    "removeClosureAsserts": false,
+    "removeJ2clAsserts": true,
+    "gatherCssNames": false,
+    "stripTypes": {
+      "set": [],
+      "impl": "com.google.common.collect.RegularImmutableSet"
+    },
+    "stripNameSuffixes": {
+      "set": [],
+      "impl": "com.google.common.collect.RegularImmutableSet"
+    },
+    "stripNamePrefixes": {
+      "set": [],
+      "impl": "com.google.common.collect.RegularImmutableSet"
+    },
+    "customPasses": null,
+    "defineReplacements": {
+      "map": [],
+      "impl": "java.util.LinkedHashMap"
+    },
+    "tweakProcessing": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$TweakProcessing",
+      "name": "OFF"
+    },
+    "rewriteGlobalDeclarationsForTryCatchWrapping": false,
+    "checksOnly": false,
+    "outputJs": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$OutputJs",
+      "name": "NORMAL"
+    },
+    "generateExports": true,
+    "exportLocalPropertyDefinitions": true,
+    "cssRenamingMap": null,
+    "cssRenamingSkiplist": null,
+    "replaceIdGenerators": true,
+    "idGenerators": {
+      "map": [],
+      "impl": "com.google.common.collect.RegularImmutableMap"
+    },
+    "xidHashFunction": null,
+    "chunkIdHashFunction": null,
+    "idGeneratorsMapSerialized": null,
+    "replaceStringsFunctionDescriptions": {
+      "list": [],
+      "impl": "com.google.common.collect.RegularImmutableList"
+    },
+    "replaceStringsPlaceholderToken": "",
+    "propertiesThatMustDisambiguate": {
+      "set": [],
+      "impl": "com.google.common.collect.RegularImmutableSet"
+    },
+    "validateRequireInliningAnnotation": {
+      "enum": "com.google.javascript.jscomp.base.Tri",
+      "name": "UNKNOWN"
+    },
+    "processCommonJSModules": false,
+    "moduleRoots": {
+      "list": [
+        "./"
+      ],
+      "impl": "com.google.common.collect.SingletonImmutableList"
+    },
+    "rewritePolyfills": false,
+    "isolatePolyfills": false,
+    "injectPolyfillsNewerThan": null,
+    "es6SubclassTranspilation": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$Es6SubclassTranspilation",
+      "name": "CONCISE_UNSAFE"
+    },
+    "instrumentAsyncContext": false,
+    "forceLibraryInjection": {
+      "list": [],
+      "impl": "com.google.common.collect.RegularImmutableList"
+    },
+    "runtimeLibraryMode": {
+      "enum": "com.google.javascript.jscomp.js.RuntimeJsLibManager$RuntimeLibraryMode",
+      "name": "INJECT"
+    },
+    "assumeForwardDeclaredForMissingTypes": false,
+    "unusedImportsToRemove": null,
+    "preserveTypeAnnotations": false,
+    "gentsMode": false,
+    "prettyPrint": false,
+    "lineBreak": false,
+    "printInputDelimiter": false,
+    "inputDelimiter": "// Input %num%",
+    "debugLogDirectory": null,
+    "debugLogFilter": null,
+    "serializeExtraDebugInfo": false,
+    "stateCompressionWrapper": null,
+    "stateDecompressionWrapper": null,
+    "quoteKeywordProperties": false,
+    "preferSingleQuotes": false,
+    "trustedStrings": false,
+    "printSourceAfterEachPass": false,
+    "filesToPrintAfterEachPassRegexList": {
+      "list": [],
+      "impl": "com.google.common.collect.RegularImmutableList"
+    },
+    "chunksToPrintAfterEachPassRegexList": {
+      "list": [],
+      "impl": "com.google.common.collect.RegularImmutableList"
+    },
+    "qnameUsesToPrintAfterEachPassList": {
+      "list": [],
+      "impl": "com.google.common.collect.RegularImmutableList"
+    },
+    "tracer": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$TracerMode",
+      "name": "OFF"
+    },
+    "tracerOutput": null,
+    "colorizeErrorOutput": false,
+    "errorFormat": {
+      "enum": "com.google.javascript.jscomp.ErrorFormat",
+      "name": "FULL"
+    },
+    "warningsGuard": {
+      "composeWarningsGuard": {
+        "guards": []
+      }
+    },
+    "summaryDetailLevel": 1,
+    "lineLengthThreshold": 500,
+    "useOriginalNamesInOutput": false,
+    "externExportsPath": null,
+    "extraReportGenerators": {
+      "list": [],
+      "impl": "java.util.ArrayList"
+    },
+    "sourceMapOutputPath": null,
+    "shouldAlwaysGatherSourceMapInfo": false,
+    "sourceMapDetailLevel": {
+      "enum": "com.google.javascript.jscomp.SourceMap$DetailLevel",
+      "name": "ALL"
+    },
+    "sourceMapFormat": {
+      "enum": "com.google.javascript.jscomp.SourceMap$Format",
+      "name": "DEFAULT"
+    },
+    "parseInlineSourceMaps": true,
+    "applyInputSourceMaps": false,
+    "resolveSourceMapAnnotations": true,
+    "sourceMapLocationMappings": {
+      "list": [],
+      "impl": "com.google.common.collect.RegularImmutableList"
+    },
+    "sourceMapIncludeSourcesContent": false,
+    "outputCharset": null,
+    "protectHiddenSideEffects": false,
+    "assumeGettersArePure": true,
+    "assumePropertiesAreStaticallyAnalyzable": true,
+    "assumeStaticInheritanceIsNotUsed": true,
+    "errorHandler": null,
+    "instrumentForCoverageOption": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$InstrumentOption",
+      "name": "NONE"
+    },
+    "productionInstrumentationArrayName": "",
+    "conformanceConfigs": {
+      "list": [],
+      "impl": "com.google.common.collect.RegularImmutableList"
+    },
+    "conformanceReportingMode": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$ConformanceReportingMode",
+      "name": "IGNORE_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG"
+    },
+    "conformanceRemoveRegexFromPath": {
+      "object": "com.google.common.base.Present",
+      "fields": {
+        "reference": {
+          "regex": "^((.*/)?google3/)?(/?(blaze|bazel)-out/[^/]+/(bin|genfiles)/)?",
+          "flags": 0
+        }
+      }
+    },
+    "wrapGoogModulesForWhitespaceOnly": true,
+    "printConfig": false,
+    "isStrictModeInput": {
+      "object": "com.google.common.base.Absent",
+      "fields": {}
+    },
+    "rewriteModulesBeforeTypechecking": false,
+    "enableModuleRewriting": true,
+    "moduleResolutionMode": {
+      "enum": "com.google.javascript.jscomp.deps.ModuleLoader$ResolutionMode",
+      "name": "BROWSER"
+    },
+    "browserResolverPrefixReplacements": {
+      "map": [],
+      "impl": "com.google.common.collect.RegularImmutableMap"
+    },
+    "pathEscaper": {
+      "enum": "com.google.javascript.jscomp.deps.ModuleLoader$PathEscaper",
+      "name": "ESCAPE"
+    },
+    "packageJsonEntryNames": {
+      "list": [
+        "browser",
+        "module",
+        "main"
+      ],
+      "impl": "com.google.common.collect.RegularImmutableList"
+    },
+    "allowDynamicImport": false,
+    "dynamicImportAlias": null,
+    "chunkOutputType": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$ChunkOutputType",
+      "name": "GLOBAL_NAMESPACE"
+    },
+    "unknownDefinesToIgnore": {
+      "list": [],
+      "impl": "com.google.common.collect.RegularImmutableList"
+    },
+    "inlineFunctionsLevel": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$Reach",
+      "name": "NONE"
+    },
+    "enableZonesDefineName": null,
+    "zoneInputPattern": null,
+    "es6ModuleTranspilation": {
+      "enum": "com.google.javascript.jscomp.CompilerOptions$Es6ModuleTranspilation",
+      "name": "COMPILE"
+    }
+  },
+  "fieldTypes": {
+    "emitUseStrict": "com.google.common.base.Optional<java.lang.Boolean>",
+    "languageIn": "com.google.javascript.jscomp.CompilerOptions$LanguageMode",
+    "outputFeatureSet": "com.google.common.base.Optional<com.google.javascript.jscomp.parsing.parser.FeatureSet>",
+    "experimentalOutputFeatureSet": "com.google.common.base.Optional<com.google.javascript.jscomp.CompilerOptions$ExperimentalOutputFeatureSet>",
+    "languageOutIsDefaultStrict": "com.google.common.base.Optional<java.lang.Boolean>",
+    "environment": "com.google.javascript.jscomp.CompilerOptions$Environment",
+    "browserFeaturesetYear": "com.google.javascript.jscomp.CompilerOptions$BrowserFeaturesetYear",
+    "instrumentForCoverageOnly": "boolean",
+    "typedAstOutputFile": "java.nio.file.Path",
+    "mergedPrecompiledLibraries": "boolean",
+    "inferConsts": "boolean",
+    "assumeStrictThis": "boolean",
+    "preserveDetailedSourceInfo": "boolean",
+    "preserveNonJSDocComments": "boolean",
+    "continueAfterErrors": "boolean",
+    "incrementalCheckMode": "com.google.javascript.jscomp.CompilerOptions$IncrementalCheckMode",
+    "parseJsDocDocumentation": "com.google.javascript.jscomp.parsing.Config$JsDocParsing",
+    "printExterns": "boolean",
+    "inferTypes": "boolean",
+    "skipNonTranspilationPasses": "boolean",
+    "devMode": "com.google.javascript.jscomp.CompilerOptions$DevMode",
+    "checkDeterminism": "boolean",
+    "dependencyOptions": "com.google.javascript.jscomp.DependencyOptions",
+    "messageBundle": "com.google.javascript.jscomp.MessageBundle",
+    "strictMessageReplacement": "boolean",
+    "checkSymbols": "boolean",
+    "checkSuspiciousCode": "boolean",
+    "checkTypes": "boolean",
+    "extraAnnotationNames": "com.google.common.collect.ImmutableSet<java.lang.String>",
+    "numParallelThreads": "int",
+    "foldConstants": "boolean",
+    "deadAssignmentElimination": "boolean",
+    "deadPropertyAssignmentElimination": "com.google.javascript.jscomp.base.Tri",
+    "inlineConstantVars": "boolean",
+    "maxFunctionSizeAfterInlining": "int",
+    "assumeClosuresOnlyCaptureReferences": "boolean",
+    "inlineProperties": "boolean",
+    "crossChunkCodeMotion": "boolean",
+    "crossChunkCodeMotionNoStubMethods": "boolean",
+    "parentChunkCanSeeSymbolsDeclaredInChildren": "boolean",
+    "coalesceVariableNames": "boolean",
+    "optimizeLetAndConst": "boolean",
+    "assumeGlobalScopeIsIsolated": "boolean",
+    "crossChunkMethodMotion": "boolean",
+    "inlineGetters": "boolean",
+    "inlineVariables": "boolean",
+    "inlineLocalVariables": "boolean",
+    "flowSensitiveInlineVariables": "boolean",
+    "smartNameRemoval": "boolean",
+    "extractPrototypeMemberDeclarations": "com.google.javascript.jscomp.CompilerOptions$ExtractPrototypeMemberDeclarationsMode",
+    "removeUnusedPrototypeProperties": "boolean",
+    "removeUnusedClassProperties": "boolean",
+    "removeUnusedVars": "boolean",
+    "removeUnusedLocalVars": "boolean",
+    "collapseVariableDeclarations": "boolean",
+    "collapseAnonymousFunctions": "boolean",
+    "aliasStringsMode": "com.google.javascript.jscomp.CompilerOptions$AliasStringsMode",
+    "outputJsStringUsage": "boolean",
+    "convertToDottedProperties": "boolean",
+    "rewriteFunctionExpressions": "boolean",
+    "optimizeCalls": "boolean",
+    "optimizeESClassConstructors": "boolean",
+    "useTypesForLocalOptimization": "boolean",
+    "useSizeHeuristicToStopOptimizationLoop": "boolean",
+    "optimizationLoopMaxIterations": "int",
+    "variableRenaming": "com.google.javascript.jscomp.VariableRenamingPolicy",
+    "propertyRenaming": "com.google.javascript.jscomp.PropertyRenamingPolicy",
+    "propertyRenamingOnlyCompilationMode": "boolean",
+    "labelRenaming": "boolean",
+    "reserveRawExports": "boolean",
+    "preferStableNames": "boolean",
+    "generatePseudoNames": "boolean",
+    "renamePrefix": "java.lang.String",
+    "renamePrefixNamespace": "java.lang.String",
+    "renamePrefixNamespaceAssumeCrossChunkNames": "boolean",
+    "optimizeLocalAccessForGlobalSymbolNamespace": "com.google.javascript.jscomp.CompilerOptions$OptimizeLocalAccess",
+    "collapsePropertiesLevel": "com.google.javascript.jscomp.CompilerOptions$PropertyCollapseLevel",
+    "collapseObjectLiterals": "boolean",
+    "devirtualizeMethods": "boolean",
+    "computeFunctionSideEffects": "boolean",
+    "disambiguateProperties": "boolean",
+    "ambiguateProperties": "boolean",
+    "inputSourceMaps": "com.google.common.collect.ImmutableMap<java.lang.String, com.google.javascript.jscomp.SourceMapInput>",
+    "inputVariableMap": "com.google.javascript.jscomp.VariableMap",
+    "inputPropertyMap": "com.google.javascript.jscomp.VariableMap",
+    "exportTestFunctions": "boolean",
+    "nameGenerator": "com.google.javascript.jscomp.NameGenerator",
+    "replaceMessagesWithChromeI18n": "boolean",
+    "tcProjectId": "java.lang.String",
+    "codingConvention": "com.google.javascript.jscomp.CodingConvention",
+    "syntheticBlockStartMarker": "java.lang.String",
+    "syntheticBlockEndMarker": "java.lang.String",
+    "locale": "java.lang.String",
+    "doLateLocalization": "boolean",
+    "markAsCompiled": "boolean",
+    "closurePass": "boolean",
+    "preserveClosurePrimitives": "boolean",
+    "angularPass": "boolean",
+    "polymerPass": "boolean",
+    "chromePass": "boolean",
+    "j2clPassMode": "com.google.javascript.jscomp.CompilerOptions$J2clPassMode",
+    "j2clMinifierEnabled": "boolean",
+    "j2clMinifierPruningManifest": "java.lang.String",
+    "removeAbstractMethods": "boolean",
+    "removeClosureAsserts": "boolean",
+    "removeJ2clAsserts": "boolean",
+    "gatherCssNames": "boolean",
+    "stripTypes": "com.google.common.collect.ImmutableSet<java.lang.String>",
+    "stripNameSuffixes": "com.google.common.collect.ImmutableSet<java.lang.String>",
+    "stripNamePrefixes": "com.google.common.collect.ImmutableSet<java.lang.String>",
+    "customPasses": "com.google.common.collect.SetMultimap<com.google.javascript.jscomp.CustomPassExecutionTime, com.google.javascript.jscomp.CompilerPass>",
+    "defineReplacements": "java.util.LinkedHashMap<java.lang.String, java.lang.Object>",
+    "tweakProcessing": "com.google.javascript.jscomp.CompilerOptions$TweakProcessing",
+    "rewriteGlobalDeclarationsForTryCatchWrapping": "boolean",
+    "checksOnly": "boolean",
+    "outputJs": "com.google.javascript.jscomp.CompilerOptions$OutputJs",
+    "generateExports": "boolean",
+    "exportLocalPropertyDefinitions": "boolean",
+    "cssRenamingMap": "com.google.javascript.jscomp.CssRenamingMap",
+    "cssRenamingSkiplist": "com.google.common.collect.ImmutableSet<java.lang.String>",
+    "replaceIdGenerators": "boolean",
+    "idGenerators": "com.google.common.collect.ImmutableMap<java.lang.String, com.google.javascript.jscomp.RenamingMap>",
+    "xidHashFunction": "com.google.javascript.jscomp.Xid$HashFunction",
+    "chunkIdHashFunction": "com.google.javascript.jscomp.Xid$HashFunction",
+    "idGeneratorsMapSerialized": "java.lang.String",
+    "replaceStringsFunctionDescriptions": "com.google.common.collect.ImmutableList<java.lang.String>",
+    "replaceStringsPlaceholderToken": "java.lang.String",
+    "propertiesThatMustDisambiguate": "com.google.common.collect.ImmutableSet<java.lang.String>",
+    "validateRequireInliningAnnotation": "com.google.javascript.jscomp.base.Tri",
+    "processCommonJSModules": "boolean",
+    "moduleRoots": "com.google.common.collect.ImmutableList<java.lang.String>",
+    "rewritePolyfills": "boolean",
+    "isolatePolyfills": "boolean",
+    "injectPolyfillsNewerThan": "com.google.javascript.jscomp.CompilerOptions$LanguageMode",
+    "es6SubclassTranspilation": "com.google.javascript.jscomp.CompilerOptions$Es6SubclassTranspilation",
+    "instrumentAsyncContext": "boolean",
+    "forceLibraryInjection": "com.google.common.collect.ImmutableList<java.lang.String>",
+    "runtimeLibraryMode": "com.google.javascript.jscomp.js.RuntimeJsLibManager$RuntimeLibraryMode",
+    "assumeForwardDeclaredForMissingTypes": "boolean",
+    "unusedImportsToRemove": "com.google.common.collect.ImmutableSet<java.lang.String>",
+    "preserveTypeAnnotations": "boolean",
+    "gentsMode": "boolean",
+    "prettyPrint": "boolean",
+    "lineBreak": "boolean",
+    "printInputDelimiter": "boolean",
+    "inputDelimiter": "java.lang.String",
+    "debugLogDirectory": "java.nio.file.Path",
+    "debugLogFilter": "java.lang.String",
+    "serializeExtraDebugInfo": "boolean",
+    "stateCompressionWrapper": "java.util.function.Function<java.io.OutputStream, java.io.OutputStream>",
+    "stateDecompressionWrapper": "java.util.function.Function<java.io.InputStream, java.io.InputStream>",
+    "quoteKeywordProperties": "boolean",
+    "preferSingleQuotes": "boolean",
+    "trustedStrings": "boolean",
+    "printSourceAfterEachPass": "boolean",
+    "filesToPrintAfterEachPassRegexList": "java.util.List<java.lang.String>",
+    "chunksToPrintAfterEachPassRegexList": "java.util.List<java.lang.String>",
+    "qnameUsesToPrintAfterEachPassList": "java.util.List<java.lang.String>",
+    "tracer": "com.google.javascript.jscomp.CompilerOptions$TracerMode",
+    "tracerOutput": "java.nio.file.Path",
+    "colorizeErrorOutput": "boolean",
+    "errorFormat": "com.google.javascript.jscomp.ErrorFormat",
+    "warningsGuard": "com.google.javascript.jscomp.ComposeWarningsGuard",
+    "summaryDetailLevel": "int",
+    "lineLengthThreshold": "int",
+    "useOriginalNamesInOutput": "boolean",
+    "externExportsPath": "java.lang.String",
+    "extraReportGenerators": "java.util.List<com.google.javascript.jscomp.SortingErrorManager$ErrorReportGenerator>",
+    "sourceMapOutputPath": "java.lang.String",
+    "shouldAlwaysGatherSourceMapInfo": "boolean",
+    "sourceMapDetailLevel": "com.google.javascript.jscomp.SourceMap$DetailLevel",
+    "sourceMapFormat": "com.google.javascript.jscomp.SourceMap$Format",
+    "parseInlineSourceMaps": "boolean",
+    "applyInputSourceMaps": "boolean",
+    "resolveSourceMapAnnotations": "boolean",
+    "sourceMapLocationMappings": "com.google.common.collect.ImmutableList<? extends com.google.javascript.jscomp.SourceMap$LocationMapping>",
+    "sourceMapIncludeSourcesContent": "boolean",
+    "outputCharset": "java.nio.charset.Charset",
+    "protectHiddenSideEffects": "boolean",
+    "assumeGettersArePure": "boolean",
+    "assumePropertiesAreStaticallyAnalyzable": "boolean",
+    "assumeStaticInheritanceIsNotUsed": "boolean",
+    "errorHandler": "com.google.javascript.jscomp.ErrorHandler",
+    "instrumentForCoverageOption": "com.google.javascript.jscomp.CompilerOptions$InstrumentOption",
+    "productionInstrumentationArrayName": "java.lang.String",
+    "conformanceConfigs": "com.google.common.collect.ImmutableList<com.google.javascript.jscomp.ConformanceConfig>",
+    "conformanceReportingMode": "com.google.javascript.jscomp.CompilerOptions$ConformanceReportingMode",
+    "conformanceRemoveRegexFromPath": "com.google.common.base.Optional<java.util.regex.Pattern>",
+    "wrapGoogModulesForWhitespaceOnly": "boolean",
+    "printConfig": "boolean",
+    "isStrictModeInput": "com.google.common.base.Optional<java.lang.Boolean>",
+    "rewriteModulesBeforeTypechecking": "boolean",
+    "enableModuleRewriting": "boolean",
+    "moduleResolutionMode": "com.google.javascript.jscomp.deps.ModuleLoader$ResolutionMode",
+    "browserResolverPrefixReplacements": "com.google.common.collect.ImmutableMap<java.lang.String, java.lang.String>",
+    "pathEscaper": "com.google.javascript.jscomp.deps.ModuleLoader$PathEscaper",
+    "packageJsonEntryNames": "java.util.List<java.lang.String>",
+    "allowDynamicImport": "boolean",
+    "dynamicImportAlias": "java.lang.String",
+    "chunkOutputType": "com.google.javascript.jscomp.CompilerOptions$ChunkOutputType",
+    "unknownDefinesToIgnore": "com.google.common.collect.ImmutableList<java.lang.String>",
+    "inlineFunctionsLevel": "com.google.javascript.jscomp.CompilerOptions$Reach",
+    "enableZonesDefineName": "java.lang.String",
+    "zoneInputPattern": "java.util.regex.Pattern",
+    "es6ModuleTranspilation": "com.google.javascript.jscomp.CompilerOptions$Es6ModuleTranspilation"
+  },
+  "unrepresentable": []
+}

@@ -1,0 +1,29 @@
+{
+  "source": "test/com/google/javascript/jscomp/PolymerPassFindExternsTest.java getProcessor (lines 70-79), an anonymous CompilerPass that traverses the externs with a fresh PolymerPassFindExterns callback, replayed through helper PolymerPassFindExternsTest_Helpers (getProcessor copied verbatim), bb8c8e7",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "call": {
+          "once": "test",
+          "value": {
+            "helper": "PolymerPassFindExternsTest_Helpers"
+          }
+        },
+        "method": "getProcessor",
+        "args": [
+          {
+            "compiler": true
+          }
+        ]
+      },
+      "testFieldsAfter": {
+        "once": "test",
+        "value": {
+          "helper": "PolymerPassFindExternsTest_Helpers"
+        }
+      }
+    }
+  ],
+  "note": "getProcessor assigns the test field findExternsCallback (recorded as null, because the dump is taken before getProcessor runs) and never reads its previous value, so no field restore is needed. The constructor passes EXTERNS to super(String), which only sets the default externs used by testSame(String); those externs are in each record's inputs. setUp (lines 81-89: enableTypeCheck, allowExternsChanges, enableRunTypeCheckAfterProcessing, enableParseTypeInfo) is in harness.fields. Post-call state (classify batch 10, 2026-10-07): the helper holder is shared through {\"once\":\"test\"} between getProcessor and the testFieldsAfter check, so replay compares the holder's findExternsCallback after the call (polymerElementExterns: a Node reference or null; polymerElementProps: the builder with one Node reference per property found, and its size) against the recorded testFieldsAfter. That covers testFindsPolymerElementRoot_inTypeSummary_ignoresModule's isNull assertion fully; the other three methods also assert on Node kinds and names, which the referenceable dump records only as class-name references (see corpus/unit/postcall/PolymerPassFindExternsTest.json)."
+}

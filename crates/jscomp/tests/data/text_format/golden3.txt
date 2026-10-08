@@ -1,0 +1,51 @@
+ERR com.google.protobuf.TextFormat$ParseException
+1:27: Expected identifier. Found ''
+=====
+OK
+requirement {
+  value: "a"
+}
+
+=====
+OK
+requirement {
+  value: "a"
+}
+
+=====
+OK
+requirement {
+  value: "a"
+}
+
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:27: Expected identifier. Found ' '
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:28: Expected identifier. Found ''
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:44: Expected "}".
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:44: Expected "}".
+=====
+OK
+requirement {
+  value: "a\rb"
+}
+
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:27: Expected identifier. Found ''
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+1:27: Expected identifier. Found 'é'
+=====
+ERR com.google.protobuf.TextFormat$ParseException
+3:3: Input contains unknown fields and/or extensions:
+3:3:	jscomp.Requirement.bogus
+4:3:	jscomp.Requirement.other
+7:1:	jscomp.ConformanceConfig.zz
+=====

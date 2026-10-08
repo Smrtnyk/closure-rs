@@ -1,0 +1,13 @@
+# class	path	exists  (ResourceLoader.resourceExists)
+com.google.javascript.jscomp.Compiler	js/base.js	true
+com.google.javascript.jscomp.Compiler	js/nonexistent.js	false
+com.google.javascript.jscomp.Compiler	/runtime_libs.typedast	true
+com.google.javascript.jscomp.Compiler	runtime_libs.typedast	false
+com.google.javascript.jscomp.AbstractCommandLineRunner	/externs.zip	true
+com.google.javascript.jscomp.AbstractCommandLineRunner	externs.zip	false
+com.google.javascript.jscomp.js.RuntimeJsLibManager	transpilation_libs.txt	true
+com.google.javascript.jscomp.js.RuntimeJsLibManager	es6/set.js	true
+com.google.javascript.jscomp.js.RuntimeJsLibManager	js/es6/set.js	false
+com.google.javascript.jscomp.Compiler	js/build_metadata_table.js	false
+com.google.javascript.jscomp.Compiler	js/es6/	true
+com.google.javascript.jscomp.Compiler	js/es6	true

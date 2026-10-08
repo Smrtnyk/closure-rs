@@ -1,0 +1,17 @@
+[package]
+name = "closure-resources"
+description = "The externs and runtime JS libraries of Closure Compiler as data, and the Java code that lists and loads them."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+indexmap = { workspace = true }
+
+[dev-dependencies]
+sha2 = { workspace = true }

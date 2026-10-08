@@ -1,0 +1,255 @@
+{
+ "source": "test/com/google/javascript/jscomp/serialization/SerializeAndDeserializeAstTest.java getProcessor (lines 84-93); setUp (lines 95-106) is captured by the record's harness fields; the consumer field and its two lambdas (lines 77, 955-956, 1080-1081) are helper com.google.javascript.jscomp.SerializeAndDeserializeAstTest_Helpers",
+ "classMap": {
+  "com.google.javascript.jscomp.serialization.SerializeAndDeserializeAstTest$$Lambda": "com.google.javascript.jscomp.SerializeAndDeserializeAstTest_Helpers$$Lambda"
+ },
+ "cases": [
+  {
+   "when": {
+    "method": "shadowAsts_featuresSetOnMainAstScript"
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.serialization.SerializeTypedAstPass",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "getField": {
+       "once": "consumerHolder",
+       "value": {
+        "let": [
+         [
+          "h",
+          {
+           "new": "com.google.javascript.jscomp.SerializeAndDeserializeAstTest_Helpers",
+           "args": []
+          }
+         ]
+        ],
+        "in": {
+         "do": [
+          {
+           "call": {
+            "var": "h"
+           },
+           "method": "runWithoutExpected",
+           "args": []
+          }
+         ],
+         "value": {
+          "var": "h"
+         }
+        }
+       }
+      },
+      "name": "consumer"
+     },
+     {
+      "call": {
+       "call": {
+        "call": {
+         "static": "com.google.javascript.jscomp.serialization.SerializationOptions",
+         "method": "builder",
+         "args": []
+        },
+        "method": "setIncludeDebugInfo",
+        "args": [
+         {
+          "bool": false
+         }
+        ]
+       },
+       "method": "setRuntimeLibraries",
+       "args": [
+        {
+         "field": "runtimeLibraries"
+        }
+       ]
+      },
+      "method": "build",
+      "args": []
+     }
+    ]
+   },
+   "testFieldsAfter": {
+    "once": "consumerHolder",
+    "value": {
+     "new": "com.google.javascript.jscomp.SerializeAndDeserializeAstTest_Helpers",
+     "args": []
+    }
+   }
+  },
+  {
+   "when": {
+    "method": "includesShadowedCode"
+   },
+   "processor": {
+    "new": "com.google.javascript.jscomp.serialization.SerializeTypedAstPass",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "getField": {
+       "once": "consumerHolder",
+       "value": {
+        "let": [
+         [
+          "h",
+          {
+           "new": "com.google.javascript.jscomp.SerializeAndDeserializeAstTest_Helpers",
+           "args": []
+          }
+         ]
+        ],
+        "in": {
+         "do": [
+          {
+           "call": {
+            "var": "h"
+           },
+           "method": "runWithoutExpected",
+           "args": []
+          }
+         ],
+         "value": {
+          "var": "h"
+         }
+        }
+       }
+      },
+      "name": "consumer"
+     },
+     {
+      "call": {
+       "call": {
+        "call": {
+         "static": "com.google.javascript.jscomp.serialization.SerializationOptions",
+         "method": "builder",
+         "args": []
+        },
+        "method": "setIncludeDebugInfo",
+        "args": [
+         {
+          "bool": false
+         }
+        ]
+       },
+       "method": "setRuntimeLibraries",
+       "args": [
+        {
+         "field": "runtimeLibraries"
+        }
+       ]
+      },
+      "method": "build",
+      "args": []
+     }
+    ]
+   },
+   "testFieldsAfter": {
+    "once": "consumerHolder",
+    "value": {
+     "new": "com.google.javascript.jscomp.SerializeAndDeserializeAstTest_Helpers",
+     "args": []
+    }
+   }
+  },
+  {
+   "when": {},
+   "processor": {
+    "new": "com.google.javascript.jscomp.serialization.SerializeTypedAstPass",
+    "args": [
+     {
+      "compiler": true
+     },
+     {
+      "getField": {
+       "once": "consumerHolder",
+       "value": {
+        "let": [
+         [
+          "h",
+          {
+           "new": "com.google.javascript.jscomp.SerializeAndDeserializeAstTest_Helpers",
+           "args": []
+          }
+         ]
+        ],
+        "in": {
+         "do": [
+          {
+           "call": {
+            "var": "h"
+           },
+           "method": "toInputStream",
+           "args": []
+          }
+         ],
+         "value": {
+          "var": "h"
+         }
+        }
+       }
+      },
+      "name": "consumer"
+     },
+     {
+      "call": {
+       "call": {
+        "call": {
+         "static": "com.google.javascript.jscomp.serialization.SerializationOptions",
+         "method": "builder",
+         "args": []
+        },
+        "method": "setIncludeDebugInfo",
+        "args": [
+         {
+          "bool": false
+         }
+        ]
+       },
+       "method": "setRuntimeLibraries",
+       "args": [
+        {
+         "field": "runtimeLibraries"
+        }
+       ]
+      },
+      "method": "build",
+      "args": []
+     }
+    ]
+   },
+   "testFieldsAfter": {
+    "once": "consumerHolder",
+    "value": {
+     "new": "com.google.javascript.jscomp.SerializeAndDeserializeAstTest_Helpers",
+     "args": []
+    }
+   }
+  }
+ ],
+ "note": "The test field consumer is always non-null when getProcessor runs: toInputStream (used by test/testSame/testAndReturnResult) and runWithoutExpected (used only by shadowAsts_featuresSetOnMainAstScript and includesShadowedCode) each assign a fresh lambda `ast -> result[0] = ast` over a new TypedAst[1] immediately before calling the harness. Fix-2 (2026-10-07): the lambda is rebuilt verbatim inside helper SerializeAndDeserializeAstTest_Helpers (method toInputStream or runWithoutExpected, selected by the recorded test method), so the replayed field is a real lambda capturing a TypedAst[1], like the recorded one; the holder is shared through {\"once\":\"consumerHolder\"} (one consumer per hooked call, as in the test) and every case opts in to testFieldsAfter on it. Replay therefore compares the recorded post-call consumer dump in every record: the captured TypedAst[1] (null before the pass runs) with the whole serialized TypedAst message in the neutral protobuf encoding of the v7 records (harness round 2, D-017 item 2; FORMAT.md \"Neutral encodings\": pools, externs summary, runtime_library_to_inject and each LazyAst's script decoded into its AstNode tree). classMap maps the recorded lambda name SerializeAndDeserializeAstTest$$Lambda to the helper's lambda name (replay applies classMap in reverse to the dump; no recorded value is decoded through it). Under --noop-processor or the class-level no-op of SerializeTypedAstPass the consumer never receives a TypedAst, so every record fails with a testFieldsAfter difference (no longer vacuous). Three records (index 5, 6, 58) read their input from a file on disk (SourceFileProto file_on_disk or zip_entry); the record's inputs hold only name, code and kind, so replay serializes a preloaded SourceFile and their consumer dump cannot match: they are listed under unrepresentable below (excluded from (a), counted in (e)). Not in the record: everything the test's follow-up run(...) checks on the AST that TypedAstDeserializer rebuilds in a fresh compiler (tree and JSDoc equality with the expected code, feature sets, AstValidator, colors, original names, source files, source maps, shadow ASTs, DeserializedAst fields). Those round-trip checks are listed in corpus/unit/rust_unit_tests/SerializeAndDeserializeAstTest.md; all 75 flagged methods are classified in corpus/unit/postcall/SerializeAndDeserializeAstTest.json (classify round 2, batch 3). includeTypes, resolveSourceMapAnnotations, parseInlineSourceMaps and checkJsDocEquality are read only by that follow-up. runtimeLibraries is decoded to an ImmutableList (ImmutableList.of() from setUp, or ['base','es6/string'] in includesRuntimeLibraryPaths).",
+ "unrepresentable": [
+  {
+   "index": 5,
+   "method": "serializesZipEntries",
+   "call": 0,
+   "reason": "the input SourceFile was a zip entry on disk (SourceFileProto.zip_entry: a JUnit temp-folder zip path and entry name); record inputs hold only name and code, so replay builds a preloaded SourceFile and serializes preloaded_contents instead (shown by the D-017 item 2 neutral protobuf encoding of testFieldsAfter.consumer, harness round 2)"
+  },
+  {
+   "index": 6,
+   "method": "serializeAndDeserializeFileOnDiskWithOriginalName",
+   "call": 0,
+   "reason": "the input SourceFile was a temp file on disk read with an original name (SourceFileProto.file_on_disk); record inputs hold only name and code, so replay builds a preloaded SourceFile and serializes preloaded_contents instead (shown by the D-017 item 2 neutral protobuf encoding of testFieldsAfter.consumer, harness round 2)"
+  },
+  {
+   "index": 58,
+   "method": "serializeAndDeserializeFileOnDiskWithUTF16",
+   "call": 0,
+   "reason": "the input SourceFile was a temp file on disk read as UTF-16 (SourceFileProto.file_on_disk with charset UTF-16); record inputs hold only name and code, so replay builds a preloaded SourceFile and serializes preloaded_contents instead (shown by the D-017 item 2 neutral protobuf encoding of testFieldsAfter.consumer, harness round 2)"
+  }
+ ]
+}

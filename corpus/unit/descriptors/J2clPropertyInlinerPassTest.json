@@ -1,0 +1,38 @@
+{
+ "source": "test/com/google/javascript/jscomp/J2clPropertyInlinerPassTest.java getProcessor (lines 34-37) and createCompiler (lines 39-44), bb8c8e7",
+ "cases": [
+  {
+   "when": {},
+   "processor": {
+    "call": {
+     "list": [
+      {
+       "static": "com.google.javascript.jscomp.J2clSourceFileChecker",
+       "method": "markToRunJ2clPasses",
+       "args": [
+        {
+         "compiler": true
+        }
+       ]
+      },
+      {
+       "new": "com.google.javascript.jscomp.J2clPropertyInlinerPass",
+       "args": [
+        {
+         "compiler": true
+        }
+       ]
+      }
+     ]
+    },
+    "method": "get",
+    "args": [
+     {
+      "int": 1
+     }
+    ]
+   }
+  }
+ ],
+ "note": "createCompiler is overridden to call J2clSourceFileChecker.markToRunJ2clPasses(compiler) (compiler.setRunJ2clPasses(true)) on the compiler it returns; the recorded effective createCompiler class is plain Compiler, so ReplayCompilerTest uses the base createCompiler. The descriptor makes that same call on the compiler passed to getProcessor (the list evaluates it first, then constructs the pass; list.get(1) returns the pass). This is equivalent: in src only the J2cl passes and ProcessDefines read runJ2clPasses, none of which the harness runs before getProcessor, and the compiler given to getProcessor is the one the pass runs on. setUp (lines 27-32) only adds enableNormalize(), restored from harness.fields."
+}

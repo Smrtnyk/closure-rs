@@ -1,0 +1,131 @@
+{
+  "source": "test/com/google/javascript/jscomp/ProcessTweaksTest.java getProcessor (lines 50-67), bb8c8e7: an anonymous CompilerPass whose process() builds `new ProcessTweaks(compiler, stripTweaks)` and runs it, then, only if stripTweaks, builds `new StripCode(compiler, emptySet, emptySet, emptySet, /* enableTweakStripping= */ true)` with emptySet = ImmutableSet.of() and runs it. Modelled with a DSL v2 lambda (passes built at process time, as in the original), one case per value of the test field stripTweaks (the `if`). setUp (lines 42-48) only calls enableNormalize (restored from harness.fields) and resets defaultValueOverrides/stripTweaks (recorded in testFields).",
+  "cases": [
+    {
+      "when": {
+        "testFields.stripTweaks": false
+      },
+      "processor": {
+        "lambda": [
+          "externs",
+          "root"
+        ],
+        "iface": "com.google.javascript.jscomp.CompilerPass",
+        "body": {
+          "do": [
+            {
+              "call": {
+                "new": "com.google.javascript.jscomp.ProcessTweaks",
+                "args": [
+                  {
+                    "compiler": true
+                  },
+                  {
+                    "field": "stripTweaks"
+                  }
+                ]
+              },
+              "method": "process",
+              "args": [
+                {
+                  "var": "externs"
+                },
+                {
+                  "var": "root"
+                }
+              ]
+            }
+          ],
+          "value": {
+            "null": true
+          }
+        }
+      }
+    },
+    {
+      "when": {
+        "testFields.stripTweaks": true
+      },
+      "processor": {
+        "lambda": [
+          "externs",
+          "root"
+        ],
+        "iface": "com.google.javascript.jscomp.CompilerPass",
+        "body": {
+          "do": [
+            {
+              "call": {
+                "new": "com.google.javascript.jscomp.ProcessTweaks",
+                "args": [
+                  {
+                    "compiler": true
+                  },
+                  {
+                    "field": "stripTweaks"
+                  }
+                ]
+              },
+              "method": "process",
+              "args": [
+                {
+                  "var": "externs"
+                },
+                {
+                  "var": "root"
+                }
+              ]
+            },
+            {
+              "let": [
+                [
+                  "emptySet",
+                  {
+                    "static": "com.google.common.collect.ImmutableSet",
+                    "method": "of",
+                    "args": []
+                  }
+                ]
+              ],
+              "in": {
+                "call": {
+                  "new": "com.google.javascript.jscomp.StripCode",
+                  "args": [
+                    {
+                      "compiler": true
+                    },
+                    {
+                      "var": "emptySet"
+                    },
+                    {
+                      "var": "emptySet"
+                    },
+                    {
+                      "var": "emptySet"
+                    },
+                    {
+                      "bool": true
+                    }
+                  ]
+                },
+                "method": "process",
+                "args": [
+                  {
+                    "var": "externs"
+                  },
+                  {
+                    "var": "root"
+                  }
+                ]
+              }
+            }
+          ],
+          "value": {
+            "null": true
+          }
+        }
+      }
+    }
+  ],
+  "note": "Every record has stripTweaks recorded as a boolean (17 false, 4 true), and testFieldsAfter is {} for all 21, so the field does not change during the call. defaultValueOverrides is never read by getProcessor or the pass. The constructor's extern string comes from the record's inputs.externs. Round 1 used a verbatim helper (ProcessTweaksTest_Helpers.GetProcessor, now retired from oracle/replay/helpers); this lambda form lets --mutate-noop ProcessTweaks / StripCode reach the passes."
+}

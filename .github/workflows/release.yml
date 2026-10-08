@@ -1,0 +1,178 @@
+# Builds the closure-rs CLI for Linux and Windows, checks it, tests the npm wrapper (npm/closure-rs/)
+# against each binary, and packs ONE npm package `closure-rs` with both binaries bundled
+# (bin/<platform>-<arch>/; the wrapper picks the one for the running machine).
+# Linux is built on ubuntu-22.04 so the binary runs on older glibc (Jenkins agents, Ubuntu CI).
+# Publishing is a separate, manual job: run the workflow by hand with "publish" checked. It uses npm
+# trusted publishing (GitHub OIDC, no stored token): the package's npm settings must name this
+# repository, this workflow file and the environment `npm`. Nothing is published otherwise.
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the packed npm packages (dist-tag alpha)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (${{ matrix.platform }}-${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux
+            arch: x64
+            exe: closure-rs
+          - os: windows-latest
+            platform: win32
+            arch: x64
+            exe: closure-rs.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Without the upstream Java sources the check compares every crates/**/*.rs header with
+      # LICENSES/headers.tsv (scripts/license_headers.py); it downloads nothing.
+      - name: License headers
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: python3 scripts/license_headers.py --check
+
+      # rust-toolchain.toml pins the toolchain; rustup installs it on first use
+      - name: Rust toolchain
+        shell: bash
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the CLI (release)
+        shell: bash
+        run: cargo build --release --locked --bin closure-rs
+
+      - name: Smoke test (ADVANCED compile)
+        shell: bash
+        run: |
+          printf 'function greet(name){var unused=1;return "Hello, "+name}\nwindow["greet"]=greet;\nconsole.log(greet("world"));\n' > smoke.js
+          out=$(target/release/${{ matrix.exe }} --compilation_level=ADVANCED --js=smoke.js)
+          echo "$out"
+          test "$out" = 'function a(b){return"Hello, "+b}window.greet=a;console.log(a("world"));'
+
+      - name: Third-party crate licenses match Cargo.lock
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          cargo fetch --locked
+          python3 scripts/third_party_licenses.py --check
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test the npm wrapper against this binary
+        shell: bash
+        run: CLOSURE_RS_BINARY=target/release/${{ matrix.exe }} node --test npm/closure-rs/test/wrapper.test.mjs
+
+      # the release profile keeps debug info for the D2 runs; the shipped binary is stripped
+      - name: Stage the binary (bins/<platform>-<arch>/)
+        shell: bash
+        run: |
+          mkdir -p bins/${{ matrix.platform }}-${{ matrix.arch }}
+          cp target/release/${{ matrix.exe }} bins/${{ matrix.platform }}-${{ matrix.arch }}/
+          if [ "${{ matrix.platform }}" = linux ]; then strip bins/linux-${{ matrix.arch }}/${{ matrix.exe }}; fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.platform }}-${{ matrix.arch }}
+          path: bins/
+          if-no-files-found: error
+
+  npm-main:
+    name: pack the npm package (both binaries)
+    needs: [build]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate the TypeScript types (must match the committed index.d.ts)
+        run: |
+          node scripts/gen_npm_types.mjs
+          git diff --exit-code -- npm/closure-rs/
+
+      # contrib/ (CONTRIB_PATH) is the Closure Compiler repository's contrib/ folder at the pinned
+      # reference commit (scripts/fetch_reference.sh); fetch only that folder.
+      - name: Fetch contrib/ at the pinned reference commit
+        run: |
+          pin=$(sed -n 's/^PIN=//p' scripts/fetch_reference.sh)
+          git init -q build/closure-compiler
+          git -C build/closure-compiler remote add origin https://github.com/google/closure-compiler.git
+          git -C build/closure-compiler sparse-checkout set --no-cone /contrib/
+          git -C build/closure-compiler fetch -q --depth 1 --filter=blob:none origin "$pin"
+          git -C build/closure-compiler checkout -q FETCH_HEAD
+          test -d build/closure-compiler/contrib/externs
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*
+          merge-multiple: true
+          path: bins
+
+      - name: Pack (npm pack --ignore-scripts)
+        run: |
+          mkdir -p dist
+          node scripts/npm_pack_main.mjs dist --contrib build/closure-compiler/contrib --binaries bins
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-main
+          path: dist/*.tgz
+          if-no-files-found: error
+
+  test:
+    name: test (ubuntu)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: fmt, clippy, tests (gates/ci.sh)
+        run: bash gates/ci.sh
+
+  publish:
+    name: publish to npm (manual)
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: [build, test, npm-main]
+    runs-on: ubuntu-22.04
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write   # npm trusted publishing (OIDC); provenance is added automatically
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-main
+          path: dist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: npm >= 11.5.1 (trusted publishing)
+        run: npm install -g npm@^11.5.1 --ignore-scripts
+      - name: Publish (dist-tag alpha)
+        run: npm publish dist/*.tgz --tag alpha --access public

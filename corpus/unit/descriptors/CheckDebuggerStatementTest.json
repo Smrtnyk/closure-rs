@@ -1,0 +1,10 @@
+{
+  "source": "test/com/google/javascript/jscomp/CheckDebuggerStatementTest.java getProcessor (lines 36-39), bb8c8e7; getOptions (lines 41-48: setWarningLevel(DEBUGGER_STATEMENT_PRESENT, checkLevel) when checkLevel is non-null) is captured by the record's options",
+  "cases": [
+    {
+      "when": {},
+      "processor": {"new": "com.google.javascript.jscomp.CheckDebuggerStatement", "args": [{"compiler": true}]}
+    }
+  ],
+  "note": "getProcessor is unconditional. The only test field, checkLevel (recorded as WARNING, OFF or null), is read only by getOptions, whose effect is the record's options diff; tearDown only resets it to null."
+}
