@@ -164,5 +164,39 @@ class RatchetTest(unittest.TestCase):
         self.assertEqual(core.check_ratchet(base, ratchet({"ws": ["a"]}, {}, golden_tag="ref-y"))[0], 2)
 
 
+class RatchetRebaseTest(unittest.TestCase):
+    def test_golden_change_allowed_and_pairs_kept(self):
+        base = ratchet({"ws": ["a", "b"]}, {"ws": ["c"]})
+        cur = ratchet({"ws": ["a", "b", "c"], "simple": ["d"]}, {}, golden_tag="ref-y")
+        self.assertEqual(core.check_ratchet(base, cur)[0], 2)
+        code, msgs = core.check_ratchet_rebase(base, cur)
+        self.assertEqual(code, 0)
+        self.assertTrue(any("golden ref-x -> ref-y" in m for m in msgs))
+        self.assertTrue(any("2 newly passing (1 pairs new to the corpus)" in m for m in msgs))
+
+    def test_lost_pair_fails_even_with_higher_count(self):
+        base = ratchet({"ws": ["a"]}, {"ws": ["b", "c"]})
+        cur = ratchet({"ws": ["b", "c"]}, {"ws": ["a"]}, golden_tag="ref-y")
+        code, msgs = core.check_ratchet_rebase(base, cur)
+        self.assertEqual(code, 1)
+        self.assertIn("  a x ws", msgs)
+
+    def test_same_case_other_profile_is_another_pair(self):
+        base = ratchet({"ws": ["a"]}, {"simple": ["a"]})
+        cur = ratchet({"simple": ["a"]}, {"ws": ["a"]}, golden_tag="ref-y")
+        self.assertEqual(core.check_ratchet_rebase(base, cur)[0], 1)
+
+    def test_gone_pair_is_listed_not_lost(self):
+        base = ratchet({"ws": ["a", "b"]}, {})
+        code, msgs = core.check_ratchet_rebase(base, ratchet({"ws": ["a"]}, {}, golden_tag="ref-y"))
+        self.assertEqual(code, 0)
+        self.assertTrue(any("no longer in the corpus" in m for m in msgs))
+
+    def test_filter_change_not_comparable(self):
+        base = ratchet({"ws": ["a"]}, {})
+        cur = ratchet({"ws": ["a"]}, {}, flt={"limit": 1}, golden_tag="ref-y")
+        self.assertEqual(core.check_ratchet_rebase(base, cur)[0], 2)
+
+
 if __name__ == "__main__":
     unittest.main()
