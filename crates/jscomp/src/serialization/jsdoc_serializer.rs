@@ -168,10 +168,7 @@ impl JSDocSerializer {
         if jsdoc.is_interface() {
             builder = builder.add_kind(JsdocTag::JSDOC_INTERFACE);
         }
-        if jsdoc
-            .get_suppressions()
-            .contains(&JsString::from("partialAlias"))
-        {
+        if jsdoc.has_suppression("partialAlias") {
             builder = builder.add_kind(JsdocTag::JSDOC_SUPPRESS_PARTIAL_ALIAS);
         }
 
@@ -191,16 +188,10 @@ impl JSDocSerializer {
         if let Some(meaning) = jsdoc.get_meaning() {
             builder = builder.set_meaning_pointer(string_pool.put(meaning));
         }
-        if jsdoc
-            .get_suppressions()
-            .contains(&JsString::from("messageConventions"))
-        {
+        if jsdoc.has_suppression("messageConventions") {
             builder = builder.add_kind(JsdocTag::JSDOC_SUPPRESS_MESSAGE_CONVENTION);
         }
-        if jsdoc
-            .get_suppressions()
-            .contains(&JsString::from("untranspilableFeatures"))
-        {
+        if jsdoc.has_suppression("untranspilableFeatures") {
             builder = builder.add_kind(JsdocTag::JSDOC_SUPPRESS_UNTRANSPILABLE_FEATURES);
         }
         if jsdoc.is_used_via_dot_constructor() {

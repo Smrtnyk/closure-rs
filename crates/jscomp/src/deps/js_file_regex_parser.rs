@@ -252,14 +252,13 @@ impl LineParser for JsFileRegexParser {
     }
     // port: JsFileRegexParser#parseJsDocCommentLine
     fn parse_js_doc_comment_line(&mut self, line: &JsString) -> bool {
-        if self.include_goog_base && line.index_of(JsString::from(Self::PROVIDES_GOOG_COMMENT)) >= 0
-        {
+        if self.include_goog_base && line.index_of(Self::PROVIDES_GOOG_COMMENT) >= 0 {
             self.provides.push("goog".into());
             return false;
-        } else if line.index_of(JsString::from(Self::EXTERNS_COMMENT)) >= 0 {
+        } else if line.index_of(Self::EXTERNS_COMMENT) >= 0 {
             self.has_externs_annotation = true;
             return false;
-        } else if line.index_of(JsString::from(Self::NOCOMPILE_COMMENT)) >= 0 {
+        } else if line.index_of(Self::NOCOMPILE_COMMENT) >= 0 {
             self.has_no_compile_annotation = true;
             return false;
         }
@@ -268,7 +267,7 @@ impl LineParser for JsFileRegexParser {
     // port: JsFileRegexParser#parseLine
     fn parse_line(&mut self, line: &JsString) -> Result<bool, ParseException> {
         let mut line_has_provides_or_requires = false;
-        if line.starts_with(JsString::from(Self::BUNDLED_GOOG_MODULE_START)) {
+        if line.starts_with(Self::BUNDLED_GOOG_MODULE_START) {
             self.seen_load_module = true;
         }
         let line_has_provides_or_requires_words = line.index_of("provide") >= 0

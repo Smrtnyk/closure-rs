@@ -4936,7 +4936,7 @@ impl TypeCheck {
         compiler: &mut AbstractCompiler,
         n: NodeId,
     ) {
-        if n.get_jsdoc_info(compiler).is_some() {
+        if n.get_jsdoc_info_ref(compiler).is_some() {
             let info = n.get_jsdoc_info(compiler).unwrap();
             self.check_type_contains_object_with_bad_key(compiler, n, info.get_type());
             self.check_type_contains_object_with_bad_key(compiler, n, info.get_return_type());

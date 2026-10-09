@@ -40,13 +40,31 @@
 
 //! Interning pool used by Rhino nodes.
 use crate::js_string::JsString;
-use std::collections::BTreeMap;
+use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 pub struct RhinoStringPool;
-type Interner = BTreeMap<Vec<u16>, Weak<[u16]>>;
-static INTERNER: OnceLock<Mutex<Interner>> = OnceLock::new();
+// Java's weak interner. Rust-only (D-025): split into independently locked shards by hash, so
+// that inputs parsed on several threads (jscomp `parallel_parse`) rarely wait for each other;
+// which shard holds a string never matters, only that equal strings share one entry.
+type Interner = crate::fx_hash::IndexMap<Box<[u16]>, Weak<[u16]>>;
+const SHARD_BITS: u32 = 6;
+static INTERNER: OnceLock<Vec<Mutex<Interner>>> = OnceLock::new();
+thread_local! {
+    static THREAD_CACHE: std::cell::RefCell<Option<crate::fx_hash::IndexMap<Box<[u16]>, JsString>>> =
+        const { std::cell::RefCell::new(None) };
+}
+fn shard(units: &[u16]) -> &'static Mutex<Interner> {
+    let shards = INTERNER.get_or_init(|| {
+        (0..1 << SHARD_BITS)
+            .map(|_| Mutex::new(Interner::default()))
+            .collect()
+    });
+    let mut hasher = crate::fx_hash::FxHasher::default();
+    units.hash(&mut hasher);
+    &shards[(hasher.finish() >> (64 - SHARD_BITS)) as usize]
+}
 impl RhinoStringPool {
     // port: RhinoStringPool#uncheckedEquals
     pub fn unchecked_equals(a: &JsString, b: &JsString) -> bool {
@@ -55,10 +73,35 @@ impl RhinoStringPool {
     // port: RhinoStringPool#addOrGet
     pub fn add_or_get(s: impl Into<JsString>) -> JsString {
         let s = s.into();
-        let mut pool = INTERNER
-            .get_or_init(|| Mutex::new(BTreeMap::new()))
-            .lock()
-            .unwrap();
+        // Rust-only: a parser thread's own cache of pool entries (see `with_thread_cache`).
+        if let Some(cached) = THREAD_CACHE
+            .with_borrow(|cache| cache.as_ref().map(|cache| cache.get(s.as_units()).cloned()))
+        {
+            return cached.unwrap_or_else(|| {
+                let interned = Self::add_or_get_shared(s);
+                THREAD_CACHE.with_borrow_mut(|cache| {
+                    cache
+                        .as_mut()
+                        .unwrap()
+                        .insert(interned.as_units().into(), interned.clone())
+                });
+                interned
+            });
+        }
+        Self::add_or_get_shared(s)
+    }
+    /// Rust-only (D-025): runs `f` with a cache, private to this thread, in front of the shared
+    /// pool. The cache holds pool entries (so it returns exactly what the pool would) and keeps
+    /// them alive while `f` runs; it spares a thread that parses many strings (jscomp
+    /// `parallel_parse`) a shared lock per string.
+    pub fn with_thread_cache<R>(f: impl FnOnce() -> R) -> R {
+        let previous = THREAD_CACHE.replace(Some(Default::default()));
+        let result = f();
+        THREAD_CACHE.set(previous);
+        result
+    }
+    fn add_or_get_shared(s: JsString) -> JsString {
+        let mut pool = shard(s.as_units()).lock().unwrap();
         if let Some(interned) = pool.get(s.as_units()).and_then(Weak::upgrade) {
             return JsString(interned);
         }
@@ -66,7 +109,7 @@ impl RhinoStringPool {
         if pool.len().is_multiple_of(1024) {
             pool.retain(|_, v| v.strong_count() != 0);
         }
-        pool.insert(s.as_units().to_vec(), Arc::downgrade(&s.0));
+        pool.insert(s.as_units().into(), Arc::downgrade(&s.0));
         s
     }
     // port: RhinoStringPool#RhinoStringPool

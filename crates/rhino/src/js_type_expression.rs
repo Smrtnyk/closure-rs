@@ -64,10 +64,22 @@ impl JSTypeExpression {
             source_name: source_name.into(),
         }
     }
+    /// Rust-only: this expression with another root node (for `Ast::append_preparsed`).
+    pub fn with_root(&self, root: NodeId) -> Self {
+        Self {
+            root,
+            source_name: self.source_name.clone(),
+        }
+    }
     // port: JSTypeExpression#IMPLICIT_TEMPLATE_BOUND
     pub fn implicit_template_bound(ast: &mut Ast) -> Arc<Self> {
         if let Some(expr) = &ast.implicit_template_bound {
-            return expr.clone();
+            let expr = expr.clone();
+            if ast.preparse && ast.preparse_bound_first_use.is_none() {
+                // Rust-only: a preparse arena's placeholder (see `Ast::new_for_preparse`).
+                ast.preparse_bound_first_use = Some(ast.node_count());
+            }
+            return expr;
         }
         let root = ast.new_node(Token::QMARK);
         root.set_static_source_file(

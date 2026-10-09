@@ -415,12 +415,10 @@ impl CompilerPass for RemoveUnusedCode {
     fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
         check_state!(compiler.get_life_cycle_stage().is_normalized());
         let extern_properties = compiler
-            .get_extern_properties()
-            .expect("compiler.getExternProperties() is null")
-            .iter()
-            .map(|s| JsString::from(s.as_str()))
-            .collect::<Vec<_>>();
-        self.pinned_property_names.extend(extern_properties);
+            .get_extern_properties_js()
+            .expect("compiler.getExternProperties() is null");
+        self.pinned_property_names
+            .extend(extern_properties.iter().cloned());
 
         let removal_log_file =
             compiler.create_or_reopen_indexed_log("RemoveUnusedCode", "removals.log", &[]);

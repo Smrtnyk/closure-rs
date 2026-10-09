@@ -195,9 +195,9 @@ impl Callback for GatherExternProperties {
                 _ => {}
             }
         }
-        let js_doc_info = n.get_jsdoc_info(t);
-        if let Some(js_doc_info) = js_doc_info
-            && self.mode.check()
+        // (The mode is tested first, so the JSDoc is only copied when it is read.)
+        if self.mode.check()
+            && let Some(js_doc_info) = n.get_jsdoc_info(t)
         {
             self.gather_properties_from_jsdoc_info(t, &js_doc_info);
         }

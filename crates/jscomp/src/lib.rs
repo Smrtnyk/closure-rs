@@ -66,6 +66,7 @@ pub mod message_formatter;
 pub mod name_generator;
 pub mod nested_compiler_runner;
 pub mod optimize_calls;
+pub(crate) mod parallel_parse;
 pub mod platform;
 pub mod prebuild_ast;
 pub mod prebuild_dependency_info;

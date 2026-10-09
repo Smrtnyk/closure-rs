@@ -1030,7 +1030,7 @@ impl<'a> FindCandidatesReferences<'a> {
             // Mark the function as uninlinable.
             function_state.disallow_inlining(t.get_compiler(), DisallowInliningReason::REASSIGNED);
         } else if (parent.is_assign(t)
-            && parent.get_jsdoc_info(t).is_some()
+            && parent.get_jsdoc_info_ref(t).is_some()
             && parent.get_jsdoc_info(t).unwrap().is_constant()
             && parent.get_second_child(t) == Some(n))
             || (parent.get_parent(t).is_some()

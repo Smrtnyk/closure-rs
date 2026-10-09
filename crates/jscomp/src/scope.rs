@@ -201,6 +201,35 @@ impl ScopeId {
     ) -> VarId {
         let name = name.into();
         check_argument!(!name.is_empty());
+        if ImplicitVar::of(&name).is_none() {
+            // Rust-only fast path (D-025): with no implicit slot for `name`, getOwnSlot,
+            // hasOwnSlot and canDeclare only read declared vars; read them under one lock.
+            let (declared, count) = {
+                let arena = ScopeArena::read(compiler);
+                let vars = &arena.scopes[self.index()].abstract_scope.vars;
+                (vars.contains_key(&name), vars.len())
+            };
+            check_state!(!declared);
+            let index = i32::try_from(count).unwrap();
+            let var = VarId::new(compiler, &name, name_node.into(), self, index, input, None);
+            // canDeclare: only a function block scope can refuse, when its parent has the name.
+            let parent_declares = self.is_function_block_scope(compiler)
+                && self.get_parent(compiler).is_some_and(|parent| {
+                    ScopeArena::read(compiler).scopes[parent.index()]
+                        .abstract_scope
+                        .vars
+                        .contains_key(&name)
+                });
+            if parent_declares {
+                self.declare_internal(compiler, name, var);
+            } else {
+                ScopeArena::write(compiler).scopes[self.index()]
+                    .abstract_scope
+                    .vars
+                    .insert(name, var);
+            }
+            return var;
+        }
         check_state!(self.get_own_slot(compiler, &name).is_none());
         let index = self.get_var_count(compiler);
         let var = VarId::new(compiler, &name, name_node.into(), self, index, input, None);

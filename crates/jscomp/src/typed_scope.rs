@@ -73,6 +73,16 @@ pub(crate) struct TypedScopeData {
     pub(crate) view: OnceLock<&'static Arc<TypedScopeView>>,
 }
 
+/// Rust-only (D-025): lock-free copies of a typed scope's fields that never change after
+/// construction (see `scope::ScopeMirror`), in `Compiler::typed_scope_mirror`, index-aligned with
+/// `TypedScopeArena::scopes`.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct TypedScopeMeta {
+    root_node: NodeId,
+    parent: Option<TypedScope>,
+    depth: i32,
+}
+
 /// Rust-only owner for Java TypedScope and TypedVar object identities; slots are never removed.
 ///
 /// The compiler owns it as `Arc<RwLock<..>>` (`TypedScopeArena::shared`) because the canonical
@@ -211,6 +221,9 @@ impl TypedScope {
         let scope = Self::allocate(compiler, root_node);
         scope.check_child_scope(compiler, parent);
         let depth = parent.data(compiler).depth + 1;
+        let meta = &mut compiler.typed_scope_mirror[scope.index()];
+        meta.parent = Some(parent);
+        meta.depth = depth;
         let mut data = scope.data_mut(compiler);
         data.parent = Some(parent);
         data.depth = depth;
@@ -250,6 +263,12 @@ impl TypedScope {
             is_bottom: false,
             reserved_names: IndexSet::<_>::default(),
             view: OnceLock::new(),
+        });
+        drop(arena);
+        compiler.typed_scope_mirror.push(TypedScopeMeta {
+            root_node,
+            parent: None,
+            depth: 0,
         });
         scope
     }
@@ -302,12 +321,12 @@ impl TypedScope {
 
     // port: TypedScope#getDepth
     pub fn get_depth(self, compiler: &AbstractCompiler) -> i32 {
-        self.data(compiler).depth
+        compiler.typed_scope_mirror[self.index()].depth
     }
 
     // port: TypedScope#getParent
     pub fn get_parent(self, compiler: &AbstractCompiler) -> Option<TypedScope> {
-        self.data(compiler).parent
+        compiler.typed_scope_mirror[self.index()].parent
     }
 
     // port: TypedScope#getTypeOfThis
@@ -614,6 +633,10 @@ impl AbstractScope for TypedScope {
     }
     fn get_parent(self, compiler: &AbstractCompiler) -> Option<Self> {
         TypedScope::get_parent(self, compiler)
+    }
+    // port: AbstractScope#getRootNode
+    fn get_root_node(self, compiler: &AbstractCompiler) -> NodeId {
+        compiler.typed_scope_mirror[self.index()].root_node
     }
     fn typed(self, compiler: &AbstractCompiler) -> TypedScope {
         TypedScope::typed(self, compiler)

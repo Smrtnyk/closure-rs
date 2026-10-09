@@ -162,7 +162,7 @@ impl Callback for CheckSideEffects {
 
         // This no-op statement was there so that JSDoc information could
         // be attached to the name. This check should not complain about it.
-        if n.is_qualified_name(t) && n.get_jsdoc_info(t).is_some() {
+        if n.is_qualified_name(t) && n.get_jsdoc_info_ref(t).is_some() {
             return;
         }
 

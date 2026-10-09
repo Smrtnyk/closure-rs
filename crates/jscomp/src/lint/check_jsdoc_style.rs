@@ -312,7 +312,7 @@ impl CheckJSDocStyle {
 
             let mut param = param_list.get_first_child(t).unwrap();
             for s in &params_from_js_doc {
-                if param.get_jsdoc_info(t).is_some() {
+                if param.get_jsdoc_info_ref(t).is_some() {
                     t.report(param, &MIXED_PARAM_JSDOC_STYLES, &[]);
                 }
                 let name = s;
@@ -465,7 +465,7 @@ impl CheckJSDocStyle {
         }
         let mut param = NodeUtil::get_function_parameters(t, function).get_first_child(t);
         while let Some(p) = param {
-            if p.get_jsdoc_info(t).is_some()
+            if p.get_jsdoc_info_ref(t).is_some()
                 || Self::is_default_assigned_param_with_inline_js_doc(t, p)
             {
                 return true;

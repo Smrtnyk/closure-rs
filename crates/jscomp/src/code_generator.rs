@@ -646,7 +646,7 @@ pub trait CodeGeneration<'a> {
                     if (child_count == 1) {
                         self.code_generator_mut().cc.maybe_insert_space();
                         if (self.code_generator().preserve_type_annotations
-                            && first.unwrap().get_jsdoc_info(ast).is_some())
+                            && first.unwrap().get_jsdoc_info_ref(ast).is_some())
                         {
                             self.add(&("(").into());
                             self.add_node(ast, first.unwrap());

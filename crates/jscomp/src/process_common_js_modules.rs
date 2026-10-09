@@ -2554,7 +2554,7 @@ impl RewriteModule {
                     if new_name_is_qualified {
                         // Var declarations without initialization can simply
                         // be removed if they are being converted to a property.
-                        if !name_ref.has_children(t) && parent.get_jsdoc_info(t).is_none() {
+                        if !name_ref.has_children(t) && parent.get_jsdoc_info_ref(t).is_none() {
                             parent.detach(t);
                             break 'switch;
                         }

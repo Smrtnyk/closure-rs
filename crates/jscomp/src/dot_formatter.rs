@@ -220,7 +220,7 @@ impl<'a> DotFormatter<'a> {
             self.append_annotation(compiler, n);
         }
         self.builder.push('"');
-        if n.get_jsdoc_info(compiler).is_some() {
+        if n.get_jsdoc_info_ref(compiler).is_some() {
             self.builder.push_str(" color=\"green\"");
         }
         self.builder.push_str("];\n");

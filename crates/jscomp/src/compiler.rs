@@ -85,6 +85,8 @@ impl closure_jstype::js_type_registry::ForwardDeclaredTypeSet for ForwardDeclare
 }
 pub struct Compiler {
     typed_ast_filesystem: Option<IndexMap<usize, AstSupplier>>,
+    /// Rust-only: inputs parsed ahead on worker threads (`parallel_parse`).
+    pub(crate) preparser: Option<crate::parallel_parse::Preparser>,
     passes: Option<Box<dyn crate::pass_config::PassConfig>>,
     externs: Vec<CompilerInput>,
     chunk_graph: Option<Arc<crate::js_chunk_graph::JSChunkGraph>>,
@@ -111,6 +113,9 @@ pub struct Compiler {
     has_reg_exp_global_references: bool,
     run_j2cl_passes: bool,
     extern_properties: Option<closure_rhino::fx_hash::IndexSet<String>>,
+    /// Rust-only: `extern_properties` as JS strings, made once per value (RemoveUnusedCode reads
+    /// them on every run).
+    extern_properties_js: std::sync::OnceLock<Vec<closure_rhino::js_string::JsString>>,
     accessor_summary: Option<Arc<crate::accessor_summary::AccessorSummary>>,
     unique_name_id: Arc<std::sync::atomic::AtomicI32>,
     unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier,
@@ -175,6 +180,8 @@ pub struct Compiler {
     pub(crate) scope_mirror: crate::scope::ScopeMirror,
     pub(crate) typed_scope_arena:
         std::sync::Arc<std::sync::RwLock<crate::typed_scope::TypedScopeArena>>,
+    /// Rust-only: lock-free copies of immutable `typed_scope_arena` fields.
+    pub(crate) typed_scope_mirror: Vec<crate::typed_scope::TypedScopeMeta>,
 }
 
 impl Compiler {
@@ -189,6 +196,7 @@ impl Compiler {
         let source_map_original_sources = excerpt_provider.original_sources.clone();
         Self {
             typed_ast_filesystem: None,
+            preparser: None,
             passes: None,
             externs: Vec::new(),
             chunk_graph: None,
@@ -213,6 +221,7 @@ impl Compiler {
             has_reg_exp_global_references: true,
             run_j2cl_passes: false,
             extern_properties: None,
+            extern_properties_js: std::sync::OnceLock::new(),
             accessor_summary: None,
             unique_name_id: Arc::new(std::sync::atomic::AtomicI32::new(0)),
             unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier::default(),
@@ -275,6 +284,7 @@ impl Compiler {
             scope_arena: ScopeArena::shared(),
             scope_mirror: crate::scope::ScopeMirror::default(),
             typed_scope_arena: crate::typed_scope::TypedScopeArena::shared(),
+            typed_scope_mirror: Vec::new(),
         }
     }
 
@@ -2428,6 +2438,14 @@ impl Compiler {
         let tracer = self.new_tracer(crate::pass_names::PARSE_INPUTS);
         self.before_pass(crate::pass_names::PARSE_INPUTS);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Rust-only (D-025): parse the inputs ahead on worker threads.
+            let all_inputs: Vec<CompilerInput> = self
+                .externs
+                .iter()
+                .cloned()
+                .chain(self.get_inputs_in_order())
+                .collect();
+            crate::parallel_parse::start(self, &all_inputs);
             if self.get_options().get_num_parallel_threads() > 1 {
                 crate::prebuild_ast::PrebuildAst::new(
                     self.get_options().get_num_parallel_threads(),
@@ -2575,6 +2593,8 @@ impl Compiler {
             }
             self.extern_and_js_root
         }));
+        // Rust-only: inputs preparsed but never asked for (pruned, or after an error).
+        crate::parallel_parse::finish(self);
         self.after_pass(crate::pass_names::PARSE_INPUTS);
         self.stop_tracer(tracer, crate::pass_names::PARSE_INPUTS);
         result.unwrap_or_else(|error| std::panic::resume_unwind(error))
@@ -3221,10 +3241,21 @@ impl Compiler {
     // port: Compiler#setExternProperties
     pub fn set_extern_properties(&mut self, properties: closure_rhino::fx_hash::IndexSet<String>) {
         self.extern_properties = Some(properties);
+        self.extern_properties_js = std::sync::OnceLock::new();
     }
     // port: Compiler#getExternProperties
     pub fn get_extern_properties(&self) -> Option<&closure_rhino::fx_hash::IndexSet<String>> {
         self.extern_properties.as_ref()
+    }
+    /// Rust-only: `get_extern_properties` as JS strings.
+    pub fn get_extern_properties_js(&self) -> Option<&[closure_rhino::js_string::JsString]> {
+        let properties = self.extern_properties.as_ref()?;
+        Some(self.extern_properties_js.get_or_init(|| {
+            properties
+                .iter()
+                .map(|s| closure_rhino::js_string::JsString::from(s.as_str()))
+                .collect()
+        }))
     }
     // port: Compiler#getAccessorSummary
     pub fn get_accessor_summary(&self) -> Option<&Arc<crate::accessor_summary::AccessorSummary>> {
@@ -4180,6 +4211,10 @@ impl Compiler {
 
 impl Compiler {
     // port: Compiler#getTypedAstDeserializer
+    /// Rust-only: whether ASTs come from a TypedAST filesystem (`get_typed_ast_deserializer`).
+    pub(crate) fn has_typed_ast_filesystem(&self) -> bool {
+        self.typed_ast_filesystem.is_some()
+    }
     pub fn get_typed_ast_deserializer(&mut self, file: &SourceFile) -> Option<AstSupplier> {
         let filesystem = self.typed_ast_filesystem.as_mut()?;
         let ast = filesystem.shift_remove(&(std::ptr::from_ref(file) as usize));
@@ -4309,6 +4344,7 @@ impl Compiler {
                 .map(|(key, (_, supplier))| (key, supplier))
                 .collect(),
         );
+        self.extern_properties_js = std::sync::OnceLock::new();
         self.extern_properties = Some(
             ast_data
                 .get_extern_properties()
@@ -4893,6 +4929,7 @@ impl Compiler {
         ));
 
         // Restore TypedAST and related fields
+        self.extern_properties_js = std::sync::OnceLock::new();
         self.extern_properties = Some(
             deserialized_ast
                 .get_extern_properties()

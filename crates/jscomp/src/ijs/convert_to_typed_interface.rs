@@ -350,7 +350,7 @@ impl Callback for RemoveNonDeclarations {
                         false
                     }
                     Token::GETPROP => {
-                        if !expr.is_qualified_name(t) || expr.get_jsdoc_info(t).is_none() {
+                        if !expr.is_qualified_name(t) || expr.get_jsdoc_info_ref(t).is_none() {
                             NodeUtil::delete_node(t.get_compiler(), n);
                             return false;
                         }
@@ -360,7 +360,7 @@ impl Callback for RemoveNonDeclarations {
                         if ConvertToTypedInterface::is_symbol_prop(
                             t,
                             expr.get_second_child(t).unwrap(),
-                        ) && expr.get_jsdoc_info(t).is_some()
+                        ) && expr.get_jsdoc_info_ref(t).is_some()
                         {
                             return true;
                         }

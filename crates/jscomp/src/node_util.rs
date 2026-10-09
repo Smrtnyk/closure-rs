@@ -3731,7 +3731,7 @@ impl NodeUtil {
         }
         let params = function.get_second_child(ast).unwrap();
         for param in params.children(ast) {
-            if param.get_jsdoc_info(ast).is_some() {
+            if param.get_jsdoc_info_ref(ast).is_some() {
                 return true;
             }
         }
@@ -4058,7 +4058,7 @@ impl NodeUtil {
         if n.is_expr_result(ast) {
             return Self::get_best_jsdoc_info_node(ast, n.get_first_child(ast).unwrap());
         }
-        let info = n.get_jsdoc_info(ast);
+        let info = n.get_jsdoc_info_ref(ast);
         if info.is_none() {
             let parent = n.get_parent(ast);
             if parent.is_none() || n.is_expr_result(ast) {

@@ -179,6 +179,25 @@ pub struct Config {
 }
 
 impl Config {
+    /// Rust-only (D-025): an equal config that shares no reference-counted data with this one,
+    /// for parsing on another thread (jscomp `parallel_parse`) without contending for the
+    /// reference counts of the shared maps and strings.
+    pub fn unshared_copy(&self) -> Self {
+        let copy = |s: &JsString| JsString::from_units(s.as_units().to_vec());
+        Self {
+            annotations: Arc::new(
+                self.annotations
+                    .iter()
+                    .map(|(k, v)| (copy(k), *v))
+                    .collect(),
+            ),
+            suppression_names: Arc::new(self.suppression_names.iter().map(copy).collect()),
+            closure_primitive_names: Arc::new(
+                self.closure_primitive_names.iter().map(copy).collect(),
+            ),
+            ..self.clone()
+        }
+    }
     /// Language level to accept.
     // port: Config#languageMode
     pub fn language_mode(&self) -> LanguageMode {

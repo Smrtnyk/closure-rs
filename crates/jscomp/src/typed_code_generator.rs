@@ -86,7 +86,7 @@ impl<'a> TypedCodeGenerator<'a> {
             {
                 // All namespace declarations except `const x = {};` are signified by @const JSDoc.
                 if NodeUtil::is_namespace_decl(ast, n.get_first_child(ast).unwrap())
-                    && n.get_jsdoc_info(ast).is_some()
+                    && n.get_jsdoc_info_ref(ast).is_some()
                 {
                     self.add(
                         &self

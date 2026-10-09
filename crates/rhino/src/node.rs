@@ -367,6 +367,101 @@ pub struct NodeData {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(NonZeroU32);
+/// Rust-only: how `Ast::append_preparsed` renumbered the nodes of a preparse arena.
+#[derive(Clone, Copy, Debug)]
+pub struct PreparsedIdMap {
+    base: u32,
+    bound_at: Option<u32>,
+}
+impl PreparsedIdMap {
+    /// The id in the target arena of node `n` of the preparse arena.
+    pub fn map(&self, n: NodeId) -> NodeId {
+        let local = n.0.get();
+        let shift = u32::from(self.bound_at.is_some_and(|at| local > at));
+        NodeId(NonZeroU32::new(self.base + local + shift).unwrap())
+    }
+}
+/// Rust-only: rewrites the property lists of appended preparse nodes for their new ids,
+/// keeping the sharing of lists, JSDoc infos and type expressions (memoized by identity).
+struct PropRemapper<'m> {
+    map: &'m PreparsedIdMap,
+    placeholder: Arc<JSTypeExpression>,
+    bound: Option<Arc<JSTypeExpression>>,
+    items: crate::fx_hash::IndexMap<usize, Arc<PropListItem>>,
+    infos: crate::fx_hash::IndexMap<usize, Arc<JSDocInfo>>,
+    exprs: crate::fx_hash::IndexMap<usize, Arc<JSTypeExpression>>,
+}
+impl PropRemapper<'_> {
+    /// The list `item` for the new ids: the same list when no item refers to a node.
+    fn list(&mut self, item: Arc<PropListItem>) -> Arc<PropListItem> {
+        if Self::refers_to_nodes(&item) {
+            self.rebuild(&item)
+        } else {
+            item
+        }
+    }
+    fn refers_to_nodes(item: &PropListItem) -> bool {
+        let mut x = Some(item);
+        while let Some(item) = x {
+            if matches!(
+                item.value,
+                PropValue::Object(ObjectProp::Node(_) | ObjectProp::JSDocInfo(_))
+            ) {
+                return true;
+            }
+            x = item.next.as_deref();
+        }
+        false
+    }
+    fn rebuild(&mut self, item: &Arc<PropListItem>) -> Arc<PropListItem> {
+        let key = Arc::as_ptr(item) as usize;
+        if let Some(done) = self.items.get(&key) {
+            return done.clone();
+        }
+        let next = match &item.next {
+            Some(next) if Self::refers_to_nodes(next) => Some(self.rebuild(next)),
+            next => next.clone(),
+        };
+        let value = match &item.value {
+            PropValue::Object(ObjectProp::Node(n)) => {
+                PropValue::Object(ObjectProp::Node(self.map.map(*n)))
+            }
+            PropValue::Object(ObjectProp::JSDocInfo(info)) => {
+                PropValue::Object(ObjectProp::JSDocInfo(self.info(info)))
+            }
+            value => value.clone(),
+        };
+        let done = Arc::new(PropListItem {
+            prop_type: item.prop_type,
+            value,
+            next,
+        });
+        self.items.insert(key, done.clone());
+        done
+    }
+    fn info(&mut self, info: &Arc<JSDocInfo>) -> Arc<JSDocInfo> {
+        let key = Arc::as_ptr(info) as usize;
+        if let Some(done) = self.infos.get(&key) {
+            return done.clone();
+        }
+        let map = *self.map;
+        let done = Arc::new(info.map_nodes(&mut |e| self.expr(e), &|n| map.map(n)));
+        self.infos.insert(key, done.clone());
+        done
+    }
+    fn expr(&mut self, expr: &Arc<JSTypeExpression>) -> Arc<JSTypeExpression> {
+        if Arc::ptr_eq(expr, &self.placeholder) {
+            return self.bound.clone().expect("implicit template bound");
+        }
+        let key = Arc::as_ptr(expr) as usize;
+        if let Some(done) = self.exprs.get(&key) {
+            return done.clone();
+        }
+        let done = Arc::new(expr.with_root(self.map.map(expr.get_root())));
+        self.exprs.insert(key, done.clone());
+        done
+    }
+}
 #[derive(Default, Debug)]
 pub struct Ast {
     nodes: Vec<NodeData>,
@@ -375,6 +470,12 @@ pub struct Ast {
     /// port: JSDocSerializer#placeholderType (a Java static holding nodes, so one per arena; the
     /// serialization code in closure-jscomp creates it on first use).
     pub jsdoc_serializer_placeholder_type: Option<Arc<JSTypeExpression>>,
+    /// Rust-only: this arena parses one input apart from the compiler's arena (see
+    /// `Ast::new_for_preparse`).
+    pub(crate) preparse: bool,
+    /// Rust-only: in a preparse arena, the node count when the parse first asked for the
+    /// implicit template bound.
+    pub(crate) preparse_bound_first_use: Option<u32>,
 }
 impl Index<NodeId> for Ast {
     type Output = NodeData;
@@ -403,6 +504,79 @@ impl IndexMut<L> for Ast {
 impl Ast {
     pub fn new() -> Self {
         Self::default()
+    }
+    /// Rust-only, not in Java (D-025): an arena in which a worker thread parses one input
+    /// (Java parses into the one shared object graph). `append_preparsed` then moves the result
+    /// into the compiler's arena with exactly the node ids, and the same object sharing, that
+    /// parsing directly into that arena at that point would have produced. The one piece of
+    /// arena state a parse reads is the lazily created implicit template bound (Java's
+    /// `JSTypeExpression.IMPLICIT_TEMPLATE_BOUND`); a preparse arena hands out a placeholder for
+    /// it and records when it was first asked for, so that the append can create the real one at
+    /// the same point if the target arena does not have it yet.
+    pub fn new_for_preparse() -> Self {
+        Self {
+            implicit_template_bound: Some(Arc::new(JSTypeExpression::new(
+                NodeId(NonZeroU32::MAX),
+                crate::js_type_expression::IMPLICIT_TEMPLATE_BOUND_SOURCE,
+            ))),
+            preparse: true,
+            ..Self::default()
+        }
+    }
+    /// Rust-only: the number of nodes in the arena.
+    pub fn node_count(&self) -> u32 {
+        u32::try_from(self.nodes.len()).unwrap()
+    }
+    /// Rust-only (D-025): moves the nodes of `other`, a `new_for_preparse` arena holding one
+    /// parsed input, to the end of this arena; see `new_for_preparse`. Returns how the ids of
+    /// `other` map to ids of this arena.
+    pub fn append_preparsed(&mut self, other: Ast) -> PreparsedIdMap {
+        assert!(other.preparse && !self.preparse);
+        let placeholder = other.implicit_template_bound.clone().unwrap();
+        let map = PreparsedIdMap {
+            base: u32::try_from(self.nodes.len()).unwrap(),
+            // Parsing into this arena would have created the bound (one node) at that point.
+            bound_at: other
+                .preparse_bound_first_use
+                .filter(|_| self.implicit_template_bound.is_none()),
+        };
+        let Ast { nodes, links, .. } = other;
+        let mut heads = Vec::with_capacity(nodes.len());
+        for (i, (mut data, link)) in nodes.into_iter().zip(links).enumerate() {
+            if map.bound_at == Some(u32::try_from(i).unwrap()) {
+                crate::js_type_expression::JSTypeExpression::implicit_template_bound(self);
+            }
+            heads.push(data.prop_list_head.take());
+            self.links.push(NodeLinks {
+                token: link.token,
+                parent: link.parent.map(|n| map.map(n)),
+                first: link.first.map(|n| map.map(n)),
+                next: link.next.map(|n| map.map(n)),
+                previous: link.previous.map(|n| map.map(n)),
+            });
+            self.nodes.push(data);
+        }
+        if map.bound_at == Some(u32::try_from(heads.len()).unwrap()) {
+            crate::js_type_expression::JSTypeExpression::implicit_template_bound(self);
+        }
+        // The properties last: they may refer to the bound, which now exists.
+        let bound = self.implicit_template_bound.clone();
+        let mut remapper = PropRemapper {
+            map: &map,
+            placeholder,
+            bound,
+            items: Default::default(),
+            infos: Default::default(),
+            exprs: Default::default(),
+        };
+        for (i, head) in heads.into_iter().enumerate() {
+            if let Some(head) = head {
+                let local = NodeId(NonZeroU32::new(u32::try_from(i + 1).unwrap()).unwrap());
+                let id = map.map(local);
+                self[id].prop_list_head = Some(remapper.list(head));
+            }
+        }
+        map
     }
     // port: Node#Node(Token)
     pub fn new_node(&mut self, token: Token) -> NodeId {
@@ -2838,10 +3012,17 @@ impl NodeId {
     }
     // port: Node#getJSDocInfo
     pub fn get_jsdoc_info(self, ast: &Ast) -> Option<Arc<JSDocInfo>> {
-        self.get_prop(ast, Prop::JSDOC_INFO).map(|v| match v {
-            ObjectProp::JSDocInfo(i) => i,
-            _ => panic!("ClassCastException"),
-        })
+        self.get_jsdoc_info_ref(ast).cloned()
+    }
+    // port: Node#getJSDocInfo
+    /// Rust-only: `get_jsdoc_info` by reference (no reference-count traffic).
+    pub fn get_jsdoc_info_ref(self, ast: &Ast) -> Option<&Arc<JSDocInfo>> {
+        self.lookup_property_ref(ast, Prop::JSDOC_INFO)
+            .map(|item| match &item.value {
+                PropValue::Object(ObjectProp::JSDocInfo(info)) => info,
+                PropValue::Object(_) => panic!("ClassCastException"),
+                PropValue::Int(_) => panic!("UnsupportedOperationException"),
+            })
     }
     // port: Node#setJSDocInfo
     pub fn set_jsdoc_info(self, ast: &mut Ast, info: Option<Arc<JSDocInfo>>) -> Self {

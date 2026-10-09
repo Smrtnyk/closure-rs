@@ -47,11 +47,20 @@ use std::{
 };
 
 /// Shared Java object identity; the source and InputId are immutable.
+/// Java's CompilerInput object; clones share it (Java reference semantics). One `Arc` around all
+/// fields, so a clone costs one reference-count update instead of three (D-025).
 #[derive(Clone)]
-pub struct CompilerInput {
+pub struct CompilerInput(Arc<CompilerInputFields>);
+pub struct CompilerInputFields {
     id: Arc<InputId>,
     source_file: Arc<SourceFile>,
-    pub(crate) state: Arc<Mutex<CompilerInputData>>,
+    pub(crate) state: Mutex<CompilerInputData>,
+}
+impl std::ops::Deref for CompilerInput {
+    type Target = CompilerInputFields;
+    fn deref(&self) -> &CompilerInputFields {
+        &self.0
+    }
 }
 #[derive(Default)]
 pub(crate) struct CompilerInputData {
@@ -103,11 +112,11 @@ impl CompilerInput {
         id: InputId,
         is_extern: bool,
     ) -> Self {
-        let input = Self {
+        let input = Self(Arc::new(CompilerInputFields {
             source_file: source_file.into(),
             id: Arc::new(id),
-            state: Arc::new(Mutex::new(CompilerInputData::default())),
-        };
+            state: Mutex::new(CompilerInputData::default()),
+        }));
         if is_extern {
             input.set_is_extern();
         }
@@ -150,7 +159,7 @@ impl CompilerInput {
         root
     }
     // port: CompilerInput.JsAst#isParsed
-    fn is_parsed(&self) -> bool {
+    pub(crate) fn is_parsed(&self) -> bool {
         self.state.lock().unwrap().ast.root.is_some()
     }
     // port: CompilerInput.JsAst#parse
@@ -163,17 +172,28 @@ impl CompilerInput {
                     ConfigContext::DEFAULT
                 });
                 // Split the compiler's arena borrow from reporting, retaining diagnostic order.
-                let mut errors = crate::rhino_error_reporter::RecordingErrorHandler::default();
-                let mut reporter =
-                    crate::rhino_error_reporter::RhinoErrorReporter::for_old_rhino(&mut errors);
-                let result = ParserRunner::parse(
-                    &mut compiler.ast,
-                    self.source_file.clone(),
-                    code,
-                    &config,
-                    &mut reporter,
-                );
-                for error in errors.errors {
+                // Rust-only (D-025): an input parsed ahead on a worker thread is moved in instead.
+                let (result, errors) =
+                    match crate::parallel_parse::take(compiler, self, &config, &code) {
+                        Some(preparsed) => preparsed,
+                        None => {
+                            let mut errors =
+                                crate::rhino_error_reporter::RecordingErrorHandler::default();
+                            let mut reporter =
+                                crate::rhino_error_reporter::RhinoErrorReporter::for_old_rhino(
+                                    &mut errors,
+                                );
+                            let result = ParserRunner::parse(
+                                &mut compiler.ast,
+                                self.source_file.clone(),
+                                code,
+                                &config,
+                                &mut reporter,
+                            );
+                            (result, errors.errors)
+                        }
+                    };
+                for error in errors {
                     compiler.report(error);
                 }
                 {
@@ -354,13 +374,13 @@ impl CompilerInput {
 }
 impl PartialEq for CompilerInput {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.state, &other.state)
+        Arc::ptr_eq(&self.0, &other.0)
     }
 }
 impl Eq for CompilerInput {}
 impl Hash for CompilerInput {
     fn hash<H: Hasher>(&self, h: &mut H) {
-        Arc::as_ptr(&self.state).hash(h);
+        Arc::as_ptr(&self.0).hash(h);
     }
 }
 impl fmt::Debug for CompilerInput {
