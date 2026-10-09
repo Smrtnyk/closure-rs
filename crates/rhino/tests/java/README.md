@@ -51,3 +51,12 @@ main corpus covers under the infeasibility rule, and writes `standard`-format ro
 java -Xmx1g -cp "$cache/harness:$reference_jar" XCheck 600000 | gzip > "$cache/xcheck.tsv.gz"
 zcat "$cache/xcheck.tsv.gz" | cargo run --release -p closure-rhino --example dtoa_compare -- standard
 ```
+
+`ConcurrentHashMapOrder.java` needs only the JDK. It prints the `keySet()` order of
+`ConcurrentHashMap<String, String>` after scripted `putAll`/`put` sequences (resizes, collision
+and tree bins, re-puts), which `../java_concurrent_hash_map_test.rs` replays:
+
+```bash
+mkdir -p build/chm && "$ROOT/tools/jdk-21/bin/javac" -d build/chm crates/rhino/tests/java/ConcurrentHashMapOrder.java
+"$ROOT/tools/jdk-21/bin/java" -cp build/chm ConcurrentHashMapOrder > crates/rhino/tests/data/java_concurrent_hash_map_order.tsv
+```

@@ -44,7 +44,7 @@ pub trait SourceMapGenerator {
         end_position: FilePosition,
     );
     // port: SourceMapGenerator#addSourcesContent
-    fn add_sources_content(&mut self, source: JsString, content: JsString);
+    fn add_sources_content(&mut self, source: JsString, content: Option<JsString>);
     // port: SourceMapGenerator#validate
     fn validate(&mut self, validate: bool);
     // port: SourceMapGenerator#setWrapperPrefix

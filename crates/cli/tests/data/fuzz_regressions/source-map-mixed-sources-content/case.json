@@ -1,0 +1,21 @@
+{
+ "argv": [
+  "--compilation_level",
+  "SIMPLE_OPTIMIZATIONS",
+  "--source_map_include_content",
+  "--create_source_map",
+  "out/o.js.map",
+  "--source_map_input",
+  "a.js|in.js.map",
+  "--js",
+  "a.js",
+  "--js_output_file",
+  "out/o.js"
+ ],
+ "origin": "GitHub issue #11: an input map with one filled and one null sourcesContent entry",
+ "exit_code": 0,
+ "outputs": [
+  "out/o.js",
+  "out/o.js.map"
+ ]
+}

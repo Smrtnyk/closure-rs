@@ -1,0 +1,23 @@
+{
+ "argv": [
+  "--source_map_include_content",
+  "--create_source_map",
+  "out/o.js.map",
+  "--source_map_input",
+  "a.js|a.js.map",
+  "--source_map_input",
+  "b.js|b.js.map",
+  "--js",
+  "a.js",
+  "--js",
+  "b.js",
+  "--js_output_file",
+  "out/o.js"
+ ],
+ "origin": "two input maps give different sourcesContent for one source: Compiler#inputSourceMaps is a ConcurrentHashMap, whose iteration order decides which content is kept (a.js: content, b.js: null)",
+ "exit_code": 0,
+ "outputs": [
+  "out/o.js",
+  "out/o.js.map"
+ ]
+}

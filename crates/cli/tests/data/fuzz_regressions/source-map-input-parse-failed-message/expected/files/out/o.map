@@ -1,0 +1,9 @@
+{
+"version":3,
+"file":"out/o.js",
+"lineCount":1,
+"mappings":"AAAA,IAAIA,EAAE,C,CCAN,IAAIC,EAAE;",
+"sources":["a.js","b.js"],
+"sourcesContent":["var x=1;\n","var y=2;\n"],
+"names":["x","y"]
+}

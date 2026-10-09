@@ -48,6 +48,13 @@ use std::{
     sync::Arc,
 };
 
+/// `Compiler#inputSourceMaps`: a `ConcurrentHashMap<String, SourceMapInput>`, iterated in Java's
+/// order (docs/PORTING.md §8).
+pub type InputSourceMaps = closure_rhino::java_lang::concurrent_hash_map::ConcurrentHashMap<
+    String,
+    Arc<crate::source_map_input::SourceMapInput>,
+>;
+
 pub type AstSupplier = Arc<dyn Fn(&mut Compiler) -> NodeId + Send + Sync>;
 /// Java's LinkedHashSet and the anonymous AbstractSet selected by initOptions.
 #[derive(Default)]
@@ -150,8 +157,9 @@ pub struct Compiler {
     parser_config: Option<closure_parsing::config::Config>,
     externs_parser_config: Option<closure_parsing::config::Config>,
     comments_per_file: IndexMap<String, Vec<closure_parsing::parser::trees::comment::Comment>>,
-    input_source_maps:
-        Arc<std::sync::Mutex<IndexMap<String, Arc<crate::source_map_input::SourceMapInput>>>>,
+    // Java's ConcurrentHashMap: inputSourceMaps.values() iterates in its hash-table order, which
+    // decides which input map's sourcesContent is kept for a source that several maps name.
+    input_source_maps: Arc<std::sync::Mutex<InputSourceMaps>>,
     script_node_by_filename: Arc<std::sync::Mutex<IndexMap<String, NodeId>>>,
     module_loader: crate::deps::module_loader::ModuleLoader,
     pending_module_errors: Arc<std::sync::Mutex<Vec<JSError>>>,
@@ -927,7 +935,7 @@ impl Compiler {
         self.input_source_maps
             .lock()
             .unwrap()
-            .insert(name.into(), source_map.clone());
+            .put(name.into(), source_map.clone());
         if self.get_options().get_source_map_include_sources_content() && self.source_map.is_some()
         {
             self.add_source_map_source_files(&source_map);
@@ -1408,7 +1416,7 @@ impl Compiler {
         self.input_source_maps
             .lock()
             .unwrap()
-            .extend(self.get_options().get_input_source_maps().clone());
+            .put_all(self.get_options().get_input_source_maps().clone());
         if self.get_options().should_gather_source_map_info() {
             let mut source_map = self.get_options().get_source_map_format().get_instance();
             source_map.set_prefix_mappings(
@@ -1449,7 +1457,7 @@ impl Compiler {
             let mut map = map.lock().unwrap();
             for file in files {
                 let source = file.get_code().unwrap_or_else(|error| panic!("{error}"));
-                map.add_source_file(&file.get_name().into(), &source);
+                map.add_source_file(&file.get_name().into(), Some(&source));
             }
         }
     }
@@ -2991,7 +2999,8 @@ impl Compiler {
                 .unwrap()
                 .add_source_file(
                     &source.get_name().into(),
-                    code.as_ref().expect("null original source content"),
+                    // Java passes a null "sourcesContent" entry on as a null content.
+                    code.as_ref(),
                 );
         }
         assert_eq!(
@@ -3094,9 +3103,7 @@ impl Compiler {
     pub fn get_source_map(&self) -> Option<Arc<std::sync::Mutex<crate::source_map::SourceMap>>> {
         self.source_map.clone()
     }
-    pub fn get_input_source_maps(
-        &self,
-    ) -> IndexMap<String, Arc<crate::source_map_input::SourceMapInput>> {
+    pub fn get_input_source_maps(&self) -> InputSourceMaps {
         self.input_source_maps.lock().unwrap().clone()
     }
     // port: Compiler#resetAndIntitializeSourceMap
