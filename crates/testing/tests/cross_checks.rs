@@ -22,37 +22,85 @@
 //! - the 9 record lines with lone-surrogate escapes keep them through the reader and writer.
 
 use closure_testing::corpus::{
-    file_stem, load_descriptor_for, load_expected_pipeline, load_records, parse_jsonl, read_gz,
-    record_files,
+    LoadedDescriptor, file_stem, jsonl_lines, load_descriptor_for, load_expected_pipeline,
+    map_files_parallel, record_files, records,
 };
 use closure_testing::descriptor::{select_case, select_case_or_null};
 use closure_testing::json::JsonValue;
 use indexmap::IndexMap;
 use std::sync::OnceLock;
 
-/// Per record file (sorted): its stem and every raw record line.
-type RawFile = (String, Vec<JsonValue>);
+/// The case DSL.md selects for a record.
+enum Selection {
+    Case,
+    /// No case, which only a non-compiler_test_case record may have.
+    NoCase,
+    Error(String),
+}
 
+/// What the checks below read from one raw record line.
+struct RawRecord {
+    kind: String,
+    class: String,
+    method: String,
+    call: Option<i64>,
+    /// `None` when the file's descriptor did not load.
+    selection: Option<Selection>,
+    lone_surrogate: bool,
+}
+
+/// One record file (sorted): its stem, its descriptor (loaded when the file has records) and its
+/// records.
+struct RawFile {
+    stem: String,
+    descriptor: Option<Result<Option<LoadedDescriptor>, String>>,
+    records: Vec<RawRecord>,
+}
+
+/// Every record file, read in one pass: each line is parsed, its case selected and its fields
+/// taken, and its JSON dropped before the next line is read (the whole corpus's JSON values would
+/// take several GB).
 fn raw_records() -> &'static Vec<RawFile> {
     static RAW: OnceLock<Vec<RawFile>> = OnceLock::new();
     RAW.get_or_init(|| {
-        let files = record_files().unwrap();
-        let chunks: Vec<Vec<std::path::PathBuf>> = files
-            .chunks(files.len().div_ceil(4))
-            .map(|c| c.to_vec())
-            .collect();
-        std::thread::scope(|s| {
-            let hs: Vec<_> = chunks
-                .iter()
-                .map(|c| {
-                    s.spawn(move || {
-                        c.iter()
-                            .map(|f| (file_stem(f), parse_jsonl(f, &read_gz(f).unwrap()).unwrap()))
-                            .collect::<Vec<RawFile>>()
-                    })
-                })
-                .collect();
-            hs.into_iter().flat_map(|h| h.join().unwrap()).collect()
+        map_files_parallel(&record_files().unwrap(), 4, |f| {
+            let stem = file_stem(f);
+            let mut descriptor = None;
+            let mut records = Vec::new();
+            for line in jsonl_lines(f).unwrap() {
+                let raw = line.unwrap().parse(f).unwrap();
+                let d = descriptor
+                    .get_or_insert_with(|| load_descriptor_for(&stem).map_err(|e| e.to_string()));
+                let kind = string(&raw, "kind");
+                let selection = match d {
+                    Ok(Some(ld)) => Some(if kind == "compiler_test_case" {
+                        match select_case(Some(&ld.descriptor), &raw) {
+                            Ok(_) => Selection::Case,
+                            Err(e) => Selection::Error(e.to_string()),
+                        }
+                    } else {
+                        match select_case_or_null(Some(&ld.descriptor), &raw) {
+                            Ok(Some(_)) => Selection::Case,
+                            Ok(None) => Selection::NoCase,
+                            Err(e) => Selection::Error(e.to_string()),
+                        }
+                    }),
+                    _ => None,
+                };
+                records.push(RawRecord {
+                    class: string(&raw, "class"),
+                    method: string(&raw, "method"),
+                    call: int(&raw, "call"),
+                    kind,
+                    selection,
+                    lone_surrogate: has_lone_surrogate(&raw),
+                });
+            }
+            RawFile {
+                stem,
+                descriptor,
+                records,
+            }
         })
     })
 }
@@ -64,11 +112,10 @@ fn string(raw: &JsonValue, key: &str) -> String {
         .unwrap_or_default()
 }
 
-fn int(raw: &JsonValue, key: &str) -> i64 {
+fn int(raw: &JsonValue, key: &str) -> Option<i64> {
     raw.get(key)
         .and_then(JsonValue::as_number)
         .and_then(|n| n.as_i64())
-        .unwrap()
 }
 
 #[test]
@@ -77,28 +124,32 @@ fn case_selection_and_unrepresentable_entries() {
     let mut no_match_optional: IndexMap<String, usize> = IndexMap::new();
     let mut errors = Vec::new();
     let mut ctc = 0usize;
-    for (stem, recs) in raw_records() {
+    for RawFile {
+        stem,
+        descriptor,
+        records: recs,
+    } in raw_records()
+    {
         if recs.is_empty() {
             continue;
         }
-        let ld = load_descriptor_for(stem)
+        let ld = descriptor
+            .as_ref()
             .unwrap()
+            .as_ref()
+            .unwrap()
+            .as_ref()
             .unwrap_or_else(|| panic!("{stem}: no descriptor"));
         let d = &ld.descriptor;
         for (i, raw) in recs.iter().enumerate() {
-            let kind = string(raw, "kind");
+            let kind = raw.kind.clone();
             if kind == "compiler_test_case" {
                 ctc += 1;
-                match select_case(Some(d), raw) {
-                    Ok(_) => *selected.entry(kind).or_default() += 1,
-                    Err(e) => errors.push(format!("{stem}:{}: {e}", i + 1)),
-                }
-            } else {
-                match select_case_or_null(Some(d), raw) {
-                    Ok(Some(_)) => *selected.entry(kind).or_default() += 1,
-                    Ok(None) => *no_match_optional.entry(kind).or_default() += 1,
-                    Err(e) => errors.push(format!("{stem}:{}: {e}", i + 1)),
-                }
+            }
+            match raw.selection.as_ref().unwrap() {
+                Selection::Case => *selected.entry(kind).or_default() += 1,
+                Selection::NoCase => *no_match_optional.entry(kind).or_default() += 1,
+                Selection::Error(e) => errors.push(format!("{stem}:{}: {e}", i + 1)),
             }
         }
         for u in d.unrepresentable.iter().flatten() {
@@ -107,16 +158,11 @@ fn case_selection_and_unrepresentable_entries() {
                 .and_then(|i| recs.get(i))
                 .unwrap_or_else(|| panic!("{stem}: unrepresentable index {}", u.index));
             if let Some(m) = &u.method {
-                assert_eq!(
-                    &string(raw, "method"),
-                    m,
-                    "{stem}: unrepresentable {}",
-                    u.index
-                );
+                assert_eq!(&raw.method, m, "{stem}: unrepresentable {}", u.index);
             }
             if let Some(c) = u.call {
                 assert_eq!(
-                    int(raw, "call"),
+                    raw.call.unwrap(),
                     i64::from(c),
                     "{stem}: unrepresentable {}",
                     u.index
@@ -149,18 +195,23 @@ fn expected_pipeline_matches_records() {
         );
     }
     let mut matched = 0usize;
-    for (stem, recs) in raw_records() {
+    for RawFile {
+        stem,
+        records: recs,
+        ..
+    } in raw_records()
+    {
         for (i, raw) in recs.iter().enumerate() {
-            if string(raw, "kind") != "compiler_test_case" {
+            if raw.kind != "compiler_test_case" {
                 continue;
             }
             let i = i64::try_from(i).unwrap();
             let e = by_key
                 .get(&(stem.clone(), i))
                 .unwrap_or_else(|| panic!("{stem}:{i}: no expected_pipeline entry"));
-            assert_eq!(e.class, string(raw, "class"), "{stem}:{i} class");
-            assert_eq!(e.method, string(raw, "method"), "{stem}:{i} method");
-            assert_eq!(i64::from(e.call), int(raw, "call"), "{stem}:{i} call");
+            assert_eq!(e.class, raw.class, "{stem}:{i} class");
+            assert_eq!(e.method, raw.method, "{stem}:{i} method");
+            assert_eq!(i64::from(e.call), raw.call.unwrap(), "{stem}:{i} call");
             matched += 1;
         }
     }
@@ -182,9 +233,14 @@ fn has_lone_surrogate(v: &JsonValue) -> bool {
 #[test]
 fn lone_surrogates_survive() {
     let mut found = Vec::new();
-    for (stem, recs) in raw_records() {
+    for RawFile {
+        stem,
+        records: recs,
+        ..
+    } in raw_records()
+    {
         for (i, raw) in recs.iter().enumerate() {
-            if has_lone_surrogate(raw) {
+            if raw.lone_surrogate {
                 found.push(format!("{stem}:{i}"));
             }
         }
@@ -212,8 +268,11 @@ fn lone_surrogates_survive() {
         "PeepholeReplaceKnownMethodsTest",
         "SerializeAndDeserializeAstTest",
     ] {
-        let recs = load_records(&dir.join(format!("{stem}.jsonl.gz"))).unwrap();
-        for lr in recs.iter().filter(|lr| has_lone_surrogate(&lr.raw)) {
+        let recs = records(&dir.join(format!("{stem}.jsonl.gz"))).unwrap();
+        for lr in recs
+            .map(Result::unwrap)
+            .filter(|lr| has_lone_surrogate(&lr.raw))
+        {
             let back = lr.record.to_json();
             assert!(has_lone_surrogate(&back), "{stem}:{}", lr.index);
             let text = back.to_json_string();

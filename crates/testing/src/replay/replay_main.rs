@@ -37,6 +37,7 @@ use indexmap::IndexMap;
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     path::{Path, PathBuf},
+    sync::atomic::{AtomicBool, Ordering::Relaxed},
 };
 #[derive(Clone, Debug)]
 pub struct ReplayResult {
@@ -759,6 +760,80 @@ pub struct Runner {
     /// release run (`gates/unit_rust.sh`, `unit_replay --all`) replays every record.
     pub sample: Option<usize>,
 }
+/// Rust-only: what replaying records needs; each replay thread loads its own (the registry is not
+/// `Send`).
+struct ReplayContext {
+    registry: Registry,
+    pipelines: IndexMap<(String, usize), ExpectedPipeline>,
+}
+/// Rust-only: a classified record and whether its replay failed with a harness error.
+type Classified = (Box<RecordResult>, bool);
+/// Rust-only: the record lines of every class, in order, handed out one at a time to the replay
+/// threads of [`Runner::run_on`].
+struct Feed<'a> {
+    files: &'a [PathBuf],
+    /// The class being read.
+    file: usize,
+    lines: Option<corpus::JsonlLines>,
+    /// Items handed out for the class so far.
+    dispatched: usize,
+    /// The class failed to read; its `End` comes next.
+    ended: bool,
+}
+enum FeedItem {
+    /// A record line of class `.0`.
+    Line(usize, corpus::JsonlLine),
+    /// Class `.0` failed to read at item `.1`; it ends here.
+    Fail(usize, usize, Throwable),
+    /// Class `.0` is done after `.1` items.
+    End(usize, usize),
+}
+impl Feed<'_> {
+    fn next_item(&mut self) -> Option<FeedItem> {
+        let file = self.file;
+        let path = self.files.get(file)?;
+        if !self.ended {
+            if self.lines.is_none() {
+                match corpus::jsonl_lines(path) {
+                    Ok(lines) => self.lines = Some(lines),
+                    Err(e) => {
+                        self.ended = true;
+                        self.dispatched += 1;
+                        return Some(FeedItem::Fail(file, 0, load_error(e)));
+                    }
+                }
+            }
+            match self.lines.as_mut().unwrap().next() {
+                Some(Ok(line)) => {
+                    self.dispatched += 1;
+                    return Some(FeedItem::Line(file, line));
+                }
+                Some(Err(e)) => {
+                    let at = self.dispatched;
+                    self.ended = true;
+                    self.dispatched += 1;
+                    return Some(FeedItem::Fail(file, at, load_error(e)));
+                }
+                None => {}
+            }
+        }
+        let items = self.dispatched;
+        self.file += 1;
+        self.lines = None;
+        self.dispatched = 0;
+        self.ended = false;
+        Some(FeedItem::End(file, items))
+    }
+}
+/// Rust-only: what a replay thread of [`Runner::run_on`] reports.
+enum Replayed {
+    /// The result of item `.1` of class `.0` (`None`: a record outside the sample).
+    Record(usize, usize, Result<Option<Classified>, Throwable>),
+    /// Class `.0` has `.1` items.
+    End(usize, usize),
+    /// The thread could not load its replay context.
+    NoContext(Throwable),
+}
 impl Runner {
     // port: ReplayMain#main
     pub fn run(
@@ -766,20 +841,162 @@ impl Runner {
         mut record_sink: impl FnMut(&RecordResult) -> Result<(), Throwable>,
         mut class_sink: impl FnMut(&str, &Counts),
     ) -> Result<Report, Throwable> {
-        let registry = Registry::load(&self.corpus)?;
-        let path = self.corpus.join("derived/expected_pipeline.jsonl.gz");
-        let text = corpus::read_gz(&path).map_err(load_error)?;
-        let pipelines = corpus::parse_jsonl(&path, &text)
-            .map_err(load_error)?
-            .iter()
-            .map(|v| {
-                ExpectedPipeline::from_json(v, "$")
-                    .map_err(|e| Throwable::HarnessError(e.to_string()))
-            })
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .map(|p| ((p.file.clone(), p.index as usize), p))
-            .collect::<IndexMap<_, _>>();
+        let files = self.class_files()?;
+        let context = self.context()?;
+        let mut report = Report::default();
+        for file in &files {
+            let stem = corpus::file_stem(file);
+            let d = self.class_descriptor(&stem)?;
+            let descriptor = d.as_ref().map(|d| &d.descriptor);
+            let mut counts = Counts::default();
+            // One record at a time: a class's records are never all in memory.
+            for line in corpus::jsonl_lines(file).map_err(load_error)? {
+                let line = line.map_err(load_error)?;
+                let Some((rr, harness_error)) =
+                    self.replay_record(&context, file, &stem, descriptor, &line)?
+                else {
+                    continue;
+                };
+                report.harness_errors += usize::from(harness_error);
+                record_sink(&rr)?;
+                counts.add(&rr);
+                report.totals.add(&rr);
+            }
+            class_sink(&stem, &counts);
+            report.classes.insert(stem, counts);
+        }
+        Ok(report)
+    }
+    /// Rust-only: [`Runner::run`] with the records replayed on `threads` threads, each taking the
+    /// next record line when it is done with one. The sinks still see every class, and every
+    /// record of it, in the order `run` gives them (this thread calls them as the classes finish,
+    /// in file order), so the report is the same.
+    // port: ReplayMain#main
+    pub fn run_on(
+        &self,
+        threads: usize,
+        mut record_sink: impl FnMut(&RecordResult) -> Result<(), Throwable>,
+        mut class_sink: impl FnMut(&str, &Counts),
+    ) -> Result<Report, Throwable> {
+        if threads <= 1 {
+            return self.run(record_sink, class_sink);
+        }
+        let files = self.class_files()?;
+        let feed = std::sync::Mutex::new(Feed {
+            files: &files,
+            file: 0,
+            lines: None,
+            dispatched: 0,
+            ended: false,
+        });
+        let failed = AtomicBool::new(false);
+        let (tx, rx) = std::sync::mpsc::channel::<Replayed>();
+        std::thread::scope(|scope| {
+            for _ in 0..threads {
+                let tx = tx.clone();
+                let (feed, failed, files) = (&feed, &failed, &files);
+                scope.spawn(move || {
+                    let context = match self.context() {
+                        Ok(c) => c,
+                        Err(e) => {
+                            failed.store(true, Relaxed);
+                            let _ = tx.send(Replayed::NoContext(e));
+                            return;
+                        }
+                    };
+                    // The descriptor of the class of the last line.
+                    let mut descriptor: Option<(usize, Option<corpus::LoadedDescriptor>)> = None;
+                    while !failed.load(Relaxed) {
+                        let Some(item) = feed.lock().unwrap().next_item() else {
+                            break;
+                        };
+                        let message = match item {
+                            FeedItem::End(file, items) => Replayed::End(file, items),
+                            FeedItem::Fail(file, at, e) => Replayed::Record(file, at, Err(e)),
+                            FeedItem::Line(file, line) => {
+                                let stem = corpus::file_stem(&files[file]);
+                                let loaded = match &descriptor {
+                                    Some((f, _)) if *f == file => Ok(()),
+                                    _ => self
+                                        .class_descriptor(&stem)
+                                        .map(|d| descriptor = Some((file, d))),
+                                };
+                                let result = loaded.and_then(|()| {
+                                    let d = descriptor.as_ref().and_then(|(_, d)| d.as_ref());
+                                    self.replay_record(
+                                        &context,
+                                        &files[file],
+                                        &stem,
+                                        d.map(|d| &d.descriptor),
+                                        &line,
+                                    )
+                                });
+                                Replayed::Record(file, line.index, result)
+                            }
+                        };
+                        if matches!(message, Replayed::Record(_, _, Err(_))) {
+                            failed.store(true, Relaxed);
+                        }
+                        if tx.send(message).is_err() {
+                            break;
+                        }
+                    }
+                });
+            }
+            drop(tx);
+            // Per class: its item count once known, and the results so far.
+            type Results = Vec<(usize, Result<Option<Classified>, Throwable>)>;
+            let mut classes: Vec<(Option<usize>, Results)> =
+                files.iter().map(|_| (None, Vec::new())).collect();
+            let mut no_context = None;
+            let mut report = Report::default();
+            let mut emitted = 0;
+            for message in rx {
+                match message {
+                    Replayed::Record(file, at, result) => classes[file].1.push((at, result)),
+                    Replayed::End(file, items) => classes[file].0 = Some(items),
+                    Replayed::NoContext(e) => no_context = Some(e),
+                }
+                // The classes in file order, each once all its items are in.
+                while emitted < files.len() && classes[emitted].0 == Some(classes[emitted].1.len())
+                {
+                    let mut results = std::mem::take(&mut classes[emitted].1);
+                    results.sort_by_key(|(at, _)| *at);
+                    let stem = corpus::file_stem(&files[emitted]);
+                    let mut counts = Counts::default();
+                    for (_, result) in results {
+                        let Some((rr, harness_error)) =
+                            result.inspect_err(|_| failed.store(true, Relaxed))?
+                        else {
+                            continue;
+                        };
+                        report.harness_errors += usize::from(harness_error);
+                        record_sink(&rr).inspect_err(|_| failed.store(true, Relaxed))?;
+                        counts.add(&rr);
+                        report.totals.add(&rr);
+                    }
+                    class_sink(&stem, &counts);
+                    report.classes.insert(stem, counts);
+                    emitted += 1;
+                }
+            }
+            if emitted == files.len() {
+                return Ok(report);
+            }
+            // The first failure, in the order `run` meets them.
+            for (_, results) in &mut classes[emitted..] {
+                results.sort_by_key(|(at, _)| *at);
+                if let Some(e) = results.drain(..).find_map(|(_, r)| r.err()) {
+                    return Err(e);
+                }
+            }
+            Err(no_context.unwrap_or_else(|| {
+                Throwable::HarnessError("a replay thread stopped before its record was done".into())
+            }))
+        })
+    }
+    // port: ReplayMain#main (record files)
+    fn class_files(&self) -> Result<Vec<PathBuf>, Throwable> {
         let mut files = std::fs::read_dir(self.corpus.join("records"))
             .map_err(|e| Throwable::HarnessError(e.to_string()))?
             .map(|e| e.map(|e| e.path()))
@@ -787,7 +1004,6 @@ impl Runner {
             .map_err(|e| Throwable::HarnessError(e.to_string()))?;
         files.retain(|p| p.to_string_lossy().ends_with(".jsonl.gz"));
         files.sort();
-        let mut report = Report::default();
         if let Some(classes) = &self.classes {
             for class in classes {
                 if !files.iter().any(|p| corpus::file_stem(p) == *class) {
@@ -797,85 +1013,117 @@ impl Runner {
                 }
             }
         }
-        for file in files {
-            let stem = corpus::file_stem(&file);
-            if self.classes.as_ref().is_some_and(|cs| !cs.contains(&stem)) {
-                continue;
-            }
-            let descriptor_path = self.corpus.join("descriptors").join(format!("{stem}.json"));
-            let d = if descriptor_path.exists() {
-                Some(corpus::load_descriptor(&descriptor_path).map_err(load_error)?)
-            } else {
-                None
-            };
-            let descriptor = d.as_ref().map(|d| &d.descriptor);
-            let mut counts = Counts::default();
-            for record in corpus::load_records(&file).map_err(load_error)? {
-                if self.sample.is_some_and(|n| record.index % n != 0) {
-                    continue;
-                }
-                let pipeline = pipelines
-                    .get(&(format!("{stem}.jsonl.gz"), record.index))
-                    .or_else(|| pipelines.get(&(stem.clone(), record.index)));
-                if record.record.kind == RecordKind::CompilerTestCase && pipeline.is_none() {
-                    return Err(Throwable::HarnessError(format!(
-                        "expected pipeline missing for {stem}:{}",
-                        record.index
-                    )));
-                }
-                let outcome = catch_unwind(AssertUnwindSafe(|| {
-                    replay_one(&stem, &record, descriptor, registry.clone(), pipeline)
-                }));
-                let outcome = match outcome {
-                    Ok(r) => r,
-                    Err(p) => Ok(ReplayResult::from_panic(p.as_ref())),
-                };
-                let mut omitted_unported = None;
-                let (status, why, unported_by) = match outcome {
-                    Err(Throwable::Unported(item)) => ("unported", None, Some(item)),
-                    Err(e) => {
-                        if matches!(e, Throwable::HarnessError(_)) {
-                            report.harness_errors += 1;
-                        }
-                        ("fail", Some(e.to_string()), None)
-                    }
-                    Ok(result) => {
-                        omitted_unported = result.omitted_unported.clone();
-                        match compare(&record.raw, &result) {
-                            // Rust-only: classify by outcome.
-                            Some(_) if omitted_unported.is_some() => {
-                                ("unported", None, omitted_unported.clone())
-                            }
-                            Some(why) => ("fail", Some(why), None),
-                            None => ("pass", None, None),
-                        }
-                    }
-                };
-                let rr = RecordResult {
-                    class: stem.clone(),
-                    index: record.index,
-                    method: record.record.method.clone(),
-                    call: record.record.call,
-                    kind: record.record.kind.name().into(),
-                    api: record.record.api.name().into(),
-                    status: status.into(),
-                    why,
-                    unported_by,
-                    omitted_unported,
-                    post_state: post_state(&record, descriptor),
-                    unrepresentable: descriptor
-                        .and_then(|d| d.unrepresentable.as_ref())
-                        .and_then(|us| us.iter().find(|u| u.index as usize == record.index))
-                        .map(|u| u.reason.clone()),
-                };
-                record_sink(&rr)?;
-                counts.add(&rr);
-                report.totals.add(&rr);
-            }
-            class_sink(&stem, &counts);
-            report.classes.insert(stem, counts);
+        files.retain(|file| {
+            self.classes
+                .as_ref()
+                .is_none_or(|cs| cs.contains(&corpus::file_stem(file)))
+        });
+        Ok(files)
+    }
+    // port: ReplayMain#main (registry and expected pipeline)
+    fn context(&self) -> Result<ReplayContext, Throwable> {
+        let registry = Registry::load(&self.corpus)?;
+        let path = self.corpus.join("derived/expected_pipeline.jsonl.gz");
+        let pipelines = corpus::jsonl_values(&path)
+            .map_err(load_error)?
+            .map(|v| {
+                ExpectedPipeline::from_json(&v.map_err(load_error)?, "$")
+                    .map_err(|e| Throwable::HarnessError(e.to_string()))
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .map(|p| ((p.file.clone(), p.index as usize), p))
+            .collect::<IndexMap<_, _>>();
+        Ok(ReplayContext {
+            registry,
+            pipelines,
+        })
+    }
+    // port: ReplayMain#main (class descriptor)
+    fn class_descriptor(&self, stem: &str) -> Result<Option<corpus::LoadedDescriptor>, Throwable> {
+        let descriptor_path = self.corpus.join("descriptors").join(format!("{stem}.json"));
+        if descriptor_path.exists() {
+            Ok(Some(
+                corpus::load_descriptor(&descriptor_path).map_err(load_error)?,
+            ))
+        } else {
+            Ok(None)
         }
-        Ok(report)
+    }
+    /// Reads one record line and, unless the sample leaves it out, replays and classifies it.
+    // port: ReplayMain#main (one record)
+    fn replay_record(
+        &self,
+        context: &ReplayContext,
+        file: &Path,
+        stem: &str,
+        descriptor: Option<&Descriptor>,
+        line: &corpus::JsonlLine,
+    ) -> Result<Option<Classified>, Throwable> {
+        let ReplayContext {
+            registry,
+            pipelines,
+        } = context;
+        let record = corpus::load_record(file, line).map_err(load_error)?;
+        if self.sample.is_some_and(|n| record.index % n != 0) {
+            return Ok(None);
+        }
+        let pipeline = pipelines
+            .get(&(format!("{stem}.jsonl.gz"), record.index))
+            .or_else(|| pipelines.get(&(stem.to_string(), record.index)));
+        if record.record.kind == RecordKind::CompilerTestCase && pipeline.is_none() {
+            return Err(Throwable::HarnessError(format!(
+                "expected pipeline missing for {stem}:{}",
+                record.index
+            )));
+        }
+        let outcome = catch_unwind(AssertUnwindSafe(|| {
+            replay_one(stem, &record, descriptor, registry.clone(), pipeline)
+        }));
+        let outcome = match outcome {
+            Ok(r) => r,
+            Err(p) => Ok(ReplayResult::from_panic(p.as_ref())),
+        };
+        let mut harness_error = false;
+        let mut omitted_unported = None;
+        let (status, why, unported_by) = match outcome {
+            Err(Throwable::Unported(item)) => ("unported", None, Some(item)),
+            Err(e) => {
+                if matches!(e, Throwable::HarnessError(_)) {
+                    harness_error = true;
+                }
+                ("fail", Some(e.to_string()), None)
+            }
+            Ok(result) => {
+                omitted_unported = result.omitted_unported.clone();
+                match compare(&record.raw, &result) {
+                    // Rust-only: classify by outcome.
+                    Some(_) if omitted_unported.is_some() => {
+                        ("unported", None, omitted_unported.clone())
+                    }
+                    Some(why) => ("fail", Some(why), None),
+                    None => ("pass", None, None),
+                }
+            }
+        };
+        let rr = Box::new(RecordResult {
+            class: stem.to_string(),
+            index: record.index,
+            method: record.record.method.clone(),
+            call: record.record.call,
+            kind: record.record.kind.name().into(),
+            api: record.record.api.name().into(),
+            status: status.into(),
+            why,
+            unported_by,
+            omitted_unported,
+            post_state: post_state(&record, descriptor),
+            unrepresentable: descriptor
+                .and_then(|d| d.unrepresentable.as_ref())
+                .and_then(|us| us.iter().find(|u| u.index as usize == record.index))
+                .map(|u| u.reason.clone()),
+        });
+        Ok(Some((rr, harness_error)))
     }
 }
 // port: ReplayMain#main (loader failures)

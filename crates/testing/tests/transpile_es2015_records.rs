@@ -41,7 +41,9 @@ fn transpile_es2015_records_pass() {
         classes: Some(CLASSES.iter().map(|c| c.to_string()).collect()),
         sample: None,
     }
-    .run(
+    // On 4 threads; the sinks still see the records in order.
+    .run_on(
+        4,
         |r| {
             records += 1;
             if r.status != "pass" {

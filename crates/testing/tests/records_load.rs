@@ -16,7 +16,7 @@
 
 //! Every record of corpus/unit/records loads with zero errors and round-trips losslessly.
 
-use closure_testing::corpus::{file_stem, load_records, record_files};
+use closure_testing::corpus::{file_stem, map_files_parallel, record_files, records};
 use closure_testing::record::{Api, RecordKind};
 use indexmap::IndexMap;
 
@@ -29,45 +29,26 @@ type FileResult = (String, Result<Vec<RecordKey>, String>);
 fn all_records_load_and_round_trip() {
     let files = record_files().unwrap();
     assert_eq!(files.len(), 432, "record files");
-    let chunks: Vec<Vec<std::path::PathBuf>> = files
-        .chunks(files.len().div_ceil(4))
-        .map(|c| c.to_vec())
-        .collect();
-    let results: Vec<Vec<FileResult>> = std::thread::scope(|s| {
-        let hs: Vec<_> = chunks
-            .iter()
-            .map(|c| {
-                s.spawn(move || {
-                    c.iter()
-                        .map(|f| {
-                            let r = load_records(f).map_err(|e| e.to_string()).and_then(|recs| {
-                                let mut out = Vec::new();
-                                for lr in recs {
-                                    let back = lr.record.to_json();
-                                    if back != lr.raw {
-                                        return Err(format!(
-                                            "{}:{}: round trip differs",
-                                            f.display(),
-                                            lr.index + 1
-                                        ));
-                                    }
-                                    let r = lr.record;
-                                    out.push((
-                                        r.kind,
-                                        r.api,
-                                        format!("{}#{}", r.class, r.method),
-                                        r.call,
-                                    ));
-                                }
-                                Ok(out)
-                            });
-                            (file_stem(f), r)
-                        })
-                        .collect()
-                })
-            })
-            .collect();
-        hs.into_iter().map(|h| h.join().unwrap()).collect()
+    // Record by record: each is checked and dropped before the next line is read.
+    let results: Vec<FileResult> = map_files_parallel(&files, 4, |f| {
+        let r = records(f).map_err(|e| e.to_string()).and_then(|recs| {
+            let mut out = Vec::new();
+            for lr in recs {
+                let lr = lr.map_err(|e| e.to_string())?;
+                let back = lr.record.to_json();
+                if back != lr.raw {
+                    return Err(format!(
+                        "{}:{}: round trip differs",
+                        f.display(),
+                        lr.index + 1
+                    ));
+                }
+                let r = lr.record;
+                out.push((r.kind, r.api, format!("{}#{}", r.class, r.method), r.call));
+            }
+            Ok(out)
+        });
+        (file_stem(f), r)
     });
     let mut errors = Vec::new();
     let mut total = 0usize;
@@ -76,7 +57,7 @@ fn all_records_load_and_round_trip() {
     let mut nonempty = 0usize;
     let mut table = String::from("stem\ttotal\tcompiler_test_case\tintegration\ttype_check\n");
     println!("stem\ttotal\tcompiler_test_case\tintegration\ttype_check");
-    for (stem, r) in results.into_iter().flatten() {
+    for (stem, r) in results {
         match r {
             Err(e) => errors.push(e),
             Ok(recs) => {

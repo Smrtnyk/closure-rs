@@ -1,13 +1,6 @@
 # cargo-nextest settings (gates/ci.sh uses nextest when it is installed, as CI does).
 
-# The record tests below read much of the unit corpus into memory: cross_checks peaks at about
-# 6.5 GB, records_load at 4.3 GB, unit_replay_runner at 2.3 GB and access_controls_records at
-# 2.1 GB (every other test stays under 1.4 GB). Run at the same time they exceed a 16 GB CI
-# runner and the kernel kills one of them, so they run one at a time; every other test still runs
-# alongside them.
-[test-groups]
-corpus-memory = { max-threads = 1 }
-
-[[profile.default.overrides]]
-filter = 'binary_id(closure-testing::cross_checks) | binary_id(closure-testing::records_load) | binary_id(closure-testing::unit_replay_runner) | binary_id(closure-testing::access_controls_records)'
-test-group = 'corpus-memory'
+# No test group: every test runs alongside the others. The record tests read the unit corpus one
+# record at a time (closure_testing::corpus::records); the four that read all of it (cross_checks,
+# records_load, unit_replay_runner, access_controls_records) peak at about 0.5 GB or less and
+# no other test needs more than about 1.4 GB, well within a 16 GB CI runner.
