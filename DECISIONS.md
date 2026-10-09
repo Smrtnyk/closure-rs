@@ -342,3 +342,25 @@ D-015 to D-017 are superseded wherever they conflict with this entry: the `postC
    pair regresses.
 4. **The fidelity criteria (§3) are unchanged:** identical outputs on the unit corpus, D2, the
    holdout, source maps and determinism.
+
+## D-025 — Performance work: structure may diverge from Java when output is identical (2026-10-08)
+Relaxes D-019's straight-port rule for performance work. A change may leave the Java structure
+when stdout, stderr, output files, source maps and exit codes stay byte-identical (CI, unit-record
+ratchet, complete D2 corpus, benchmark output identity) and runs stay deterministic
+(docs/PORTING.md §4.7). Code that still implements a Java method keeps its `// port:` marker; a
+divergence carries a short comment saying what Java does and why the Rust differs, and is listed
+here (one line each) to ease upstream syncs.
+- `jstype/property_map.rs`: `properties` / `known_symbols` are `Arc`, copy-on-write
+  (`Arc::make_mut`), so the clones that release the registry borrow are O(1).
+- `jscomp/data_flow_analysis.rs` `UniqueQueue`: `swap_remove` on the seen set; sorted queue
+  insert by binary search (Java: `HashSet` + `PriorityQueue`).
+- `parsing/config.rs`, `js_doc_info_parser.rs`: annotation / suppression / primitive-name maps
+  are `Arc`-shared, not copied per JSDoc comment.
+- `parsing/parser/scanner.rs` `peek_token_ref_at`: the parser peeks token types and lines by
+  reference instead of cloning the token.
+- `rhino/jscomp_colors/color.rs`: `Color` memoizes its hash code (immutable value).
+- `rhino/node.rs` `lookup_property_ref`: the property list is walked by reference.
+- `jscomp/serialization/malformed_typed_ast_exception.rs` `DebugParam`, `remove_unused_code.rs`
+  unremovable log: messages are formatted only when used (Java formats eagerly).
+- `jscomp/reference.rs`, `node_traversal.rs` `get_input_id_of_input`: references share the
+  traversal's `InputId` `Arc` instead of copying it after an input lookup.

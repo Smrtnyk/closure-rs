@@ -270,6 +270,15 @@ impl Scanner {
         }
         self.current_tokens[index].clone()
     }
+    /// Not in Java: `peekToken(index)` without cloning the token (its source positions hold
+    /// reference-counted pointers), for the parser's very frequent peeks.
+    pub fn peek_token_ref_at(&mut self, index: usize) -> &Token {
+        while self.current_tokens.len() <= index {
+            let token = self.scan_token();
+            self.current_tokens.push(token);
+        }
+        &self.current_tokens[index]
+    }
     // port: Scanner#isAtEnd
     fn is_at_end(&self) -> bool {
         !self.is_valid_index(self.index)

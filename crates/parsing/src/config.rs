@@ -20,6 +20,7 @@
 
 use closure_rhino::js_string::JsString;
 use indexmap::{IndexMap, IndexSet};
+use std::sync::Arc;
 
 use crate::annotation::Annotation;
 use crate::parser::feature_set::{Feature, FeatureSet};
@@ -169,9 +170,11 @@ pub struct Config {
     strict_mode: StrictMode,
     js_doc_parsing_mode: JsDocParsing,
     run_mode: RunMode,
-    annotations: IndexMap<JsString, Annotation>,
-    suppression_names: IndexSet<JsString>,
-    closure_primitive_names: IndexSet<JsString>,
+    // Shared (Arc) so that cloning the config, which IRFactory does for every JSDoc comment,
+    // does not copy the maps; Java shares the immutable collections by reference.
+    pub(crate) annotations: Arc<IndexMap<JsString, Annotation>>,
+    pub(crate) suppression_names: Arc<IndexSet<JsString>>,
+    pub(crate) closure_primitive_names: Arc<IndexSet<JsString>>,
     parse_inline_source_maps: bool,
 }
 
@@ -236,9 +239,9 @@ impl Config {
             strict_mode: Some(self.strict_mode),
             js_doc_parsing_mode: Some(self.js_doc_parsing_mode),
             run_mode: Some(self.run_mode),
-            annotations: Some(self.annotations.clone()),
-            suppression_names: Some(self.suppression_names.clone()),
-            closure_primitive_names: Some(self.closure_primitive_names.clone()),
+            annotations: Some((*self.annotations).clone()),
+            suppression_names: Some((*self.suppression_names).clone()),
+            closure_primitive_names: Some((*self.closure_primitive_names).clone()),
             parse_inline_source_maps: Some(self.parse_inline_source_maps),
         }
     }
@@ -402,9 +405,9 @@ impl Builder {
             strict_mode: self.strict_mode.unwrap(),
             js_doc_parsing_mode: self.js_doc_parsing_mode.unwrap(),
             run_mode: self.run_mode.unwrap(),
-            annotations: self.annotations.clone().unwrap(),
-            suppression_names: self.suppression_names.clone().unwrap(),
-            closure_primitive_names: self.closure_primitive_names.clone().unwrap(),
+            annotations: Arc::new(self.annotations.clone().unwrap()),
+            suppression_names: Arc::new(self.suppression_names.clone().unwrap()),
+            closure_primitive_names: Arc::new(self.closure_primitive_names.clone().unwrap()),
             parse_inline_source_maps: self.parse_inline_source_maps.unwrap(),
         }
     }

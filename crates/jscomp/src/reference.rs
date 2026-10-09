@@ -59,17 +59,9 @@ impl Reference {
     // port: Reference#Reference(Node,NodeTraversal,BasicBlock)
     pub fn new(name_node: NodeId, t: &mut NodeTraversal<'_>, basic_block: Arc<BasicBlock>) -> Self {
         let scope = t.get_scope();
-        let input_id = t
-            .get_input()
-            .expect("NodeTraversal#getInput")
-            .get_input_id()
-            .clone();
-        Self::new_private(
-            name_node,
-            Some(basic_block),
-            Some(scope),
-            Arc::new(input_id),
-        )
+        // Java: t.getInput().getInputId(); the id is shared instead of copied per reference.
+        let input_id = t.get_input_id_of_input().expect("NodeTraversal#getInput");
+        Self::new_private(name_node, Some(basic_block), Some(scope), input_id)
     }
 
     // port: Reference#Reference(Node,BasicBlock,Scope,InputId)

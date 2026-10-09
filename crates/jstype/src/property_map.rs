@@ -65,8 +65,11 @@ struct KeyCache {
 #[derive(Clone, Debug)]
 pub struct PropertyMap {
     pub(crate) parent_source: Option<TypeId>,
-    pub(crate) properties: BTreeMap<JsString, PropertyId>,
-    pub(crate) known_symbols: Option<Vec<(TypeId, PropertyId)>>,
+    // Java's PropertyMap is a reference type; callers here clone it to release the registry
+    // borrow. The maps are shared copy-on-write (Arc::make_mut in put_property_raw) so a clone
+    // is O(1) instead of a deep BTreeMap copy; the snapshot semantics are unchanged.
+    pub(crate) properties: Arc<BTreeMap<JsString, PropertyId>>,
+    pub(crate) known_symbols: Option<Arc<Vec<(TypeId, PropertyId)>>>,
     cache: Arc<Mutex<KeyCache>>,
     immutable_empty: bool,
 }
@@ -100,12 +103,12 @@ impl AllKeys {
 impl PropertyMap {
     // port: PropertyMap#PropertyMap
     pub fn new() -> Self {
-        Self::from_maps(BTreeMap::new(), None, false)
+        Self::from_maps(Arc::new(BTreeMap::new()), None, false)
     }
     // port: PropertyMap#PropertyMap
     fn from_maps(
-        properties: BTreeMap<JsString, PropertyId>,
-        known_symbols: Option<Vec<(TypeId, PropertyId)>>,
+        properties: Arc<BTreeMap<JsString, PropertyId>>,
+        known_symbols: Option<Arc<Vec<(TypeId, PropertyId)>>>,
         immutable_empty: bool,
     ) -> Self {
         Self {
@@ -119,7 +122,9 @@ impl PropertyMap {
     // port: PropertyMap#immutableEmptyMap
     pub fn immutable_empty_map() -> &'static Self {
         static EMPTY: std::sync::OnceLock<PropertyMap> = std::sync::OnceLock::new();
-        EMPTY.get_or_init(|| Self::from_maps(BTreeMap::new(), Some(Vec::new()), true))
+        EMPTY.get_or_init(|| {
+            Self::from_maps(Arc::new(BTreeMap::new()), Some(Arc::new(Vec::new())), true)
+        })
     }
     // port: PropertyMap#setParentSource
     pub fn set_parent_source(&mut self, owner_type: TypeId) {
@@ -309,7 +314,7 @@ impl PropertyMap {
                 if !self.properties.contains_key(&n) {
                     self.increment_cached_key_set_counter();
                 }
-                self.properties.insert(n, new_prop);
+                Arc::make_mut(&mut self.properties).insert(n, new_prop);
             }
             PropertyKey::Symbol(symbol) => {
                 let found = self.known_symbols.as_ref().and_then(|items| {
@@ -320,7 +325,10 @@ impl PropertyMap {
                 if found.is_none() {
                     self.increment_cached_key_set_counter();
                 }
-                let symbols = self.known_symbols.get_or_insert_with(Vec::new);
+                let symbols = Arc::make_mut(
+                    self.known_symbols
+                        .get_or_insert_with(|| Arc::new(Vec::new())),
+                );
                 if let Some(index) = found {
                     symbols[index].1 = new_prop;
                 } else {
