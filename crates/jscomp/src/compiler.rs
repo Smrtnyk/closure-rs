@@ -123,6 +123,10 @@ pub struct Compiler {
     /// Rust-only: `extern_properties` as JS strings, made once per value (RemoveUnusedCode reads
     /// them on every run).
     extern_properties_js: std::sync::OnceLock<Vec<closure_rhino::js_string::JsString>>,
+    /// Rust-only (DECISIONS.md D-025): whether the reference collection of the externs can be
+    /// skipped, while the externs are unchanged.
+    pub(crate) externs_reference_summary:
+        Option<crate::reference_collector::ExternsReferenceSummary>,
     accessor_summary: Option<Arc<crate::accessor_summary::AccessorSummary>>,
     unique_name_id: Arc<std::sync::atomic::AtomicI32>,
     unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier,
@@ -232,6 +236,7 @@ impl Compiler {
             run_j2cl_passes: false,
             extern_properties: None,
             extern_properties_js: std::sync::OnceLock::new(),
+            externs_reference_summary: None,
             accessor_summary: None,
             unique_name_id: Arc::new(std::sync::atomic::AtomicI32::new(0)),
             unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier::default(),
@@ -1384,6 +1389,8 @@ impl Compiler {
         let externs = IR::root(self, &[]);
         self.js_root = Some(js);
         self.externs_root = Some(externs);
+        self.change_tracker.set_externs_root(externs);
+        self.externs_reference_summary = None;
         self.extern_and_js_root = Some(IR::root(self, &[externs, js]));
     }
     // port: Compiler#getChunkGraph
@@ -4963,6 +4970,8 @@ impl Compiler {
         let js_root = IR::root(self, &[]);
         self.extern_and_js_root = Some(IR::root(self, &[externs_root, js_root]));
         self.externs_root = Some(externs_root);
+        self.change_tracker.set_externs_root(externs_root);
+        self.externs_reference_summary = None;
         self.js_root = Some(js_root);
         self.inputs_by_id.clear();
         self.externs.clear();

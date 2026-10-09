@@ -70,6 +70,35 @@ pub struct CollectorCallback<'a> {
     collected_hoisted_functions: IndexSet<NodeId>,
 
     narrow_scope: Option<ScopeId>,
+
+    /// Rust-only (D-025): `process(externs, root)` may skip the externs (see
+    /// `skip_externs_when_unread`).
+    may_skip_externs: bool,
+    /// Rust-only: the externs the current traversal skips.
+    skipped_externs: Option<NodeId>,
+    /// Rust-only: while the externs are traversed to make an `ExternsReferenceSummary`, whether
+    /// every NAME seen in them resolved to a var declared in the externs.
+    externs_refer_only_to_externs: Option<bool>,
+}
+
+/// Rust-only (DECISIONS.md D-025): whether the NAMEs of the externs resolve only to vars declared
+/// in the externs, for the externs as they were when it was made. The externs are the same while
+/// no change is recorded inside them (`ChangeTracker::get_externs_change_count`) and they keep
+/// their scripts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExternsReferenceSummary {
+    externs_version: (NodeId, u64, i32),
+    refers_only_to_externs: bool,
+}
+
+impl ExternsReferenceSummary {
+    fn externs_version(compiler: &AbstractCompiler, externs: NodeId) -> (NodeId, u64, i32) {
+        (
+            externs,
+            compiler.get_change_tracker_ref().get_externs_change_count(),
+            externs.get_child_count(compiler),
+        )
+    }
 }
 
 impl<'a> ReferenceCollector<'a> {
@@ -104,6 +133,9 @@ impl<'a> ReferenceCollector<'a> {
                 var_filter,
                 collected_hoisted_functions: IndexSet::<_>::default(),
                 narrow_scope: None,
+                may_skip_externs: false,
+                skipped_externs: None,
+                externs_refer_only_to_externs: None,
             },
             scope_creator: creator,
         }
@@ -142,6 +174,18 @@ impl<'a> ReferenceCollector<'a> {
         self.callback.narrow_scope = None;
     }
 
+    /// Rust-only (DECISIONS.md D-025): lets `process(externs, root)` leave out the externs when
+    /// that cannot change what the behavior sees, for a behavior that reads neither the
+    /// references nor the scopes of vars declared in the externs (Java traverses them on every
+    /// run). That holds while every NAME in the externs resolves to a var declared in the
+    /// externs: no reference collection of another var then has a reference in the externs, and
+    /// the externs jump to no hoisted function outside them, so the root is traversed in the
+    /// same order. This is found out on a traversal of the externs and kept in the compiler
+    /// until the externs change.
+    pub fn skip_externs_when_unread(&mut self) {
+        self.callback.may_skip_externs = true;
+    }
+
     /// Gets the variables that were referenced in this callback.
     // port: ReferenceCollector#getAllSymbols
     pub fn get_all_symbols(&self) -> Vec<VarId> {
@@ -168,6 +212,33 @@ impl CompilerPass for ReferenceCollector<'_> {
             callback,
             scope_creator,
         } = self;
+        if callback.may_skip_externs && compiler.get_externs_root() == Some(externs) {
+            // Rust-only (D-025): see `skip_externs_when_unread`.
+            let version = ExternsReferenceSummary::externs_version(compiler, externs);
+            match compiler.externs_reference_summary {
+                Some(summary) if summary.externs_version == version => {
+                    if summary.refers_only_to_externs {
+                        callback.skipped_externs = Some(externs);
+                        create_traversal_builder(compiler, callback, &mut **scope_creator)
+                            .traverse_roots_skipping_externs(externs, root);
+                        callback.skipped_externs = None;
+                        return;
+                    }
+                }
+                _ => {
+                    callback.externs_refer_only_to_externs = Some(true);
+                    create_traversal_builder(compiler, callback, &mut **scope_creator)
+                        .traverse_roots(externs, root);
+                    let refers_only_to_externs =
+                        callback.externs_refer_only_to_externs.take().unwrap();
+                    compiler.externs_reference_summary = Some(ExternsReferenceSummary {
+                        externs_version: version,
+                        refers_only_to_externs,
+                    });
+                    return;
+                }
+            }
+        }
         create_traversal_builder(compiler, callback, &mut **scope_creator)
             .traverse_roots(externs, root);
     }
@@ -209,6 +280,12 @@ impl CollectorCallback<'_> {
                 narrow_scope.get_depth(t.get_compiler()) > var_scope.get_depth(t.get_compiler())
             })
             || self.collected_hoisted_functions.contains(&fn_node)
+        {
+            return;
+        }
+        // Rust-only (D-025): the traversal of skipped externs would have collected this function.
+        if let Some(externs) = self.skipped_externs
+            && is_inside(t.get_compiler(), fn_node, externs)
         {
             return;
         }
@@ -273,6 +350,18 @@ impl CollectorCallback<'_> {
         // Add this particular reference
         collection.add(reference);
     }
+}
+
+/// Rust-only: whether `n` is `root` or below it.
+fn is_inside(ast: &Ast, n: NodeId, root: NodeId) -> bool {
+    let mut node = Some(n);
+    while let Some(current) = node {
+        if current == root {
+            return true;
+        }
+        node = current.get_parent(ast);
+    }
+    false
 }
 
 /// Returns true if this node marks the start of a new basic block
@@ -363,6 +452,16 @@ impl Callback for CollectorCallback<'_> {
 
             let scope = t.get_scope();
             let v = scope.get_var_of_node(t.get_compiler(), n);
+
+            // Rust-only (D-025): the summary of the externs (see `skip_externs_when_unread`). The
+            // empty NAME of a function expression resolves to no var.
+            if self.externs_refer_only_to_externs == Some(true)
+                && !v.is_some_and(|v| v.get_input(t.get_compiler()).is_some_and(|i| i.is_extern()))
+                && t.get_input().is_none_or(|input| input.is_extern())
+                && !n.get_string_ref(t).is_empty()
+            {
+                self.externs_refer_only_to_externs = Some(false);
+            }
 
             if let Some(v) = v {
                 self.add_reference(v, n, t);

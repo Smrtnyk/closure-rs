@@ -389,6 +389,11 @@ here (one line each) to ease upstream syncs.
   file name conversions of the previous mapping and the parsed input map
   (`SourceMapInput::get_cached_source_map`); `cli/java_io.rs` `EncodedWriter` writes UTF-8
   text to a UTF-8 stream without the UTF-16 round trip.
+- `jscomp/reference_collector.rs` `skip_externs_when_unread` (InlineVariables,
+  InlineObjectLiterals): a run leaves out the externs (Java traverses them on every run) while
+  every NAME in them resolves to a var declared in them, which a traversal of the externs finds
+  out and the compiler keeps until a change is recorded inside the externs
+  (`ChangeTracker::get_externs_change_count`).
 
 ## D-026 — Upstream syncs follow npm releases
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**
