@@ -28,6 +28,10 @@ impl SourceMapParseException {
             message: message.into(),
         }
     }
+    // port: Throwable#getMessage
+    pub fn get_message(&self) -> &JsString {
+        &self.message
+    }
     // Java Throwable.toString needs a lossless value before its Display boundary.
     pub fn java_to_string(&self) -> JsString {
         crate::java_string::throwable_to_string(
