@@ -38,6 +38,31 @@ class FirstDiffTest(unittest.TestCase):
         self.assertIn("\\xff", d["expected_context"])
 
 
+class MakeOutDirTest(unittest.TestCase):
+    def test_retries_when_a_sibling_removes_the_case_dir(self):
+        # _remove_out_dir of a sibling profile can remove <case> between os.makedirs creating it
+        # and creating <profile>; the helper must retry instead of failing.
+        import tempfile
+        from unittest import mock
+        real = os.makedirs
+        calls = []
+
+        def racy(path, exist_ok=False):
+            calls.append(path)
+            if len(calls) == 1:
+                raise FileNotFoundError(path)
+            return real(path, exist_ok=exist_ok)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "case", "profile")
+            with mock.patch.object(core.os, "makedirs", racy):
+                core._make_out_dir(out)
+            self.assertTrue(os.path.isdir(out))
+            # first attempt failed; the retry (whose recursive parent call is also patched) succeeded
+            self.assertEqual(calls[0], out)
+            self.assertGreaterEqual(len(calls), 2)
+
+
 class DecodeTest(unittest.TestCase):
     def test_str_and_base64(self):
         self.assertEqual(core.decode_text("hé"), "hé".encode("utf-8"))
