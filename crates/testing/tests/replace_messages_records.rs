@@ -54,7 +54,9 @@ fn replay(class: &str) -> Vec<RecordResult> {
         classes: Some(vec![class.to_string()]),
         sample: None,
     }
-    .run(
+    // On 4 threads; the sinks still see the records in order.
+    .run_on(
+        4,
         |r| {
             records.push(r.clone());
             Ok(())

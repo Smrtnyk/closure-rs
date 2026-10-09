@@ -33,8 +33,11 @@ fn sampled_record_count() -> usize {
         .collect::<Vec<_>>();
     files.sort();
     let (mut all, mut sampled) = (0, 0);
-    for file in files {
-        let n = corpus::load_records(&file).unwrap().len();
+    // Streamed (one record in memory per thread) and 4 files at a time.
+    let counts = corpus::map_files_parallel(&files, 4, |file| {
+        corpus::records(file).unwrap().map(Result::unwrap).count()
+    });
+    for n in counts {
         all += n;
         sampled += n.div_ceil(SAMPLE);
     }
@@ -54,7 +57,9 @@ fn every_record_is_classified_once_and_the_report_round_trips() {
         // in a release build and fails on any harness error
         sample: Some(SAMPLE),
     }
-    .run(
+    // The classes on 4 threads; the sinks below still see them, and their records, in order.
+    .run_on(
+        4,
         |r| {
             assert!(
                 identities.insert((r.class.clone(), r.index)),
