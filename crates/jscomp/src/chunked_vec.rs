@@ -44,7 +44,7 @@ impl<T> ChunkedVec<T> {
     }
 
     pub(crate) fn push(&mut self, value: T) {
-        if self.len % CHUNK_LEN == 0 {
+        if self.len.is_multiple_of(CHUNK_LEN) {
             self.chunks.push(Vec::with_capacity(CHUNK_LEN));
         }
         self.chunks.last_mut().unwrap().push(value);
