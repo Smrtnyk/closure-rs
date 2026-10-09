@@ -686,6 +686,42 @@ def check_ratchet(base: dict, cur: dict) -> tuple[int, list[str]]:
     return code, msgs
 
 
+def _pairs(r: dict, key: str) -> set[tuple[str, str]]:
+    return {(cid, p) for p, ids in r.get(key, {}).items() for cid in ids}
+
+
+def check_ratchet_rebase(base: dict, cur: dict) -> tuple[int, list[str]]:
+    """The ratchet across a reference change (docs/PORTING.md §9): `cur` was measured against
+    another golden tag than `base`, so the per-profile counts are not compared; every
+    (case, profile) pair `base` lists as passing must pass in `cur`.  Returns (exit code,
+    messages): 0 = no pair lost, 1 = a passing pair now fails, 2 = not comparable (filter or
+    completeness differ).  Pairs no longer in the corpus are listed, not counted as lost."""
+    if base.get("filter", {}) != cur.get("filter", {}) or base.get("complete") != cur.get("complete"):
+        return 2, [f"not comparable: filter {json.dumps(base.get('filter'))} vs "
+                   f"{json.dumps(cur.get('filter'))}"]
+    msgs = [f"rebase: golden {base.get('golden')} -> {cur.get('golden')}"]
+    bp, cp, cf = _pairs(base, "passing"), _pairs(cur, "passing"), _pairs(cur, "failing")
+    lost = sorted(bp & cf)
+    gone = sorted(bp - cp - cf)
+    gained = sorted(cp - bp)
+    new = sorted((cp | cf) - bp - _pairs(base, "failing"))
+    msgs.append(f"pairs: {len(bp)} passing before; {len(bp & cp)} still pass, {len(lost)} lost, "
+                f"{len(gone)} no longer in the corpus; {len(gained)} newly passing "
+                f"({len(new)} pairs new to the corpus)")
+    if gone:
+        msgs.append(f"note: {len(gone)} previously passing pair(s) are no longer in the corpus:")
+        msgs += [f"  {c} x {p}" for c, p in gone[:50]]
+    if lost:
+        msgs.append(f"REGRESSION: {len(lost)} previously passing pair(s) now fail:")
+        msgs += [f"  {c} x {p}" for c, p in lost[:200]]
+        if len(lost) > 200:
+            msgs.append(f"  ... {len(lost) - 200} more")
+        msgs.append("ratchet rebase: REGRESSION")
+        return 1, msgs
+    msgs.append("ratchet rebase: OK (no previously passing pair lost)")
+    return 0, msgs
+
+
 def check_passing_set(base: dict, cur: dict) -> tuple[int, list[str]]:
     """The gate's ratchet check on an --only-passing run: every pair the baseline lists as passing
     must still pass. 0 = OK, 1 = regression, 2 = not comparable. (Raising the baseline needs a

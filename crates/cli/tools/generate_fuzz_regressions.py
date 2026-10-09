@@ -19,7 +19,7 @@ import paths  # noqa: E402  scripts/paths.py: ROOT is the main checkout (jar and
 
 ROOT = Path(paths.ROOT)
 JAVA = ROOT / 'tools/jdk-21/bin/java'
-JAR = ROOT / 'build/reference/closure-compiler.jar'
+JAR = Path(paths.REF_JAR)
 CASES = Path(__file__).resolve().parents[1] / 'tests/data/fuzz_regressions'
 ENV = {'PATH': '/usr/bin:/bin', 'HOME': os.environ.get('HOME', '/tmp'), 'LANG': 'C.UTF-8',
        'LC_ALL': 'C.UTF-8', 'TZ': 'UTC'}

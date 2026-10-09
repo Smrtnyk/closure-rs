@@ -159,9 +159,10 @@ synthetic `$strong$`/`$weak$` chunks and fill files (`<chunk>$fillFile`). Both a
 compiler was created. The seam needs them: see `optimize_from_typedast` and `SEAM.md` D1, D4, D5.
 
 **Inline files.** `{"files":{"relpath":"content",...}}` writes each file to
-`build/oracle/tmp/inline-<pid>-<n>/relpath`. The request then runs in a child JVM
-(`Main request`) whose cwd is that directory, so relative paths in `args` and in the output
-mean the same as for `java -jar` run in that directory. The response adds `"inline_dir"`.
+`build/oracle/tmp/inline-<pid>-<n>/relpath` (`tmp/` next to the oracle jar). The request then
+runs in a child JVM (`Main request`) whose cwd is that directory, so relative paths in `args`
+and in the output mean the same as for `java -jar` run in that directory. The response adds
+`"inline_dir"`.
 This costs one fresh JVM per request.
 
 ### `compile_with_pass_dumps`

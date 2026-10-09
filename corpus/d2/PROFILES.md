@@ -161,8 +161,8 @@ Text that is not valid UTF-8 is stored as `{"base64": …}`.
 - `-XX:TieredStopAtLevel=1`
 - `-XX:-UsePerfData`
 - `-Xlog:disable -Xlog:all=off`, which keeps JVM logging out of stdout
-- `-Xshare:auto -XX:SharedArchiveFile=build/golden-tmp/cds.jsa`. This is a dynamic AppCDS
-  archive created once by a throwaway compile.
+- `-Xshare:auto -XX:SharedArchiveFile=build/golden-tmp/cds-4ef5a893.jsa` (named after the jar's
+  sha256). This is a dynamic AppCDS archive created once by a throwaway compile.
 
 **Environment.** The child process gets a fixed minimal environment: `PATH`, `HOME`,
 `LANG`/`LC_ALL=C.UTF-8` and `TZ=UTC`. Nothing else is inherited.

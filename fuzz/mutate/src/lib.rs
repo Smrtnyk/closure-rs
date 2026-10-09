@@ -27,6 +27,8 @@
 #![forbid(unsafe_code)]
 
 pub mod lex;
+#[path = "../../references.rs"]
+pub mod references;
 pub mod syntax;
 
 use jsgen::rng::Rng;
@@ -978,12 +980,16 @@ pub fn visible_d2_inputs(root: &Path, max_bytes: u64) -> Vec<PathBuf> {
 }
 
 /// The subset of `files` (from [`visible_d2_inputs`]) whose D2 golden ADVANCED result
-/// (`corpus-cache/d2/_golden/ref-4ef5a893/<case>/advanced.json`, D-012) exited 0 with
+/// (`corpus-cache/d2/_golden/<golden tag>/<case>/advanced.json`, D-012; the tag is the
+/// [`references::reference`] row's, `ref-4ef5a893` by default) exited 0 with
 /// non-trivial output (at least 40 bytes once comments and whitespace are removed).
 /// Most single-input D2 files are CJS/UMD npm files whose free names are
 /// JSC_UNDEFINED_VARIABLE errors under ADVANCED, so mutants of them never reach the
 /// optimisation passes the ADVANCED-family profiles exist for.
 pub fn advanced_viable(root: &Path, files: &[PathBuf]) -> Vec<PathBuf> {
+    let Some(tag) = references::reference().ok().and_then(|r| r.golden_tag()) else {
+        return vec![];
+    };
     let Ok(text) = std::fs::read_to_string(root.join("corpus/d2/cases.jsonl")) else {
         return vec![];
     };
@@ -998,9 +1004,7 @@ pub fn advanced_viable(root: &Path, files: &[PathBuf]) -> Vec<PathBuf> {
         if c["inputs"].as_array().map(|a| a.len()) != Some(1) {
             continue;
         }
-        let g = root.join(format!(
-            "corpus-cache/d2/_golden/ref-4ef5a893/{id}/advanced.json"
-        ));
+        let g = root.join(format!("corpus-cache/d2/_golden/{tag}/{id}/advanced.json"));
         let Ok(gt) = std::fs::read_to_string(&g) else {
             continue;
         };

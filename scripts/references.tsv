@@ -1,0 +1,9 @@
+# Java reference registry: one row per pinned Closure Compiler reference (docs/PORTING.md §9).
+# Read by scripts/paths.sh, scripts/paths.py and scripts/paths.mjs from their own checkout, so a
+# branch decides its default; CLOSURE_RS_REF=<tag> selects another row. Tab-separated; paths are
+# relative to ROOT (the main checkout). jar_sha256 is "-" until that reference jar is built and
+# pinned. References live alongside each other: a new row never reuses another row's paths.
+# tag	commit	jar_sha256	src	recording_ws	jar	oracle_jar
+bb8c8e7	bb8c8e7cb8d0b14b27ff5e969d186bb97017eb06	4ef5a893f30378aad76e53efc20353e06830289a4d835be0a12cd34bab2af821	reference/closure-compiler	reference/closure-compiler-recording	build/reference/closure-compiler.jar	build/oracle/oracle.jar
+511d1078	511d1078dbb5c02a9f72003d938811690b9f78eb	-	reference/closure-compiler-511d1078	reference/closure-compiler-511d1078-recording	build/reference-511d1078/closure-compiler.jar	build/oracle-511d1078/oracle.jar
+default	bb8c8e7

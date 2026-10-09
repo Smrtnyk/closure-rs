@@ -30,7 +30,8 @@ so the script is idempotent; the report says whether each replaced block was amo
 
 Inputs (defaults resolve against the main checkout, scripts/paths.py ROOT, as reference/, tools/
 and build/ are not tracked; $CLOSURE_RS_ROOT overrides it):
-  reference/closure-compiler          Closure Compiler at bb8c8e7 (scripts/fetch_reference.sh)
+  reference/closure-compiler          Closure Compiler at the selected reference (paths.REF_SRC,
+                                      bb8c8e7 by default; scripts/fetch_reference.sh)
   tools/jdk-21/lib/src.zip            the pinned JDK 21 sources (DECISIONS.md D-003)
   protobuf v30.2 source tree          ~/.cache/bazel/_bazel_*/*/external/protobuf+ (Closure's
                                       Bazel build), or --protobuf DIR
@@ -76,13 +77,13 @@ ap.add_argument('--check', action='store_true', help='exit 1 if any header is mi
 ap.add_argument('--report')
 ap.add_argument('--files-md', help='write the per-license file lists (LICENSES/FILES.md)')
 ap.add_argument('--explain', nargs='*', default=[], help='print the origins of these files')
-ap.add_argument('--ref', default=os.path.join(MAIN, 'reference', 'closure-compiler'))
+ap.add_argument('--ref', default=paths.REF_SRC)
 ap.add_argument('--jdk-src', default=os.path.join(MAIN, 'tools', 'jdk-21', 'lib', 'src.zip'))
 ap.add_argument('--protobuf')
 ap.add_argument('--libs', default=os.path.join(MAIN, 'build', 'license-sources'))
 ARGS = ap.parse_args()
 
-CLOSURE_COMMIT = 'bb8c8e7'
+CLOSURE_COMMIT = paths.REF_COMMIT[:7]
 JDK_RELEASE = os.path.join(os.path.dirname(os.path.dirname(ARGS.jdk_src)), 'release')
 
 LIB_JARS = {

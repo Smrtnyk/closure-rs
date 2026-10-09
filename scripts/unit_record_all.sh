@@ -5,11 +5,11 @@
 # Resumable: a class whose stats file exists is skipped. Run it detached:
 #   setsid nohup scripts/unit_record_all.sh > build/logs/unit_record.log 2>&1 &
 set -uo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/paths.sh"  # ROOT, WT, SSD_WT
+. "$(dirname "${BASH_SOURCE[0]}")/paths.sh"  # ROOT, REF_RECORDING_WS
 echo $$ > "$ROOT/build/logs/unit_record.pid"
 . "$ROOT/tools/env.sh"
 P="${UNIT_RECORD_PARALLEL:-10}"
-WS="$ROOT/reference/closure-compiler-recording"
+WS="$REF_RECORDING_WS"
 JARS="$ROOT/build/unit/jars"
 REC="$ROOT/corpus/unit/records"
 STAT="$ROOT/build/unit/recording/stats"

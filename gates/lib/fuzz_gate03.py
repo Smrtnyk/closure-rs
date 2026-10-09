@@ -165,9 +165,10 @@ def classify_java_crashes(run: dict, since: float | None = None) -> dict:
     gone. `since` (epoch s): only kept-program directories written at or after it belong to this
     run (directory names repeat across runs of the same seed). Never fails the report."""
     from concurrent.futures import ThreadPoolExecutor
+    import run_reference as rr
     dropped = run.get("java_crashes_dropped") or []
     seed = run.get("seed")
-    out = {"dropped": len(dropped), "method": "reference CLI (build/reference/closure-compiler.jar) "
+    out = {"dropped": len(dropped), "method": f"reference CLI ({rr.JAR}) "
            "re-run of each kept program under its profile, golden env, -Xmx1g"}
     try:
         cache = {}
