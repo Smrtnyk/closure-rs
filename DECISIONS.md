@@ -467,3 +467,23 @@ The closure-self D2 cases keep their inputs at `bb8c8e7`: their case ids (`@bb8c
 input paths under `reference/closure-compiler/` stay as they are, so `reference/closure-compiler`
 is kept as a permanent input checkout and is not removed when a later reference becomes the
 default. Only the compiler that processes those inputs changes with the reference.
+
+## D-027 — The D2 holdout was lost; D3 is shown with unseen inputs (2026-10-09)
+**What happened:** the private holdout directory of D-008 (holdout cases, inputs, golden
+results and the salt of the split) no longer exists: a search of the whole machine by its
+`cases.jsonl` hash (`corpus/d2/HOLDOUT.md`) and by name finds nothing. It was most likely kept
+under a temporary directory that a reboot cleared. It was never evaluated. Without the salt the
+same split cannot be reconstructed, and a new holdout would no longer be independent of
+the port.
+
+**Decision:** D3 is shown with inputs no porter tuned against:
+- the differential fuzzer against Java (§4.6), on generated and mutated programs, including the
+  48-hour D4 run;
+- large real-world bundles outside the D2 corpus (`bench/`: three.js, d3, fabric, lodash,
+  single-file bundles with and without input/output source maps), byte-identical to Java;
+- real users' builds compared against the matching `google-closure-compiler` release.
+
+A mismatch from any of them is a fidelity bug, handled like a D2 or fuzz finding.
+`corpus/d2/HOLDOUT.md` stays as the record of the lost split. Durable artefacts (holdouts,
+archives, salts) are never stored under a temporary directory.
+

@@ -56,7 +56,7 @@ The port is complete when all of the following hold on the same commit:
 |----|-----------|
 | D1 | Every record of the unit corpus passes (§4.2). |
 | D2 | Every pair of the real-world differential corpus matches Java in every option profile (§4.4). |
-| D3 | Every case of the holdout matches (§4.5). |
+| D3 | Inputs the port was never tuned on match (§4.5): originally the D2 holdout; since D-027 the differential fuzzer, real-world bundles outside the corpus and real users' code. |
 | D4 | 48 consecutive hours of differential fuzzing find no mismatch (§4.6). |
 | D5 | Source maps match for every D2 case that requests one (§4.7). |
 | D6 | Determinism: 10 repeated runs, and runs with 1, 4 and 16 threads, all produce identical bytes (§4.7). |
@@ -140,10 +140,14 @@ normalization (`gates/README_d2_rust.md`). `scripts/fetch_d2.sh` reproduces the 
 
 ### 4.5 Holdout
 
-A random 15% of the D2 groups is held out of the repository (`corpus/d2/HOLDOUT.md` records its
-size and hash; DECISIONS D-002, D-008). It is compared only in aggregate, as a check that the
-port is not fitted to the visible corpus: a holdout pass rate well below the visible D2 rate
-indicates overfitting.
+A random 15% of the D2 groups was held out of the repository (`corpus/d2/HOLDOUT.md` records its
+size and hash; DECISIONS D-002, D-008), to be compared only in aggregate, as a check that the
+port is not fitted to the visible corpus. That private holdout was lost before it was ever
+evaluated (D-027). Fitting to the visible corpus is checked instead with inputs no porter tuned
+against: the differential fuzzer (§4.6, generated and mutated programs), large real-world
+bundles outside the corpus (`bench/`: three.js, d3, fabric, lodash, with and without source
+maps) and real users' builds. A new holdout, if ever made, must be stored durably outside
+the repository, never under a temporary directory.
 
 ### 4.6 Fuzzing
 
