@@ -130,7 +130,10 @@ pub struct Ast { /* Vec<NodeData>, never shrinks */ }   // owns every node of on
 
 ## 5. Strings
 
-- **`JsString`** (`js_string.rs`): an immutable WTF-16 string, `Arc<[u16]>`, cheap `Clone`.
+- **`JsString`** (`js_string.rs`): an immutable WTF-16 string with its `hashCode` cached next
+  to the reference to its code units, cheap `Clone`: an interned string is a reference to code
+  units the pool keeps for the rest of the process (copied without reference counting), any
+  other string is an `Arc<[u16]>`.
   Lone surrogates survive. It has Java `String`'s API on UTF-16 code units: `length()`,
   `char_at(i) -> u16`, `code_point_at`, `substring(b, e)`, `substring_from(b)`, `index_of`,
   `starts_with`, `ends_with`, `is_empty`, `hash_code() -> i32` (Java's `String.hashCode`),
@@ -142,7 +145,7 @@ pub struct Ast { /* Vec<NodeData>, never shrinks */ }   // owns every node of on
   names, diagnostic messages, option values, JSON) is Rust `String`/`&str`. If Java indexes a
   string by `charAt`, the Rust value must be a `JsString` (or a local `Vec<u16>`).
 - **Interning (`RhinoStringPool`)**: node strings are interned. `RhinoStringPool::add_or_get`
-  returns a `JsString` that is `Arc`-identical for equal contents (Java's `==` on interned
+  returns a `JsString` that is pointer-identical for equal contents (Java's `==` on interned
   strings is `JsString::ptr_eq`). The pool is a process-wide `Mutex`-guarded set. `JsString`
   equality compares contents (pointer fast path), so code never depends on interning for
   correctness, only Java's identity checks do.
