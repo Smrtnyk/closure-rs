@@ -1449,7 +1449,7 @@ impl Compiler {
             let mut map = map.lock().unwrap();
             for file in files {
                 let source = file.get_code().unwrap_or_else(|error| panic!("{error}"));
-                map.add_source_file(&file.get_name().into(), &source);
+                map.add_source_file(&file.get_name().into(), Some(&source));
             }
         }
     }
@@ -2991,7 +2991,8 @@ impl Compiler {
                 .unwrap()
                 .add_source_file(
                     &source.get_name().into(),
-                    code.as_ref().expect("null original source content"),
+                    // Java passes a null "sourcesContent" entry on as a null content.
+                    code.as_ref(),
                 );
         }
         assert_eq!(

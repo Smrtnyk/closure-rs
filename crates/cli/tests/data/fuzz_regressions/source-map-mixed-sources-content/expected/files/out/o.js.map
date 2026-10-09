@@ -1,0 +1,9 @@
+{
+"version":3,
+"file":"out/o.js",
+"lineCount":1,
+"mappings":"AAAAA,QAAAA,IAAA,CAAAC,CAAA,CAAAC,CAAA,CAAA,CAAA,MAAAD,EAAA,CAAAC,CAAA,CCAAC,OAAAC,CAAAA,GAAA,CAAAJ,GAAA,CAAA,CAAA,CAAA,CAAA,CAAA;",
+"sources":["a.ts","x.ts"],
+"sourcesContent":["const a = 1;",""],
+"names":["add","a","b","console","log"]
+}

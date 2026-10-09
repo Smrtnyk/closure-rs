@@ -70,7 +70,7 @@ impl<F: FnMut(&JsString, &ExtensionValue, &ExtensionValue) -> ExtensionValue> Ex
 pub struct SourceMapGeneratorV3 {
     mappings: Vec<Mapping>,
     source_file_map: IndexMap<JsString, i32>,
-    source_file_content_map: IndexMap<JsString, JsString>,
+    source_file_content_map: IndexMap<JsString, Option<JsString>>,
     original_name_map: IndexMap<JsString, i32>,
     last_source_file: Option<JsString>,
     last_source_file_index: i32,
@@ -178,13 +178,10 @@ impl SourceMapGeneratorV3 {
         self.mappings.push(mapping);
     }
     // port: SourceMapGeneratorV3#addSourcesContent
-    pub fn add_sources_content(
-        &mut self,
-        source: impl Into<JsString>,
-        content: impl Into<JsString>,
-    ) {
-        self.source_file_content_map
-            .insert(source.into(), content.into());
+    // Java's map value is a nullable String: a null content (e.g. a null "sourcesContent" entry of
+    // an input source map) is stored too, replacing earlier content, and is written as "".
+    pub fn add_sources_content(&mut self, source: impl Into<JsString>, content: Option<JsString>) {
+        self.source_file_content_map.insert(source.into(), content);
     }
     // port: SourceMapGeneratorV3#mergeMapSection(int,int,String)
     pub fn merge_map_section(
@@ -340,7 +337,7 @@ impl SourceMapGeneratorV3 {
             let index = *entry.1;
             assert!((index as usize) < size, "java.lang.IllegalStateException");
             let content = self.source_file_content_map.get(entry.0);
-            if let Some(content) = content {
+            if let Some(Some(content)) = content {
                 contents[index as usize] = content.clone();
                 found = true;
             }
@@ -858,7 +855,7 @@ impl SourceMapGenerator for SourceMapGeneratorV3 {
         self.set_starting_position(line, column)
     }
     // Rust trait dispatch to the single Java method body.
-    fn add_sources_content(&mut self, source: JsString, content: JsString) {
+    fn add_sources_content(&mut self, source: JsString, content: Option<JsString>) {
         self.add_sources_content(source, content)
     }
     // Rust trait dispatch to the single Java method body.

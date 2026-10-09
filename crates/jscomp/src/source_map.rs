@@ -262,9 +262,9 @@ impl SourceMap {
         );
     }
     // port: SourceMap#addSourceFile
-    pub fn add_source_file(&mut self, name: &JsString, code: &JsString) {
+    pub fn add_source_file(&mut self, name: &JsString, code: Option<&JsString>) {
         let name = self.fixup_source_location(name);
-        self.generator.add_sources_content(name, code.clone());
+        self.generator.add_sources_content(name, code.cloned());
     }
     // port: SourceMap#getOriginalName
     fn get_original_name(ast: &Ast, node: NodeId) -> Option<JsString> {
