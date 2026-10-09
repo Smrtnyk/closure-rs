@@ -117,7 +117,10 @@ fn test_for_of_injects_make_iterator() {
     let mut t = InjectTranspilationRuntimeLibrariesTest::setup();
     let injected = t.parse_and_run_injection_pass("for (x of []) {}");
 
-    assert_contains_exactly(&injected, &["es6/util/makeiterator"]);
+    assert_contains_exactly(
+        &injected,
+        &["es6/util/makeiterator", "es6/util/iteratorclose"],
+    );
 }
 
 // port: InjectTranspilationRuntimeLibrariesTest#testArrayPattern_injectsMakeIterator

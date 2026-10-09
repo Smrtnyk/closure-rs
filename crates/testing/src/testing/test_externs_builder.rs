@@ -96,6 +96,12 @@ $jscomp.arrayFromIterable = function(iterable) {};
 $jscomp.makeIterator = function(iterable) {};
 $jscomp.makeAsyncIterator = function(asyncIterable) {};
 /**
+ * @param {?} iterator
+ * @param {?} iterResult
+ * @return {void}
+ */
+$jscomp.iteratorClose = function(iterator, iterResult) {};
+/**
  * @param {!IteratorLike<T>} iterator
  * @return {!Array<T>}
  * @template T
@@ -199,6 +205,14 @@ function IteratorLike() {}
  * @return {!IIterableResult<T>}
  */
 IteratorLike.prototype.next;
+/**
+ * @type {((function(T=): !IIterableResult<T>)|undefined)}
+ */
+IteratorLike.prototype.return;
+/**
+ * @type {((function(?=): !IIterableResult<T>)|undefined)}
+ */
+IteratorLike.prototype.throw;
 
 /**
  * @interface
@@ -240,6 +254,14 @@ Iterator.from = function(iterable) {};
  * @return {!IIterableResult<T>}
  */
 Iterator.prototype.next;
+/**
+ * @type {((function(T=): !IIterableResult<T>)|undefined)}
+ */
+Iterator.prototype.return;
+/**
+ * @type {((function(?=): !IIterableResult<T>)|undefined)}
+ */
+Iterator.prototype.throw;
 /**
  * @override
  * @return {!Iterator<T, TReturn, TNext>}
@@ -318,12 +340,12 @@ function Generator() {}
  */
 Generator.prototype.next = function(opt_value) {};
 /**
- * @param {T} value
+ * @param {T=} value
  * @return {!IIterableResult<T>}
  */
 Generator.prototype.return = function(value) {};
 /**
- * @param {?} exception
+ * @param {?=} exception
  * @return {!IIterableResult<T>}
  */
 Generator.prototype.throw = function(exception) {};
