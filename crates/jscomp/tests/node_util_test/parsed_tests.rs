@@ -2554,6 +2554,238 @@ mod assorted_tests {
         );
     }
 
+    // port: NodeUtilTest.AssortedTests#testIsNumericLiteral
+    #[test]
+    fn test_is_numeric_literal() {
+        let mut compiler = Compiler::new();
+        // True cases
+        let n = parse_expr(&mut compiler, "1");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "0");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "0.0");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "1.5");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "1e5");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "0x10");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "0b10");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "0o10");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+
+        let n = parse_expr(&mut compiler, "-1");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-0");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-0.0");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-1.5");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-1e5");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-0x10");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+
+        let n = parse_expr(&mut compiler, "+1");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "+0");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "+0.0");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "+1.5");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "+1e5");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "+0x10");
+        assert!(NodeUtil::is_numeric_literal(&compiler, Some(n)));
+
+        // False cases
+        assert!(!NodeUtil::is_numeric_literal(&compiler, None));
+        let n = parse_expr(&mut compiler, "null");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "undefined");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "void 0");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "NaN");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "Infinity");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-Infinity");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "+Infinity");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+
+        let n = parse_expr(&mut compiler, "1n");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-1n");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let one = compiler.new_big_int(BigInt::from(1));
+        let n = compiler.new_node_with_child(Token::POS, one);
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+
+        let n = compiler.new_node(Token::NEG);
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = compiler.new_node(Token::POS);
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+
+        let n = parse_expr(&mut compiler, r#""1""#);
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, r#"-"1""#);
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, r#"+"1""#);
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+
+        let n = parse_expr(&mut compiler, "true");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-true");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "+true");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+
+        let n = parse_expr(&mut compiler, "false");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-false");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "+false");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+
+        let n = parse_expr(&mut compiler, "{}");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "[]");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "[1]");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-[1]");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "+[1]");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+
+        let n = parse_expr(&mut compiler, "1 + 2");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-(1 + 2)");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+
+        let n = parse_expr(&mut compiler, "-(-1)");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "+(+1)");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "+(-1)");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-(+1)");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+
+        let n = parse_expr(&mut compiler, "~1");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "!1");
+        assert!(!NodeUtil::is_numeric_literal(&compiler, Some(n)));
+    }
+
+    // port: NodeUtilTest.AssortedTests#testGetNumericLiteralValue
+    #[test]
+    fn test_get_numeric_literal_value() {
+        let mut compiler = Compiler::new();
+        let n = parse_expr(&mut compiler, "1");
+        assert_eq!(NodeUtil::get_numeric_literal_value(&compiler, Some(n)), 1.0);
+        let n = parse_expr(&mut compiler, "0.0");
+        assert_eq!(NodeUtil::get_numeric_literal_value(&compiler, Some(n)), 0.0);
+        let n = parse_expr(&mut compiler, "-5.0");
+        assert_eq!(
+            NodeUtil::get_numeric_literal_value(&compiler, Some(n)),
+            -5.0
+        );
+        let n = parse_expr(&mut compiler, "+5.0");
+        assert_eq!(NodeUtil::get_numeric_literal_value(&compiler, Some(n)), 5.0);
+
+        let n = parse_expr(&mut compiler, "-0.0");
+        let neg_zero = NodeUtil::get_numeric_literal_value(&compiler, Some(n));
+        assert_eq!(neg_zero, -0.0);
+        assert_eq!(1.0 / neg_zero, f64::NEG_INFINITY);
+
+        let n = parse_expr(&mut compiler, "+0.0");
+        let pos_zero = NodeUtil::get_numeric_literal_value(&compiler, Some(n));
+        assert_eq!(pos_zero, 0.0);
+        assert_eq!(1.0 / pos_zero, f64::INFINITY);
+
+        let n = parse_expr(&mut compiler, "-0");
+        let neg_int_zero = NodeUtil::get_numeric_literal_value(&compiler, Some(n));
+        assert_eq!(neg_int_zero, -0.0);
+        assert_eq!(1.0 / neg_int_zero, f64::NEG_INFINITY);
+
+        let n = parse_expr(&mut compiler, "+0");
+        let pos_int_zero = NodeUtil::get_numeric_literal_value(&compiler, Some(n));
+        assert_eq!(pos_int_zero, 0.0);
+        assert_eq!(1.0 / pos_int_zero, f64::INFINITY);
+
+        let n = parse_expr(&mut compiler, "0x10");
+        assert_eq!(
+            NodeUtil::get_numeric_literal_value(&compiler, Some(n)),
+            16.0
+        );
+        let n = parse_expr(&mut compiler, "-0x10");
+        assert_eq!(
+            NodeUtil::get_numeric_literal_value(&compiler, Some(n)),
+            -16.0
+        );
+        let n = parse_expr(&mut compiler, "+0x10");
+        assert_eq!(
+            NodeUtil::get_numeric_literal_value(&compiler, Some(n)),
+            16.0
+        );
+        let n = parse_expr(&mut compiler, "0b10");
+        assert_eq!(NodeUtil::get_numeric_literal_value(&compiler, Some(n)), 2.0);
+        let n = parse_expr(&mut compiler, "0o10");
+        assert_eq!(NodeUtil::get_numeric_literal_value(&compiler, Some(n)), 8.0);
+        let n = parse_expr(&mut compiler, "1e5");
+        assert_eq!(
+            NodeUtil::get_numeric_literal_value(&compiler, Some(n)),
+            100000.0
+        );
+        let n = parse_expr(&mut compiler, "-1e5");
+        assert_eq!(
+            NodeUtil::get_numeric_literal_value(&compiler, Some(n)),
+            -100000.0
+        );
+        let n = parse_expr(&mut compiler, "+1e5");
+        assert_eq!(
+            NodeUtil::get_numeric_literal_value(&compiler, Some(n)),
+            100000.0
+        );
+
+        let throws = |compiler: &Compiler, n: Option<NodeId>| {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                NodeUtil::get_numeric_literal_value(compiler, n)
+            }))
+            .is_err()
+        };
+        assert!(throws(&compiler, None));
+        let n = parse_expr(&mut compiler, r#""1""#);
+        assert!(throws(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "null");
+        assert!(throws(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "undefined");
+        assert!(throws(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "NaN");
+        assert!(throws(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "Infinity");
+        assert!(throws(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-(1 + 2)");
+        assert!(throws(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-(-1)");
+        assert!(throws(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "1n");
+        assert!(throws(&compiler, Some(n)));
+        let n = parse_expr(&mut compiler, "-1n");
+        assert!(throws(&compiler, Some(n)));
+        let n = compiler.new_node(Token::NEG);
+        assert!(throws(&compiler, Some(n)));
+        let n = compiler.new_node(Token::POS);
+        assert!(throws(&compiler, Some(n)));
+    }
+
     // port: NodeUtilTest.AssortedTests#testGetBigIntValue
     #[test]
     fn test_get_big_int_value() {

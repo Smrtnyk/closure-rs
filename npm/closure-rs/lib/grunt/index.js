@@ -1,6 +1,6 @@
 // Grunt plugin: NOT implemented in closure-rs (a stub with the official signature).
 //
-// The official task (google-closure-compiler@20261005.0.0 lib/grunt/index.js, default export at
+// The official task (google-closure-compiler@20261006.0.0 lib/grunt/index.js, default export at
 // line 32) streams the source files through the gulp plugin, which closure-rs does not provide
 // (see ../gulp/index.js). Calling it throws; use the `compiler` class instead.
 export const GRUNT_UNSUPPORTED =
