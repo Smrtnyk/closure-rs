@@ -6,3 +6,4 @@ src/com/google/javascript/jscomp/js/) plus the Bazel-generated polyfills.txt and
 transpilation_libs.txt; runtime_libs.typedast is the Bazel-generated typed AST of the runtime
 libraries. Regenerate everything (data, src/jar_contents.rs, tests/fixtures/jar_manifest.tsv) with
   python3 crates/resources/tools/sync_from_jar.py <closure-compiler.jar> <reference/closure-compiler>
+(src/jar_contents.rs keeps its license header, which must match LICENSES/headers.tsv).

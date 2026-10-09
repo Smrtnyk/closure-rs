@@ -14,6 +14,10 @@
   `-Dclosurers.unit.record=true`, one JVM per class at `-Xmx2g -Xss8m`, 10 JVMs in parallel
   (`UNIT_RECORD_PARALLEL`). The run is resumable through the per-class stats files; run it
   detached.
+- **Options defaults:** `scripts/unit_options_defaults.sh` writes `corpus/unit/options_defaults.json`
+  (FORMAT.md) of the checkout it is run from, also a git worktree, from the selected reference's
+  `$REF_RECORDING_WS/bazel-bin/unit_support_deploy.jar`; `--dry-run` prints the jar and output
+  paths.
 - **Hooks:** listed in FORMAT.md. Only the outermost hooked call makes a record. Every hooked
   entry, at any depth, is counted in `build/unit/recording/stats/<Name>.json`.
 - **Summary:** `scripts/unit_report.sh` writes `build/unit/report/{classes.json,table.md}`
