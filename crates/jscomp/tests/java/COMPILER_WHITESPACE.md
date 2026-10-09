@@ -25,9 +25,8 @@ directory is identical for both runs, including relative source-map resolution.
 This is a single fixed compiler profile, not the D2 profile matrix.
 
 The committed fixture takes the eight smallest eligible cases from each of the
-four individual-source families. Whole-program cases are covered in the complete
-scratch comparison. goog.module cases were excluded when this fixture was first selected and are
-covered by the complete comparison.
+four individual-source families. Whole-program and goog.module cases are not in the fixture;
+the complete scratch comparison covers them.
 Selection does not consult expected or actual outputs. The regression compares
 all 32 selected cases (43 inputs, 104,258 bytes), including two parse-error cases;
 there are no exceptions, ignored tests, or conditional comparison paths.

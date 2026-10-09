@@ -1,6 +1,6 @@
 # serialization (typed-ast) port notes
 
-- No protoc on the host (D-003). The proto messages of `rhino/typed_ast/*.proto` were generated
+- The build does not use protoc (D-003). The proto messages of `rhino/typed_ast/*.proto` were generated
   once into `*_proto.rs` (by a one-time generator script that is not in the repository, then
   `cargo fmt`), following protoc's Java API shape: messages are their own
   builders (`new_builder()`, consuming `set_x`/`add_x`, `build()`), getters return Java's

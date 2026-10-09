@@ -136,7 +136,7 @@ commit (bb8c8e7). Helpers are part of the corpus that Rust ports.
 **Gate 0.2(d) uses (D-015 d) the class-level mutation of HARNESS.md
 "Class-level no-op mutation" (a JVM agent; `scripts/unit_replay.sh --mutate-noop` uses it too).
 The descriptor-level stand-in below remains available as `ReplayMain --mutate-noop` for
-debugging; `mutationPoint` is no longer needed to reach passes built inside helpers.**
+debugging; `mutationPoint` is not needed to reach passes built inside helpers.**
 
 With `--mutate-noop X` (a simple or fully qualified class name), passes of class X are replaced
 by a no-op stand-in. A class is *mutated* when its name, its simple name, or the name or simple
@@ -177,11 +177,11 @@ errors and warnings on the compiler that its `createCompiler()` call returned.
 - `lazySequence`, `passFactory`, `ctorRef`, `traverse`, `traverseRoots` as separate tags: each is
   an instance of `lambda` + `let`/`do` (see "Patterns"), so the DSL stays small.
 - Per-case `harness` / `getOptionsHarnessFields` overrides: fixed in the recorder instead.
-  Records now carry `harness.fieldsAfterGetOptions` (FORMAT.md) and replay applies it every time
+  Records carry `harness.fieldsAfterGetOptions` (FORMAT.md) and replay applies it every time
   `getOptions()` runs, for every class, with no descriptor work.
 - Descriptor-level `createCompiler` and `sharedCompiler`: `compilerSetup` (case level, use
   `"when":{}`) covers the first; the second is unobservable in the records that asked for it.
-- `observed.externExport` and similar per-pass observations: postcondition lambdas are now
+- `observed.externExport` and similar per-pass observations: postcondition lambdas are
   replayable through `expected.postconditionValues` + `postconditions`, which checks the test's
   own assertion instead of a new per-pass field.
 - A `{"holderField":...}` tag: `{"getField":{"once":...},"name":...}` and `testFieldsAfter`

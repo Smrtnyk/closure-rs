@@ -190,8 +190,7 @@ programs of the passes the effect measure finds effective, counted over runs whe
 crash (exit 254, which D-009 drops from every comparison), must cover at least 85% of the
 D2-effective set (the passes effective on seeded samples of D2 pairs,
 `fuzz_gate03.D2_SAMPLES`). The other effect aggregates (the per-program average, the union
-against all 138 names) remain diagnostics, and no relaxed reading of (b) built on them is
-proposed.
+against all 138 names) are diagnostics only.
 
 Two facts matter when reading (b) (Java `SortingErrorManager.hasHaltingErrors`,
 `PhaseOptimizer`, `Result.success`):
@@ -203,9 +202,9 @@ Two facts matter when reading (b) (Java `SortingErrorManager.hasHaltingErrors`,
   The Gate 0.3 report therefore gives, as diagnostics that do not change (b), the (b) mean over
   exit-0 runs only and the share of measured runs without comparable output, split into runs
   that reached the end of their profile's pipeline (marker: `latePeepholeOptimizations`; for
-  `ws`, the names every exit-0 `ws` run enters) and runs that halted early. On the D-016 data
-  the exit-0-only mean is just below the 60% threshold; a type-clean or strict-aware generation
-  mode for `advanced_strict` would raise it (a known gap).
+  `ws`, the names every exit-0 `ws` run enters) and runs that halted early. A type-clean or
+  strict-aware generation mode for `advanced_strict` would raise the exit-0-only mean (a known
+  gap, D-016 item 5).
 
 The report marks itself STALE when the fuzz/ sources on disk (`*.rs` and `Cargo.toml`) differ
 from the ones the results were measured with.

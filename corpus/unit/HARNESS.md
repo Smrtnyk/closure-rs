@@ -367,7 +367,7 @@ records (FORMAT.md "Change-expecting records"); records that expect no change ar
 expected to pass.
 
 The descriptor-level stand-in (`ReplayMain --mutate-noop`, DSL.md "No-op mutation") still exists
-for debugging descriptors; the gate no longer uses it.
+for debugging descriptors; the gate does not use it.
 
 **Harness-pass no-op for the vacuity check (gate (a)).** The same agent,
 with the same flags and counting rule, also serves gate (a)'s vacuity check: for a test class whose
