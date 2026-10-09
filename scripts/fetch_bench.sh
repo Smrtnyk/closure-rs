@@ -10,6 +10,13 @@
 #   - kind "npm-tarball": the release tarball is downloaded, its sha256 and npm integrity (sha512)
 #     are checked, and only the listed "paths" (regular files) are extracted into
 #     bench-cache/<dest>/. Nothing is installed or executed.
+#   - kind "closure-map": a bundle with an input source map, made from already fetched files
+#     ("inputs", paths relative to the repository root) by the pinned Java reference compiler
+#     (the jar of the D2 golden pipeline, never a downloaded tool): for each input,
+#     WHITESPACE_ONLY + PRETTY_PRINT with --create_source_map and --source_map_include_content
+#     (and --jscomp_off=moduleLoad: each input is re-emitted alone, its imports stay as they are)
+#     writes bench-cache/<dest>/<input basename> and <input basename>.map. The output is
+#     deterministic; its tree hash is pinned like a fetched tree's.
 # Then the tree hash of bench-cache/<dest>/ is checked against "tree_sha256": sha256 over the
 # sorted lines "<path relative to dest>\0<sha256 of the file>\n" of every regular file in it.
 #
@@ -95,6 +102,34 @@ def fetch_git(src, dest):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def generate_closure_map(src, dest):
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import run_bench  # noqa: E402  the Java reference: data root, JDK, jar
+    droot = run_bench.data_root(None)
+    java = os.path.join(droot, run_bench.JAVA_REL)
+    jar = os.path.join(droot, run_bench.JAR_REL)
+    if run_bench.sha256_file(jar) != run_bench.JAR_SHA256:
+        raise RuntimeError(f"{jar}: not the pinned reference jar")
+    for rel in src["inputs"]:
+        if not os.path.isfile(os.path.join(ROOT, rel)):
+            raise RuntimeError(f"{rel} is missing: fetch the project it comes from first")
+    os.makedirs(dest)
+    out_dir = os.path.relpath(dest, ROOT)
+    try:
+        for rel in src["inputs"]:
+            out = f"{out_dir}/{os.path.basename(rel)}"
+            subprocess.run([java, "-jar", jar, "--compilation_level=WHITESPACE_ONLY",
+                            "--language_in=ECMASCRIPT_NEXT", "--language_out=NO_TRANSPILE",
+                            "--formatting=PRETTY_PRINT", "--jscomp_off=moduleLoad",
+                            f"--js={rel}", f"--js_output_file={out}",
+                            f"--create_source_map={out}.map", "--source_map_include_content"],
+                           cwd=ROOT, check=True, stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, env=run_bench.child_env())
+    except BaseException:
+        shutil.rmtree(dest, ignore_errors=True)
+        raise
+
+
 def fetch_tarball(src, dest):
     dl = os.path.join(cache, ".downloads")
     os.makedirs(dl, exist_ok=True)
@@ -153,7 +188,8 @@ for proj in spec["projects"]:
                 bad += 1
                 continue
             shutil.rmtree(dest, ignore_errors=True)
-            {"git": fetch_git, "npm-tarball": fetch_tarball}[src["kind"]](src, dest)
+            {"git": fetch_git, "npm-tarball": fetch_tarball,
+             "closure-map": generate_closure_map}[src["kind"]](src, dest)
             have = tree_hash(dest)
             if a.print_hashes:
                 print(f"{src['name']}\ttree_sha256\t{have}")

@@ -9,7 +9,7 @@ with no extra JVM flags). Each compile is a separate process for both compilers,
 and warm-up count, as they do for users.
 
 The benchmarks also compare the two compilers' results byte for byte (exit code, stdout,
-stderr, output file). A difference is a porting defect to report and fix, not a benchmark
+stderr, output file, and the source map where a job writes one). A difference is a porting defect to report and fix, not a benchmark
 failure. This file has no numbers on purpose: results depend on the machine and the commit and
 go to `bench/results/` (git-ignored, see `results/README.md`).
 
@@ -36,8 +36,19 @@ are part of the output that must match.
 | `three-bundle` | three.js r186, `build/three.module.js` (the release's pre-bundled ES module, about 660 KB, which imports `build/three.core.js`, about 1.46 MB), as committed at the pinned tag. | Pre-bundled single-file inputs, compiled the way a project compiles its own bundles: one compile per bundle, with the time spent in the passes walking one huge script rather than in per-file work. |
 | `d3-bundle` | d3 7.9.0, `dist/d3.js` (the umbrella package's single-file UMD bundle, about 590 KB) from the npm release tarball (the build of tag `v7.9.0`, commit `1f8dd3b9`). | As `three-bundle`; a script (UMD), not a module. |
 | `lodash-bundle` | lodash 4.17.21, `lodash.js` (the monolithic single-file build, about 540 KB) from the npm release tarball (commit `c6e281b8`). | As `three-bundle`; a script (an IIFE). |
+| `fabric-srcmap` | `fabric`'s `dist/index.mjs` with the tarball's `dist/index.mjs.map` (rollup's map, with `sourcesContent`) as the input source map. | A bundle compiled with its bundler's source map, as projects ship them: adds `--create_source_map=%outname%.map --source_map_include_content --source_map_input=<bundle>\|<bundle>.map`, so parsing the input map, mapping every node back through it and writing the output map with all sources are measured (and the map compared byte for byte). |
+| `three-srcmap`, `d3-bundle-srcmap`, `lodash-bundle-srcmap` | The `three-bundle`, `d3-bundle` and `lodash-bundle` files, each re-emitted with a source map back to the original (see below). | As `fabric-srcmap`, for bundles that ship no map. |
 
 Inputs and flags that are not the library's own:
+
+- **Generated bundles with maps** (`three-srcmap`, `d3-bundle-srcmap`, `lodash-bundle-srcmap`,
+  kind `closure-map` in `projects.json`): `scripts/fetch_bench.sh` makes them from the fetched
+  files with the pinned Java reference compiler (no downloaded tool runs): each input is
+  re-emitted by `--compilation_level=WHITESPACE_ONLY --formatting=PRETTY_PRINT
+  --language_out=NO_TRANSPILE --jscomp_off=moduleLoad --create_source_map=<out>.map
+  --source_map_include_content`, which drops the comments as a bundler does and writes a
+  token-level map with the original as `sourcesContent`. The output is deterministic and its
+  tree hash is pinned.
 
 - **ADVANCED entry points** (`entries/<job>.js`): a library's entry point exports everything and
   has no side effects, so ADVANCED with the library entry as `--entry_point` removes all of it

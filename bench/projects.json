@@ -594,6 +594,161 @@
           ]
         }
       ]
+    },
+    {
+      "name": "fabric-srcmap",
+      "description": "fabric.js 7.4.0 dist/index.mjs with its own source map (dist/index.mjs.map, rollup's, with sourcesContent) as the input source map, compiled with --create_source_map and --source_map_include_content: the flags of a project that compiles its bundles with their bundler's maps.",
+      "sources": [
+        {
+          "name": "fabric",
+          "kind": "npm-tarball",
+          "repo": "https://github.com/fabricjs/fabric.js.git",
+          "ref": "v740",
+          "commit": "ce64f450bad811750cb5a75aa749fc1502c644be",
+          "url": "https://registry.npmjs.org/fabric/-/fabric-7.4.0.tgz",
+          "tarball_sha256": "47b563847544c80a23f7a37de6788e78667a385bfde932706834bbab076c0c3f",
+          "integrity": "sha512-NalYDc3eifTl1C33zryQwpH6+XA/2ClxQrH9vkASkZw3tbkRmorpikhYMmxhUTmi7O3e9ODz0vOT8qfaCh9IVA==",
+          "license": "MIT",
+          "dest": "fabric-srcmap",
+          "paths": [
+            "dist/index.mjs",
+            "dist/index.mjs.map",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "cf03a91f68ddeb0d252278f13dc1308be0e17bc99ef97aea8059d5aacf862013"
+        }
+      ],
+      "flags": [
+        "--language_in=ECMASCRIPT_NEXT",
+        "--language_out=ECMASCRIPT_2015",
+        "--module_resolution=NODE",
+        "--dependency_mode=PRUNE",
+        "--create_source_map=%outname%.map",
+        "--source_map_include_content",
+        "--source_map_input=bench-cache/fabric-srcmap/dist/index.mjs|bench-cache/fabric-srcmap/dist/index.mjs.map"
+      ],
+      "jobs": [
+        {
+          "name": "fabric-srcmap",
+          "entry_point": "bench-cache/fabric-srcmap/dist/index.mjs",
+          "js": [
+            "bench-cache/fabric-srcmap/dist/index.mjs"
+          ],
+          "advanced_entry_point": "bench/entries/fabric-srcmap.js"
+        }
+      ]
+    },
+    {
+      "name": "three-srcmap",
+      "description": "three.js r186's build/three.core.js and build/three.module.js, each re-emitted by the Java reference compiler (WHITESPACE_ONLY, pretty-printed, comments dropped as a bundler drops them) with a source map back to the original (with sourcesContent), compiled with that map as the input source map and --create_source_map, --source_map_include_content.",
+      "sources": [
+        {
+          "name": "three-srcmap",
+          "kind": "closure-map",
+          "ref": "generated",
+          "license": "MIT",
+          "inputs": [
+            "bench-cache/three-bundle/build/three.core.js",
+            "bench-cache/three-bundle/build/three.module.js"
+          ],
+          "dest": "three-srcmap",
+          "tree_sha256": "4fba003d314fa438cdd01261a1429ca8be4a843dbb9f8b8de956be2680875cbe"
+        }
+      ],
+      "flags": [
+        "--language_in=ECMASCRIPT_NEXT",
+        "--language_out=ECMASCRIPT_2015",
+        "--module_resolution=NODE",
+        "--dependency_mode=PRUNE",
+        "--externs=bench/externs/webxr.js",
+        "--jscomp_off=visibility",
+        "--create_source_map=%outname%.map",
+        "--source_map_include_content",
+        "--source_map_input=bench-cache/three-srcmap/three.core.js|bench-cache/three-srcmap/three.core.js.map",
+        "--source_map_input=bench-cache/three-srcmap/three.module.js|bench-cache/three-srcmap/three.module.js.map"
+      ],
+      "jobs": [
+        {
+          "name": "three-srcmap",
+          "entry_point": "bench-cache/three-srcmap/three.module.js",
+          "js": [
+            "bench-cache/three-srcmap/three.core.js",
+            "bench-cache/three-srcmap/three.module.js"
+          ],
+          "advanced_entry_point": "bench/entries/three-srcmap.js"
+        }
+      ]
+    },
+    {
+      "name": "d3-bundle-srcmap",
+      "description": "d3 7.9.0's dist/d3.js, each re-emitted by the Java reference compiler (WHITESPACE_ONLY, pretty-printed, comments dropped as a bundler drops them) with a source map back to the original (with sourcesContent), compiled with that map as the input source map and --create_source_map, --source_map_include_content.",
+      "sources": [
+        {
+          "name": "d3-bundle-srcmap",
+          "kind": "closure-map",
+          "ref": "generated",
+          "license": "ISC",
+          "inputs": [
+            "bench-cache/d3-bundle/dist/d3.js"
+          ],
+          "dest": "d3-bundle-srcmap",
+          "tree_sha256": "c14f3cf569c3ab5e6b96496d0b0e58a043842e97d0dcffc0b397831722370493"
+        }
+      ],
+      "flags": [
+        "--language_in=ECMASCRIPT_NEXT",
+        "--language_out=ECMASCRIPT_2015",
+        "--module_resolution=NODE",
+        "--dependency_mode=PRUNE",
+        "--create_source_map=%outname%.map",
+        "--source_map_include_content",
+        "--source_map_input=bench-cache/d3-bundle-srcmap/d3.js|bench-cache/d3-bundle-srcmap/d3.js.map"
+      ],
+      "jobs": [
+        {
+          "name": "d3-bundle-srcmap",
+          "entry_point": "bench-cache/d3-bundle-srcmap/d3.js",
+          "js": [
+            "bench-cache/d3-bundle-srcmap/d3.js"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "lodash-bundle-srcmap",
+      "description": "lodash 4.17.21's lodash.js, each re-emitted by the Java reference compiler (WHITESPACE_ONLY, pretty-printed, comments dropped as a bundler drops them) with a source map back to the original (with sourcesContent), compiled with that map as the input source map and --create_source_map, --source_map_include_content.",
+      "sources": [
+        {
+          "name": "lodash-bundle-srcmap",
+          "kind": "closure-map",
+          "ref": "generated",
+          "license": "MIT",
+          "inputs": [
+            "bench-cache/lodash-bundle/lodash.js"
+          ],
+          "dest": "lodash-bundle-srcmap",
+          "tree_sha256": "07812491e5870087dd44ed6be3119234248bbf78de38bcba017d961e43c74796"
+        }
+      ],
+      "flags": [
+        "--language_in=ECMASCRIPT_NEXT",
+        "--language_out=ECMASCRIPT_2015",
+        "--module_resolution=NODE",
+        "--dependency_mode=PRUNE",
+        "--create_source_map=%outname%.map",
+        "--source_map_include_content",
+        "--source_map_input=bench-cache/lodash-bundle-srcmap/lodash.js|bench-cache/lodash-bundle-srcmap/lodash.js.map"
+      ],
+      "jobs": [
+        {
+          "name": "lodash-bundle-srcmap",
+          "entry_point": "bench-cache/lodash-bundle-srcmap/lodash.js",
+          "js": [
+            "bench-cache/lodash-bundle-srcmap/lodash.js"
+          ]
+        }
+      ]
     }
   ]
 }
