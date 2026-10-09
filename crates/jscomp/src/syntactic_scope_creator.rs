@@ -108,6 +108,9 @@ struct ScopeScanner<'a> {
     treat_provides_as_redeclarations: bool,
     input_id: Option<Arc<InputId>>,
     change_root_set: Option<IndexSet<NodeId>>,
+    /// Rust-only: `compiler.getInput(inputId)` for the `input_id` it was looked up with, so that
+    /// each declaration needs no lookup by id (D-025).
+    input_cache: Option<(Arc<InputId>, Option<CompilerInput>)>,
 }
 
 impl<'a> ScopeScanner<'a> {
@@ -126,7 +129,21 @@ impl<'a> ScopeScanner<'a> {
             treat_provides_as_redeclarations,
             input_id: None,
             change_root_set,
+            input_cache: None,
         }
+    }
+
+    // port: AbstractCompiler#getInput (for the scanner's current input id)
+    fn current_input(&mut self, compiler: &AbstractCompiler) -> Option<CompilerInput> {
+        let input_id = self.input_id.as_ref()?;
+        if let Some((cached_id, input)) = &self.input_cache
+            && Arc::ptr_eq(cached_id, input_id)
+        {
+            return input.clone();
+        }
+        let input = compiler.get_input(input_id).cloned();
+        self.input_cache = Some((Arc::clone(input_id), input.clone()));
+        input
     }
 
     // port: SyntacticScopeCreator.ScopeScanner#populate
@@ -357,11 +374,7 @@ impl<'a> ScopeScanner<'a> {
                 var = None;
             }
         }
-        let input = self
-            .input_id
-            .as_deref()
-            .and_then(|input_id| compiler.get_input(input_id))
-            .cloned();
+        let input = self.current_input(compiler);
         if var.is_some()
             || !Self::is_shadowing_allowed(compiler, &name, s)
             || ((s.is_function_scope(compiler) || s.is_function_block_scope(compiler))

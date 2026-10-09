@@ -525,6 +525,22 @@ impl ImplicitVar {
         }
     }
 
+    /// Rust-only: `name` as a JS string, made once per process (implicit vars are declared in
+    /// every function scope).
+    pub fn js_name(self) -> JsString {
+        static NAMES: std::sync::OnceLock<[JsString; 4]> = std::sync::OnceLock::new();
+        let names = NAMES.get_or_init(|| {
+            [
+                ImplicitVar::ARGUMENTS,
+                ImplicitVar::EXPORTS,
+                ImplicitVar::SUPER,
+                ImplicitVar::THIS,
+            ]
+            .map(|var| JsString::from(var.name()))
+        });
+        names[self as usize].clone()
+    }
+
     // port: AbstractScope.ImplicitVar#isMadeByScope
     pub fn is_made_by_scope<S: AbstractScope>(self, compiler: &AbstractCompiler, scope: S) -> bool {
         match self {

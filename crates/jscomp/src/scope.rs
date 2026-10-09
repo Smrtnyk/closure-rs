@@ -268,7 +268,7 @@ impl ScopeId {
 
     // port: Scope#makeImplicitVar
     pub fn make_implicit_var(self, compiler: &mut AbstractCompiler, var: ImplicitVar) -> VarId {
-        VarId::new(compiler, var.name(), None, self, -1, None, None)
+        VarId::new(compiler, var.js_name(), None, self, -1, None, None)
     }
 
     // Rust-only allocation separates arena identity from the common Java constructor data.
@@ -581,7 +581,7 @@ impl ScopeView {
                 let mut arena = arena.write().unwrap_or_else(PoisonError::into_inner);
                 // port: Scope#makeImplicitVar
                 let data = AbstractVarData {
-                    name: JsString::from(implicit.name()),
+                    name: implicit.js_name(),
                     name_node: None,
                     implicit_goog_namespace_strength: None,
                     input: None,

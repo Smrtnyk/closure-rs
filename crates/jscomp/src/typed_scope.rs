@@ -423,7 +423,7 @@ impl TypedScope {
         Some(TypedVar::new(
             compiler,
             false,
-            var.name(),
+            var.js_name(),
             None,
             type_,
             self,
@@ -1022,7 +1022,7 @@ impl TypedScopeView {
         let mut arena = arena.write().unwrap_or_else(PoisonError::into_inner);
         // port: TypedScope#makeImplicitVar
         let abstract_var = AbstractVarData {
-            name: JsString::from(implicit.name()),
+            name: implicit.js_name(),
             name_node: None,
             implicit_goog_namespace_strength: None,
             input: None,
