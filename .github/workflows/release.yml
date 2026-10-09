@@ -117,7 +117,7 @@ jobs:
       # reference commit (scripts/fetch_reference.sh); fetch only that folder.
       - name: Fetch contrib/ at the pinned reference commit
         run: |
-          pin=$(sed -n 's/^PIN=//p' scripts/fetch_reference.sh)
+          pin=$(. scripts/paths.sh && echo "$REF_COMMIT")
           git init -q build/closure-compiler
           git -C build/closure-compiler remote add origin https://github.com/google/closure-compiler.git
           git -C build/closure-compiler sparse-checkout set --no-cone /contrib/

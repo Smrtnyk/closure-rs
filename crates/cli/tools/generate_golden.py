@@ -94,7 +94,7 @@ previous={json.dumps(r['argv']):r for r in previous}
 for i,argv in enumerate(cases):
  if json.dumps(argv) in previous:
   records.append(previous[json.dumps(argv)]);continue
- result=subprocess.run([os.environ.get('JAVA','java'),'-Xmx2g','-jar',str(repo/'build/reference/closure-compiler.jar'),*argv],input=b'',capture_output=True,cwd=fixture,env={**os.environ,'LANG':'C.UTF-8'},timeout=30)
+ result=subprocess.run([os.environ.get('JAVA','java'),'-Xmx2g','-jar',_paths.REF_JAR,*argv],input=b'',capture_output=True,cwd=fixture,env={**os.environ,'LANG':'C.UTF-8'},timeout=30)
  streams={}
  for name,value in [('stdout',result.stdout),('stderr',result.stderr)]:
   digest=hashlib.sha256(value).hexdigest()[:20];filename=digest+'.'+name

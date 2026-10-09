@@ -23,10 +23,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))
 from case_args import ROOT, load_cases, input_bytes, case_args  # noqa: E402
-from oracle_client import Oracle, cli_compile, JAVA, b64, golden_env  # noqa: E402
+from oracle_client import Oracle, cli_compile, JAVA, b64, golden_env, REF_JAR  # noqa: E402
 
 OUT = os.path.join(ROOT, "build/oracle/identity")
-JAR = os.path.join(ROOT, "build/reference/closure-compiler.jar")
+JAR = REF_JAR
 
 
 def sha(b):

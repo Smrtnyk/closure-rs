@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Builds the recording jars in reference/closure-compiler-recording with Bazel and copies
+# Builds the recording jars in $REF_RECORDING_WS (scripts/paths.sh) with Bazel and copies
 # them to build/unit/jars/. Run it detached: it writes its PID first.
 set -euo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/paths.sh"  # ROOT, WT, SSD_WT
+. "$(dirname "${BASH_SOURCE[0]}")/paths.sh"  # ROOT, REF_RECORDING_WS
 echo $$ > "$ROOT/build/logs/unit_bazel.pid"
 . "$ROOT/tools/env.sh"
-cd "$ROOT/reference/closure-compiler-recording"
+cd "$REF_RECORDING_WS"
 bazelisk build --local_resources=memory=HOST_RAM*0.3 --local_resources=cpu=HOST_CPUS*0.75 \
   //:unit_support_deploy.jar //:unit_all_tests //:compiler_tests_lib
 mkdir -p "$ROOT/build/unit/jars"

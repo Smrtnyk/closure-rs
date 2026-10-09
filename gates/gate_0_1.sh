@@ -26,10 +26,12 @@
 #   setsid nohup gates/gate_0_1.sh > build/logs/gate_0_1.log 2>&1 &
 #   echo $! > build/logs/gate_0_1.pid
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../scripts/paths.sh"  # ROOT, ORACLE_JAR (the reference's oracle jar)
+ORACLE_REL="${ORACLE_JAR#"$ROOT"/}"  # repo-relative, as gates/lib/gate01.py resolves it
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 [ -x tools/jdk-21/bin/java ] || { echo "missing tools/jdk-21 (scripts/setup_tools.sh)" >&2; exit 2; }
-[ -f build/oracle/oracle.jar ] || { echo "missing build/oracle/oracle.jar (oracle/build.sh)" >&2; exit 2; }
+[ -f "$ORACLE_REL" ] || { echo "missing $ORACLE_REL (oracle/build.sh)" >&2; exit 2; }
 mkdir -p build/gate01 gates/reports
 python3 gates/lib/gate01.py run "$@"
 rc=$?

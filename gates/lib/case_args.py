@@ -16,12 +16,16 @@ import json
 import math
 import os
 import re
+import sys
 from typing import Iterable
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(REPO, "scripts"))
+import paths  # noqa: E402  the reference (scripts/paths.py)
 PROFILES_JSON = "corpus/d2/profiles.json"
 CANDIDATES_GLOB = "corpus/d2/candidates/*.jsonl"
-CLR_SOURCE = "reference/closure-compiler/src/com/google/javascript/jscomp/CommandLineRunner.java"
+# Absolute: the selected reference checkout (docs/PORTING.md §9).
+CLR_SOURCE = os.path.join(paths.REF_SRC, "src/com/google/javascript/jscomp/CommandLineRunner.java")
 
 # Flags that only the runner may set (they decide where output goes / which files are
 # compiled).  A case's extra_flags must never contain them.

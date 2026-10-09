@@ -4,7 +4,7 @@ from pathlib import Path
 import sys as _sys
 _sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
 import paths as _paths  # noqa: E402  scripts/paths.py: ROOT is the main checkout
-repo=Path(_paths.ROOT);root=Path(__file__).resolve().parents[1];cache=repo/'corpus-cache/cli';classes=cache/'classes';jar=repo/'build/reference/closure-compiler.jar'
+repo=Path(_paths.ROOT);root=Path(__file__).resolve().parents[1];cache=repo/'corpus-cache/cli';classes=cache/'classes';jar=Path(_paths.REF_JAR)
 subprocess.run(['javac','-cp',str(jar),'-d',str(classes),str(root/'tools/CliGlob.java')],check=True)
 patterns=['','*','**','***','?','??','*.js','**.js','**/*.js','foo/*','foo/**','foo/?','foo/[ab]','[a-z]','[!a-z]','[^a]','[-a]','[a-]','[!a]','{a,b}','{a,}','{,a}','{a,b}*','{foo/*,bar/**}','\\*','\\?','a\\.js','a,b','a}','[\\a]','[a&&b]','[a-c-e]','[[]','[\u00e9-\u0101]','[\u00e9]','\u00e9?','[\U0001f600]','{a,{b,c}}','{a','[','[]','[!]','[z-a]','[a/b]','[a-','\\','\u00e9[','\U0001f600[']
 patterns += ['a[]', '[]x', '[]]', '[!]]', '[]a]', '[]*]', '{[],x}', '😀[]', '[a&b]', '[a&&]', '[a-\\]', '[\x00]', '[\x00-\x01]', '[😀-😁]', '[^]', '[--]', '[!]x]']

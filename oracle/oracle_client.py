@@ -8,11 +8,13 @@ import base64
 import json
 import os
 import subprocess
+import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from paths import ORACLE_JAR, REF_JAR  # noqa: E402  the reference's jars (scripts/paths.py)
 JAVA = os.path.join(ROOT, "tools", "jdk-21", "bin", "java")
-CP = os.path.join(ROOT, "build/oracle/oracle.jar") + ":" + os.path.join(
-    ROOT, "build/reference/closure-compiler.jar")
+CP = ORACLE_JAR + ":" + REF_JAR
 
 
 def golden_env() -> dict:

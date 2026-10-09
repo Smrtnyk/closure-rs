@@ -34,16 +34,16 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
-from paths import ROOT  # noqa: E402  the main checkout (scripts/paths.py)
+from paths import ROOT, REF_SRC, REF_RECORDING_WS  # noqa: E402  the main checkout, the reference (scripts/paths.py)
 W = f"{ROOT}/build/gate02"
 REC = f"{ROOT}/corpus/unit/records"
 DESC = f"{ROOT}/corpus/unit/descriptors"
-STATS = f"{ROOT}/build/unit/recording-v5/stats"  # stats of the current recording
+STATS = os.environ.get("UNIT_RECORDING_STATS") or f"{ROOT}/build/unit/recording-v5/stats"  # stats of the current recording
 JARS = f"{ROOT}/build/unit/jars"
 SUPPORT = f"{JARS}/unit_support_deploy.jar"
 ALLTESTS = f"{JARS}/unit_all_tests.jar"
-WS = f"{ROOT}/reference/closure-compiler-recording"
-PRISTINE_SRC = f"{ROOT}/reference/closure-compiler/src"
+WS = REF_RECORDING_WS
+PRISTINE_SRC = f"{REF_SRC}/src"
 JAVA_HOME = f"{ROOT}/tools/jdk-21"
 JAVA = f"{JAVA_HOME}/bin/java"
 JAVAC = f"{JAVA_HOME}/bin/javac"
@@ -209,7 +209,7 @@ def original_test_binary_name(n):
     top-level binary name (before the first '$') ends in Test and the pristine reference has
     test/<that path>.java."""
     top = n[:-len(".class")].split("$", 1)[0]
-    return top.endswith("Test") and os.path.exists(f"{ROOT}/reference/closure-compiler/test/{top}.java")
+    return top.endswith("Test") and os.path.exists(f"{REF_SRC}/test/{top}.java")
 
 
 def rule6_scan():
@@ -243,7 +243,7 @@ def rule6_scan():
             continue
         pkgdir = os.path.dirname(n)
         closure_ns = n.startswith("com/google/javascript/") or n.startswith("com/google/debugging/")
-        in_ref_test = sf is not None and os.path.exists(f"{ROOT}/reference/closure-compiler/test/{pkgdir}/{sf}")
+        in_ref_test = sf is not None and os.path.exists(f"{REF_SRC}/test/{pkgdir}/{sf}")
         if (name_bad or src_bad) and not closure_ns and not in_ref_test:
             third_party.append(f"{where}:{n} (SourceFile {sf})")
             continue
@@ -1735,7 +1735,7 @@ HARNESS_BASES = ("CompilerTestCase", "IntegrationTestCase", "CompilerTypeTestCas
 def harness_hierarchy_classes():
     """Simple names of concrete test classes in the pristine test/ tree whose superclass chain reaches
     one of HARNESS_BASES (gate (c) denominator)."""
-    root = f"{ROOT}/reference/closure-compiler/test/"
+    root = f"{REF_SRC}/test/"
     parent, abstract = {}, set()
     pat = re.compile(r"^\s*(?:public\s+|protected\s+|private\s+)?((?:abstract|final|static|\s)*)class\s+(\w+)"
                      r"(?:<[^{]*?>)?\s+extends\s+([\w.]+)", re.M)

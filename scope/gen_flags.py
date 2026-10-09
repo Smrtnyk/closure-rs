@@ -32,6 +32,9 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
+sys.path.insert(0, os.path.join(REPO, "scripts"))
+from paths import REF_SRC  # noqa: E402  the selected reference checkout (docs/PORTING.md §9)
+# The logical path printed in the header; the file is read from REF_SRC (its sha256 is printed too).
 CLR = "reference/closure-compiler/src/com/google/javascript/jscomp/CommandLineRunner.java"
 OUT = "scope/flags.txt"
 
@@ -182,7 +185,7 @@ def classify(row: dict, rule_hits: dict[str, int]) -> tuple[str, str]:
 
 
 def render() -> str:
-    path = os.path.join(REPO, CLR)
+    path = os.path.join(REF_SRC, CLR.removeprefix("reference/closure-compiler/"))
     with open(path, "rb") as f:
         raw = f.read()
     src = raw.decode("utf-8")

@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Oracle smoke test: exercises every operation through the CLI and through the server.
 # Usage: oracle/test/smoke.sh        (builds the oracle first if oracle.jar is missing)
+# The jars are the reference's ($ORACLE_JAR, $REF_JAR; scripts/paths.sh, docs/PORTING.md §9).
 set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../../scripts/paths.sh"  # REF_JAR, ORACLE_JAR
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 . tools/env.sh
-[ -f build/oracle/oracle.jar ] || oracle/build.sh
-JAR=build/reference/closure-compiler.jar
-CP=build/oracle/oracle.jar:$JAR
+[ -f "$ORACLE_JAR" ] || oracle/build.sh
+JAR="$REF_JAR"
+CP="$ORACLE_JAR:$JAR"
 # Every JVM runs in the golden environment (PROTOCOL.md "Environment" = run_reference.child_env()).
 JAVA_BIN="$ROOT/tools/jdk-21/bin/java"
 GENV=(env -i PATH=/usr/bin:/bin HOME="$HOME" LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC)
@@ -29,8 +31,8 @@ for argv in "--compilation_level=ADVANCED --js=$T/a.js" \
             "--compilation_level=SIMPLE --js=$T/a.js --formatting=PRETTY_PRINT" \
             "--js=$T/does-not-exist.js" "--bogus_flag"; do
   set +e
-  "${GENV[@]}" "$JAVA_BIN" -jar $JAR $argv < /dev/null > "$T/j.out" 2> "$T/j.err"; jrc=$?
-  "${GENV[@]}" "$JAVA_BIN" -cp $CP closurers.oracle.Main compile $argv < /dev/null > "$T/o.out" 2> "$T/o.err"; orc=$?
+  "${GENV[@]}" "$JAVA_BIN" -jar "$JAR" $argv < /dev/null > "$T/j.out" 2> "$T/j.err"; jrc=$?
+  "${GENV[@]}" "$JAVA_BIN" -cp "$CP" closurers.oracle.Main compile $argv < /dev/null > "$T/o.out" 2> "$T/o.err"; orc=$?
   set -e
   if [ $jrc = $orc ] && cmp -s "$T/j.out" "$T/o.out" && cmp -s "$T/j.err" "$T/o.err"; then
     ok "cli compile == java -jar (rc=$jrc): $argv"
@@ -43,10 +45,10 @@ done
 python3 - "$T" <<'EOF' || fail=1
 import base64, json, subprocess, sys
 sys.path.insert(0, "oracle")
-from oracle_client import Oracle, b64, JAVA, golden_env
+from oracle_client import Oracle, b64, JAVA, golden_env, REF_JAR
 T = sys.argv[1]
 A = ["--compilation_level=ADVANCED", f"--js={T}/a.js"]
-jar = subprocess.run([JAVA, "-jar", "build/reference/closure-compiler.jar", *A],
+jar = subprocess.run([JAVA, "-jar", REF_JAR, *A],
                      env=golden_env(), stdin=subprocess.DEVNULL, capture_output=True)
 fails = 0
 def check(name, cond, info=""):
@@ -113,7 +115,7 @@ EOF
 
 # 3. one-shot request mode
 echo '{"op":"parse_dump","content":"1n + 0x10","language_in":"ECMASCRIPT_2020"}' \
-  | "${GENV[@]}" "$JAVA_BIN" -Xmx512m -cp $CP closurers.oracle.Main request > "$T/req.json"
+  | "${GENV[@]}" "$JAVA_BIN" -Xmx512m -cp "$CP" closurers.oracle.Main request > "$T/req.json"
 python3 -c "import json,sys; d=json.load(open('$T/req.json')); sys.exit(0 if d['ok'] and d['ast']['children'][0]['children'][0]['children'][1]['double_bits']=='0x4030000000000000' else 1)" \
   && ok "request mode parse_dump number bits" || bad "request mode parse_dump"
 

@@ -521,7 +521,7 @@ def write_reports(cands, final, drops, dropped_cases, scan, files, wp_res, meta,
     # ---------------- JAVA_FAILURES.md
     L = ["# Java reference failures in the D2 candidates\n",
          "These (case, profile) pairs were **dropped** from the D2 oracle set because the pinned reference "
-         f"(`{rr.JAR_SHA256[:12]}…`, commit `bb8c8e7`) crashed with an internal compiler error or an "
+         f"(`{rr.JAR_SHA256[:12]}…`, commit `{rr.paths.REF_COMMIT[:7]}`) crashed with an internal compiler error or an "
          "uncaught exception (exit code 254). No run timed out. They are interesting reference behaviour, "
          "but not oracle cases: a faithful port would have to reproduce a Java crash. The golden-run report re-ran two "
          "of them (lottie-web cjs / ws and html_test_vectors / simple) and got byte-identical results, so the crashes are repeatable.\n",
