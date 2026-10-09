@@ -233,9 +233,10 @@ fn script(ops: &Value) -> Result<Value, Error> {
             ),
             "offset" => g.set_starting_position(integer(op, "line"), integer(op, "column")),
             "prefix" => g.set_wrapper_prefix(string(op, "value").unwrap()),
-            "content" => {
-                g.add_sources_content(string(op, "source").unwrap(), string(op, "value").unwrap())
-            }
+            "content" => g.add_sources_content(
+                string(op, "source").unwrap(),
+                Some(string(op, "value").unwrap().into()),
+            ),
             "root" => g.set_source_root(string(op, "value").unwrap()),
             "reset" => g.reset(),
             "validate" => g.validate(true),

@@ -220,7 +220,7 @@ fn check_file(
         map.set_wrapper_prefix(
             &JsString::from("prefix_").concat(&JsString::from_units(vec![0xdfff, b'\n' as u16])),
         );
-        map.add_source_file(&"dummy.js".into(), &lone);
+        map.add_source_file(&"dummy.js".into(), Some(&lone));
         let mut mapping_ast = Ast::default();
         let number = mapping_ast.new_number(1.0);
         number.set_static_source_file(
