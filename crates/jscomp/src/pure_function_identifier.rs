@@ -47,13 +47,13 @@ use crate::optimize_calls::{CallGraphCompilerPass, OptimizeCalls, ReferenceMap};
 use crate::scope::ScopeId;
 use crate::var::VarId;
 use crate::warnings_guard::WarningsGuard;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::java_lang::hash_map as java_hash_map;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId, SideEffectFlags};
 use closure_rhino::token::Token;
 use closure_rhino::{check_argument, check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 use std::cmp::Ordering;
 use std::fmt;
 
@@ -179,9 +179,9 @@ impl PureFunctionIdentifier {
             ast_analyzer: compiler.get_ast_analyzer(),
             validate_artificial_purity,
             summaries,
-            summaries_by_name: IndexMap::new(),
-            summaries_for_all_names_of_function_by_node: IndexMap::new(),
-            artificially_pure_literals_for_debugging: IndexSet::new(),
+            summaries_by_name: IndexMap::<_, _>::default(),
+            summaries_for_all_names_of_function_by_node: IndexMap::<_, _>::default(),
+            artificially_pure_literals_for_debugging: IndexSet::<_>::default(),
             all_function_calls: Vec::new(),
             reverse_call_graph,
             unknown_function_summary,
@@ -633,7 +633,7 @@ impl PureFunctionIdentifier {
     ) {
         // Merge the prop and name references into a single multimap since only the name matters.
         // (Java's ArrayListMultimap: `putAll` of an empty list adds no key.)
-        let mut references_by_name: IndexMap<JsString, Vec<NodeId>> = IndexMap::new();
+        let mut references_by_name: IndexMap<JsString, Vec<NodeId>> = IndexMap::<_, _>::default();
         for (key, value) in reference_map.get_name_references() {
             if !value.is_empty() {
                 references_by_name
@@ -1050,8 +1050,8 @@ impl FunctionStackEntry {
     fn new(root: Option<NodeId>, is_artificially_pure: bool) -> Self {
         Self {
             root,
-            skiplisted_vars: IndexSet::new(),
-            tainted_vars: IndexSet::new(),
+            skiplisted_vars: IndexSet::<_>::default(),
+            tainted_vars: IndexSet::<_>::default(),
             is_artificially_pure,
             catch_depth: 0,
         }
@@ -1972,7 +1972,7 @@ impl AmbiguatedFunctionSummary {
             return;
         };
         self.impure_function_reasons_for_debugging
-            .get_or_insert_with(IndexSet::new)
+            .get_or_insert_with(IndexSet::<_>::default)
             .insert(NodeUtil::get_enclosing_function(ast, debugging_reason));
     }
 

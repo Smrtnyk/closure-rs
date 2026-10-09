@@ -16,7 +16,7 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   src/com/google/javascript/jscomp/Tracer.java.
 
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::{
     cell::RefCell,
     fmt::{self, Write},

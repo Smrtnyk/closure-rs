@@ -403,7 +403,11 @@ impl ProcessCommonJSModules {
             .unwrap();
 
         if call_parent_target.matches_qualified_name(ast, format!("{WEBPACK_REQUIRE}.e"))
-            && call_parent.get_first_child(ast).unwrap().get_string(ast) == "then"
+            && call_parent
+                .get_first_child(ast)
+                .unwrap()
+                .get_string_ref(ast)
+                == "then"
         {
             return true;
         } else if PROMISE_ALL.matches(ast, call_parent_target)
@@ -498,7 +502,11 @@ impl ProcessCommonJSModules {
                 .get_first_first_child(compiler)
                 .unwrap()
                 .is_function(compiler)
-            && call.get_first_child(compiler).unwrap().get_string(compiler) == "call"
+            && call
+                .get_first_child(compiler)
+                .unwrap()
+                .get_string_ref(compiler)
+                == "call"
         {
             fnc = call.get_first_first_child(compiler).unwrap();
 
@@ -1459,10 +1467,10 @@ impl FindImportsAndExports {
     // port: ProcessCommonJSModules.FindImportsAndExports#getOutermostUmdTest (NodeUtil.Visitor#visit)
     fn collect_umd_tests(ast: &Ast, node: NodeId, umd_tests: &mut Vec<NodeId>) {
         let matches = match node.get_token(ast) {
-            Token::NAME => node.get_string(ast) == MODULE || node.get_string(ast) == "define",
+            Token::NAME => node.get_string(ast) == MODULE || node.get_string_ref(ast) == "define",
             Token::GETPROP => WINDOW_DEFINE.matches(ast, node),
             Token::STRINGLIT => {
-                node.get_parent(ast).unwrap().is_in(ast) && node.get_string(ast) == "amd"
+                node.get_parent(ast).unwrap().is_in(ast) && node.get_string_ref(ast) == "amd"
             }
             _ => false,
         };
@@ -2546,7 +2554,7 @@ impl RewriteModule {
                     if new_name_is_qualified {
                         // Var declarations without initialization can simply
                         // be removed if they are being converted to a property.
-                        if !name_ref.has_children(t) && parent.get_jsdoc_info(t).is_none() {
+                        if !name_ref.has_children(t) && parent.get_jsdoc_info_ref(t).is_none() {
                             parent.detach(t);
                             break 'switch;
                         }
@@ -2755,8 +2763,7 @@ impl RewriteModule {
                 }
                 if var.get_name_node(t.get_compiler()) == exported_name {
                     let export_base_q_name = export_base_q_name.unwrap();
-                    let export_prefix: JsString = if export_base_q_name.starts_with(&MODULE.into())
-                    {
+                    let export_prefix: JsString = if export_base_q_name.starts_with(MODULE) {
                         JsString::from(format!("{MODULE}.{EXPORTS}"))
                     } else {
                         JsString::from(EXPORTS)
@@ -2874,7 +2881,7 @@ impl RewriteModule {
             // Type nodes can be module paths.
             if ModuleLoader::is_path_identifier(&name.to_string()) {
                 let last_slash = name.last_index_of_char(u16::from(b'/'));
-                let mut end_index = name.index_of_from(&".".into(), last_slash);
+                let mut end_index = name.index_of_from(".", last_slash);
                 let mut local_type_name = None;
                 if end_index == -1 {
                     end_index = name.length() as i32;
@@ -2907,7 +2914,7 @@ impl RewriteModule {
                 let mut was_rewritten = false;
                 let mut end_index: i32 = -1;
                 while end_index < name.length() as i32 {
-                    end_index = name.index_of_from(&".".into(), end_index + 1);
+                    end_index = name.index_of_from(".", end_index + 1);
                     if end_index == -1 {
                         end_index = name.length() as i32;
                     }

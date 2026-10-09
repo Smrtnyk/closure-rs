@@ -26,8 +26,8 @@ use crate::{
     source_map_section::{SectionType, SourceMapSection},
     util::Util,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 const UNMAPPED: i32 = -1;
 use std::{
     cell::Cell,
@@ -300,7 +300,7 @@ impl SourceMapGeneratorV3 {
         object: ExtensionValue,
     ) -> Result<(), Error> {
         let name = name.into();
-        if !name.starts_with(&"x_".into()) {
+        if !name.starts_with("x_") {
             return Err(Error::new(
                 JsString::from("Extension '")
                     .concat(&name)

@@ -19,7 +19,7 @@
 //   test/com/google/javascript/jscomp/deps/DependencyInfoTest.java.
 
 use closure_rhino::check_state;
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::{fmt, sync::LazyLock};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -258,7 +258,7 @@ mod tests {
                     Require::goog_require_symbol("required.symbol"),
                     Require::goog_require_symbol("other.require"),
                 ])
-                .set_load_flags(IndexMap::from([
+                .set_load_flags(IndexMap::<_, _>::from_iter([
                     ("module".into(), "goog".into()),
                     ("lang".into(), "es6".into()),
                 ]))

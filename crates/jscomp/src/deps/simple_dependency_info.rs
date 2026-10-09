@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/deps/SimpleDependencyInfo.java.
 
 use super::dependency_info::{DependencyInfo, Require};
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::{
     fmt,
     hash::{Hash, Hasher},
@@ -45,7 +45,7 @@ impl SimpleDependencyInfo {
                 provides: vec![],
                 requires: vec![],
                 type_requires: vec![],
-                load_flags: IndexMap::new(),
+                load_flags: IndexMap::<_, _>::default(),
                 has_externs_annotation: false,
                 has_no_compile_annotation: false,
             },
@@ -115,9 +115,9 @@ impl Builder {
     // port: SimpleDependencyInfo.Builder#setGoogModule
     pub fn set_goog_module(self, is_module: bool) -> Self {
         self.set_load_flags(if is_module {
-            IndexMap::from([("module".into(), "goog".into())])
+            IndexMap::<_, _>::from_iter([("module".into(), "goog".into())])
         } else {
-            IndexMap::new()
+            IndexMap::<_, _>::default()
         })
     }
     // port: SimpleDependencyInfo.Builder#build

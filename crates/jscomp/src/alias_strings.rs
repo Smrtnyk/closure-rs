@@ -34,11 +34,11 @@ use crate::js_chunk::JSChunk;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::replace_messages_constants;
 use closure_rhino::check_state;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
 use closure_rhino::token::Token;
-use indexmap::{IndexMap, IndexSet};
 use std::collections::BTreeMap;
 
 /// Prefix for variable names for the aliased strings
@@ -74,9 +74,9 @@ impl AliasStrings {
         Self {
             output_string_usage,
             string_info_map: BTreeMap::new(),
-            used_hashed_aliases: IndexSet::new(),
+            used_hashed_aliases: IndexSet::<_>::default(),
             alias_strings_mode,
-            chunk_var_parent_map: IndexMap::new(),
+            chunk_var_parent_map: IndexMap::<_, _>::default(),
             unit_test_hash_reduction_mask: !0,
         }
     }

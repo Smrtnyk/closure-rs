@@ -33,8 +33,8 @@ use crate::{
     throwable::Throwable,
     type_check_test_case::{TypeTestBuilder, parse_and_type_check_with_scope},
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 // port: ReplayTypeCheckTest#compiler
 fn compiler(
     stem: &str,

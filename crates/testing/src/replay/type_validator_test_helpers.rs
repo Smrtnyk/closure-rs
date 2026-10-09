@@ -41,8 +41,8 @@ use crate::{
     replay::replay_dsl::{Ctx, DslValue, NativeObject},
     throwable::Throwable,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const PASS: &str = "com.google.javascript.jscomp.TypeValidatorTest_Helpers$Anon1";
@@ -57,7 +57,7 @@ impl NativeObject for Anon1 {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: TypeValidatorTest_Helpers.Anon1#process
     fn process(

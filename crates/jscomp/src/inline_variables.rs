@@ -48,10 +48,10 @@ use crate::reference_map::ReferenceMap;
 use crate::scope::ScopeId;
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use crate::var::VarId;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::{check_argument, check_not_null, check_state};
-use indexmap::IndexMap;
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -274,8 +274,8 @@ impl InliningBehavior {
     fn new(mode: Mode) -> Self {
         Self {
             mode,
-            current_scope_handled_var_analyses_map: IndexMap::new(),
-            var_to_alias_retry_handlers_map: IndexMap::new(),
+            current_scope_handled_var_analyses_map: IndexMap::<_, _>::default(),
+            var_to_alias_retry_handlers_map: IndexMap::<_, _>::default(),
             experts: Vec::new(),
         }
     }
@@ -553,7 +553,7 @@ impl InliningBehavior {
         if NodeUtil::is_normal_or_opt_chain_call(ast, call_node) {
             let callee_node = call_node.get_first_child(ast).unwrap();
             if NodeUtil::is_normal_or_opt_chain_get_prop(ast, callee_node)
-                && callee_node.get_string(ast) == "apply"
+                && callee_node.get_string_ref(ast) == "apply"
             {
                 let this_arg_node = callee_node.get_next(ast);
                 if let Some(this_arg_node) = this_arg_node {

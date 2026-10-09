@@ -42,8 +42,8 @@ use crate::{
     node_util::NodeUtil,
     transpilation_util,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_state, js_string::JsString, node::NodeId, token::Token};
-use indexmap::{IndexMap, IndexSet};
 use std::{collections::BTreeSet, sync::Arc};
 
 /// Error occurs when there is an ambiguous export, which can happen if there are multiple
@@ -114,7 +114,8 @@ impl<'a> FindMutableExports<'a> {
         //
         // let x;
         // export {x as y, x as z};
-        let mut exports_by_local_name: IndexMap<JsString, Vec<Export>> = IndexMap::new();
+        let mut exports_by_local_name: IndexMap<JsString, Vec<Export>> =
+            IndexMap::<_, _>::default();
         for e in exports.iter() {
             exports_by_local_name
                 .entry(e.local_name().unwrap().clone())
@@ -221,9 +222,9 @@ impl UnresolvedModuleBuilder {
         Self {
             path,
             root,
-            imports_by_local_name: IndexMap::new(),
+            imports_by_local_name: IndexMap::<_, _>::default(),
             exports: Vec::new(),
-            exported_names: IndexSet::new(),
+            exported_names: IndexSet::<_>::default(),
         }
     }
 
@@ -349,8 +350,8 @@ impl UnresolvedEsModule {
                 star_exports,
             }),
             exported_names: None,
-            resolved_imports: IndexMap::new(),
-            resolved_exports: IndexMap::new(),
+            resolved_imports: IndexMap::<_, _>::default(),
+            resolved_exports: IndexMap::<_, _>::default(),
             resolved: None,
         }
     }
@@ -391,7 +392,8 @@ impl UnresolvedEsModule {
             let mut bound_names: IndexMap<JsString, Binding> =
                 Self::get_all_resolved_imports(this, compiler, module_request_resolver);
 
-            let mut local_name_to_local_export: IndexMap<JsString, Export> = IndexMap::new();
+            let mut local_name_to_local_export: IndexMap<JsString, Export> =
+                IndexMap::<_, _>::default();
 
             // Only local exports that are not an anonymous default export create local bindings.
             for e in &f.local_exports {
@@ -445,7 +447,7 @@ impl UnresolvedEsModule {
         module_request_resolver: &mut dyn ModuleRequestResolver,
     ) -> IndexMap<JsString, Binding> {
         let f = Self::fields(module_request_resolver, this);
-        let mut imports = IndexMap::new();
+        let mut imports = IndexMap::<_, _>::default();
         for name in f.imports_by_local_name.keys() {
             let b = Self::resolve_import(this, compiler, module_request_resolver, name);
             if b.resolved() {
@@ -496,8 +498,8 @@ impl UnresolvedEsModule {
             compiler,
             module_request_resolver,
             name,
-            &mut IndexSet::new(),
-            &mut IndexSet::new(),
+            &mut IndexSet::<_>::default(),
+            &mut IndexSet::<_>::default(),
         )
     }
 
@@ -611,7 +613,7 @@ impl UnresolvedEsModule {
                 this,
                 compiler,
                 module_request_resolver,
-                &mut IndexSet::new(),
+                &mut IndexSet::<_>::default(),
             );
             Self::this(module_request_resolver, this).exported_names = Some(exported_names);
         }
@@ -630,7 +632,7 @@ impl UnresolvedEsModule {
     ) -> Arc<IndexSet<JsString>> {
         if visited.contains(&this) {
             // import * cycle
-            return Arc::new(IndexSet::new());
+            return Arc::new(IndexSet::<_>::default());
         }
 
         visited.insert(this);
@@ -682,7 +684,7 @@ impl UnresolvedEsModule {
         compiler: &mut AbstractCompiler,
         module_request_resolver: &mut dyn ModuleRequestResolver,
     ) -> IndexMap<JsString, Binding> {
-        let mut exports = IndexMap::new();
+        let mut exports = IndexMap::<_, _>::default();
         let names = Self::get_exported_names(this, compiler, module_request_resolver);
         for name in names.iter() {
             let b = this.resolve_export(compiler, module_request_resolver, name);

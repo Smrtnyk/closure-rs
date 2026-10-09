@@ -65,7 +65,7 @@ impl CollapseAnonymousFunctions {
     // port: CollapseAnonymousFunctions#isRecursiveFunction
     fn is_recursive_function(ast: &Ast, function: NodeId) -> bool {
         let name = function.get_first_child(ast).unwrap();
-        if name.get_string(ast).is_empty() {
+        if name.get_string_ref(ast).is_empty() {
             return false;
         }
         let args = name.get_next(ast).unwrap();

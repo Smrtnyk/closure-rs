@@ -20,12 +20,15 @@ use closure_jscomp::{
     colors::{Color, ColorId, color::Builder, standard_colors as sc},
     testing::assert_that,
 };
-use indexmap::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use std::panic::catch_unwind;
 
 // port: ColorTest#numberOrString
 fn number_or_string() -> Color {
-    Color::create_union(&IndexSet::from([sc::STRING.clone(), sc::NUMBER.clone()]))
+    Color::create_union(&IndexSet::<_>::from_iter([
+        sc::STRING.clone(),
+        sc::NUMBER.clone(),
+    ]))
 }
 
 // port: ColorTest#unionsReportIsUnion
@@ -62,7 +65,10 @@ fn get_alternates_returns_alternates_list() {
 // port: ColorTest#alternatesMayContainOtherUnion
 #[test]
 fn alternates_may_contain_other_union() {
-    let new_union = Color::create_union(&IndexSet::from([number_or_string(), sc::BIGINT.clone()]));
+    let new_union = Color::create_union(&IndexSet::<_>::from_iter([
+        number_or_string(),
+        sc::BIGINT.clone(),
+    ]));
     assert_that(new_union).has_alternates(&[
         sc::STRING.clone(),
         sc::BIGINT.clone(),
@@ -72,19 +78,25 @@ fn alternates_may_contain_other_union() {
 // port: ColorTest#alternatesAreDeduplicatedFromOtherUnion
 #[test]
 fn alternates_are_deduplicated_from_other_union() {
-    let union = Color::create_union(&IndexSet::from([sc::NUMBER.clone(), number_or_string()]));
+    let union = Color::create_union(&IndexSet::<_>::from_iter([
+        sc::NUMBER.clone(),
+        number_or_string(),
+    ]));
     assert_that(union).has_alternates(&[sc::NUMBER.clone(), sc::STRING.clone()]);
 }
 // port: ColorTest#createUnionAllowsSingleAlternate
 #[test]
 fn create_union_allows_single_alternate() {
-    assert!(catch_unwind(|| Color::create_union(&IndexSet::new())).is_err());
-    assert!(!Color::create_union(&IndexSet::from([sc::NUMBER.clone()])).is_union());
+    assert!(catch_unwind(|| Color::create_union(&IndexSet::<_>::default())).is_err());
+    assert!(!Color::create_union(&IndexSet::<_>::from_iter([sc::NUMBER.clone()])).is_union());
 }
 // port: ColorTest#unknownTypeIsNotSpecialCased
 #[test]
 fn unknown_type_is_not_special_cased() {
-    let union = Color::create_union(&IndexSet::from([sc::UNKNOWN.clone(), sc::STRING.clone()]));
+    let union = Color::create_union(&IndexSet::<_>::from_iter([
+        sc::UNKNOWN.clone(),
+        sc::STRING.clone(),
+    ]));
     assert_that(union.clone()).is_union();
     assert_eq!(union.get_union_elements().len(), 2);
 }
@@ -94,7 +106,7 @@ fn nullable_union_does_not_invalidate() {
     let non_invalidating_object = Color::single_builder()
         .set_id(ColorId::from_ascii("Bar"))
         .build();
-    let objects = Color::create_union(&IndexSet::from([
+    let objects = Color::create_union(&IndexSet::<_>::from_iter([
         sc::NULL_OR_VOID.clone(),
         non_invalidating_object,
     ]));
@@ -140,7 +152,7 @@ fn create_union_setting_bool_props(
     first: bool,
     second: bool,
 ) -> Color {
-    Color::create_union(&IndexSet::from([
+    Color::create_union(&IndexSet::<_>::from_iter([
         setter(
             Color::single_builder().set_id(ColorId::from_ascii("Foo")),
             first,

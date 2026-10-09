@@ -20,12 +20,12 @@
 //! in a given file.
 
 use crate::ijs::potential_declaration::PotentialDeclaration;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null,
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::{IndexMap, IndexSet};
 
 /// Class to keep track of what has been seen so far in a given file.
 pub struct FileInfo {
@@ -40,9 +40,9 @@ impl FileInfo {
     // port: FileInfo#FileInfo
     pub fn new(source_file_name: &str) -> Self {
         Self {
-            provided_namespaces: IndexSet::new(),
-            required_local_names: IndexSet::new(),
-            declarations: IndexMap::new(),
+            provided_namespaces: IndexSet::<_>::default(),
+            required_local_names: IndexSet::<_>::default(),
+            declarations: IndexMap::<_, _>::default(),
             is_from_type_script: source_file_name.ends_with(".closure.js"),
         }
     }
@@ -112,7 +112,7 @@ impl FileInfo {
     ) -> bool {
         for prefix in prefix_namespaces {
             if fully_qualified_name == prefix
-                || fully_qualified_name.starts_with(&prefix.concat(&JsString::from(".")))
+                || fully_qualified_name.starts_with(prefix.concat(&JsString::from(".")))
             {
                 return true;
             }
@@ -133,7 +133,7 @@ impl FileInfo {
     // port: FileInfo#isStrictPrefixDeclared
     pub fn is_strict_prefix_declared(&self, fully_qualified_name: &JsString) -> bool {
         for prefix in self.declarations.keys() {
-            if fully_qualified_name.starts_with(&prefix.concat(&JsString::from("."))) {
+            if fully_qualified_name.starts_with(prefix.concat(&JsString::from("."))) {
                 return true;
             }
         }

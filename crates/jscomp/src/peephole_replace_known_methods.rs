@@ -152,7 +152,7 @@ impl PeepholeReplaceKnownMethods {
 
         // Method node might not be a string if callTarget is a GETELEM.
         // e.g. Array[something]()
-        if call_target.get_string(compiler) != "of" {
+        if call_target.get_string_ref(compiler) != "of" {
             return subtree;
         }
 
@@ -754,10 +754,10 @@ impl PeepholeReplaceKnownMethods {
         }
 
         let mut is_negative = false;
-        if string_val.starts_with(&JsString::from("-")) {
+        if string_val.starts_with("-") {
             is_negative = true;
             string_val = string_val.substring_from(1);
-        } else if string_val.starts_with(&JsString::from("+")) {
+        } else if string_val.starts_with("+") {
             string_val = string_val.substring_from(1);
         }
 
@@ -768,9 +768,7 @@ impl PeepholeReplaceKnownMethods {
                 radix = 16;
                 string_val = string_val.substring_from(2);
             } else if radix == 0 {
-                if !self.is_ecma_script5_or_greater(compiler)
-                    && string_val.starts_with(&JsString::from("0"))
-                {
+                if !self.is_ecma_script5_or_greater(compiler) && string_val.starts_with("0") {
                     return n;
                 }
                 radix = 10;
@@ -943,13 +941,13 @@ impl PeepholeReplaceKnownMethods {
 
         let array_node = call_target.get_first_child(compiler).unwrap();
 
-        if !array_node.is_array_lit(compiler) || call_target.get_string(compiler) != "join" {
+        if !array_node.is_array_lit(compiler) || call_target.get_string_ref(compiler) != "join" {
             return n;
         }
 
         if let Some(right) = right
             && (NodeUtil::is_undefined(compiler, right)
-                || (right.is_string_lit(compiler) && right.get_string(compiler) == ","))
+                || (right.is_string_lit(compiler) && right.get_string_ref(compiler) == ","))
         {
             // "," is the default, it doesn't need to be explicit
             right.detach(compiler);
@@ -1264,7 +1262,7 @@ impl PeepholeReplaceKnownMethods {
 
         let look_for_pattern = arg1.get_string(compiler);
         let replacement_pattern = arg2.get_string(compiler);
-        if replacement_pattern.index_of(&JsString::from("$")) >= 0 {
+        if replacement_pattern.index_of("$") >= 0 {
             // 'special' replacements aren't supported yet.
             return n;
         }
@@ -1314,7 +1312,7 @@ impl PeepholeReplaceKnownMethods {
         }
 
         let replacement_pattern = arg2.get_string(compiler);
-        if replacement_pattern.index_of(&JsString::from("$")) >= 0 {
+        if replacement_pattern.index_of("$") >= 0 {
             // 'special' replacements aren't supported yet.
             return n;
         }
@@ -1602,7 +1600,7 @@ impl PeepholeReplaceKnownMethods {
         let call_target = n.get_first_child(ast);
         check_not_null!(call_target);
         let call_target = call_target.unwrap();
-        if !call_target.is_get_prop(ast) || call_target.get_string(ast) != "concat" {
+        if !call_target.is_get_prop(ast) || call_target.get_string_ref(ast) != "concat" {
             return None;
         }
         let callee_node = call_target.get_first_child(ast);
@@ -1634,7 +1632,7 @@ impl PeepholeReplaceKnownMethods {
         }
         let callee = n.get_first_child(ast).unwrap();
         callee.is_get_prop(ast)
-            && callee.get_string(ast) == "concat"
+            && callee.get_string_ref(ast) == "concat"
             && Self::contains_exactly_array(ast, callee.get_first_child(ast))
     }
 }

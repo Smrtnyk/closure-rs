@@ -33,7 +33,7 @@ use crate::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     path::{Path, PathBuf},
@@ -706,7 +706,7 @@ impl Report {
                 pass: num("pass")?,
                 fail: num("fail")?,
                 unported: num("unported")?,
-                unported_by: IndexMap::new(),
+                unported_by: IndexMap::<_, _>::default(),
                 pass_with_omitted_passes: if v.get("passWithOmittedPasses").is_some() {
                     num("passWithOmittedPasses")?
                 } else {

@@ -30,11 +30,11 @@ use crate::{
     node_util::NodeUtil,
     var::VarId,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_state, java_lang::JavaHashCode, js_string::JsString, node::NodeId,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 #[derive(Debug)]
 pub struct Definition {
@@ -47,7 +47,7 @@ impl Definition {
     pub fn new(node: NodeId) -> Self {
         Self {
             node,
-            depends: IndexSet::new(),
+            depends: IndexSet::<_>::default(),
             unknown_dependencies: false,
         }
     }
@@ -345,7 +345,7 @@ impl MustBeReachingVariableDef {
                         None,
                         output,
                     );
-                } else if n.get_string(compiler) == "arguments" {
+                } else if n.get_string_ref(compiler) == "arguments" {
                     self.escape_parameters(compiler, output);
                 }
             }
@@ -370,7 +370,7 @@ impl MustBeReachingVariableDef {
                         return;
                     } else if NodeUtil::is_normal_get(compiler, lhs) {
                         let obj = n.get_first_first_child(compiler).unwrap();
-                        if obj.is_name(compiler) && obj.get_string(compiler) == "arguments" {
+                        if obj.is_name(compiler) && obj.get_string_ref(compiler) == "arguments" {
                             self.escape_parameters(compiler, output);
                         }
                     } else if lhs.is_destructuring_pattern(compiler) {

@@ -22,6 +22,7 @@ use super::malformed_typed_ast_exception::MalformedTypedAstException;
 use super::optimization_jsdoc_proto::{JsdocTag, OptimizationJsdoc};
 use super::string_pool::{StringPool, StringPoolBuilder};
 use crate::source_file::SourceFile;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::js_type_expression::JSTypeExpression;
@@ -29,7 +30,6 @@ use closure_rhino::jsdoc_info::{JSDocInfo, PerFileClosureUnawareMode};
 use closure_rhino::node::Ast;
 use closure_rhino::static_source_file::StaticSourceFile;
 use closure_rhino::token::Token;
-use indexmap::IndexSet;
 use std::collections::BTreeSet;
 use std::sync::{Arc, LazyLock};
 
@@ -168,10 +168,7 @@ impl JSDocSerializer {
         if jsdoc.is_interface() {
             builder = builder.add_kind(JsdocTag::JSDOC_INTERFACE);
         }
-        if jsdoc
-            .get_suppressions()
-            .contains(&JsString::from("partialAlias"))
-        {
+        if jsdoc.has_suppression("partialAlias") {
             builder = builder.add_kind(JsdocTag::JSDOC_SUPPRESS_PARTIAL_ALIAS);
         }
 
@@ -191,16 +188,10 @@ impl JSDocSerializer {
         if let Some(meaning) = jsdoc.get_meaning() {
             builder = builder.set_meaning_pointer(string_pool.put(meaning));
         }
-        if jsdoc
-            .get_suppressions()
-            .contains(&JsString::from("messageConventions"))
-        {
+        if jsdoc.has_suppression("messageConventions") {
             builder = builder.add_kind(JsdocTag::JSDOC_SUPPRESS_MESSAGE_CONVENTION);
         }
-        if jsdoc
-            .get_suppressions()
-            .contains(&JsString::from("untranspilableFeatures"))
-        {
+        if jsdoc.has_suppression("untranspilableFeatures") {
             builder = builder.add_kind(JsdocTag::JSDOC_SUPPRESS_UNTRANSPILABLE_FEATURES);
         }
         if jsdoc.is_used_via_dot_constructor() {

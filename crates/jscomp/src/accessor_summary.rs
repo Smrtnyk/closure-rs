@@ -23,8 +23,8 @@ use crate::compiler_state_proto::{
     AccessorSummaryEntryProto, AccessorSummaryProto, PropertyAccessKindProto,
 };
 use crate::serialization::protobuf::encode_utf8_java;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{check_state, js_string::JsString};
-use indexmap::IndexMap;
 
 // port: AccessorSummary.PropertyAccessKind
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -111,7 +111,7 @@ impl AccessorSummary {
     // port: AccessorSummary#AccessorSummary(boolean)
     fn new_assuming(assume_always_getter_and_setter: bool) -> AccessorSummary {
         AccessorSummary {
-            accessors: IndexMap::new(),
+            accessors: IndexMap::<_, _>::default(),
             assume_always_getter_and_setter,
         }
     }
@@ -174,7 +174,7 @@ impl AccessorSummary {
             return Self::create_assuming_always_getter_and_setter();
         }
         // Java: ImmutableMap.Builder, then buildOrThrow (which rejects duplicate keys).
-        let mut builder: IndexMap<JsString, PropertyAccessKind> = IndexMap::new();
+        let mut builder: IndexMap<JsString, PropertyAccessKind> = IndexMap::<_, _>::default();
         for entry in proto.get_accessors_list() {
             let key = JsString::from(entry.get_name());
             let value = Self::kind_from_proto(entry.get_kind());

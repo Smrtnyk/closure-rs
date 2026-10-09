@@ -28,7 +28,7 @@ impl GoogEsImports {
 
     // port: GoogEsImports#isGoogImportSpecifier
     pub fn is_goog_import_specifier(module_specifier: &JsString) -> bool {
-        module_specifier.starts_with(&JsString::from(Self::GOOG_IMPORT_PREFIX))
+        module_specifier.starts_with(JsString::from(Self::GOOG_IMPORT_PREFIX))
     }
 
     // port: GoogEsImports#getClosureIdFromGoogImportSpecifier

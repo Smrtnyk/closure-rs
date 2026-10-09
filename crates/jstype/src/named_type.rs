@@ -628,7 +628,7 @@ impl NamedTypeBuilder {
 fn create(reg: &mut JSTypeRegistry, ast: &Ast, builder: NamedTypeBuilder) -> TypeId {
     let resolution_kind = builder.resolution_kind.expect("NullPointerException");
     if resolution_kind == ResolutionKind::TYPEOF {
-        check_state!(builder.reference_name.starts_with(&"typeof ".into()));
+        check_state!(builder.reference_name.starts_with("typeof "));
     }
     let data = NamedTypeData {
         proxy: ProxyObjectTypeData::new(reg, builder.referenced_type),

@@ -24,6 +24,7 @@ use closure_jscomp::{
     abstract_peephole_optimization::AbstractPeepholeOptimization, compiler_pass::CompilerPass,
     peephole_optimizations_pass::PeepholeOptimizationsPass, statement_fusion::StatementFusion,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
@@ -33,7 +34,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 struct StatementFusionTest {
@@ -81,7 +81,7 @@ impl StatementFusionTest {
                 ctx: Ctx::new(
                     "StatementFusionTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

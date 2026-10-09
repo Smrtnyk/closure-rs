@@ -18,11 +18,11 @@
 
 #![allow(clippy::mutable_key_type)]
 use crate::{code_printer::LicenseTracker, compiler::Compiler, js_chunk::JSChunk};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, Mutex};
 type Scripts = Arc<Mutex<IndexMap<String, NodeId>>>;
 struct SeenState {
@@ -41,8 +41,8 @@ impl SeenSetLicenseTracker {
         Self {
             scripts: compiler.get_shared_scripts(),
             state: Mutex::new(SeenState {
-                globally_unique_licenses: IndexSet::new(),
-                currently_seen_licenses: IndexSet::new(),
+                globally_unique_licenses: IndexSet::<_>::default(),
+                currently_seen_licenses: IndexSet::<_>::default(),
                 last_seen_file: String::new(),
             }),
             scripts_only,
@@ -154,11 +154,11 @@ impl ChunkGraphAwareLicenseTracker {
             scripts: compiler.get_shared_scripts(),
             log: Mutex::new(crate::diagnostic::log_file::create_no_op()),
             state: Mutex::new(ChunkState {
-                licenses_from_chunks: IndexMap::new(),
+                licenses_from_chunks: IndexMap::<_, _>::default(),
                 have_initialized_current_chunk_licenses: false,
-                current_chunk_licences_in_t_deps: IndexSet::new(),
+                current_chunk_licences_in_t_deps: IndexSet::<_>::default(),
                 last_seen_file: String::new(),
-                licenses_new_in_current_file: IndexSet::new(),
+                licenses_new_in_current_file: IndexSet::<_>::default(),
                 current_chunk: None,
             }),
         }
@@ -182,7 +182,9 @@ impl ChunkGraphAwareLicenseTracker {
             !state.licenses_from_chunks.contains_key(&chunk),
             "Visiting a chunk more than once is not allowed."
         );
-        state.licenses_from_chunks.insert(chunk, IndexSet::new());
+        state
+            .licenses_from_chunks
+            .insert(chunk, IndexSet::<_>::default());
     }
 }
 impl LicenseTracker for ChunkGraphAwareLicenseTracker {

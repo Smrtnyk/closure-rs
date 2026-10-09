@@ -39,11 +39,11 @@ use crate::{
     syntactic_scope_creator::SyntacticScopeCreator,
     var::VarId,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_argument, check_not_null, check_state, ir::IR, js_string::JsString, node::NodeId,
     token::Token,
 };
-use indexmap::IndexMap;
 use std::collections::VecDeque;
 
 struct BailoutInformation {

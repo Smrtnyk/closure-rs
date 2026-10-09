@@ -63,6 +63,55 @@ pub struct ScopeArena {
     pub(crate) var_views: Vec<OnceLock<&'static VarView>>,
 }
 
+/// Rust-only, not in Java (D-025): the fields of scopes and vars that never change after
+/// construction (Java `final` fields), copied out of the shared `ScopeArena` so that the
+/// compiler's hot readers (`getRootNode`, `getParent`, `getDepth`, `Var#getName`, `getNode`,
+/// `getScope`, ...) skip the arena's lock. Index-aligned with `ScopeArena::scopes` / `vars`; a var
+/// that a scope view created (implicit vars) may be missing until the next `VarId::new`
+/// resynchronises, and is then read from the arena.
+#[derive(Debug, Default)]
+pub(crate) struct ScopeMirror {
+    pub(crate) scopes: Vec<ScopeMeta>,
+    pub(crate) vars: Vec<VarMeta>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ScopeMeta {
+    pub(crate) root_node: NodeId,
+    pub(crate) parent: Option<ScopeId>,
+    pub(crate) depth: i32,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct VarMeta {
+    pub(crate) name: JsString,
+    pub(crate) name_node: Option<NodeId>,
+    pub(crate) input: Option<CompilerInput>,
+    pub(crate) index: i32,
+    pub(crate) scope: Option<ScopeId>,
+}
+
+impl VarMeta {
+    pub(crate) fn of(data: &AbstractVarData<ScopeId>) -> Self {
+        Self {
+            name: data.name.clone(),
+            name_node: data.name_node,
+            input: data.input.clone(),
+            index: data.index,
+            scope: data.scope,
+        }
+    }
+}
+
+impl ScopeMirror {
+    /// Appends the vars the arena has and the mirror lacks.
+    pub(crate) fn sync_vars(&mut self, arena: &ScopeArena) {
+        for data in &arena.vars[self.vars.len()..] {
+            self.vars.push(VarMeta::of(data));
+        }
+    }
+}
+
 impl ScopeArena {
     /// Rust-only: the compiler's shared arena.
     pub(crate) fn shared() -> Arc<RwLock<ScopeArena>> {
@@ -109,6 +158,9 @@ impl ScopeId {
         data.parent = Some(parent);
         data.depth = depth;
         drop(arena);
+        let meta = &mut compiler.scope_mirror.scopes[scope.index()];
+        meta.parent = Some(parent);
+        meta.depth = depth;
         scope
     }
 
@@ -131,12 +183,12 @@ impl ScopeId {
 
     // port: Scope#getDepth
     pub fn get_depth(self, compiler: &AbstractCompiler) -> i32 {
-        ScopeArena::read(compiler).scopes[self.index()].depth
+        compiler.scope_mirror.scopes[self.index()].depth
     }
 
     // port: Scope#getParent
     pub fn get_parent(self, compiler: &AbstractCompiler) -> Option<Self> {
-        ScopeArena::read(compiler).scopes[self.index()].parent
+        compiler.scope_mirror.scopes[self.index()].parent
     }
 
     // port: Scope#declare
@@ -149,6 +201,35 @@ impl ScopeId {
     ) -> VarId {
         let name = name.into();
         check_argument!(!name.is_empty());
+        if ImplicitVar::of(&name).is_none() {
+            // Rust-only fast path (D-025): with no implicit slot for `name`, getOwnSlot,
+            // hasOwnSlot and canDeclare only read declared vars; read them under one lock.
+            let (declared, count) = {
+                let arena = ScopeArena::read(compiler);
+                let vars = &arena.scopes[self.index()].abstract_scope.vars;
+                (vars.contains_key(&name), vars.len())
+            };
+            check_state!(!declared);
+            let index = i32::try_from(count).unwrap();
+            let var = VarId::new(compiler, &name, name_node.into(), self, index, input, None);
+            // canDeclare: only a function block scope can refuse, when its parent has the name.
+            let parent_declares = self.is_function_block_scope(compiler)
+                && self.get_parent(compiler).is_some_and(|parent| {
+                    ScopeArena::read(compiler).scopes[parent.index()]
+                        .abstract_scope
+                        .vars
+                        .contains_key(&name)
+                });
+            if parent_declares {
+                self.declare_internal(compiler, name, var);
+            } else {
+                ScopeArena::write(compiler).scopes[self.index()]
+                    .abstract_scope
+                    .vars
+                    .insert(name, var);
+            }
+            return var;
+        }
         check_state!(self.get_own_slot(compiler, &name).is_none());
         let index = self.get_var_count(compiler);
         let var = VarId::new(compiler, &name, name_node.into(), self, index, input, None);
@@ -187,7 +268,7 @@ impl ScopeId {
 
     // port: Scope#makeImplicitVar
     pub fn make_implicit_var(self, compiler: &mut AbstractCompiler, var: ImplicitVar) -> VarId {
-        VarId::new(compiler, var.name(), None, self, -1, None, None)
+        VarId::new(compiler, var.js_name(), None, self, -1, None, None)
     }
 
     // Rust-only allocation separates arena identity from the common Java constructor data.
@@ -199,6 +280,12 @@ impl ScopeId {
             parent: None,
             depth: 0,
             view: OnceLock::new(),
+        });
+        drop(arena);
+        compiler.scope_mirror.scopes.push(ScopeMeta {
+            root_node,
+            parent: None,
+            depth: 0,
         });
         scope
     }
@@ -227,6 +314,29 @@ impl AbstractScope for ScopeId {
             |a, i| &a.scopes[i].abstract_scope,
             |a, i| &mut a.scopes[i].abstract_scope,
         )
+    }
+
+    // port: AbstractScope#getRootNode
+    fn get_root_node(self, compiler: &AbstractCompiler) -> NodeId {
+        compiler.scope_mirror.scopes[self.index()].root_node
+    }
+
+    // port: AbstractScope#getVar
+    fn get_var(self, compiler: &mut AbstractCompiler, name: &JsString) -> Option<VarId> {
+        if ImplicitVar::of(name).is_some() {
+            return crate::abstract_scope::abstract_scope_get_var(self, compiler, name);
+        }
+        // No implicit slot can match `name`, so getOwnSlot only reads each scope's declared
+        // vars: walk the chain under one read lock instead of one lock per scope (D-025).
+        let arena = ScopeArena::read(compiler);
+        let mut scope = Some(self);
+        while let Some(current) = scope {
+            if let Some(var) = arena.scopes[current.index()].abstract_scope.vars.get(name) {
+                return Some(*var);
+            }
+            scope = compiler.scope_mirror.scopes[current.index()].parent;
+        }
+        None
     }
 
     fn get_depth(self, compiler: &AbstractCompiler) -> i32 {
@@ -471,7 +581,7 @@ impl ScopeView {
                 let mut arena = arena.write().unwrap_or_else(PoisonError::into_inner);
                 // port: Scope#makeImplicitVar
                 let data = AbstractVarData {
-                    name: JsString::from(implicit.name()),
+                    name: implicit.js_name(),
                     name_node: None,
                     implicit_goog_namespace_strength: None,
                     input: None,

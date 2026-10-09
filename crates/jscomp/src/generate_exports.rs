@@ -28,12 +28,12 @@ use crate::node_traversal::NodeTraversal;
 use crate::node_util::NodeUtil;
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use closure_jstype::JSTypeNative;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
 use closure_rhino::static_source_file::StaticSourceFile;
 use closure_rhino::{check_argument, check_not_null};
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 const PROTOTYPE_PROPERTY: &str = "prototype";
@@ -75,7 +75,7 @@ impl GenerateExports {
             allow_non_global_exports,
             export_symbol_function,
             export_property_function,
-            exported_variables: IndexSet::new(),
+            exported_variables: IndexSet::<_>::default(),
         }
     }
 

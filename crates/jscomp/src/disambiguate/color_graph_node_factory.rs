@@ -20,7 +20,7 @@
 
 use super::color_graph_node::{ColorGraphNode, ColorGraphNodeId, DisambiguateArena};
 use crate::colors::{Color, color_registry::ColorRegistry, standard_colors};
-use indexmap::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 /// The overridable instance methods of {@link ColorGraphNodeFactory} (Java virtual dispatch:
@@ -77,7 +77,7 @@ impl ColorGraphNodeFactory {
         arena: &mut DisambiguateArena,
         color_registry: Arc<ColorRegistry>,
     ) -> ColorGraphNodeFactory {
-        let mut type_index = IndexMap::new();
+        let mut type_index = IndexMap::<_, _>::default();
         let unknown_color_node = ColorGraphNode::create(arena, standard_colors::UNKNOWN.clone(), 0);
         type_index.insert(standard_colors::UNKNOWN.clone(), unknown_color_node);
         ColorGraphNodeFactory::new(type_index, color_registry)

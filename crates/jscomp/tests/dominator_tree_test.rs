@@ -18,7 +18,7 @@
 
 use closure_jscomp::graph::dominator_tree::DominatorTree;
 use closure_jscomp::graph::*;
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 // port: DominatorTreeTest#testSimpleChain
 #[test]
 fn test_simple_chain() {
@@ -42,7 +42,7 @@ fn test_simple_chain() {
 
     assert_eq!(
         tree.get_all_subtree_sizes(),
-        &IndexMap::from([("A", 3), ("B", 2), ("C", 1)])
+        &IndexMap::<_, _>::from_iter([("A", 3), ("B", 2), ("C", 1)])
     );
 }
 // port: DominatorTreeTest#testDiamond
@@ -171,7 +171,7 @@ fn test_node_not_reachable_from_entry_point_does_not_count_as_dominator() {
 
     assert_eq!(
         tree.get_all_subtree_sizes(),
-        &IndexMap::from([("A", 2), ("B", 1)])
+        &IndexMap::<_, _>::from_iter([("A", 2), ("B", 1)])
     );
 }
 // port: DominatorTreeTest#testGetImmediateDominator_nonExistentElement_returnsNull

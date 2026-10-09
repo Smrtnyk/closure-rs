@@ -56,8 +56,8 @@ use closure_jscomp::{
     dead_property_assignment_elimination::DeadPropertyAssignmentElimination,
     node_traversal::NodeTraversal, normalize::Normalize,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 // port: ReplayDsl#invoke (resolved signatures backed by native implementations)
@@ -100,7 +100,7 @@ impl NativeObject for GetProcessorLambda {
     }
     // port: ReplayValues#findField (the helper's declared field `compiler`)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([(
+        Ok(IndexMap::<_, _>::from_iter([(
             "compiler".to_string(),
             DslValue::Compiler(self.compiler.clone()),
         )]))
@@ -155,7 +155,7 @@ impl NativeObject for CoalesceVariableNamesTestHelpers {
         "com.google.javascript.jscomp.CoalesceVariableNamesTest_Helpers"
     }
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([(
+        Ok(IndexMap::<_, _>::from_iter([(
             "usePseudoName".to_string(),
             DslValue::Bool(self.use_pseudo_name),
         )]))
@@ -227,7 +227,7 @@ impl NativeObject for CoalesceVariableNamesProcessor {
     // port: ReplayValues#findField (the anonymous class declares no fields; its captures are
     // synthetic)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: CoalesceVariableNamesTest_Helpers.GetProcessor#getProcessor (anonymous CompilerPass#process)
     fn process(

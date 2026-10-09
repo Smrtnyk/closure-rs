@@ -59,6 +59,10 @@ impl<T> Default for SourcePosition<T> {
     }
 }
 impl<T> SourcePosition<T> {
+    /// Rust-only: replaces the item in place (for `Ast::append_preparsed`).
+    pub(crate) fn map_item(&mut self, f: impl FnOnce(T) -> T) {
+        self.item = self.item.take().map(f);
+    }
     // port: SourcePosition#setItem
     pub fn set_item(&mut self, item: impl Into<Option<T>>) {
         self.item = item.into();

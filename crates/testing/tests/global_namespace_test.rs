@@ -38,9 +38,9 @@ use closure_jscomp::{
 use closure_jstype::{
     rhino::js_type_expression::JSTypeExpressionExt, testing::type_subject::TypeSubject,
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{ir::IR, js_string::JsString, node::NodeId, token::Token};
 use closure_testing::testing::js_chunk_graph_builder::JSChunkGraphBuilder;
-use indexmap::IndexSet;
 use std::sync::Arc;
 
 /// `GlobalNamespaceTest`'s instance fields.
@@ -765,7 +765,7 @@ fn rescanning_existing_nodes_does_not_create_duplicate_refs() {
 
     // Rescan all of the nodes for which we got refs as if they were newly added
     let root = t.js_root();
-    let mut ast_change_set_builder: IndexSet<AstChange> = IndexSet::new();
+    let mut ast_change_set_builder: IndexSet<AstChange> = IndexSet::<_>::default();
     for name in [foo, bar, baz] {
         for r in name.get_refs(&namespace) {
             let node = r.get_node(&namespace).unwrap();
@@ -812,7 +812,7 @@ fn test_scan_from_node_doesnt_duplicate_var_declaration_sets() {
 
     // Rescan the new nodes
     let change = t.create_global_ast_change_for_node(root, foo_name);
-    namespace.scan_new_nodes(t.c(), &IndexSet::from([change]));
+    namespace.scan_new_nodes(t.c(), &IndexSet::<_>::from_iter([change]));
 
     assert_eq!(foo.get_aliasing_gets(&namespace), 2);
     // A bug in scanFromNode used to make this `2`
@@ -848,7 +848,7 @@ fn test_scan_from_node_adds_reference_to_parent_getprop() {
 
     // Rescan the new nodes
     let change = t.create_global_ast_change_for_node(root, x_name);
-    namespace.scan_new_nodes(t.c(), &IndexSet::from([change]));
+    namespace.scan_new_nodes(t.c(), &IndexSet::<_>::from_iter([change]));
 
     assert_eq!(xbar.get_aliasing_gets(&namespace), 1);
     assert_eq!(baz.get_global_sets(&namespace), 1);
@@ -897,7 +897,7 @@ fn test_scan_from_node_notices_has_own_property() {
     // Rescan the new nodes
     // In this case the new node is `x.hasOwnProperty`, since that's the full, new qualified name.
     let change = t.create_global_ast_change_for_node(root, y_dot_has_own_property);
-    namespace.scan_new_nodes(t.c(), &IndexSet::from([change]));
+    namespace.scan_new_nodes(t.c(), &IndexSet::<_>::from_iter([change]));
 
     assert!(x_name.uses_has_own_property(&namespace));
 }

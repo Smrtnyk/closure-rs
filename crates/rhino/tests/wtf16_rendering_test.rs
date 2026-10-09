@@ -144,12 +144,12 @@ fn node_and_jsdoc_rendering_preserves_utf16() {
     node.set_original_name(&mut ast, Some(value.clone()));
     assert!(
         node.to_string_utf16(&ast)
-            .index_of(&JsString::from("[original_name: ").concat(&value))
+            .index_of(JsString::from("[original_name: ").concat(&value))
             >= 0
     );
     assert!(
         node.to_json_tree_utf16(&ast)
-            .index_of(&JsString::from("\"original_name\":\"").concat(&value))
+            .index_of(JsString::from("\"original_name\":\"").concat(&value))
             >= 0
     );
 }

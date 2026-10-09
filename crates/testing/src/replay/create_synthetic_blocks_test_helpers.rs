@@ -56,8 +56,8 @@ use closure_jscomp::{
     peephole_remove_dead_code::PeepholeRemoveDeadCode,
 };
 use closure_parsing::parser::feature_set::FeatureSet;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const GET_PROCESSOR: &str =
@@ -83,7 +83,7 @@ impl NativeObject for GetProcessor {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert("name".into(), DslValue::String(self.name.as_str().into()));
         Ok(fields)
     }

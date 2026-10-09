@@ -103,6 +103,9 @@ pub struct NodeTraversal<'a> {
     // The CompilerInput is retained in the compiler; this ID keeps cached
     // lookups referring to that same object rather than copying its fields.
     compiler_input: Option<Arc<InputId>>,
+    /// Rust-only: the CompilerInput found for `compiler_input` (Java's cached `compilerInput`;
+    /// a shared handle), so that `get_input` needs no input lookup by id (D-025).
+    compiler_input_object: Option<CompilerInput>,
 }
 
 pub trait Callback {
@@ -881,6 +884,7 @@ impl<'a> NodeTraversal<'a> {
             source_name: None,
             input_id: None,
             compiler_input: None,
+            compiler_input_object: None,
         }
     }
 
@@ -1261,14 +1265,13 @@ impl<'a> NodeTraversal<'a> {
         let input_id = self.get_input_id();
         if self.compiler_input.is_none() {
             if let Some(input_id) = input_id {
-                if self.compiler.get_input(&input_id).is_some() {
+                if let Some(input) = self.compiler.get_input(&input_id) {
+                    self.compiler_input_object = Some(input.clone());
                     self.compiler_input = Some(input_id);
                 }
             }
         }
-        self.compiler_input
-            .as_ref()
-            .and_then(|input_id| self.compiler.get_input(input_id))
+        self.compiler_input_object.as_ref()
     }
 
     /// Not in Java: `getInput().getInputId()` as the shared `Arc` (the cached input is looked up
@@ -1923,6 +1926,7 @@ impl<'a> NodeTraversal<'a> {
         self.input_id = None;
         self.source_name = None;
         self.compiler_input = None;
+        self.compiler_input_object = None;
     }
 
     // port: NodeTraversal#getInputId

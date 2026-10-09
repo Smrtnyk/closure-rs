@@ -40,8 +40,8 @@ use crate::{
         unresolved_module::{UnresolvedModule, UnresolvedModuleId, UnresolvedModules},
     },
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 // port: ModuleMapCreator#DOES_NOT_HAVE_EXPORT
@@ -71,9 +71,9 @@ impl MissingNonClosureModule {
     pub(crate) fn resolve(&self, _module_specifier: Option<&JsString>) -> Arc<Module> {
         Arc::new(
             Module::builder()
-                .bound_names(IndexMap::new())
-                .namespace(IndexMap::new())
-                .local_name_to_local_export(IndexMap::new())
+                .bound_names(IndexMap::<_, _>::default())
+                .namespace(IndexMap::<_, _>::default())
+                .local_name_to_local_export(IndexMap::<_, _>::default())
                 .path(Some(self.path.clone()))
                 .metadata(self.metadata.clone())
                 .build(),
@@ -87,12 +87,12 @@ impl MissingNonClosureModule {
 
     // port: ModuleMapCreator.ModuleRequestResolverImpl#getFallbackForMissingNonClosureModule (UnresolvedModule#getExportedNames(ModuleRequestResolver))
     pub(crate) fn get_exported_names(&self) -> Arc<IndexSet<JsString>> {
-        Arc::new(IndexSet::new())
+        Arc::new(IndexSet::<_>::default())
     }
 
     // port: ModuleMapCreator.ModuleRequestResolverImpl#getFallbackForMissingNonClosureModule (UnresolvedModule#getExportedNames(ModuleRequestResolver,Set))
     pub(crate) fn get_exported_names_visited(&self) -> Arc<IndexSet<JsString>> {
-        Arc::new(IndexSet::new())
+        Arc::new(IndexSet::<_>::default())
     }
 
     // port: ModuleMapCreator.ModuleRequestResolverImpl#getFallbackForMissingNonClosureModule (UnresolvedModule#resolveExport)
@@ -274,8 +274,8 @@ impl ModuleMapCreator {
             es_module_processor: EsModuleProcessor::new(),
             closure_module_processor: ClosureModuleProcessor::new(),
             non_es_module_processor: NonEsModuleProcessor,
-            unresolved_modules: IndexMap::new(),
-            unresolved_modules_by_closure_namespace: IndexMap::new(),
+            unresolved_modules: IndexMap::<_, _>::default(),
+            unresolved_modules_by_closure_namespace: IndexMap::<_, _>::default(),
             modules: UnresolvedModules::new(),
         }
     }
@@ -304,8 +304,9 @@ impl ModuleMapCreator {
                 .unresolved_modules_by_closure_namespace,
             modules: &mut self.modules,
         };
-        let mut resolved_modules: IndexMap<String, Arc<Module>> = IndexMap::new();
-        let mut resolved_closure_modules: IndexMap<JsString, Arc<Module>> = IndexMap::new();
+        let mut resolved_modules: IndexMap<String, Arc<Module>> = IndexMap::<_, _>::default();
+        let mut resolved_closure_modules: IndexMap<JsString, Arc<Module>> =
+            IndexMap::<_, _>::default();
 
         // We need to resolve in a loop as any missing reference will add a fake to the
         // unresolvedModules map (see getFallback* methods above). This would cause a concurrent

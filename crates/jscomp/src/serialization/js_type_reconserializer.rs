@@ -31,13 +31,13 @@ use super::types_proto::{
 use crate::invalidating_types::InvalidatingTypes;
 use closure_jstype::prelude::*;
 use closure_rhino::closure_primitive::ClosurePrimitive;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_colors::color::Color;
 use closure_rhino::jscomp_colors::color_id::ColorId;
 use closure_rhino::jscomp_colors::standard_colors;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::{check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -168,9 +168,9 @@ impl JSTypeReconserializer {
             serialization_mode,
             unknown_record: -1,
             top_function_record: -1,
-            type_to_record_cache: IndexMap::new(),
-            seen_type_records: IndexMap::new(),
-            disambiguate_edges: IndexMap::new(),
+            type_to_record_cache: IndexMap::<_, _>::default(),
+            seen_type_records: IndexMap::<_, _>::default(),
+            disambiguate_edges: IndexMap::<_, _>::default(),
             state: State::COLLECTING_TYPES,
         };
 
@@ -290,7 +290,7 @@ impl JSTypeReconserializer {
 
     // port: JSTypeReconserializer#recordUnionType
     fn record_union_type(&mut self, reg: &mut JSTypeRegistry, ast: &Ast, r#type: TypeId) -> i32 {
-        let mut alt_records: IndexSet<i32> = IndexSet::new();
+        let mut alt_records: IndexSet<i32> = IndexSet::<_>::default();
         let alternates = r#type.get_alternates(reg, ast);
         for &alt_type in alternates.iter() {
             let alt = self.record_type(reg, ast, alt_type);
@@ -310,7 +310,7 @@ impl JSTypeReconserializer {
             return *alt_records.first().unwrap();
         }
 
-        let mut alternate_ids: IndexSet<ColorId> = IndexSet::new();
+        let mut alternate_ids: IndexSet<ColorId> = IndexSet::<_>::default();
         for &alt_record in &alt_records {
             alternate_ids.insert(self.record(alt_record).color_id);
         }
@@ -437,9 +437,9 @@ impl JSTypeReconserializer {
         ast: &Ast,
         seen: i32,
     ) -> TypeProto {
-        let mut instance_pointers: IndexSet<i32> = IndexSet::new();
-        let mut prototype_pointers: IndexSet<i32> = IndexSet::new();
-        let mut own_properties: IndexSet<i32> = IndexSet::new();
+        let mut instance_pointers: IndexSet<i32> = IndexSet::<_>::default();
+        let mut prototype_pointers: IndexSet<i32> = IndexSet::<_>::default();
+        let mut own_properties: IndexSet<i32> = IndexSet::<_>::default();
         let mut is_closure_assert = false;
         let mut is_constructor = false;
         let mut is_invalidating = false;
@@ -591,7 +591,7 @@ impl JSTypeReconserializer {
             let mut debug_info = TypePoolDebugInfo::new_builder();
             // Key by source ref to deduplicate the strings, which are pretty long.
             // (ImmutableSetMultimap#inverse().asMap())
-            let mut inverse: IndexMap<NodeId, IndexSet<TypeId>> = IndexMap::new();
+            let mut inverse: IndexMap<NodeId, IndexSet<TypeId>> = IndexMap::<_, _>::default();
             for (r#type, locations) in self.invalidating_types.get_mismatch_locations() {
                 for &location in locations {
                     inverse.entry(location).or_default().insert(*r#type);
@@ -670,7 +670,7 @@ impl JSTypeReconserializer {
         // note: returns JSType values instead of String values, even though all that's needed for
         // debugging are the strings, to avoid the memory overhead of calculating all string
         // representations at once
-        let mut color_id_to_types: IndexMap<String, Vec<TypeId>> = IndexMap::new();
+        let mut color_id_to_types: IndexMap<String, Vec<TypeId>> = IndexMap::<_, _>::default();
         for (&jstype, &record) in &self.type_to_record_cache {
             color_id_to_types
                 .entry(self.record(record).color_id.to_string())

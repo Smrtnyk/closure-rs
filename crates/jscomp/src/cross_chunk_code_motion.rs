@@ -59,11 +59,11 @@ use crate::node_util::NodeUtil;
 use crate::reference::Reference;
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use crate::var::VarId;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::node::NodeId;
 use closure_rhino::token::Token;
 use closure_rhino::{check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 use std::collections::VecDeque;
 
 type GlobalSymbolId = usize;
@@ -87,7 +87,7 @@ impl CrossChunkCodeMotion {
     pub fn new(parent_chunk_can_see_symbols_declared_in_children: bool) -> Self {
         Self {
             cccm_log: None,
-            chunk_insertion_point_map: IndexMap::new(),
+            chunk_insertion_point_map: IndexMap::<_, _>::default(),
             parent_chunk_can_see_symbols_declared_in_children,
         }
     }
@@ -325,7 +325,7 @@ impl CrossChunkCodeMotion {
             let undefined_string = expression.get_first_child(compiler).unwrap();
             let typeof_node = expression.get_last_child(compiler).unwrap();
             undefined_string.is_string_lit(compiler)
-                && undefined_string.get_string(compiler) == "undefined"
+                && undefined_string.get_string_ref(compiler) == "undefined"
                 && typeof_node.is_type_of(compiler)
                 && typeof_node
                     .get_first_child(compiler)
@@ -335,7 +335,7 @@ impl CrossChunkCodeMotion {
             let function_string = expression.get_first_child(compiler).unwrap();
             let typeof_node = expression.get_last_child(compiler).unwrap();
             function_string.is_string_lit(compiler)
-                && function_string.get_string(compiler) == "function"
+                && function_string.get_string_ref(compiler) == "function"
                 && typeof_node.is_type_of(compiler)
                 && typeof_node
                     .get_first_child(compiler)
@@ -463,7 +463,7 @@ struct GlobalSymbolCollector {
 impl GlobalSymbolCollector {
     fn new() -> Self {
         Self {
-            global_symbolfor_var: IndexMap::new(),
+            global_symbolfor_var: IndexMap::<_, _>::default(),
             symbol_stack: VecDeque::new(),
         }
     }
@@ -657,7 +657,7 @@ impl GlobalSymbol {
             var,
             dsg_stack: VecDeque::new(),
             chunks_with_immovable_references: BitSet::new(),
-            referencing_global_symbols: IndexSet::new(),
+            referencing_global_symbols: IndexSet::<_>::default(),
             instanceof_references_to_guard: VecDeque::new(),
             preorder_number: -1,
             has_been_assigned_to_a_strongly_connected_component: false,
@@ -864,7 +864,7 @@ impl DeclarationStatementGroup {
     fn new(declared_global_symbol: GlobalSymbolId, current_chunk: JSChunk) -> Self {
         Self {
             declared_global_symbol,
-            referenced_global_symbols: IndexSet::new(),
+            referenced_global_symbols: IndexSet::<_>::default(),
             current_chunk,
             statement_stack: VecDeque::new(),
         }

@@ -46,8 +46,8 @@ mod assorted_tests {
             &mut compiler,
             "/** @typedef */ const obj = {};\n/** @const */ obj.a = {};\n/** @typedef @const */ obj.b = {};\n/** @typedef */ obj.c = {};\n/** @typedef @const */ obj.d = function() {};\n",
         );
-        let mut namespace_names = indexmap::IndexSet::new();
-        let mut non_namespace_names = indexmap::IndexSet::new();
+        let mut namespace_names = closure_rhino::fast_hash::IndexSet::<_>::default();
+        let mut non_namespace_names = closure_rhino::fast_hash::IndexSet::<_>::default();
         for statement in statements.children(&compiler) {
             let name = if statement.is_expr_result(&compiler) {
                 statement.get_first_first_child(&compiler).unwrap()

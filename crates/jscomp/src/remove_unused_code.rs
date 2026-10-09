@@ -73,6 +73,7 @@ use crate::{
     var::VarId,
 };
 use closure_resources::resources::resource_loader::ResourceLoader;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,
@@ -80,7 +81,6 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{collections::VecDeque, sync::Arc};
 
 /// Properties that are implicitly used as part of the JS language.
@@ -179,7 +179,7 @@ impl RemoveUnusedCode {
             remove_globals: builder.remove_globals,
             preserve_function_expression_names: builder.preserve_function_expression_names,
             worklist: VecDeque::new(),
-            var_info_map: IndexMap::new(),
+            var_info_map: IndexMap::<_, _>::default(),
             pinned_property_names: IMPLICITLY_USED_PROPERTIES
                 .iter()
                 .map(|s| JsString::from(*s))
@@ -188,7 +188,7 @@ impl RemoveUnusedCode {
             canonical_unremovable_var_info: VarInfoId(0),
             all_function_param_scopes: Vec::new(),
             polyfills: JavaHashMultimap::create(),
-            guarded_usages: IndexSet::new(),
+            guarded_usages: IndexSet::<_>::default(),
             polyfills_from_table,
             scope_creator,
             remove_unused_prototype_properties: builder.remove_unused_prototype_properties,
@@ -415,12 +415,10 @@ impl CompilerPass for RemoveUnusedCode {
     fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
         check_state!(compiler.get_life_cycle_stage().is_normalized());
         let extern_properties = compiler
-            .get_extern_properties()
-            .expect("compiler.getExternProperties() is null")
-            .iter()
-            .map(|s| JsString::from(s.as_str()))
-            .collect::<Vec<_>>();
-        self.pinned_property_names.extend(extern_properties);
+            .get_extern_properties_js()
+            .expect("compiler.getExternProperties() is null");
+        self.pinned_property_names
+            .extend(extern_properties.iter().cloned());
 
         let removal_log_file =
             compiler.create_or_reopen_indexed_log("RemoveUnusedCode", "removals.log", &[]);
@@ -897,7 +895,7 @@ impl RemoveUnusedCode {
             let mut polyfill_name = first_arg.get_string(compiler).to_string_lossy();
             if callee
                 .get_string(compiler)
-                .ends_with(&JsString::from("polyfillTypedArrayMethod"))
+                .ends_with("polyfillTypedArrayMethod")
             {
                 polyfill_name = format!("TypedArray.prototype.{polyfill_name}");
             }
@@ -1129,7 +1127,7 @@ fn is_jscomp_polyfill(ast: &Ast, n: NodeId) -> bool {
                 || property_name == "patch"
                 || property_name == "polyfillTypedArrayMethod")
                 && n.get_first_child(ast).unwrap().is_name(ast)
-                && n.get_first_child(ast).unwrap().get_string(ast) == "$jscomp"
+                && n.get_first_child(ast).unwrap().get_string_ref(ast) == "$jscomp"
                 && n.get_next(ast).unwrap().is_string_lit(ast)
         }
         _ => false,
@@ -1139,7 +1137,7 @@ fn is_jscomp_polyfill(ast: &Ast, n: NodeId) -> bool {
 /// True for `someExpression.prototype`.
 // port: RemoveUnusedCode#isDotPrototype
 fn is_dot_prototype(ast: &Ast, n: NodeId) -> bool {
-    NodeUtil::is_normal_or_opt_chain_get_prop(ast, n) && n.get_string(ast) == "prototype"
+    NodeUtil::is_normal_or_opt_chain_get_prop(ast, n) && n.get_string_ref(ast) == "prototype"
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1203,7 +1201,7 @@ impl<V: Copy + Eq> JavaHashMultimap<V> {
         Self {
             table: Vec::new(),
             threshold: 0,
-            values: IndexMap::new(),
+            values: IndexMap::<_, _>::default(),
         }
     }
 
@@ -2033,7 +2031,7 @@ fn is_assignment_to_prototype(ast: &Ast, n: NodeId) -> bool {
 fn is_name_dot_prototype(ast: &Ast, n: NodeId) -> bool {
     n.is_get_prop(ast)
         && n.get_first_child(ast).unwrap().is_name(ast)
-        && n.get_string(ast) == "prototype"
+        && n.get_string_ref(ast) == "prototype"
 }
 
 impl RemoveUnusedCode {
@@ -2082,7 +2080,7 @@ impl RemoveUnusedCode {
             .create_scope(compiler, body, Some(fparam_scope));
 
         let name_node = function.get_first_child(compiler).unwrap();
-        if !name_node.get_string(compiler).is_empty() {
+        if !name_node.get_string_ref(compiler).is_empty() {
             // var x = function funcName() {};
             // make sure funcName gets into the varInfoMap so it will be considered for removal.
             let var_info = self.traverse_name_node(compiler, name_node, fparam_scope);
@@ -3981,7 +3979,7 @@ impl RemoveUnusedCode {
         );
         let obj_expression = obj_dot_prototype.get_first_child(compiler).unwrap();
         check_state!(
-            obj_dot_prototype.get_string(compiler) == "prototype",
+            obj_dot_prototype.get_string_ref(compiler) == "prototype",
             "%s",
             obj_dot_prototype.to_string(compiler)
         );

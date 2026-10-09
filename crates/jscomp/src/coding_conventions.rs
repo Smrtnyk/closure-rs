@@ -299,7 +299,7 @@ impl CodingConvention for DefaultCodingConvention {
     }
     // port: CodingConventions.DefaultCodingConvention#isExported
     fn is_exported(&self, name: &JsString, local: bool) -> bool {
-        local && name.starts_with(&JsString::from("$super"))
+        local && name.starts_with("$super")
     }
     // port: CodingConventions.DefaultCodingConvention#getPackageName
     fn get_package_name(&self, source: &dyn StaticSourceFile) -> Option<String> {
@@ -422,7 +422,7 @@ impl CodingConvention for DefaultCodingConvention {
             let parameters = Self::safe_next(ast, this_value);
             return Some(Bind::new(fn_, this_value, parameters));
         }
-        if call_target.is_get_prop(ast) && call_target.get_string(ast) == "bind" {
+        if call_target.is_get_prop(ast) && call_target.get_string_ref(ast) == "bind" {
             let maybe_fn = call_target.get_first_child(ast).unwrap();
             let maybe_fn_type = maybe_fn.get_jstype(ast);
             let mut fn_type = None;
@@ -453,7 +453,7 @@ impl CodingConvention for DefaultCodingConvention {
         if target.is_get_prop(ast) {
             let src = target.get_first_child(ast).unwrap();
             let prop = target.get_string(ast);
-            if src.is_name(ast) && src.get_string(ast) == "Array" && prop == "isArray" {
+            if src.is_name(ast) && src.get_string_ref(ast) == "Array" && prop == "isArray" {
                 return true;
             }
         }

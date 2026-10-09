@@ -130,7 +130,7 @@
 
 use std::fmt;
 
-use indexmap::{IndexMap, IndexSet};
+use crate::fast_hash::{IndexMap, IndexSet};
 
 use super::xml_char;
 use crate::js_string::JsString;
@@ -249,9 +249,9 @@ fn parse_document(bytes: &[u8], handler: &mut dyn ContentHandler) -> Result<(), 
             element_depth: 0,
         }],
         handler,
-        general_entities: IndexMap::new(),
-        unparsed_entities: IndexSet::new(),
-        attribute_decls: IndexMap::new(),
+        general_entities: IndexMap::<_, _>::default(),
+        unparsed_entities: IndexSet::<_>::default(),
+        attribute_decls: IndexMap::<_, _>::default(),
         has_external_dtd: false,
         standalone: false,
         element_stack: Vec::new(),

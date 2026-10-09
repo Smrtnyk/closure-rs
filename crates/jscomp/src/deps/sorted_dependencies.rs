@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/deps/SortedDependencies.java.
 
 use super::{dependency_info::DependencyInfo, module_names::ModuleNames};
-use indexmap::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::{collections::VecDeque, fmt, hash::Hash};
 pub struct SortedDependencies<InputT: DependencyInfo + Clone + Eq + Hash> {
     user_ordered_inputs: Vec<InputT>,
@@ -33,17 +33,17 @@ impl<InputT: DependencyInfo + Clone + Eq + Hash> SortedDependencies<InputT> {
         let mut result = Self {
             user_ordered_inputs,
             import_ordered_inputs: vec![],
-            completed_inputs: IndexSet::new(),
-            non_exporting_inputs: IndexMap::new(),
-            exporting_input_by_symbol_name: IndexMap::new(),
-            imported_input_by_importing_input: IndexMap::new(),
+            completed_inputs: IndexSet::<_>::default(),
+            non_exporting_inputs: IndexMap::<_, _>::default(),
+            exporting_input_by_symbol_name: IndexMap::<_, _>::default(),
+            imported_input_by_importing_input: IndexMap::<_, _>::default(),
         };
         result.process_inputs();
         result
     }
     // port: SortedDependencies#getStrongDependenciesOf
     pub fn get_strong_dependencies_of(&self, root_inputs: &[InputT], sorted: bool) -> Vec<InputT> {
-        let mut included_inputs = IndexSet::new();
+        let mut included_inputs = IndexSet::<_>::default();
         let mut worklist: VecDeque<InputT> = root_inputs.iter().cloned().collect();
         while let Some(input) = worklist.pop_front() {
             if included_inputs.insert(input.clone()) {
@@ -89,7 +89,7 @@ impl<InputT: DependencyInfo + Clone + Eq + Hash> SortedDependencies<InputT> {
             .get_sorted_strong_dependencies_of(root_inputs)
             .into_iter()
             .collect();
-        let mut weak_inputs = IndexSet::new();
+        let mut weak_inputs = IndexSet::<_>::default();
         let mut worklist: VecDeque<InputT> = strong_inputs.iter().cloned().collect();
         while let Some(input) = worklist.pop_front() {
             let is_strong = strong_inputs.contains(&input);

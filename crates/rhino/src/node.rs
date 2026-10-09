@@ -51,7 +51,7 @@
 use crate::input_id::InputId;
 use crate::ir::IR;
 use crate::java_lang::double_to_string;
-use crate::js_string::JsString;
+use crate::js_string::{JsStrLike, JsString};
 use crate::js_type_expression::JSTypeExpression;
 use crate::jscomp_base::JSCompDoubles;
 use crate::jscomp_colors::Color;
@@ -326,32 +326,38 @@ impl PropListItem {
 #[derive(Clone, Debug)]
 pub enum NodeKind {
     Node,
-    Number {
-        number: f64,
-    },
-    BigInt {
-        bigint: Arc<BigInt>,
-    },
-    String {
-        str: JsString,
-    },
-    TemplateLiteralSubstring {
-        cooked: Option<JsString>,
-        raw: JsString,
-    },
+    Number { number: f64 },
+    BigInt { bigint: Arc<BigInt> },
+    String { str: JsString },
+    // Boxed (rare) so that the node stays small (D-025).
+    TemplateLiteralSubstring(Box<TemplateLiteralStrings>),
+}
+#[derive(Clone, Debug)]
+pub struct TemplateLiteralStrings {
+    cooked: Option<JsString>,
+    raw: JsString,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JSTypeOrColor {
     JSType(TypeId),
     Color(Color),
 }
-#[derive(Debug)]
-pub struct NodeData {
+/// Rust-only (D-025): the tree links and token of a node, the fields every traversal reads.
+/// They live in their own dense array (`Ast::links`), apart from the rest of the node, so that
+/// walking the tree touches 20 bytes per node instead of the whole node.
+#[derive(Debug, Clone, Copy)]
+pub struct NodeLinks {
     token: Token,
     parent: Option<NodeId>,
     first: Option<NodeId>,
     next: Option<NodeId>,
     previous: Option<NodeId>,
+}
+/// Rust-only: indexes `Ast` for a node's `NodeLinks` (`ast[L(n)].next`).
+#[derive(Clone, Copy)]
+struct L(NodeId);
+#[derive(Debug)]
+pub struct NodeData {
     lineno_charno: i32,
     length: i32,
     jstype_or_color: Option<JSTypeOrColor>,
@@ -361,13 +367,115 @@ pub struct NodeData {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(NonZeroU32);
+/// Rust-only: how `Ast::append_preparsed` renumbered the nodes of a preparse arena.
+#[derive(Clone, Copy, Debug)]
+pub struct PreparsedIdMap {
+    base: u32,
+    bound_at: Option<u32>,
+}
+impl PreparsedIdMap {
+    /// The id in the target arena of node `n` of the preparse arena.
+    pub fn map(&self, n: NodeId) -> NodeId {
+        let local = n.0.get();
+        let shift = u32::from(self.bound_at.is_some_and(|at| local > at));
+        NodeId(NonZeroU32::new(self.base + local + shift).unwrap())
+    }
+}
+/// Rust-only: rewrites the property lists of appended preparse nodes for their new ids,
+/// keeping the sharing of lists, JSDoc infos and type expressions (memoized by identity).
+struct PropRemapper<'m> {
+    map: &'m PreparsedIdMap,
+    placeholder: Arc<JSTypeExpression>,
+    bound: Option<Arc<JSTypeExpression>>,
+    items: crate::fast_hash::IndexMap<usize, Arc<PropListItem>>,
+    infos: crate::fast_hash::IndexMap<usize, Arc<JSDocInfo>>,
+    exprs: crate::fast_hash::IndexMap<usize, Arc<JSTypeExpression>>,
+}
+impl PropRemapper<'_> {
+    /// The list `item` for the new ids: the same list when no item refers to a node.
+    fn list(&mut self, item: Arc<PropListItem>) -> Arc<PropListItem> {
+        if Self::refers_to_nodes(&item) {
+            self.rebuild(&item)
+        } else {
+            item
+        }
+    }
+    fn refers_to_nodes(item: &PropListItem) -> bool {
+        let mut x = Some(item);
+        while let Some(item) = x {
+            if matches!(
+                item.value,
+                PropValue::Object(ObjectProp::Node(_) | ObjectProp::JSDocInfo(_))
+            ) {
+                return true;
+            }
+            x = item.next.as_deref();
+        }
+        false
+    }
+    fn rebuild(&mut self, item: &Arc<PropListItem>) -> Arc<PropListItem> {
+        let key = Arc::as_ptr(item) as usize;
+        if let Some(done) = self.items.get(&key) {
+            return done.clone();
+        }
+        let next = match &item.next {
+            Some(next) if Self::refers_to_nodes(next) => Some(self.rebuild(next)),
+            next => next.clone(),
+        };
+        let value = match &item.value {
+            PropValue::Object(ObjectProp::Node(n)) => {
+                PropValue::Object(ObjectProp::Node(self.map.map(*n)))
+            }
+            PropValue::Object(ObjectProp::JSDocInfo(info)) => {
+                PropValue::Object(ObjectProp::JSDocInfo(self.info(info)))
+            }
+            value => value.clone(),
+        };
+        let done = Arc::new(PropListItem {
+            prop_type: item.prop_type,
+            value,
+            next,
+        });
+        self.items.insert(key, done.clone());
+        done
+    }
+    fn info(&mut self, info: &Arc<JSDocInfo>) -> Arc<JSDocInfo> {
+        let key = Arc::as_ptr(info) as usize;
+        if let Some(done) = self.infos.get(&key) {
+            return done.clone();
+        }
+        let map = *self.map;
+        let done = Arc::new(info.map_nodes(&mut |e| self.expr(e), &|n| map.map(n)));
+        self.infos.insert(key, done.clone());
+        done
+    }
+    fn expr(&mut self, expr: &Arc<JSTypeExpression>) -> Arc<JSTypeExpression> {
+        if Arc::ptr_eq(expr, &self.placeholder) {
+            return self.bound.clone().expect("implicit template bound");
+        }
+        let key = Arc::as_ptr(expr) as usize;
+        if let Some(done) = self.exprs.get(&key) {
+            return done.clone();
+        }
+        let done = Arc::new(expr.with_root(self.map.map(expr.get_root())));
+        self.exprs.insert(key, done.clone());
+        done
+    }
+}
 #[derive(Default, Debug)]
 pub struct Ast {
     nodes: Vec<NodeData>,
+    links: Vec<NodeLinks>,
     pub(crate) implicit_template_bound: Option<Arc<JSTypeExpression>>,
     /// port: JSDocSerializer#placeholderType (a Java static holding nodes, so one per arena; the
     /// serialization code in closure-jscomp creates it on first use).
     pub jsdoc_serializer_placeholder_type: Option<Arc<JSTypeExpression>>,
+    /// Rust-only: this arena parses one input apart from the compiler's arena (see
+    /// `Ast::new_for_preparse`).
+    pub(crate) preparse: bool,
+    /// Rust-only: in a preparse arena, the node count when the parse first asked for the
+    /// implicit template bound.
+    pub(crate) preparse_bound_first_use: Option<u32>,
 }
 impl Index<NodeId> for Ast {
     type Output = NodeData;
@@ -380,9 +488,95 @@ impl IndexMut<NodeId> for Ast {
         &mut self.nodes[n.0.get() as usize - 1]
     }
 }
+impl Index<L> for Ast {
+    type Output = NodeLinks;
+    #[inline]
+    fn index(&self, n: L) -> &NodeLinks {
+        &self.links[n.0.0.get() as usize - 1]
+    }
+}
+impl IndexMut<L> for Ast {
+    #[inline]
+    fn index_mut(&mut self, n: L) -> &mut NodeLinks {
+        &mut self.links[n.0.0.get() as usize - 1]
+    }
+}
 impl Ast {
     pub fn new() -> Self {
         Self::default()
+    }
+    /// Rust-only, not in Java (D-025): an arena in which a worker thread parses one input
+    /// (Java parses into the one shared object graph). `append_preparsed` then moves the result
+    /// into the compiler's arena with exactly the node ids, and the same object sharing, that
+    /// parsing directly into that arena at that point would have produced. The one piece of
+    /// arena state a parse reads is the lazily created implicit template bound (Java's
+    /// `JSTypeExpression.IMPLICIT_TEMPLATE_BOUND`); a preparse arena hands out a placeholder for
+    /// it and records when it was first asked for, so that the append can create the real one at
+    /// the same point if the target arena does not have it yet.
+    pub fn new_for_preparse() -> Self {
+        Self {
+            implicit_template_bound: Some(Arc::new(JSTypeExpression::new(
+                NodeId(NonZeroU32::MAX),
+                crate::js_type_expression::IMPLICIT_TEMPLATE_BOUND_SOURCE,
+            ))),
+            preparse: true,
+            ..Self::default()
+        }
+    }
+    /// Rust-only: the number of nodes in the arena.
+    pub fn node_count(&self) -> u32 {
+        u32::try_from(self.nodes.len()).unwrap()
+    }
+    /// Rust-only (D-025): moves the nodes of `other`, a `new_for_preparse` arena holding one
+    /// parsed input, to the end of this arena; see `new_for_preparse`. Returns how the ids of
+    /// `other` map to ids of this arena.
+    pub fn append_preparsed(&mut self, other: Ast) -> PreparsedIdMap {
+        assert!(other.preparse && !self.preparse);
+        let placeholder = other.implicit_template_bound.clone().unwrap();
+        let map = PreparsedIdMap {
+            base: u32::try_from(self.nodes.len()).unwrap(),
+            // Parsing into this arena would have created the bound (one node) at that point.
+            bound_at: other
+                .preparse_bound_first_use
+                .filter(|_| self.implicit_template_bound.is_none()),
+        };
+        let Ast { nodes, links, .. } = other;
+        let mut heads = Vec::with_capacity(nodes.len());
+        for (i, (mut data, link)) in nodes.into_iter().zip(links).enumerate() {
+            if map.bound_at == Some(u32::try_from(i).unwrap()) {
+                crate::js_type_expression::JSTypeExpression::implicit_template_bound(self);
+            }
+            heads.push(data.prop_list_head.take());
+            self.links.push(NodeLinks {
+                token: link.token,
+                parent: link.parent.map(|n| map.map(n)),
+                first: link.first.map(|n| map.map(n)),
+                next: link.next.map(|n| map.map(n)),
+                previous: link.previous.map(|n| map.map(n)),
+            });
+            self.nodes.push(data);
+        }
+        if map.bound_at == Some(u32::try_from(heads.len()).unwrap()) {
+            crate::js_type_expression::JSTypeExpression::implicit_template_bound(self);
+        }
+        // The properties last: they may refer to the bound, which now exists.
+        let bound = self.implicit_template_bound.clone();
+        let mut remapper = PropRemapper {
+            map: &map,
+            placeholder,
+            bound,
+            items: Default::default(),
+            infos: Default::default(),
+            exprs: Default::default(),
+        };
+        for (i, head) in heads.into_iter().enumerate() {
+            if let Some(head) = head {
+                let local = NodeId(NonZeroU32::new(u32::try_from(i + 1).unwrap()).unwrap());
+                let id = map.map(local);
+                self[id].prop_list_head = Some(remapper.list(head));
+            }
+        }
+        map
     }
     // port: Node#Node(Token)
     pub fn new_node(&mut self, token: Token) -> NodeId {
@@ -392,12 +586,14 @@ impl Ast {
             )
             .unwrap(),
         );
-        self.nodes.push(NodeData {
+        self.links.push(NodeLinks {
             token,
             parent: None,
             first: None,
             next: None,
             previous: None,
+        });
+        self.nodes.push(NodeData {
             lineno_charno: -1,
             length: 0,
             jstype_or_color: None,
@@ -410,23 +606,23 @@ impl Ast {
     // port: Node#Node(Token, Node)
     pub fn new_node_with_child(&mut self, token: Token, child: NodeId) -> NodeId {
         let n = self.new_node(token);
-        self[n].first = Some(child);
+        self[L(n)].first = Some(child);
         child.check_detached(self);
-        self[child].previous = Some(child);
-        self[child].parent = Some(n);
+        self[L(child)].previous = Some(child);
+        self[L(child)].parent = Some(n);
         n
     }
     // port: Node#Node(Token, Node, Node)
     pub fn new_node_with_children2(&mut self, token: Token, left: NodeId, right: NodeId) -> NodeId {
         let n = self.new_node(token);
-        self[n].first = Some(left);
+        self[L(n)].first = Some(left);
         left.check_detached(self);
-        self[left].next = Some(right);
-        self[left].previous = Some(right);
-        self[left].parent = Some(n);
+        self[L(left)].next = Some(right);
+        self[L(left)].previous = Some(right);
+        self[L(left)].parent = Some(n);
         right.check_detached(self);
-        self[right].previous = Some(left);
-        self[right].parent = Some(n);
+        self[L(right)].previous = Some(left);
+        self[L(right)].parent = Some(n);
         n
     }
     // port: Node#Node(Token, Node, Node, Node)
@@ -438,18 +634,18 @@ impl Ast {
         right: NodeId,
     ) -> NodeId {
         let n = self.new_node(token);
-        self[n].first = Some(left);
+        self[L(n)].first = Some(left);
         left.check_detached(self);
-        self[left].next = Some(mid);
-        self[left].previous = Some(right);
-        self[left].parent = Some(n);
+        self[L(left)].next = Some(mid);
+        self[L(left)].previous = Some(right);
+        self[L(left)].parent = Some(n);
         mid.check_detached(self);
-        self[mid].next = Some(right);
-        self[mid].previous = Some(left);
-        self[mid].parent = Some(n);
+        self[L(mid)].next = Some(right);
+        self[L(mid)].previous = Some(left);
+        self[L(mid)].parent = Some(n);
         right.check_detached(self);
-        self[right].previous = Some(mid);
-        self[right].parent = Some(n);
+        self[L(right)].previous = Some(mid);
+        self[L(right)].parent = Some(n);
         n
     }
     // port: NumberNode#NumberNode(double)
@@ -509,10 +705,10 @@ impl Ast {
         raw: impl Into<JsString>,
     ) -> NodeId {
         let n = self.new_node(Token::TEMPLATELIT_STRING);
-        self[n].kind = NodeKind::TemplateLiteralSubstring {
+        self[n].kind = NodeKind::TemplateLiteralSubstring(Box::new(TemplateLiteralStrings {
             cooked: cooked.map(RhinoStringPool::add_or_get),
             raw: RhinoStringPool::add_or_get(raw),
-        };
+        }));
         n
     }
     // port: TemplateLiteralSubstringNode#TemplateLiteralSubstringNode(LazyInternedStringList, int, int)
@@ -524,14 +720,14 @@ impl Ast {
         raw_offset: i32,
     ) -> NodeId {
         let n = self.new_node(Token::TEMPLATELIT_STRING);
-        self[n].kind = NodeKind::TemplateLiteralSubstring {
+        self[n].kind = NodeKind::TemplateLiteralSubstring(Box::new(TemplateLiteralStrings {
             cooked: if cooked_offset_or_negative_one == -1 {
                 None
             } else {
                 Some(pool.get(cooked_offset_or_negative_one))
             },
             raw: pool.get(raw_offset),
-        };
+        }));
         n
     }
 }
@@ -543,7 +739,7 @@ impl NodeId {
             NodeKind::Number { .. } => "com.google.javascript.rhino.Node$NumberNode",
             NodeKind::BigInt { .. } => "com.google.javascript.rhino.Node$BigIntNode",
             NodeKind::String { .. } => "com.google.javascript.rhino.Node$StringNode",
-            NodeKind::TemplateLiteralSubstring { .. } => {
+            NodeKind::TemplateLiteralSubstring(_) => {
                 "com.google.javascript.rhino.Node$TemplateLiteralSubstringNode"
             }
         }
@@ -641,57 +837,57 @@ impl NodeId {
     }
     // port: Node#getToken
     pub fn get_token(self, ast: &Ast) -> Token {
-        ast[self].token
+        ast[L(self)].token
     }
     // port: Node#setToken
     pub fn set_token(self, ast: &mut Ast, token: Token) {
-        ast[self].token = token;
+        ast[L(self)].token = token;
     }
     // port: Node#hasChildren
     pub fn has_children(self, ast: &Ast) -> bool {
-        ast[self].first.is_some()
+        ast[L(self)].first.is_some()
     }
     // port: Node#getOnlyChild
     pub fn get_only_child(self, ast: &Ast) -> NodeId {
         check_state!(self.has_one_child(ast));
-        ast[self].first.unwrap()
+        ast[L(self)].first.unwrap()
     }
     // port: Node#getFirstChild
     pub fn get_first_child(self, ast: &Ast) -> Option<NodeId> {
-        ast[self].first
+        ast[L(self)].first
     }
     // port: Node#getFirstFirstChild
     pub fn get_first_first_child(self, ast: &Ast) -> Option<NodeId> {
-        ast[ast[self].first.unwrap()].first
+        ast[L(ast[L(self)].first.unwrap())].first
     }
     // port: Node#getSecondChild
     pub fn get_second_child(self, ast: &Ast) -> Option<NodeId> {
-        ast[ast[self].first.unwrap()].next
+        ast[L(ast[L(self)].first.unwrap())].next
     }
     // port: Node#getLastChild
     pub fn get_last_child(self, ast: &Ast) -> Option<NodeId> {
-        ast[self].first.and_then(|f| ast[f].previous)
+        ast[L(self)].first.and_then(|f| ast[L(f)].previous)
     }
     // port: Node#getNext
     pub fn get_next(self, ast: &Ast) -> Option<NodeId> {
-        ast[self].next
+        ast[L(self)].next
     }
     // port: Node#getPrevious
     pub fn get_previous(self, ast: &Ast) -> Option<NodeId> {
-        if ast[ast[self].parent.unwrap()].first == Some(self) {
+        if ast[L(ast[L(self)].parent.unwrap())].first == Some(self) {
             None
         } else {
-            ast[self].previous
+            ast[L(self)].previous
         }
     }
     // port: Node#setClosureUnawareShadow
     pub fn set_closure_unaware_shadow(self, ast: &mut Ast, shadow_root: Option<NodeId>) {
         check_state!(
-            ast[self].first.is_none(),
+            ast[L(self)].first.is_none(),
             "Cannot set shadow root on a node with children"
         );
         check_state!(
-            ast[self].token == Token::NAME,
+            ast[L(self)].token == Token::NAME,
             "Only NAME nodes can be used as shadows"
         );
         self.put_prop(
@@ -702,7 +898,7 @@ impl NodeId {
     }
     // port: Node#getClosureUnawareShadow
     pub fn get_closure_unaware_shadow(self, ast: &Ast) -> Option<NodeId> {
-        if ast[self].token != Token::NAME {
+        if ast[L(self)].token != Token::NAME {
             return None;
         }
         self.get_prop(ast, Prop::CLOSURE_UNAWARE_SHADOW)
@@ -730,87 +926,87 @@ impl NodeId {
     }
     // port: Node#getChildAtIndex
     pub fn get_child_at_index(self, ast: &Ast, mut i: i32) -> Option<NodeId> {
-        let mut n = ast[self].first;
+        let mut n = ast[L(self)].first;
         while i > 0 {
-            n = ast[n.unwrap()].next;
+            n = ast[L(n.unwrap())].next;
             i -= 1;
         }
         n
     }
     // port: Node#getIndexOfChild
     pub fn get_index_of_child(self, ast: &Ast, child: NodeId) -> i32 {
-        let mut n = ast[self].first;
+        let mut n = ast[L(self)].first;
         let mut i = 0;
         while let Some(cur) = n {
             if child == cur {
                 return i;
             }
-            n = ast[cur].next;
+            n = ast[L(cur)].next;
             i += 1;
         }
         -1
     }
     // port: Node#addChildToFront
     pub fn add_child_to_front(self, ast: &mut Ast, child: NodeId) {
-        check_argument!(ast[child].parent.is_none());
-        check_argument!(ast[child].next.is_none());
-        check_argument!(ast[child].previous.is_none());
-        ast[child].parent = Some(self);
-        ast[child].next = ast[self].first;
-        if let Some(first) = ast[self].first {
-            let last = ast[first].previous;
-            ast[child].previous = last;
-            ast[child].next = Some(first);
-            ast[first].previous = Some(child);
+        check_argument!(ast[L(child)].parent.is_none());
+        check_argument!(ast[L(child)].next.is_none());
+        check_argument!(ast[L(child)].previous.is_none());
+        ast[L(child)].parent = Some(self);
+        ast[L(child)].next = ast[L(self)].first;
+        if let Some(first) = ast[L(self)].first {
+            let last = ast[L(first)].previous;
+            ast[L(child)].previous = last;
+            ast[L(child)].next = Some(first);
+            ast[L(first)].previous = Some(child);
         } else {
-            ast[child].previous = Some(child);
+            ast[L(child)].previous = Some(child);
         }
-        ast[self].first = Some(child);
+        ast[L(self)].first = Some(child);
     }
     // port: Node#addChildToBack
     pub fn add_child_to_back(self, ast: &mut Ast, child: NodeId) {
         check_argument!(
-            ast[child].parent.is_none(),
+            ast[L(child)].parent.is_none(),
             "Cannot add already-owned child node.\nChild: %s\nExisting parent: %s\nNew parent: %s",
             child.to_string(ast),
-            ast[child]
+            ast[L(child)]
                 .parent
                 .map_or_else(|| "null".into(), |p| p.to_string(ast)),
             self.to_string(ast)
         );
-        check_argument!(ast[child].next.is_none());
-        check_argument!(ast[child].previous.is_none());
-        if let Some(first) = ast[self].first {
-            let last = ast[first].previous.unwrap();
-            ast[last].next = Some(child);
-            ast[child].previous = Some(last);
-            ast[first].previous = Some(child);
+        check_argument!(ast[L(child)].next.is_none());
+        check_argument!(ast[L(child)].previous.is_none());
+        if let Some(first) = ast[L(self)].first {
+            let last = ast[L(first)].previous.unwrap();
+            ast[L(last)].next = Some(child);
+            ast[L(child)].previous = Some(last);
+            ast[L(first)].previous = Some(child);
         } else {
-            ast[child].previous = Some(child);
-            ast[self].first = Some(child);
+            ast[L(child)].previous = Some(child);
+            ast[L(self)].first = Some(child);
         }
-        ast[child].parent = Some(self);
+        ast[L(child)].parent = Some(self);
     }
     // port: Node#addChildrenToFront
     pub fn add_children_to_front(self, ast: &mut Ast, children: Option<NodeId>) {
         let Some(children) = children else {
             return;
         };
-        check_not_null!(ast[children].previous, "%s", children.to_string(ast));
+        check_not_null!(ast[L(children)].previous, "%s", children.to_string(ast));
         let mut child = Some(children);
         while let Some(c) = child {
-            check_argument!(ast[c].parent.is_none());
-            ast[c].parent = Some(self);
-            child = ast[c].next;
+            check_argument!(ast[L(c)].parent.is_none());
+            ast[L(c)].parent = Some(self);
+            child = ast[L(c)].next;
         }
-        let last_sib = ast[children].previous.unwrap();
-        if let Some(first) = ast[self].first {
-            let last = ast[first].previous;
-            ast[children].previous = last;
-            ast[last_sib].next = Some(first);
-            ast[first].previous = Some(last_sib);
+        let last_sib = ast[L(children)].previous.unwrap();
+        if let Some(first) = ast[L(self)].first {
+            let last = ast[L(first)].previous;
+            ast[L(children)].previous = last;
+            ast[L(last_sib)].next = Some(first);
+            ast[L(first)].previous = Some(last_sib);
         }
-        ast[self].first = Some(children);
+        ast[L(self)].first = Some(children);
     }
     // port: Node#addChildrenToBack
     pub fn add_children_to_back(self, ast: &mut Ast, children: Option<NodeId>) {
@@ -820,33 +1016,33 @@ impl NodeId {
     pub fn insert_after(self, ast: &mut Ast, existing: NodeId) {
         existing.check_attached(ast);
         self.check_detached(ast);
-        let existing_parent = ast[existing].parent.unwrap();
-        let existing_next = ast[existing].next;
-        ast[self].parent = Some(existing_parent);
-        ast[existing].next = Some(self);
-        ast[self].previous = Some(existing);
+        let existing_parent = ast[L(existing)].parent.unwrap();
+        let existing_next = ast[L(existing)].next;
+        ast[L(self)].parent = Some(existing_parent);
+        ast[L(existing)].next = Some(self);
+        ast[L(self)].previous = Some(existing);
         if let Some(next) = existing_next {
-            ast[next].previous = Some(self);
-            ast[self].next = Some(next);
+            ast[L(next)].previous = Some(self);
+            ast[L(self)].next = Some(next);
         } else {
-            let first = ast[existing_parent].first.unwrap();
-            ast[first].previous = Some(self);
+            let first = ast[L(existing_parent)].first.unwrap();
+            ast[L(first)].previous = Some(self);
         }
     }
     // port: Node#insertBefore
     pub fn insert_before(self, ast: &mut Ast, existing: NodeId) {
         existing.check_attached(ast);
         self.check_detached(ast);
-        let existing_parent = ast[existing].parent.unwrap();
-        let existing_previous = ast[existing].previous.unwrap();
-        ast[self].parent = Some(existing_parent);
-        ast[self].next = Some(existing);
-        ast[existing].previous = Some(self);
-        ast[self].previous = Some(existing_previous);
-        if ast[existing_previous].next.is_none() {
-            ast[existing_parent].first = Some(self);
+        let existing_parent = ast[L(existing)].parent.unwrap();
+        let existing_previous = ast[L(existing)].previous.unwrap();
+        ast[L(self)].parent = Some(existing_parent);
+        ast[L(self)].next = Some(existing);
+        ast[L(existing)].previous = Some(self);
+        ast[L(self)].previous = Some(existing_previous);
+        if ast[L(existing_previous)].next.is_none() {
+            ast[L(existing_parent)].first = Some(self);
         } else {
-            ast[existing_previous].next = Some(self);
+            ast[L(existing_previous)].next = Some(self);
         }
     }
     // port: Node#addChildrenAfter
@@ -854,82 +1050,82 @@ impl NodeId {
         let Some(children) = children else {
             return;
         };
-        check_argument!(node.is_none_or(|n| ast[n].parent == Some(self)));
-        check_not_null!(ast[children].previous, "%s", children.to_string(ast));
+        check_argument!(node.is_none_or(|n| ast[L(n)].parent == Some(self)));
+        check_not_null!(ast[L(children)].previous, "%s", children.to_string(ast));
         let Some(node) = node else {
             self.add_children_to_front(ast, Some(children));
             return;
         };
         let mut child = Some(children);
         while let Some(c) = child {
-            check_argument!(ast[c].parent.is_none());
-            ast[c].parent = Some(self);
-            child = ast[c].next;
+            check_argument!(ast[L(c)].parent.is_none());
+            ast[L(c)].parent = Some(self);
+            child = ast[L(c)].next;
         }
-        let last_sibling = ast[children].previous.unwrap();
-        let node_after = ast[node].next;
-        ast[last_sibling].next = node_after;
+        let last_sibling = ast[L(children)].previous.unwrap();
+        let node_after = ast[L(node)].next;
+        ast[L(last_sibling)].next = node_after;
         if let Some(after) = node_after {
-            ast[after].previous = Some(last_sibling);
+            ast[L(after)].previous = Some(last_sibling);
         } else {
-            let first = ast[self].first.unwrap();
-            ast[first].previous = Some(last_sibling);
+            let first = ast[L(self)].first.unwrap();
+            ast[L(first)].previous = Some(last_sibling);
         }
-        ast[node].next = Some(children);
-        ast[children].previous = Some(node);
+        ast[L(node)].next = Some(children);
+        ast[L(children)].previous = Some(node);
     }
     // port: Node#replaceWith
     pub fn replace_with(self, ast: &mut Ast, replacement: NodeId) {
         self.check_attached(ast);
         replacement.check_detached(ast);
-        let existing_parent = ast[self].parent.unwrap();
-        let existing_next = ast[self].next;
-        let existing_previous = ast[self].previous.unwrap();
+        let existing_parent = ast[L(self)].parent.unwrap();
+        let existing_next = ast[L(self)].next;
+        let existing_previous = ast[L(self)].previous.unwrap();
         replacement.srcref_if_missing(ast, self);
-        ast[self].parent = None;
-        ast[replacement].parent = Some(existing_parent);
-        ast[self].previous = None;
-        ast[replacement].previous = Some(existing_previous);
-        if ast[existing_previous].next.is_none() {
-            ast[existing_parent].first = Some(replacement);
+        ast[L(self)].parent = None;
+        ast[L(replacement)].parent = Some(existing_parent);
+        ast[L(self)].previous = None;
+        ast[L(replacement)].previous = Some(existing_previous);
+        if ast[L(existing_previous)].next.is_none() {
+            ast[L(existing_parent)].first = Some(replacement);
         } else {
-            ast[existing_previous].next = Some(replacement);
+            ast[L(existing_previous)].next = Some(replacement);
         }
         if let Some(next) = existing_next {
-            ast[self].next = None;
-            ast[next].previous = Some(replacement);
-            ast[replacement].next = Some(next);
+            ast[L(self)].next = None;
+            ast[L(next)].previous = Some(replacement);
+            ast[L(replacement)].next = Some(next);
         } else {
-            let first = ast[existing_parent].first.unwrap();
-            ast[first].previous = Some(replacement);
+            let first = ast[L(existing_parent)].first.unwrap();
+            ast[L(first)].previous = Some(replacement);
         }
     }
     // port: Node#detach
     pub fn detach(self, ast: &mut Ast) -> Self {
         self.check_attached(ast);
-        let existing_parent = ast[self].parent.unwrap();
-        let existing_next = ast[self].next;
-        let existing_previous = ast[self].previous.unwrap();
-        ast[self].parent = None;
+        let existing_parent = ast[L(self)].parent.unwrap();
+        let existing_next = ast[L(self)].next;
+        let existing_previous = ast[L(self)].previous.unwrap();
+        ast[L(self)].parent = None;
         if let Some(next) = existing_next {
-            ast[self].next = None;
-            ast[next].previous = Some(existing_previous);
+            ast[L(self)].next = None;
+            ast[L(next)].previous = Some(existing_previous);
         } else {
-            let first = ast[existing_parent].first.unwrap();
-            ast[first].previous = Some(existing_previous);
+            let first = ast[L(existing_parent)].first.unwrap();
+            ast[L(first)].previous = Some(existing_previous);
         }
-        ast[self].previous = None;
-        if ast[existing_previous].next.is_none() {
-            ast[existing_parent].first = existing_next;
+        ast[L(self)].previous = None;
+        if ast[L(existing_previous)].next.is_none() {
+            ast[L(existing_parent)].first = existing_next;
         } else {
-            ast[existing_previous].next = existing_next;
+            ast[L(existing_previous)].next = existing_next;
         }
         self
     }
     // port: Node#checkAttached
     fn check_attached(self, ast: &Ast) {
         check_state!(
-            ast[self].parent.is_some(),
+            ast[L(self)].parent.is_some(),
             "Has no parent: %s",
             self.to_string(ast)
         );
@@ -937,24 +1133,24 @@ impl NodeId {
     // port: Node#checkDetached
     fn check_detached(self, ast: &Ast) {
         check_state!(
-            ast[self].parent.is_none(),
+            ast[L(self)].parent.is_none(),
             "Has parent: %s",
             self.to_string(ast)
         );
         check_state!(
-            ast[self].next.is_none(),
+            ast[L(self)].next.is_none(),
             "Has next: %s",
             self.to_string(ast)
         );
         check_state!(
-            ast[self].previous.is_none(),
+            ast[L(self)].previous.is_none(),
             "Has previous: %s",
             self.to_string(ast)
         );
     }
     // port: Node#removeFirstChild
     pub fn remove_first_child(self, ast: &mut Ast) -> Option<NodeId> {
-        let child = ast[self].first;
+        let child = ast[L(self)].first;
         if let Some(child) = child {
             child.detach(ast);
         }
@@ -962,26 +1158,26 @@ impl NodeId {
     }
     // port: Node#removeChildren
     pub fn remove_children(self, ast: &mut Ast) -> Option<NodeId> {
-        let children = ast[self].first;
+        let children = ast[L(self)].first;
         let mut child = children;
         while let Some(c) = child {
-            ast[c].parent = None;
-            child = ast[c].next;
+            ast[L(c)].parent = None;
+            child = ast[L(c)].next;
         }
-        ast[self].first = None;
+        ast[L(self)].first = None;
         children
     }
     // port: Node#detachChildren
     pub fn detach_children(self, ast: &mut Ast) {
-        let mut child = ast[self].first;
+        let mut child = ast[L(self)].first;
         while let Some(c) = child {
-            let next_child = ast[c].next;
-            ast[c].parent = None;
-            ast[c].next = None;
-            ast[c].previous = None;
+            let next_child = ast[L(c)].next;
+            ast[L(c)].parent = None;
+            ast[L(c)].next = None;
+            ast[L(c)].previous = None;
             child = next_child;
         }
-        ast[self].first = None;
+        ast[L(self)].first = None;
     }
     // port: Node#lookupProperty
     pub fn lookup_property(self, ast: &Ast, prop: Prop) -> Option<Arc<PropListItem>> {
@@ -1014,7 +1210,7 @@ impl NodeId {
         if ast[self].prop_list_head.is_none() {
             return;
         }
-        if ast[self].token == Token::ROOT {
+        if ast[L(self)].token == Token::ROOT {
             consumer("ROOT has properties".into());
         }
         let mut item = ast[self].prop_list_head.clone();
@@ -1120,14 +1316,10 @@ impl NodeId {
     }
     // port: Node#putProp
     pub fn put_prop(self, ast: &mut Ast, prop: Prop, value: Option<ObjectProp>) {
-        ast[self].prop_list_head =
-            Self::rebuild_list_without_prop(ast[self].prop_list_head.clone(), prop);
+        self.remove_prop(ast, prop);
         if let Some(value) = value {
-            ast[self].prop_list_head = Some(PropListItem::object(
-                prop as u8,
-                value,
-                ast[self].prop_list_head.clone(),
-            ));
+            let head = ast[self].prop_list_head.take();
+            ast[self].prop_list_head = Some(PropListItem::object(prop as u8, value, head));
         }
     }
     // port: Node#putBooleanProp
@@ -1136,20 +1328,21 @@ impl NodeId {
     }
     // port: Node#putIntProp
     pub fn put_int_prop(self, ast: &mut Ast, prop: Prop, value: i32) {
-        ast[self].prop_list_head =
-            Self::rebuild_list_without_prop(ast[self].prop_list_head.clone(), prop);
+        self.remove_prop(ast, prop);
         if value != 0 {
-            ast[self].prop_list_head = Some(PropListItem::int(
-                prop as u8,
-                value,
-                ast[self].prop_list_head.clone(),
-            ));
+            let head = ast[self].prop_list_head.take();
+            ast[self].prop_list_head = Some(PropListItem::int(prop as u8, value, head));
         }
     }
     // port: Node#removeProp
     pub fn remove_prop(self, ast: &mut Ast, prop: Prop) {
-        ast[self].prop_list_head =
-            Self::rebuild_list_without_prop(ast[self].prop_list_head.clone(), prop);
+        // Rust-only: rebuildListWithoutProp returns the list itself when `prop` is absent; skip
+        // the walk that copies references then (D-025).
+        if self.lookup_property_ref(ast, prop).is_none() {
+            return;
+        }
+        let head = ast[self].prop_list_head.take();
+        ast[self].prop_list_head = Self::rebuild_list_without_prop(head, prop);
     }
     // port: Node#nodePropertyToBit
     pub fn node_property_to_bit(prop: NodeProperty) -> i64 {
@@ -1399,8 +1592,14 @@ impl NodeId {
     }
     // port: Node#getString
     pub fn get_string(self, ast: &Ast) -> JsString {
+        self.get_string_ref(ast).clone()
+    }
+    // port: Node#getString
+    /// Rust-only: `get_string` by reference, for readers that need no owned copy (saves the
+    /// reference-count traffic of a clone).
+    pub fn get_string_ref(self, ast: &Ast) -> &JsString {
         match &ast[self].kind {
-            NodeKind::String { str } => str.clone(),
+            NodeKind::String { str } => str,
             _ => panic!("ClassCastException"),
         }
     }
@@ -1426,14 +1625,14 @@ impl NodeId {
     // port: Node#getRawString
     pub fn get_raw_string(self, ast: &Ast) -> JsString {
         match &ast[self].kind {
-            NodeKind::TemplateLiteralSubstring { raw, .. } => raw.clone(),
+            NodeKind::TemplateLiteralSubstring(strings) => strings.raw.clone(),
             _ => panic!("ClassCastException"),
         }
     }
     // port: Node#getCookedString
     pub fn get_cooked_string(self, ast: &Ast) -> Option<JsString> {
         match &ast[self].kind {
-            NodeKind::TemplateLiteralSubstring { cooked, .. } => cooked.clone(),
+            NodeKind::TemplateLiteralSubstring(strings) => strings.cooked.clone(),
             _ => panic!("ClassCastException"),
         }
     }
@@ -1507,18 +1706,21 @@ impl NodeId {
         type_printer: &mut JSTypePrinter<'_>,
     ) {
         use fmt::Write;
-        write!(sb, "{}", ast[self].token).unwrap();
+        write!(sb, "{}", ast[L(self)].token).unwrap();
         if matches!(ast[self].kind, NodeKind::String { .. }) {
             sb.write_char(' ').unwrap();
             sb.append(&self.get_string(ast));
-        } else if ast[self].token == Token::FUNCTION {
+        } else if ast[L(self)].token == Token::FUNCTION {
             sb.write_char(' ').unwrap();
-            if ast[self].first.is_none_or(|f| ast[f].token != Token::NAME) {
+            if ast[L(self)]
+                .first
+                .is_none_or(|f| ast[L(f)].token != Token::NAME)
+            {
                 sb.write_str("<invalid>").unwrap();
             } else {
-                sb.append(&ast[self].first.unwrap().get_string(ast));
+                sb.append(&ast[L(self)].first.unwrap().get_string(ast));
             }
-        } else if ast[self].token == Token::NUMBER {
+        } else if ast[L(self)].token == Token::NUMBER {
             write!(sb, " {}", double_to_string(self.get_double(ast))).unwrap();
         }
         if print_source {
@@ -1580,20 +1782,23 @@ impl NodeId {
         sb.write_char('{')?;
         sb.append(&Self::create_json_pair(
             "token",
-            &ast[self].token.to_string().into(),
+            &ast[L(self)].token.to_string().into(),
         ));
         if matches!(ast[self].kind, NodeKind::String { .. }) {
             sb.write_char(',')?;
             sb.append(&Self::create_json_pair("string", &self.get_string(ast)));
-        } else if ast[self].token == Token::FUNCTION {
+        } else if ast[L(self)].token == Token::FUNCTION {
             sb.write_char(',')?;
-            let name = if ast[self].first.is_none_or(|f| ast[f].token != Token::NAME) {
+            let name = if ast[L(self)]
+                .first
+                .is_none_or(|f| ast[L(f)].token != Token::NAME)
+            {
                 "<invalid>".into()
             } else {
-                ast[self].first.unwrap().get_string(ast)
+                ast[L(self)].first.unwrap().get_string(ast)
             };
             sb.append(&Self::create_json_pair("functionName", &name));
-        } else if ast[self].token == Token::NUMBER {
+        } else if ast[L(self)].token == Token::NUMBER {
             sb.write_char(',')?;
             sb.append(&Self::create_json_pair(
                 "number",
@@ -1662,15 +1867,15 @@ impl NodeId {
                 }
             }
         }
-        if ast[self].first.is_some() {
+        if ast[L(self)].first.is_some() {
             sb.write_str(",\"children\":[")?;
-            let mut child = ast[self].first;
+            let mut child = ast[L(self)].first;
             while let Some(c) = child {
                 c.to_json(ast, sb, type_printer)?;
-                if ast[c].next.is_some() {
+                if ast[L(c)].next.is_some() {
                     sb.write_char(',')?;
                 }
-                child = ast[c].next;
+                child = ast[L(c)].next;
             }
             sb.write_char(']')?;
         }
@@ -1732,10 +1937,10 @@ impl NodeId {
         }
         sb.append(&n.to_string_with_options_and_types_utf16(ast, true, true, true, type_printer));
         sb.write_char('\n')?;
-        let mut cursor = ast[n].first;
+        let mut cursor = ast[L(n)].first;
         while let Some(c) = cursor {
             Self::to_string_tree_helper(ast, c, level + 1, sb, type_printer)?;
-            cursor = ast[c].next;
+            cursor = ast[L(c)].next;
         }
         if let Some(shadow) = n.get_closure_unaware_shadow(ast) {
             Self::to_string_tree_helper(ast, shadow, level + 1, sb, type_printer)?;
@@ -1869,10 +2074,10 @@ impl NodeId {
     // port: Node#makeNonIndexableRecursive
     pub fn make_non_indexable_recursive(self, ast: &mut Ast) {
         self.make_non_indexable(ast);
-        let mut child = ast[self].first;
+        let mut child = ast[L(self)].first;
         while let Some(c) = child {
             c.make_non_indexable_recursive(ast);
-            child = ast[c].next;
+            child = ast[L(c)].next;
         }
     }
     // port: Node#isFromExterns
@@ -1949,10 +2154,10 @@ impl NodeId {
     }
     // port: Node#children
     pub fn children(self, ast: &Ast) -> SiblingNodeIterator<'_> {
-        SiblingNodeIterable::new(ast[self].first).iterator(ast)
+        SiblingNodeIterable::new(ast[L(self)].first).iterator(ast)
     }
     pub fn children_cursor(self, ast: &Ast) -> SiblingNodeCursor {
-        SiblingNodeCursor::new(ast[self].first)
+        SiblingNodeCursor::new(ast[L(self)].first)
     }
     // port: Node#getPropListHeadForTesting
     pub fn get_prop_list_head_for_testing(self, ast: &Ast) -> Option<Arc<PropListItem>> {
@@ -1964,15 +2169,15 @@ impl NodeId {
     }
     // port: Node#getParent
     pub fn get_parent(self, ast: &Ast) -> Option<NodeId> {
-        ast[self].parent
+        ast[L(self)].parent
     }
     // port: Node#hasParent
     pub fn has_parent(self, ast: &Ast) -> bool {
-        ast[self].parent.is_some()
+        ast[L(self)].parent.is_some()
     }
     // port: Node#getGrandparent
     pub fn get_grandparent(self, ast: &Ast) -> Option<NodeId> {
-        ast[self].parent.and_then(|p| ast[p].parent)
+        ast[L(self)].parent.and_then(|p| ast[L(p)].parent)
     }
     // port: Node#getAncestor
     pub fn get_ancestor(self, ast: &Ast, mut level: i32) -> Option<NodeId> {
@@ -1980,7 +2185,7 @@ impl NodeId {
         let mut node = Some(self);
         while node.is_some() && level > 0 {
             level -= 1;
-            node = ast[node.unwrap()].parent;
+            node = ast[L(node.unwrap())].parent;
         }
         node
     }
@@ -1991,7 +2196,7 @@ impl NodeId {
             if c == node {
                 return true;
             }
-            n = ast[c].parent;
+            n = ast[L(c)].parent;
         }
         false
     }
@@ -2024,53 +2229,53 @@ impl NodeId {
     }
     // port: Node#hasOneChild
     pub fn has_one_child(self, ast: &Ast) -> bool {
-        ast[self].first.is_some_and(|f| ast[f].next.is_none())
+        ast[L(self)].first.is_some_and(|f| ast[L(f)].next.is_none())
     }
     // port: Node#hasTwoChildren
     pub fn has_two_children(self, ast: &Ast) -> bool {
-        ast[self]
+        ast[L(self)]
             .first
-            .is_some_and(|f| ast[f].next.is_some() && ast[f].next == self.get_last_child(ast))
+            .is_some_and(|f| ast[L(f)].next.is_some() && ast[L(f)].next == self.get_last_child(ast))
     }
     // port: Node#hasZeroOrOneChild
     pub fn has_zero_or_one_child(self, ast: &Ast) -> bool {
-        ast[self].first == self.get_last_child(ast)
+        ast[L(self)].first == self.get_last_child(ast)
     }
     // port: Node#hasMoreThanOneChild
     pub fn has_more_than_one_child(self, ast: &Ast) -> bool {
-        ast[self].first.is_some_and(|f| ast[f].next.is_some())
+        ast[L(self)].first.is_some_and(|f| ast[L(f)].next.is_some())
     }
     // port: Node#hasXChildren
     pub fn has_x_children(self, ast: &Ast, x: i32) -> bool {
         let mut c = 0;
-        let mut n = ast[self].first;
+        let mut n = ast[L(self)].first;
         while let Some(cur) = n {
             if c > x {
                 break;
             }
             c += 1;
-            n = ast[cur].next;
+            n = ast[L(cur)].next;
         }
         c == x
     }
     // port: Node#getChildCount
     pub fn get_child_count(self, ast: &Ast) -> i32 {
         let mut c = 0;
-        let mut n = ast[self].first;
+        let mut n = ast[L(self)].first;
         while let Some(cur) = n {
             c += 1;
-            n = ast[cur].next;
+            n = ast[L(cur)].next;
         }
         c
     }
     // port: Node#hasChild
     pub fn has_child(self, ast: &Ast, child: NodeId) -> bool {
-        let mut n = ast[self].first;
+        let mut n = ast[L(self)].first;
         while let Some(cur) = n {
             if child == cur {
                 return true;
             }
-            n = ast[cur].next;
+            n = ast[L(cur)].next;
         }
         false
     }
@@ -2305,7 +2510,7 @@ impl NodeId {
         js_doc_config: JsDocComparison,
         side_effect_config: SideEffectComparison,
     ) -> bool {
-        if ast[self].token != ast_b[node].token
+        if ast[L(self)].token != ast_b[L(node)].token
             || self.get_child_count(ast) != node.get_child_count(ast_b)
             || std::mem::discriminant(&ast[self].kind) != std::mem::discriminant(&ast_b[node].kind)
         {
@@ -2412,8 +2617,8 @@ impl NodeId {
             }
         }
         if recursion.recurse_children() {
-            let mut n = ast[self].first;
-            let mut n2 = ast_b[node].first;
+            let mut n = ast[L(self)].first;
+            let mut n2 = ast_b[L(node)].first;
             while let Some(cur) = n {
                 let cur2 = n2.unwrap();
                 if !cur.is_equivalent_to_across_with_options(
@@ -2427,8 +2632,8 @@ impl NodeId {
                 ) {
                     return false;
                 }
-                n = ast[cur].next;
-                n2 = ast_b[cur2].next;
+                n = ast[L(cur)].next;
+                n2 = ast_b[L(cur2)].next;
             }
         }
         match (&ast[self].kind, &ast_b[node].kind) {
@@ -2437,10 +2642,8 @@ impl NodeId {
             (NodeKind::String { str: a }, NodeKind::String { str: b }) => {
                 RhinoStringPool::unchecked_equals(a, b)
             }
-            (
-                NodeKind::TemplateLiteralSubstring { raw: a, cooked: c },
-                NodeKind::TemplateLiteralSubstring { raw: b, cooked: d },
-            ) => {
+            (NodeKind::TemplateLiteralSubstring(x), NodeKind::TemplateLiteralSubstring(y)) => {
+                let (a, c, b, d) = (&x.raw, &x.cooked, &y.raw, &y.cooked);
                 RhinoStringPool::unchecked_equals(a, b)
                     && match (c, d) {
                         (Some(c), Some(d)) => RhinoStringPool::unchecked_equals(c, d),
@@ -2453,10 +2656,14 @@ impl NodeId {
     }
     // port: Node#getQualifiedName
     pub fn get_qualified_name(self, ast: &Ast) -> Option<JsString> {
-        match ast[self].token {
+        match ast[L(self)].token {
             Token::NAME => {
-                let name = self.get_string(ast);
-                if name.is_empty() { None } else { Some(name) }
+                let name = self.get_string_ref(ast);
+                if name.is_empty() {
+                    None
+                } else {
+                    Some(name.clone())
+                }
             }
             Token::GETPROP => self
                 .get_qualified_name_for_get_prop(ast, 0)
@@ -2476,20 +2683,32 @@ impl NodeId {
     }
     // port: Node#getQualifiedNameForGetProp
     fn get_qualified_name_for_get_prop(self, ast: &Ast, mut reserve: i32) -> Option<Vec<u16>> {
-        let prop_name = self.get_string(ast);
+        let prop_name = self.get_string_ref(ast);
         reserve = reserve
             .wrapping_add(1)
             .wrapping_add(prop_name.length() as i32);
-        let first = ast[self].first.unwrap();
+        let first = ast[L(self)].first.unwrap();
         let mut builder;
         if first.is_get_prop(ast) {
             builder = first.get_qualified_name_for_get_prop(ast, reserve)?;
         } else {
-            let left = first.get_qualified_name(ast)?;
+            // getQualifiedName on the left side, read in place (no JsString copy).
+            let left: &[u16] = match ast[L(first)].token {
+                Token::NAME => {
+                    let name = first.get_string_ref(ast);
+                    if name.is_empty() {
+                        return None;
+                    }
+                    name.as_units()
+                }
+                Token::THIS => &[116, 104, 105, 115],
+                Token::SUPER => &[115, 117, 112, 101, 114],
+                _ => return None,
+            };
             builder = Vec::with_capacity(
-                usize::try_from((left.length() as i32).wrapping_add(reserve)).unwrap(),
+                usize::try_from((left.len() as i32).wrapping_add(reserve)).unwrap(),
             );
-            builder.extend_from_slice(left.as_units());
+            builder.extend_from_slice(left);
         }
         builder.push(b'.' as u16);
         builder.extend_from_slice(prop_name.as_units());
@@ -2497,20 +2716,23 @@ impl NodeId {
     }
     // port: Node#getOriginalQualifiedName
     pub fn get_original_qualified_name(self, ast: &Ast) -> Option<JsString> {
-        if ast[self].token == Token::NAME {
+        if ast[L(self)].token == Token::NAME {
             let name = self
                 .get_original_name(ast)
                 .unwrap_or_else(|| self.get_string(ast));
             if name.is_empty() { None } else { Some(name) }
-        } else if ast[self].token == Token::GETPROP {
-            let left = ast[self].first.unwrap().get_original_qualified_name(ast)?;
+        } else if ast[L(self)].token == Token::GETPROP {
+            let left = ast[L(self)]
+                .first
+                .unwrap()
+                .get_original_qualified_name(ast)?;
             let right = self
                 .get_original_name(ast)
                 .unwrap_or_else(|| self.get_string(ast));
             Some(left.concat(&".".into()).concat(&right))
-        } else if ast[self].token == Token::THIS {
+        } else if ast[L(self)].token == Token::THIS {
             Some("this".into())
-        } else if ast[self].token == Token::SUPER {
+        } else if ast[L(self)].token == Token::SUPER {
             Some("super".into())
         } else {
             None
@@ -2519,61 +2741,57 @@ impl NodeId {
     // port: Node#isQualifiedName
     pub fn is_qualified_name(self, ast: &Ast) -> bool {
         match self.get_token(ast) {
-            Token::NAME => !self.get_string(ast).is_empty(),
+            Token::NAME => !self.get_string_ref(ast).is_empty(),
             Token::THIS | Token::SUPER => true,
-            Token::GETPROP => ast[self].first.unwrap().is_qualified_name(ast),
+            Token::GETPROP => ast[L(self)].first.unwrap().is_qualified_name(ast),
             _ => false,
         }
     }
     // port: Node#matchesName(String)
-    pub fn matches_name(self, ast: &Ast, name: impl Into<JsString>) -> bool {
-        if ast[self].token != Token::NAME {
+    pub fn matches_name(self, ast: &Ast, name: impl JsStrLike) -> bool {
+        if ast[L(self)].token != Token::NAME {
             return false;
         }
-        let internal_string = self.get_string(ast);
-        !internal_string.is_empty() && name.into() == internal_string
+        let internal_string = self.get_string_ref(ast);
+        !internal_string.is_empty() && name.with_units(|name| name == internal_string.as_units())
     }
     // port: Node#matchesName(Node)
     pub fn matches_name_node(self, ast: &Ast, n: NodeId) -> bool {
-        if ast[self].token != Token::NAME || ast[n].token != Token::NAME {
+        if ast[L(self)].token != Token::NAME || ast[L(n)].token != Token::NAME {
             return false;
         }
-        let internal_string = self.get_string(ast);
+        let internal_string = self.get_string_ref(ast);
         !internal_string.is_empty()
-            && RhinoStringPool::unchecked_equals(&internal_string, &n.get_string(ast))
+            && RhinoStringPool::unchecked_equals(internal_string, n.get_string_ref(ast))
     }
     // port: Node#matchesQualifiedName(String)
-    pub fn matches_qualified_name(self, ast: &Ast, name: impl Into<JsString>) -> bool {
-        let name = name.into();
-        self.matches_qualified_name_to_index(ast, &name, name.length())
+    pub fn matches_qualified_name(self, ast: &Ast, name: impl JsStrLike) -> bool {
+        name.with_units(|name| self.matches_qualified_name_to_index(ast, name, name.len()))
     }
     // port: Node#matchesQualifiedName(String, int)
-    fn matches_qualified_name_to_index(
-        self,
-        ast: &Ast,
-        qname: &JsString,
-        end_index: usize,
-    ) -> bool {
-        let start = qname.as_units()[..end_index]
+    fn matches_qualified_name_to_index(self, ast: &Ast, qname: &[u16], end_index: usize) -> bool {
+        let start = qname[..end_index]
             .iter()
             .rposition(|c| *c == b'.' as u16)
             .map_or(0, |i| i + 1);
         match self.get_token(ast) {
             Token::NAME | Token::IMPORT_STAR => {
-                let name = self.get_string(ast);
+                let name = self.get_string_ref(ast);
                 start == 0
                     && !name.is_empty()
                     && name.length() == end_index
-                    && qname.starts_with(&name)
+                    && qname.starts_with(name.as_units())
             }
-            Token::THIS => start == 0 && end_index == 4 && qname.starts_with(&"this".into()),
-            Token::SUPER => start == 0 && end_index == 5 && qname.starts_with(&"super".into()),
+            Token::THIS => start == 0 && end_index == 4 && qname.starts_with(&[116, 104, 105, 115]),
+            Token::SUPER => {
+                start == 0 && end_index == 5 && qname.starts_with(&[115, 117, 112, 101, 114])
+            }
             Token::GETPROP => {
-                let prop = self.get_string(ast);
+                let prop = self.get_string_ref(ast);
                 start > 1
                     && prop.length() == end_index - start
-                    && prop.as_units() == &qname.as_units()[start..end_index]
-                    && ast[self].first.unwrap().matches_qualified_name_to_index(
+                    && prop.as_units() == &qname[start..end_index]
+                    && ast[L(self)].first.unwrap().matches_qualified_name_to_index(
                         ast,
                         qname,
                         start - 1,
@@ -2584,18 +2802,18 @@ impl NodeId {
     }
     // port: Node#matchesQualifiedName(Node)
     pub fn matches_qualified_name_node(self, ast: &Ast, n: NodeId) -> bool {
-        if ast[n].token != ast[self].token {
+        if ast[L(n)].token != ast[L(self)].token {
             return false;
         }
-        match ast[self].token {
+        match ast[L(self)].token {
             Token::NAME => self.matches_name_node(ast, n),
             Token::THIS | Token::SUPER => true,
             Token::GETPROP => {
-                RhinoStringPool::unchecked_equals(&self.get_string(ast), &n.get_string(ast))
-                    && ast[self]
+                RhinoStringPool::unchecked_equals(self.get_string_ref(ast), n.get_string_ref(ast))
+                    && ast[L(self)]
                         .first
                         .unwrap()
-                        .matches_qualified_name_node(ast, ast[n].first.unwrap())
+                        .matches_qualified_name_node(ast, ast[L(n)].first.unwrap())
             }
             _ => false,
         }
@@ -2603,8 +2821,8 @@ impl NodeId {
     // port: Node#isUnscopedQualifiedName
     pub fn is_unscoped_qualified_name(self, ast: &Ast) -> bool {
         match self.get_token(ast) {
-            Token::NAME => !self.get_string(ast).is_empty(),
-            Token::GETPROP => ast[self].first.unwrap().is_unscoped_qualified_name(ast),
+            Token::NAME => !self.get_string_ref(ast).is_empty(),
+            Token::GETPROP => ast[L(self)].first.unwrap().is_unscoped_qualified_name(ast),
             _ => false,
         }
     }
@@ -2634,7 +2852,7 @@ impl NodeId {
     // port: StringNode#cloneNode
     // port: TemplateLiteralSubstringNode#cloneNode
     pub fn clone_node_with_type_exprs(self, ast: &mut Ast, clone_type_exprs: bool) -> NodeId {
-        let token = ast[self].token;
+        let token = ast[L(self)].token;
         let clone = match ast[self].kind.clone() {
             NodeKind::Node => ast.new_node(token),
             NodeKind::Number { number } => ast.new_number(number),
@@ -2644,8 +2862,8 @@ impl NodeId {
                 ast[n].kind = NodeKind::String { str };
                 n
             }
-            NodeKind::TemplateLiteralSubstring { cooked, raw } => {
-                ast.new_template_lit_string(cooked, raw)
+            NodeKind::TemplateLiteralSubstring(strings) => {
+                ast.new_template_lit_string(strings.cooked, strings.raw)
             }
         };
         Self::copy_base_node_fields(ast, self, clone, clone_type_exprs);
@@ -2678,21 +2896,21 @@ impl NodeId {
             let mut n2 = self.get_first_child(ast);
             while let Some(n) = n2 {
                 let clone = n.clone_tree_with_type_exprs(ast, clone_type_exprs);
-                ast[clone].parent = Some(result);
+                ast[L(clone)].parent = Some(result);
                 if first_child.is_none() {
                     first_child = Some(clone);
                     last_child = first_child;
                 } else {
                     let last = last_child.unwrap();
-                    ast[last].next = Some(clone);
-                    ast[clone].previous = Some(last);
+                    ast[L(last)].next = Some(clone);
+                    ast[L(clone)].previous = Some(last);
                     last_child = Some(clone);
                 }
-                n2 = ast[n].next;
+                n2 = ast[L(n)].next;
             }
-            ast[first_child.unwrap()].previous = last_child;
-            ast[last_child.unwrap()].next = None;
-            ast[result].first = first_child;
+            ast[L(first_child.unwrap())].previous = last_child;
+            ast[L(last_child.unwrap())].next = None;
+            ast[L(result)].first = first_child;
         }
         if let Some(shadow) = self.get_closure_unaware_shadow(ast) {
             let cloned = shadow.clone_tree_with_type_exprs(ast, clone_type_exprs);
@@ -2711,10 +2929,10 @@ impl NodeId {
     // port: Node#srcrefTree
     pub fn srcref_tree(self, ast: &mut Ast, other: NodeId) -> Self {
         self.srcref(ast, other);
-        let mut child = ast[self].first;
+        let mut child = ast[L(self)].first;
         while let Some(c) = child {
             c.srcref_tree(ast, other);
-            child = ast[c].next;
+            child = ast[L(c)].next;
         }
         self
     }
@@ -2733,10 +2951,10 @@ impl NodeId {
     // port: Node#srcrefTreeIfMissing
     pub fn srcref_tree_if_missing(self, ast: &mut Ast, other: NodeId) -> Self {
         self.srcref_if_missing(ast, other);
-        let mut child = ast[self].first;
+        let mut child = ast[L(self)].first;
         while let Some(c) = child {
             c.srcref_tree_if_missing(ast, other);
-            child = ast[c].next;
+            child = ast[L(c)].next;
         }
         self
     }
@@ -2791,10 +3009,17 @@ impl NodeId {
     }
     // port: Node#getJSDocInfo
     pub fn get_jsdoc_info(self, ast: &Ast) -> Option<Arc<JSDocInfo>> {
-        self.get_prop(ast, Prop::JSDOC_INFO).map(|v| match v {
-            ObjectProp::JSDocInfo(i) => i,
-            _ => panic!("ClassCastException"),
-        })
+        self.get_jsdoc_info_ref(ast).cloned()
+    }
+    // port: Node#getJSDocInfo
+    /// Rust-only: `get_jsdoc_info` by reference (no reference-count traffic).
+    pub fn get_jsdoc_info_ref(self, ast: &Ast) -> Option<&Arc<JSDocInfo>> {
+        self.lookup_property_ref(ast, Prop::JSDOC_INFO)
+            .map(|item| match &item.value {
+                PropValue::Object(ObjectProp::JSDocInfo(info)) => info,
+                PropValue::Object(_) => panic!("ClassCastException"),
+                PropValue::Int(_) => panic!("UnsupportedOperationException"),
+            })
     }
     // port: Node#setJSDocInfo
     pub fn set_jsdoc_info(self, ast: &mut Ast, info: Option<Arc<JSDocInfo>>) -> Self {
@@ -2850,7 +3075,7 @@ impl NodeId {
     }
     // port: Node#setIsSyntheticBlock
     pub fn set_is_synthetic_block(self, ast: &mut Ast, val: bool) {
-        check_state!(ast[self].token == Token::BLOCK);
+        check_state!(ast[L(self)].token == Token::BLOCK);
         self.put_boolean_prop(ast, Prop::SYNTHETIC, val);
     }
     // port: Node#isSyntheticBlock
@@ -2860,7 +3085,7 @@ impl NodeId {
     // port: Node#setIsSynthesizedUnfulfilledNameDeclaration
     pub fn set_is_synthesized_unfulfilled_name_declaration(self, ast: &mut Ast, val: bool) {
         check_state!(
-            ast[self].token == Token::VAR
+            ast[L(self)].token == Token::VAR
                 && self.has_one_child(ast)
                 && self.get_first_child(ast).unwrap().is_name(ast),
             "Expected all synthetic unfulfilled declarations to be `var <name>`, found %s",
@@ -3111,40 +3336,40 @@ impl NodeId {
             "%s",
             self.to_string(ast)
         );
-        check_state!(self.get_string(ast).starts_with(&"#".into()));
+        check_state!(self.get_string_ref(ast).starts_with("#"));
         self.put_boolean_prop(ast, Prop::PRIVATE_IDENTIFIER, true);
     }
     // port: Node#isAdd
     pub fn is_add(self, ast: &Ast) -> bool {
-        ast[self].token == Token::ADD
+        ast[L(self)].token == Token::ADD
     }
     // port: Node#isSub
     pub fn is_sub(self, ast: &Ast) -> bool {
-        ast[self].token == Token::SUB
+        ast[L(self)].token == Token::SUB
     }
     // port: Node#isAnd
     pub fn is_and(self, ast: &Ast) -> bool {
-        ast[self].token == Token::AND
+        ast[L(self)].token == Token::AND
     }
     // port: Node#isAssignAnd
     pub fn is_assign_and(self, ast: &Ast) -> bool {
-        ast[self].token == Token::ASSIGN_AND
+        ast[L(self)].token == Token::ASSIGN_AND
     }
     // port: Node#isArrayLit
     pub fn is_array_lit(self, ast: &Ast) -> bool {
-        ast[self].token == Token::ARRAYLIT
+        ast[L(self)].token == Token::ARRAYLIT
     }
     // port: Node#isArrayPattern
     pub fn is_array_pattern(self, ast: &Ast) -> bool {
-        ast[self].token == Token::ARRAY_PATTERN
+        ast[L(self)].token == Token::ARRAY_PATTERN
     }
     // port: Node#isAssign
     pub fn is_assign(self, ast: &Ast) -> bool {
-        ast[self].token == Token::ASSIGN
+        ast[L(self)].token == Token::ASSIGN
     }
     // port: Node#isAssignAdd
     pub fn is_assign_add(self, ast: &Ast) -> bool {
-        ast[self].token == Token::ASSIGN_ADD
+        ast[L(self)].token == Token::ASSIGN_ADD
     }
     // port: Node#isNormalBlock
     pub fn is_normal_block(self, ast: &Ast) -> bool {
@@ -3152,91 +3377,91 @@ impl NodeId {
     }
     // port: Node#isBlock
     pub fn is_block(self, ast: &Ast) -> bool {
-        ast[self].token == Token::BLOCK
+        ast[L(self)].token == Token::BLOCK
     }
     // port: Node#isRoot
     pub fn is_root(self, ast: &Ast) -> bool {
-        ast[self].token == Token::ROOT
+        ast[L(self)].token == Token::ROOT
     }
     // port: Node#isAwait
     pub fn is_await(self, ast: &Ast) -> bool {
-        ast[self].token == Token::AWAIT
+        ast[L(self)].token == Token::AWAIT
     }
     // port: Node#isBigInt
     pub fn is_big_int(self, ast: &Ast) -> bool {
-        ast[self].token == Token::BIGINT
+        ast[L(self)].token == Token::BIGINT
     }
     // port: Node#isBitNot
     pub fn is_bit_not(self, ast: &Ast) -> bool {
-        ast[self].token == Token::BITNOT
+        ast[L(self)].token == Token::BITNOT
     }
     // port: Node#isBreak
     pub fn is_break(self, ast: &Ast) -> bool {
-        ast[self].token == Token::BREAK
+        ast[L(self)].token == Token::BREAK
     }
     // port: Node#isCall
     pub fn is_call(self, ast: &Ast) -> bool {
-        ast[self].token == Token::CALL
+        ast[L(self)].token == Token::CALL
     }
     // port: Node#isCase
     pub fn is_case(self, ast: &Ast) -> bool {
-        ast[self].token == Token::CASE
+        ast[L(self)].token == Token::CASE
     }
     // port: Node#isCast
     pub fn is_cast(self, ast: &Ast) -> bool {
-        ast[self].token == Token::CAST
+        ast[L(self)].token == Token::CAST
     }
     // port: Node#isCatch
     pub fn is_catch(self, ast: &Ast) -> bool {
-        ast[self].token == Token::CATCH
+        ast[L(self)].token == Token::CATCH
     }
     // port: Node#isClass
     pub fn is_class(self, ast: &Ast) -> bool {
-        ast[self].token == Token::CLASS
+        ast[L(self)].token == Token::CLASS
     }
     // port: Node#isClassMembers
     pub fn is_class_members(self, ast: &Ast) -> bool {
-        ast[self].token == Token::CLASS_MEMBERS
+        ast[L(self)].token == Token::CLASS_MEMBERS
     }
     // port: Node#isComma
     pub fn is_comma(self, ast: &Ast) -> bool {
-        ast[self].token == Token::COMMA
+        ast[L(self)].token == Token::COMMA
     }
     // port: Node#isComputedProp
     pub fn is_computed_prop(self, ast: &Ast) -> bool {
-        ast[self].token == Token::COMPUTED_PROP
+        ast[L(self)].token == Token::COMPUTED_PROP
     }
     // port: Node#isContinue
     pub fn is_continue(self, ast: &Ast) -> bool {
-        ast[self].token == Token::CONTINUE
+        ast[L(self)].token == Token::CONTINUE
     }
     // port: Node#isConst
     pub fn is_const(self, ast: &Ast) -> bool {
-        ast[self].token == Token::CONST
+        ast[L(self)].token == Token::CONST
     }
     // port: Node#isDebugger
     pub fn is_debugger(self, ast: &Ast) -> bool {
-        ast[self].token == Token::DEBUGGER
+        ast[L(self)].token == Token::DEBUGGER
     }
     // port: Node#isDec
     pub fn is_dec(self, ast: &Ast) -> bool {
-        ast[self].token == Token::DEC
+        ast[L(self)].token == Token::DEC
     }
     // port: Node#isDefaultCase
     pub fn is_default_case(self, ast: &Ast) -> bool {
-        ast[self].token == Token::DEFAULT_CASE
+        ast[L(self)].token == Token::DEFAULT_CASE
     }
     // port: Node#isDefaultValue
     pub fn is_default_value(self, ast: &Ast) -> bool {
-        ast[self].token == Token::DEFAULT_VALUE
+        ast[L(self)].token == Token::DEFAULT_VALUE
     }
     // port: Node#isDelProp
     pub fn is_del_prop(self, ast: &Ast) -> bool {
-        ast[self].token == Token::DELPROP
+        ast[L(self)].token == Token::DELPROP
     }
     // port: Node#isDestructuringLhs
     pub fn is_destructuring_lhs(self, ast: &Ast) -> bool {
-        ast[self].token == Token::DESTRUCTURING_LHS
+        ast[L(self)].token == Token::DESTRUCTURING_LHS
     }
     // port: Node#isDestructuringPattern
     pub fn is_destructuring_pattern(self, ast: &Ast) -> bool {
@@ -3244,355 +3469,355 @@ impl NodeId {
     }
     // port: Node#isDo
     pub fn is_do(self, ast: &Ast) -> bool {
-        ast[self].token == Token::DO
+        ast[L(self)].token == Token::DO
     }
     // port: Node#isEmpty
     pub fn is_empty(self, ast: &Ast) -> bool {
-        ast[self].token == Token::EMPTY
+        ast[L(self)].token == Token::EMPTY
     }
     // port: Node#isExponent
     pub fn is_exponent(self, ast: &Ast) -> bool {
-        ast[self].token == Token::EXPONENT
+        ast[L(self)].token == Token::EXPONENT
     }
     // port: Node#isAssignExponent
     pub fn is_assign_exponent(self, ast: &Ast) -> bool {
-        ast[self].token == Token::ASSIGN_EXPONENT
+        ast[L(self)].token == Token::ASSIGN_EXPONENT
     }
     // port: Node#isExport
     pub fn is_export(self, ast: &Ast) -> bool {
-        ast[self].token == Token::EXPORT
+        ast[L(self)].token == Token::EXPORT
     }
     // port: Node#isExportSpec
     pub fn is_export_spec(self, ast: &Ast) -> bool {
-        ast[self].token == Token::EXPORT_SPEC
+        ast[L(self)].token == Token::EXPORT_SPEC
     }
     // port: Node#isExportSpecs
     pub fn is_export_specs(self, ast: &Ast) -> bool {
-        ast[self].token == Token::EXPORT_SPECS
+        ast[L(self)].token == Token::EXPORT_SPECS
     }
     // port: Node#isExprResult
     pub fn is_expr_result(self, ast: &Ast) -> bool {
-        ast[self].token == Token::EXPR_RESULT
+        ast[L(self)].token == Token::EXPR_RESULT
     }
     // port: Node#isFalse
     pub fn is_false(self, ast: &Ast) -> bool {
-        ast[self].token == Token::FALSE
+        ast[L(self)].token == Token::FALSE
     }
     // port: Node#isVanillaFor
     pub fn is_vanilla_for(self, ast: &Ast) -> bool {
-        ast[self].token == Token::FOR
+        ast[L(self)].token == Token::FOR
     }
     // port: Node#isForIn
     pub fn is_for_in(self, ast: &Ast) -> bool {
-        ast[self].token == Token::FOR_IN
+        ast[L(self)].token == Token::FOR_IN
     }
     // port: Node#isForOf
     pub fn is_for_of(self, ast: &Ast) -> bool {
-        ast[self].token == Token::FOR_OF
+        ast[L(self)].token == Token::FOR_OF
     }
     // port: Node#isForAwaitOf
     pub fn is_for_await_of(self, ast: &Ast) -> bool {
-        ast[self].token == Token::FOR_AWAIT_OF
+        ast[L(self)].token == Token::FOR_AWAIT_OF
     }
     // port: Node#isFunction
     pub fn is_function(self, ast: &Ast) -> bool {
-        ast[self].token == Token::FUNCTION
+        ast[L(self)].token == Token::FUNCTION
     }
     // port: Node#isGetterDef
     pub fn is_getter_def(self, ast: &Ast) -> bool {
-        ast[self].token == Token::GETTER_DEF
+        ast[L(self)].token == Token::GETTER_DEF
     }
     // port: Node#isGetElem
     pub fn is_get_elem(self, ast: &Ast) -> bool {
-        ast[self].token == Token::GETELEM
+        ast[L(self)].token == Token::GETELEM
     }
     // port: Node#isGetProp
     pub fn is_get_prop(self, ast: &Ast) -> bool {
-        ast[self].token == Token::GETPROP
+        ast[L(self)].token == Token::GETPROP
     }
     // port: Node#isHook
     pub fn is_hook(self, ast: &Ast) -> bool {
-        ast[self].token == Token::HOOK
+        ast[L(self)].token == Token::HOOK
     }
     // port: Node#isIf
     pub fn is_if(self, ast: &Ast) -> bool {
-        ast[self].token == Token::IF
+        ast[L(self)].token == Token::IF
     }
     // port: Node#isImport
     pub fn is_import(self, ast: &Ast) -> bool {
-        ast[self].token == Token::IMPORT
+        ast[L(self)].token == Token::IMPORT
     }
     // port: Node#isImportMeta
     pub fn is_import_meta(self, ast: &Ast) -> bool {
-        ast[self].token == Token::IMPORT_META
+        ast[L(self)].token == Token::IMPORT_META
     }
     // port: Node#isImportStar
     pub fn is_import_star(self, ast: &Ast) -> bool {
-        ast[self].token == Token::IMPORT_STAR
+        ast[L(self)].token == Token::IMPORT_STAR
     }
     // port: Node#isImportSpec
     pub fn is_import_spec(self, ast: &Ast) -> bool {
-        ast[self].token == Token::IMPORT_SPEC
+        ast[L(self)].token == Token::IMPORT_SPEC
     }
     // port: Node#isImportSpecs
     pub fn is_import_specs(self, ast: &Ast) -> bool {
-        ast[self].token == Token::IMPORT_SPECS
+        ast[L(self)].token == Token::IMPORT_SPECS
     }
     // port: Node#isIn
     pub fn is_in(self, ast: &Ast) -> bool {
-        ast[self].token == Token::IN
+        ast[L(self)].token == Token::IN
     }
     // port: Node#isInc
     pub fn is_inc(self, ast: &Ast) -> bool {
-        ast[self].token == Token::INC
+        ast[L(self)].token == Token::INC
     }
     // port: Node#isInstanceOf
     pub fn is_instance_of(self, ast: &Ast) -> bool {
-        ast[self].token == Token::INSTANCEOF
+        ast[L(self)].token == Token::INSTANCEOF
     }
     // port: Node#isInterface
     pub fn is_interface(self, ast: &Ast) -> bool {
-        ast[self].token == Token::INTERFACE
+        ast[L(self)].token == Token::INTERFACE
     }
     // port: Node#isInterfaceMembers
     pub fn is_interface_members(self, ast: &Ast) -> bool {
-        ast[self].token == Token::INTERFACE_MEMBERS
+        ast[L(self)].token == Token::INTERFACE_MEMBERS
     }
     // port: Node#isRecordType
     pub fn is_record_type(self, ast: &Ast) -> bool {
-        ast[self].token == Token::RECORD_TYPE
+        ast[L(self)].token == Token::RECORD_TYPE
     }
     // port: Node#isCallSignature
     pub fn is_call_signature(self, ast: &Ast) -> bool {
-        ast[self].token == Token::CALL_SIGNATURE
+        ast[L(self)].token == Token::CALL_SIGNATURE
     }
     // port: Node#isIndexSignature
     pub fn is_index_signature(self, ast: &Ast) -> bool {
-        ast[self].token == Token::INDEX_SIGNATURE
+        ast[L(self)].token == Token::INDEX_SIGNATURE
     }
     // port: Node#isLabel
     pub fn is_label(self, ast: &Ast) -> bool {
-        ast[self].token == Token::LABEL
+        ast[L(self)].token == Token::LABEL
     }
     // port: Node#isLabelName
     pub fn is_label_name(self, ast: &Ast) -> bool {
-        ast[self].token == Token::LABEL_NAME
+        ast[L(self)].token == Token::LABEL_NAME
     }
     // port: Node#isLet
     pub fn is_let(self, ast: &Ast) -> bool {
-        ast[self].token == Token::LET
+        ast[L(self)].token == Token::LET
     }
     // port: Node#isMemberFunctionDef
     pub fn is_member_function_def(self, ast: &Ast) -> bool {
-        ast[self].token == Token::MEMBER_FUNCTION_DEF
+        ast[L(self)].token == Token::MEMBER_FUNCTION_DEF
     }
     // port: Node#isMemberVariableDef
     pub fn is_member_variable_def(self, ast: &Ast) -> bool {
-        ast[self].token == Token::MEMBER_VARIABLE_DEF
+        ast[L(self)].token == Token::MEMBER_VARIABLE_DEF
     }
     // port: Node#isMemberFieldDef
     pub fn is_member_field_def(self, ast: &Ast) -> bool {
-        ast[self].token == Token::MEMBER_FIELD_DEF
+        ast[L(self)].token == Token::MEMBER_FIELD_DEF
     }
     // port: Node#isComputedFieldDef
     pub fn is_computed_field_def(self, ast: &Ast) -> bool {
-        ast[self].token == Token::COMPUTED_FIELD_DEF
+        ast[L(self)].token == Token::COMPUTED_FIELD_DEF
     }
     // port: Node#isModuleBody
     pub fn is_module_body(self, ast: &Ast) -> bool {
-        ast[self].token == Token::MODULE_BODY
+        ast[L(self)].token == Token::MODULE_BODY
     }
     // port: Node#isName
     pub fn is_name(self, ast: &Ast) -> bool {
-        ast[self].token == Token::NAME
+        ast[L(self)].token == Token::NAME
     }
     // port: Node#isNE
     pub fn is_ne(self, ast: &Ast) -> bool {
-        ast[self].token == Token::NE
+        ast[L(self)].token == Token::NE
     }
     // port: Node#isSHNE
     pub fn is_shne(self, ast: &Ast) -> bool {
-        ast[self].token == Token::SHNE
+        ast[L(self)].token == Token::SHNE
     }
     // port: Node#isEQ
     pub fn is_eq(self, ast: &Ast) -> bool {
-        ast[self].token == Token::EQ
+        ast[L(self)].token == Token::EQ
     }
     // port: Node#isSHEQ
     pub fn is_sheq(self, ast: &Ast) -> bool {
-        ast[self].token == Token::SHEQ
+        ast[L(self)].token == Token::SHEQ
     }
     // port: Node#isNeg
     pub fn is_neg(self, ast: &Ast) -> bool {
-        ast[self].token == Token::NEG
+        ast[L(self)].token == Token::NEG
     }
     // port: Node#isNew
     pub fn is_new(self, ast: &Ast) -> bool {
-        ast[self].token == Token::NEW
+        ast[L(self)].token == Token::NEW
     }
     // port: Node#isNot
     pub fn is_not(self, ast: &Ast) -> bool {
-        ast[self].token == Token::NOT
+        ast[L(self)].token == Token::NOT
     }
     // port: Node#isNull
     pub fn is_null(self, ast: &Ast) -> bool {
-        ast[self].token == Token::NULL
+        ast[L(self)].token == Token::NULL
     }
     // port: Node#isNullishCoalesce
     pub fn is_nullish_coalesce(self, ast: &Ast) -> bool {
-        ast[self].token == Token::COALESCE
+        ast[L(self)].token == Token::COALESCE
     }
     // port: Node#isAssignNullishCoalesce
     pub fn is_assign_nullish_coalesce(self, ast: &Ast) -> bool {
-        ast[self].token == Token::ASSIGN_COALESCE
+        ast[L(self)].token == Token::ASSIGN_COALESCE
     }
     // port: Node#isNumber
     pub fn is_number(self, ast: &Ast) -> bool {
-        ast[self].token == Token::NUMBER
+        ast[L(self)].token == Token::NUMBER
     }
     // port: Node#isObjectLit
     pub fn is_object_lit(self, ast: &Ast) -> bool {
-        ast[self].token == Token::OBJECTLIT
+        ast[L(self)].token == Token::OBJECTLIT
     }
     // port: Node#isObjectPattern
     pub fn is_object_pattern(self, ast: &Ast) -> bool {
-        ast[self].token == Token::OBJECT_PATTERN
+        ast[L(self)].token == Token::OBJECT_PATTERN
     }
     // port: Node#isOptChainCall
     pub fn is_opt_chain_call(self, ast: &Ast) -> bool {
-        ast[self].token == Token::OPTCHAIN_CALL
+        ast[L(self)].token == Token::OPTCHAIN_CALL
     }
     // port: Node#isOptChainGetElem
     pub fn is_opt_chain_get_elem(self, ast: &Ast) -> bool {
-        ast[self].token == Token::OPTCHAIN_GETELEM
+        ast[L(self)].token == Token::OPTCHAIN_GETELEM
     }
     // port: Node#isOptChainGetProp
     pub fn is_opt_chain_get_prop(self, ast: &Ast) -> bool {
-        ast[self].token == Token::OPTCHAIN_GETPROP
+        ast[L(self)].token == Token::OPTCHAIN_GETPROP
     }
     // port: Node#isOr
     pub fn is_or(self, ast: &Ast) -> bool {
-        ast[self].token == Token::OR
+        ast[L(self)].token == Token::OR
     }
     // port: Node#isAssignOr
     pub fn is_assign_or(self, ast: &Ast) -> bool {
-        ast[self].token == Token::ASSIGN_OR
+        ast[L(self)].token == Token::ASSIGN_OR
     }
     // port: Node#isParamList
     pub fn is_param_list(self, ast: &Ast) -> bool {
-        ast[self].token == Token::PARAM_LIST
+        ast[L(self)].token == Token::PARAM_LIST
     }
     // port: Node#isRegExp
     pub fn is_reg_exp(self, ast: &Ast) -> bool {
-        ast[self].token == Token::REGEXP
+        ast[L(self)].token == Token::REGEXP
     }
     // port: Node#isRest
     pub fn is_rest(self, ast: &Ast) -> bool {
-        ast[self].token == Token::ITER_REST || ast[self].token == Token::OBJECT_REST
+        ast[L(self)].token == Token::ITER_REST || ast[L(self)].token == Token::OBJECT_REST
     }
     // port: Node#isObjectRest
     pub fn is_object_rest(self, ast: &Ast) -> bool {
-        ast[self].token == Token::OBJECT_REST
+        ast[L(self)].token == Token::OBJECT_REST
     }
     // port: Node#isReturn
     pub fn is_return(self, ast: &Ast) -> bool {
-        ast[self].token == Token::RETURN
+        ast[L(self)].token == Token::RETURN
     }
     // port: Node#isScript
     pub fn is_script(self, ast: &Ast) -> bool {
-        ast[self].token == Token::SCRIPT
+        ast[L(self)].token == Token::SCRIPT
     }
     // port: Node#isSetterDef
     pub fn is_setter_def(self, ast: &Ast) -> bool {
-        ast[self].token == Token::SETTER_DEF
+        ast[L(self)].token == Token::SETTER_DEF
     }
     // port: Node#isSpread
     pub fn is_spread(self, ast: &Ast) -> bool {
-        ast[self].token == Token::ITER_SPREAD || ast[self].token == Token::OBJECT_SPREAD
+        ast[L(self)].token == Token::ITER_SPREAD || ast[L(self)].token == Token::OBJECT_SPREAD
     }
     // port: Node#isString
     pub fn is_string(self, ast: &Ast) -> bool {
-        ast[self].token == Token::STRINGLIT
+        ast[L(self)].token == Token::STRINGLIT
     }
     // port: Node#isStringKey
     pub fn is_string_key(self, ast: &Ast) -> bool {
-        ast[self].token == Token::STRING_KEY
+        ast[L(self)].token == Token::STRING_KEY
     }
     // port: Node#isStringLit
     pub fn is_string_lit(self, ast: &Ast) -> bool {
-        ast[self].token == Token::STRINGLIT
+        ast[L(self)].token == Token::STRINGLIT
     }
     // port: Node#isSuper
     pub fn is_super(self, ast: &Ast) -> bool {
-        ast[self].token == Token::SUPER
+        ast[L(self)].token == Token::SUPER
     }
     // port: Node#isSwitch
     pub fn is_switch(self, ast: &Ast) -> bool {
-        ast[self].token == Token::SWITCH
+        ast[L(self)].token == Token::SWITCH
     }
     // port: Node#isSwitchBody
     pub fn is_switch_body(self, ast: &Ast) -> bool {
-        ast[self].token == Token::SWITCH_BODY
+        ast[L(self)].token == Token::SWITCH_BODY
     }
     // port: Node#isTaggedTemplateLit
     pub fn is_tagged_template_lit(self, ast: &Ast) -> bool {
-        ast[self].token == Token::TAGGED_TEMPLATELIT
+        ast[L(self)].token == Token::TAGGED_TEMPLATELIT
     }
     // port: Node#isTemplateLit
     pub fn is_template_lit(self, ast: &Ast) -> bool {
-        ast[self].token == Token::TEMPLATELIT
+        ast[L(self)].token == Token::TEMPLATELIT
     }
     // port: Node#isTemplateLitString
     pub fn is_template_lit_string(self, ast: &Ast) -> bool {
-        ast[self].token == Token::TEMPLATELIT_STRING
+        ast[L(self)].token == Token::TEMPLATELIT_STRING
     }
     // port: Node#isTemplateLitSub
     pub fn is_template_lit_sub(self, ast: &Ast) -> bool {
-        ast[self].token == Token::TEMPLATELIT_SUB
+        ast[L(self)].token == Token::TEMPLATELIT_SUB
     }
     // port: Node#isThis
     pub fn is_this(self, ast: &Ast) -> bool {
-        ast[self].token == Token::THIS
+        ast[L(self)].token == Token::THIS
     }
     // port: Node#isThrow
     pub fn is_throw(self, ast: &Ast) -> bool {
-        ast[self].token == Token::THROW
+        ast[L(self)].token == Token::THROW
     }
     // port: Node#isTrue
     pub fn is_true(self, ast: &Ast) -> bool {
-        ast[self].token == Token::TRUE
+        ast[L(self)].token == Token::TRUE
     }
     // port: Node#isTry
     pub fn is_try(self, ast: &Ast) -> bool {
-        ast[self].token == Token::TRY
+        ast[L(self)].token == Token::TRY
     }
     // port: Node#isTypeOf
     pub fn is_type_of(self, ast: &Ast) -> bool {
-        ast[self].token == Token::TYPEOF
+        ast[L(self)].token == Token::TYPEOF
     }
     // port: Node#isVar
     pub fn is_var(self, ast: &Ast) -> bool {
-        ast[self].token == Token::VAR
+        ast[L(self)].token == Token::VAR
     }
     // port: Node#isVoid
     pub fn is_void(self, ast: &Ast) -> bool {
-        ast[self].token == Token::VOID
+        ast[L(self)].token == Token::VOID
     }
     // port: Node#isWhile
     pub fn is_while(self, ast: &Ast) -> bool {
-        ast[self].token == Token::WHILE
+        ast[L(self)].token == Token::WHILE
     }
     // port: Node#isWith
     pub fn is_with(self, ast: &Ast) -> bool {
-        ast[self].token == Token::WITH
+        ast[L(self)].token == Token::WITH
     }
     // port: Node#isYield
     pub fn is_yield(self, ast: &Ast) -> bool {
-        ast[self].token == Token::YIELD
+        ast[L(self)].token == Token::YIELD
     }
     // port: Node#isDeclare
     pub fn is_declare(self, ast: &Ast) -> bool {
-        ast[self].token == Token::DECLARE
+        ast[L(self)].token == Token::DECLARE
     }
 }
 fn arc_option_ptr_eq<T: ?Sized>(a: &Option<Arc<T>>, b: &Option<Arc<T>>) -> bool {

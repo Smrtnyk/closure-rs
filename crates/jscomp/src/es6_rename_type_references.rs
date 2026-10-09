@@ -23,8 +23,8 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{check_state, js_string::JsString, node::NodeId};
-use indexmap::IndexMap;
 
 /// Rust-only: Java's `Table<Node, String, String>` (a Guava `HashBasedTable`, used only through
 /// `put`, `get` and `isEmpty`): (scope root, original name) -> new name.

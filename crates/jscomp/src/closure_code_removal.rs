@@ -158,7 +158,7 @@ impl Callback for FindAbstractMethods {
                         n.get_first_child(t).unwrap(),
                         n,
                     ));
-            } else if n.get_jsdoc_info(t).is_some()
+            } else if n.get_jsdoc_info_ref(t).is_some()
                 && n.get_jsdoc_info(t).unwrap().is_abstract()
                 && NodeUtil::is_empty_function_expression(t, value_node)
                 && !n.get_jsdoc_info(t).unwrap().is_constructor()
@@ -172,7 +172,7 @@ impl Callback for FindAbstractMethods {
                     ));
             }
         } else if n.is_member_function_def(t) && parent.unwrap().is_class_members(t) {
-            if n.get_jsdoc_info(t).is_some() && n.get_jsdoc_info(t).unwrap().is_abstract() {
+            if n.get_jsdoc_info_ref(t).is_some() && n.get_jsdoc_info(t).unwrap().is_abstract() {
                 self.abstract_member_function_nodes.push(n);
             }
         }

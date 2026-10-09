@@ -56,8 +56,8 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{check_state, node::NodeId};
-use indexmap::IndexSet;
 
 /// Encapsulation of information about a variable declaration collapse
 struct Collapse {
@@ -87,7 +87,7 @@ impl CollapseVariableDeclarations {
         check_state!(!compiler.get_life_cycle_stage().is_normalized());
         Self {
             collapses: Vec::new(),
-            nodes_to_collapse: IndexSet::new(),
+            nodes_to_collapse: IndexSet::<_>::default(),
         }
     }
 

@@ -21,7 +21,7 @@ use crate::{
     check_level::CheckLevel, compiler_options::CompilerOptions, diagnostic_group::DiagnosticGroup,
     diagnostic_type::DiagnosticType,
 };
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::sync::{Arc, LazyLock, Mutex};
 pub static UNUSED: DiagnosticType = DiagnosticType::warning("JSC_UNUSED", "{0}");
 pub const WILDCARD_EXCLUDED_GROUPS: &[&str] = &[
@@ -36,8 +36,8 @@ struct Builtins {
     groups_by_name: IndexMap<String, Arc<DiagnosticGroup>>,
 }
 static BUILTINS: LazyLock<Builtins> = LazyLock::new(|| {
-    let mut fields: IndexMap<&'static str, Arc<DiagnosticGroup>> = IndexMap::new();
-    let mut groups_by_name = IndexMap::new();
+    let mut fields: IndexMap<&'static str, Arc<DiagnosticGroup>> = IndexMap::<_, _>::default();
+    let mut groups_by_name = IndexMap::<_, _>::default();
     let mut types: Vec<&'static DiagnosticType> = vec![];
     types.push(&crate::report_untranspilable_features::UNTRANSPILABLE_FEATURE_PRESENT);
     let group = Arc::new(DiagnosticGroup::new_named("untranspilableFeatures", &types));

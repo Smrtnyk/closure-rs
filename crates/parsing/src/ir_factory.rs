@@ -41,6 +41,7 @@ use crate::{
     },
     parsing_util::ParsingUtil,
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     error_reporter::ErrorReporter,
@@ -54,7 +55,6 @@ use closure_rhino::{
     token::Token,
     token_stream::TokenStream,
 };
-use indexmap::IndexSet;
 use std::{
     collections::{BTreeSet, VecDeque},
     sync::Arc,
@@ -178,8 +178,8 @@ impl<'a> IRFactory<'a> {
             error_reporter,
             transform_dispatcher: TransformDispatcher::default(),
             reserved_keywords,
-            parsed_comments: IndexSet::new(),
-            license_builder: IndexSet::new(),
+            parsed_comments: IndexSet::<_>::default(),
+            license_builder: IndexSet::<_>::default(),
             first_fileoverview: None,
             template_node: default_template_node,
             default_template_node,
@@ -530,7 +530,7 @@ impl<'a> IRFactory<'a> {
         if !n.is_param_list(ast) {
             return;
         }
-        let mut seen_names = IndexSet::new();
+        let mut seen_names = IndexSet::<_>::default();
         for c in n.children(ast) {
             ParsingUtil::get_param_or_pattern_names(ast, c, &mut |param| {
                 let param_name = param.get_string(ast);
@@ -760,7 +760,7 @@ impl<'a> IRFactory<'a> {
                         .as_ref()
                         .unwrap()
                         .value
-                        .index_of(&JsString::from("@license"))
+                        .index_of("@license")
                         >= 0
                     {
                         self.jsdoc_tracker.advance();
@@ -1445,7 +1445,7 @@ impl<'a> IRFactory<'a> {
                 break;
             }
             let directive = statement.get_first_child(ast).unwrap();
-            if !directive.is_string_lit(ast) || directive.get_string(ast) != "use strict" {
+            if !directive.is_string_lit(ast) || directive.get_string_ref(ast) != "use strict" {
                 break;
             }
             use_strict = true;
@@ -1651,7 +1651,7 @@ impl<'a> IRFactory<'a> {
         }
         if !Self::is_normal_or_opt_chain_get(ast, callee) {
             n.put_boolean_prop(ast, NodeId::FREE_CALL, true);
-            if callee.is_name(ast) && callee.get_string(ast) == "eval" {
+            if callee.is_name(ast) && callee.get_string_ref(ast) == "eval" {
                 callee.put_boolean_prop(ast, NodeId::DIRECT_EVAL, true);
             } else if callee.is_comma(ast) && callee.get_first_child(ast).unwrap().is_number(ast) {
                 let real_callee = callee.get_second_child(ast).unwrap();
@@ -3590,7 +3590,7 @@ impl<'a> IRFactory<'a> {
             }
             result.push(c);
             start = cur as usize + 1;
-            cur = value.index_of_from(&JsString::from("\\"), start as i32);
+            cur = value.index_of_from("\\", start as i32);
         }
         result.extend_from_slice(&value.as_units()[start..last_slash]);
         JsString::from_units(result)
@@ -3724,7 +3724,7 @@ impl<'a> IRFactory<'a> {
                 _ => result.push(c),
             }
             start = cur as usize + 1;
-            cur = value.index_of_from(&JsString::from("\\"), start as i32);
+            cur = value.index_of_from("\\", start as i32);
         }
         result.extend_from_slice(
             &value.as_units()[start..if template_literal {

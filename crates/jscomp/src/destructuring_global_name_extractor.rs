@@ -23,13 +23,13 @@ use crate::{
     global_namespace::{AstChange, Ref, RefBasedAstChange},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_state,
     ir::IR,
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::IndexSet;
 
 /// Helper for changing the value of an lvalue in a destructuring pattern. Intended for use by
 /// `InlineAndCollapseProperties.CollapseProperties` and

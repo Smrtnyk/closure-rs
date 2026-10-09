@@ -40,6 +40,7 @@
 use closure_jscomp::{
     compiler_pass::CompilerPass, process_closure_primitives::ProcessClosurePrimitives,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
@@ -51,7 +52,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 /// The overrides of ProcessClosurePrimitivesTest (getOptions, getProcessor).
@@ -70,7 +70,7 @@ impl ProcessClosurePrimitivesTest {
                 ctx: Ctx::new(
                     "ProcessClosurePrimitivesTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

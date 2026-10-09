@@ -52,8 +52,8 @@ use closure_jscomp::{
     renaming_map::RenamingMap,
     replace_css_names::ReplaceCssNames,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.ReplaceCssNamesTest_Helpers";
@@ -146,7 +146,7 @@ impl NativeObject for TestCssRenamingMap {
     }
     // port: UnitRecorder#collect (the anonymous maps have no fields of their own)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
@@ -168,7 +168,7 @@ impl NativeObject for ReplaceCssNamesTestHelpers {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "useReplacementMap".into(),
             DslValue::Bool(self.use_replacement_map),
@@ -285,7 +285,7 @@ impl NativeObject for NativeReplaceCssNames {
     }
     // port: UnitRecorder#collect (no recorded result producer is reachable from this pass)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: ReplaceCssNames#process
     fn process(
@@ -334,7 +334,7 @@ pub fn get_processor(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslValue, Th
                 let DslValue::Set(items) = items else {
                     return Err(bad());
                 };
-                let mut set = IndexSet::new();
+                let mut set = IndexSet::<_>::default();
                 for item in items {
                     let DslValue::String(s) = item else {
                         return Err(bad());

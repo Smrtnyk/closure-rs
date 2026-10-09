@@ -25,12 +25,12 @@ use crate::{
     diagnostic_type::DiagnosticType,
     node_traversal::{Callback, NodeTraversal},
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     js_string::JsString,
     node::{NodeId, Prop},
     token::Token,
 };
-use indexmap::IndexMap;
 
 // port: CheckEs6Modules#DUPLICATE_IMPORT
 pub static DUPLICATE_IMPORT: DiagnosticType = DiagnosticType::warning(
@@ -52,7 +52,7 @@ impl CheckEs6Modules {
     // port: CheckEs6Modules#CheckEs6Modules
     pub fn new(_compiler: &AbstractCompiler) -> Self {
         Self {
-            import_specifiers: IndexMap::new(),
+            import_specifiers: IndexMap::<_, _>::default(),
         }
     }
 

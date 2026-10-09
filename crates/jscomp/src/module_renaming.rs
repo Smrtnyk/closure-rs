@@ -254,7 +254,7 @@ impl GlobalizedModuleName {
     /// Returns a copy of this name with the given `property` appended to the `alias_name`
     // port: ModuleRenaming.GlobalizedModuleName#getprop
     pub fn getprop(&self, property: &JsString) -> GlobalizedModuleName {
-        check_argument!(!property.is_empty() && property.index_of(&JsString::from(".")) < 0);
+        check_argument!(!property.is_empty() && property.index_of(".") < 0);
         GlobalizedModuleName::create_from_name(
             self.alias_name().getprop(property.clone()),
             self.root_name_type(),

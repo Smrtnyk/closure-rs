@@ -52,6 +52,7 @@ use crate::{
     scope::ScopeId,
     syntactic_scope_creator::{RedeclarationHandler, SyntacticScopeCreator},
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_argument, check_state,
     ir::IR,
@@ -59,7 +60,6 @@ use closure_rhino::{
     node::{Ast, NodeId, Prop},
     token::Token,
 };
-use indexmap::IndexSet;
 use std::rc::Rc;
 
 pub struct Normalize {
@@ -221,7 +221,7 @@ impl Callback for PropagateConstantPropertyOverVars {
     // port: Normalize.PropagateConstantPropertyOverVars#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
         // Note: Constant properties annotations are not propagated.
-        if !n.is_name(t) || n.get_string(t).is_empty() {
+        if !n.is_name(t) || n.get_string_ref(t).is_empty() {
             return;
         }
 
@@ -924,7 +924,7 @@ impl<'a> DuplicateDeclarationHandler<'a> {
     fn new(normalize: &'a Normalize) -> Self {
         Self {
             normalize,
-            has_ok_duplicate_declaration: IndexSet::new(),
+            has_ok_duplicate_declaration: IndexSet::<_>::default(),
         }
     }
 

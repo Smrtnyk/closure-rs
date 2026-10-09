@@ -36,7 +36,7 @@ impl IdentifierToken {
     // port: IdentifierToken#<init>
     #[allow(clippy::new_ret_no_self)]
     pub fn new(location: SourceRange, value: JsString) -> Token {
-        let private_identifier = value.starts_with(&JsString::from("#"));
+        let private_identifier = value.starts_with("#");
         Token {
             type_: TokenType::IDENTIFIER,
             location,

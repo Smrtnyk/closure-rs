@@ -42,8 +42,8 @@ use super::abstract_static_scope::AbstractStaticScope;
 use crate::TypeId;
 use crate::simple_slot::SimpleSlot;
 use crate::static_typed_slot::StaticTypedSlot;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 
 #[derive(Clone, Debug)]
 pub struct MapBasedScope {
@@ -52,7 +52,7 @@ pub struct MapBasedScope {
 impl MapBasedScope {
     // port: MapBasedScope#MapBasedScope
     pub fn new(names_to_types: impl IntoIterator<Item = (JsString, TypeId)>) -> Self {
-        let mut slots = IndexMap::new();
+        let mut slots = IndexMap::<_, _>::default();
         for (name, type_) in names_to_types {
             slots.insert(name.clone(), SimpleSlot::new(name, Some(type_), false));
         }

@@ -31,13 +31,13 @@ use crate::{
     node_util::{MatchDeclaration, MatchShallowStatement, NodeUtil},
     scope::Scope,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_state,
     js_string::JsString,
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{
     rc::Rc,
     sync::{
@@ -83,13 +83,13 @@ impl FunctionInjector {
             assume_minimum_capture: builder.assume_minimum_capture,
             allow_decomposition: builder.allow_decomposition,
             function_argument_injector: builder.function_argument_injector.unwrap(),
-            known_constant_functions: IndexSet::new(),
+            known_constant_functions: IndexSet::<_>::default(),
             // port: FunctionInjector.<anonymous>#get (throwawayNameSupplier)
             throwaway_name_supplier: Arc::new(move || {
                 next_id.fetch_add(1, Ordering::SeqCst).to_string()
             }),
-            references_eval_cache: IndexMap::new(),
-            inner_function_cache: IndexMap::new(),
+            references_eval_cache: IndexMap::<_, _>::default(),
+            inner_function_cache: IndexMap::<_, _>::default(),
         }
     }
 }
@@ -534,7 +534,7 @@ impl FunctionInjector {
                 call_node,
                 &*self.safe_name_id_supplier,
             );
-        let mut param_replacements: IndexMap<JsString, NodeId> = IndexMap::new();
+        let mut param_replacements: IndexMap<JsString, NodeId> = IndexMap::<_, _>::default();
         for (key, value) in &param_to_arg_map {
             param_replacements.insert(key.clone(), value.arg());
         }
@@ -859,8 +859,8 @@ impl FunctionInjector {
         let result = NodeUtil::has(
             ast,
             r#fn,
-            &|ast, n| n.is_name(ast) && n.get_string(ast) == "eval", // Match predicate
-            &|ast, n| !n.is_function(ast) || n == r#fn,              // Explore node predicate
+            &|ast, n| n.is_name(ast) && n.get_string_ref(ast) == "eval", // Match predicate
+            &|ast, n| !n.is_function(ast) || n == r#fn,                  // Explore node predicate
         );
         self.references_eval_cache.insert(r#fn, result);
         result

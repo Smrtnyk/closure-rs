@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/DiagnosticGroup.java.
 
 use crate::{diagnostic_type::DiagnosticType, js_error::JSError};
-use indexmap::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::{
     fmt,
     sync::{Arc, LazyLock, Mutex},
@@ -28,7 +28,7 @@ pub struct DiagnosticGroup {
     name: Option<String>,
 }
 static SINGLETONS: LazyLock<Mutex<IndexMap<&'static DiagnosticType, Arc<DiagnosticGroup>>>> =
-    LazyLock::new(|| Mutex::new(IndexMap::new()));
+    LazyLock::new(|| Mutex::new(IndexMap::<_, _>::default()));
 impl DiagnosticGroup {
     // port: DiagnosticGroup#DiagnosticGroup(DiagnosticType...)
     pub fn new(types: &[&'static DiagnosticType]) -> Self {

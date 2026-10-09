@@ -43,13 +43,13 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_state,
     js_string::JsString,
     node::{NodeId, Prop},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 
 // port: CheckNoMutatedEs6Exports#MUTATED_EXPORT
 pub static MUTATED_EXPORT: DiagnosticType = DiagnosticType::warning(
@@ -108,7 +108,7 @@ impl CheckNoMutatedEs6Exports {
     pub fn new(_compiler: &AbstractCompiler) -> Self {
         Self {
             mutated_names: MutatedNames::new(),
-            exported_local_names: IndexSet::new(),
+            exported_local_names: IndexSet::<_>::default(),
         }
     }
 
@@ -176,7 +176,7 @@ impl CheckNoMutatedEs6Exports {
                     return;
                 }
                 let name_node = declaration.get_first_child(compiler).unwrap();
-                if !name_node.is_empty(compiler) && !name_node.get_string(compiler).is_empty() {
+                if !name_node.is_empty(compiler) && !name_node.get_string_ref(compiler).is_empty() {
                     self.exported_local_names
                         .insert(name_node.get_string(compiler));
                 }

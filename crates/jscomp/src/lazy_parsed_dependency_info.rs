@@ -26,7 +26,7 @@ use crate::{
     js_error::JSError,
 };
 use closure_parsing::parser::feature_set::Feature;
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 
 /// A DependencyInfo class that determines load flags by parsing the AST just-in-time.
 ///
@@ -70,7 +70,7 @@ impl LazyParsedDependencyInfo {
                 .as_ref()
                 .expect("ast is cleared only after loadFlags is set");
             // TreeMap: sorted on insertion below.
-            let mut load_flags_builder: IndexMap<String, String> = IndexMap::new();
+            let mut load_flags_builder: IndexMap<String, String> = IndexMap::<_, _>::default();
             let had_source_in_memory = ast.get_source_file().has_source_in_memory();
             load_flags_builder.extend(
                 self.delegate

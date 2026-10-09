@@ -33,11 +33,11 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_state, ir::IR, js_string::JsString, jsdoc_info::JSDocInfo, node::NodeId,
     static_source_file::StaticSourceFile, token::Token,
 };
-use indexmap::IndexMap;
 
 // port: RewriteJsonToModule#JSON_UNEXPECTED_TOKEN
 pub static JSON_UNEXPECTED_TOKEN: DiagnosticType =
@@ -54,7 +54,7 @@ impl RewriteJsonToModule {
     // port: RewriteJsonToModule#RewriteJsonToModule
     pub fn new() -> Self {
         Self {
-            package_json_main_entries: IndexMap::new(),
+            package_json_main_entries: IndexMap::<_, _>::default(),
         }
     }
 

@@ -65,22 +65,24 @@ impl JsString {
         self.substring(b, self.length())
     }
     // port: String#indexOf(String)
-    pub fn index_of(&self, needle: &Self) -> i32 {
+    pub fn index_of(&self, needle: impl JsStrLike) -> i32 {
         self.index_of_from(needle, 0)
     }
     // port: String#indexOf(String, int)
-    pub fn index_of_from(&self, needle: &Self, from: i32) -> i32 {
-        let b = (from.max(0) as usize).min(self.length());
-        if needle.is_empty() {
-            return b as i32;
-        }
-        if needle.length() > self.length() - b {
-            return -1;
-        }
-        self.0[b..]
-            .windows(needle.length())
-            .position(|v| v == needle.as_units())
-            .map_or(-1, |i| (b + i) as i32)
+    pub fn index_of_from(&self, needle: impl JsStrLike, from: i32) -> i32 {
+        needle.with_units(|needle| {
+            let b = (from.max(0) as usize).min(self.length());
+            if needle.is_empty() {
+                return b as i32;
+            }
+            if needle.len() > self.length() - b {
+                return -1;
+            }
+            self.0[b..]
+                .windows(needle.len())
+                .position(|v| v == needle)
+                .map_or(-1, |i| (b + i) as i32)
+        })
     }
     // port: String#indexOf(int)
     pub fn index_of_char(&self, c: u16) -> i32 {
@@ -94,25 +96,28 @@ impl JsString {
             .map_or(-1, |i| i as i32)
     }
     // port: String#lastIndexOf(String)
-    pub fn last_index_of(&self, needle: &Self) -> i32 {
-        if needle.is_empty() {
-            return self.length() as i32;
-        }
-        if needle.length() > self.length() {
-            return -1;
-        }
-        self.as_units()
-            .windows(needle.length())
-            .rposition(|value| value == needle.as_units())
-            .map_or(-1, |index| index as i32)
+    pub fn last_index_of(&self, needle: impl JsStrLike) -> i32 {
+        needle.with_units(|needle| {
+            if needle.is_empty() {
+                return self.length() as i32;
+            }
+            if needle.len() > self.length() {
+                return -1;
+            }
+            self.as_units()
+                .windows(needle.len())
+                .rposition(|value| value == needle)
+                .map_or(-1, |index| index as i32)
+        })
     }
     // port: String#startsWith
-    pub fn starts_with(&self, s: &Self) -> bool {
-        self.0.starts_with(&s.0)
+    pub fn starts_with(&self, s: impl JsStrLike) -> bool {
+        // (Any string form: callers need not allocate a JsString for a literal.)
+        s.with_units(|s| self.0.starts_with(s))
     }
     // port: String#endsWith
-    pub fn ends_with(&self, s: &Self) -> bool {
-        self.0.ends_with(&s.0)
+    pub fn ends_with(&self, s: impl JsStrLike) -> bool {
+        s.with_units(|s| self.0.ends_with(s))
     }
     // port: String#isEmpty
     pub fn is_empty(&self) -> bool {
@@ -173,6 +178,43 @@ impl JsString {
         String::from_utf16_lossy(&self.0)
     }
 }
+/// Rust-only: a string argument compared against JS strings without allocating a `JsString`
+/// (Java passes `String`s, which need no conversion).
+pub trait JsStrLike {
+    /// Calls `f` with the UTF-16 code units of the string.
+    fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R;
+}
+impl JsStrLike for str {
+    fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R {
+        // A str of n bytes has at most n UTF-16 code units.
+        let mut buf = [0u16; 128];
+        if self.len() <= buf.len() {
+            let mut n = 0;
+            for unit in self.encode_utf16() {
+                buf[n] = unit;
+                n += 1;
+            }
+            f(&buf[..n])
+        } else {
+            f(&self.encode_utf16().collect::<Vec<_>>())
+        }
+    }
+}
+impl JsStrLike for String {
+    fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R {
+        self.as_str().with_units(f)
+    }
+}
+impl JsStrLike for JsString {
+    fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R {
+        f(self.as_units())
+    }
+}
+impl<T: JsStrLike + ?Sized> JsStrLike for &T {
+    fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R {
+        (**self).with_units(f)
+    }
+}
 impl From<&str> for JsString {
     fn from(s: &str) -> Self {
         Self::from_units(s.encode_utf16().collect::<Vec<_>>())
@@ -211,7 +253,8 @@ impl PartialOrd for JsString {
 }
 impl PartialEq<str> for JsString {
     fn eq(&self, s: &str) -> bool {
-        self.0.iter().copied().eq(s.encode_utf16())
+        // A str of n bytes has at most n UTF-16 code units (cheap early exit).
+        self.0.len() <= s.len() && self.0.iter().copied().eq(s.encode_utf16())
     }
 }
 impl PartialEq<&str> for JsString {

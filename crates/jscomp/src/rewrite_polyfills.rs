@@ -36,8 +36,8 @@ use crate::{
 };
 use closure_parsing::parser::feature_set::FeatureSet;
 use closure_resources::resources::resource_loader::ResourceLoader;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{ir::IR, node::NodeId, qualified_name::QualifiedName};
-use indexmap::IndexSet;
 use std::sync::{Arc, LazyLock, Mutex};
 
 // port: RewritePolyfills#INSUFFICIENT_OUTPUT_VERSION_ERROR
@@ -277,7 +277,7 @@ impl CompilerPass for RewritePolyfills {
             return;
         }
         if self.inject_polyfills {
-            self.libraries = Some(IndexSet::new());
+            self.libraries = Some(IndexSet::<_>::default());
             let finder = PolyfillUsageFinder::new(Arc::clone(&self.polyfills));
             finder.traverse_excluding_guarded(compiler, root, &mut |compiler, usage| {
                 self.inject(compiler, usage)

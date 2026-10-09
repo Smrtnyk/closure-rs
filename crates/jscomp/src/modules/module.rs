@@ -21,8 +21,8 @@ use crate::{
     deps::module_loader::ModulePath,
     modules::{binding::Binding, export::Export, module_metadata_map::ModuleMetadata},
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 use std::sync::Arc;
 
 /// Information for modules, particularly ES modules, that is useful for rewriting. The primary

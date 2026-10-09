@@ -68,6 +68,7 @@ use closure_jstype::{
     template_type_map::TemplateTypeMap,
     template_type_replacer::TemplateTypeReplacer,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     input_id::InputId,
@@ -77,7 +78,6 @@ use closure_rhino::{
     qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -364,7 +364,10 @@ impl TypedScopeCreator {
         let metadata_map = if compiler.get_module_metadata_map().is_some() {
             compiler.get_module_metadata_map().unwrap().clone()
         } else {
-            Arc::new(ModuleMetadataMap::new(IndexMap::new(), IndexMap::new()))
+            Arc::new(ModuleMetadataMap::new(
+                IndexMap::<_, _>::default(),
+                IndexMap::<_, _>::default(),
+            ))
         };
         let module_map = compiler.get_module_map().cloned();
         let module_import_resolver = ModuleImportResolver::new(module_map.clone());
@@ -376,16 +379,16 @@ impl TypedScopeCreator {
             metadata_map,
             module_import_resolver,
             process_closure_primitives,
-            memoized: IndexMap::new(),
-            reserved_names_for_scope: IndexMap::new(),
-            functions_with_non_empty_returns: IndexSet::new(),
-            escaped_var_names: IndexSet::new(),
-            assigned_var_names: IndexMap::new(),
+            memoized: IndexMap::<_, _>::default(),
+            reserved_names_for_scope: IndexMap::<_, _>::default(),
+            functions_with_non_empty_returns: IndexSet::<_>::default(),
+            escaped_var_names: IndexSet::<_>::default(),
+            assigned_var_names: IndexMap::<_, _>::default(),
             unknown_type,
             weak_imports: Vec::new(),
             unresolved_nodes: Vec::new(),
-            undeclared_names_for_closure: IndexSet::new(),
-            provided_names_from_call: IndexMap::new(),
+            undeclared_names_for_closure: IndexSet::<_>::default(),
+            provided_names_from_call: IndexMap::<_, _>::default(),
             stage: Stage::BUILDING,
         };
 
@@ -533,10 +536,12 @@ impl TypedScopeCreator {
             // name is declared, pre-populate this TypedScope with all qualified name roots. This
             // prevents type resolution from accidentally returning a type from an outer scope that
             // is shadowed.
-            let mut reserved_names = IndexSet::new();
+            let mut reserved_names = IndexSet::<_>::default();
+            // Java HashMap#remove; the map is never iterated, so the O(1) swap_remove keeps
+            // the output (shift_remove is O(n) per call).
             reserved_names.extend(
                 self.reserved_names_for_scope
-                    .shift_remove(&root)
+                    .swap_remove(&root)
                     .unwrap_or_default(),
             );
             if module.is_some() && module.as_ref().unwrap().metadata().is_goog_module() {
@@ -905,14 +910,14 @@ impl TypedScopeCreator {
 
     // port: TypedScopeCreator#clearCommonState
     fn clear_common_state(&mut self) {
-        self.reserved_names_for_scope = IndexMap::new();
-        self.functions_with_non_empty_returns = IndexSet::new();
-        self.escaped_var_names = IndexSet::new();
-        self.assigned_var_names = IndexMap::new();
+        self.reserved_names_for_scope = IndexMap::<_, _>::default();
+        self.functions_with_non_empty_returns = IndexSet::<_>::default();
+        self.escaped_var_names = IndexSet::<_>::default();
+        self.assigned_var_names = IndexMap::<_, _>::default();
         self.weak_imports = Vec::new();
         self.unresolved_nodes = Vec::new();
-        self.undeclared_names_for_closure = IndexSet::new();
-        self.provided_names_from_call = IndexMap::new();
+        self.undeclared_names_for_closure = IndexSet::<_>::default();
+        self.provided_names_from_call = IndexMap::<_, _>::default();
     }
 
     // port: TypedScopeCreator#getNativeType
@@ -4771,7 +4776,7 @@ impl AbstractScopeBuilder<'_> {
         // scope. (they were already registered as types by FunctionTypeBuilder, but they need to be
         // in a TypedScope to let JSTypeRegistry correctly handle scoping).
         let info = NodeUtil::get_best_jsdoc_info(compiler, function_node);
-        let mut template_names: IndexSet<JsString> = IndexSet::new();
+        let mut template_names: IndexSet<JsString> = IndexSet::<_>::default();
 
         let is_possible_prototype_method = {
             let (reg, _) = compiler.get_type_registry_and_ast();
@@ -5113,7 +5118,7 @@ impl AbstractScopeBuilder<'_> {
         {
             let parent = parent.expect("NullPointerException");
             // Declare bleeding class name in scope.  Pull the type off the AST.
-            check_state!(!n.get_string(compiler).is_empty()); // anonymous classes have EMPTY nodes, not NAME
+            check_state!(!n.get_string_ref(compiler).is_empty()); // anonymous classes have EMPTY nodes, not NAME
             let current_scope = self.current_scope;
             let parent_type = parent.get_jstype(compiler);
             SlotDefiner::new()
@@ -5671,7 +5676,8 @@ impl AbstractScopeBuilder<'_> {
         if let Some(count) = self.creator.assigned_var_names.get_mut(&scoped_name) {
             *count -= 1;
             if *count == 0 {
-                self.creator.assigned_var_names.shift_remove(&scoped_name);
+                // Never iterated: O(1) swap_remove instead of Java-order shift_remove.
+                self.creator.assigned_var_names.swap_remove(&scoped_name);
             }
         } // free up memory
         var

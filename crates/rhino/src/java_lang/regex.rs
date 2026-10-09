@@ -124,8 +124,8 @@
 //   java.base/java/util/regex/PatternSyntaxException.java.
 
 //! JDK 21 Pattern/Matcher subset used by jscomp.deps. No flags are enabled.
+use crate::fast_hash::IndexMap;
 use crate::js_string::JsString;
-use indexmap::IndexMap;
 use std::sync::Arc;
 #[path = "regex_categories.rs"]
 mod categories;
@@ -572,7 +572,7 @@ impl Pattern {
             chars: regex.chars().collect(),
             cursor: 0,
             groups: 0,
-            named_groups: IndexMap::new(),
+            named_groups: IndexMap::<_, _>::default(),
         };
         let expr = parser.expr()?;
         if parser.cursor != parser.chars.len() {

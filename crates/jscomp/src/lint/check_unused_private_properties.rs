@@ -27,6 +27,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_state,
     js_string::JsString,
@@ -34,7 +35,6 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::IndexSet;
 
 // port: CheckUnusedPrivateProperties#UNUSED_PRIVATE_PROPERTY
 pub static UNUSED_PRIVATE_PROPERTY: DiagnosticType = DiagnosticType::disabled(
@@ -52,9 +52,9 @@ impl CheckUnusedPrivateProperties {
     // port: CheckUnusedPrivateProperties#CheckUnusedPrivateProperties
     pub fn new(_compiler: &AbstractCompiler) -> Self {
         Self {
-            used: IndexSet::new(),
+            used: IndexSet::<_>::default(),
             candidates: Vec::new(),
-            constructors_and_interfaces: IndexSet::new(),
+            constructors_and_interfaces: IndexSet::<_>::default(),
         }
     }
 
@@ -118,7 +118,7 @@ impl CheckUnusedPrivateProperties {
             || target
                 .get_qualified_name(ast)
                 .is_some_and(|q| self.constructors_and_interfaces.contains(&q))
-            || (target.is_get_prop(ast) && target.get_string(ast) == "prototype")
+            || (target.is_get_prop(ast) && target.get_string_ref(ast) == "prototype")
     }
 
     /// @return Whether the property is used in a way that prevents its removal.

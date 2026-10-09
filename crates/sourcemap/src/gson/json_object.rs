@@ -16,8 +16,8 @@
 // Ported from Gson 2.9.1 (https://github.com/google/gson): com/google/gson/JsonObject.java.
 
 use super::JsonElement;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct JsonObject {
     pub members: IndexMap<JsString, JsonElement>,
@@ -26,7 +26,7 @@ impl JsonObject {
     // port: com.google.gson.JsonObject#JsonObject
     pub fn new() -> Self {
         Self {
-            members: IndexMap::new(),
+            members: IndexMap::<_, _>::default(),
         }
     }
 

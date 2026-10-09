@@ -36,7 +36,7 @@ struct Harness {
     err_reader: Capture,
     exit_codes: Arc<Mutex<Vec<i32>>>,
     last_command_line_runner: Option<CommandLineRunner>,
-    filenames: indexmap::IndexMap<usize, String>,
+    filenames: closure_rhino::fast_hash::IndexMap<usize, String>,
     externs: Vec<closure_jscomp::source_file::SourceFile>,
 }
 impl Harness {
@@ -50,7 +50,7 @@ impl Harness {
             err_reader: Capture::default(),
             exit_codes: Arc::new(Mutex::new(vec![])),
             last_command_line_runner: None,
-            filenames: indexmap::IndexMap::new(),
+            filenames: closure_rhino::fast_hash::IndexMap::<_, _>::default(),
             externs: default_externs(),
         }
     }
@@ -2017,11 +2017,7 @@ fn test_es5_strict_use_strict() {
         "--emit_use_strict=true".into(),
     ]);
     h.compile_sources(&["var x = f.function"]);
-    assert!(
-        h.get_compiler()
-            .to_source()
-            .starts_with(&closure_rhino::js_string::JsString::from("'use strict'"))
-    );
+    assert!(h.get_compiler().to_source().starts_with("'use strict'"));
 }
 // port: CommandLineRunnerTest#testES5StrictUseStrictMultipleInputs
 #[test]
@@ -2038,7 +2034,7 @@ fn test_es5_strict_use_strict_multiple_inputs() {
         "var z = f.function",
     ]);
     let output = h.get_compiler().to_source();
-    assert!(output.starts_with(&closure_rhino::js_string::JsString::from("'use strict'")));
+    assert!(output.starts_with("'use strict'"));
     assert!(
         !output
             .substring_from(13)

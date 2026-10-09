@@ -30,8 +30,8 @@ use crate::{
     },
     throwable::Throwable,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 // port: ReplayIntegrationTest#replay
 pub fn replay(

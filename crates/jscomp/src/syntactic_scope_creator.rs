@@ -1,4 +1,5 @@
 /*
+ * Copyright 2009 The Closure Compiler Authors.
  * Copyright 2014 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,16 +15,17 @@
  * limitations under the License.
  */
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+//   src/com/google/javascript/jscomp/AbstractCompiler.java,
 //   src/com/google/javascript/jscomp/SyntacticScopeCreator.java.
 
 use crate::{
     abstract_compiler::AbstractCompiler, compiler_input::CompilerInput, node_util::NodeUtil,
     scope::ScopeId, scope_creator::ScopeCreator,
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_not_null, check_state, input_id::InputId, js_string::JsString, node::NodeId, token::Token,
 };
-use indexmap::IndexSet;
 use std::sync::Arc;
 
 pub struct SyntacticScopeCreator<'a> {
@@ -108,6 +110,9 @@ struct ScopeScanner<'a> {
     treat_provides_as_redeclarations: bool,
     input_id: Option<Arc<InputId>>,
     change_root_set: Option<IndexSet<NodeId>>,
+    /// Rust-only: `compiler.getInput(inputId)` for the `input_id` it was looked up with, so that
+    /// each declaration needs no lookup by id (D-025).
+    input_cache: Option<(Arc<InputId>, Option<CompilerInput>)>,
 }
 
 impl<'a> ScopeScanner<'a> {
@@ -126,7 +131,21 @@ impl<'a> ScopeScanner<'a> {
             treat_provides_as_redeclarations,
             input_id: None,
             change_root_set,
+            input_cache: None,
         }
+    }
+
+    // port: AbstractCompiler#getInput (for the scanner's current input id)
+    fn current_input(&mut self, compiler: &AbstractCompiler) -> Option<CompilerInput> {
+        let input_id = self.input_id.as_ref()?;
+        if let Some((cached_id, input)) = &self.input_cache
+            && Arc::ptr_eq(cached_id, input_id)
+        {
+            return input.clone();
+        }
+        let input = compiler.get_input(input_id).cloned();
+        self.input_cache = Some((Arc::clone(input_id), input.clone()));
+        input
     }
 
     // port: SyntacticScopeCreator.ScopeScanner#populate
@@ -232,7 +251,7 @@ impl<'a> ScopeScanner<'a> {
                     return;
                 }
                 let fn_name_node = check_not_null!(n.get_first_child(compiler));
-                if fn_name_node.get_string(compiler).is_empty() {
+                if fn_name_node.get_string_ref(compiler).is_empty() {
                     return;
                 }
                 self.declare_var(compiler, check_not_null!(block_scope), fn_name_node);
@@ -243,7 +262,7 @@ impl<'a> ScopeScanner<'a> {
                     return;
                 }
                 let class_name_node = check_not_null!(n.get_first_child(compiler));
-                if class_name_node.get_string(compiler).is_empty() {
+                if class_name_node.get_string_ref(compiler).is_empty() {
                     return;
                 }
                 self.declare_var(compiler, check_not_null!(block_scope), class_name_node);
@@ -357,11 +376,7 @@ impl<'a> ScopeScanner<'a> {
                 var = None;
             }
         }
-        let input = self
-            .input_id
-            .as_deref()
-            .and_then(|input_id| compiler.get_input(input_id))
-            .cloned();
+        let input = self.current_input(compiler);
         if var.is_some()
             || !Self::is_shadowing_allowed(compiler, &name, s)
             || ((s.is_function_scope(compiler) || s.is_function_block_scope(compiler))

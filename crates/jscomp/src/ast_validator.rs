@@ -1252,14 +1252,14 @@ impl<'h> AstValidator<'h> {
 
     // port: AstValidator#validateNonEmptyString
     fn validate_non_empty_string(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
-        if self.validate_non_null_string(compiler, n) && n.get_string(compiler).is_empty() {
+        if self.validate_non_null_string(compiler, n) && n.get_string_ref(compiler).is_empty() {
             self.violation(compiler, "Expected non-empty string.", n);
         }
     }
 
     // port: AstValidator#validateEmptyString
     fn validate_empty_string(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
-        if self.validate_non_null_string(compiler, n) && !n.get_string(compiler).is_empty() {
+        if self.validate_non_null_string(compiler, n) && !n.get_string_ref(compiler).is_empty() {
             self.violation(compiler, "Expected empty string.", n);
         }
     }
@@ -1293,7 +1293,7 @@ impl<'h> AstValidator<'h> {
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
         // A Rust string node never holds null.
-        let is_empty = n.get_string(compiler).is_empty();
+        let is_empty = n.get_string_ref(compiler).is_empty();
         if !is_empty {
             self.validate_type_information(compiler, n);
         }

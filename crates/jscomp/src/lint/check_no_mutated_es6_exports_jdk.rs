@@ -27,14 +27,14 @@
 //! The `java.util.HashMap` behaviour of [`MutatedNames`]: its table size and key iteration order.
 
 use super::MutatedNames;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 
 impl MutatedNames {
     // port: HashMap#HashMap(int) via Maps#newHashMapWithExpectedSize(8)
     pub(super) fn new() -> Self {
         Self {
-            entries: IndexMap::new(),
+            entries: IndexMap::<_, _>::default(),
             table_capacity: 16,
         }
     }

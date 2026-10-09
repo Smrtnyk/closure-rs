@@ -36,13 +36,13 @@ use closure_jscomp::{
     type_check::TypeCheck,
 };
 use closure_jstype::js_type::{JSType, Nullability};
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     ir::IR,
     js_string::JsString,
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::IndexSet;
 use std::sync::Arc;
 
 type NodeFinder = Box<dyn Fn(&mut Compiler, NodeId) -> NodeId>;
@@ -59,7 +59,7 @@ impl ExpressionDecomposerTest {
     // port: ExpressionDecomposerTest#setUp
     fn set_up() -> Self {
         Self {
-            known_constants: IndexSet::new(),
+            known_constants: IndexSet::<_>::default(),
             should_test_types: true,
             language_out: None,
         }

@@ -42,6 +42,7 @@ use closure_jscomp::{
     deps::module_loader::LOAD_WARNING,
     rewrite_goog_js_imports::{GOOG_JS_IMPORT_MUST_BE_GOOG_STAR, GOOG_JS_REEXPORTED},
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
     jscomp_api::SourceFile,
@@ -52,7 +53,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::sync::Arc;
 
 struct Hooks {
@@ -81,7 +81,7 @@ fn set_up() -> (CompilerTestCase, Hooks) {
         ctx: Ctx::new(
             "RewriteGoogJsImportsTest".into(),
             closure_testing::replay::replay_values::object([]),
-            IndexMap::new(),
+            IndexMap::<_, _>::default(),
             Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n").unwrap(),
         ),
     };

@@ -29,11 +29,11 @@
 
 use std::sync::Arc;
 
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId, Prop, SideEffectFlags};
 use closure_rhino::{check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 
 use crate::abstract_compiler::AbstractCompiler;
 use crate::ast_factory::{AstFactory, Type};
@@ -168,7 +168,7 @@ impl ReplaceMessages {
     pub fn get_replacement_completion_pass(self) -> ReplacementCompletionPass {
         ReplacementCompletionPass {
             outer: self,
-            translated_msg_keys: IndexSet::new(),
+            translated_msg_keys: IndexSet::<_>::default(),
         }
     }
 
@@ -278,7 +278,7 @@ impl ReplaceMessages {
             .and_then(|input_id| compiler.get_input(&input_id).cloned())
             .expect("NullPointerException: compiler.getInput(NodeUtil.getInputId(nodeToReplace))");
         let unique_id = compiler.get_unique_id_supplier().get_unique_id(&input);
-        let mut placeholder_map_ids: IndexMap<JsString, JsString> = IndexMap::new();
+        let mut placeholder_map_ids: IndexMap<JsString, JsString> = IndexMap::<_, _>::default();
         for placeholder_name in placeholder_map.keys() {
             let placeholder_id = placeholder_name.concat(&JsString::from(unique_id.as_str()));
             let name =
@@ -918,7 +918,7 @@ impl<'a> QuotedKeyObjectLitBuilder<'a> {
     fn new(ast_factory: &'a AstFactory) -> Self {
         Self {
             ast_factory,
-            key_to_value_node_map: IndexMap::new(),
+            key_to_value_node_map: IndexMap::<_, _>::default(),
         }
     }
 
@@ -1303,7 +1303,7 @@ impl JsMessageVisitor for FullReplacementPass {
                 message_node: definition.get_message_node(),
                 message_options: ICU_MSG_OPTIONS,
                 // There are no compile-time placeholder replacements for an ICU template message.
-                placeholder_value_map: IndexMap::new(),
+                placeholder_value_map: IndexMap::<_, _>::default(),
             },
         );
     }
@@ -1446,7 +1446,7 @@ impl ProtectedJsMessage {
         );
         let mut msg_key: Option<JsString> = None;
         let mut meaning: Option<JsString> = None;
-        let mut icu_placeholder_names: IndexSet<JsString> = IndexSet::new();
+        let mut icu_placeholder_names: IndexSet<JsString> = IndexSet::<_>::default();
         let mut message_text: Option<JsString> = None;
         let mut message_text_node: Option<NodeId> = None;
         let mut str_key = properties_node.get_first_child(ast);
@@ -1618,15 +1618,15 @@ pub fn is_start_of_icu_message(part: &JsString) -> bool {
     // ICU messages start with a '{' followed by an identifier, followed by a ',' and then
     // 'plural' or 'select' followed by another comma.
     // the 'startsWith' check is redundant but should allow us to skip using the matcher
-    if !part.starts_with(&JsString::from("{")) {
+    if !part.starts_with("{") {
         return false;
     }
-    let comma_index = part.index_of_from(&JsString::from(","), 1);
+    let comma_index = part.index_of_from(",", 1);
     // if commaIndex == 1 that means the identifier is empty, which isn't allowed.
     if comma_index <= 1 {
         return false;
     }
-    let next_bracket_index = part.index_of_from(&JsString::from("{"), 1);
+    let next_bracket_index = part.index_of_from("{", 1);
     (next_bracket_index == -1 || next_bracket_index > comma_index)
         && (java_starts_with_at(part, "plural,", comma_index + 1)
             || java_starts_with_at(part, "select,", comma_index + 1))

@@ -35,11 +35,11 @@ use crate::{
     node_util::NodeUtil,
     renaming_map::RenamingMap,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, ir::IR, js_string::JsString, jsdoc_info::JSDocInfo, node::NodeId,
     qualified_name::QualifiedName, token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, LazyLock};
 
 // port: ProcessClosurePrimitives#EXPECTED_OBJECTLIT_ERROR
@@ -172,7 +172,7 @@ impl ProcessClosurePrimitives {
         .get_modules_by_goog_namespace()
         .clone();
         Self {
-            known_closure_subclasses: IndexSet::new(),
+            known_closure_subclasses: IndexSet::<_>::default(),
             closure_modules,
         }
     }
@@ -209,7 +209,7 @@ impl ProcessClosurePrimitives {
         }
         if n.is_string_lit(compiler)
             && !n.has_children(compiler) // templated object types are ok.
-            && n.get_string(compiler) == "Object"
+            && n.get_string_ref(compiler) == "Object"
         {
             compiler.report(JSError::make(
                 compiler,
@@ -389,7 +389,7 @@ impl ProcessClosurePrimitives {
         // structure is what we expect it to be.
 
         let call_target = n.get_first_child(compiler).unwrap();
-        if !call_target.is_get_prop(compiler) || call_target.get_string(compiler) != "base" {
+        if !call_target.is_get_prop(compiler) || call_target.get_string_ref(compiler) != "base" {
             return;
         }
 
@@ -450,7 +450,7 @@ impl ProcessClosurePrimitives {
         }
 
         let enclosing_qname = enclosing_fn_name_node.get_qualified_name(compiler).unwrap();
-        if enclosing_qname.index_of(&JsString::from(".prototype.")) < 0 {
+        if enclosing_qname.index_of(".prototype.") < 0 {
             self.rewrite_base_call_in_constructor(
                 compiler,
                 &enclosing_qname,
@@ -521,7 +521,7 @@ impl ProcessClosurePrimitives {
         // Handle methods.
         let method_name_node = this_arg.get_next(compiler);
         let Some(method_name_node) = method_name_node
-            .filter(|m| m.is_string_lit(compiler) && m.get_string(compiler) == "constructor")
+            .filter(|m| m.is_string_lit(compiler) && m.get_string_ref(compiler) == "constructor")
         else {
             self.report_bad_base_method_use(
                 compiler,
@@ -756,7 +756,7 @@ impl ProcessClosurePrimitives {
         let arg = arg.unwrap();
         // Translate OBJECTLIT into SubstitutionMap. All keys and
         // values must be strings, or an error will be thrown.
-        let mut css_names: IndexMap<JsString, JsString> = IndexMap::new();
+        let mut css_names: IndexMap<JsString, JsString> = IndexMap::<_, _>::default();
 
         let mut key = arg.get_first_child(compiler);
         while let Some(k) = key {
@@ -952,11 +952,7 @@ impl ProcessClosurePrimitives {
                 &[&callee_name, "The first argument must be a string literal."],
             )),
             Some(prop_name) => {
-                if prop_name
-                    .get_string(compiler)
-                    .index_of(&JsString::from("."))
-                    >= 0
-                {
+                if prop_name.get_string(compiler).index_of(".") >= 0 {
                     compiler.report(JSError::make(
                         compiler,
                         call,

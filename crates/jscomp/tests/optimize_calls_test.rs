@@ -48,6 +48,7 @@ use closure_jscomp::{
     abstract_compiler::AbstractCompiler,
     optimize_calls::{OptimizeCalls, ReferenceMap},
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId, token::Token};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
@@ -58,7 +59,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 /// One reference Node of the ReferenceMap: its token and `OptimizeCalls.isAllowedReference`.
@@ -158,7 +158,7 @@ impl OptimizeCallsTest {
             ctx: Ctx::new(
                 "OptimizeCallsTest".into(),
                 object([]),
-                IndexMap::new(),
+                IndexMap::<_, _>::default(),
                 Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                     .unwrap(),
             ),

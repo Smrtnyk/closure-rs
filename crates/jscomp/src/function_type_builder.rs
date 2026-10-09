@@ -42,6 +42,7 @@ use closure_jstype::{
     rhino::js_type_expression::JSTypeExpressionExt,
     static_typed_scope::StaticTypedScope,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     closure_primitive::ClosurePrimitive,
@@ -50,7 +51,6 @@ use closure_rhino::{
     jsdoc_info::JSDocInfo,
     node::{Ast, NodeId},
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, LazyLock};
 
 // port: FunctionTypeBuilder#EXTENDS_WITHOUT_TYPEDEF
@@ -138,7 +138,7 @@ type CompilerReportFn = Arc<dyn Fn(JSError) + Send + Sync>;
 /// output).
 fn get_compiler_report_fn(compiler: &AbstractCompiler) -> CompilerReportFn {
     let queue = compiler.type_registry_error_queue();
-    Arc::new(move |error: JSError| queue.lock().unwrap().push(error))
+    Arc::new(move |error: JSError| queue.push(error))
 }
 
 // port: FunctionTypeBuilder.ValidatorBase
@@ -871,7 +871,7 @@ impl FunctionTypeBuilder {
         let mut builder = FunctionParamBuilder::new();
         let mut warned_about_arg_list = false;
         let mut all_js_doc_params: IndexSet<JsString> = match info {
-            None => IndexSet::new(),
+            None => IndexSet::<_>::default(),
             Some(info) => info.get_parameter_names(),
         };
         let mut is_var_args = false;
@@ -1129,7 +1129,7 @@ impl FunctionTypeBuilder {
         let mut templates: Vec<TypeId> = Vec::new();
         // LinkedHashMap<TemplateType, JSType>: each key is a distinct TemplateType (one per
         // template name), so Java's equals/hashCode keying coincides with identity keying.
-        let mut templates_to_bounds: IndexMap<TypeId, TypeId> = IndexMap::new();
+        let mut templates_to_bounds: IndexMap<TypeId, TypeId> = IndexMap::<_, _>::default();
         for (key, value) in &info_type_keys {
             // Template bounds are never null (JSDocInfo records IMPLICIT_TEMPLATE_BOUND).
             let expr = value.clone().unwrap();
@@ -1545,8 +1545,7 @@ impl FunctionTypeBuilder {
             .syntactic_fn_name
             .clone()
             .expect("NullPointerException");
-        if !syntactic_fn_name.is_empty() && !syntactic_fn_name.starts_with(&JsString::from("this."))
-        {
+        if !syntactic_fn_name.is_empty() && !syntactic_fn_name.starts_with("this.") {
             let (reg, ast) = compiler.get_type_registry_and_ast();
             let instance_type = fn_type.get_instance_type(reg).unwrap();
             reg.declare_type_for_exact_scope(

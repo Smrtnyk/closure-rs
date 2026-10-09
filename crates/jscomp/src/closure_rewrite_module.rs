@@ -73,6 +73,7 @@ use crate::typed_scope::TypedScope;
 use crate::var::VarId;
 use crate::xid::Xid;
 use closure_parsing::parser::feature_set::Feature;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::jsdoc_info::{Builder as JSDocInfoBuilder, JSDocInfo};
@@ -80,7 +81,6 @@ use closure_rhino::node::{Ast, NodeId, Prop};
 use closure_rhino::qualified_name::QualifiedName;
 use closure_rhino::token::Token;
 use closure_rhino::{check_argument, check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 use std::collections::VecDeque;
 use std::sync::{Arc, LazyLock, Mutex};
 
@@ -354,7 +354,7 @@ impl ExportDefinition {
             return true;
         }
         let maybe_goog = method.get_first_child(compiler).unwrap();
-        if !maybe_goog.is_name(compiler) || maybe_goog.get_string(compiler) != "goog" {
+        if !maybe_goog.is_name(compiler) || maybe_goog.get_string_ref(compiler) != "goog" {
             return true;
         }
         let name = method.get_string(compiler);
@@ -860,12 +860,12 @@ impl ClosureRewriteModule {
             ast_factory,
             preprocessor_symbol_table,
             preserve_sugar,
-            synthetic_externs: IndexMap::new(),
+            synthetic_externs: IndexMap::<_, _>::default(),
             global_scope: None,
             script_stack: VecDeque::new(),
             current_script: None,
             rewrite_state: GlobalRewriteState::default(),
-            legacy_script_namespaces_and_prefixes: IndexSet::new(),
+            legacy_script_namespaces_and_prefixes: IndexSet::<_>::default(),
             unrecognized_requires: Vec::new(),
             goog_module_get_calls: Vec::new(),
             goog_require_dynamic_calls: Vec::new(),
@@ -1327,7 +1327,7 @@ impl ClosureRewriteModule {
         class_or_function_node: NodeId,
     ) {
         let name_node = class_or_function_node.get_first_child(t).unwrap();
-        if name_node.is_name(t) && !name_node.get_string(t).is_empty() {
+        if name_node.is_name(t) && !name_node.get_string_ref(t).is_empty() {
             let name = name_node.get_string(t);
             self.cur_mut().top_level_names.insert(name);
         }
@@ -1680,7 +1680,7 @@ impl ClosureRewriteModule {
         };
         check_state!(
             parent.is_await(compiler)
-                || (parent.is_get_prop(compiler) && parent.get_string(compiler) == "then"),
+                || (parent.is_get_prop(compiler) && parent.get_string_ref(compiler) == "then"),
             "goog.requireDynamic() in only allowed in await/then expression"
         );
 
@@ -2024,7 +2024,7 @@ impl ClosureRewriteModule {
 
         let exports_name_node = getprop_node.get_first_child(t).unwrap();
         check_state!(
-            exports_name_node.get_string(t) == "exports",
+            exports_name_node.get_string_ref(t) == "exports",
             "%s",
             exports_name_node.to_string(t)
         );
@@ -2063,7 +2063,7 @@ impl ClosureRewriteModule {
 
         // Update "exports.foo = Foo" to "module$exports$pkg$Foo.foo = Foo";
         let exports_name_node = getprop_node.get_first_child(t).unwrap();
-        check_state!(exports_name_node.get_string(t) == "exports");
+        check_state!(exports_name_node.get_string_ref(t) == "exports");
         let exported_namespace = self.cur().get_exported_namespace();
         self.safe_set_maybe_qualified_string(
             t.get_compiler(),
@@ -2876,12 +2876,12 @@ impl ClosureRewriteModule {
 
     // port: ClosureRewriteModule#isModuleExport
     pub fn is_module_export(name: &JsString) -> bool {
-        name.starts_with(&MODULE_EXPORTS_PREFIX.into())
+        name.starts_with(MODULE_EXPORTS_PREFIX)
     }
 
     // port: ClosureRewriteModule#isModuleContent
     pub fn is_module_content(name: &JsString) -> bool {
-        name.starts_with(&MODULE_CONTENTS_PREFIX.into())
+        name.starts_with(MODULE_CONTENTS_PREFIX)
     }
 
     /// Returns whether this is a) a reference to the name "exports" and b) based on scoping,

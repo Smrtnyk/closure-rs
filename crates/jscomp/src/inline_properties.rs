@@ -25,8 +25,8 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_state, ir::IR, js_string::JsString, node::Ast, node::NodeId};
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 /// InlineProperties attempts to find references to properties that are known to be constants and
@@ -56,7 +56,7 @@ impl InlineProperties {
     pub fn new(compiler: &AbstractCompiler) -> Self {
         let mut this = Self {
             registry: compiler.get_color_registry().clone(),
-            props: IndexMap::new(),
+            props: IndexMap::<_, _>::default(),
         };
         this.invalidate_extern_properties(compiler);
         this
@@ -101,7 +101,7 @@ impl CompilerPass for InlineProperties {
             root,
             &mut ReplaceCandidates {
                 outer: self,
-                has_in_supertypes_list_seen_set: IndexSet::new(),
+                has_in_supertypes_list_seen_set: IndexSet::<_>::default(),
             },
         );
     }
@@ -162,7 +162,7 @@ impl GatherCandidates<'_> {
             return false;
         } else if t.in_global_hoist_scope()
             && src.is_get_prop(t)
-            && src.get_string(t) == "prototype"
+            && src.get_string_ref(t) == "prototype"
         {
             // This is a prototype assignment like:
             //    x.prototype.foo = 1;

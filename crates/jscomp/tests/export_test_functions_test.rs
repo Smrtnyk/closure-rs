@@ -20,6 +20,7 @@
 
 //! Port of `ExportTestFunctionsTest.java`: tests for `ExportTestFunctions`.
 use closure_jscomp::{compiler_pass::CompilerPass, export_test_functions::ExportTestFunctions};
+use closure_rhino::fast_hash::IndexMap;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
     replay::{
@@ -28,7 +29,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 // port: ExportTestFunctionsTest#EXTERNS
@@ -78,7 +78,7 @@ impl ExportTestFunctionsTest {
                 ctx: Ctx::new(
                     "ExportTestFunctionsTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

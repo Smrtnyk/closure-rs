@@ -16,7 +16,7 @@
 
 #[path = "../tests/support/d2_replay.rs"]
 mod d2_replay;
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use serde_json::Value;
 use std::{
     fs::File,
@@ -24,10 +24,10 @@ use std::{
 };
 fn main() {
     let file = std::env::args().nth(1).expect("JSONL path");
-    let mut types = IndexMap::new();
+    let mut types = IndexMap::<_, _>::default();
     let mut rows = 0;
     let mut identical = 0;
-    let mut excluded = IndexMap::<&str, usize>::new();
+    let mut excluded = IndexMap::<&str, usize>::default();
     let mut mismatches = 0;
     for line in BufReader::new(File::open(file).unwrap()).lines() {
         let row: Value = serde_json::from_str(&line.unwrap()).unwrap();

@@ -416,6 +416,7 @@ impl PropertyValue {
         }
     }
 }
+use crate::fast_hash::{IndexMap, IndexSet};
 use crate::{
     check_argument,
     js_string::JsString,
@@ -425,7 +426,6 @@ use crate::{
     source_position::SourcePosition,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{
     collections::BTreeMap,
     ops::{Deref, DerefMut},
@@ -945,6 +945,57 @@ impl JSDocInfo {
             0 => PackedPropertyValues::Empty,
             1 => PackedPropertyValues::Single(values.pop().unwrap()),
             _ => PackedPropertyValues::Multiple(values),
+        }
+    }
+    /// Rust-only (D-025): a copy whose type expressions are replaced by `map_expr` and whose
+    /// other node references by `map_node` (for `Ast::append_preparsed`).
+    pub fn map_nodes(
+        &self,
+        map_expr: &mut dyn FnMut(&Arc<JSTypeExpression>) -> Arc<JSTypeExpression>,
+        map_node: &dyn Fn(NodeId) -> NodeId,
+    ) -> Self {
+        let mut map_value = |value: &PropertyValue| -> PropertyValue {
+            match value {
+                PropertyValue::TypeExpr(Some(e)) => PropertyValue::TypeExpr(Some(map_expr(e))),
+                PropertyValue::TypeList(list) => {
+                    PropertyValue::TypeList(list.iter().map(&mut *map_expr).collect())
+                }
+                PropertyValue::TypeMap(m) => PropertyValue::TypeMap(
+                    m.iter()
+                        .map(|(k, e)| (k.clone(), e.as_ref().map(&mut *map_expr)))
+                        .collect(),
+                ),
+                PropertyValue::NodeMap(m) => PropertyValue::NodeMap(
+                    m.iter().map(|(k, n)| (k.clone(), map_node(*n))).collect(),
+                ),
+                PropertyValue::Markers(markers) => PropertyValue::Markers(
+                    markers
+                        .iter()
+                        .map(|marker| {
+                            let mut marker = marker.clone();
+                            if let Some(name) = &mut marker.name_node {
+                                name.0.map_item(map_node);
+                            }
+                            if let Some(t) = &mut marker.r#type {
+                                t.position.0.map_item(map_node);
+                            }
+                            marker
+                        })
+                        .collect(),
+                ),
+                other => other.clone(),
+            }
+        };
+        Self {
+            property_bits: self.property_bits,
+            property_keys_bitset: self.property_keys_bitset,
+            property_values: match &self.property_values {
+                PackedPropertyValues::Empty => PackedPropertyValues::Empty,
+                PackedPropertyValues::Single(v) => PackedPropertyValues::Single(map_value(v)),
+                PackedPropertyValues::Multiple(v) => {
+                    PackedPropertyValues::Multiple(v.iter().map(&mut map_value).collect())
+                }
+            },
         }
     }
     // port: JSDocInfo#getPropertyValueByIndex
@@ -1591,7 +1642,7 @@ impl JSDocInfo {
     // port: JSDocInfo#isAtSignCodePresent
     pub fn is_at_sign_code_present(&self) -> bool {
         self.get_original_comment_string()
-            .is_some_and(|s| s.index_of(&"@code".into()) != -1)
+            .is_some_and(|s| s.index_of("@code") != -1)
     }
     // port: JSDocInfo#getOriginalCommentPosition
     pub fn get_original_comment_position(&self) -> i32 {
@@ -1694,6 +1745,14 @@ impl JSDocInfo {
             .and_then(PropertyValue::as_node_map)
             .cloned()
             .unwrap_or_default()
+    }
+    // port: JSDocInfo#getSuppressions
+    /// Rust-only: `getSuppressions().contains(name)` without building the set.
+    pub fn has_suppression(&self, name: &str) -> bool {
+        SUPPRESSIONS
+            .get(self)
+            .and_then(PropertyValue::as_suppressions)
+            .is_some_and(|s| s.iter().any(|(set, _)| set.iter().any(|x| *x == name)))
     }
     // port: JSDocInfo#getSuppressionsAndTheirDescription
     pub fn get_suppressions_and_their_description(&self) -> Suppressions {
@@ -2123,7 +2182,7 @@ impl Builder {
     }
     // port: JSDocInfo.Builder#recordSuppression
     pub fn record_suppression(&mut self, suppression: impl Into<JsString>) {
-        self.record_suppressions(&IndexSet::from([suppression.into()]));
+        self.record_suppressions(&IndexSet::<_>::from_iter([suppression.into()]));
     }
     // port: JSDocInfo.Builder#recordModifies
     pub fn record_modifies(&mut self, modifies: &IndexSet<JsString>) -> bool {
@@ -2166,7 +2225,7 @@ impl Builder {
         let license = license.into();
         if !self
             .license_texts
-            .get_or_insert_with(IndexSet::new)
+            .get_or_insert_with(IndexSet::<_>::default)
             .insert(license.clone())
         {
             return false;
@@ -2275,9 +2334,9 @@ impl Builder {
     // port: JSDocInfo.Builder#putPropEntry
     fn put_prop_entry(&mut self, prop: Property, key: JsString, value: EntryValue) -> bool {
         let default = || match prop.kind {
-            PropertyKind::TypeMap => PropertyValue::TypeMap(IndexMap::new()),
-            PropertyKind::NodeMap => PropertyValue::NodeMap(IndexMap::new()),
-            _ => PropertyValue::StrMap(IndexMap::new()),
+            PropertyKind::TypeMap => PropertyValue::TypeMap(IndexMap::<_, _>::default()),
+            PropertyKind::NodeMap => PropertyValue::NodeMap(IndexMap::<_, _>::default()),
+            _ => PropertyValue::StrMap(IndexMap::<_, _>::default()),
         };
         match (self.get_prop_with_default(prop, default), value) {
             (PropertyValue::TypeMap(m), EntryValue::TypeExpr(v)) => {

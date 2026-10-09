@@ -38,10 +38,10 @@ use crate::{
     node_traversal::{AbstractChangedScopeCallback, Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state, js_string::JsString, node::NodeId, token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::collections::VecDeque;
 
 pub struct DeadPropertyAssignmentElimination;
@@ -69,7 +69,7 @@ impl CompilerPass for DeadPropertyAssignmentElimination {
         }
 
         // Sets.union(accessors.keySet(), externProperties): only membership is queried.
-        let mut skiplisted_prop_names: IndexSet<JsString> = IndexSet::new();
+        let mut skiplisted_prop_names: IndexSet<JsString> = IndexSet::<_>::default();
         for name in compiler
             .get_accessor_summary()
             .unwrap()
@@ -179,7 +179,7 @@ impl Property {
         Self {
             name,
             writes: VecDeque::new(),
-            children: IndexSet::new(),
+            children: IndexSet::<_>::default(),
         }
     }
 
@@ -273,7 +273,7 @@ impl<'a> FindCandidateAssignmentTraversal<'a> {
     // port: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal#FindCandidateAssignmentTraversal
     fn new(skiplisted_prop_names: &'a IndexSet<JsString>) -> Self {
         Self {
-            property_map: IndexMap::new(),
+            property_map: IndexMap::<_, _>::default(),
             properties: Vec::new(),
             skiplisted_prop_names,
         }

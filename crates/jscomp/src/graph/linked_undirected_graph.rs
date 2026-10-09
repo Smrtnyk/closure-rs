@@ -25,7 +25,7 @@ use super::{
     sub_graph::SubGraph,
     undi_graph::{UndiGraph, UndiGraphEdge, UndiGraphNode},
 };
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::{fmt::Display, hash::Hash};
 pub struct LinkedUndirectedGraph<N, E> {
     pub nodes: IndexMap<N, UndiGraphNode>,
@@ -117,7 +117,7 @@ impl<N: Clone + Eq + Hash, E: Clone + PartialEq> LinkedUndirectedGraph<N, E> {
         edge_value_to_string: fn(&E) -> String,
     ) -> Self {
         Self {
-            nodes: IndexMap::new(),
+            nodes: IndexMap::<_, _>::default(),
             value_to_string,
             edge_value_to_string,
             node_arena: Vec::new(),

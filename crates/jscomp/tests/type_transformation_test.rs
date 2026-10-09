@@ -31,12 +31,12 @@ use closure_jstype::{
 use closure_parsing::{
     parser::feature_set::Feature, type_transformation_parser::TypeTransformationParser,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     ir::IR, js_string::JsString, static_source_file::StaticSourceFile,
     testing::test_error_reporter::TestErrorReporter,
 };
 use closure_testing::compiler_type_test_case::CompilerTypeTestCase;
-use indexmap::IndexMap;
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -73,8 +73,8 @@ impl TypeTransformationTest {
         let mut t = Self {
             compiler: RefCell::new(compiler),
             error_reporter: RefCell::new(TestErrorReporter::new()),
-            type_vars: IndexMap::new(),
-            name_vars: IndexMap::new(),
+            type_vars: IndexMap::<_, _>::default(),
+            name_vars: IndexMap::<_, _>::default(),
             record_type_test: None,
             nested_record_type_test: None,
             asynch_record: None,

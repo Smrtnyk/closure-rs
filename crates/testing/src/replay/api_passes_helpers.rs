@@ -57,8 +57,8 @@ use closure_jscomp::{
     Compiler, alias_strings::AliasStrings, compiler_options::AliasStringsMode,
     compiler_pass::CompilerPass,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, rc::Rc};
 
 fn bad(s: &str) -> Throwable {
@@ -161,7 +161,7 @@ impl NativeObject for NativeAliasStrings {
     }
     // port: ReplayValues#findField (native object adapter; no producer roots)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: ReplayValues#setField (native object adapter)
     fn set_field(&mut self, name: &str, value: DslValue) -> Result<(), Throwable> {
@@ -239,7 +239,7 @@ impl NativeObject for NativePass {
     }
     // port: ReplayValues#findField (native object adapter; no producer roots)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     fn process(
         &mut self,

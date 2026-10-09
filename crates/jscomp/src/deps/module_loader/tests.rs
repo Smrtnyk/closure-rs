@@ -27,7 +27,7 @@ use crate::source_file::SourceFile;
 use closure_rhino::static_source_file::StaticSourceFile;
 // port: ModuleLoaderTest#PACKAGE_JSON_MAIN_ENTRIES
 fn package_json_main_entries() -> IndexMap<String, String> {
-    IndexMap::from([
+    IndexMap::<_, _>::from_iter([
         ("/B/package.json".into(), "/B/lib/b".into()),
         (
             "/node_modules/B/package.json".into(),
@@ -466,7 +466,7 @@ fn test_locate_node_modules_no_leading_slash() {
 // port: ModuleLoaderTest#testLocateNodeModulesBrowserFieldAdvancedUsage
 #[test]
 fn test_locate_node_modules_browser_field_advanced_usage() {
-    let package_json_main_entries = IndexMap::from([
+    let package_json_main_entries = IndexMap::<_, _>::from_iter([
         (
             "/node_modules/mymodule/package.json".into(),
             "/node_modules/mymodule/server.js".into(),
@@ -549,7 +549,7 @@ fn test_locate_node_module_with_multiple_roots_simple() {
         .set_module_roots(vec!["generated_files/"])
         .set_inputs(compiler_inputs)
         .set_factory(Arc::new(node::Factory::with_package_json_main_entries(
-            Some(IndexMap::from([])),
+            Some(IndexMap::<_, _>::from_iter([])),
         )))
         .set_path_resolver(PathResolver::RELATIVE)
         .build();
@@ -573,7 +573,7 @@ fn test_locate_node_module_with_multiple_roots() {
         .set_module_roots(vec!["generated_files/"])
         .set_inputs(compiler_inputs)
         .set_factory(Arc::new(node::Factory::with_package_json_main_entries(
-            Some(IndexMap::from([])),
+            Some(IndexMap::<_, _>::from_iter([])),
         )))
         .set_path_resolver(PathResolver::RELATIVE)
         .build();
@@ -592,7 +592,7 @@ fn test_locate_node_module_with_multiple_roots() {
 // port: ModuleLoaderTest#testWebpack
 #[test]
 fn test_webpack() {
-    let webpack_modules_by_id = IndexMap::from([
+    let webpack_modules_by_id = IndexMap::<_, _>::from_iter([
         ("1".into(), "A/index.js".into()),
         ("B/index.js".into(), "B/index.js".into()),
         ("3".into(), "app.js".into()),
@@ -669,11 +669,13 @@ fn test_browser_with_prefix_replacement() {
             "/path/to/project1/index.js",
             "app.js",
         ]))
-        .set_factory(Arc::new(prefixes::Factory::new(IndexMap::from([
-            ("@project0/".into(), "/path/to/project0/".into()),
-            ("+project1/".into(), "/path/to/project1/".into()),
-            ("@root/".into(), "/".into()),
-        ]))))
+        .set_factory(Arc::new(prefixes::Factory::new(
+            IndexMap::<_, _>::from_iter([
+                ("@project0/".into(), "/path/to/project0/".into()),
+                ("+project1/".into(), "/path/to/project1/".into()),
+                ("@root/".into(), "/".into()),
+            ]),
+        )))
         .build();
 
     assert_uri(
@@ -695,11 +697,13 @@ fn test_browser_with_prefix_replacement_resolve_module_as_path() {
     let loader = ModuleLoader::builder()
         .set_module_roots(vec![".", "/path/to/project0/", "/path/to/project1/"])
         .set_inputs(inputs(&[]))
-        .set_factory(Arc::new(prefixes::Factory::new(IndexMap::from([
-            ("@project0/".into(), "/path/to/project0/".into()),
-            ("+project1/".into(), "/path/to/project1/".into()),
-            ("@root/".into(), "/".into()),
-        ]))))
+        .set_factory(Arc::new(prefixes::Factory::new(
+            IndexMap::<_, _>::from_iter([
+                ("@project0/".into(), "/path/to/project0/".into()),
+                ("+project1/".into(), "/path/to/project1/".into()),
+                ("@root/".into(), "/".into()),
+            ]),
+        )))
         .build();
 
     assert_uri(
@@ -727,11 +731,13 @@ fn test_browser_with_prefix_replacement_applied_most_specific_to_least() {
     let loader = ModuleLoader::builder()
         .set_module_roots(vec!["."])
         .set_inputs(inputs(&["/p0/p1/p2/file.js"]))
-        .set_factory(Arc::new(prefixes::Factory::new(IndexMap::from([
-            ("0/1/2/".into(), "/p0/p1/p2/".into()),
-            ("0/".into(), "/p0/".into()),
-            ("0/1/".into(), "/p0/p1/".into()),
-        ]))))
+        .set_factory(Arc::new(prefixes::Factory::new(
+            IndexMap::<_, _>::from_iter([
+                ("0/1/2/".into(), "/p0/p1/p2/".into()),
+                ("0/".into(), "/p0/".into()),
+                ("0/1/".into(), "/p0/p1/".into()),
+            ]),
+        )))
         .build();
 
     assert_uri(
@@ -756,10 +762,9 @@ fn test_browser_with_prefix_replacement_invalid_prefix() {
         .set_error_handler(Some(Arc::new(Mutex::new(RecordingHandler(errors.clone())))))
         .set_module_roots(vec!["."])
         .set_inputs(inputs(&["/path/to/file.js"]))
-        .set_factory(Arc::new(prefixes::Factory::new(IndexMap::from([(
-            "prefix/".into(),
-            "/path/to/".into(),
-        )]))))
+        .set_factory(Arc::new(prefixes::Factory::new(
+            IndexMap::<_, _>::from_iter([("prefix/".into(), "/path/to/".into())]),
+        )))
         .build();
 
     assert_uri(
@@ -983,11 +988,13 @@ fn test_browser_with_prefixes_silent_handles_ambiguous_identifier() {
         .set_error_handler(Some(Arc::new(Mutex::new(RecordingHandler(errors.clone())))))
         .set_module_roots(vec!["."])
         .set_inputs(inputs(&["/p0/p1/p2/file.js"]))
-        .set_factory(Arc::new(prefixes::Factory::new(IndexMap::from([
-            ("0/1/2/".into(), "/p0/p1/p2/".into()),
-            ("0/".into(), "/p0/".into()),
-            ("0/1/".into(), "/p0/p1/".into()),
-        ]))))
+        .set_factory(Arc::new(prefixes::Factory::new(
+            IndexMap::<_, _>::from_iter([
+                ("0/1/2/".into(), "/p0/p1/p2/".into()),
+                ("0/".into(), "/p0/".into()),
+                ("0/1/".into(), "/p0/p1/".into()),
+            ]),
+        )))
         .build();
 
     let app_path = loader.resolve("/p0/file.js");
@@ -1005,11 +1012,13 @@ fn test_browser_with_prefixes_silent_resolves_transformed_prefixes() {
         .set_error_handler(Some(Arc::new(Mutex::new(RecordingHandler(errors.clone())))))
         .set_module_roots(vec!["."])
         .set_inputs(inputs(&["/p0/p1/p2/file.js"]))
-        .set_factory(Arc::new(prefixes::Factory::new(IndexMap::from([
-            ("0/1/2/".into(), "/p0/p1/p2/".into()),
-            ("0/".into(), "/p0/".into()),
-            ("0/1/".into(), "/p0/p1/".into()),
-        ]))))
+        .set_factory(Arc::new(prefixes::Factory::new(
+            IndexMap::<_, _>::from_iter([
+                ("0/1/2/".into(), "/p0/p1/p2/".into()),
+                ("0/".into(), "/p0/".into()),
+                ("0/1/".into(), "/p0/p1/".into()),
+            ]),
+        )))
         .build();
 
     let app_path = loader.resolve("fake.js");

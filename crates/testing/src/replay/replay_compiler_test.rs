@@ -40,7 +40,7 @@ use crate::{
     throwable::Throwable,
     unit_recorder,
 };
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 pub struct ReplayCompilerTest {
     pub harness: CompilerTestCase,
     pub hooks: Hooks,
@@ -282,7 +282,7 @@ impl ReplayCompilerTest {
                 format!("com.google.javascript.jscomp.{}", class.replace('.', "$"))
             });
         }
-        let mut observed = IndexMap::new();
+        let mut observed = IndexMap::<_, _>::default();
         if let Some(c) = &c {
             observed.insert("errors".into(), errors(&c.borrow().get_errors()));
             observed.insert("warnings".into(), errors(&c.borrow().get_warnings()));
@@ -290,7 +290,7 @@ impl ReplayCompilerTest {
         if let Some(tfa) = &self.hooks.case.test_fields_after {
             let holder = eval(tfa, &mut self.hooks.ctx)?;
             let want = expected_test_fields_after(&self.hooks.record.raw, &self.hooks.case)?;
-            let mut got = IndexMap::new();
+            let mut got = IndexMap::<_, _>::default();
             for name in want.as_object().unwrap().keys() {
                 let value = crate::replay::replay_dsl::get_field(&holder, name)?;
                 got.insert(

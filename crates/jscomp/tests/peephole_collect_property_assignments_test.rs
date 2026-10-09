@@ -24,6 +24,7 @@ use closure_jscomp::{
     peephole_collect_property_assignments::PeepholeCollectPropertyAssignments,
     peephole_optimizations_pass::PeepholeOptimizationsPass,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
     replay::{
@@ -32,7 +33,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 struct PeepholeCollectPropertyAssignmentsTest {
@@ -77,7 +77,7 @@ impl PeepholeCollectPropertyAssignmentsTest {
                 ctx: Ctx::new(
                     "PeepholeCollectPropertyAssignmentsTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

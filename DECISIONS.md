@@ -367,3 +367,36 @@ here (one line each) to ease upstream syncs.
 - `cli/src/main.rs`: the binary uses mimalloc as its global allocator (Java: the JVM's heap);
   about 9% faster compiles for about 100 MB more peak memory.
 - `Cargo.toml` `[profile.release]`: fat LTO and one codegen unit, about 5% faster again.
+- `jscomp/parallel_parse.rs`: inputs are parsed on up to 8 worker threads into arenas of their
+  own (`Ast::new_for_preparse`) while the compiler runs; `CompilerInput#parse` moves a finished
+  parse into the compiler's arena (`Ast::append_preparsed`) with the node ids, object sharing
+  and error order that parsing in place gives, or parses itself (Java: on the compiler thread).
+- `rhino/rhino_string_pool.rs`: the intern pool is 64 independently locked shards, with a
+  per-thread cache for the parser threads (Java: one weak interner).
+- `rhino/fast_hash.rs`: every `IndexMap`/`IndexSet` uses a multiplicative word hasher instead
+  of SipHash (insertion order, so iteration and output, are unaffected).
+- `rhino/node.rs`: token and tree links of all nodes live in one dense array (`NodeLinks`) apart
+  from the rest of the node; template literal strings are boxed; `get_string_ref`,
+  `get_jsdoc_info_ref` read without copying; `removeProp`/`putProp` skip the list rebuild when
+  the property is absent.
+- `rhino/js_string.rs` `JsStrLike`: `matchesName`, `matchesQualifiedName`, `indexOf`,
+  `startsWith`, `endsWith`, `Property.Key#matches` take string literals without allocating.
+- `rhino/jscomp_parsing_parser/util/source_position.rs`: positions name their `SourceFile` by a
+  copyable `SourceFileId` instead of holding a reference to it.
+- `parsing/parser/keywords.rs`: keyword lookup matches bytes (Java: a map); the token type is
+  computed without building the keyword string.
+- `jscomp/scope.rs`, `var.rs`, `typed_scope.rs`: the fields of scopes and vars that never change
+  are mirrored outside the shared arena lock (`ScopeMirror`, `typed_scope_mirror`); `getVar` and
+  `declare` of syntactic scopes take the lock once.
+- `jscomp/typed_scope_creator.rs`: the never-iterated `reservedNamesForScope` and
+  `assignedVarNames` remove entries with `swap_remove`.
+- `jstype/property_map.rs` `findClosest`, `object_type.rs` `getOwnSlot`/`getSlot`: the walk reads
+  each property map in place instead of copying it.
+- `jscomp/compiler_input.rs`: a `CompilerInput` is one `Arc` around its fields.
+- `jscomp/rhino_error_reporter.rs` `JSErrorQueue`: the registry error queue's empty check is a
+  flag load, not a lock.
+- `jscomp/compiler.rs` `get_extern_properties_js`: the extern property names are converted to JS
+  strings once per value, not on every RemoveUnusedCode run.
+- `jscomp/node_traversal.rs` `get_input`, `syntactic_scope_creator.rs` `ScopeScanner`: the
+  CompilerInput found for the current input id is kept (Java keeps the object) instead of being
+  looked up by id again; `ImplicitVar::js_name` makes the implicit var names once.

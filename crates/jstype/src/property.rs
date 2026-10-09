@@ -136,8 +136,8 @@ impl PropertyKey {
         }
     }
     // port: Property.Key#matches
-    pub fn matches(&self, string_key: impl Into<JsString>) -> bool {
-        matches!(self, Self::String(s) if *s == string_key.into())
+    pub fn matches(&self, string_key: impl closure_rhino::js_string::JsStrLike) -> bool {
+        matches!(self, Self::String(s) if string_key.with_units(|k| k == s.as_units()))
     }
 }
 

@@ -56,11 +56,11 @@ use closure_jstype::{
     known_symbol_type::KnownSymbolType, object_type::ObjectType, property::PropertyKey,
     property::SymbolKey, testing::type_subject::TypeSubject,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     closure_primitive::ClosurePrimitive, ir::IR, js_string::JsString, node::NodeId, token::Token,
 };
 use closure_testing::testing::scope_subject::{ScopeSubject, assert_scope};
-use indexmap::IndexMap;
 use std::cell::{RefCell, RefMut};
 use std::sync::Arc;
 
@@ -164,13 +164,13 @@ impl TypeInferenceTest {
         Self {
             compiler: RefCell::new(compiler),
             closer: RefCell::new(Some(closer)),
-            assumptions: RefCell::new(IndexMap::new()),
+            assumptions: RefCell::new(IndexMap::<_, _>::default()),
             assumed_this_type: RefCell::new(None),
             return_scope: RefCell::new(None),
             assertion_function_map: AssertionFunctionLookup::of(
                 ClosureCodingConvention::new().get_assertion_functions(),
             ),
-            labeled_statement_map: RefCell::new(IndexMap::new()),
+            labeled_statement_map: RefCell::new(IndexMap::<_, _>::default()),
         }
     }
 
@@ -337,7 +337,8 @@ impl TypeInferenceTest {
                 .open_for_definition();
             // Create the scope with the assumptions.
             // Also populate a map allowing us to look up labeled statements later.
-            let mut labeled_statement_map: IndexMap<JsString, LabeledStatement> = IndexMap::new();
+            let mut labeled_statement_map: IndexMap<JsString, LabeledStatement> =
+                IndexMap::<_, _>::default();
             {
                 let mut creator = SharedTypedScopeCreator(&scope_creator);
                 let mut callback = AbstractScopedCallback::with_scope_callbacks(

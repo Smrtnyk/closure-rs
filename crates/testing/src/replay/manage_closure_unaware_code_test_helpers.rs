@@ -49,8 +49,8 @@ use closure_jscomp::{
     compiler_pass::CompilerPass, manage_closure_unaware_code::ManageClosureUnawareCode,
     node_util::NodeUtil, pass_factory::PassFactory, phase_optimizer::PhaseOptimizer,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{ir::IR, node::Ast, node::NodeId};
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.ManageClosureUnawareCodeTest_Helpers";
@@ -71,7 +71,7 @@ impl NativeObject for ManageClosureUnawareCodeTestHelpers {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert("runUnwrapPass".into(), DslValue::Bool(self.run_unwrap_pass));
         fields.insert(
             "gatheredShadowNodeRoot".into(),

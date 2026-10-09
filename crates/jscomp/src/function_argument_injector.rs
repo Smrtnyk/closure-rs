@@ -24,6 +24,7 @@ use crate::{
     abstract_compiler::AbstractCompiler, ast_analyzer::AstAnalyzer,
     coding_convention::CodingConvention, node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,
@@ -31,7 +32,6 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 
 // A string to use to represent "this".  Anything that is not a valid
 // identifier can be used, so we use "this".
@@ -302,7 +302,7 @@ impl FunctionArgumentInjector {
         names: &IndexSet<JsString>,
         mut in_inner_function: bool,
     ) -> IndexSet<JsString> {
-        let mut unsafe_ = IndexSet::new();
+        let mut unsafe_ = IndexSet::<_>::default();
         if n.is_name(ast) {
             if names.contains(&n.get_string(ast))
                 && (in_inner_function || Self::can_name_value_change(ast, n))
@@ -486,7 +486,7 @@ impl FunctionArgumentInjector {
                     }
                     Token::THIS => requires_temporary = false,
                     Token::STRINGLIT => {
-                        requires_temporary = c_arg.get_string(compiler).length() >= 2
+                        requires_temporary = c_arg.get_string_ref(compiler).length() >= 2
                     }
                     _ => requires_temporary = !NodeUtil::is_immutable_value(compiler, c_arg),
                 }
@@ -617,7 +617,7 @@ impl FunctionArgumentInjector {
     /// Get a set of function parameter names.
     // port: FunctionArgumentInjector#getFunctionParameterSet
     fn get_function_parameter_set(ast: &Ast, fn_node: NodeId) -> IndexSet<JsString> {
-        let mut builder = IndexSet::new();
+        let mut builder = IndexSet::<_>::default();
         for n in NodeUtil::get_function_parameters(ast, fn_node).children(ast) {
             if n.is_rest(ast) {
                 builder.insert(JsString::from(REST_MARKER));
@@ -679,9 +679,9 @@ impl<'a> ReferencedAfterSideEffect<'a> {
             parameters,
             locals,
             side_effect_seen: false,
-            parameters_referenced: IndexSet::new(),
+            parameters_referenced: IndexSet::<_>::default(),
             name_node_has_been_seen: false,
-            parameters_with_names_referenced_before_parameter: IndexSet::new(),
+            parameters_with_names_referenced_before_parameter: IndexSet::<_>::default(),
             loops_entered: 0,
         }
     }
@@ -873,7 +873,7 @@ impl ImmutableMapBuilder {
     }
     // port: ImmutableMap.Builder#buildOrThrow
     fn build_or_throw(self, ast: &Ast) -> IndexMap<JsString, ParamArgPair> {
-        let mut map: IndexMap<JsString, ParamArgPair> = IndexMap::new();
+        let mut map: IndexMap<JsString, ParamArgPair> = IndexMap::<_, _>::default();
         for (key, value) in self.entries {
             if let Some(existing) = map.get(&key) {
                 panic!(

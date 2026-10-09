@@ -61,7 +61,10 @@ fn test_parse_file2() {
             Require::goog_require_symbol("a.b.C"),
             Require::goog_require_symbol("a.b.d"),
         ])
-        .set_load_flags(IndexMap::from([("module".into(), "goog".into())]))
+        .set_load_flags(IndexMap::<_, _>::from_iter([(
+            "module".into(),
+            "goog".into(),
+        )]))
         .build();
 
     let result = parser.parse_file(SRC_PATH, CLOSURE_PATH, contents);
@@ -83,7 +86,10 @@ fn test_parse_file3() {
             Require::goog_require_symbol("a.b.C"),
             Require::goog_require_symbol("a.b.d"),
         ])
-        .set_load_flags(IndexMap::from([("module".into(), "goog".into())]))
+        .set_load_flags(IndexMap::<_, _>::from_iter([(
+            "module".into(),
+            "goog".into(),
+        )]))
         .build();
 
     let result = parser.parse_file(SRC_PATH, CLOSURE_PATH, contents);
@@ -107,7 +113,10 @@ fn test_parse_file_with_multi_line_requires() {
             Require::goog_require_symbol("a.b.C"),
             Require::goog_require_symbol("a.b.d"),
         ])
-        .set_load_flags(IndexMap::from([("module".into(), "goog".into())]))
+        .set_load_flags(IndexMap::<_, _>::from_iter([(
+            "module".into(),
+            "goog".into(),
+        )]))
         .build();
 
     let result = parser.parse_file(SRC_PATH, CLOSURE_PATH, contents);
@@ -143,7 +152,10 @@ fn test_parse_goog_module_with_require_type() {
     let expected = SimpleDependencyInfo::builder(CLOSURE_PATH, SRC_PATH)
         .set_provides(vec!["yes1"])
         .set_type_requires(vec!["yes2", "a.b.C", "a.b.d"])
-        .set_load_flags(IndexMap::from([("module".into(), "goog".into())]))
+        .set_load_flags(IndexMap::<_, _>::from_iter([(
+            "module".into(),
+            "goog".into(),
+        )]))
         .build();
 
     let result = parser.parse_file(SRC_PATH, CLOSURE_PATH, contents);
@@ -182,7 +194,7 @@ fn test_parse_wrapped_goog_module() {
             Require::goog_require_symbol("a.b.C"),
             Require::goog_require_symbol("a.b.d"),
         ])
-        .set_load_flags(IndexMap::from([]))
+        .set_load_flags(IndexMap::<_, _>::from_iter([]))
         .build();
 
     let result = parser.parse_file(SRC_PATH, CLOSURE_PATH, contents);
@@ -206,7 +218,10 @@ fn test_parse_es6_module() {
             Require::es6_import("module$dquote", "./dquote"),
             Require::es6_import("module$exported", "./exported"),
         ])
-        .set_load_flags(IndexMap::from([("module".into(), "es6".into())]))
+        .set_load_flags(IndexMap::<_, _>::from_iter([(
+            "module".into(),
+            "es6".into(),
+        )]))
         .build();
 
     let result = parser.parse_file("b.js", "a.js", contents);
@@ -229,7 +244,10 @@ fn test_parse_es6_module2() {
             Require::es6_import("module$foo$bar$a$z", "../a/z"),
             Require::es6_import("module$foo$bar$c$w", "../c/w"),
         ])
-        .set_load_flags(IndexMap::from([("module".into(), "es6".into())]))
+        .set_load_flags(IndexMap::<_, _>::from_iter([(
+            "module".into(),
+            "es6".into(),
+        )]))
         .build();
 
     let result = parser.parse_file("/foo/bar/a/b.js", "../../a/b.js", contents);
@@ -250,7 +268,10 @@ fn test_parse_es6_module3() {
             Require::goog_require_symbol("foo.bar.baz"),
             Require::goog_require_symbol("baz.qux"),
         ])
-        .set_load_flags(IndexMap::from([("module".into(), "es6".into())]))
+        .set_load_flags(IndexMap::<_, _>::from_iter([(
+            "module".into(),
+            "es6".into(),
+        )]))
         .build();
 
     let result = parser.parse_file("a.js", "b.js", contents);
@@ -279,7 +300,10 @@ fn test_parse_es6_module4() {
             Require::es6_import("module$js$closure$d$e", "../closure/d/e"),
             Require::es6_import("module$corge$f", "../../corge/f"),
         ])
-        .set_load_flags(IndexMap::from([("module".into(), "es6".into())]))
+        .set_load_flags(IndexMap::<_, _>::from_iter([(
+            "module".into(),
+            "es6".into(),
+        )]))
         .build();
 
     let result = parser.set_module_loader(loader).parse_file(
@@ -338,7 +362,10 @@ fn test_es6_module_with_declare_module_id() {
 
     let expected = SimpleDependencyInfo::builder("../bar/baz.js", "/foo/js/bar/baz.js")
         .set_provides(vec!["my.namespace", "module$js$bar$baz"])
-        .set_load_flags(IndexMap::from([("module".into(), "es6".into())]))
+        .set_load_flags(IndexMap::<_, _>::from_iter([(
+            "module".into(),
+            "es6".into(),
+        )]))
         .build();
 
     let result = parser.set_module_loader(loader).parse_file(
@@ -358,10 +385,9 @@ fn test_es6_module_with_browser_transformed_prefix_resolver() {
     let loader = ModuleLoader::builder()
         .set_module_roots(Vec::<String>::new())
         .set_inputs(Vec::<SimpleDependencyInfo>::new())
-        .set_factory(Arc::new(prefixes::Factory::new(IndexMap::from([(
-            "@root/".into(),
-            "/path/to/project/".into(),
-        )]))))
+        .set_factory(Arc::new(prefixes::Factory::new(
+            IndexMap::<_, _>::from_iter([("@root/".into(), "/path/to/project/".into())]),
+        )))
         .build();
 
     let contents = "import '@root/my/file.js';";
@@ -372,7 +398,10 @@ fn test_es6_module_with_browser_transformed_prefix_resolver() {
             "module$path$to$project$my$file",
             "@root/my/file.js",
         )])
-        .set_load_flags(IndexMap::from([("module".into(), "es6".into())]))
+        .set_load_flags(IndexMap::<_, _>::from_iter([(
+            "module".into(),
+            "es6".into(),
+        )]))
         .build();
 
     let result = parser.set_module_loader(loader).parse_file(
@@ -739,7 +768,7 @@ fn test_parse_provides_and_wrapped_goog_module() {
             Require::goog_require_symbol("a.b.C"),
             Require::goog_require_symbol("a.b.d"),
         ])
-        .set_load_flags(IndexMap::from([]))
+        .set_load_flags(IndexMap::<_, _>::from_iter([]))
         .build();
 
     let result = parser.parse_file(SRC_PATH, CLOSURE_PATH, contents);

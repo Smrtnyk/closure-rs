@@ -24,11 +24,11 @@ use super::{
     },
     simple_dependency_info::SimpleDependencyInfo,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     java_lang::regex::{Matcher, Pattern},
     js_string::JsString,
 };
-use indexmap::IndexMap;
 use std::{
     io::{self, Read},
     sync::Arc,
@@ -100,9 +100,12 @@ impl DepsFileRegexParser {
         flags: Option<&JsString>,
     ) -> Result<IndexMap<String, String>, ParseException> {
         if flags.is_none_or(|flags| flags == "false") {
-            Ok(IndexMap::new())
+            Ok(IndexMap::<_, _>::default())
         } else if flags.is_some_and(|flags| flags == "true") {
-            Ok(IndexMap::from([("module".into(), "goog".into())]))
+            Ok(IndexMap::<_, _>::from_iter([(
+                "module".into(),
+                "goog".into(),
+            )]))
         } else {
             self.base.parse_js_string_map(flags.unwrap())
         }
@@ -116,7 +119,7 @@ impl LineParser for DepsFileRegexParser {
     // port: DepsFileRegexParser#parseLine
     fn parse_line(&mut self, line: &JsString) -> Result<bool, ParseException> {
         let mut has_dependencies = false;
-        if line.index_of(&JsString::from("addDependency")) >= 0 {
+        if line.index_of("addDependency") >= 0 {
             self.dep_matcher.reset(line);
             if self.dep_matcher.matches() {
                 has_dependencies = true;

@@ -30,8 +30,8 @@ use crate::{
     },
 };
 use closure_jstype::js_type::JSType as _;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::IndexMap;
 
 pub struct DotFormatter<'a> {
     assignments: IndexMap<NodeId, i32>,
@@ -48,7 +48,7 @@ impl<'a> DotFormatter<'a> {
     // port: DotFormatter#DotFormatter()
     fn new() -> Self {
         Self {
-            assignments: IndexMap::new(),
+            assignments: IndexMap::<_, _>::default(),
             key_count: 0,
             builder: String::new(),
             cfg: None,
@@ -220,7 +220,7 @@ impl<'a> DotFormatter<'a> {
             self.append_annotation(compiler, n);
         }
         self.builder.push('"');
-        if n.get_jsdoc_info(compiler).is_some() {
+        if n.get_jsdoc_info_ref(compiler).is_some() {
             self.builder.push_str(" color=\"green\"");
         }
         self.builder.push_str("];\n");

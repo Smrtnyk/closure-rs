@@ -49,8 +49,8 @@ use closure_jscomp::{
     infer_consts::InferConsts,
     node_traversal::{AbstractPostOrderCallback, Callback, NodeTraversal},
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.InferConstsTest_Helpers";
@@ -70,7 +70,7 @@ impl NativeObject for InferConstsTestHelpers {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "constFinder".into(),
             self.const_finder.as_ref().map_or(DslValue::Null, |f| {
@@ -139,7 +139,7 @@ impl NativeObject for GetProcessorPass {
     // port: ReplayValues#findField (native object adapter)
     // The recorder lists no instance field of the anonymous class (its captures are synthetic).
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: InferConstsTest_Helpers$1#process
     fn process(
@@ -241,7 +241,7 @@ impl NativeObject for FindConstants {
                 items.iter().cloned().map(DslValue::String).collect(),
             )),
         };
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert("names".into(), self.names_value.clone());
         fields.insert("declaredNodes".into(), set(&self.declared_nodes));
         fields.insert("inferredNodes".into(), set(&self.inferred_nodes));

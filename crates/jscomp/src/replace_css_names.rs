@@ -28,11 +28,11 @@ use crate::node_traversal::{
     AbstractPostOrderCallback, AbstractPostOrderCallbackInterface, Callback, NodeTraversal,
 };
 use crate::process_closure_primitives::ProcessClosurePrimitives;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::java_lang::string::split_units;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::{check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 /// `GET_CSS_NAME_FUNCTION = IR.getprop(IR.name("goog"), "getCssName")`, used only for qualified
@@ -131,8 +131,8 @@ impl<'a> ReplaceCssNames<'a> {
             symbol_map,
             css_name_collector,
             skiplist,
-            css_names_by_symbol: IndexMap::new(),
-            classes_objects_qualified_names: IndexSet::new(),
+            css_names_by_symbol: IndexMap::<_, _>::default(),
+            classes_objects_qualified_names: IndexSet::<_>::default(),
         }
     }
 
@@ -174,7 +174,7 @@ impl<'a> ReplaceCssNames<'a> {
         if let Some(symbol_map) = &self.symbol_map {
             let replacement: JsString;
 
-            if name.starts_with(&JsString::from("--")) {
+            if name.starts_with("--") {
                 // Force BY_WHOLE style for CSS variables.
                 let Some(r) = symbol_map.get(&name) else {
                     let name = name.to_string();
@@ -541,7 +541,7 @@ impl GatherCssNamesTraversal {
         let assignment_target = n.get_first_child(ast);
         let is_css_closure_classes_assignment = n.is_assign(ast)
             && assignment_target.is_some_and(|target| {
-                target.is_get_prop(ast) && target.get_string(ast) == "classes"
+                target.is_get_prop(ast) && target.get_string_ref(ast) == "classes"
             });
 
         let mut css_closure_classes_qualified_name = None;

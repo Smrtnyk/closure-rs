@@ -56,8 +56,8 @@ use closure_jscomp::{
     js_chunk::JSChunk,
     process_closure_provides_and_requires::{ProcessClosureProvidesAndRequires, ProvidedName},
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{node::NodeId, testing::node_subject::assert_node};
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.ProcessClosureProvidesAndRequiresTest_Helpers";
@@ -88,7 +88,7 @@ impl NativeObject for ProcessClosureProvidesAndRequiresTestHelpers {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "preserveGoogProvidesAndRequires".into(),
             DslValue::Bool(self.preserve_goog_provides_and_requires),
@@ -171,7 +171,7 @@ impl NativeObject for GetProcessorLambda {
     }
     // port: ReplayValues#findField (native object adapter: the inner class's fields)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert("compiler".into(), DslValue::Compiler(self.compiler.clone()));
         fields.insert("this$0".into(), DslValue::Native(self.outer.clone()));
         Ok(fields)
@@ -212,8 +212,8 @@ impl NativeObject for GetProcessorLambda {
 fn reference(class: &str) -> DslValue {
     DslValue::Object(Rc::new(RefCell::new(Object {
         class: class.to_string(),
-        fields: IndexMap::new(),
-        field_types: IndexMap::new(),
+        fields: IndexMap::<_, _>::default(),
+        field_types: IndexMap::<_, _>::default(),
     })))
 }
 
@@ -222,7 +222,7 @@ fn object(class: &str, fields: IndexMap<String, DslValue>) -> DslValue {
     DslValue::Object(Rc::new(RefCell::new(Object {
         class: class.to_string(),
         fields,
-        field_types: IndexMap::new(),
+        field_types: IndexMap::<_, _>::default(),
     })))
 }
 
@@ -239,7 +239,7 @@ fn chunk(c: Option<&JSChunk>) -> DslValue {
 // port: UnitRecorder#dump (ProcessClosureProvidesAndRequires.ProvidedName fields)
 fn provided_name(name: &ProvidedName, compiler: &CompilerHandle) -> DslValue {
     let f = name.replay_fields();
-    let mut fields = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
     fields.insert("namespace".into(), DslValue::String(f.namespace.clone()));
     fields.insert("firstNode".into(), node(*f.first_node));
     fields.insert("firstChunk".into(), chunk(f.first_chunk.as_ref()));
@@ -266,7 +266,7 @@ fn provided_name(name: &ProvidedName, compiler: &CompilerHandle) -> DslValue {
 // port: UnitRecorder#dump (AstFactory fields)
 fn ast_factory(factory: &AstFactory) -> DslValue {
     let f = factory.replay_fields();
-    let mut fields = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
     fields.insert(
         "colorRegistry".into(),
         f.color_registry.as_ref().map_or(DslValue::Null, |_| {
@@ -329,7 +329,7 @@ fn chunk_graph(compiler: &Compiler) -> DslValue {
         return DslValue::Null;
     };
     let f = graph.replay_fields();
-    let mut fields = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
     fields.insert(
         "chunks".into(),
         DslValue::Array {
@@ -383,7 +383,7 @@ impl NativeObject for LastProcessor {
             .try_borrow()
             .map_err(|_| Throwable::HarnessError("compiler is borrowed".into()))?;
         let f = self.processor.replay_fields();
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert("compiler".into(), DslValue::Compiler(self.compiler.clone()));
         fields.insert("chunkGraph".into(), chunk_graph(&compiler));
         fields.insert(

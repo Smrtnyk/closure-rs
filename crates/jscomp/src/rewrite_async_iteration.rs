@@ -57,13 +57,13 @@ use crate::{
     transpilation_passes::TranspilationPasses,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     jscomp_colors::standard_colors,
     node::{NodeId, Prop},
     token::Token,
 };
-use indexmap::IndexSet;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
@@ -135,7 +135,7 @@ impl ThisSuperArgsContext {
     fn new(ctx: ContextId, unique_id: String) -> Self {
         Self {
             ctx,
-            used_super_properties: IndexSet::new(),
+            used_super_properties: IndexSet::<_>::default(),
             this_node_to_add: None,
             used_arguments: false,
             unique_id,
@@ -1013,7 +1013,7 @@ impl RewriteAsyncIteration {
 
     // port: RewriteAsyncIteration#replaceArguments
     fn replace_arguments(&mut self, compiler: &mut AbstractCompiler, ctx: ContextId, n: NodeId) {
-        check_argument!(n.is_name(compiler) && n.get_string(compiler) == "arguments");
+        check_argument!(n.is_name(compiler) && n.get_string_ref(compiler) == "arguments");
         check_argument!(self.must_replace_this_super_args(compiler, ctx));
         let function = self.ctx(ctx).function;
         check_argument!(

@@ -36,11 +36,11 @@ use crate::{
     var::VarId,
 };
 use closure_parsing::parser::identifiers::Identifiers;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state, js_string::JsString, node::NodeId, qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, LazyLock};
 
 // port: GatherModuleMetadata#MIXED_MODULE_TYPE
@@ -178,8 +178,8 @@ impl GatherModuleMetadata {
     // port: GatherModuleMetadata#GatherModuleMetadata
     pub fn new(process_common_js_modules: bool, module_resolution_mode: ResolutionMode) -> Self {
         Self {
-            modules_by_path: IndexMap::new(),
-            modules_by_goog_namespace: IndexMap::new(),
+            modules_by_path: IndexMap::<_, _>::default(),
+            modules_by_goog_namespace: IndexMap::<_, _>::default(),
             current_module: None,
             parent_module: None,
             load_module_call: None,
@@ -363,7 +363,7 @@ impl<'a> Finder<'a> {
     fn new(outer: &'a mut GatherModuleMetadata) -> Self {
         Self {
             outer,
-            toggle_module_names: IndexSet::new(),
+            toggle_module_names: IndexSet::<_>::default(),
             toggle_modules: Vec::new(),
         }
     }
@@ -444,7 +444,7 @@ impl<'a> Finder<'a> {
         // goog".
         name_node.is_some_and(|name_node| {
             name_node.is_import_star(compiler)
-                && name_node.get_string(compiler) == "goog"
+                && name_node.get_string_ref(compiler) == "goog"
                 && name_node
                     .get_parent(compiler)
                     .unwrap()
@@ -457,7 +457,7 @@ impl<'a> Finder<'a> {
                     .get_last_child(compiler)
                     .unwrap()
                     .get_string(compiler)
-                    .ends_with(&"/goog.js".into())
+                    .ends_with("/goog.js")
         })
     }
 
@@ -522,7 +522,7 @@ impl<'a> Finder<'a> {
             first_prop = first_prop.get_first_child(t).unwrap();
         }
 
-        if !first_prop.is_name(t) || first_prop.get_string(t) != "goog" {
+        if !first_prop.is_name(t) || first_prop.get_string_ref(t) != "goog" {
             return;
         }
 
@@ -589,7 +589,7 @@ impl<'a> Finder<'a> {
                     .get_last_child(t)
                     .unwrap()
                     .get_string(t)
-                    .ends_with(&"$2etoggles".into())
+                    .ends_with("$2etoggles")
             {
                 return; // only do anything with toggle namespaces
             }
@@ -626,7 +626,7 @@ impl<'a> Finder<'a> {
                     .metadata_builder
                     .strongly_required_goog_namespaces_builder()
                     .add(namespace.clone());
-                if namespace.ends_with(&"$2etoggles".into()) {
+                if namespace.ends_with("$2etoggles") {
                     // Track imports of *.toggles.ts, which are rewritten to $2etoggles.
                     let call_parent = n.get_parent(t).unwrap();
                     let lhs = call_parent.get_first_child(t);

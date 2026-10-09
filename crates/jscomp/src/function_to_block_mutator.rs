@@ -29,6 +29,7 @@ use crate::{
     node_util::{MatchShallowStatement, NodeUtil},
     rename_labels::RenameLabels,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_state,
     ir::IR,
@@ -36,7 +37,6 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 pub struct FunctionToBlockMutator {
@@ -159,7 +159,7 @@ impl FunctionToBlockMutator {
                 &*self.safe_name_id_supplier,
             );
         let has_args = !args.is_empty();
-        let mut all_names_to_alias: IndexSet<JsString> = IndexSet::new();
+        let mut all_names_to_alias: IndexSet<JsString> = IndexSet::<_>::default();
         if has_args {
             let temps = self
                 .function_argument_injector
@@ -460,7 +460,7 @@ impl FunctionToBlockMutator {
     ) -> NodeId {
         if names_to_alias.is_none_or(|names| names.is_empty()) {
             // There are no names to alias. Just inline the arguments directly.
-            let mut replacements: IndexMap<JsString, NodeId> = IndexMap::new();
+            let mut replacements: IndexMap<JsString, NodeId> = IndexMap::<_, _>::default();
             for (key, value) in param_to_arg_map {
                 replacements.insert(key.clone(), value.arg());
             }
@@ -479,7 +479,7 @@ impl FunctionToBlockMutator {
             // A map from function parameter to the value it should be replaced with
             // post-inlining. This is a subset of paramToArg: we exclude parameters for which we
             // create an explicit alias.
-            let mut param_replacements: IndexMap<JsString, NodeId> = IndexMap::new();
+            let mut param_replacements: IndexMap<JsString, NodeId> = IndexMap::<_, _>::default();
 
             // Declare the aliases in the same order as the arguments are defined.
             let mut new_aliases_to_add: Vec<NodeId> = Vec::new();

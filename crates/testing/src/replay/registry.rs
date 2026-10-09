@@ -40,7 +40,7 @@ use crate::{
     replay::replay_dsl::{Ctx, DslValue, Object, invoke_lambda},
     throwable::{Throwable, assert_that},
 };
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::{cell::RefCell, path::Path, rc::Rc};
 pub type BorrowedEntry =
     fn(&mut Ctx, Vec<DslValue>, &mut crate::jscomp_api::Compiler) -> Result<DslValue, Throwable>;
@@ -60,7 +60,7 @@ pub struct Registry {
 impl Registry {
     // port: ReplayDsl#pick (resolved corpus TSV)
     pub fn from_tsv(tsv: &str) -> Result<Self, Throwable> {
-        let mut resolutions = IndexMap::new();
+        let mut resolutions = IndexMap::<_, _>::default();
         for (index, line) in tsv.lines().enumerate().skip(1) {
             if line.is_empty() {
                 continue;
@@ -90,8 +90,8 @@ impl Registry {
         }
         let mut out = Self {
             resolutions: Rc::new(resolutions),
-            entries: Rc::new(IndexMap::new()),
-            borrowed_entries: Rc::new(IndexMap::new()),
+            entries: Rc::new(IndexMap::<_, _>::default()),
+            borrowed_entries: Rc::new(IndexMap::<_, _>::default()),
         };
         out.register_value_helpers();
         crate::replay::replace_messages_helpers::register(&mut out);
@@ -801,7 +801,7 @@ fn new_object<const N: usize>(class: &str, fields: [(&str, DslValue); N]) -> Dsl
     DslValue::Object(Rc::new(RefCell::new(Object {
         class: class.into(),
         fields: fields.into_iter().map(|(k, v)| (k.into(), v)).collect(),
-        field_types: IndexMap::new(),
+        field_types: IndexMap::<_, _>::default(),
     })))
 }
 // port: ReplayDsl#pick (resolution error)

@@ -42,13 +42,13 @@ use closure_jstype::{
     static_typed_scope::StaticTypedScope,
     static_typed_slot::StaticTypedSlot,
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_state,
     java_lang::JavaHashCode,
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::IndexSet;
 use std::{
     num::NonZeroU32,
     ops::{Deref, DerefMut},
@@ -71,6 +71,16 @@ pub(crate) struct TypedScopeData {
     /// Rust-only: the canonical closure-jstype view (Java: this object as a StaticTypedScope),
     /// created on first use and never freed (PORT_NOTES, "TypedScope and TypedVar views").
     pub(crate) view: OnceLock<&'static Arc<TypedScopeView>>,
+}
+
+/// Rust-only (D-025): lock-free copies of a typed scope's fields that never change after
+/// construction (see `scope::ScopeMirror`), in `Compiler::typed_scope_mirror`, index-aligned with
+/// `TypedScopeArena::scopes`.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct TypedScopeMeta {
+    root_node: NodeId,
+    parent: Option<TypedScope>,
+    depth: i32,
 }
 
 /// Rust-only owner for Java TypedScope and TypedVar object identities; slots are never removed.
@@ -197,7 +207,7 @@ impl TypedScope {
 
     // port: TypedScope#TypedScope(TypedScope, Node)
     pub fn new(compiler: &mut AbstractCompiler, parent: TypedScope, root_node: NodeId) -> Self {
-        Self::new_with_reserved_names(compiler, parent, root_node, &IndexSet::new(), None)
+        Self::new_with_reserved_names(compiler, parent, root_node, &IndexSet::<_>::default(), None)
     }
 
     // port: TypedScope#TypedScope(TypedScope, Node, Set, Module)
@@ -211,12 +221,15 @@ impl TypedScope {
         let scope = Self::allocate(compiler, root_node);
         scope.check_child_scope(compiler, parent);
         let depth = parent.data(compiler).depth + 1;
+        let meta = &mut compiler.typed_scope_mirror[scope.index()];
+        meta.parent = Some(parent);
+        meta.depth = depth;
         let mut data = scope.data_mut(compiler);
         data.parent = Some(parent);
         data.depth = depth;
         data.is_bottom = false;
         data.reserved_names = if reserved_names.is_empty() {
-            IndexSet::new()
+            IndexSet::<_>::default()
         } else {
             reserved_names.clone()
         };
@@ -232,7 +245,7 @@ impl TypedScope {
         data.parent = None;
         data.depth = 0;
         data.is_bottom = is_bottom;
-        data.reserved_names = IndexSet::new();
+        data.reserved_names = IndexSet::<_>::default();
         data.module = None;
         scope
     }
@@ -248,8 +261,14 @@ impl TypedScope {
             depth: 0,
             module: None,
             is_bottom: false,
-            reserved_names: IndexSet::new(),
+            reserved_names: IndexSet::<_>::default(),
             view: OnceLock::new(),
+        });
+        drop(arena);
+        compiler.typed_scope_mirror.push(TypedScopeMeta {
+            root_node,
+            parent: None,
+            depth: 0,
         });
         scope
     }
@@ -287,7 +306,7 @@ impl TypedScope {
         );
         // let a (16-bit) VM garbage collect 64 bytes per TypedScope. (ImmutableSet.of() returns a
         // singleton)
-        self.data_mut(compiler).reserved_names = IndexSet::new();
+        self.data_mut(compiler).reserved_names = IndexSet::<_>::default();
     }
 
     // port: TypedScope#isBottom
@@ -302,12 +321,12 @@ impl TypedScope {
 
     // port: TypedScope#getDepth
     pub fn get_depth(self, compiler: &AbstractCompiler) -> i32 {
-        self.data(compiler).depth
+        compiler.typed_scope_mirror[self.index()].depth
     }
 
     // port: TypedScope#getParent
     pub fn get_parent(self, compiler: &AbstractCompiler) -> Option<TypedScope> {
-        self.data(compiler).parent
+        compiler.typed_scope_mirror[self.index()].parent
     }
 
     // port: TypedScope#getTypeOfThis
@@ -404,7 +423,7 @@ impl TypedScope {
         Some(TypedVar::new(
             compiler,
             false,
-            var.name(),
+            var.js_name(),
             None,
             type_,
             self,
@@ -614,6 +633,10 @@ impl AbstractScope for TypedScope {
     }
     fn get_parent(self, compiler: &AbstractCompiler) -> Option<Self> {
         TypedScope::get_parent(self, compiler)
+    }
+    // port: AbstractScope#getRootNode
+    fn get_root_node(self, compiler: &AbstractCompiler) -> NodeId {
+        compiler.typed_scope_mirror[self.index()].root_node
     }
     fn typed(self, compiler: &AbstractCompiler) -> TypedScope {
         TypedScope::typed(self, compiler)
@@ -999,7 +1022,7 @@ impl TypedScopeView {
         let mut arena = arena.write().unwrap_or_else(PoisonError::into_inner);
         // port: TypedScope#makeImplicitVar
         let abstract_var = AbstractVarData {
-            name: JsString::from(implicit.name()),
+            name: implicit.js_name(),
             name_node: None,
             implicit_goog_namespace_strength: None,
             input: None,

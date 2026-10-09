@@ -37,13 +37,13 @@ use crate::{
     node_traversal::{AbstractModuleCallback, ModuleCallback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_argument, check_state,
     ir::IR,
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::IndexSet;
 use std::sync::{Arc, LazyLock};
 
 // port: CheckClosureImports.ClosureImport
@@ -208,7 +208,7 @@ impl CheckClosureImports {
     pub fn new(_compiler: &AbstractCompiler, module_metadata_map: Arc<ModuleMetadataMap>) -> Self {
         Self {
             module_metadata_map,
-            namespaces_seen: IndexSet::new(),
+            namespaces_seen: IndexSet::<_>::default(),
         }
     }
 

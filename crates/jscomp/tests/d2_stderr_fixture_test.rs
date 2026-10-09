@@ -20,12 +20,12 @@
 
 #[path = "support/d2_replay.rs"]
 mod d2_replay;
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use serde_json::Value;
 // port: SortingErrorManager#generateReport / LightweightMessageFormatter#format (JVM D2 fixture)
 #[test]
 fn d2_stderr_fixture() {
-    let mut types = IndexMap::new();
+    let mut types = IndexMap::<_, _>::default();
     let mut rows = 0;
     for line in include_str!("data/d2_stderr_fixture.jsonl").lines() {
         let row: Value = serde_json::from_str(line).unwrap();

@@ -55,12 +55,12 @@ use closure_jscomp::{
     var_check::VarCheck,
     variable_reference_check::VariableReferenceCheck,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     ir::IR,
     node::{NodeId, Prop},
     token::Token,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 fn bad(what: &str) -> Throwable {
@@ -175,8 +175,8 @@ const VAR_CHECK_HOLDER: &str = "com.google.javascript.jscomp.VarCheckTest_Helper
 
 // port: VarCheckTest_Helpers#VarCheckTest_Helpers
 pub fn var_check_test_helpers(_ctx: &mut Ctx, _args: Vec<DslValue>) -> Result<DslValue, Throwable> {
-    let mut fields = IndexMap::new();
-    let mut field_types = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
+    let mut field_types = IndexMap::<_, _>::default();
     // private boolean validityCheck = false;
     fields.insert("validityCheck".to_string(), DslValue::Bool(false));
     field_types.insert("validityCheck".to_string(), "boolean".to_string());
@@ -278,8 +278,8 @@ pub fn validity_check_test_helpers(
 ) -> Result<DslValue, Throwable> {
     Ok(DslValue::Object(Rc::new(RefCell::new(Object {
         class: VALIDITY_CHECK_HOLDER.into(),
-        fields: IndexMap::new(),
-        field_types: IndexMap::new(),
+        fields: IndexMap::<_, _>::default(),
+        field_types: IndexMap::<_, _>::default(),
     }))))
 }
 
@@ -370,8 +370,8 @@ pub fn remove_unnecessary_synthetic_externs_test_helpers(
     _ctx: &mut Ctx,
     _args: Vec<DslValue>,
 ) -> Result<DslValue, Throwable> {
-    let mut fields = IndexMap::new();
-    let mut field_types = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
+    let mut field_types = IndexMap::<_, _>::default();
     // use this set to simulate an earlier compiler pass declaring a synthetic extern
     // private @Nullable LinkedHashSet<Node> syntheticExternsToAdd = null;
     fields.insert("syntheticExternsToAdd".to_string(), DslValue::Null);

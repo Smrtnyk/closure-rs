@@ -61,11 +61,11 @@ use crate::{
     var::VarId,
 };
 use closure_parsing::parser::feature_set::FeatureSet;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_not_null, check_state, ir::IR, java_util::bit_set::BitSet, js_string::JsString,
     node::NodeId, token::Token,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, collections::BTreeSet, collections::VecDeque, rc::Rc};
 
 // Rust-only: Java shares one MemoizedScopeCreator object between this pass (the field) and its

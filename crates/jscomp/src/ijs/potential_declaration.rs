@@ -179,7 +179,7 @@ impl PotentialDeclaration {
         check_argument!(string_key_node.is_string_key(ast));
         check_argument!(string_key_node.get_parent(ast).unwrap().is_object_lit(ast));
         let name = JsString::from("this.").concat(&string_key_node.get_string(ast));
-        if string_key_node.get_string(ast) == "properties" {
+        if string_key_node.get_string_ref(ast) == "properties" {
             let obj_lit_js_doc =
                 NodeUtil::get_best_jsdoc_info(ast, string_key_node.get_parent(ast).unwrap());
             if obj_lit_js_doc.is_some_and(|d| d.is_polymer_behavior()) {
@@ -665,7 +665,9 @@ impl PotentialDeclaration {
                 let mut sub_prop = prop_def.get_first_child(compiler);
                 while let Some(sp) = sub_prop {
                     let next = sp.get_next(compiler);
-                    if sp.get_string(compiler) != "type" && sp.get_string(compiler) != "readOnly" {
+                    if sp.get_string_ref(compiler) != "type"
+                        && sp.get_string_ref(compiler) != "readOnly"
+                    {
                         NodeUtil::delete_node(compiler, sp);
                     }
                     sub_prop = next;
@@ -841,7 +843,7 @@ impl PotentialDeclaration {
     // port: PotentialDeclaration#isQualifiedAliasExpression
     pub fn is_qualified_alias_expression(ast: &Ast, n: NodeId) -> bool {
         match n.get_token(ast) {
-            Token::NAME => !n.get_string(ast).is_empty(),
+            Token::NAME => !n.get_string_ref(ast).is_empty(),
             Token::THIS | Token::SUPER => true,
             Token::GETPROP => {
                 Self::is_qualified_alias_expression(ast, n.get_first_child(ast).unwrap())

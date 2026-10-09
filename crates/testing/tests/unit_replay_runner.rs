@@ -16,12 +16,12 @@
 // Ported from closure-rs' own Java oracle tooling:
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayMain.java.
 
+use closure_rhino::fast_hash::IndexSet;
 use closure_testing::{
     corpus,
     json::parse_json,
     replay::replay_main::{Report, Runner},
 };
-use indexmap::IndexSet;
 
 const SAMPLE: usize = 16;
 
@@ -48,7 +48,7 @@ fn sampled_record_count() -> usize {
 // port: ReplayMain#main / compare (structural corpus coverage)
 #[test]
 fn every_record_is_classified_once_and_the_report_round_trips() {
-    let mut identities = IndexSet::new();
+    let mut identities = IndexSet::<_>::default();
     let mut classes = 0;
     let report = Runner {
         corpus: corpus::corpus_unit_dir(),

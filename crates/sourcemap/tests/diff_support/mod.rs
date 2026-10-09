@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use closure_sourcemap::{
     base64::Base64,
@@ -28,7 +29,6 @@ use closure_sourcemap::{
     source_map_section::SourceMapSection,
     util::Util,
 };
-use indexmap::IndexSet;
 use serde_json::{Value, json};
 use std::{
     io::{BufRead, BufReader},
@@ -145,7 +145,7 @@ fn summary(input: &str, fast: bool) -> Result<Value, Error> {
         c
     };
     let vs = visits(&c);
-    let mut positions = IndexSet::new();
+    let mut positions = IndexSet::<_>::default();
     positions.insert([0, 0]);
     positions.insert([1, 1]);
     for v in &vs {

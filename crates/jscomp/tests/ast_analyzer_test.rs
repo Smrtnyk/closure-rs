@@ -28,6 +28,7 @@ use closure_jscomp::{
     node_util::NodeUtil,
 };
 use closure_jstype::js_type_native::JSTypeNative;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_state,
     js_string::JsString,
@@ -35,7 +36,6 @@ use closure_rhino::{
     node::{NodeId, SideEffectFlags},
     token::Token,
 };
-use indexmap::IndexMap;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -115,7 +115,7 @@ struct ParseHelper {
 
 impl ParseHelper {
     fn new() -> Self {
-        let mut accessors = IndexMap::new();
+        let mut accessors = IndexMap::<_, _>::default();
         accessors.insert(JsString::from("getter"), PropertyAccessKind::GETTER_ONLY);
         accessors.insert(JsString::from("setter"), PropertyAccessKind::SETTER_ONLY);
         Self {

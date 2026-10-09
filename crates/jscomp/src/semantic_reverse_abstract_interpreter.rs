@@ -38,6 +38,7 @@ use closure_jstype::{
     object_type,
     prelude::{FunctionType, JSType, UnionType},
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_state,
     js_string::JsString,
@@ -45,7 +46,6 @@ use closure_rhino::{
     outcome::Outcome,
     token::Token,
 };
-use indexmap::IndexSet;
 use std::{
     any::Any,
     sync::{Arc, Mutex, MutexGuard, PoisonError, Weak},
@@ -313,7 +313,7 @@ impl SemanticReverseAbstractInterpreter {
         // ignore both separate result flow scopes individually, but if they both refined the same
         // slot, we can join the two refinements.  TODO(sdh): look into simplifying this.  If
         // joining were more efficient, we should just be able to join the scopes unconditionally?
-        let refinements: Refinements = Arc::new(Mutex::new(IndexSet::new()));
+        let refinements: Refinements = Arc::new(Mutex::new(IndexSet::<_>::default()));
         blind_scope = Arc::new(RefinementTrackingFlowScope::new(
             blind_scope,
             refinements.clone(),

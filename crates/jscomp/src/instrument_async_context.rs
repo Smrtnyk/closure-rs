@@ -30,13 +30,13 @@ use crate::{
     },
 };
 use closure_parsing::parser::feature_set::Feature;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state,
     ir::IR,
     jsdoc_info::JSDocInfo,
     node::{NodeId, Prop},
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 // NOTE: we prefix all internal symbols with a characteristic "ᵃᶜ" (U+1D43, U+1D9C) to
@@ -87,9 +87,9 @@ impl InstrumentAsyncContext {
             ast_factory,
             should_instrument_await,
             try_function_stack: Vec::new(),
-            needs_instrumentation: IndexMap::new(),
-            already_instrumented: IndexSet::new(),
-            has_super: IndexSet::new(),
+            needs_instrumentation: IndexMap::<_, _>::default(),
+            already_instrumented: IndexSet::<_>::default(),
+            has_super: IndexSet::<_>::default(),
         }
     }
 
@@ -815,7 +815,7 @@ impl Callback for InstrumentAsyncContext {
 
     // port: InstrumentAsyncContext#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        if n.is_name(t) && n.get_string(t).to_string().starts_with(FACTORY) {
+        if n.is_name(t) && n.get_string_ref(t).to_string().starts_with(FACTORY) {
             // Java adds a null enclosing function to the set; no function node ever matches it.
             if let Some(enclosing_function) = t.get_enclosing_function() {
                 self.already_instrumented.insert(enclosing_function);
@@ -884,7 +884,7 @@ impl Callback for ArgumentsRenamer {
 
     // port: InstrumentAsyncContext.ArgumentsRenamer#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-        if n.is_name(t) && n.get_string(t) == "arguments" {
+        if n.is_name(t) && n.get_string_ref(t) == "arguments" {
             if self.arguments_name.is_none() {
                 let input = check_not_null!(t.get_input().cloned());
                 let unique_id = t

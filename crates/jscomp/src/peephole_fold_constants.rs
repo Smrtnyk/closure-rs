@@ -276,7 +276,7 @@ impl PeepholeFoldConstants {
             Token::VOID => type_name_string = Some("undefined"),
             // We assume here that programs don't change the value of the
             // keyword undefined to something other than the value undefined.
-            Token::NAME if argument_node.get_string(compiler) == "undefined" => {
+            Token::NAME if argument_node.get_string_ref(compiler) == "undefined" => {
                 type_name_string = Some("undefined");
             }
             _ => {}
@@ -336,7 +336,7 @@ impl PeepholeFoldConstants {
             }
             Token::NEG => {
                 let mut result = None;
-                if left.is_name(compiler) && left.get_string(compiler) == "NaN" {
+                if left.is_name(compiler) && left.get_string_ref(compiler) == "NaN" {
                     result = Some(left.detach(compiler)); // "-NaN" is "NaN".
                 } else if left.is_neg(compiler) {
                     let left_left = left.get_only_child(compiler);
@@ -414,7 +414,7 @@ impl PeepholeFoldConstants {
                 if !self.may_have_side_effects(compiler, left) {
                     replacement_node = Some(IR::false_node(compiler));
                 }
-            } else if right.is_name(compiler) && right.get_string(compiler) == "Object" {
+            } else if right.is_name(compiler) && right.get_string_ref(compiler) == "Object" {
                 replacement_node = Some(IR::true_node(compiler));
             }
 
@@ -1215,9 +1215,7 @@ impl PeepholeFoldConstants {
         let last_left = left.get_last_child(compiler).unwrap();
         let first_right = right.get_first_child(compiler).unwrap();
         if self.ends_with_unescaped_dollar(&last_left.get_raw_string(compiler))
-            && first_right
-                .get_raw_string(compiler)
-                .starts_with(&JsString::from("{"))
+            && first_right.get_raw_string(compiler).starts_with("{")
         {
             return old_node;
         }
@@ -1278,7 +1276,7 @@ impl PeepholeFoldConstants {
     /// returns true if the raw string ends with an unescaped dollar sign
     // port: PeepholeFoldConstants#endsWithUnescapedDollar
     fn ends_with_unescaped_dollar(&self, raw: &JsString) -> bool {
-        if !raw.ends_with(&JsString::from("$")) {
+        if !raw.ends_with("$") {
             return false;
         }
         let mut backslash_count = 0;
@@ -1343,9 +1341,7 @@ impl PeepholeFoldConstants {
                             if str_value.is_empty()
                                 && self
                                     .ends_with_unescaped_dollar(&cur_node.get_raw_string(compiler))
-                                && next_next
-                                    .get_raw_string(compiler)
-                                    .starts_with(&JsString::from("{"))
+                                && next_next.get_raw_string(compiler).starts_with("{")
                             {
                                 cur = Some(next);
                                 continue;
@@ -1408,7 +1404,7 @@ impl PeepholeFoldConstants {
         }
 
         // Check if prefix ends with an unescaped \0
-        if prefix_raw.ends_with(&JsString::from("0")) {
+        if prefix_raw.ends_with("0") {
             let before_zero = prefix_raw.substring(0, prefix_raw.length() - 1);
             return self.ends_with_unescaped_backslash(&before_zero);
         }
@@ -1457,13 +1453,13 @@ impl PeepholeFoldConstants {
                 // '6' + 7
                 self.try_fold_add_constant_string(compiler, node, left, right)
             } else if left.is_string_lit(compiler)
-                && left.get_string(compiler).is_empty()
+                && left.get_string_ref(compiler).is_empty()
                 && self.is_string_typed(compiler, right)
             {
                 let clone = right.clone_tree_with_type_exprs(compiler, true);
                 self.replace(compiler, node, clone)
             } else if right.is_string_lit(compiler)
-                && right.get_string(compiler).is_empty()
+                && right.get_string_ref(compiler).is_empty()
                 && self.is_string_typed(compiler, left)
             {
                 let clone = left.clone_tree_with_type_exprs(compiler, true);
@@ -2169,7 +2165,7 @@ impl PeepholeFoldConstants {
             return n;
         }
 
-        if object_type.get_string(compiler) == "String" {
+        if object_type.get_string_ref(compiler) == "String" {
             let value = object_type.get_next(compiler);
             let string_value = match value {
                 None => Some(JsString::from("")),
@@ -2251,7 +2247,7 @@ impl PeepholeFoldConstants {
                     }
                     known_length = left.get_child_count(compiler);
                 }
-                Token::STRINGLIT => known_length = left.get_string(compiler).length() as i32,
+                Token::STRINGLIT => known_length = left.get_string_ref(compiler).length() as i32,
                 _ => {
                     // Not a foldable case, forget it.
                     return n;

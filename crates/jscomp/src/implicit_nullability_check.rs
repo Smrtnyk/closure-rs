@@ -124,7 +124,7 @@ impl ImplicitNullabilityCheck {
                     }
                     let mut child = parent.get_first_child(t);
                     while let Some(c) = child {
-                        if (c.is_string_lit(t) && c.get_string(t) == "null")
+                        if (c.is_string_lit(t) && c.get_string_ref(t) == "null")
                             || c.get_token(t) == Token::QMARK
                         {
                             return None; // Inside a union that contains null or nullable type

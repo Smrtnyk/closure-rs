@@ -38,8 +38,8 @@ mod cluster_propagator_test {
         },
         graph::union_find::UnionFind,
     };
+    use closure_rhino::fast_hash::IndexSet;
     use closure_rhino::js_string::JsString;
-    use indexmap::IndexSet;
 
     fn test_color() -> Color {
         standard_colors::NUMBER.clone()
@@ -217,7 +217,7 @@ mod color_graph_node_factory_test {
             color_graph_node_factory::ColorGraphNodeFactory,
         },
     };
-    use indexmap::IndexSet;
+    use closure_rhino::fast_hash::IndexSet;
     use std::sync::Arc;
 
     // port: ColorGraphNodeFactoryTest#initRegistry
@@ -445,12 +445,12 @@ mod use_site_renamer_test {
         },
         graph::union_find::UnionFind,
     };
+    use closure_rhino::fast_hash::IndexSet;
     use closure_rhino::{
         ir::IR,
         js_string::JsString,
         node::{Ast, NodeId},
     };
-    use indexmap::IndexSet;
 
     const PROP_NAME: &str = "prop";
 
@@ -469,9 +469,9 @@ mod use_site_renamer_test {
             Self {
                 ast: Ast::new(),
                 arena,
-                reported_mutations: IndexSet::new(),
+                reported_mutations: IndexSet::<_>::default(),
                 prop,
-                renaming_index: RenamingIndex::new(),
+                renaming_index: RenamingIndex::default(),
             }
         }
 
@@ -756,7 +756,7 @@ mod color_graph_builder_test {
             lowest_common_ancestor_finder::LowestCommonAncestorFinder,
         },
     };
-    use indexmap::IndexMap;
+    use closure_rhino::fast_hash::IndexMap;
     use std::sync::Arc;
 
     struct ColorGraphBuilderTest {
@@ -816,7 +816,7 @@ mod color_graph_builder_test {
         // port: ColorGraphBuilderTest#assertThatResultAsTable
         fn result_as_table(&self) -> IndexMap<(ColorId, ColorId), EdgeReason> {
             let result = self.result.as_ref().unwrap();
-            let mut table = IndexMap::new();
+            let mut table = IndexMap::<_, _>::default();
             for edge in result.get_edges() {
                 let key = (
                     name_of(&self.arena, *edge.get_source(result).get_value(result)),

@@ -17,6 +17,7 @@
 //   oracle/src/com/google/javascript/jscomp/ParseDump.java.
 
 use closure_parsing::parser::feature_set::FeatureSet;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     js_string::JsString,
     js_type_expression::JSTypeExpression,
@@ -27,7 +28,6 @@ use closure_rhino::{
     node::{Ast, NodeId, ObjectProp, Prop, PropValue},
     non_jsdoc_comment::NonJSDocComment,
 };
-use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
 

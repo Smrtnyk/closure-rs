@@ -85,8 +85,9 @@ impl Callback for ConvertToDottedProperties {
                 // {['__proto__']: v} defines an own property; {__proto__: v} sets prototype.
                 if left_elem.is_string_lit(t)
                     && NodeUtil::is_valid_property_name(FeatureSet::ES3, &left_elem.get_string(t))
-                    && left_elem.get_string(t) != "constructor"
-                    && !(parent.unwrap().is_object_lit(t) && left_elem.get_string(t) == "__proto__")
+                    && left_elem.get_string_ref(t) != "constructor"
+                    && !(parent.unwrap().is_object_lit(t)
+                        && left_elem.get_string_ref(t) == "__proto__")
                 {
                     left_elem.detach(t);
                     let right_elem = right_elem.expect("NullPointerException");

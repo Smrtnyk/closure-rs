@@ -15,8 +15,8 @@
  */
 
 use closure_jscomp::colors::{Color, ColorId, color_registry::REQUIRED_IDS, standard_colors as sc};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
-use indexmap::{IndexMap, IndexSet};
 
 // oracle: corpus-cache/colors/vectors.txt (ColorVectors.java)
 #[test]
@@ -125,18 +125,21 @@ fn vector_colors() -> IndexMap<&'static str, Color> {
         .set_closure_assert(true)
         .set_properties_keep_original_name(true)
         .build();
-    let num_or_str = Color::create_union(&IndexSet::from([sc::STRING.clone(), sc::NUMBER.clone()]));
-    let big = Color::create_union(&IndexSet::from([
+    let num_or_str = Color::create_union(&IndexSet::<_>::from_iter([
+        sc::STRING.clone(),
+        sc::NUMBER.clone(),
+    ]));
+    let big = Color::create_union(&IndexSet::<_>::from_iter([
         num_or_str.clone(),
         sc::BIGINT.clone(),
         sc::NULL_OR_VOID.clone(),
     ]));
-    let ctor_union = Color::create_union(&IndexSet::from([
+    let ctor_union = Color::create_union(&IndexSet::<_>::from_iter([
         foo_ctor.clone(),
         bar.clone(),
         sc::NULL_OR_VOID.clone(),
     ]));
-    IndexMap::from([
+    IndexMap::<_, _>::from_iter([
         ("BIGINT", sc::BIGINT.clone()),
         ("BOOLEAN", sc::BOOLEAN.clone()),
         ("NULL_OR_VOID", sc::NULL_OR_VOID.clone()),

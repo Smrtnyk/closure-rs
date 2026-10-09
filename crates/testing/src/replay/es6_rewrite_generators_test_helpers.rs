@@ -49,8 +49,8 @@ use closure_jscomp::{
     inject_transpilation_runtime_libraries::InjectTranspilationRuntimeLibraries,
     pass_factory::PassFactory, phase_optimizer::PhaseOptimizer,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.Es6RewriteGeneratorsTest_Helpers";
@@ -69,7 +69,7 @@ impl NativeObject for Es6RewriteGeneratorsTestHelpers {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "extraRuntimeLibFields".into(),
             DslValue::List(

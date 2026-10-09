@@ -1,5 +1,6 @@
 /*
  * Copyright 2015 The Closure Compiler Authors.
+ * Copyright 2018 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  * limitations under the License.
  */
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
-//   src/com/google/javascript/jscomp/Var.java.
+//   src/com/google/javascript/jscomp/AbstractVar.java, src/com/google/javascript/jscomp/Var.java.
 
 use crate::{
     abstract_compiler::AbstractCompiler,
@@ -67,10 +68,19 @@ impl VarId {
                 name_node.to_string(compiler)
             );
         }
-        let mut arena = crate::scope::ScopeArena::write(compiler);
+        let arena_lock = std::sync::Arc::clone(&compiler.scope_arena);
+        let mut arena = arena_lock
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let var = Self::push(&mut arena, data);
+        compiler.scope_mirror.sync_vars(&arena);
         drop(arena);
         var
+    }
+
+    /// Rust-only: the lock-free copy of this var's immutable fields, when the mirror has it.
+    fn meta(self, compiler: &AbstractCompiler) -> Option<&crate::scope::VarMeta> {
+        compiler.scope_mirror.vars.get(self.index())
     }
 
     /// Rust-only: the arena half of `Var#Var` (the new var's slot), shared with the scope view
@@ -131,6 +141,59 @@ impl AbstractVar for VarId {
 
     fn to_string(self, compiler: &AbstractCompiler) -> String {
         VarId::to_string(self, compiler)
+    }
+
+    // The readers of immutable fields below use the lock-free `ScopeMirror` (D-025).
+    // port: AbstractVar#getName
+    fn get_name(self, compiler: &AbstractCompiler) -> JsString {
+        match self.meta(compiler) {
+            Some(meta) => meta.name.clone(),
+            None => self.var_data(compiler).name.clone(),
+        }
+    }
+
+    // port: AbstractVar#getNode
+    fn get_node(self, compiler: &AbstractCompiler) -> Option<NodeId> {
+        match self.meta(compiler) {
+            Some(meta) => meta.name_node,
+            None => self.var_data(compiler).name_node,
+        }
+    }
+
+    // port: AbstractVar#getInput
+    fn get_input(self, compiler: &AbstractCompiler) -> Option<CompilerInput> {
+        match self.meta(compiler) {
+            Some(meta) => meta.input.clone(),
+            None => self.var_data(compiler).input.clone(),
+        }
+    }
+
+    // port: AbstractVar#getScope
+    fn get_scope(self, compiler: &AbstractCompiler) -> Option<ScopeId> {
+        match self.meta(compiler) {
+            Some(meta) => meta.scope,
+            None => self.var_data(compiler).scope,
+        }
+    }
+
+    // port: AbstractVar#getIndex
+    fn get_index(self, compiler: &AbstractCompiler) -> i32 {
+        match self.meta(compiler) {
+            Some(meta) => meta.index,
+            None => self.var_data(compiler).index,
+        }
+    }
+
+    // port: AbstractVar#isExtern
+    fn is_extern(self, compiler: &AbstractCompiler) -> bool {
+        match self.meta(compiler) {
+            Some(meta) => meta.input.as_ref().is_none_or(|input| input.is_extern()),
+            None => self
+                .var_data(compiler)
+                .input
+                .as_ref()
+                .is_none_or(|input| input.is_extern()),
+        }
     }
 }
 

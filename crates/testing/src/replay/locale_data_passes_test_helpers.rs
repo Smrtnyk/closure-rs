@@ -47,8 +47,8 @@ use closure_jscomp::{
     compiler_pass::CompilerPass,
     locale_data_passes::{LocaleSubstitutions, ProtectGoogLocale},
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.LocaleDataPassesTest_Helpers";
@@ -95,7 +95,7 @@ impl NativeObject for LocaleDataPassesTestHelpers {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "testMode".into(),
             DslValue::Enum {
@@ -163,7 +163,7 @@ impl NativeObject for ProtectDataPass {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: LocaleDataPassesTest_Helpers$1#process
     fn process(
@@ -193,7 +193,7 @@ impl NativeObject for ReplaceProtectedDataPass {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: LocaleDataPassesTest_Helpers$2#process
     fn process(

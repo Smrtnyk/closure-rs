@@ -19,8 +19,8 @@ use closure_jscomp::coding_convention::CodingConvention;
 use closure_jscomp::compiler_options::*;
 use closure_jscomp::dependency_options::DependencyOptions;
 use closure_parsing::parser::feature_set::FeatureSet;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{java_lang::charset::Charset, js_string::JsString};
-use indexmap::{IndexMap, IndexSet};
 use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
