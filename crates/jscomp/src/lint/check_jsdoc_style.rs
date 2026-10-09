@@ -432,7 +432,7 @@ impl CheckJSDocStyle {
         t.report(
             error_source,
             &OPTIONAL_PARAM_NOT_MARKED_OPTIONAL,
-            &[&name.to_string_lossy()],
+            &[&name.to_string()],
         );
         true
     }

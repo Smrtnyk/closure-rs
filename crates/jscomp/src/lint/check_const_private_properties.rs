@@ -64,7 +64,7 @@ impl CheckConstPrivateProperties {
         for &n in &self.candidates {
             let prop_name = n.get_string(t);
             if !self.modified.contains(&prop_name) {
-                t.report(n, &MISSING_CONST_PROPERTY, &[&prop_name.to_string_lossy()]);
+                t.report(n, &MISSING_CONST_PROPERTY, &[&prop_name.to_string()]);
             }
         }
         self.candidates.clear();

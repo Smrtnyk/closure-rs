@@ -116,7 +116,7 @@ impl Callback for CheckUnusedLabels {
         {
             if !current_context.used {
                 let name = n.get_first_child(t).unwrap().get_string(t);
-                t.report(n, &UNUSED_LABEL, &[&name.to_string_lossy()]);
+                t.report(n, &UNUSED_LABEL, &[&name.to_string()]);
             }
             self.current_context = current_context.parent;
         }

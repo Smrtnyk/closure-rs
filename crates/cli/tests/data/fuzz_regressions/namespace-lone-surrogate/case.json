@@ -1,0 +1,13 @@
+{
+ "argv": [
+  "--js",
+  "a.js",
+  "--js",
+  "b.js",
+  "--js_output_file",
+  "out/out.js"
+ ],
+ "origin": "probe after fz-6fc868fd3e39: JSC_INVALID_NAMESPACE_OR_MODULE_ID and every diagnostic argument taken from a Java string is written as Java's UTF-8 stream writes it (unpaired surrogate -> ?)",
+ "exit_code": 2,
+ "outputs": []
+}

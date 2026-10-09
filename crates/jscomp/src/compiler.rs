@@ -318,7 +318,9 @@ impl Compiler {
                 for generator in self.get_options().get_extra_report_generators() {
                     generators.push(Box::new(SharedReportGenerator(generator.clone())));
                 }
-                self.set_error_manager(Box::new(SortingErrorManager::new(generators)));
+                let mut manager = SortingErrorManager::new(generators);
+                manager.set_deferred_reports(self.get_deferred_reports());
+                self.set_error_manager(Box::new(manager));
             } else {
                 self.set_error_manager(Box::new(
                     crate::logger_error_manager::LoggerErrorManager::new(
@@ -1012,7 +1014,7 @@ struct SharedReportGenerator(
     Arc<std::sync::Mutex<dyn crate::sorting_error_manager::ErrorReportGenerator + Send>>,
 );
 impl crate::sorting_error_manager::ErrorReportGenerator for SharedReportGenerator {
-    fn generate_report(&mut self, manager: &SortingErrorManager, ast: &Ast) {
+    fn generate_report(&mut self, manager: &mut SortingErrorManager, ast: &Ast) {
         self.0.lock().unwrap().generate_report(manager, ast);
     }
 }
@@ -1137,6 +1139,11 @@ impl Compiler {
         &self,
     ) -> Arc<dyn crate::source_excerpt_provider::SourceExcerptProvider> {
         self.excerpt_provider.clone()
+    }
+    /// Rust adapter: the queue this Compiler, as the formatters' and report generators'
+    /// SourceExcerptProvider, reports into (see `sorting_error_manager::DeferredReports`).
+    pub fn get_deferred_reports(&self) -> crate::sorting_error_manager::DeferredReports {
+        self.excerpt_provider.pending_errors.clone()
     }
     /// Rust adapter: a Send writer sharing Compiler#outStream (the runner's error print stream).
     pub fn get_out_stream_writer(&self) -> Option<Box<dyn std::io::Write + Send>> {
@@ -1502,6 +1509,8 @@ impl Compiler {
     pub fn generate_report(&mut self) {
         let tracer = self.new_tracer("generateReport");
         self.report_queued_type_registry_errors();
+        // Reports queued outside a report generator: Java made them when they happened.
+        self.flush_source_map_errors();
         self.error_manager
             .as_ref()
             .unwrap()

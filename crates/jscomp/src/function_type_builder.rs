@@ -973,7 +973,7 @@ impl FunctionTypeBuilder {
             self.report_warning(
                 compiler,
                 &INEXISTENT_PARAM,
-                &[&inexistent_name.to_string_lossy(), &fn_name],
+                &[&inexistent_name.to_string(), &fn_name],
             );
         }
 
@@ -1145,7 +1145,7 @@ impl FunctionTypeBuilder {
                 self.report_error(
                     compiler,
                     &TEMPLATE_TYPE_ILLEGAL_BOUND,
-                    &[&type_bound_string, &key.to_string_lossy()],
+                    &[&type_bound_string, &key.to_string()],
                 );
             }
             let (reg, ast) = compiler.get_type_registry_and_ast();
@@ -1179,7 +1179,7 @@ impl FunctionTypeBuilder {
                 self.report_warning(
                     compiler,
                     &TEMPLATE_TRANSFORMATION_ON_CLASS,
-                    &[&key.to_string_lossy()],
+                    &[&key.to_string()],
                 );
             }
         }

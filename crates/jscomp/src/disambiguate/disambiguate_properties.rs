@@ -266,7 +266,7 @@ impl DisambiguateProperties {
         // the builder's defaults.
         JSError::make_without_location(
             &PROPERTY_INVALIDATION,
-            &[&prop.get_name(arena).to_string_lossy(), additional_context],
+            &[&prop.get_name(arena).to_string(), additional_context],
         )
     }
 

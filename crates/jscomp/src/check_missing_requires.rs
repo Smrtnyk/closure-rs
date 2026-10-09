@@ -353,7 +353,7 @@ impl CheckMissingRequires {
             t.report(
                 goog_module_get,
                 &MISSING_REQUIRE_FOR_GOOG_MODULE_GET,
-                &[&imported_namespace.to_string_lossy()],
+                &[&imported_namespace.to_string()],
             );
         }
     }
@@ -437,7 +437,7 @@ impl CheckMissingRequires {
                     } else {
                         &INCORRECT_NAMESPACE_ALIAS_REQUIRE_TYPE
                     };
-                    t.report(n, to_report, &[&reference.to_string_lossy()]);
+                    t.report(n, to_report, &[&reference.to_string()]);
                 }
             }
         }
@@ -770,12 +770,7 @@ impl CheckMissingRequires {
                         i += 1;
                     }
                     let root = NodeUtil::get_root_of_qualified_name(t, error_node);
-                    t.report_with_range(
-                        root,
-                        error_node,
-                        to_report,
-                        &[&namespace.to_string_lossy()],
-                    );
+                    t.report_with_range(root, error_node, to_report, &[&namespace.to_string()]);
                 } else {
                     // JSDoc reference case
                     // Trim the original qualified name from the source text by the same difference.
@@ -792,7 +787,7 @@ impl CheckMissingRequires {
                     new_error_node.set_string(t, correct_name.clone());
                     new_error_node.set_length(t, correct_name.length() as i32);
 
-                    t.report(new_error_node, to_report, &[&namespace.to_string_lossy()]);
+                    t.report(new_error_node, to_report, &[&namespace.to_string()]);
                 }
             }
 

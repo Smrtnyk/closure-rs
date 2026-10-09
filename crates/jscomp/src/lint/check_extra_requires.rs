@@ -157,7 +157,7 @@ impl CheckExtraRequires {
             compiler,
             call,
             &EXTRA_REQUIRE_WARNING,
-            &[&require.to_string_lossy()],
+            &[&require.to_string()],
         ));
     }
 

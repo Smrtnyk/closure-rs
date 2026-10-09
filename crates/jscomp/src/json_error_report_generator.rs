@@ -50,7 +50,7 @@ impl JsonErrorReportGenerator {
 }
 impl ErrorReportGenerator for JsonErrorReportGenerator {
     // port: JsonErrorReportGenerator#generateReport
-    fn generate_report(&mut self, manager: &SortingErrorManager, _ast: &Ast) {
+    fn generate_report(&mut self, manager: &mut SortingErrorManager, _ast: &Ast) {
         let mut json_writer = JsonWriter::new(Vec::new());
         json_writer.begin_array();
         for message in manager.get_sorted_diagnostics() {
@@ -159,6 +159,9 @@ impl ErrorReportGenerator for JsonErrorReportGenerator {
 
             json_writer.end_object();
         }
+        // Java: getSourceMapping's reports reached the manager during the loop above; they
+        // count in the summary but are not in the array.
+        manager.report_deferred();
 
         let mut summary_builder = String::new();
         if manager.get_typed_percent() > 0.0 {

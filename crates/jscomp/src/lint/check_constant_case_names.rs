@@ -69,14 +69,14 @@ impl CheckConstantCaseNames {
                     compiler,
                     name_node,
                     &REASSIGNED_CONSTANT_CASE_NAME,
-                    &[&name.to_string_lossy()],
+                    &[&name.to_string()],
                 ));
             } else {
                 compiler.report(JSError::make(
                     compiler,
                     name_node,
                     &MISSING_CONST_PROPERTY,
-                    &[&name.to_string_lossy()],
+                    &[&name.to_string()],
                 ));
             }
         }

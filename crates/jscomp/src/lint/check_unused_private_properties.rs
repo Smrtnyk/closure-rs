@@ -63,7 +63,7 @@ impl CheckUnusedPrivateProperties {
         for &n in &self.candidates {
             let prop_name = Self::get_prop_name(t, n);
             if !self.used.contains(&prop_name) {
-                t.report(n, &UNUSED_PRIVATE_PROPERTY, &[&prop_name.to_string_lossy()]);
+                t.report(n, &UNUSED_PRIVATE_PROPERTY, &[&prop_name.to_string()]);
             }
         }
     }
