@@ -3707,6 +3707,10 @@ impl NodeId {
     pub fn is_param_list(self, ast: &Ast) -> bool {
         ast[L(self)].token == Token::PARAM_LIST
     }
+    // port: Node#isPos
+    pub fn is_pos(self, ast: &Ast) -> bool {
+        ast[L(self)].token == Token::POS
+    }
     // port: Node#isRegExp
     pub fn is_reg_exp(self, ast: &Ast) -> bool {
         ast[L(self)].token == Token::REGEXP

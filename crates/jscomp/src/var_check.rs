@@ -103,7 +103,7 @@ const JSCOMP_CLOSURE_UNAWARE_CODE_SHADOW_HOST_NAME: &str = "$jscomp_wrap_closure
 /// List of symbols that must always be externed even if they are not referenced anywhere (yet).
 /// These are used by runtime libraries that might not be present when the first VarCheck runs.
 // port: VarCheck#REQUIRED_SYMBOLS
-pub static REQUIRED_SYMBOLS: [&str; 32] = [
+pub static REQUIRED_SYMBOLS: [&str; 33] = [
     // go/keep-sorted start
     "AggregateError",
     "Array",
@@ -111,6 +111,7 @@ pub static REQUIRED_SYMBOLS: [&str; 32] = [
     "Float32Array",
     "Function",
     "Infinity",
+    "Iterator",
     "JSCOMPILER_PRESERVE", // added by CheckSideEffects
     "JSCompiler_renameProperty",
     "Map",

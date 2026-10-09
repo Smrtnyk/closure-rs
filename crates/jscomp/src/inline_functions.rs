@@ -383,7 +383,7 @@ impl InlineFunctions {
 
     /// Returns whether the name is used in a way that might be a candidate for inlining.
     // port: InlineFunctions#isCandidateUsage
-    pub fn is_candidate_usage(ast: &Ast, name: NodeId) -> bool {
+    fn is_candidate_usage(ast: &Ast, name: NodeId) -> bool {
         let parent = name.get_parent(ast).unwrap();
         check_state!(name.is_name(ast));
         if NodeUtil::is_name_declaration(ast, Some(parent)) || parent.is_function(ast) {

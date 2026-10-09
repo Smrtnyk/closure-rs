@@ -1,6 +1,6 @@
 // Gulp plugin: NOT implemented in closure-rs (a stub with the official signature).
 //
-// The official plugin (google-closure-compiler@20261005.0.0 lib/gulp/index.js, default export at
+// The official plugin (google-closure-compiler@20261006.0.0 lib/gulp/index.js, default export at
 // line 287) is not a thin layer over the compiler class: it converts Vinyl files to the compiler's
 // --json_streams format and back and merges source maps, using the vinyl, vinyl-sourcemaps-apply
 // and chalk packages. closure-rs ships no third-party dependencies, so the plugin is not provided.

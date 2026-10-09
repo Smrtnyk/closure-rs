@@ -498,6 +498,39 @@ impl NodeUtil {
             _ => false,
         }
     }
+    /// Returns true if `n` is a numeric literal or a unary +/- applied directly to a numeric
+    /// literal (e.g. `12.3`, `-12.3`, `+12.3`).
+    // port: NodeUtil#isNumericLiteral
+    pub fn is_numeric_literal(ast: &Ast, n: Option<NodeId>) -> bool {
+        let Some(n) = n else {
+            return false;
+        };
+        n.is_number(ast)
+            || ((n.is_neg(ast) || n.is_pos(ast))
+                && n.has_one_child(ast)
+                && n.get_first_child(ast).unwrap().is_number(ast))
+    }
+
+    /// Returns the numeric value of `n`, which must satisfy [`Self::is_numeric_literal`].
+    ///
+    /// Panics (Java: IllegalArgumentException) if `n` does not satisfy
+    /// [`Self::is_numeric_literal`].
+    // port: NodeUtil#getNumericLiteralValue
+    pub fn get_numeric_literal_value(ast: &Ast, n: Option<NodeId>) -> f64 {
+        check_argument!(
+            Self::is_numeric_literal(ast, n),
+            "%s",
+            n.map_or_else(|| "null".to_owned(), |n| n.to_string(ast))
+        );
+        let n = n.unwrap();
+        match n.get_token(ast) {
+            Token::NUMBER => n.get_double(ast),
+            Token::POS => n.get_first_child(ast).unwrap().get_double(ast),
+            Token::NEG => -n.get_first_child(ast).unwrap().get_double(ast),
+            _ => unreachable!("Unreachable: {}", n.to_string(ast)),
+        }
+    }
+
     // port: NodeUtil#isSymmetricOperation
     pub fn is_symmetric_operation(ast: &Ast, n: NodeId) -> bool {
         matches!(

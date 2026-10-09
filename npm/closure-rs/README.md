@@ -3,7 +3,7 @@
 A Rust port of the [Closure Compiler](https://github.com/google/closure-compiler) command line
 (`CommandLineRunner`), with an npm wrapper that has the programmatic API of the official
 [`google-closure-compiler`](https://www.npmjs.com/package/google-closure-compiler) package
-(matched against version 20261005.0.0). Not affiliated with or published by Google.
+(matched against version 20261006.0.0). Not affiliated with or published by Google.
 
 The compiler is a native binary. The package carries one per supported system (Linux x64 and
 Windows x64 for now, under `bin/<platform>-<arch>/`) and runs the one for yours; no Java is needed.
@@ -14,7 +14,7 @@ Change only `package.json`:
 
 ```json
 "devDependencies": {
-  "google-closure-compiler": "npm:closure-rs@alpha"
+  "google-closure-compiler": "npm:closure-rs@latest"
 }
 ```
 
