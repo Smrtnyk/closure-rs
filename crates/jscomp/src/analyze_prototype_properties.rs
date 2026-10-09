@@ -46,10 +46,10 @@ use crate::node_util::NodeUtil;
 use crate::scope::ScopeId;
 use crate::var::VarId;
 use closure_rhino::check_state;
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
-use indexmap::IndexMap;
 use std::collections::VecDeque;
 
 /// Handle of a Java NameInfo object (identity).
@@ -155,8 +155,8 @@ impl AnalyzePrototypeProperties {
             global_node: NameInfoId(0),
             extern_node: NameInfoId(1),
             anonymous_node: NameInfoId(2),
-            property_name_info: IndexMap::new(),
-            var_name_info: IndexMap::new(),
+            property_name_info: IndexMap::<_, _>::default(),
+            var_name_info: IndexMap::<_, _>::default(),
         };
         this.global_node = this.new_name_info("[global]");
         this.extern_node = this.new_name_info("[extern]");

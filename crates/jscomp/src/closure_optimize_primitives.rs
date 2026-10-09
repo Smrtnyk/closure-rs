@@ -28,12 +28,12 @@ use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
 use closure_parsing::parser::feature_set::Feature;
 use closure_rhino::dtoa::d_to_a;
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{NodeId, Prop};
 use closure_rhino::qualified_name::QualifiedName;
 use closure_rhino::token::Token;
-use indexmap::IndexSet;
 use std::sync::LazyLock;
 
 // port: ClosureOptimizePrimitives#DUPLICATE_SET_MEMBER
@@ -217,7 +217,7 @@ impl ClosureOptimizePrimitives {
         }
 
         let mut cur_param = first_param;
-        let mut keys: IndexSet<JsString> = IndexSet::new();
+        let mut keys: IndexSet<JsString> = IndexSet::<_>::default();
         while let Some(param) = cur_param {
             // All keys must be strings or numbers, otherwise we can't optimize the call.
             if !self.is_optimizable_key(compiler, param) {

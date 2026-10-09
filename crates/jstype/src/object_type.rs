@@ -219,7 +219,10 @@ pub trait ObjectType {
         property_name: impl Into<PropertyKey>,
     ) -> bool;
     fn get_own_property_known_symbols(self, reg: &JSTypeRegistry) -> Vec<TypeId>;
-    fn get_own_property_names(self, reg: &JSTypeRegistry) -> indexmap::IndexSet<JsString>;
+    fn get_own_property_names(
+        self,
+        reg: &JSTypeRegistry,
+    ) -> closure_rhino::fx_hash::IndexSet<JsString>;
     fn get_own_property_keys(self, reg: &JSTypeRegistry) -> Vec<PropertyKey>;
     fn is_property_type_inferred(
         self,
@@ -259,7 +262,7 @@ pub trait ObjectType {
         self,
         reg: &mut JSTypeRegistry,
         ast: &Ast,
-    ) -> indexmap::IndexMap<JsString, TypeId>;
+    ) -> closure_rhino::fx_hash::IndexMap<JsString, TypeId>;
     fn get_enumerated_type_of_enum_object(self, reg: &JSTypeRegistry) -> Option<TypeId>;
 }
 
@@ -667,7 +670,10 @@ impl ObjectType for TypeId {
         self.get_property_map(reg).get_own_known_symbols()
     }
     // port: ObjectType#getOwnPropertyNames
-    fn get_own_property_names(self, reg: &JSTypeRegistry) -> indexmap::IndexSet<JsString> {
+    fn get_own_property_names(
+        self,
+        reg: &JSTypeRegistry,
+    ) -> closure_rhino::fx_hash::IndexSet<JsString> {
         if matches!(
             reg.data(self).kind,
             JSTypeKind::Function(_) | JSTypeKind::NoObject(_) | JSTypeKind::No(_)
@@ -843,7 +849,7 @@ impl ObjectType for TypeId {
         self,
         reg: &mut JSTypeRegistry,
         ast: &Ast,
-    ) -> indexmap::IndexMap<JsString, TypeId> {
+    ) -> closure_rhino::fx_hash::IndexMap<JsString, TypeId> {
         if matches!(
             reg.data(self).kind,
             JSTypeKind::Function(_) | JSTypeKind::NoObject(_) | JSTypeKind::No(_)

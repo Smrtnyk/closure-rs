@@ -42,13 +42,13 @@ use closure_jstype::{
     static_typed_scope::StaticTypedScope,
     static_typed_slot::StaticTypedSlot,
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     check_state,
     java_lang::JavaHashCode,
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::IndexSet;
 use std::{
     num::NonZeroU32,
     ops::{Deref, DerefMut},
@@ -197,7 +197,7 @@ impl TypedScope {
 
     // port: TypedScope#TypedScope(TypedScope, Node)
     pub fn new(compiler: &mut AbstractCompiler, parent: TypedScope, root_node: NodeId) -> Self {
-        Self::new_with_reserved_names(compiler, parent, root_node, &IndexSet::new(), None)
+        Self::new_with_reserved_names(compiler, parent, root_node, &IndexSet::<_>::default(), None)
     }
 
     // port: TypedScope#TypedScope(TypedScope, Node, Set, Module)
@@ -216,7 +216,7 @@ impl TypedScope {
         data.depth = depth;
         data.is_bottom = false;
         data.reserved_names = if reserved_names.is_empty() {
-            IndexSet::new()
+            IndexSet::<_>::default()
         } else {
             reserved_names.clone()
         };
@@ -232,7 +232,7 @@ impl TypedScope {
         data.parent = None;
         data.depth = 0;
         data.is_bottom = is_bottom;
-        data.reserved_names = IndexSet::new();
+        data.reserved_names = IndexSet::<_>::default();
         data.module = None;
         scope
     }
@@ -248,7 +248,7 @@ impl TypedScope {
             depth: 0,
             module: None,
             is_bottom: false,
-            reserved_names: IndexSet::new(),
+            reserved_names: IndexSet::<_>::default(),
             view: OnceLock::new(),
         });
         scope
@@ -287,7 +287,7 @@ impl TypedScope {
         );
         // let a (16-bit) VM garbage collect 64 bytes per TypedScope. (ImmutableSet.of() returns a
         // singleton)
-        self.data_mut(compiler).reserved_names = IndexSet::new();
+        self.data_mut(compiler).reserved_names = IndexSet::<_>::default();
     }
 
     // port: TypedScope#isBottom

@@ -25,6 +25,7 @@ use closure_jscomp::{
     polyfill_usage_finder::Polyfills,
     rewrite_polyfills::{INSUFFICIENT_OUTPUT_VERSION_ERROR, RewritePolyfills},
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
     jscomp_api::{CheckLevel, Compiler, CompilerOptions},
@@ -34,7 +35,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, rc::Rc};
 
 const LANGUAGE_MODE: &str = "com.google.javascript.jscomp.CompilerOptions$LanguageMode";
@@ -72,12 +72,12 @@ impl RewritePolyfillsTest {
             ctx: Ctx::new(
                 "RewritePolyfillsTest".into(),
                 closure_testing::replay::replay_values::object([]),
-                IndexMap::new(),
+                IndexMap::<_, _>::default(),
                 Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                     .unwrap(),
             ),
-            injectable_libraries: IndexMap::new(),
-            inject_before_pass: IndexSet::new(),
+            injectable_libraries: IndexMap::<_, _>::default(),
+            inject_before_pass: IndexSet::<_>::default(),
             polyfill_table: Vec::new(),
             isolate_polyfills: false,
             inject_polyfills: true,

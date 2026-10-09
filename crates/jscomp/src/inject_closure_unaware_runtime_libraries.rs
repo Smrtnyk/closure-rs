@@ -50,13 +50,13 @@ use crate::{
     abstract_compiler::AbstractCompiler, compiler_pass::CompilerPass,
     js::runtime_js_lib_manager::ExternedField, node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument,
     ir::IR,
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, Mutex};
 
 /// Rust-only: one step on the main compiler that Java's pass performs through `mainCompiler`.
@@ -166,7 +166,8 @@ impl InjectClosureUnawareRuntimeLibraries {
 
     // port: InjectClosureUnawareRuntimeLibraries#injectFieldsIntoCallSites
     fn inject_fields_into_call_sites(&mut self, shadow_compiler: &mut AbstractCompiler) {
-        let mut fields_by_name: IndexMap<JsString, Arc<dyn ExternedField>> = IndexMap::new();
+        let mut fields_by_name: IndexMap<JsString, Arc<dyn ExternedField>> =
+            IndexMap::<_, _>::default();
         let externed_fields = shadow_compiler
             .get_runtime_js_lib_manager()
             .lock()
@@ -249,7 +250,7 @@ impl InjectClosureUnawareRuntimeLibraries {
         all_known_fields: &IndexMap<JsString, Arc<dyn ExternedField>>,
     ) -> Vec<Arc<dyn ExternedField>> {
         // LinkedHashSet of fields (identity of the field objects, insertion order).
-        let mut seen: IndexSet<usize> = IndexSet::new();
+        let mut seen: IndexSet<usize> = IndexSet::<_>::default();
         let mut seen_fields: Vec<Arc<dyn ExternedField>> = Vec::new();
         let mut visitor = |ast: &mut Ast, n: NodeId| {
             if !n.is_name(ast) {

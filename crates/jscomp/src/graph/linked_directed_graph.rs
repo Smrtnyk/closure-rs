@@ -26,7 +26,7 @@ use super::{
     graphviz_graph::{GraphvizEdge, GraphvizGraph, GraphvizNode, GraphvizValue},
     sub_graph::SubGraph,
 };
-use indexmap::IndexMap;
+use closure_rhino::fx_hash::IndexMap;
 use std::{fmt::Display, hash::Hash};
 pub struct LinkedDirectedGraph<N, E> {
     pub nodes: IndexMap<N, DiGraphNode>,
@@ -122,7 +122,7 @@ impl<N: Clone + Eq + Hash, E: Clone + PartialEq> LinkedDirectedGraph<N, E> {
         edge_value_to_string: fn(&E) -> String,
     ) -> Self {
         Self {
-            nodes: IndexMap::new(),
+            nodes: IndexMap::<_, _>::default(),
             value_to_string,
             edge_value_to_string,
             node_arena: Vec::new(),

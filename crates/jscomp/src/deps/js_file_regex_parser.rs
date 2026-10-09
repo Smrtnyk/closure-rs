@@ -26,12 +26,12 @@ use super::{
     simple_dependency_info::SimpleDependencyInfo,
 };
 use crate::{check_level::CheckLevel, js_error::JSError};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     check_state,
     java_lang::regex::{Matcher, Pattern},
     js_string::JsString,
 };
-use indexmap::IndexMap;
 use std::{io::Read, sync::LazyLock};
 // port: JsFileRegexParser#ES6_EXPORT_PATTERN
 static ES6_EXPORT_PATTERN: LazyLock<Pattern> = LazyLock::new(|| Pattern::compile(r"^export\b"));
@@ -155,7 +155,7 @@ impl JsFileRegexParser {
         if self.module_type == ModuleType::ES6_MODULE {
             self.provides.push(self.file.to_module_name());
         }
-        let mut load_flags = IndexMap::new();
+        let mut load_flags = IndexMap::<_, _>::default();
         match self.module_type {
             ModuleType::GOOG_MODULE => {
                 load_flags.insert("module".into(), "goog".into());

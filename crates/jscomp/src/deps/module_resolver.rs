@@ -25,7 +25,7 @@ use super::{
     module_names::ModuleNames,
 };
 use crate::{check_level::CheckLevel, js_error::JSError};
-use indexmap::{IndexMap, IndexSet};
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use std::sync::Mutex;
 pub struct ModuleResolverBase {
     pub module_paths: IndexSet<String>,
@@ -50,7 +50,7 @@ impl ModuleResolverBase {
     }
     // port: ModuleResolver#getPackageJsonMainEntries
     pub fn get_package_json_main_entries(&self) -> IndexMap<String, String> {
-        IndexMap::new()
+        IndexMap::<_, _>::default()
     }
     // port: ModuleResolver#resolveModuleAsPath
     pub fn resolve_module_as_path(&self, script_address: &str, module_address: &str) -> String {

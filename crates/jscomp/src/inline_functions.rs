@@ -41,6 +41,7 @@ use crate::{
     node_util::{MatchDeclaration, MatchShallowStatement, NodeUtil},
     scope::Scope,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_state,
     ir::IR,
@@ -48,7 +49,6 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{rc::Rc, sync::Arc};
 
 pub static MISSED_REQUIRED_INLINING: DiagnosticType = DiagnosticType::warning(
@@ -102,8 +102,8 @@ impl InlineFunctions {
             .function_argument_injector(function_argument_injector.clone())
             .build(compiler);
         Self {
-            fns: IndexMap::new(),
-            anon_fns: IndexMap::new(),
+            fns: IndexMap::<_, _>::default(),
+            anon_fns: IndexMap::<_, _>::default(),
             injector,
             function_argument_injector,
             reach,
@@ -592,7 +592,7 @@ impl InlineFunctions {
     /// This functions that may be called directly.
     // port: InlineFunctions#findCalledFunctions(Node)
     fn find_called_functions(ast: &Ast, node: NodeId) -> IndexSet<JsString> {
-        let mut changed = IndexSet::new();
+        let mut changed = IndexSet::<_>::default();
         Self::find_called_functions_into(ast, NodeUtil::get_function_body(ast, node), &mut changed);
         changed
     }
@@ -1501,7 +1501,9 @@ impl FunctionState {
 
     // port: InlineFunctions.FunctionState#addReference
     fn add_reference(&mut self, r#ref: Reference) {
-        let references = self.references.get_or_insert_with(IndexMap::new);
+        let references = self
+            .references
+            .get_or_insert_with(IndexMap::<_, _>::default);
         references.insert(r#ref.base.call_node, r#ref);
     }
 
@@ -1528,7 +1530,7 @@ impl FunctionState {
     // port: InlineFunctions.FunctionState#getNamesToAlias
     fn get_names_to_alias(&self) -> IndexSet<JsString> {
         match &self.names_to_alias {
-            None => IndexSet::new(),
+            None => IndexSet::<_>::default(),
             Some(names_to_alias) => names_to_alias.clone(),
         }
     }

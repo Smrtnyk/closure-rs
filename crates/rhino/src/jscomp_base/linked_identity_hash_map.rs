@@ -16,8 +16,8 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   src/com/google/javascript/jscomp/base/LinkedIdentityHashMap.java.
 
+use crate::fx_hash::IndexMap;
 use crate::{js_string::JsString, node::NodeId};
-use indexmap::IndexMap;
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -75,7 +75,7 @@ impl<K: JavaIdentity, V> Default for LinkedIdentityHashMap<K, V> {
     // port: LinkedIdentityHashMap#LinkedIdentityHashMap
     fn default() -> Self {
         Self {
-            inner_map: IndexMap::new(),
+            inner_map: IndexMap::<_, _>::default(),
         }
     }
 }

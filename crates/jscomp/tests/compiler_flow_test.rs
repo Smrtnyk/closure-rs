@@ -31,6 +31,7 @@ use closure_jscomp::{
     source_file::SourceFile,
     source_map_input::SourceMapInput,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{input_id::InputId, static_source_file::SourceKind};
 use closure_sourcemap::{
     file_position::FilePosition,
@@ -38,7 +39,6 @@ use closure_sourcemap::{
     source_map_consumer_v3::SourceMapConsumerV3,
     source_map_generator_v3::SourceMapGeneratorV3,
 };
-use indexmap::IndexMap;
 use std::{any::TypeId, sync::Arc};
 fn file(name: &str, code: &str) -> Arc<SourceFile> {
     Arc::new(SourceFile::from_code(name, code))
@@ -413,7 +413,7 @@ fn sourcemap(path: &str, original: &str, position: FilePosition) -> Arc<SourceMa
 #[test]
 fn test_input_source_maps() {
     let mut options = CompilerOptions::new();
-    options.set_input_source_maps(IndexMap::from([(
+    options.set_input_source_maps(IndexMap::<_, _>::from_iter([(
         "generated_js/example.js".into(),
         sourcemap(
             "generated_js/example.srcmap",
@@ -496,7 +496,7 @@ fn test_apply_input_source_maps() {
     let mut options = CompilerOptions::new();
     options.set_language_in(LanguageMode::ECMASCRIPT3);
     options.set_source_map_output_path("fake/source_map_path.js.map".into());
-    options.set_input_source_maps(IndexMap::from([(
+    options.set_input_source_maps(IndexMap::<_, _>::from_iter([(
         "input.js".into(),
         sourcemap("input.js.map", "input.ts", FilePosition::new(17, 25)),
     )]));

@@ -24,10 +24,10 @@ use super::types_proto::{
     TypeProto, UnionTypeProto,
 };
 use closure_rhino::check_not_null;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_colors::color::Color;
 use closure_rhino::jscomp_colors::color_id::ColorId;
-use indexmap::{IndexMap, IndexSet};
 
 /// `Function<Color, ImmutableSet<String>>` of `generateTypePool`.
 pub type MismatchSourceRefsFn<'f> = &'f dyn Fn(&Color) -> IndexSet<String>;
@@ -75,7 +75,7 @@ impl<'a> ColorSerializer<'a> {
             serialization_mode,
             get_string_pool_index_fn: Box::new(string_pool_index_fn),
             property_filter: Box::new(property_filter),
-            color_id_to_type_pointer: IndexMap::new(),
+            color_id_to_type_pointer: IndexMap::<_, _>::default(),
             colors_in_serialized_order: Vec::new(),
         };
         // We must pre-populate the type pointers with the few axiomatic colors that won't actually
@@ -160,7 +160,8 @@ impl<'a> ColorSerializer<'a> {
             // because that's the way the Mismatch protos work.
             // Construct entries only for those colors that we have actually serialized in order to
             // save space.
-            let mut src_ref_to_type_pointer_list: IndexMap<String, Vec<i32>> = IndexMap::new();
+            let mut src_ref_to_type_pointer_list: IndexMap<String, Vec<i32>> =
+                IndexMap::<_, _>::default();
             for color in &self.colors_in_serialized_order {
                 let type_pointer = self.color_id_to_type_pointer[&color.get_id()];
                 for src_ref in get_mismatch_source_refs_fn(color) {

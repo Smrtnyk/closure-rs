@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/graph/DominatorTree.java.
 
 use super::{di_graph::DiGraph, graph_node::GraphNode};
-use indexmap::IndexMap;
+use closure_rhino::fx_hash::IndexMap;
 use std::hash::Hash;
 pub struct DominatorTree<N> {
     idoms: IndexMap<N, N>,
@@ -35,8 +35,13 @@ impl<N: Clone + Eq + Hash> DominatorTree<N> {
     pub fn compute<E, G: DiGraph<N, E>>(graph: &G, entry: N) -> Self {
         closure_rhino::check_not_null!(graph.get_node(&entry), "Entry node not in graph");
         let mut post_order = Vec::new();
-        let mut post_order_index = IndexMap::new();
-        Self::build_post_order(graph, entry.clone(), &mut post_order, &mut IndexMap::new());
+        let mut post_order_index = IndexMap::<_, _>::default();
+        Self::build_post_order(
+            graph,
+            entry.clone(),
+            &mut post_order,
+            &mut IndexMap::<_, _>::default(),
+        );
         let num_nodes = post_order.len();
         let reverse_post_order = Self::to_reversed_array(&post_order);
         for (i, node) in post_order.iter().enumerate() {
@@ -78,8 +83,8 @@ impl<N: Clone + Eq + Hash> DominatorTree<N> {
                 }
             }
         }
-        let mut idoms_map = IndexMap::new();
-        let mut children: IndexMap<N, Vec<N>> = IndexMap::new();
+        let mut idoms_map = IndexMap::<_, _>::default();
+        let mut children: IndexMap<N, Vec<N>> = IndexMap::<_, _>::default();
         for (i, node) in post_order.iter().enumerate() {
             let idom_idx = idom_indexes[i];
             if idom_idx != -1 && i != start_node_index {
@@ -88,7 +93,7 @@ impl<N: Clone + Eq + Hash> DominatorTree<N> {
                 children.entry(idom).or_default().push(node.clone());
             }
         }
-        let mut sizes_map = IndexMap::new();
+        let mut sizes_map = IndexMap::<_, _>::default();
         Self::compute_subtree_sizes(entry, &children, &mut sizes_map);
         Self::new(idoms_map, sizes_map)
     }

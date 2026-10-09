@@ -70,8 +70,8 @@ use closure_jscomp::{
     pass_factory::PassFactory,
     phase_optimizer::PhaseOptimizer,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 const BUILDER: &str = "com.google.javascript.jscomp.InlineAndCollapseProperties$Builder";
@@ -170,7 +170,7 @@ impl NativeObject for NativeBuilder {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: ReplayDsl#invoke (receiver cast)
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -273,7 +273,7 @@ impl NativeObject for NativeGlobalNamespace {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: ReplayDsl#invoke (receiver cast)
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -425,8 +425,8 @@ fn get_processor(
 
 // port: ReplayValues#instantiate (helper holder with typed fields)
 fn holder(class: &str, fields: &[(&str, &str, DslValue)]) -> DslValue {
-    let mut values = IndexMap::new();
-    let mut field_types = IndexMap::new();
+    let mut values = IndexMap::<_, _>::default();
+    let mut field_types = IndexMap::<_, _>::default();
     for (name, r#type, value) in fields {
         values.insert((*name).to_string(), value.clone());
         field_types.insert((*name).to_string(), (*r#type).to_string());

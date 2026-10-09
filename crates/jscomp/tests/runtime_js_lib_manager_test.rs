@@ -28,12 +28,12 @@ use closure_jscomp::{
     js::runtime_js_lib_manager::{ResourceProvider, RuntimeJsLibManager, RuntimeLibraryMode},
     source_file::SourceFile,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     ir::IR,
     node::NodeId,
     static_source_file::{SourceKind, StaticSourceFile},
 };
-use indexmap::IndexMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 

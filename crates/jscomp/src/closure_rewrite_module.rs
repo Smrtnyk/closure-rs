@@ -73,6 +73,7 @@ use crate::typed_scope::TypedScope;
 use crate::var::VarId;
 use crate::xid::Xid;
 use closure_parsing::parser::feature_set::Feature;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::jsdoc_info::{Builder as JSDocInfoBuilder, JSDocInfo};
@@ -80,7 +81,6 @@ use closure_rhino::node::{Ast, NodeId, Prop};
 use closure_rhino::qualified_name::QualifiedName;
 use closure_rhino::token::Token;
 use closure_rhino::{check_argument, check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 use std::collections::VecDeque;
 use std::sync::{Arc, LazyLock, Mutex};
 
@@ -860,12 +860,12 @@ impl ClosureRewriteModule {
             ast_factory,
             preprocessor_symbol_table,
             preserve_sugar,
-            synthetic_externs: IndexMap::new(),
+            synthetic_externs: IndexMap::<_, _>::default(),
             global_scope: None,
             script_stack: VecDeque::new(),
             current_script: None,
             rewrite_state: GlobalRewriteState::default(),
-            legacy_script_namespaces_and_prefixes: IndexSet::new(),
+            legacy_script_namespaces_and_prefixes: IndexSet::<_>::default(),
             unrecognized_requires: Vec::new(),
             goog_module_get_calls: Vec::new(),
             goog_require_dynamic_calls: Vec::new(),

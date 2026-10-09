@@ -26,7 +26,7 @@ use crate::reader::{
     ModelResult, Obj, ObjOut, arr, as_array, as_string, err, index, int, js, list_of, map_of, st,
     strs,
 };
-use indexmap::IndexMap;
+use closure_rhino::fx_hash::IndexMap;
 
 /// One DSL expression (DSL.md "Expressions").
 #[derive(Clone, Debug, PartialEq, Eq)]

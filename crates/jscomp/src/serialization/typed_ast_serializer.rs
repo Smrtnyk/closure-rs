@@ -32,6 +32,7 @@ use crate::abstract_compiler::AbstractCompiler;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
 use crate::source_file::SourceFile;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_colors::color::Color;
 use closure_rhino::jscomp_colors::color_registry::ColorRegistry;
@@ -40,7 +41,6 @@ use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::static_source_file::StaticSourceFile;
 use closure_rhino::token::Token;
 use closure_rhino::{check_argument, check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -83,7 +83,7 @@ impl<'c> TypedAstSerializer<'c> {
             previous_line: 0,
             previous_column: 0,
             subtree_source_files: VecDeque::new(),
-            source_file_pointers: IndexMap::new(),
+            source_file_pointers: IndexMap::<_, _>::default(),
             type_serializer: None,
         }
     }
@@ -831,7 +831,7 @@ impl<'c> TypedAstSerializer<'c> {
     // port: TypedAstSerializer#collectUsedPropertyNames
     fn collect_used_property_names(compiler: &mut AbstractCompiler) -> IndexSet<JsString> {
         let mut callback = CollectUsedPropertyNamesCallback {
-            property_names_builder: IndexSet::new(),
+            property_names_builder: IndexSet::<_>::default(),
         };
         let root = compiler.get_root().unwrap();
         NodeTraversal::traverse(compiler, root, &mut callback);

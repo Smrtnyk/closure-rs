@@ -37,6 +37,7 @@ use closure_jscomp::{
     },
     source_information_annotator::SourceInformationAnnotator,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, MINIMAL_EXTERNS},
@@ -46,7 +47,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, rc::Rc};
 
 // port: ReplaceStringsTest#DEFAULT_FUNCTIONS_TO_INSPECT
@@ -171,7 +171,7 @@ impl CompilerTestCaseHooks for Hooks {
 
                     DisambiguateProperties::new(
                         compiler,
-                        IndexSet::from([JsString::from("foobar")]),
+                        IndexSet::<_>::from_iter([JsString::from("foobar")]),
                     )
                     .process(compiler, externs, js);
                 }
@@ -218,7 +218,7 @@ impl ReplaceStringsTest {
                 ctx: Ctx::new(
                     "ReplaceStringsTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

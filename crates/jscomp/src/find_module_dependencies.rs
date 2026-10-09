@@ -40,8 +40,8 @@ use crate::{
     process_common_js_modules::ProcessCommonJSModules,
     scope::ScopeId,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{check_argument, node::NodeId, qualified_name::QualifiedName, token::Token};
-use indexmap::IndexMap;
 use std::sync::LazyLock;
 
 // port: FindModuleDependencies#GOOG_MODULE

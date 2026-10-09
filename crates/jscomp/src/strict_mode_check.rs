@@ -28,10 +28,10 @@ use crate::js_error::JSError;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
 use closure_jstype::prelude::*;
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
-use indexmap::IndexSet;
 
 // port: StrictModeCheck#USE_OF_WITH
 pub static USE_OF_WITH: DiagnosticType = DiagnosticType::error(
@@ -175,10 +175,10 @@ impl StrictModeCheck {
     /// Checks that object literal keys or class method names are valid.
     // port: StrictModeCheck#checkObjectLiteralOrClass
     fn check_object_literal_or_class(&self, compiler: &mut AbstractCompiler, n: NodeId) {
-        let mut getters: IndexSet<JsString> = IndexSet::new();
-        let mut setters: IndexSet<JsString> = IndexSet::new();
-        let mut static_getters: IndexSet<JsString> = IndexSet::new();
-        let mut static_setters: IndexSet<JsString> = IndexSet::new();
+        let mut getters: IndexSet<JsString> = IndexSet::<_>::default();
+        let mut setters: IndexSet<JsString> = IndexSet::<_>::default();
+        let mut static_getters: IndexSet<JsString> = IndexSet::<_>::default();
+        let mut static_setters: IndexSet<JsString> = IndexSet::<_>::default();
 
         /*
          * Iterate backwards because the last duplicate is the one that will be used in sloppy or

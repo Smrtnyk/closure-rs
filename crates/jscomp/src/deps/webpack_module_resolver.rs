@@ -24,7 +24,7 @@ use super::{
     module_resolver::{ModuleResolver, ModuleResolverBase},
     node_module_resolver::NodeModuleResolver,
 };
-use indexmap::{IndexMap, IndexSet};
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use std::sync::Arc;
 pub struct Factory {
     lookup_map: IndexMap<String, String>,
@@ -44,7 +44,7 @@ impl ModuleResolverFactory for Factory {
         handler: SharedErrorHandler,
         escaper: PathEscaper,
     ) -> Arc<dyn ModuleResolver> {
-        let mut normalized = IndexMap::new();
+        let mut normalized = IndexMap::<_, _>::default();
         for (id, path) in &self.lookup_map {
             let mut path = ModuleLoader::normalize(&escaper.escape(path), &roots);
             if ModuleLoader::is_ambiguous_identifier(&path) {

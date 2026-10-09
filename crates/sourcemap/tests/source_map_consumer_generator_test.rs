@@ -16,17 +16,17 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   test/com/google/debugging/sourcemap/SourceMapConsumerGeneratorTest.java.
 
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_sourcemap::{
     file_position::FilePosition, source_map_consumer_v3::SourceMapConsumerV3,
     source_map_format::SourceMapFormat, source_map_generator_factory::SourceMapGeneratorFactory,
 };
-use indexmap::{IndexMap, IndexSet};
 
 // port: SourceMapConsumerGeneratorTest#test
 #[test]
 fn test() {
-    let source_files = IndexMap::<JsString, JsString>::from([
+    let source_files = IndexMap::<JsString, JsString>::from_iter([
         ("file_one.txt".into(), "content of file one".into()),
         ("file_two.txt".into(), "content of\nfile two".into()),
         ("file_three.txt".into(), "even\n  more\n    content".into()),
@@ -106,7 +106,7 @@ fn validate_source_map(
     let mut consumer = SourceMapConsumerV3::new();
     consumer.parse(sourcemap).unwrap();
     let mut mappings_count = 0;
-    let mut seen_symbols = IndexSet::new();
+    let mut seen_symbols = IndexSet::<_>::default();
     consumer.visit_mappings(&mut |source_name: Option<&JsString>,
                                   symbol_name: Option<&JsString>,
                                   source_start_position: FilePosition,

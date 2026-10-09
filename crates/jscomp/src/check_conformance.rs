@@ -55,10 +55,10 @@ use crate::{
     node_util::NodeUtil,
     protobuf::text_format,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state, node::NodeId, static_source_file::StaticSourceFile, token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 
 use LibraryLevelNonAllowlistedConformanceViolationsBehavior::{RECORD_ONLY, UNSPECIFIED};
 
@@ -246,8 +246,8 @@ impl CheckConformance {
         let mut this = Self {
             categories: Vec::new(),
             rules: Vec::new(),
-            merged_behaviors: IndexMap::new(),
-            rule_to_behavior: IndexMap::new(),
+            merged_behaviors: IndexMap::<_, _>::default(),
+            rule_to_behavior: IndexMap::<_, _>::default(),
         };
         // Initialize the map of functions to inspect for renaming candidates.
         this.categories = this.init_rules(compiler, configs, reporting_mode);
@@ -269,7 +269,7 @@ impl CheckConformance {
     ) -> Vec<Category> {
         // Java: HashMultimap<Precondition, Rule> (identity-hashed keys and values); the rules of a
         // category keep insertion order, the categories get the fixed order below (module docs).
-        let mut builder: IndexMap<Precondition, IndexSet<usize>> = IndexMap::new();
+        let mut builder: IndexMap<Precondition, IndexSet<usize>> = IndexMap::<_, _>::default();
 
         let is_library_level_reporting_mode = reporting_mode
             == Some(ConformanceReportingMode::RESPECT_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG);
@@ -331,7 +331,7 @@ impl CheckConformance {
         let mut base_requirement_behaviors: IndexMap<
             String,
             LibraryLevelNonAllowlistedConformanceViolationsBehavior,
-        > = IndexMap::new();
+        > = IndexMap::<_, _>::default();
         for config in configs {
             if !config.has_library_level_non_allowlisted_conformance_violations_behavior() {
                 // nothing to validate
@@ -397,9 +397,9 @@ impl CheckConformance {
         let mut root_requirements: IndexMap<
             usize,
             LibraryLevelNonAllowlistedConformanceViolationsBehavior,
-        > = IndexMap::new();
+        > = IndexMap::<_, _>::default();
         // Requirements that are extendable (i.e. have a 'rule_id' field).
-        let mut extendable: IndexMap<String, usize> = IndexMap::new();
+        let mut extendable: IndexMap<String, usize> = IndexMap::<_, _>::default();
 
         // 1. Process the root requirements and add them to the rootRequirements list, and process
         // the extendable requirements and add them to the extendable map.

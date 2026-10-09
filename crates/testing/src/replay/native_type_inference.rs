@@ -54,8 +54,8 @@ use closure_jscomp::{
     reverse_abstract_interpreter::ReverseAbstractInterpreter,
     type_inference_pass::TypeInferencePass, typed_scope_creator::TypedScopeCreator,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 const TYPED_SCOPE_CREATOR_INIT: &str = "com.google.javascript.jscomp.TypedScopeCreator#<init>(com.google.javascript.jscomp.AbstractCompiler)";
@@ -147,7 +147,7 @@ impl NativeObject for NativeInferJSDocInfo {
     }
     // port: UnitRecorder#collect (the processor's fields)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: InferJSDocInfo#process
     fn process(

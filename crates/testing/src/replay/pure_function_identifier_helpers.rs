@@ -38,11 +38,11 @@ use closure_jscomp::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     js_string::JsString,
     node::{Ast, NodeId, SideEffectFlags},
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.PureFunctionIdentifierTest_Helpers";
@@ -54,8 +54,8 @@ fn bad(what: &str) -> Throwable {
 
 // port: PureFunctionIdentifierTest_Helpers#PureFunctionIdentifierTest_Helpers
 pub fn holder(_ctx: &mut Ctx, _args: Vec<DslValue>) -> Result<DslValue, Throwable> {
-    let mut fields = IndexMap::new();
-    let mut field_types = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
+    let mut field_types = IndexMap::<_, _>::default();
     fields.insert("noSideEffectCalls".to_string(), DslValue::Null);
     field_types.insert(
         "noSideEffectCalls".to_string(),

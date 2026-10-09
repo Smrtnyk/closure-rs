@@ -25,7 +25,7 @@ use super::{
     module_resolver::{ModuleResolver, ModuleResolverBase},
 };
 use crate::check_level::CheckLevel;
-use indexmap::IndexSet;
+use closure_rhino::fx_hash::IndexSet;
 use std::sync::{Arc, LazyLock};
 pub struct BrowserModuleResolver {
     base: ModuleResolverBase,

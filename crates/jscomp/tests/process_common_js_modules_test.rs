@@ -48,6 +48,7 @@ use closure_jscomp::{
     process_common_js_modules::{ProcessCommonJSModules, SUSPICIOUS_EXPORTS_ASSIGNMENT},
     source_file::SourceFile,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, Expected, TestPart},
     replay::{
@@ -57,7 +58,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 struct ProcessCommonJSModulesTest {
@@ -106,7 +106,7 @@ impl ProcessCommonJSModulesTest {
             ctx: Ctx::new(
                 "ProcessCommonJSModulesTest".into(),
                 object([]),
-                IndexMap::new(),
+                IndexMap::<_, _>::default(),
                 Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                     .unwrap(),
             ),

@@ -34,12 +34,12 @@ use closure_parsing::{
     config::JsDocParsing,
     parser::feature_set::{Feature, FeatureSet},
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     java_lang::{charset::Charset, pattern::Pattern},
     js_string::JsString,
     jscomp_base::Tri,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, path::PathBuf, rc::Rc, sync::Arc};
 
 pub trait OptionValue: Sized {
@@ -61,7 +61,7 @@ fn java_object(class: &str, fields: IndexMap<String, DslValue>) -> DslValue {
     DslValue::Object(Rc::new(RefCell::new(Object {
         class: class.into(),
         fields,
-        field_types: IndexMap::new(),
+        field_types: IndexMap::<_, _>::default(),
     })))
 }
 // port: ReplayValues#fields (decoded Java object)
@@ -296,7 +296,7 @@ impl OptionValue for FeatureSet {
         };
         Ok(java_object(
             "com.google.javascript.jscomp.parsing.parser.FeatureSet",
-            IndexMap::from([(
+            IndexMap::<_, _>::from_iter([(
                 "features".into(),
                 DslValue::Typed {
                     class: class.into(),
@@ -324,7 +324,7 @@ impl OptionValue for DependencyOptions {
     fn encode_value(&self) -> Result<DslValue, Throwable> {
         Ok(java_object(
             "com.google.javascript.jscomp.DependencyOptions",
-            IndexMap::from([
+            IndexMap::<_, _>::from_iter([
                 ("mode".into(), self.mode().encode_value()?),
                 (
                     "entryPoints".into(),
@@ -351,7 +351,7 @@ impl OptionValue for ModuleIdentifier {
     fn encode_value(&self) -> Result<DslValue, Throwable> {
         Ok(java_object(
             "com.google.javascript.jscomp.ModuleIdentifier",
-            IndexMap::from([
+            IndexMap::<_, _>::from_iter([
                 ("name".into(), self.name().to_string().encode_value()?),
                 (
                     "closureNamespace".into(),
@@ -377,7 +377,7 @@ impl OptionValue for closure_jscomp::variable_map::VariableMap {
     fn encode_value(&self) -> Result<DslValue, Throwable> {
         Ok(java_object(
             "com.google.javascript.jscomp.VariableMap",
-            IndexMap::from([("map".into(), self.to_map().encode_value()?)]),
+            IndexMap::<_, _>::from_iter([("map".into(), self.to_map().encode_value()?)]),
         ))
     }
 }
@@ -413,7 +413,7 @@ impl OptionValue for closure_jscomp::source_map_input::SourceMapInput {
         }
         Ok(java_object(
             "com.google.javascript.jscomp.SourceMapInput",
-            IndexMap::from([
+            IndexMap::<_, _>::from_iter([
                 ("sourceFile".into(), DslValue::SourceFile(state.source_file)),
                 ("parsedSourceMap".into(), DslValue::Null),
                 ("cached".into(), state.cached.encode_value()?),
@@ -821,8 +821,8 @@ impl OptionValue for Arc<dyn closure_jscomp::message_bundle::MessageBundle + Sen
             Ok(DslValue::Object(Rc::new(RefCell::new(
                 crate::replay::replay_dsl::Object {
                     class: "com.google.javascript.jscomp.EmptyMessageBundle".into(),
-                    fields: IndexMap::new(),
-                    field_types: IndexMap::new(),
+                    fields: IndexMap::<_, _>::default(),
+                    field_types: IndexMap::<_, _>::default(),
                 },
             ))))
         } else {
@@ -877,7 +877,7 @@ impl OptionValue for closure_jscomp::default_name_generator::CharPriority {
     fn encode_value(&self) -> Result<DslValue, Throwable> {
         Ok(java_object(
             "com.google.javascript.jscomp.DefaultNameGenerator$CharPriority",
-            IndexMap::from([
+            IndexMap::<_, _>::from_iter([
                 ("name".into(), self.name.encode_value()?),
                 ("occurrence".into(), self.occurrence.encode_value()?),
                 ("order".into(), self.order.encode_value()?),
@@ -934,7 +934,7 @@ pub fn encode_name_generator(
         })?;
     Ok(java_object(
         "com.google.javascript.jscomp.DefaultNameGenerator",
-        IndexMap::from([
+        IndexMap::<_, _>::from_iter([
             (
                 "priorityLookupMap".into(),
                 generator
@@ -1011,7 +1011,7 @@ fn coding_convention_value(
             "com.google.javascript.jscomp.CodingConvention#fields".into(),
         ));
     };
-    let mut fields = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
     if let Some(next) = next {
         fields.insert(
             "Proxy.nextConvention".into(),
@@ -1028,7 +1028,7 @@ fn encode_guard(guard: &Arc<dyn crate::jscomp_api::WarningsGuard>) -> Result<Jso
     {
         return crate::replay::replay_values::encode(&java_object(
             "com.google.javascript.jscomp.DiagnosticGroupWarningsGuard",
-            IndexMap::from([
+            IndexMap::<_, _>::from_iter([
                 (
                     "group".into(),
                     DslValue::DiagnosticGroup(group.replay_fields().group.clone()),
@@ -1049,7 +1049,7 @@ fn encode_guard(guard: &Arc<dyn crate::jscomp_api::WarningsGuard>) -> Result<Jso
     {
         return crate::replay::replay_values::encode(&java_object(
             "com.google.javascript.jscomp.StrictWarningsGuard",
-            IndexMap::new(),
+            IndexMap::<_, _>::default(),
         ));
     }
     if guard
@@ -1058,7 +1058,7 @@ fn encode_guard(guard: &Arc<dyn crate::jscomp_api::WarningsGuard>) -> Result<Jso
     {
         return crate::replay::replay_values::encode(&java_object(
             crate::replay::disambiguate_test_helpers::SilenceNoiseGuard::CLASS,
-            IndexMap::new(),
+            IndexMap::<_, _>::default(),
         ));
     }
     if guard
@@ -1067,7 +1067,7 @@ fn encode_guard(guard: &Arc<dyn crate::jscomp_api::WarningsGuard>) -> Result<Jso
     {
         return crate::replay::replay_values::encode(&java_object(
             crate::replay::disambiguate_test_helpers::SilenceChecksWarningsGuard::CLASS,
-            IndexMap::new(),
+            IndexMap::<_, _>::default(),
         ));
     }
     if let Some(path) = guard
@@ -1082,7 +1082,7 @@ fn encode_guard(guard: &Arc<dyn crate::jscomp_api::WarningsGuard>) -> Result<Jso
     ) {
         return crate::replay::replay_values::encode(&java_object(
             "com.google.javascript.jscomp.ShowByPathWarningsGuard",
-            IndexMap::from([(
+            IndexMap::<_, _>::from_iter([(
                 "warningsGuard".into(),
                 encode_path_guard(show.replay_fields().warnings_guard)?,
             )]),
@@ -1158,7 +1158,7 @@ fn encode_path_guard(
     };
     Ok(java_object(
         "com.google.javascript.jscomp.ByPathWarningsGuard",
-        IndexMap::from([
+        IndexMap::<_, _>::from_iter([
             (
                 "paths".into(),
                 DslValue::Typed {

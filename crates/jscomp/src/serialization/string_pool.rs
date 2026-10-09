@@ -20,9 +20,9 @@
 use super::typed_ast_proto::StringPoolProto;
 use super::wtf8::Wtf8;
 use closure_rhino::check_state;
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_rhino::rhino_string_pool::LazyInternedStringList;
-use indexmap::IndexMap;
 use std::sync::{Arc, LazyLock};
 
 /// port: StringPool
@@ -118,7 +118,7 @@ impl StringPoolBuilder {
     fn new() -> Self {
         let mut this = Self {
             max_length: 0,
-            pool: IndexMap::new(),
+            pool: IndexMap::<_, _>::default(),
         };
         this.put("");
         this

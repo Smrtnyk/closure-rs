@@ -37,6 +37,7 @@ use crate::{
     node_util::{NodeUtil, Visitor},
     var::Var,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_state,
     js_string::JsString,
@@ -45,7 +46,6 @@ use closure_rhino::{
     qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, LazyLock};
 
 // port: ClosureCheckModule#AT_EXPORT_IN_GOOG_MODULE
@@ -232,9 +232,9 @@ impl ModuleInfo {
     fn new(module_name: JsString) -> Self {
         Self {
             name: module_name,
-            imports_by_long_required_name: IndexMap::new(),
-            short_import_names: IndexSet::new(),
-            export_nodes_by_name: IndexMap::new(),
+            imports_by_long_required_name: IndexMap::<_, _>::default(),
+            short_import_names: IndexSet::<_>::default(),
+            export_nodes_by_name: IndexMap::<_, _>::default(),
         }
     }
 }

@@ -41,6 +41,7 @@ use crate::{
     },
     parsing_util::ParsingUtil,
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     error_reporter::ErrorReporter,
@@ -54,7 +55,6 @@ use closure_rhino::{
     token::Token,
     token_stream::TokenStream,
 };
-use indexmap::IndexSet;
 use std::{
     collections::{BTreeSet, VecDeque},
     sync::Arc,
@@ -178,8 +178,8 @@ impl<'a> IRFactory<'a> {
             error_reporter,
             transform_dispatcher: TransformDispatcher::default(),
             reserved_keywords,
-            parsed_comments: IndexSet::new(),
-            license_builder: IndexSet::new(),
+            parsed_comments: IndexSet::<_>::default(),
+            license_builder: IndexSet::<_>::default(),
             first_fileoverview: None,
             template_node: default_template_node,
             default_template_node,
@@ -530,7 +530,7 @@ impl<'a> IRFactory<'a> {
         if !n.is_param_list(ast) {
             return;
         }
-        let mut seen_names = IndexSet::new();
+        let mut seen_names = IndexSet::<_>::default();
         for c in n.children(ast) {
             ParsingUtil::get_param_or_pattern_names(ast, c, &mut |param| {
                 let param_name = param.get_string(ast);

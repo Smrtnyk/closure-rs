@@ -36,8 +36,8 @@ use closure_jscomp::{
     abstract_compiler::AbstractCompiler, compiler_options::Reach, compiler_pass::CompilerPass,
     inline_functions::InlineFunctions,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -53,8 +53,8 @@ const UNIQUE_ID_SUPPLIER: &str =
 
 // port: InlineFunctionsTest_Helpers.UniqueIdSupplier#UniqueIdSupplier
 fn unique_id_supplier() -> DslValue {
-    let mut fields = IndexMap::new();
-    let mut field_types = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
+    let mut field_types = IndexMap::<_, _>::default();
     // private int nextId = 0;
     fields.insert("nextId".to_string(), DslValue::Int(0));
     field_types.insert("nextId".to_string(), "int".to_string());
@@ -67,8 +67,8 @@ fn unique_id_supplier() -> DslValue {
 
 // port: InlineFunctionsTest_Helpers#InlineFunctionsTest_Helpers
 pub fn holder(_ctx: &mut Ctx, _args: Vec<DslValue>) -> Result<DslValue, Throwable> {
-    let mut fields = IndexMap::new();
-    let mut field_types = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
+    let mut field_types = IndexMap::<_, _>::default();
     // private UniqueIdSupplier uniqueIdSupplier = new UniqueIdSupplier();
     fields.insert("uniqueIdSupplier".to_string(), unique_id_supplier());
     field_types.insert(

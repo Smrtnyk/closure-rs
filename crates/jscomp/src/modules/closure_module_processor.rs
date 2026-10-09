@@ -37,11 +37,11 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_state, js_string::JsString, jscomp_base::guava_format, node::Ast,
     node::NodeId, token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 /// Processor for goog.module
@@ -124,7 +124,7 @@ impl UnresolvedGoogModule {
                     .metadata(m.metadata.clone())
                     .namespace((*m.namespace).clone())
                     .bound_names(bound_names)
-                    .local_name_to_local_export(IndexMap::new())
+                    .local_name_to_local_export(IndexMap::<_, _>::default())
                     .closure_namespace(Some(get_only_element(m.metadata.goog_namespaces().iter())))
                     .build(),
             ));
@@ -142,7 +142,7 @@ impl UnresolvedGoogModule {
         compiler: &mut AbstractCompiler,
         module_request_resolver: &mut dyn ModuleRequestResolver,
     ) -> IndexMap<JsString, Binding> {
-        let mut imports = IndexMap::new();
+        let mut imports = IndexMap::<_, _>::default();
         let requires_by_local_name = Self::this(module_request_resolver, this)
             .requires_by_local_name
             .clone();
@@ -186,8 +186,8 @@ impl UnresolvedGoogModule {
                     module_request_resolver,
                     Some(import_record.module_request()),
                     import_record.import_name(),
-                    &mut IndexSet::new(),
-                    &mut IndexSet::new(),
+                    &mut IndexSet::<_>::default(),
+                    &mut IndexSet::<_>::default(),
                 );
                 if !result.found() && !result.had_error() {
                     Self::report_invalid_destructuring_require(
@@ -407,8 +407,8 @@ impl ModuleProcessingCallback {
         let closure_namespace = get_only_element(metadata.goog_namespaces().iter());
         Self {
             metadata,
-            namespace: IndexMap::new(),
-            requires_by_local_name: IndexMap::new(),
+            namespace: IndexMap::<_, _>::default(),
+            requires_by_local_name: IndexMap::<_, _>::default(),
             closure_namespace,
             seen_exports_assignment: false,
         }

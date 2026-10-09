@@ -48,10 +48,10 @@ use crate::reference_map::ReferenceMap;
 use crate::scope::ScopeId;
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use crate::var::VarId;
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::{check_argument, check_not_null, check_state};
-use indexmap::IndexMap;
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -274,8 +274,8 @@ impl InliningBehavior {
     fn new(mode: Mode) -> Self {
         Self {
             mode,
-            current_scope_handled_var_analyses_map: IndexMap::new(),
-            var_to_alias_retry_handlers_map: IndexMap::new(),
+            current_scope_handled_var_analyses_map: IndexMap::<_, _>::default(),
+            var_to_alias_retry_handlers_map: IndexMap::<_, _>::default(),
             experts: Vec::new(),
         }
     }

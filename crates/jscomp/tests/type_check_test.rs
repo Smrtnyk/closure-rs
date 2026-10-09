@@ -49,6 +49,7 @@ use closure_jstype::{
     testing::type_subject::TypeSubject,
 };
 use closure_parsing::js_doc_info_parser::BAD_TYPE_WIKI_LINK;
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     input_id::InputId, ir::IR, js_string::JsString, node::Ast, node::NodeId, token::Token,
 };
@@ -60,7 +61,6 @@ use closure_testing::{
     testing::{scope_subject::assert_scope, test_externs_builder::TestExternsBuilder},
     type_check_test_case::TypeCheckTestCase,
 };
-use indexmap::IndexSet;
 use std::cell::RefMut;
 use std::sync::Arc;
 
@@ -363,7 +363,7 @@ impl TypeCheckTest {
                     join(&compiler.get_warnings())
                 );
                 let warnings = compiler.get_warnings();
-                let mut actual_warning_descriptions = IndexSet::new();
+                let mut actual_warning_descriptions = IndexSet::<_>::default();
                 for warning in warnings.iter().take(descriptions.len()) {
                     actual_warning_descriptions.insert(warning.description().to_string());
                 }

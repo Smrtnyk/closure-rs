@@ -23,8 +23,8 @@ use super::{
     invalidation::Invalidation,
 };
 use crate::graph::{standard_union_find::StandardUnionFind, union_find::UnionFind};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{check_not_null, check_state, js_string::JsString, node::NodeId};
-use indexmap::IndexMap;
 
 /// The disambiguation clusters for a given property name.
 ///
@@ -46,7 +46,7 @@ impl PropertyClustering {
         let id = PropertyClusteringId(arena.props.len() as u32);
         arena.props.push(PropertyClustering {
             name,
-            use_sites: IndexMap::new(),
+            use_sites: IndexMap::<_, _>::default(),
             clusters: StandardUnionFind::new(),
             original_name_cluster_rep: None,
             last_invalidation: None,

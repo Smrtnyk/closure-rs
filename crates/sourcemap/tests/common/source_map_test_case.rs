@@ -16,12 +16,12 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   test/com/google/debugging/sourcemap/SourceMapTestCase.java.
 
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_sourcemap::{
     file_position::FilePosition, source_map_consumer_factory::SourceMapConsumerFactory,
     source_map_supplier::SourceMapSupplier,
 };
-use indexmap::IndexMap;
 
 pub struct SourceMapTestCase {
     validate_columns: bool,
@@ -56,7 +56,7 @@ impl SourceMapTestCase {
     }
     // port: SourceMapTestCase#findTokens(Map)
     pub fn find_tokens(inputs: &IndexMap<JsString, JsString>) -> IndexMap<JsString, Token> {
-        let mut tokens = IndexMap::new();
+        let mut tokens = IndexMap::<_, _>::default();
         for entry in inputs {
             Self::find_tokens_into(&mut tokens, entry.0, entry.1);
         }
@@ -64,7 +64,7 @@ impl SourceMapTestCase {
     }
     // port: SourceMapTestCase#findTokens(String)
     pub fn find_tokens_in_source(src: &JsString) -> IndexMap<JsString, Token> {
-        let mut tokens = IndexMap::new();
+        let mut tokens = IndexMap::<_, _>::default();
         Self::find_tokens_into(&mut tokens, &"".into(), src);
         tokens
     }
@@ -122,7 +122,7 @@ impl SourceMapTestCase {
         output: &JsString,
         source_map_file_content: &JsString,
     ) {
-        let mut input_map = IndexMap::new();
+        let mut input_map = IndexMap::<_, _>::default();
         input_map.insert(input_name.clone(), input.clone());
         self.check_inputs(&input_map, output, source_map_file_content);
     }

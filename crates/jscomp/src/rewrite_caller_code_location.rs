@@ -28,10 +28,10 @@ use crate::{
     var::VarId,
 };
 use closure_jstype::prelude::JSType;
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     check_state, ir::IR, js_string::JsString, node::NodeId, qualified_name::QualifiedName,
 };
-use indexmap::IndexMap;
 use std::sync::LazyLock;
 
 // port: RewriteCallerCodeLocation#JSC_CALLER_LOCATION_POSITION_ERROR
@@ -88,7 +88,7 @@ impl RewriteCallerCodeLocation {
     pub fn new(compiler: &mut AbstractCompiler) -> Self {
         Self {
             ast_factory: compiler.create_ast_factory(),
-            caller_location_function_names: IndexMap::new(),
+            caller_location_function_names: IndexMap::<_, _>::default(),
         }
     }
 }

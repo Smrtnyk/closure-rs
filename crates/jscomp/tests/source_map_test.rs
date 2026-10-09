@@ -25,9 +25,9 @@ use closure_jscomp::{
     source_map::{Format, LocationMapping, PrefixLocationMapping},
     source_map_input::SourceMapInput,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_sourcemap::source_map_consumer_v3::SourceMapConsumerV3;
-use indexmap::IndexMap;
 use source_map_test_case::{SourceMapTest as _, SourceMapTestCase, get_source_map};
 use std::{fmt, sync::Arc};
 
@@ -42,7 +42,7 @@ impl SourceMapTest {
         let mut test = Self {
             base: Default::default(),
             mappings: None,
-            input_maps: IndexMap::new(),
+            input_maps: IndexMap::<_, _>::default(),
         };
         test.set_up();
         test
@@ -50,7 +50,7 @@ impl SourceMapTest {
     // port: SourceMapTest#setUp
     fn set_up(&mut self) {
         self.base.set_up();
-        self.input_maps = IndexMap::new();
+        self.input_maps = IndexMap::<_, _>::default();
     }
     // port: SourceMapTest#checkSourceMap2
     fn check_source_map2(

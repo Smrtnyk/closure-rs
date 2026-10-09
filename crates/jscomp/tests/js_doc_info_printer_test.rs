@@ -19,10 +19,10 @@
 #![allow(unused_mut)]
 use closure_jscomp::js_doc_info_printer::JSDocInfoPrinter;
 use closure_parsing::js_doc_info_parser::JsDocInfoParser;
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     ir::IR, js_type_expression::JSTypeExpression, jsdoc_info::JSDocInfo, node::Ast, token::Token,
 };
-use indexmap::IndexSet;
 use std::sync::Arc;
 
 // port: JSDocInfoPrinterTest#testBasic
@@ -42,7 +42,10 @@ fn test_basic() {
         js_doc_info_printer.print(&ast, &info),
         "/** @constructor */ "
     );
-    builder.record_suppressions(&IndexSet::from(["globalThis".into(), "uselessCode".into()]));
+    builder.record_suppressions(&IndexSet::<_>::from_iter([
+        "globalThis".into(),
+        "uselessCode".into(),
+    ]));
     info = builder.build_and_reset().unwrap();
     assert_eq!(
         js_doc_info_printer.print(&ast, &info),
@@ -59,7 +62,7 @@ fn test_suppressions() {
     let js_doc_info_printer = JSDocInfoPrinter::new_with_print_desc(false, true);
 
     builder.record_suppressions_with_description(
-        &IndexSet::from(["globalThis".into(), "uselessCode".into()]),
+        &IndexSet::<_>::from_iter(["globalThis".into(), "uselessCode".into()]),
         "Common description.",
     );
     let mut info = builder.build_and_reset().unwrap();
@@ -78,7 +81,7 @@ fn test_suppressions_multiple_line_description() {
     let js_doc_info_printer = JSDocInfoPrinter::new_with_print_desc(false, true);
 
     builder.record_suppressions_with_description(
-        &IndexSet::from(["globalThis".into(), "uselessCode".into()]),
+        &IndexSet::<_>::from_iter(["globalThis".into(), "uselessCode".into()]),
         "Common description.\n More on another line.",
     );
     let mut info = builder.build_and_reset().unwrap();
@@ -97,10 +100,10 @@ fn test_suppressions_multiple() {
     let js_doc_info_printer = JSDocInfoPrinter::new_with_print_desc(false, true);
 
     builder.record_suppressions_with_description(
-        &IndexSet::from(["globalThis".into(), "uselessCode".into()]),
+        &IndexSet::<_>::from_iter(["globalThis".into(), "uselessCode".into()]),
         "Common description.",
     );
-    builder.record_suppressions(&IndexSet::from(["const".into()])); // has no description
+    builder.record_suppressions(&IndexSet::<_>::from_iter(["const".into()])); // has no description
 
     let mut info = builder.build_and_reset().unwrap();
     assert_eq!(
@@ -117,9 +120,9 @@ fn test_suppressions_multiple_print_order() {
     builder.parse_documentation();
     let js_doc_info_printer = JSDocInfoPrinter::new_with_print_desc(false, true);
 
-    builder.record_suppressions(&IndexSet::from(["const".into()])); // has no description
+    builder.record_suppressions(&IndexSet::<_>::from_iter(["const".into()])); // has no description
     builder.record_suppressions_with_description(
-        &IndexSet::from(["uselessCode".into(), "globalThis".into()]),
+        &IndexSet::<_>::from_iter(["uselessCode".into(), "globalThis".into()]),
         "Common description.",
     );
 

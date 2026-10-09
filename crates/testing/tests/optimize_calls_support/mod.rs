@@ -28,6 +28,7 @@
 #![allow(dead_code)] // each test binary uses a different part
 
 use closure_jscomp::{compiler_pass::CompilerPass, source_file::SourceFile};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
@@ -37,7 +38,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 /// A replay context for hooks that run natively (no record behind them).
@@ -45,7 +45,7 @@ pub fn native_ctx(class: &str) -> Ctx {
     Ctx::new(
         class.into(),
         closure_testing::replay::replay_values::object([]),
-        IndexMap::new(),
+        IndexMap::<_, _>::default(),
         Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n").unwrap(),
     )
 }

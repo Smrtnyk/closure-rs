@@ -17,8 +17,8 @@
 //   test/com/google/javascript/jscomp/VariableMapTest.java.
 
 use closure_jscomp::variable_map::VariableMap;
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{java_lang::utf_8, js_string::JsString};
-use indexmap::IndexMap;
 
 // port: VariableMapTest#cycleTest (ImmutableMap test input)
 fn map(entries: &[(&str, &str)]) -> IndexMap<JsString, JsString> {

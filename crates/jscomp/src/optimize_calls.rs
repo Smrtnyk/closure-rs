@@ -25,11 +25,11 @@ use crate::compiler_pass::CompilerPass;
 use crate::node_traversal::{Callback, NodeTraversal, ScopedCallback};
 use crate::node_util::NodeUtil;
 use crate::scope::ScopeId;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
 use closure_rhino::token::Token;
 use closure_rhino::{check_argument, check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 
 /// Java's `OptimizeCalls.CallGraphCompilerPass`. The compiler is passed explicitly
 /// (DESIGN.md section 6) instead of being a field of the pass.
@@ -143,7 +143,7 @@ impl OptimizeCalls {
     fn safe_set(set: Option<&IndexSet<String>>) -> IndexSet<String> {
         match set {
             Some(set) => set.clone(),
-            None => IndexSet::new(),
+            None => IndexSet::<_>::default(),
         }
     }
 
@@ -325,7 +325,7 @@ impl ReferenceMap {
         compiler: &AbstractCompiler,
         definition_sites: &[NodeId],
     ) -> IndexMap<NodeId, Vec<NodeId>> {
-        let mut result: IndexMap<NodeId, Vec<NodeId>> = IndexMap::new();
+        let mut result: IndexMap<NodeId, Vec<NodeId>> = IndexMap::<_, _>::default();
         for &def in definition_sites {
             let fns = Self::definition_function_nodes_for(compiler, def);
             if !fns.is_empty() {

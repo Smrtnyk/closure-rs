@@ -30,8 +30,8 @@ use crate::{
     var::VarId,
     variable_map::VariableMap,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_state, js_string::JsString, node::NodeId};
-use indexmap::{IndexMap, IndexSet};
 use std::{
     cmp::Ordering,
     sync::{Arc, RwLock},
@@ -142,28 +142,25 @@ impl RenameVars {
         name_generator: Box<dyn NameGenerator>,
     ) -> Self {
         let pseudo_name_map = if generate_pseudo_names {
-            Some(IndexMap::new())
+            Some(IndexMap::<_, _>::default())
         } else {
             None
         };
-        let reserved_names = match reserved_names {
-            None => IndexSet::new(),
-            Some(reserved_names) => reserved_names,
-        };
+        let reserved_names = reserved_names.unwrap_or_default();
         Self {
             global_name_nodes: Vec::new(),
             local_name_nodes: Vec::new(),
-            original_name_by_node: IndexMap::new(),
+            original_name_by_node: IndexMap::<_, _>::default(),
             pseudo_name_map,
-            extern_names: IndexSet::new(),
+            extern_names: IndexSet::<_>::default(),
             reserved_names: Arc::new(RwLock::new(reserved_names)),
-            rename_map: IndexMap::new(),
+            rename_map: IndexMap::<_, _>::default(),
             prev_used_rename_map,
             prefix: prefix.unwrap_or_else(|| JsString::from("")),
             assignment_count: 0,
-            local_bleeding_functions: IndexSet::new(),
-            local_bleeding_functions_per_scope: IndexMap::new(),
-            assignments: IndexMap::new(),
+            local_bleeding_functions: IndexSet::<_>::default(),
+            local_bleeding_functions_per_scope: IndexMap::<_, _>::default(),
+            assignments: IndexMap::<_, _>::default(),
             local_renaming_only,
             prefer_stable_names,
             reserved_characters,

@@ -27,6 +27,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,
@@ -34,7 +35,6 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 // port: ProcessClosureProvidesAndRequires#TYPEDEF_CHILD_OF_PROVIDE
@@ -138,12 +138,12 @@ impl ProcessClosureProvidesAndRequires {
     // port: ProcessClosureProvidesAndRequires#ProcessClosureProvidesAndRequires
     pub fn new(compiler: &mut AbstractCompiler, preserve_goog_provides_and_requires: bool) -> Self {
         Self {
-            provided_names: IndexMap::new(),
-            exported_variables: IndexSet::new(),
+            provided_names: IndexMap::<_, _>::default(),
+            exported_variables: IndexSet::<_>::default(),
             preserve_goog_provides_and_requires,
             requires_to_be_removed: Vec::new(),
             has_rewriting_occurred: false,
-            forward_declares_to_remove: IndexSet::new(),
+            forward_declares_to_remove: IndexSet::<_>::default(),
             ast_factory: compiler.create_ast_factory(),
         }
     }

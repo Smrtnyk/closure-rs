@@ -62,8 +62,8 @@ use closure_jscomp::{
     replace_strings::ReplaceStrings,
     source_information_annotator::SourceInformationAnnotator,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, rc::Rc};
 
 const REPLACE_STRINGS: &str = "com.google.javascript.jscomp.ReplaceStrings";
@@ -96,7 +96,7 @@ fn java_object(class: &str, fields: IndexMap<String, DslValue>) -> DslValue {
     DslValue::Object(Rc::new(RefCell::new(Object {
         class: class.into(),
         fields,
-        field_types: IndexMap::new(),
+        field_types: IndexMap::<_, _>::default(),
     })))
 }
 
@@ -133,7 +133,7 @@ impl NativeObject for NativeReplaceStrings {
                 DslValue::String(name.clone()),
                 java_object(
                     "com.google.javascript.jscomp.ReplaceStrings$Config",
-                    IndexMap::from([
+                    IndexMap::<_, _>::from_iter([
                         ("name".into(), DslValue::String(c.name.clone())),
                         (
                             "parameters".into(),
@@ -185,7 +185,7 @@ impl NativeObject for NativeReplaceStrings {
                     DslValue::String(original.clone()),
                     java_object(
                         "com.google.javascript.jscomp.ReplaceStrings$Result",
-                        IndexMap::from([
+                        IndexMap::<_, _>::from_iter([
                             ("original".into(), DslValue::String(result.original.clone())),
                             (
                                 "replacement".into(),
@@ -200,7 +200,7 @@ impl NativeObject for NativeReplaceStrings {
                 )
             })
             .collect();
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "placeholderToken".into(),
                 DslValue::String(f.placeholder_token.clone()),
@@ -334,7 +334,7 @@ impl NativeObject for GetProcessorPass {
     // port: UnitRecorder#fields (GetProcessorPass: compiler, pass, rename,
     // runDisambiguateProperties in declaration order)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             ("compiler".into(), self.compiler.clone()),
             ("pass".into(), self.pass.clone()),
             ("rename".into(), DslValue::Bool(self.rename)),
@@ -366,8 +366,11 @@ impl NativeObject for GetProcessorPass {
             let mut sia = SourceInformationAnnotator::create();
             NodeTraversal::traverse(compiler, js, &mut sia);
 
-            DisambiguateProperties::new(compiler, IndexSet::from([JsString::from("foobar")]))
-                .process(compiler, externs, js);
+            DisambiguateProperties::new(
+                compiler,
+                IndexSet::<_>::from_iter([JsString::from("foobar")]),
+            )
+            .process(compiler, externs, js);
         }
         let DslValue::Native(pass) = &self.pass else {
             return Err(bad("pass is not a native ReplaceStrings"));

@@ -49,8 +49,8 @@ use crate::{
     },
     throwable::Throwable,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 pub type CompilerHandle = Rc<RefCell<Compiler>>;
 pub type OptionsHandle = Rc<RefCell<CompilerOptions>>;
@@ -325,9 +325,9 @@ impl Ctx {
             postcondition_compiler: None,
             compiler: None,
             record,
-            field_overrides: IndexMap::new(),
-            once: IndexMap::new(),
-            vars: IndexMap::new(),
+            field_overrides: IndexMap::<_, _>::default(),
+            once: IndexMap::<_, _>::default(),
+            vars: IndexMap::<_, _>::default(),
             options: None,
             descriptor,
             class_map,
@@ -818,7 +818,7 @@ pub fn get_field_with_compiler(
                 .field_types
                 .get(name)
                 .ok_or_else(|| error("no option field"))?,
-            &IndexMap::new(),
+            &IndexMap::<_, _>::default(),
         ),
         DslValue::Object(o) => o
             .borrow()
@@ -832,7 +832,7 @@ pub fn get_field_with_compiler(
                 .field_types
                 .get(name)
                 .ok_or_else(|| error("no option field"))?,
-            &IndexMap::new(),
+            &IndexMap::<_, _>::default(),
         ),
         _ => Err(error("getField requires an object")),
     }

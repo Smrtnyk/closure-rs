@@ -51,12 +51,12 @@ use crate::{
     throwable::{Throwable, assert_that, check_state},
     value::Value,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     js_string::JsString,
     node::{JsDocComparison, NodeId, RecursionMode, SideEffectComparison, TypeComparison},
     testing::node_subject::assert_node,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -320,17 +320,17 @@ impl CompilerTestCase {
                 GENERATED_EXTERNS_NAME,
                 externs,
             ))],
-            libraries_to_inject: IndexSet::new(),
-            declared_accessors: IndexMap::new(),
+            libraries_to_inject: IndexSet::<_>::default(),
+            declared_accessors: IndexMap::<_, _>::default(),
             last_compiler: None,
             accepted_language: DslValue::Null,
             language_out: DslValue::Null,
             browser_featureset_year: None,
             module_resolution_mode: DslValue::Null,
             parse_js_doc_documentation: DslValue::Null,
-            ignored_warnings: IndexSet::new(),
-            webpack_modules_by_id: IndexMap::new(),
-            generic_name_replacements: IndexMap::new(),
+            ignored_warnings: IndexSet::<_>::default(),
+            webpack_modules_by_id: IndexMap::<_, _>::default(),
+            generic_name_replacements: IndexMap::<_, _>::default(),
         }
     }
     // port: CompilerTestCase#setUp
@@ -1156,7 +1156,7 @@ impl CompilerTestCase {
         postconditions: &[Postcondition],
         pipeline: Option<&ExpectedPipeline>,
     ) -> Result<(), Throwable> {
-        let mut generic_name_mapping = IndexMap::new();
+        let mut generic_name_mapping = IndexMap::<_, _>::default();
         let expected = if let Some(e) = expected {
             if e.same {
                 Some(from_sources(inputs)?)
@@ -1607,7 +1607,7 @@ impl CompilerTestCase {
                 &clone_ast,
                 externs_clone,
                 false,
-                &IndexMap::new(),
+                &IndexMap::<_, _>::default(),
             )?;
         }
         if self.check_ast_change_marking {
@@ -1875,7 +1875,7 @@ impl CompilerTestCase {
                 &expected_root.0.borrow(),
                 expected_root.1,
                 self.compare_js_doc,
-                &IndexMap::new(),
+                &IndexMap::<_, _>::default(),
             )?;
         } else {
             let actual = passes::to_source(&mut c.borrow_mut(), e)?;
@@ -2717,7 +2717,7 @@ pub fn set_option(o: &mut CompilerOptions, name: &str, value: &DslValue) -> Resu
         o,
         name,
         &Value::from_json(&raw, "$").map_err(|e| Throwable::HarnessError(e.to_string()))?,
-        &IndexMap::new(),
+        &IndexMap::<_, _>::default(),
     )
 }
 // port: CompilerTestCase#fromSources

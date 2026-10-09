@@ -28,12 +28,12 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::java_util::priority_queue::PriorityQueue;
 use closure_rhino::jscomp_base::linked_identity_hash_map::LinkedIdentityHashMap;
 use closure_rhino::{
     check_argument, check_not_null, check_state, js_string::JsString, node::NodeId, token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::collections::VecDeque;
 
 pub struct ControlFlowAnalysis {
@@ -116,7 +116,7 @@ impl ControlFlowAnalysis {
             should_traverse_functions,
             root,
             exception_handler: VecDeque::new(),
-            finally_map: IndexMap::new(),
+            finally_map: IndexMap::<_, _>::default(),
         }
     }
     // port: ControlFlowAnalysis#builder

@@ -35,6 +35,7 @@ use crate::{
     check_level::CheckLevel, diagnostic_type::DiagnosticType, error_manager::ErrorManager,
     js_error::JSError,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     java_lang::{
         charset::Charset,
@@ -42,7 +43,6 @@ use closure_rhino::{
     },
     js_string::JsString,
 };
-use indexmap::IndexMap;
 use std::{
     fmt,
     io::{self, BufRead, BufReader, Read},
@@ -401,7 +401,7 @@ impl JsFileLineParser {
             "Syntax error when parsing JS object",
         )?;
         let input = closure_rhino::java_lang::trim(&input.substring(1, input.length() - 1));
-        let mut results = IndexMap::new();
+        let mut results = IndexMap::<_, _>::default();
         let mut done = input.is_empty();
         self.value_matcher.reset(input.clone());
         while !done {

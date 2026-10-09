@@ -29,6 +29,7 @@ use crate::{
     node_util::{GoogRequire, NodeUtil},
     var::VarId,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_state,
     js_string::JsString,
@@ -38,7 +39,6 @@ use closure_rhino::{
     qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, LazyLock};
 
 // port: CheckMissingRequires#MISSING_REQUIRE
@@ -136,7 +136,7 @@ impl CheckMissingRequires {
         let module_by_namespace = module_metadata_map.get_modules_by_goog_namespace().clone();
         Self {
             module_metadata_map,
-            template_param_names: IndexSet::new(),
+            template_param_names: IndexSet::<_>::default(),
             module_by_namespace,
             control_flow_scope_depth: 0,
         }

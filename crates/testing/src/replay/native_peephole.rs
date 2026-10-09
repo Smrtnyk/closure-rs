@@ -79,8 +79,8 @@ use closure_jscomp::{
     statement_fusion::StatementFusion,
 };
 use closure_parsing::parser::feature_set::Feature;
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{node::NodeId, token::Token};
-use indexmap::IndexSet;
 use std::{cell::RefCell, rc::Rc};
 
 // port: ReplayDsl#invoke (resolved signatures backed by native peephole implementations)
@@ -387,7 +387,7 @@ impl AbstractPeepholeOptimization for RemoveNodesNamedXUnderVarOptimization {
     ) -> Option<NodeId> {
         if node.is_var(compiler) {
             // Java's HashSet<Node>; the removal order does not change the result.
-            let mut nodes_to_remove: IndexSet<NodeId> = IndexSet::new();
+            let mut nodes_to_remove: IndexSet<NodeId> = IndexSet::<_>::default();
             let mut child = node.get_first_child(compiler);
             while let Some(c) = child {
                 if c.get_string_ref(compiler) == "x" {

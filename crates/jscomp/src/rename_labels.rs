@@ -36,8 +36,8 @@ use crate::{
     node_traversal::{Callback, NodeTraversal, ScopedCallback},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_state, js_string::JsString, node::NodeId, token::Token};
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, Mutex, RwLock};
 
 pub struct RenameLabels {
@@ -106,9 +106,9 @@ impl DefaultNameSupplier {
     fn new() -> Self {
         Self {
             name_generator: Mutex::new(Box::new(DefaultNameGenerator::with_reserved_characters(
-                Arc::new(RwLock::new(IndexSet::<JsString>::new())),
+                Arc::new(RwLock::new(IndexSet::<JsString>::default())),
                 JsString::from(""),
-                &IndexSet::new(),
+                &IndexSet::<_>::default(),
             ))),
         }
     }

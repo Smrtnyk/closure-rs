@@ -24,11 +24,11 @@ use crate::{
     check_level::CheckLevel, diagnostic_type::DiagnosticType, error_handler::ErrorHandler,
     js_error::JSError,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state,
     java_lang::{string_compare_to, unix_path::UnixPath},
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{
     cmp::Ordering,
     fmt,
@@ -177,7 +177,7 @@ impl ModuleLoader {
             .collect();
         paths.sort_by(|a, b| best_match_path_ordering(a, b));
         let total = paths.len();
-        let mut dupe_module_paths: IndexMap<String, usize> = IndexMap::new();
+        let mut dupe_module_paths: IndexMap<String, usize> = IndexMap::<_, _>::default();
         for p in paths {
             *dupe_module_paths.entry(p).or_default() += 1;
         }

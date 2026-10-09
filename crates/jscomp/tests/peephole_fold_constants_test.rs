@@ -32,6 +32,7 @@ use closure_jscomp::{
     peephole_optimizations_pass::PeepholeOptimizationsPass,
     source_file::SourceFile,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
@@ -42,7 +43,6 @@ use closure_testing::{
     testing::test_externs_builder::TestExternsBuilder,
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 struct PeepholeFoldConstantsTest {
@@ -148,7 +148,7 @@ impl PeepholeFoldConstantsTest {
                 ctx: Ctx::new(
                     "PeepholeFoldConstantsTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),
@@ -228,7 +228,9 @@ impl PeepholeFoldConstantsTest {
         let root = compiler.borrow_mut().parse_inputs();
         compiler
             .borrow_mut()
-            .set_accessor_summary(Arc::new(AccessorSummary::create(IndexMap::new())));
+            .set_accessor_summary(Arc::new(AccessorSummary::create(
+                IndexMap::<_, _>::default(),
+            )));
         let Some(root) = root else {
             let errors: Vec<String> = compiler
                 .borrow()
@@ -2758,7 +2760,7 @@ fn test_class_field() {
 #[allow(clippy::needless_range_loop)]
 fn test_invertible_operators() {
     let mut t = PeepholeFoldConstantsTest::new();
-    let inverses: IndexMap<&str, &str> = IndexMap::from([
+    let inverses: IndexMap<&str, &str> = IndexMap::<_, _>::from_iter([
         ("==", "!="),
         ("===", "!=="),
         ("<=", ">"),

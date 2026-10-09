@@ -24,13 +24,13 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument,
     js_string::JsString,
     node::{Ast, NodeId},
     qualified_name::QualifiedName,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{cmp::Ordering, fmt, sync::LazyLock};
 
 // port: CheckRequiresSorted#REQUIRES_NOT_SORTED
@@ -359,7 +359,7 @@ impl CheckRequiresSorted {
     pub fn new(mode: Mode) -> Self {
         Self {
             mode,
-            imports_by_namespace: IndexMap::new(),
+            imports_by_namespace: IndexMap::<_, _>::default(),
             original_imports: Vec::new(),
             first_node: None,
             last_node: None,

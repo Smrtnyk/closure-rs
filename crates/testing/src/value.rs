@@ -23,7 +23,7 @@ use crate::reader::{
     ModelResult, Obj, ObjOut, arr, as_array, as_bool, as_i32, as_js_string, as_opt_string,
     as_string, err, index, int, join, js, list_of, map_of, opt_st, st, strs,
 };
-use indexmap::IndexMap;
+use closure_rhino::fx_hash::IndexMap;
 
 /// A reflective field dump: field name (FORMAT.md "Value encoding": inherited fields prefixed
 /// with the declaring class's simple name) to value, in recorded order.

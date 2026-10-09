@@ -20,12 +20,12 @@ use crate::{
     abstract_compiler::AbstractCompiler, abstract_var::AbstractVar, node_util::NodeUtil,
     scope::ScopeId, scoped_name::ScopedName, typed_scope::TypedScope,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::IndexMap;
 use std::{
     collections::BTreeMap,
     ops::{Deref, DerefMut},
@@ -278,7 +278,7 @@ pub trait AbstractScope: Copy + Eq {
 
     // port: AbstractScope#getAllAccessibleVariables
     fn get_all_accessible_variables(self, compiler: &AbstractCompiler) -> Vec<Self::Var> {
-        let mut accessible_vars = IndexMap::new();
+        let mut accessible_vars = IndexMap::<_, _>::default();
         let mut s = Some(self.this_scope());
         while let Some(scope) = s {
             for var in scope.get_var_iterable(compiler) {

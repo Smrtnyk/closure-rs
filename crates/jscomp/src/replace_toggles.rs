@@ -27,10 +27,10 @@ use crate::node_traversal::{
     AbstractPostOrderCallback, AbstractPostOrderCallbackInterface, NodeTraversal,
 };
 use crate::node_util::NodeUtil;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
 use closure_rhino::qualified_name::QualifiedName;
-use indexmap::{IndexMap, IndexSet};
 use std::sync::LazyLock;
 
 // NOTE: These diagnostics are only checked in Stage 2 (optimization), since none of this
@@ -132,8 +132,8 @@ impl AbstractPostOrderCallbackInterface for Traversal<'_> {
                 return;
             }
 
-            let mut mapping: IndexMap<JsString, i32> = IndexMap::new();
-            let mut ordinals: IndexSet<i32> = IndexSet::new();
+            let mut mapping: IndexMap<JsString, i32> = IndexMap::<_, _>::default();
+            let mut ordinals: IndexSet<i32> = IndexSet::<_>::default();
             let mut c = rhs.get_first_child(t);
             while let Some(cur) = c {
                 if !cur.is_string_key(t) && !cur.is_string_lit(t) {

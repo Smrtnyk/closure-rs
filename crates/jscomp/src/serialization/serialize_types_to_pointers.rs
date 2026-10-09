@@ -46,12 +46,12 @@ use crate::node_util::NodeUtil;
 use crate::type_mismatch::TypeMismatch;
 use closure_jstype::prelude::*;
 use closure_rhino::check_state;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_colors::color_id::ColorId;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use closure_sourcemap::gson::stream::json_writer::JsonWriter;
-use indexmap::{IndexMap, IndexSet};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -75,7 +75,7 @@ impl SerializeTypesToPointers {
         Self {
             jstype_reconserializer,
             properties_referenced_in_ast,
-            type_pointers_by_jstype: IndexMap::new(),
+            type_pointers_by_jstype: IndexMap::<_, _>::default(),
             type_pool: None,
         }
     }
@@ -94,7 +94,7 @@ impl SerializeTypesToPointers {
 
         // this set requires access to the externs and src ASTs, so can't be populated yet.
         let properties_referenced_in_ast: Rc<RefCell<IndexSet<JsString>>> =
-            Rc::new(RefCell::new(IndexSet::new()));
+            Rc::new(RefCell::new(IndexSet::<_>::default()));
         let contains = Rc::clone(&properties_referenced_in_ast);
         let js_type_reconserializer = JSTypeReconserializer::create(
             registry,
@@ -171,7 +171,7 @@ impl SerializeTypesToPointers {
                 // Stream json writing here rather than building up the entire json representation
                 // at once because the latter used to cause OOMs.
                 let (registry, ast) = compiler.get_type_registry_and_ast();
-                let mut type_strings: IndexMap<String, Vec<String>> = IndexMap::new();
+                let mut type_strings: IndexMap<String, Vec<String>> = IndexMap::<_, _>::default();
                 for (color_id, jstypes) in &all_serialized_types {
                     type_strings.insert(
                         color_id.clone(),
@@ -464,7 +464,7 @@ impl TypeMismatchJson {
             &type_pool.get_type_list()[TypePointers::trim_offset(pool_offset) as usize];
         match type_proto.get_kind_case() {
             TypeProtoKindCase::UNION => {
-                let mut ids: IndexSet<ColorId> = IndexSet::new();
+                let mut ids: IndexSet<ColorId> = IndexSet::<_>::default();
                 for &pointer in type_proto.get_union().get_union_member_list() {
                     ids.insert(Self::type_pointer_to_id(pointer, type_pool));
                 }

@@ -31,8 +31,8 @@ use crate::{
         lowest_common_ancestor_finder::LowestCommonAncestorFinder,
     },
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{check_not_null, check_state};
-use indexmap::IndexSet;
 use std::{fmt, sync::Arc};
 
 /// The graph of colors `ColorGraphBuilder` builds. Java declares the edge values as `Object`

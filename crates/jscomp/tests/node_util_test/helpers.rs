@@ -227,8 +227,10 @@ pub(super) fn assert_contains_anon_class(compiler: &mut Compiler, expected: bool
 }
 // port: NodeUtilTest.AssortedTests#assertNodeNames
 pub(super) fn assert_node_names(compiler: &Compiler, expected: Vec<&str>, nodes: Vec<NodeId>) {
-    let actual: indexmap::IndexSet<_> = nodes.into_iter().map(|n| n.get_string(compiler)).collect();
-    let expected: indexmap::IndexSet<_> = expected.into_iter().map(JsString::from).collect();
+    let actual: closure_rhino::fx_hash::IndexSet<_> =
+        nodes.into_iter().map(|n| n.get_string(compiler)).collect();
+    let expected: closure_rhino::fx_hash::IndexSet<_> =
+        expected.into_iter().map(JsString::from).collect();
     assert_eq!(actual, expected);
 }
 // port: NodeUtilTest.AssortedTests#replaceDeclChild

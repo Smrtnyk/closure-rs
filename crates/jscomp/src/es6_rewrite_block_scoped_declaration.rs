@@ -32,6 +32,7 @@ use crate::{
     var::VarId,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state,
     ir::IR,
@@ -40,7 +41,6 @@ use closure_rhino::{
     node::{Ast, NodeId, Prop},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 
 // port: Es6RewriteBlockScopedDeclaration#transpiledFeatures
 fn transpiled_features() -> FeatureSet {
@@ -69,7 +69,7 @@ impl Es6RewriteBlockScopedDeclaration {
     pub fn new(compiler: &mut AbstractCompiler) -> Self {
         Self {
             ast_factory: compiler.create_ast_factory(),
-            let_consts: IndexSet::new(),
+            let_consts: IndexSet::<_>::default(),
         }
     }
 
@@ -462,10 +462,10 @@ impl LoopClosureTransformer {
     fn new() -> Self {
         Self {
             loop_objects: Vec::new(),
-            loop_object_map: IndexMap::new(),
-            nodes_requiring_loop_objects_closure_map: IndexMap::new(),
-            nodes_handled_for_loop_object_closure: IndexSet::new(),
-            reference_map: IndexMap::new(),
+            loop_object_map: IndexMap::<_, _>::default(),
+            nodes_requiring_loop_objects_closure_map: IndexMap::<_, _>::default(),
+            nodes_handled_for_loop_object_closure: IndexSet::<_>::default(),
+            reference_map: IndexMap::<_, _>::default(),
         }
     }
 
@@ -607,7 +607,7 @@ impl LoopClosureTransformer {
         compiler: &mut AbstractCompiler,
         outer: &mut Es6RewriteBlockScopedDeclaration,
     ) -> IndexSet<NodeId> {
-        let mut wrapper_functions = IndexSet::new();
+        let mut wrapper_functions = IndexSet::<_>::default();
         let keys: Vec<NodeId> = self
             .nodes_requiring_loop_objects_closure_map
             .keys()
@@ -1213,7 +1213,7 @@ impl LoopObject {
     fn new(name: String) -> Self {
         Self {
             name,
-            vars: IndexSet::new(),
+            vars: IndexSet::<_>::default(),
         }
     }
 }

@@ -51,6 +51,7 @@ use closure_parsing::{
     config::JsDocParsing,
     parser::feature_set::{Feature, FeatureSet},
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     ir::IR,
     java_lang::pattern::Pattern,
@@ -58,7 +59,6 @@ use closure_rhino::{
     jscomp_base::{Tri, check_argument, check_state},
     node::{Ast, NodeId},
 };
-use indexmap::{IndexMap, IndexSet};
 // Preserve the public Charset path consumed by the integrated printer API.
 pub use closure_rhino::java_lang::charset::Charset;
 use std::{
@@ -939,7 +939,7 @@ impl CompilerOptions {
         let es6_module_transpilation = Es6ModuleTranspilation::COMPILE;
         let language_in = LanguageMode::STABLE_IN;
         let environment = Environment::BROWSER;
-        let browser_resolver_prefix_replacements = IndexMap::new();
+        let browser_resolver_prefix_replacements = IndexMap::<_, _>::default();
         let module_resolution_mode = ResolutionMode::BROWSER;
         let package_json_entry_names = vec!["browser".into(), "module".into(), "main".into()];
         let path_escaper = PathEscaper::ESCAPE;
@@ -1011,11 +1011,11 @@ impl CompilerOptions {
         let j2cl_minifier_enabled = true;
         let remove_abstract_methods = false;
         let remove_closure_asserts = false;
-        let strip_types = IndexSet::new();
-        let strip_name_suffixes = IndexSet::new();
-        let strip_name_prefixes = IndexSet::new();
+        let strip_types = IndexSet::<_>::default();
+        let strip_name_suffixes = IndexSet::<_>::default();
+        let strip_name_prefixes = IndexSet::<_>::default();
         let custom_passes = None;
-        let define_replacements = IndexMap::new();
+        let define_replacements = IndexMap::<_, _>::default();
         let tweak_processing = TweakProcessing::OFF;
         let rewrite_global_declarations_for_try_catch_wrapping = false;
         let checks_only = false;
@@ -1024,11 +1024,11 @@ impl CompilerOptions {
         let export_local_property_definitions = true;
         let css_renaming_map = None;
         let css_renaming_skiplist = None;
-        let id_generators = IndexMap::new();
+        let id_generators = IndexMap::<_, _>::default();
         let replace_strings_function_descriptions = Vec::new();
         let replace_strings_placeholder_token = String::new();
-        let properties_that_must_disambiguate = IndexSet::new();
-        let input_source_maps = IndexMap::new();
+        let properties_that_must_disambiguate = IndexSet::<_>::default();
+        let input_source_maps = IndexMap::<_, _>::default();
         let instrument_for_coverage_option = InstrumentOption::NONE;
         let production_instrumentation_array_name = String::new();
         let preserve_type_annotations = false;
@@ -1679,7 +1679,7 @@ impl CompilerOptions {
     }
     // port: CompilerOptions#getDefineReplacements
     pub fn get_define_replacements(&self, ast: &mut Ast) -> IndexMap<String, NodeId> {
-        let mut map = IndexMap::new();
+        let mut map = IndexMap::<_, _>::default();
         for (name, value) in &self.define_replacements {
             let node = match value {
                 DefineValue::Boolean(b) => NodeUtil::boolean_node(ast, *b),
@@ -1771,7 +1771,8 @@ impl CompilerOptions {
     }
     // port: CompilerOptions#setIdGenerators(Set<String>)
     pub fn set_id_generator_names(&mut self, id_generators: IndexSet<String>) {
-        let mut builder: IndexMap<String, Arc<dyn RenamingMap + Send + Sync>> = IndexMap::new();
+        let mut builder: IndexMap<String, Arc<dyn RenamingMap + Send + Sync>> =
+            IndexMap::<_, _>::default();
         for name in id_generators {
             builder.insert(name, Arc::new(RenamingToken::INCONSISTENT));
         }
@@ -2827,7 +2828,7 @@ impl CompilerOptions {
         custom_pass: Arc<std::sync::Mutex<dyn CompilerPass + Send>>,
     ) {
         self.custom_passes
-            .get_or_insert_with(IndexMap::new)
+            .get_or_insert_with(IndexMap::<_, _>::default)
             .entry(time)
             .or_default()
             .insert(CompilerPassRef(custom_pass));
@@ -3347,7 +3348,7 @@ impl CompilerOptions {
         } else if self.angular_pass {
             Self::get_angular_property_reserved_first_chars()
         } else {
-            IndexSet::new()
+            IndexSet::<_>::default()
         }
     }
     // port: CompilerOptions#getPropertyReservedNamingNonFirstChars
@@ -3358,7 +3359,7 @@ impl CompilerOptions {
                 .copied()
                 .collect()
         } else {
-            IndexSet::new()
+            IndexSet::<_>::default()
         }
     }
     // port: CompilerOptions#shouldOptimize

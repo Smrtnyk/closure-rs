@@ -40,11 +40,11 @@
 //   src/com/google/javascript/rhino/jstype/RecordTypeBuilder.java.
 
 use crate::{JSTypeNative, JSTypeRegistry, TypeId, js_type::JSType};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::IndexMap;
 use std::collections::BTreeMap;
 
 pub struct RecordTypeBuilder {
@@ -63,7 +63,7 @@ impl RecordTypeBuilder {
         Self {
             is_empty: true,
             is_declared: true,
-            properties: IndexMap::new(),
+            properties: IndexMap::<_, _>::default(),
         }
     }
     // port: RecordTypeBuilder#setSynthesized

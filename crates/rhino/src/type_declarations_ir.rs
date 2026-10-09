@@ -39,6 +39,7 @@
 //   src/com/google/javascript/rhino/TypeDeclarationsIR.java.
 
 //! Construction helpers for type declaration ASTs.
+use crate::fx_hash::IndexMap;
 use crate::{
     check_argument,
     ir::IR,
@@ -46,7 +47,6 @@ use crate::{
     node::{Ast, NodeId, Prop},
     token::Token,
 };
-use indexmap::IndexMap;
 #[derive(Debug)]
 pub struct TypeDeclarationsIR;
 impl TypeDeclarationsIR {

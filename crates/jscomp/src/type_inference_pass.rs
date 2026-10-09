@@ -42,8 +42,8 @@ use crate::{
     typed_scope_creator::TypedScopeCreator,
 };
 use closure_jstype::{JSTypeNative, TypeId};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{check_state, node::NodeId, token::Token};
-use indexmap::IndexMap;
 use std::{cell::RefCell, sync::Arc};
 
 /// Java's `LinkedHashMap<Integer, HashMultiset<Token>>`: (stepCount, Token) -> populationCount.
@@ -69,7 +69,7 @@ impl TypeInferencePass {
         let assertion_function_lookup =
             AssertionFunctionLookup::of(compiler.get_coding_convention().get_assertion_functions());
         let step_count_histogram = if compiler.is_debug_logging_enabled() {
-            Some(RefCell::new(IndexMap::new()))
+            Some(RefCell::new(IndexMap::<_, _>::default()))
         } else {
             None
         };

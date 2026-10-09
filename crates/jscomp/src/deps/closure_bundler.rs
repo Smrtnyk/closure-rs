@@ -21,11 +21,11 @@ use crate::transpile::{
     base_transpiler::LATEST_TRANSPILER,
     transpiler::{NULL, Transpiler},
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     java_lang::{charset::Charset, uri::URI},
     js_string::JsString,
 };
-use indexmap::IndexMap;
 use std::{
     any::Any,
     fmt, io,
@@ -87,7 +87,7 @@ impl ClosureBundler {
             None,
             "unknown_source".into(),
             None,
-            Arc::new(Mutex::new(IndexMap::new())),
+            Arc::new(Mutex::new(IndexMap::<_, _>::default())),
             false,
         )
     }

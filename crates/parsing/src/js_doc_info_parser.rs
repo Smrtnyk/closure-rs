@@ -30,6 +30,7 @@ use crate::{
     js_doc_token_stream::JsDocTokenStream,
     type_transformation_parser::TypeTransformationParser,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_argument, check_state};
 use closure_rhino::{
     error_reporter::{ErrorReporter, NullErrorReporter},
@@ -45,7 +46,6 @@ use closure_rhino::{
     token_stream::TokenStream,
     token_util::TokenUtil,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 const TTL_START_DELIMITER: &str = "=";
@@ -1507,7 +1507,7 @@ impl<'a> JsDocInfoParser<'a> {
             self.add_parser_warning(ast, Msg::JSDOC_SUPPRESS);
             return token;
         }
-        let mut suppressions = IndexSet::new();
+        let mut suppressions = IndexSet::<_>::default();
         loop {
             if self.match_token(JsDocToken::STRING) {
                 let name = self.stream.get_string();
@@ -1587,7 +1587,7 @@ impl<'a> JsDocInfoParser<'a> {
     // port: JsDocInfoParser#parseModifiesTag
     fn parse_modifies_tag(&mut self, ast: &Ast, mut token: JsDocToken) -> JsDocToken {
         if token == JsDocToken::LEFT_CURLY {
-            let mut modifies = IndexSet::new();
+            let mut modifies = IndexSet::<_>::default();
             loop {
                 if self.match_token(JsDocToken::STRING) {
                     let name = self.stream.get_string();
@@ -2391,7 +2391,7 @@ impl<'a> JsDocInfoParser<'a> {
     // port: JsDocInfoParser#parseFieldTypeList
     fn parse_field_type_list(&mut self, ast: &mut Ast, mut token: JsDocToken) -> Option<NodeId> {
         let list = self.new_node(ast, Token::LB);
-        let mut names = IndexSet::new();
+        let mut names = IndexSet::<_>::default();
         loop {
             let field = self.parse_field_type(ast, token)?;
             let name = if field.is_string_key(ast) {

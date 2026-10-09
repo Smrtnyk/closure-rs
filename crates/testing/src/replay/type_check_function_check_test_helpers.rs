@@ -41,8 +41,8 @@ use crate::{
     replay::replay_dsl::{Ctx, DslValue, NativeObject},
     throwable::Throwable,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const PASS: &str =
@@ -58,7 +58,7 @@ impl NativeObject for GetProcessorPass {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: TypeCheckFunctionCheckTest_Helpers.GetProcessorPass#process
     fn process(

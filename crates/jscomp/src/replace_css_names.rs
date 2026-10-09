@@ -28,11 +28,11 @@ use crate::node_traversal::{
     AbstractPostOrderCallback, AbstractPostOrderCallbackInterface, Callback, NodeTraversal,
 };
 use crate::process_closure_primitives::ProcessClosurePrimitives;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::java_lang::string::split_units;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::{check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 /// `GET_CSS_NAME_FUNCTION = IR.getprop(IR.name("goog"), "getCssName")`, used only for qualified
@@ -131,8 +131,8 @@ impl<'a> ReplaceCssNames<'a> {
             symbol_map,
             css_name_collector,
             skiplist,
-            css_names_by_symbol: IndexMap::new(),
-            classes_objects_qualified_names: IndexSet::new(),
+            css_names_by_symbol: IndexMap::<_, _>::default(),
+            classes_objects_qualified_names: IndexSet::<_>::default(),
         }
     }
 

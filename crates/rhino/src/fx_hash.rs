@@ -8,10 +8,13 @@
 
 use std::hash::{BuildHasherDefault, Hasher};
 
-/// An `IndexMap` with the Fx hasher; construct with `default()`.
-pub type FxIndexMap<K, V> = indexmap::IndexMap<K, V, FxBuildHasher>;
-/// An `IndexSet` with the Fx hasher; construct with `default()`.
-pub type FxIndexSet<T> = indexmap::IndexSet<T, FxBuildHasher>;
+/// The port's `IndexMap` (Java `LinkedHashMap`): `crate::fx_hash::IndexMap` with the Fx hasher by
+/// default. Construct with `default()` / `from_iter`.
+pub type IndexMap<K, V, S = FxBuildHasher> = indexmap::IndexMap<K, V, S>;
+/// The port's `IndexSet` (Java `LinkedHashSet`), see `IndexMap`.
+pub type IndexSet<T, S = FxBuildHasher> = indexmap::IndexSet<T, S>;
+pub type FxIndexMap<K, V> = IndexMap<K, V>;
+pub type FxIndexSet<T> = IndexSet<T>;
 pub type FxBuildHasher = BuildHasherDefault<FxHasher>;
 
 const SEED: u64 = 0x51_7c_c1_b7_27_22_0a_95;

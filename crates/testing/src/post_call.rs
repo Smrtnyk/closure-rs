@@ -22,7 +22,7 @@ use crate::reader::{
     index, int, js, list_of, map_of, opt_js,
 };
 use crate::value::Value;
-use indexmap::IndexMap;
+use closure_rhino::fx_hash::IndexMap;
 
 /// `postCall.compiler` keys (FORMAT.md "Post-call snapshot" table) whose values are tagged
 /// [`Value`]s.
@@ -583,7 +583,7 @@ fn section_from_json(
     plain: &[&str],
 ) -> ModelResult<PostCallSection> {
     let mut o = Obj::new(v, path)?;
-    let mut out = IndexMap::new();
+    let mut out = IndexMap::<_, _>::default();
     for (k, x) in o.rest() {
         let p = format!("{path}.{k}");
         let val = if tagged.contains(&k.as_str()) {

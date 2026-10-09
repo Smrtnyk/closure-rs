@@ -47,7 +47,10 @@ fn null_identity_and_shared_source_maps() {
         runtime: "ES6_RUNTIME",
     });
     let info = SimpleDependencyInfo::builder("", "")
-        .set_load_flags(IndexMap::from([("module".into(), "es6".into())]))
+        .set_load_flags(IndexMap::<_, _>::from_iter([(
+            "module".into(),
+            "es6".into(),
+        )]))
         .build();
     let original = ClosureBundler::new(NULL.clone(), es6.clone());
     let copy = original
@@ -145,9 +148,9 @@ fn java_bundler_differential() {
         let f: Vec<_> = line.split('\t').collect();
         let module: u8 = f[1].parse().unwrap();
         let flags = if module == 0 {
-            IndexMap::new()
+            IndexMap::<_, _>::default()
         } else {
-            IndexMap::from([(
+            IndexMap::<_, _>::from_iter([(
                 "module".into(),
                 if module == 1 { "goog" } else { "es6" }.into(),
             )])

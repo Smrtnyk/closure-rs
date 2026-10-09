@@ -30,6 +30,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     check_state,
     js_string::JsString,
@@ -37,7 +38,6 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::IndexSet;
 
 /// The diagnostic for a missing nullability modifier.
 // port: CheckNullabilityModifiers#MISSING_NULLABILITY_MODIFIER_JSDOC
@@ -90,10 +90,10 @@ impl CheckNullabilityModifiers {
     // port: CheckNullabilityModifiers#CheckNullabilityModifiers
     pub fn new(_compiler: &AbstractCompiler) -> Self {
         Self {
-            redundant_candidates: IndexSet::new(),
-            missing_candidates: IndexSet::new(),
-            null_missing_candidates: IndexSet::new(),
-            template_type_names: IndexSet::new(),
+            redundant_candidates: IndexSet::<_>::default(),
+            missing_candidates: IndexSet::<_>::default(),
+            null_missing_candidates: IndexSet::<_>::default(),
+            template_type_names: IndexSet::<_>::default(),
         }
     }
 

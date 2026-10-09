@@ -52,8 +52,8 @@ use closure_jscomp::{
     j2cl_source_file_checker::J2clSourceFileChecker,
     process_defines::{Builder, Mode},
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const HOST: &str = "com.google.javascript.jscomp.ProcessDefinesTest_Helpers$GetProcessorHost";
@@ -156,7 +156,7 @@ impl NativeObject for NativeGlobalNamespace {
     // port: UnitRecorder#collect (GlobalNamespace fields, Java declaration order)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
         let dump = self.namespace.borrow().unit_dump_fields();
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "compiler".into(),
             DslValue::Compiler(Rc::clone(&self.compiler)),
@@ -252,7 +252,7 @@ impl NativeObject for NativeName {
                 name,
             })
         };
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert("baseName".into(), DslValue::String(dump.base_name));
         fields.insert(
             "parent".into(),
@@ -324,7 +324,7 @@ impl NativeObject for NativeShouldTraverseScript {
     }
     // port: UnitRecorder#dump (a lambda: a reference to its class with its captured arguments)
     fn lambda_captures(&self) -> Option<Result<IndexMap<String, DslValue>, Throwable>> {
-        Some(Ok(IndexMap::new()))
+        Some(Ok(IndexMap::<_, _>::default()))
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
@@ -359,7 +359,7 @@ impl NativeObject for GetProcessorHost {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert("overrides".into(), self.overrides.clone());
         fields.insert(
             "namespace".into(),
@@ -440,7 +440,7 @@ impl NativeObject for ProcessDefinesWithInjectedNamespace {
     }
     // port: UnitRecorder#collect (no recorded result producer is reachable from this pass)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: ProcessDefinesTest_Helpers.GetProcessorHost.ProcessDefinesWithInjectedNamespace#process
     fn process(
@@ -495,7 +495,7 @@ fn decode_overrides(overrides: &DslValue) -> Result<IndexMap<String, NodeId>, Th
     let DslValue::Map(entries) = overrides.untyped() else {
         return Err(bad());
     };
-    let mut map = IndexMap::new();
+    let mut map = IndexMap::<_, _>::default();
     for (k, v) in entries {
         let DslValue::String(k) = k.untyped() else {
             return Err(bad());

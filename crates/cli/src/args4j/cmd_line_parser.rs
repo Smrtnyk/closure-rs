@@ -34,7 +34,7 @@ use super::{
         setter::Setter,
     },
 };
-use indexmap::IndexSet;
+use closure_rhino::fx_hash::IndexSet;
 use std::fmt::Write;
 
 pub struct CmdLineParser {
@@ -123,7 +123,7 @@ impl CmdLineParser {
         } else {
             args.to_vec()
         };
-        let mut present = IndexSet::new();
+        let mut present = IndexSet::<_>::default();
         let mut pos = 0;
         while pos < args.len() {
             let arg = args[pos].clone();

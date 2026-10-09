@@ -30,6 +30,7 @@ use crate::{
     scope::ScopeId,
     var::VarId,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     js_string::JsString,
@@ -37,7 +38,6 @@ use closure_rhino::{
     node::{Ast, NodeId, Prop},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{
     cell::RefCell,
     rc::{Rc, Weak},
@@ -589,7 +589,7 @@ impl RenamingInfo {
     fn new(current_name: JsString, preferred_name: JsString) -> Self {
         Self {
             reference_nodes: Vec::new(),
-            potential_shadow_variables: IndexSet::new(),
+            potential_shadow_variables: IndexSet::<_>::default(),
             current_name,
             preferred_name,
         }
@@ -606,7 +606,7 @@ impl RenamingInfo {
         compiler: &mut AbstractCompiler,
         variable_infos: &[VariableInfo],
     ) -> JsString {
-        let mut disallowed_names: IndexSet<JsString> = IndexSet::new();
+        let mut disallowed_names: IndexSet<JsString> = IndexSet::<_>::default();
         // If we somehow ended up with "arguments$jscomp$..." it's not safe to rename
         // that to "arguments", because that name is special, but it would still be good
         // to simplify its name, if possible. See the note below regarding why we
@@ -777,7 +777,7 @@ impl ScopeContext {
         Self {
             scope,
             declared_variable_infos,
-            referenced_variables: IndexSet::new(),
+            referenced_variables: IndexSet::<_>::default(),
         }
     }
 
@@ -834,7 +834,7 @@ impl VariableInfoStackMap {
     // Rust-only constructor (Java field initializer).
     fn new() -> Self {
         Self {
-            map_of_stacks: IndexMap::new(),
+            map_of_stacks: IndexMap::<_, _>::default(),
         }
     }
 
@@ -972,8 +972,8 @@ impl ContextualRenamer {
         Self {
             scope_root: None,
             global: true,
-            name_usage: Rc::new(RefCell::new(IndexMap::new())),
-            declarations: IndexMap::new(),
+            name_usage: Rc::new(RefCell::new(IndexMap::<_, _>::default())),
+            declarations: IndexMap::<_, _>::default(),
             hoist_renamer: None,
             this,
         }
@@ -1021,7 +1021,7 @@ impl ContextualRenamer {
                     scope_root: Some(scope_root),
                     global: false,
                     name_usage,
-                    declarations: IndexMap::new(),
+                    declarations: IndexMap::<_, _>::default(),
                     hoist_renamer,
                     this,
                 })
@@ -1197,7 +1197,7 @@ impl InlineRenamer {
             Rc::new_cyclic(|this: &Weak<RefCell<InlineRenamer>>| {
                 let this: Weak<RefCell<dyn Renamer>> = this.clone();
                 RefCell::new(Self {
-                    declarations: IndexMap::new(),
+                    declarations: IndexMap::<_, _>::default(),
                     unique_id_supplier,
                     id_prefix,
                     remove_constness,

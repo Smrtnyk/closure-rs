@@ -24,6 +24,7 @@ use closure_jscomp::{
     compiler_pass::CompilerPass, diagnostic_type::DiagnosticType, process_tweaks,
     process_tweaks::ProcessTweaks,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::node::NodeId;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
@@ -33,7 +34,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, rc::Rc};
 
 struct ProcessTweaksTest {
@@ -58,7 +58,7 @@ impl CompilerPass for ProcessTweaksTestPass {
         process_tweak.process(compiler, externs, root);
 
         if self.strip_tweaks {
-            let empty_set: IndexSet<String> = IndexSet::new();
+            let empty_set: IndexSet<String> = IndexSet::<_>::default();
             let mut strip_code = StripCode::new(
                 &empty_set, &empty_set, &empty_set, /* enable_tweak_stripping= */ true,
             );
@@ -99,7 +99,7 @@ impl ProcessTweaksTest {
                 ctx: Ctx::new(
                     "ProcessTweaksTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

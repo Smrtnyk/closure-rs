@@ -39,6 +39,7 @@
 //! source-position assertions of testSourcePositionPreservation
 //! (corpus/unit/rust_unit_tests/ProcessClosureProvidesAndRequiresTest.md).
 use closure_jscomp::process_closure_provides_and_requires::ProcessClosureProvidesAndRequires;
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     ir::IR, js_string::JsString, node::NodeId, testing::node_subject::assert_node,
 };
@@ -52,7 +53,6 @@ use closure_testing::{
     throwable::Throwable,
     unit_test_utils::externs_builder_call,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 /// The fields of ProcessClosureProvidesAndRequiresTest that getProvidedNameCollection reads.
@@ -254,7 +254,7 @@ fn test_source_position_preservation() {
         ctx: Ctx::new(
             "ProcessClosureProvidesAndRequiresTest".into(),
             closure_testing::replay::replay_values::object([]),
-            IndexMap::new(),
+            IndexMap::<_, _>::default(),
             Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n").unwrap(),
         ),
         preserve_goog_provides_and_requires,

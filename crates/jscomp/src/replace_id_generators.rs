@@ -33,12 +33,12 @@ use crate::renaming_map::RenamingMap;
 use crate::renaming_token::RenamingToken;
 use crate::xid::{HashFunction, Xid};
 use closure_rhino::check_state;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
 use closure_rhino::qualified_name::QualifiedName;
 use closure_sourcemap::base64::Base64;
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, LazyLock, RwLock};
 
 // port: ReplaceIdGenerators#NON_GLOBAL_ID_GENERATOR_CALL
@@ -140,7 +140,7 @@ impl ObfuscatedNameSupplier {
             generator: DefaultNameGenerator::with_reserved_characters(
                 Arc::new(RwLock::new(previous_mappings.key_set())),
                 JsString::from(""),
-                &IndexSet::new(),
+                &IndexSet::<_>::default(),
             ),
             rename_strategy,
         }
@@ -271,9 +271,9 @@ impl ReplaceIdGenerators {
             template_literals_are_transpiled,
             generate_pseudo_names,
             xid_hash_function,
-            name_generators: IndexMap::new(),
-            id_generator_maps: IndexMap::new(),
-            consist_name_map: IndexMap::new(),
+            name_generators: IndexMap::<_, _>::default(),
+            id_generator_maps: IndexMap::<_, _>::default(),
+            consist_name_map: IndexMap::<_, _>::default(),
             previous_map,
         };
 
@@ -312,7 +312,8 @@ impl ReplaceIdGenerators {
                         )),
                     );
                 }
-                this.id_generator_maps.insert(name, IndexMap::new());
+                this.id_generator_maps
+                    .insert(name, IndexMap::<_, _>::default());
             }
         }
         this
@@ -432,7 +433,9 @@ impl AbstractPostOrderCallbackInterface for GatherGenerators<'_> {
             return;
         }
         if doc.is_consistent_id_generator() {
-            outer.consist_name_map.insert(name.clone(), IndexMap::new());
+            outer
+                .consist_name_map
+                .insert(name.clone(), IndexMap::<_, _>::default());
             let supplier = outer
                 .create_name_supplier(RenameStrategy::CONSISTENT, outer.previous_map_get(&name));
             outer.name_generators.insert(name.clone(), Some(supplier));
@@ -465,7 +468,9 @@ impl AbstractPostOrderCallbackInterface for GatherGenerators<'_> {
         } else {
             panic!("IllegalStateException: unexpected");
         }
-        outer.id_generator_maps.insert(name, IndexMap::new());
+        outer
+            .id_generator_maps
+            .insert(name, IndexMap::<_, _>::default());
     }
 }
 

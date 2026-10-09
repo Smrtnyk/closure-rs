@@ -74,8 +74,8 @@ use crate::{
     replay::replay_dsl::DslValue,
     throwable::Throwable,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::sync::Arc;
 
 // The JSTypeRegistry, JSTypeNative, JSTypeExpression, RecordTypeBuilder and BaseJSTypeTestCase
@@ -838,7 +838,7 @@ impl crate::replay::replay_dsl::NativeObject for NativeTypeExpression {
     }
     // port: UnitRecorder#fields (JSTypeExpression getters)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             ("root".into(), DslValue::Node(self.0.get_root())),
             (
                 "sourceName".into(),

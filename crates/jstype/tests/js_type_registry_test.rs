@@ -51,6 +51,7 @@ use closure_jstype::{
     static_typed_slot::StaticTypedSlot,
     testing::{map_based_scope::MapBasedScope, type_subject::TypeSubject},
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     error_reporter::NullErrorReporter,
     js_string::JsString,
@@ -58,7 +59,6 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, OnceLock};
 
 // port: JSTypeRegistryTest#setUp
@@ -448,16 +448,16 @@ fn test_create_type_from_comment_node_uses_global_type_if_exists() {
     let global = create_static_typed_scope(
         ast.new_node(Token::ROOT),
         None,
-        IndexMap::new(),
-        IndexSet::new(),
+        IndexMap::<_, _>::default(),
+        IndexSet::<_>::default(),
     );
     let unknown = registry.get_native_type(JSTypeNative::UNKNOWN_TYPE);
     registry.declare_type(&ast, Some(global.as_ref()), "Foo", unknown);
     let local = create_static_typed_scope(
         ast.new_node(Token::BLOCK),
         Some(global),
-        IndexMap::new(),
-        IndexSet::new(),
+        IndexMap::<_, _>::default(),
+        IndexSet::<_>::default(),
     );
     let n = bang(&mut ast, "Foo");
     let type_ =
@@ -472,17 +472,17 @@ fn test_create_type_from_comment_node_creates_named_type_if_local_shadows_global
     let global = create_static_typed_scope(
         ast.new_node(Token::ROOT),
         None,
-        IndexMap::new(),
-        IndexSet::new(),
+        IndexMap::<_, _>::default(),
+        IndexSet::<_>::default(),
     );
     registry.declare_type(&ast, Some(global.as_ref()), "Foo", unknown);
     let local = create_static_typed_scope(
         ast.new_node(Token::BLOCK),
         Some(global),
-        IndexMap::new(),
-        IndexSet::new(),
+        IndexMap::<_, _>::default(),
+        IndexSet::<_>::default(),
     );
-    let slots = IndexMap::from([(
+    let slots = IndexMap::<_, _>::from_iter([(
         "Foo".into(),
         ScopedSlot {
             slot: SimpleSlot::new("Foo", unknown, true),
@@ -521,16 +521,16 @@ fn test_create_type_from_comment_node_uses_top_most_scope_of_name() {
     let global = create_static_typed_scope(
         ast.new_node(Token::ROOT),
         None,
-        IndexMap::new(),
-        IndexSet::new(),
+        IndexMap::<_, _>::default(),
+        IndexSet::<_>::default(),
     );
     let unknown = registry.get_native_type(JSTypeNative::UNKNOWN_TYPE);
     registry.declare_type(&ast, Some(global.as_ref()), "Foo", unknown);
     let local = create_static_typed_scope(
         ast.new_node(Token::BLOCK),
         Some(global),
-        IndexMap::new(),
-        IndexSet::from(["Foo".into()]),
+        IndexMap::<_, _>::default(),
+        IndexSet::<_>::from_iter(["Foo".into()]),
     );
     let n = bang(&mut ast, "Foo");
     let type_ =

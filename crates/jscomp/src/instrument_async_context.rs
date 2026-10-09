@@ -30,13 +30,13 @@ use crate::{
     },
 };
 use closure_parsing::parser::feature_set::Feature;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state,
     ir::IR,
     jsdoc_info::JSDocInfo,
     node::{NodeId, Prop},
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 // NOTE: we prefix all internal symbols with a characteristic "ᵃᶜ" (U+1D43, U+1D9C) to
@@ -87,9 +87,9 @@ impl InstrumentAsyncContext {
             ast_factory,
             should_instrument_await,
             try_function_stack: Vec::new(),
-            needs_instrumentation: IndexMap::new(),
-            already_instrumented: IndexSet::new(),
-            has_super: IndexSet::new(),
+            needs_instrumentation: IndexMap::<_, _>::default(),
+            already_instrumented: IndexSet::<_>::default(),
+            has_super: IndexSet::<_>::default(),
         }
     }
 

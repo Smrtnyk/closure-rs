@@ -31,8 +31,8 @@ use closure_jscomp::{
     make_declared_names_unique::{InlineRenamer, MakeDeclaredNamesUnique},
     node_traversal::NodeTraversal,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.MakeDeclaredNamesUniqueTest_Helpers";
@@ -40,8 +40,8 @@ const LOCAL_NAME_PREFIX: &str = "unique_";
 
 // port: MakeDeclaredNamesUniqueTest_Helpers#MakeDeclaredNamesUniqueTest_Helpers
 pub fn holder(_ctx: &mut Ctx, _args: Vec<DslValue>) -> Result<DslValue, Throwable> {
-    let mut fields = IndexMap::new();
-    let mut field_types = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
+    let mut field_types = IndexMap::<_, _>::default();
     for name in [
         "useDefaultRenamer",
         "invert",

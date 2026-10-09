@@ -17,7 +17,7 @@
 //   test/com/google/javascript/jscomp/colors/ColorIdTest.java.
 
 use closure_jscomp::colors::ColorId;
-use indexmap::IndexSet;
+use closure_rhino::fx_hash::IndexSet;
 use std::{panic::catch_unwind, sync::LazyLock};
 
 static A: LazyLock<ColorId> = LazyLock::new(|| ColorId::from_ascii("a"));
@@ -79,9 +79,9 @@ fn max_size64_bits() {
 // port: ColorIdTest#union_commutativity
 #[test]
 fn union_commutativity() {
-    let abc = ColorId::union(&IndexSet::from([*A, *B, *C]));
-    let acb = ColorId::union(&IndexSet::from([*A, *C, *B]));
-    let cab = ColorId::union(&IndexSet::from([*C, *B, *A]));
+    let abc = ColorId::union(&IndexSet::<_>::from_iter([*A, *B, *C]));
+    let acb = ColorId::union(&IndexSet::<_>::from_iter([*A, *C, *B]));
+    let cab = ColorId::union(&IndexSet::<_>::from_iter([*C, *B, *A]));
     assert_equals_and_related_methods(abc, acb);
     assert_equals_and_related_methods(abc, cab);
     assert_equals_and_related_methods(acb, cab);
@@ -89,27 +89,27 @@ fn union_commutativity() {
 // port: ColorIdTest#union_identity
 #[test]
 fn union_identity() {
-    assert_eq!(ColorId::union(&IndexSet::from([*A])), *A);
+    assert_eq!(ColorId::union(&IndexSet::<_>::from_iter([*A])), *A);
 }
 // port: ColorIdTest#union_empty
 #[test]
 fn union_empty() {
-    assert!(catch_unwind(|| ColorId::union(&IndexSet::new())).is_err());
+    assert!(catch_unwind(|| ColorId::union(&IndexSet::<_>::default())).is_err());
 }
 // port: ColorIdTest#union_zeroAffectsResult
 #[test]
 fn union_zero_affects_result() {
     assert_not_equals_and_related_methods(
-        ColorId::union(&IndexSet::from([*A, *B])),
-        ColorId::union(&IndexSet::from([*A, *B, ZERO])),
+        ColorId::union(&IndexSet::<_>::from_iter([*A, *B])),
+        ColorId::union(&IndexSet::<_>::from_iter([*A, *B, ZERO])),
     );
 }
 // port: ColorIdTest#union_oneAffectsResult
 #[test]
 fn union_one_affects_result() {
     assert_not_equals_and_related_methods(
-        ColorId::union(&IndexSet::from([*A, *B])),
-        ColorId::union(&IndexSet::from([*A, *B, ONE])),
+        ColorId::union(&IndexSet::<_>::from_iter([*A, *B])),
+        ColorId::union(&IndexSet::<_>::from_iter([*A, *B, ONE])),
     );
 }
 // port: ColorIdTest#fromUnsigned_noSignExtension

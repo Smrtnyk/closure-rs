@@ -30,13 +30,13 @@ use closure_jscomp::{
     sorting_error_manager::SortingErrorManager,
     syntactic_scope_creator::SyntacticScopeCreator,
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     ir::IR,
     js_string::JsString,
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::IndexSet;
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{Arc, Mutex},

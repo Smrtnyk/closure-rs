@@ -21,7 +21,7 @@
 //! than silently dropped. Errors carry the JSON path (`$.harness.fields.compareAsTree`).
 
 use crate::json::{JsString, JsonNumber, JsonValue};
-use indexmap::IndexMap;
+use closure_rhino::fx_hash::IndexMap;
 use std::fmt;
 
 /// A model error: the JSON path and what is wrong there.
@@ -109,7 +109,7 @@ impl<'a> Obj<'a> {
 
     /// Takes every key not yet taken, in recorded order.
     pub fn rest(&mut self) -> IndexMap<String, &'a JsonValue> {
-        let mut out = IndexMap::new();
+        let mut out = IndexMap::<_, _>::default();
         for (i, (k, v)) in self.map.iter().enumerate() {
             if !self.taken[i] {
                 self.taken[i] = true;
@@ -294,7 +294,7 @@ pub struct ObjOut(pub IndexMap<String, JsonValue>);
 
 impl ObjOut {
     pub fn new() -> ObjOut {
-        ObjOut(IndexMap::new())
+        ObjOut(IndexMap::<_, _>::default())
     }
 
     pub fn put(&mut self, key: &str, v: JsonValue) -> &mut ObjOut {

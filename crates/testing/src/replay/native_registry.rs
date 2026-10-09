@@ -91,8 +91,8 @@ use crate::{
 use closure_jscomp::{
     compiler_input::CompilerInput, syntactic_scope_creator::SyntacticScopeCreator,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 // port: ReplayDsl#invoke (resolved signatures backed by native implementations)
@@ -827,7 +827,7 @@ impl NativeObject for NativePass {
     // No field of these passes holds a UnitRecorder result producer, so UnitRecorder#collect
     // finds nothing below them (as for an opaque ported CompilerPass).
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: ReplayDsl.SequencePass#process (native CompilerPass adapter)
     fn process(
@@ -1289,7 +1289,7 @@ impl NativeObject for NativePhaseOptimizer {
     // PassFactory wrappers whose passes are created and dropped inside process; none of them
     // is a result producer, so the walk finds nothing below it.
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: PhaseOptimizer#addOneTimePass
     fn call(&mut self, method: &str, args: Vec<DslValue>) -> Result<DslValue, Throwable> {

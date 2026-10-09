@@ -38,7 +38,7 @@ use closure_jscomp::{
     variable_renaming_policy::VariableRenamingPolicy,
 };
 
-use indexmap::IndexMap;
+use closure_rhino::fx_hash::IndexMap;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum FormattingOption {
     PRETTY_PRINT,
@@ -365,7 +365,7 @@ impl Default for Flags {
             isolate_polyfills: false,
             print_source_after_each_pass: false,
             module_resolution_mode: ResolutionMode::BROWSER,
-            browser_resolver_prefix_replacements: IndexMap::new(),
+            browser_resolver_prefix_replacements: IndexMap::<_, _>::default(),
             package_json_entry_names: None,
             error_format: ErrorFormatOption::STANDARD,
             renaming: true,
@@ -2455,7 +2455,7 @@ use closure_jscomp::{
     coding_conventions::CodingConventions, compilation_level::CompilationLevel,
     dependency_options::DependencyOptions,
 };
-use indexmap::IndexSet;
+use closure_rhino::fx_hash::IndexSet;
 use std::sync::Arc;
 use std::{
     io::{Read, Write},
@@ -2784,7 +2784,7 @@ impl Flags {
     // port: CommandLineRunner.Flags#getMixedJsSources
     pub fn get_mixed_js_sources(&self) -> std::io::Result<Vec<FlagEntry<JsSourceType>>> {
         let mut mixed = Vec::new();
-        let mut excludes = IndexSet::new();
+        let mut excludes = IndexSet::<_>::default();
         for source in &self.mixed_js_sources {
             if source.value.ends_with(".zip") {
                 mixed.push(source.clone());
@@ -2818,7 +2818,7 @@ impl Flags {
         input: &[String],
         name: &str,
     ) -> Result<IndexMap<String, String>, CmdLineException> {
-        let mut result = IndexMap::new();
+        let mut result = IndexMap::<_, _>::default();
         for value in input {
             let (key, value) = value.split_once('|').ok_or_else(|| {
                 CmdLineException(format!(
@@ -3044,7 +3044,7 @@ impl CommandLineRunner {
         self.flags.mixed_js_sources.clear();
         let mut mixed = Vec::new();
         let mut mappings = Vec::new();
-        let mut source_map_inputs = IndexMap::new();
+        let mut source_map_inputs = IndexMap::<_, _>::default();
         let parsing = (|| -> Result<(), CmdLineException> {
             self.flags.parse(&mut self.parser, &processed)?;
             self.process_flag_files()?;
@@ -3173,8 +3173,8 @@ impl CommandLineRunner {
     }
     // port: CommandLineRunner#findJsFiles(Collection, boolean)
     pub fn find_js_files_sorted(patterns: &[String], sort: bool) -> std::io::Result<Vec<String>> {
-        let mut inputs = IndexMap::new();
-        let mut excludes = IndexSet::new();
+        let mut inputs = IndexMap::<_, _>::default();
+        let mut excludes = IndexSet::<_>::default();
         for pattern in patterns {
             if !pattern.contains('*') && !pattern.starts_with('!') {
                 if Path::new(pattern).is_dir() {
@@ -3220,7 +3220,7 @@ impl CommandLineRunner {
         }
         let matcher = crate::jdk_globs::Glob::new(&format!("{prefix}/{pattern}"))
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
-        let mut ancestors = IndexSet::new();
+        let mut ancestors = IndexSet::<_>::default();
         let mut visitor = MatchPathsVisitor {
             matcher: &matcher,
             remove,
@@ -3555,9 +3555,9 @@ impl CommandLineRunner {
         } else {
             None
         };
-        let mut input_path_by_webpack_id = IndexMap::new();
+        let mut input_path_by_webpack_id = IndexMap::<_, _>::default();
         if let Some(files) = &json {
-            let mut input_source_maps = IndexMap::new();
+            let mut input_source_maps = IndexMap::<_, _>::default();
             let mut found_json_input_source_map = false;
             for file in files {
                 let file = file.as_ref().ok_or_else(|| RunnerException::java_exception("java.lang.NullPointerException", "Cannot invoke \"com.google.javascript.jscomp.AbstractCommandLineRunner$JsonFileSpec.getSourceMap()\" because \"jsonFile\" is null".into(), vec![]).at_cli("AbstractCommandLineRunner", "doRun", 1202))?;

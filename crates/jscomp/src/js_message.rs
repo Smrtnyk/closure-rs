@@ -41,12 +41,12 @@
 use std::fmt;
 use std::sync::LazyLock;
 
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::java_lang;
 use closure_rhino::java_lang::regex::Pattern;
 use closure_rhino::java_lang::utf_8;
 use closure_rhino::js_string::JsString;
 use closure_rhino::{check_argument, check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 
 /// `record JsMessage(...)`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -888,7 +888,7 @@ impl Builder {
         }
 
         let mut immutable_gendered_message_map: IndexMap<GrammaticalGenderCase, Vec<Part>> =
-            IndexMap::new();
+            IndexMap::<_, _>::default();
         for (k, v) in &self.gendered_message_map {
             immutable_gendered_message_map.insert(*k, v.clone());
         }

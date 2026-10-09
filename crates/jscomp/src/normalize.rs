@@ -52,6 +52,7 @@ use crate::{
     scope::ScopeId,
     syntactic_scope_creator::{RedeclarationHandler, SyntacticScopeCreator},
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     check_argument, check_state,
     ir::IR,
@@ -59,7 +60,6 @@ use closure_rhino::{
     node::{Ast, NodeId, Prop},
     token::Token,
 };
-use indexmap::IndexSet;
 use std::rc::Rc;
 
 pub struct Normalize {
@@ -924,7 +924,7 @@ impl<'a> DuplicateDeclarationHandler<'a> {
     fn new(normalize: &'a Normalize) -> Self {
         Self {
             normalize,
-            has_ok_duplicate_declaration: IndexSet::new(),
+            has_ok_duplicate_declaration: IndexSet::<_>::default(),
         }
     }
 

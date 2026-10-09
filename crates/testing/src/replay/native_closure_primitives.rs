@@ -62,8 +62,8 @@ use closure_jscomp::{
     process_closure_primitives::ProcessClosurePrimitives,
     scoped_aliases::{InvalidModuleGetHandling, ScopedAliases},
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 const CLOSURE_CHECK_MODULE_INIT: &str = "com.google.javascript.jscomp.ClosureCheckModule#<init>(com.google.javascript.jscomp.AbstractCompiler,com.google.javascript.jscomp.modules.ModuleMetadataMap)";
@@ -152,7 +152,7 @@ fn null_pointer() -> Throwable {
 /// RESULT_PRODUCERS: RenameVars, ReplaceStrings, ...). No field of the passes and module metadata
 /// values here reaches one, so, as for a plain `DslValue::Pass`, they contribute nothing.
 fn no_result_producer_fields() -> Result<IndexMap<String, DslValue>, Throwable> {
-    Ok(IndexMap::new())
+    Ok(IndexMap::<_, _>::default())
 }
 
 /// A real Rust pass behind the Java class the descriptor constructed, so the DSL can call its own

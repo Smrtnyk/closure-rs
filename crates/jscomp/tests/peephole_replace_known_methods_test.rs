@@ -25,6 +25,7 @@ use closure_jscomp::{
     peephole_optimizations_pass::PeepholeOptimizationsPass,
     peephole_replace_known_methods::PeepholeReplaceKnownMethods,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, MINIMAL_EXTERNS},
@@ -34,7 +35,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 // port: PeepholeReplaceKnownMethodsTest#PeepholeReplaceKnownMethodsTest (externs suffix)
@@ -97,7 +97,7 @@ impl PeepholeReplaceKnownMethodsTest {
                 ctx: Ctx::new(
                     "PeepholeReplaceKnownMethodsTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

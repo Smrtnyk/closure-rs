@@ -46,6 +46,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::java_util::bit_set::BitSet;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
@@ -53,7 +54,6 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{
     cmp::Ordering,
     sync::{Arc, RwLock},
@@ -120,16 +120,16 @@ impl AmbiguateProperties {
         extern_properties: &IndexSet<JsString>,
     ) -> Self {
         check_state!(compiler.get_life_cycle_stage().is_normalized());
-        let mut externed_names = IndexSet::new();
+        let mut externed_names = IndexSet::<_>::default();
         externed_names.insert(JsString::from("prototype"));
         externed_names.extend(extern_properties.iter().cloned());
         Self {
             string_nodes_to_rename: Vec::new(),
             reserved_first_characters,
             reserved_non_first_characters,
-            property_map: IndexMap::new(),
+            property_map: IndexMap::<_, _>::default(),
             externed_names,
-            quoted_names: IndexSet::new(),
+            quoted_names: IndexSet::<_>::default(),
             color_registry: Arc::clone(compiler.get_color_registry()),
             renaming_map: None,
             graph_node_factory: None,
@@ -150,7 +150,7 @@ impl AmbiguateProperties {
             reserved_non_first_characters,
             extern_properties,
         );
-        ap.renaming_map = Some(IndexMap::new());
+        ap.renaming_map = Some(IndexMap::<_, _>::default());
         ap
     }
 
@@ -249,7 +249,7 @@ impl CompilerPass for AmbiguateProperties {
             prop.related_colors_seeds = None;
         }
 
-        let mut reserved_names = IndexSet::new();
+        let mut reserved_names = IndexSet::<_>::default();
         reserved_names.extend(self.externed_names.iter().cloned());
         reserved_names.extend(self.quoted_names.iter().cloned());
         let mut num_renamed_property_names = 0;
@@ -849,7 +849,7 @@ impl Property {
         }
 
         if self.related_colors_seeds.is_none() {
-            self.related_colors_seeds = Some(IndexMap::new());
+            self.related_colors_seeds = Some(IndexMap::<_, _>::default());
         }
 
         let new_color_graph_node = graph_node_factory.create_node(arena, Some(color));

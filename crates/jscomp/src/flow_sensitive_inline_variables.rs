@@ -54,11 +54,11 @@ use crate::node_traversal::{
 use crate::node_util::NodeUtil;
 use crate::scope::ScopeId;
 use crate::var::VarId;
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use closure_rhino::{check_argument, check_not_null, check_state};
-use indexmap::IndexSet;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -279,7 +279,7 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
             .set_include_edge_annotations(true)
             .compute_cfg(compiler);
 
-        let mut escaped: IndexSet<VarId> = IndexSet::new();
+        let mut escaped: IndexSet<VarId> = IndexSet::<_>::default();
         let scope_parent = scope.get_parent(compiler).unwrap();
         let all_vars_declared_in_function =
             NodeUtil::get_all_vars_declared_in_function(compiler, scope_creator, scope_parent);
@@ -543,7 +543,7 @@ impl Candidate {
             return false;
         }
 
-        let mut names_to_check: IndexSet<JsString> = IndexSet::new();
+        let mut names_to_check: IndexSet<JsString> = IndexSet::<_>::default();
         for &var in &self.def_metadata.depends {
             names_to_check.insert(var.get_name(compiler));
         }

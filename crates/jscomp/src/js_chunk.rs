@@ -19,7 +19,7 @@
 // Identity keys are immutable even though the associated Java objects are mutable.
 #![allow(clippy::mutable_key_type)]
 use crate::{compiler_input::CompilerInput, source_file::SourceFile};
-use indexmap::{IndexMap, IndexSet};
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use std::{
     collections::VecDeque,
     fmt,
@@ -45,7 +45,7 @@ impl JSChunk {
     pub fn new(name: impl Into<String>) -> Self {
         Self(Arc::new(Mutex::new(JSChunkData {
             name: name.into(),
-            inputs: IndexMap::new(),
+            inputs: IndexMap::<_, _>::default(),
             deps: Vec::new(),
             depth: -1,
             index: -1,

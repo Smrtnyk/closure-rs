@@ -30,8 +30,8 @@ use crate::{
     source_mapping::SourceMapping,
     source_mapping_reversable::SourceMappingReversable,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 const UNMAPPED: i32 = -1;
 type ReverseSourceMapping = IndexMap<Option<JsString>, IndexMap<i32, Vec<OriginalMapping>>>;
 #[derive(Default)]
@@ -319,7 +319,7 @@ impl SourceMapConsumerV3 {
     #[allow(clippy::unwrap_or_default)]
     // port: SourceMapConsumerV3#createReverseMapping
     fn create_reverse_mapping(&mut self) {
-        self.reverse_source_mapping = Some(IndexMap::new());
+        self.reverse_source_mapping = Some(IndexMap::<_, _>::default());
         let mappings = self.mappings.as_ref().unwrap();
         for target_line in 0..mappings.get_parsed_line_count() {
             let start = mappings.get_line_start(target_line);
@@ -336,7 +336,7 @@ impl SourceMapConsumerV3 {
                         .as_mut()
                         .unwrap()
                         .entry(original_file)
-                        .or_insert_with(IndexMap::new);
+                        .or_insert_with(IndexMap::<_, _>::default);
                     if !line_to_collection_map.contains_key(&source_line) {
                         line_to_collection_map.insert(source_line, Vec::with_capacity(1));
                     }

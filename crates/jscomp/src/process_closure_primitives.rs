@@ -35,11 +35,11 @@ use crate::{
     node_util::NodeUtil,
     renaming_map::RenamingMap,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, ir::IR, js_string::JsString, jsdoc_info::JSDocInfo, node::NodeId,
     qualified_name::QualifiedName, token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, LazyLock};
 
 // port: ProcessClosurePrimitives#EXPECTED_OBJECTLIT_ERROR
@@ -172,7 +172,7 @@ impl ProcessClosurePrimitives {
         .get_modules_by_goog_namespace()
         .clone();
         Self {
-            known_closure_subclasses: IndexSet::new(),
+            known_closure_subclasses: IndexSet::<_>::default(),
             closure_modules,
         }
     }
@@ -756,7 +756,7 @@ impl ProcessClosurePrimitives {
         let arg = arg.unwrap();
         // Translate OBJECTLIT into SubstitutionMap. All keys and
         // values must be strings, or an error will be thrown.
-        let mut css_names: IndexMap<JsString, JsString> = IndexMap::new();
+        let mut css_names: IndexMap<JsString, JsString> = IndexMap::<_, _>::default();
 
         let mut key = arg.get_first_child(compiler);
         while let Some(k) = key {

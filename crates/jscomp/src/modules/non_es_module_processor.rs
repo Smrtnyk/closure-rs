@@ -27,8 +27,8 @@ use crate::{
         resolve_export_result::ResolveExportResult, unresolved_module::UnresolvedModule,
     },
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 /// Catch all module processor for non-ES and non-goog modules that doesn't do any scanning of
@@ -113,9 +113,9 @@ impl NonEsModule {
             Module::builder()
                 .path(self.path.clone())
                 .metadata(self.metadata.clone())
-                .namespace(IndexMap::new())
-                .bound_names(IndexMap::new())
-                .local_name_to_local_export(IndexMap::new())
+                .namespace(IndexMap::<_, _>::default())
+                .bound_names(IndexMap::<_, _>::default())
+                .local_name_to_local_export(IndexMap::<_, _>::default())
                 .closure_namespace(namespace)
                 .build(),
         )

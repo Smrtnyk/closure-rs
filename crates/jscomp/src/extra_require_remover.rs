@@ -40,6 +40,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_state,
     js_string::JsString,
@@ -47,7 +48,6 @@ use closure_rhino::{
     qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::LazyLock;
 
 // port: ExtraRequireRemover#DEFAULT_EXTRA_NAMESPACES
@@ -83,8 +83,8 @@ impl ExtraRequireRemover {
     // port: ExtraRequireRemover#ExtraRequireRemover
     pub fn new() -> Self {
         Self {
-            requires: IndexMap::new(),
-            usages: IndexSet::new(),
+            requires: IndexMap::<_, _>::default(),
+            usages: IndexSet::<_>::default(),
         }
     }
 

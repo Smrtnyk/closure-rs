@@ -20,7 +20,7 @@ use super::{
     di_graph::{DiGraph, DiGraphNode},
     graph_node::GraphNode,
 };
-use indexmap::{IndexMap, IndexSet};
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use std::{
     collections::VecDeque,
     hash::{Hash, Hasher},
@@ -94,7 +94,7 @@ impl<N: Clone + Eq + Hash, E> LowestCommonAncestorFinder<N, E> {
     // port: LowestCommonAncestorFinder#LowestCommonAncestorFinder
     pub fn new() -> Self {
         Self {
-            search_coloring: IndexMap::new(),
+            search_coloring: IndexMap::<_, _>::default(),
             search_queue: VecDeque::new(),
             marker: PhantomData,
         }
@@ -124,7 +124,7 @@ impl<N: Clone + Eq + Hash, E> LowestCommonAncestorFinder<N, E> {
                 self.paint_ancestors(graph, node, Color::NOT_LOWEST);
             }
         }
-        let mut results = IndexSet::new();
+        let mut results = IndexSet::<_>::default();
         for (node, color) in &self.search_coloring {
             if *color == all_color {
                 results.insert(node.get_value(graph).clone());

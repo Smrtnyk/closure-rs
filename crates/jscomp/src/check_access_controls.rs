@@ -29,13 +29,13 @@ use crate::node_util::NodeUtil;
 use crate::scope::Scope;
 use crate::var::Var;
 use closure_jstype::prelude::*;
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_rhino::jsdoc_info::{JSDocInfo, Visibility};
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::static_source_file::StaticSourceFile;
 use closure_rhino::token::Token;
 use closure_rhino::{check_argument, check_state};
-use indexmap::IndexMap;
 use std::sync::Arc;
 
 // port: CheckAccessControls#DEPRECATED_NAME
@@ -215,7 +215,7 @@ impl ConstPropertyTable {
         let index = match index {
             Some(index) => index,
             None => {
-                bucket.push((row, IndexMap::new()));
+                bucket.push((row, IndexMap::<_, _>::default()));
                 bucket.len() - 1
             }
         };

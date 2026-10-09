@@ -36,6 +36,7 @@ use crate::node_util::NodeUtil;
 use closure_jstype::JSTypeNative;
 use closure_jstype::prelude::*;
 use closure_parsing::parser::feature_set::Feature;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::java_lang::pattern::Pattern;
 use closure_rhino::js_string::JsString;
@@ -44,7 +45,6 @@ use closure_rhino::jscomp_base::tri::Tri;
 use closure_rhino::jsdoc_info::JSDocInfo;
 use closure_rhino::node::NodeId;
 use closure_rhino::token::Token;
-use indexmap::{IndexMap, IndexSet};
 use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
@@ -222,7 +222,7 @@ impl Builder {
     // port: ProcessDefines.Builder#Builder
     pub fn new(_compiler: &AbstractCompiler) -> Self {
         Self {
-            replacement_values: IndexMap::new(),
+            replacement_values: IndexMap::<_, _>::default(),
             mode: None,
             namespace_supplier: None,
             recognize_closure_defines: true,
@@ -334,11 +334,11 @@ impl ProcessDefines {
                 .into_iter()
                 .map(JsString::from)
                 .collect(),
-            known_define_jsdocs: IndexSet::new(),
-            known_goog_define_calls: IndexSet::new(),
-            define_by_define_name: IndexMap::new(),
-            replacement_values_from_closure_defines: IndexMap::new(),
-            valid_define_value_expressions: IndexSet::new(),
+            known_define_jsdocs: IndexSet::<_>::default(),
+            known_goog_define_calls: IndexSet::<_>::default(),
+            define_by_define_name: IndexMap::<_, _>::default(),
+            replacement_values_from_closure_defines: IndexMap::<_, _>::default(),
+            valid_define_value_expressions: IndexSet::<_>::default(),
             has_zone_input: false,
             namespace: None,
         }
@@ -670,7 +670,7 @@ impl ProcessDefines {
         // Do a breadth-first search of all const names to find those defined in terms of valid
         // values.
         loop {
-            let mut names_to_check_again = IndexSet::new();
+            let mut names_to_check_again = IndexSet::<_>::default();
 
             for name in &names_to_check {
                 let decl_node = name.get_declaration(gn).unwrap().get_node(gn).unwrap();

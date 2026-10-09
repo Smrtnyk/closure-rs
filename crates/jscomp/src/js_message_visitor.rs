@@ -32,13 +32,13 @@
 
 use std::sync::{Arc, LazyLock};
 
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::java_lang::regex::Pattern;
 use closure_rhino::js_string::JsString;
 use closure_rhino::jsdoc_info::JSDocInfo;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use closure_rhino::{check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 
 use crate::abstract_compiler::AbstractCompiler;
 use crate::diagnostic_type::DiagnosticType;
@@ -179,9 +179,9 @@ impl JsMessageVisitorBase {
         // use SOY templates.
         Self {
             id_generator,
-            message_names: IndexMap::new(),
-            unnamed_messages: IndexMap::new(),
-            goog_msg_nodes: IndexSet::new(),
+            message_names: IndexMap::<_, _>::default(),
+            unnamed_messages: IndexMap::<_, _>::default(),
+            goog_msg_nodes: IndexSet::<_>::default(),
         }
     }
 }
@@ -1290,7 +1290,7 @@ impl IcuMessageTemplateString {
         &self,
         placholder_names_to_extract: &IndexSet<JsString>,
     ) -> ExtractedIcuTemplateParts {
-        let mut extracted_placeholder_names: IndexSet<JsString> = IndexSet::new();
+        let mut extracted_placeholder_names: IndexSet<JsString> = IndexSet::<_>::default();
         let mut parts_builder: Vec<Part> = Vec::new();
         let mut matcher = ICU_PLACEHOLDER_RE.matcher(self.template.clone());
         let mut remaining_template_start_index: usize = 0;
@@ -1581,7 +1581,7 @@ fn extract_icu_template_options(
         .clone();
 
     // All the placeholder names mentioned in the 2 optional maps.
-    let mut placeholder_names: IndexSet<JsString> = IndexSet::new();
+    let mut placeholder_names: IndexSet<JsString> = IndexSet::<_>::default();
     placeholder_names.extend(placeholder_examples_map.keys().cloned());
     placeholder_names.extend(placeholder_original_code_map.keys().cloned());
 
@@ -1724,7 +1724,7 @@ impl ObjectLiteralMap for ObjectLiteralMapImpl {
     // port: JsMessageVisitor.ObjectLiteralMapImpl#extractAsValueMap
     fn extract_as_value_map(&mut self, ast: &Ast) -> &IndexMap<JsString, NodeId> {
         if self.value_map.is_none() {
-            let mut builder: IndexMap<JsString, NodeId> = IndexMap::new();
+            let mut builder: IndexMap<JsString, NodeId> = IndexMap::<_, _>::default();
             for (key, value) in &self.string_to_string_key_map {
                 builder.insert(key.clone(), value.get_only_child(ast));
             }
@@ -1739,7 +1739,7 @@ impl ObjectLiteralMap for ObjectLiteralMapImpl {
         ast: &Ast,
     ) -> Result<&IndexMap<JsString, JsString>, MalformedException> {
         if self.string_map.is_none() {
-            let mut builder: IndexMap<JsString, JsString> = IndexMap::new();
+            let mut builder: IndexMap<JsString, JsString> = IndexMap::<_, _>::default();
             for (key, value) in &self.string_to_string_key_map {
                 builder.insert(
                     key.clone(),
@@ -1798,7 +1798,7 @@ pub fn extract_object_literal_map(
     obj_lit: Option<NodeId>,
 ) -> Result<ObjectLiteralMapImpl, MalformedException> {
     let Some(obj_lit) = obj_lit else {
-        return Ok(ObjectLiteralMapImpl::new(IndexMap::new()));
+        return Ok(ObjectLiteralMapImpl::new(IndexMap::<_, _>::default()));
     };
     if !obj_lit.is_object_lit(ast) {
         return Err(MalformedException::new(
@@ -1806,7 +1806,7 @@ pub fn extract_object_literal_map(
             Some(obj_lit),
         ));
     }
-    let mut string_to_string_key_map: IndexMap<JsString, NodeId> = IndexMap::new();
+    let mut string_to_string_key_map: IndexMap<JsString, NodeId> = IndexMap::<_, _>::default();
     let mut string_key = obj_lit.get_first_child(ast);
     while let Some(sk) = string_key {
         if !sk.is_string_key(ast) {
@@ -1841,7 +1841,7 @@ fn extract_goog_get_msg_parsed_text(
     let ph_js_suffix = JsString::from(PH_JS_SUFFIX);
     let mut msg_text = original_msg_text.clone();
     let mut parts_builder: Vec<Part> = Vec::new();
-    let mut placeholder_names_builder: IndexSet<JsString> = IndexSet::new();
+    let mut placeholder_names_builder: IndexSet<JsString> = IndexSet::<_>::default();
     loop {
         let ph_begin = msg_text.index_of(&ph_js_prefix);
         if ph_begin < 0 {

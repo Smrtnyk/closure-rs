@@ -36,11 +36,11 @@ use crate::{
     var::VarId,
 };
 use closure_parsing::parser::identifiers::Identifiers;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state, js_string::JsString, node::NodeId, qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, LazyLock};
 
 // port: GatherModuleMetadata#MIXED_MODULE_TYPE
@@ -178,8 +178,8 @@ impl GatherModuleMetadata {
     // port: GatherModuleMetadata#GatherModuleMetadata
     pub fn new(process_common_js_modules: bool, module_resolution_mode: ResolutionMode) -> Self {
         Self {
-            modules_by_path: IndexMap::new(),
-            modules_by_goog_namespace: IndexMap::new(),
+            modules_by_path: IndexMap::<_, _>::default(),
+            modules_by_goog_namespace: IndexMap::<_, _>::default(),
             current_module: None,
             parent_module: None,
             load_module_call: None,
@@ -363,7 +363,7 @@ impl<'a> Finder<'a> {
     fn new(outer: &'a mut GatherModuleMetadata) -> Self {
         Self {
             outer,
-            toggle_module_names: IndexSet::new(),
+            toggle_module_names: IndexSet::<_>::default(),
             toggle_modules: Vec::new(),
         }
     }

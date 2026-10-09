@@ -28,6 +28,7 @@ use closure_jscomp::{
     peephole_optimizations_pass::PeepholeOptimizationsPass,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     node::{NodeId, ObjectProp, Prop},
     token::Token,
@@ -40,7 +41,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, rc::Rc};
 
 type PassList = Vec<Box<dyn AbstractPeepholeOptimization>>;
@@ -88,7 +88,7 @@ impl PeepholeOptimizationsPassTest {
                 ctx: Ctx::new(
                     "PeepholeOptimizationsPassTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),
@@ -237,7 +237,7 @@ impl AbstractPeepholeOptimization for RemoveNodesNamedXUnderVarOptimization {
         node: NodeId,
     ) -> Option<NodeId> {
         if node.is_var(compiler) {
-            let mut nodes_to_remove: IndexSet<NodeId> = IndexSet::new();
+            let mut nodes_to_remove: IndexSet<NodeId> = IndexSet::<_>::default();
 
             let mut child = node.get_first_child(compiler);
             while let Some(c) = child {

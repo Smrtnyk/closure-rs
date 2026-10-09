@@ -36,13 +36,13 @@ use crate::{
     thread_safe_delegating_error_manager::ThreadSafeDelegatingErrorManager,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     input_id::InputId,
     ir::IR,
     node::{Ast, NodeId},
     static_source_file::{SourceKind, StaticSourceFile},
 };
-use indexmap::IndexMap;
 use std::{
     ops::{Deref, DerefMut},
     sync::Arc,
@@ -52,7 +52,7 @@ pub type AstSupplier = Arc<dyn Fn(&mut Compiler) -> NodeId + Send + Sync>;
 /// Java's LinkedHashSet and the anonymous AbstractSet selected by initOptions.
 #[derive(Default)]
 pub struct ForwardDeclaredTypes {
-    values: indexmap::IndexSet<String>,
+    values: closure_rhino::fx_hash::IndexSet<String>,
     all_types: bool,
 }
 impl ForwardDeclaredTypes {
@@ -99,18 +99,18 @@ pub struct Compiler {
     string_map: Option<Arc<crate::variable_map::VariableMap>>,
     instrumentation_mapping: Option<Arc<crate::variable_map::VariableMap>>,
     extern_exports: Option<String>,
-    css_names: Option<indexmap::IndexSet<String>>,
+    css_names: Option<closure_rhino::fx_hash::IndexSet<String>>,
     id_generator_map: Option<String>,
     transpiled_files: bool,
     /// Rust-only: classes of the unported pass factories that execution omitted
     /// (PassListBuilder#build filters them), in the order they were omitted.
     omitted_unported_passes: Vec<&'static str>,
     input_path_by_webpack_id: IndexMap<String, String>,
-    exported_names: indexmap::IndexSet<String>,
-    define_names: indexmap::IndexSet<String>,
+    exported_names: closure_rhino::fx_hash::IndexSet<String>,
+    define_names: closure_rhino::fx_hash::IndexSet<String>,
     has_reg_exp_global_references: bool,
     run_j2cl_passes: bool,
-    extern_properties: Option<indexmap::IndexSet<String>>,
+    extern_properties: Option<closure_rhino::fx_hash::IndexSet<String>>,
     accessor_summary: Option<Arc<crate::accessor_summary::AccessorSummary>>,
     unique_name_id: Arc<std::sync::atomic::AtomicI32>,
     unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier,
@@ -192,7 +192,7 @@ impl Compiler {
             passes: None,
             externs: Vec::new(),
             chunk_graph: None,
-            module_types_by_name: IndexMap::new(),
+            module_types_by_name: IndexMap::<_, _>::default(),
             source_map: None,
             tracker: None,
             compiler_executor: crate::compiler_executor::CompilerExecutor::default(),
@@ -207,9 +207,9 @@ impl Compiler {
             id_generator_map: None,
             transpiled_files: false,
             omitted_unported_passes: Vec::new(),
-            input_path_by_webpack_id: IndexMap::new(),
-            exported_names: indexmap::IndexSet::new(),
-            define_names: indexmap::IndexSet::new(),
+            input_path_by_webpack_id: IndexMap::<_, _>::default(),
+            exported_names: closure_rhino::fx_hash::IndexSet::<_>::default(),
+            define_names: closure_rhino::fx_hash::IndexSet::<_>::default(),
             has_reg_exp_global_references: true,
             run_j2cl_passes: false,
             extern_properties: None,
@@ -217,7 +217,7 @@ impl Compiler {
             unique_name_id: Arc::new(std::sync::atomic::AtomicI32::new(0)),
             unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier::default(),
             cross_chunk_id_generator: crate::id_generator::IdGenerator::default(),
-            index_providers_by_type: IndexMap::new(),
+            index_providers_by_type: IndexMap::<_, _>::default(),
             type_registry: None,
             queued_type_registry_errors: Arc::default(),
             forward_declared_types: Arc::new(
@@ -250,9 +250,9 @@ impl Compiler {
             options: None,
             parser_config: None,
             externs_parser_config: None,
-            comments_per_file: IndexMap::new(),
+            comments_per_file: IndexMap::<_, _>::default(),
             input_source_maps,
-            script_node_by_filename: Arc::new(std::sync::Mutex::new(IndexMap::new())),
+            script_node_by_filename: Arc::new(std::sync::Mutex::new(IndexMap::<_, _>::default())),
             module_loader: crate::deps::module_loader::EMPTY.clone(),
             pending_module_errors: Arc::new(std::sync::Mutex::new(Vec::new())),
             prefer_regex_parser: false,
@@ -367,7 +367,7 @@ impl Compiler {
             .assume_forward_declared_for_missing_types()
         {
             self.forward_declared_types = Arc::new(std::sync::Mutex::new(ForwardDeclaredTypes {
-                values: indexmap::IndexSet::new(),
+                values: closure_rhino::fx_hash::IndexSet::<_>::default(),
                 all_types: true,
             }));
         }
@@ -388,7 +388,7 @@ impl Compiler {
         if self.get_options().get_merged_precompiled_libraries()
             && !self.get_options().get_conformance_configs().is_empty()
         {
-            let mut conformance_config_files = indexmap::IndexSet::new();
+            let mut conformance_config_files = closure_rhino::fx_hash::IndexSet::<_>::default();
             for config in self.get_options().get_conformance_configs() {
                 for requirement in config.get_requirement_list() {
                     conformance_config_files
@@ -2481,7 +2481,7 @@ impl Compiler {
                 {
                     self.parse_potential_modules(&self.get_inputs_in_order());
                 }
-                let mut input_module_identifiers = IndexMap::new();
+                let mut input_module_identifiers = IndexMap::<_, _>::default();
                 for input in self.get_inputs_in_order() {
                     if input.get_known_provides().is_empty() {
                         let path = self
@@ -2490,7 +2490,7 @@ impl Compiler {
                         input_module_identifiers.insert(path.to_module_name(), input);
                     }
                 }
-                let mut inputs_to_rewrite = IndexMap::new();
+                let mut inputs_to_rewrite = IndexMap::<_, _>::default();
                 for input in self.get_inputs_in_order() {
                     for require in input.get_known_required_symbols() {
                         if let Some(required) = input_module_identifiers.get(&require)
@@ -2657,8 +2657,8 @@ impl Compiler {
     ) {
         self.maybe_do_threaded_parsing();
         let mut entry_points = Vec::new();
-        let mut inputs_by_provide = IndexMap::new();
-        let mut inputs_by_identifier = IndexMap::new();
+        let mut inputs_by_provide = IndexMap::<_, _>::default();
+        let mut inputs_by_identifier = IndexMap::<_, _>::default();
         for input in self.get_inputs_in_order() {
             let provides: Vec<_> = input
                 .get_provides(self)
@@ -2693,7 +2693,7 @@ impl Compiler {
                 entry_points.push(input.clone());
             }
         }
-        let mut working_input_set: indexmap::IndexSet<CompilerInput> =
+        let mut working_input_set: closure_rhino::fx_hash::IndexSet<CompilerInput> =
             self.get_inputs_in_order().into_iter().collect();
         for entry_point in entry_points {
             self.find_modules_from_input(
@@ -2713,7 +2713,7 @@ impl Compiler {
         &mut self,
         input: &CompilerInput,
         was_imported_by_module: bool,
-        inputs: &mut indexmap::IndexSet<CompilerInput>,
+        inputs: &mut closure_rhino::fx_hash::IndexSet<CompilerInput>,
         inputs_by_identifier: &IndexMap<String, CompilerInput>,
         inputs_by_provide: &IndexMap<String, CompilerInput>,
         support_es6_modules: bool,
@@ -3164,7 +3164,7 @@ impl Compiler {
         self.instrumentation_mapping.as_ref()
     }
     // port: Compiler#setCssNames
-    pub fn set_css_names(&mut self, names: Option<indexmap::IndexSet<String>>) {
+    pub fn set_css_names(&mut self, names: Option<closure_rhino::fx_hash::IndexSet<String>>) {
         self.css_names = names;
     }
     // port: Compiler#setIdGeneratorMap
@@ -3191,7 +3191,7 @@ impl Compiler {
         self.exported_names.extend(names);
     }
     // port: Compiler#getExportedNames
-    pub fn get_exported_names(&self) -> &indexmap::IndexSet<String> {
+    pub fn get_exported_names(&self) -> &closure_rhino::fx_hash::IndexSet<String> {
         &self.exported_names
     }
     // port: Compiler#setDefineNames
@@ -3199,7 +3199,7 @@ impl Compiler {
         self.define_names = names.into_iter().collect();
     }
     // port: Compiler#getDefineNames
-    pub fn get_define_names(&self) -> &indexmap::IndexSet<String> {
+    pub fn get_define_names(&self) -> &closure_rhino::fx_hash::IndexSet<String> {
         &self.define_names
     }
     // port: Compiler#hasRegExpGlobalReferences
@@ -3219,11 +3219,11 @@ impl Compiler {
         self.run_j2cl_passes
     }
     // port: Compiler#setExternProperties
-    pub fn set_extern_properties(&mut self, properties: indexmap::IndexSet<String>) {
+    pub fn set_extern_properties(&mut self, properties: closure_rhino::fx_hash::IndexSet<String>) {
         self.extern_properties = Some(properties);
     }
     // port: Compiler#getExternProperties
-    pub fn get_extern_properties(&self) -> Option<&indexmap::IndexSet<String>> {
+    pub fn get_extern_properties(&self) -> Option<&closure_rhino::fx_hash::IndexSet<String>> {
         self.extern_properties.as_ref()
     }
     // port: Compiler#getAccessorSummary
@@ -3623,24 +3623,30 @@ impl Compiler {
         let root = self.ast.new_node(closure_rhino::token::Token::SCRIPT);
         let scope = crate::scope::Scope::create_global_scope(self, root);
         let unique_name_id_supplier = self.get_unique_name_id_supplier();
-        self.create_expression_decomposer(unique_name_id_supplier, indexmap::IndexSet::new(), scope)
+        self.create_expression_decomposer(
+            unique_name_id_supplier,
+            closure_rhino::fx_hash::IndexSet::<_>::default(),
+            scope,
+        )
     }
     // port: Compiler#createExpressionDecomposer
     pub fn create_expression_decomposer(
         &mut self,
         unique_name_id_supplier: Arc<dyn Fn() -> String + Send + Sync>,
-        known_constant_functions: indexmap::IndexSet<closure_rhino::js_string::JsString>,
+        known_constant_functions: closure_rhino::fx_hash::IndexSet<
+            closure_rhino::js_string::JsString,
+        >,
         scope: crate::scope::Scope,
     ) -> crate::expression_decomposer::ExpressionDecomposer {
         // If the output is ES5, then it may end up running on IE11, so enable a workaround
         // for one of its bugs.
         let enabled_workarounds =
             if FeatureSet::ES5.contains(self.get_options().get_output_feature_set()) {
-                indexmap::IndexSet::from([
+                closure_rhino::fx_hash::IndexSet::<_>::from_iter([
                     crate::expression_decomposer::Workaround::BROKEN_IE11_LOCATION_ASSIGN,
                 ])
             } else {
-                indexmap::IndexSet::new()
+                closure_rhino::fx_hash::IndexSet::<_>::default()
             };
         crate::expression_decomposer::ExpressionDecomposer::new(
             self,
@@ -3854,7 +3860,7 @@ impl Compiler {
             .get_options()
             .get_chunks_to_print_after_each_pass_regex_list()
             .clone();
-        let qnames: indexmap::IndexSet<String> = self
+        let qnames: closure_rhino::fx_hash::IndexSet<String> = self
             .get_options()
             .get_qname_uses_to_print_after_each_pass_list()
             .iter()
@@ -3911,8 +3917,10 @@ impl Compiler {
             }
         }
         if !qnames.is_empty() {
-            let mut original_to_new_qname_map: IndexMap<String, indexmap::IndexSet<String>> =
-                IndexMap::new();
+            let mut original_to_new_qname_map: IndexMap<
+                String,
+                closure_rhino::fx_hash::IndexSet<String>,
+            > = IndexMap::<_, _>::default();
             builder.append("//\n// closure-compiler: Printing all of the top-level statements\n// that contain references to these qualified names.\n//\n");
             // Java's filtered Stream has not been consumed yet; the multimap is still empty here.
             for qname in &qnames {
@@ -4139,7 +4147,8 @@ impl Compiler {
             );
 
         // Re-index the runtime libraries by file name rather than SourceFile object
-        let mut runtime_library_typed_asts: IndexMap<String, AstSupplier> = IndexMap::new();
+        let mut runtime_library_typed_asts: IndexMap<String, AstSupplier> =
+            IndexMap::<_, _>::default();
         for (file, supplier) in ast_data.get_filesystem().values() {
             runtime_library_typed_asts
                 .entry(file.get_name().to_string())
@@ -4429,7 +4438,8 @@ impl Compiler {
 
     // port: Compiler#fromProto(List<FeatureProto>)
     fn feature_set_from_proto(protos: &[FeatureProto]) -> FeatureSet {
-        let mut features: indexmap::IndexSet<Feature> = indexmap::IndexSet::new();
+        let mut features: closure_rhino::fx_hash::IndexSet<Feature> =
+            closure_rhino::fx_hash::IndexSet::<_>::default();
         for p in protos {
             if *p != FeatureProto::FEATURE_UNKNOWN {
                 // Java's Feature#valueOf throws IllegalArgumentException for an unknown name.
@@ -4474,7 +4484,7 @@ impl Compiler {
         let mut map: IndexMap<
             closure_rhino::js_string::JsString,
             closure_rhino::js_string::JsString,
-        > = IndexMap::new();
+        > = IndexMap::<_, _>::default();
         for entry in entries {
             map.insert(
                 closure_rhino::js_string::JsString::from(entry.get_original_name()),
@@ -4506,7 +4516,7 @@ impl Compiler {
             .expect("chunkGraph")
             .get_integral_chunk_array_for_serialization()
             .to_vec();
-        let mut chunk_name_map: IndexMap<String, i32> = IndexMap::new();
+        let mut chunk_name_map: IndexMap<String, i32> = IndexMap::<_, _>::default();
         for (i, chunk) in chunk_list.iter().enumerate() {
             chunk_name_map.insert(chunk.get_name(), i as i32);
         }
@@ -4819,10 +4829,12 @@ impl Compiler {
             self.chunk_graph.as_ref(),
             "Did you forget to call .init or .initChunks before restoreState?"
         );
-        let mut extern_files_builder: IndexMap<String, Arc<SourceFile>> = IndexMap::new();
-        let mut code_files_builder: IndexMap<String, Arc<SourceFile>> = IndexMap::new();
+        let mut extern_files_builder: IndexMap<String, Arc<SourceFile>> =
+            IndexMap::<_, _>::default();
+        let mut code_files_builder: IndexMap<String, Arc<SourceFile>> = IndexMap::<_, _>::default();
         let mut all_input_files: Vec<Arc<SourceFile>> = Vec::new();
-        let mut all_input_file_keys: indexmap::IndexSet<usize> = indexmap::IndexSet::new();
+        let mut all_input_file_keys: closure_rhino::fx_hash::IndexSet<usize> =
+            closure_rhino::fx_hash::IndexSet::<_>::default();
         for input in self.chunk_graph.as_ref().unwrap().get_all_inputs() {
             let file = input.get_source_file_arc();
             if all_input_file_keys.insert(Arc::as_ptr(&file) as usize) {

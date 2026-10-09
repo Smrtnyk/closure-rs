@@ -25,8 +25,8 @@ use crate::{
     replay::replay_dsl::DslValue,
     throwable::{Throwable, check_state},
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 use std::sync::Arc;
 // port: TestExternsBuilder#addArray / addIterable / addObject / addUndefined / addFunction / addString / addExtra / build
 pub fn externs_builder_call(
@@ -122,5 +122,10 @@ pub fn update_generic_var_names(
     prefixes: &IndexMap<String, String>,
 ) -> Result<Vec<Arc<SourceFile>>, Throwable> {
     check_state(outputs.expected.is_some(), "")?;
-    update_generic_var_names_in_expected_files(inputs, outputs, prefixes, &mut IndexMap::new())
+    update_generic_var_names_in_expected_files(
+        inputs,
+        outputs,
+        prefixes,
+        &mut IndexMap::<_, _>::default(),
+    )
 }

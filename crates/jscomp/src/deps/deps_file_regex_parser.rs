@@ -24,11 +24,11 @@ use super::{
     },
     simple_dependency_info::SimpleDependencyInfo,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     java_lang::regex::{Matcher, Pattern},
     js_string::JsString,
 };
-use indexmap::IndexMap;
 use std::{
     io::{self, Read},
     sync::Arc,
@@ -100,9 +100,12 @@ impl DepsFileRegexParser {
         flags: Option<&JsString>,
     ) -> Result<IndexMap<String, String>, ParseException> {
         if flags.is_none_or(|flags| flags == "false") {
-            Ok(IndexMap::new())
+            Ok(IndexMap::<_, _>::default())
         } else if flags.is_some_and(|flags| flags == "true") {
-            Ok(IndexMap::from([("module".into(), "goog".into())]))
+            Ok(IndexMap::<_, _>::from_iter([(
+                "module".into(),
+                "goog".into(),
+            )]))
         } else {
             self.base.parse_js_string_map(flags.unwrap())
         }

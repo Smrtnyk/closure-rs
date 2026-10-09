@@ -24,11 +24,11 @@ use crate::abstract_compiler::AbstractCompiler;
 use crate::compiler_pass::CompilerPass;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::jsdoc_info::{Builder, JSDocInfo};
 use closure_rhino::node::{Ast, NodeId};
-use indexmap::IndexSet;
 
 // port: DeclaredGlobalExternsOnWindow#WINDOW_NAME
 const WINDOW_NAME: &str = "window";
@@ -47,7 +47,7 @@ impl DeclaredGlobalExternsOnWindow {
     // port: DeclaredGlobalExternsOnWindow#DeclaredGlobalExternsOnWindow
     pub fn new(_compiler: &AbstractCompiler) -> Self {
         Self {
-            nodes: IndexSet::new(),
+            nodes: IndexSet::<_>::default(),
             window_in_externs: false,
         }
     }

@@ -18,8 +18,8 @@
 
 //! Port of `com.google.javascript.jscomp.parsing.Config` (an AutoValue class).
 
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 use crate::annotation::Annotation;
@@ -283,7 +283,7 @@ impl Config {
                 annotations_builder.push((unrecognized_annotation, Annotation::NOT_IMPLEMENTED));
             }
         }
-        let mut result = IndexMap::new();
+        let mut result = IndexMap::<_, _>::default();
         for (k, v) in annotations_builder {
             if let Some(previous) = result.get(&k) {
                 panic!("Multiple entries with same key: {k}={previous:?} and {k}={v:?}");

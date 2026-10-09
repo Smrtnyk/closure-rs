@@ -54,8 +54,8 @@ use closure_jscomp::{
     pure_function_identifier::Driver,
     scope::ScopeId,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const BUILDER: &str = "com.google.javascript.jscomp.OptimizeCalls$Builder";
@@ -255,7 +255,7 @@ impl NativeObject for ReferencesCapturingPass {
         class == REFERENCES_CAPTURING_PASS || class == CALL_GRAPH_COMPILER_PASS
     }
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([(
+        Ok(IndexMap::<_, _>::from_iter([(
             "references".to_string(),
             self.references.clone(),
         )]))
@@ -273,7 +273,7 @@ fn object(class: &str, fields: Vec<(&str, DslValue)>) -> DslValue {
             .into_iter()
             .map(|(k, v)| (k.to_string(), v))
             .collect(),
-        field_types: IndexMap::new(),
+        field_types: IndexMap::<_, _>::default(),
     })))
 }
 

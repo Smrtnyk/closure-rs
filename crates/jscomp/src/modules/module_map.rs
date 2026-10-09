@@ -18,8 +18,8 @@
 
 //! A map containing information about all modules in the compilation.
 use crate::{deps::module_loader::ModulePath, modules::module::Module};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 use std::sync::Arc;
 
 /// A map containing information about all modules in the compilation.
@@ -70,6 +70,6 @@ impl ModuleMap {
 
     // port: ModuleMap#emptyForTesting
     pub fn empty_for_testing() -> Self {
-        Self::new(IndexMap::new(), IndexMap::new())
+        Self::new(IndexMap::<_, _>::default(), IndexMap::<_, _>::default())
     }
 }

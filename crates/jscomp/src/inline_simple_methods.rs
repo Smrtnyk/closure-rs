@@ -26,10 +26,10 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state, ir::IR, js_string::JsString, node::NodeId, token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 
 /// Inlines methods that take no arguments and have only a return statement returning a property.
 /// Because it works on method names rather than type inference, a method with multiple
@@ -77,7 +77,7 @@ impl InlineSimpleMethods {
     // port: InlineSimpleMethods#InlineSimpleMethods
     pub fn new(compiler: &AbstractCompiler) -> Self {
         let ast_analyzer = compiler.get_ast_analyzer();
-        let mut non_inlineable_properties = IndexSet::new();
+        let mut non_inlineable_properties = IndexSet::<_>::default();
         non_inlineable_properties.extend(
             check_not_null!(compiler.get_extern_properties())
                 .iter()
@@ -85,7 +85,7 @@ impl InlineSimpleMethods {
         );
         Self {
             non_inlineable_properties,
-            method_definitions: IndexMap::new(),
+            method_definitions: IndexMap::<_, _>::default(),
             ast_analyzer,
         }
     }

@@ -22,6 +22,7 @@
 use closure_jscomp::{
     compiler_pass::CompilerPass, diagnostic_type::DiagnosticType, strip_code, strip_code::StripCode,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
     replay::{
@@ -30,7 +31,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, rc::Rc};
 
 // port: StripCodeTest#EXTERNS
@@ -117,7 +117,7 @@ impl StripCodeTest {
                 ctx: Ctx::new(
                     "StripCodeTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

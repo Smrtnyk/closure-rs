@@ -42,6 +42,7 @@ use closure_jscomp::{
     compiler_pass::CompilerPass,
     inline_variables::{InlineVariables, Mode},
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
@@ -52,7 +53,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 struct InlineVariablesConstantsTest {
@@ -122,7 +122,7 @@ fn ctx(name: &str) -> Ctx {
     Ctx::new(
         name.into(),
         object([]),
-        IndexMap::new(),
+        IndexMap::<_, _>::default(),
         Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n").unwrap(),
     )
 }

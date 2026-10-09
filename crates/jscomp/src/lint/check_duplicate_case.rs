@@ -24,8 +24,8 @@ use crate::{
     diagnostic_type::DiagnosticType,
     node_traversal::{Callback, NodeTraversal},
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::IndexSet;
 
 // port: CheckDuplicateCase#DUPLICATE_CASE
 pub static DUPLICATE_CASE: DiagnosticType = DiagnosticType::warning(
@@ -76,7 +76,7 @@ impl Callback for CheckDuplicateCase {
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
         if n.is_switch(t) {
             let switch_body = n.get_second_child(t).unwrap();
-            let mut cases: IndexSet<JsString> = IndexSet::new();
+            let mut cases: IndexSet<JsString> = IndexSet::<_>::default();
             let mut curr = switch_body.get_first_child(t);
             while let Some(c) = curr {
                 let first = c.get_first_child(t).unwrap();

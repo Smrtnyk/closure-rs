@@ -19,8 +19,8 @@
 //! Port of `IdMappingUtilTest.java`.
 
 use closure_jscomp::id_mapping_util::{IdMappingUtil, NEW_LINE};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 
 // port: IdMappingUtilTest#testParseIdMapping
 #[test]

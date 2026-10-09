@@ -30,11 +30,11 @@ use crate::{
     node_util::NodeUtil,
     var::VarId,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_state, java_lang::JavaHashCode, js_string::JsString, node::NodeId,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 #[derive(Debug)]
 pub struct Definition {
@@ -47,7 +47,7 @@ impl Definition {
     pub fn new(node: NodeId) -> Self {
         Self {
             node,
-            depends: IndexSet::new(),
+            depends: IndexSet::<_>::default(),
             unknown_dependencies: false,
         }
     }

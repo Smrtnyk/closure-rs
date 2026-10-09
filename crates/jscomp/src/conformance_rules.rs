@@ -44,6 +44,7 @@ use crate::{
 };
 use closure_jstype::{prelude::*, property::Property};
 use closure_parsing::js_doc_info_parser::JsDocInfoParser;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_state,
     java_lang::regex::Pattern,
@@ -55,7 +56,6 @@ use closure_rhino::{
     qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, LazyLock};
 
 // port: ConformanceRules#ALL_TS_ALLOWLIST
@@ -1398,7 +1398,7 @@ impl BannedName {
         let requirement_type = requirement.get_type();
 
         let mut qualified_builder: Vec<NodeId> = Vec::new();
-        let mut short_builder: IndexSet<JsString> = IndexSet::new();
+        let mut short_builder: IndexSet<JsString> = IndexSet::<_>::default();
         for name in requirement.get_value_list() {
             let qualified_name = NodeUtil::new_qname(compiler, name.as_str());
             qualified_builder.push(qualified_name);
@@ -1508,7 +1508,7 @@ impl BannedProperty {
 
         let (registry, ast) = compiler.get_type_registry_and_ast();
 
-        let mut builder: IndexMap<JsString, Vec<TypeId>> = IndexMap::new();
+        let mut builder: IndexMap<JsString, Vec<TypeId>> = IndexMap::<_, _>::default();
         for value in requirement.get_value_list() {
             let typename = ConformanceUtil::get_class_from_declaration_name(value);
             let property = ConformanceUtil::get_property_from_declaration_name(value);
@@ -2824,7 +2824,7 @@ impl BanCreateElement {
         requirement: &Requirement,
     ) -> Result<Self, InvalidRequirementSpec> {
         let base = AbstractRule::new(compiler, requirement)?;
-        let mut banned_tags: IndexSet<String> = IndexSet::new();
+        let mut banned_tags: IndexSet<String> = IndexSet::<_>::default();
         for value in requirement.get_value_list() {
             // Ascii.toLowerCase
             banned_tags.insert(value.to_ascii_lowercase());

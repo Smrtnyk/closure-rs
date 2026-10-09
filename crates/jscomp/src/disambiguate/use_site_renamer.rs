@@ -20,8 +20,8 @@
 
 use super::color_graph_node::{ColorGraphNodeId, DisambiguateArena, PropertyClusteringId};
 use crate::{graph::union_find::UnionFind, node_util::AstContext};
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::{IndexMap, IndexSet};
 
 // port: UseSiteRenamer#INVALIDATED_NAME_VALUE
 const INVALIDATED_NAME_VALUE: &str = "<INVALIDATED>";
@@ -51,7 +51,7 @@ impl<'a, C: AstContext + ?Sized> UseSiteRenamer<'a, C> {
     pub fn new(mutation_cb: MutationCb<'a, C>) -> Self {
         Self {
             mutation_cb,
-            renaming_index: IndexMap::new(),
+            renaming_index: IndexMap::<_, _>::default(),
         }
     }
 
@@ -122,7 +122,7 @@ impl<'a, C: AstContext + ?Sized> UseSiteRenamer<'a, C> {
         arena: &mut DisambiguateArena,
         prop: PropertyClusteringId,
     ) -> IndexMap<ColorGraphNodeId, JsString> {
-        let mut result = IndexMap::new();
+        let mut result = IndexMap::<_, _>::default();
         for r in prop.get_clusters(arena).all_representatives() {
             let name = Self::create_cluster_name(arena, prop, r);
             // toImmutableMap rejects duplicate keys; allRepresentatives is a set.

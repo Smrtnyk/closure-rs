@@ -21,6 +21,7 @@ use closure_parsing::{
     parser_runner::ParserRunner,
     parsing_util::ParsingUtil,
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     js_string::JsString,
     node::{Ast, NodeId},
@@ -28,13 +29,12 @@ use closure_rhino::{
     static_source_file::SourceKind,
     testing::test_error_reporter::TestErrorReporter,
 };
-use indexmap::IndexSet;
 use std::sync::Arc;
 // port: ParsingUtilTest#assertPatternDeclaresNames
 fn assert_pattern_declares_names(pattern: &str, expected: &[&str]) {
     let mut ast = Ast::new();
     let node = parse_pattern(&mut ast, pattern);
-    let mut seen = IndexSet::new();
+    let mut seen = IndexSet::<_>::default();
     ParsingUtil::get_param_or_pattern_names(&ast, node, &mut |n| {
         seen.insert(n);
     });

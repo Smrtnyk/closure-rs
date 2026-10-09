@@ -69,8 +69,8 @@ use closure_jscomp::{
     },
     node_traversal::NodeTraversal,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::node::NodeId;
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, rc::Rc};
 
 const PROVIDES_SORTED_HOST: &str =
@@ -231,8 +231,8 @@ fn extra_requires_borrowed(
 fn helper_object(class: &str) -> DslValue {
     DslValue::Object(Rc::new(RefCell::new(Object {
         class: class.into(),
-        fields: IndexMap::new(),
-        field_types: IndexMap::new(),
+        fields: IndexMap::<_, _>::default(),
+        field_types: IndexMap::<_, _>::default(),
     })))
 }
 

@@ -40,6 +40,7 @@ use closure_jscomp::{
     compiler_pass::CompilerPass,
     scoped_aliases::{InvalidModuleGetHandling, ScopedAliases},
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
@@ -50,7 +51,6 @@ use closure_testing::{
     },
     throwable::{Throwable, assert_that},
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const GOOG_SCOPE_START_BLOCK: &str = "goog.scope(function() {";
@@ -74,7 +74,7 @@ impl ScopedAliasesTest {
             ctx: Ctx::new(
                 "ScopedAliasesTest".into(),
                 closure_testing::replay::replay_values::object([]),
-                IndexMap::new(),
+                IndexMap::<_, _>::default(),
                 Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                     .unwrap(),
             ),
@@ -91,7 +91,7 @@ impl ScopedAliasesTest {
         harness.enable_run_type_check_after_processing()?;
         harness.enable_create_module_map()?;
         self.invalid_module_get_handling = Some(InvalidModuleGetHandling::GIVE_UNIQUE_NAME);
-        harness.set_generic_name_replacements(IndexMap::from([(
+        harness.set_generic_name_replacements(IndexMap::<_, _>::from_iter([(
             "SCOPED_ALIASES".to_string(),
             "jscomp$scopedAliases$".to_string(),
         )]));

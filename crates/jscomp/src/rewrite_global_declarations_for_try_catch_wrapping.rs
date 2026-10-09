@@ -25,8 +25,8 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{ir::IR, node::NodeId, token::Token};
-use indexmap::IndexMap;
 
 /// Moves top-level function declarations to the top of the enclosing JSChunk and rewrites class
 /// declarations.
@@ -41,7 +41,7 @@ impl RewriteGlobalDeclarationsForTryCatchWrapping {
     // port: RewriteGlobalDeclarationsForTryCatchWrapping#RewriteGlobalDeclarationsForTryCatchWrapping
     pub fn new() -> Self {
         Self {
-            functions: IndexMap::new(),
+            functions: IndexMap::<_, _>::default(),
             classes: Vec::new(),
         }
     }

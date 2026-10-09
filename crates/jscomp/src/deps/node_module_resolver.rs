@@ -25,8 +25,8 @@ use super::{
     module_resolver::{ModuleResolver, ModuleResolverBase},
 };
 use crate::check_level::CheckLevel;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::java_lang::string::split;
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 pub struct NodeModuleResolver {
     pub(crate) base: ModuleResolverBase,
@@ -41,7 +41,7 @@ impl NodeModuleResolver {
         paths: &IndexSet<String>,
         roots: &[String],
     ) -> Vec<String> {
-        let mut registry = IndexSet::new();
+        let mut registry = IndexSet::<_>::default();
         for module_path in paths {
             let mut path = module_path.as_str();
             for root in roots {
@@ -84,7 +84,7 @@ impl NodeModuleResolver {
     fn build_package_json_main_entries(
         entries: IndexMap<String, String>,
     ) -> IndexMap<String, String> {
-        let mut builder = IndexMap::new();
+        let mut builder = IndexMap::<_, _>::default();
         for (k, v) in entries {
             let key = if ModuleLoader::is_ambiguous_identifier(&k) {
                 format!("/{k}")

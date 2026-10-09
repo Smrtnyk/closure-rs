@@ -23,10 +23,10 @@ use crate::compiler_pass::CompilerPass;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
 use closure_rhino::check_state;
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::jsdoc_info::JSDocInfo;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
-use indexmap::IndexSet;
 
 /// Gathers property names defined in externs.
 ///
@@ -78,7 +78,7 @@ impl Mode {
 impl GatherExternProperties {
     // port: GatherExternProperties#GatherExternProperties
     pub fn new(compiler: &AbstractCompiler, mode: Mode) -> Self {
-        let mut extern_properties = IndexSet::new();
+        let mut extern_properties = IndexSet::<_>::default();
         if let Some(properties) = compiler.get_extern_properties() {
             extern_properties.extend(properties.iter().cloned());
         }

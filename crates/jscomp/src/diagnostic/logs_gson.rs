@@ -51,9 +51,9 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   src/com/google/javascript/jscomp/diagnostic/LogsGson.java.
 
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_sourcemap::gson::stream::json_writer::JsonWriter;
-use indexmap::IndexMap;
 
 /// A logged Java Object. Gson serializes an Object with the TypeAdapter it selects for the
 /// object's runtime type; each Rust type that is logged implements that adapter's `write`.
@@ -116,7 +116,7 @@ pub struct Multimap<K, V> {
 impl<K: std::hash::Hash + Eq, V> Multimap<K, V> {
     pub fn new() -> Self {
         Self {
-            map: IndexMap::new(),
+            map: IndexMap::<_, _>::default(),
         }
     }
     // port: com.google.common.collect.Multimap#put

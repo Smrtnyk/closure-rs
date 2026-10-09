@@ -21,13 +21,13 @@
 //!   by (file, index), with the record's class, method and call;
 //! - the 9 record lines with lone-surrogate escapes keep them through the reader and writer.
 
+use closure_rhino::fx_hash::IndexMap;
 use closure_testing::corpus::{
     LoadedDescriptor, file_stem, jsonl_lines, load_descriptor_for, load_expected_pipeline,
     map_files_parallel, record_files, records,
 };
 use closure_testing::descriptor::{select_case, select_case_or_null};
 use closure_testing::json::JsonValue;
-use indexmap::IndexMap;
 use std::sync::OnceLock;
 
 /// The case DSL.md selects for a record.
@@ -120,8 +120,8 @@ fn int(raw: &JsonValue, key: &str) -> Option<i64> {
 
 #[test]
 fn case_selection_and_unrepresentable_entries() {
-    let mut selected: IndexMap<String, usize> = IndexMap::new();
-    let mut no_match_optional: IndexMap<String, usize> = IndexMap::new();
+    let mut selected: IndexMap<String, usize> = IndexMap::<_, _>::default();
+    let mut no_match_optional: IndexMap<String, usize> = IndexMap::<_, _>::default();
     let mut errors = Vec::new();
     let mut ctc = 0usize;
     for RawFile {
@@ -183,7 +183,7 @@ fn case_selection_and_unrepresentable_entries() {
 fn expected_pipeline_matches_records() {
     let entries = load_expected_pipeline().unwrap();
     let mut by_key: IndexMap<(String, i64), &closure_testing::derived::ExpectedPipeline> =
-        IndexMap::new();
+        IndexMap::<_, _>::default();
     for (e, _) in &entries {
         assert!(
             by_key

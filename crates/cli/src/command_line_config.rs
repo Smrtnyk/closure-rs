@@ -98,7 +98,7 @@ impl Default for CommandLineConfig {
             typed_ast_list_input_filename: None,
             save_compilation_state_to_filename: None,
             chunk: Vec::new(),
-            source_map_input_files: IndexMap::new(),
+            source_map_input_files: IndexMap::<_, _>::default(),
             parse_inline_source_maps: false,
             expected_diagnostics: Vec::new(),
             variable_map_input_file: "".into(),

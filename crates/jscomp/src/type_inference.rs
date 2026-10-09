@@ -60,6 +60,7 @@ use closure_jstype::{
     rhino::js_type_expression::JSTypeExpressionExt,
     template_type_replacer::TemplateTypeReplacer,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     js_string::JsString,
@@ -68,7 +69,6 @@ use closure_rhino::{
     qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{
     any::Any,
     collections::VecDeque,
@@ -236,7 +236,7 @@ impl<'a> TypeInference<'a> {
             assertion_function_lookup,
             module_import_resolver,
             opt_chain_array_deque: VecDeque::new(),
-            inferred_unbound_vars: IndexSet::new(),
+            inferred_unbound_vars: IndexSet::<_>::default(),
             unknown_type,
             number_addition_supertype,
         }
@@ -3364,7 +3364,7 @@ impl TypeInference<'_> {
         reg: &JSTypeRegistry,
         inferred_types: &IndexMap<TypeId, TypeId>,
     ) -> IndexMap<JsString, TypeId> {
-        let mut type_vars = IndexMap::new();
+        let mut type_vars = IndexMap::<_, _>::default();
         for (&key, &value) in inferred_types {
             // Only add the template type that do not have a type transformation
             if !key.is_type_transformation(reg) {
@@ -3398,7 +3398,7 @@ impl TypeInference<'_> {
                     type_vars = Some(
                         self.build_type_variables(compiler.get_type_registry(), inferred_types),
                     );
-                    result = Some(IndexMap::new());
+                    result = Some(IndexMap::<_, _>::default());
                 }
                 // Evaluate the type transformation expression using the current
                 // known types for the template type variables
@@ -3449,7 +3449,7 @@ impl TypeInference<'_> {
             let (reg, ast) = compiler.get_type_registry_and_ast();
             InvocationTemplateTypeMatcher::new(reg, ast, fn_type, type_of_this, n).r#match()
         };
-        let mut inferred: IndexMap<TypeId, TypeId> = IndexMap::new();
+        let mut inferred: IndexMap<TypeId, TypeId> = IndexMap::<_, _>::default();
         for &key in &keys {
             inferred.insert(
                 key,

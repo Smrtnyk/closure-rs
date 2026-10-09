@@ -30,12 +30,12 @@ use crate::scope::ScopeId;
 use crate::syntactic_scope_creator::{RedeclarationHandler, SyntacticScopeCreator};
 use crate::type_validator::TypeValidator;
 use closure_rhino::check_state;
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId, Prop};
 use closure_rhino::static_source_file::SourceKind;
 use closure_rhino::token::Token;
-use indexmap::IndexSet;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -173,7 +173,7 @@ impl VarCheck {
             &[],
         )) == CheckLevel::ERROR;
         Self {
-            undefined_names_from_externs: IndexSet::new(),
+            undefined_names_from_externs: IndexSet::<_>::default(),
             validity_check,
             strict_extern_check,
             dup_handler: None,

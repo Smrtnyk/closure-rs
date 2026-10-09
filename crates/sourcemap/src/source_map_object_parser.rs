@@ -24,8 +24,8 @@ use crate::{
     source_map_parse_exception::SourceMapParseException as Error,
     source_map_section::SourceMapSection,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 pub struct SourceMapObjectParser;
 // Java's shared, immutable Gson instance.
 #[allow(non_upper_case_globals)]
@@ -68,7 +68,7 @@ impl SourceMapObjectParser {
             source_map_root.get("sourcesContent"),
         ));
         builder.set_names(Self::get_java_string_array(source_map_root.get("names")));
-        let mut extensions = IndexMap::new();
+        let mut extensions = IndexMap::<_, _>::default();
         for (key, value) in source_map_root.entry_set() {
             if key.starts_with("x_") {
                 extensions.insert(key.clone(), ExtensionValue::JsonElement(value.clone()));
@@ -87,7 +87,7 @@ impl SourceMapObjectParser {
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<(), Error> {
                 let mut lexer = SourceMapJsonLexer::new(contents);
                 lexer.begin_object()?;
-                let mut extensions = IndexMap::new();
+                let mut extensions = IndexMap::<_, _>::default();
                 while lexer.has_next() {
                     let name = lexer.next_name()?;
                     // Java switches on the complete String. Non-ASCII units cannot match any arm.

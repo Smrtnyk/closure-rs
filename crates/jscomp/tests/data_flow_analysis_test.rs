@@ -32,8 +32,8 @@ use closure_jscomp::{
     },
     graph::{di_graph::DiGraphNode, graph::Graph},
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{java_lang::JavaHashCode, js_string::JsString};
-use indexmap::IndexMap;
 use std::sync::{
     Arc,
     atomic::{AtomicI32, Ordering},
@@ -825,7 +825,7 @@ impl ConstPropLatticeElement {
     fn new_with_top(is_top: bool) -> Self {
         Self {
             is_top,
-            const_map: IndexMap::new(),
+            const_map: IndexMap::<_, _>::default(),
         }
     }
     // port: DataFlowAnalysisTest.ConstPropLatticeElement#ConstPropLatticeElement(ConstPropLatticeElement)
@@ -906,8 +906,8 @@ mod escaped_locals_tests {
         live_variables_analysis::LiveVariablesAnalysis, node_util::NodeUtil, scope::ScopeId,
         syntactic_scope_creator::SyntacticScopeCreator, var::VarId,
     };
+    use closure_rhino::fx_hash::IndexSet;
     use closure_rhino::{input_id::InputId, token::Token};
-    use indexmap::IndexSet;
     use std::sync::Arc;
 
     // port: DataFlowAnalysisTest#testEscaped

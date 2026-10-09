@@ -25,10 +25,10 @@ use crate::{
     node_traversal::NodeTraversal,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, java_lang::pattern::Pattern, js_string::JsString, node::NodeId, token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{collections::VecDeque, sync::Arc};
 
 /// Represents a single polyfill: specifically, for a native symbol, a set of native and polyfill
@@ -128,9 +128,10 @@ impl Polyfills {
     /// library token is empty.
     // port: PolyfillUsageFinder.Polyfills#fromTable
     pub fn from_table(table: &str) -> Polyfills {
-        let mut methods: IndexMap<JsString, Vec<Arc<Polyfill>>> = IndexMap::new();
-        let mut statics: IndexMap<JsString, Arc<Polyfill>> = IndexMap::new();
-        let mut by_native_version: IndexMap<String, Vec<Arc<Polyfill>>> = IndexMap::new();
+        let mut methods: IndexMap<JsString, Vec<Arc<Polyfill>>> = IndexMap::<_, _>::default();
+        let mut statics: IndexMap<JsString, Arc<Polyfill>> = IndexMap::<_, _>::default();
+        let mut by_native_version: IndexMap<String, Vec<Arc<Polyfill>>> =
+            IndexMap::<_, _>::default();
         for line in table.split('\n').filter(|s| !s.is_empty()) {
             let tokens = java_trim(line)
                 .split(' ')

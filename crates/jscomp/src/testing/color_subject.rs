@@ -17,8 +17,8 @@
 //   src/com/google/javascript/jscomp/testing/ColorSubject.java.
 
 use crate::colors::{Color, ColorId, ColorRegistry};
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexSet;
 use std::{fmt::Debug, hash::Hash, sync::LazyLock};
 
 pub struct ColorSubject {
@@ -124,7 +124,7 @@ impl ColorSubject {
         &self,
         registry: &'a ColorRegistry,
     ) -> IterableSubject<'a, Color> {
-        static EMPTY: LazyLock<IndexSet<Color>> = LazyLock::new(IndexSet::new);
+        static EMPTY: LazyLock<IndexSet<Color>> = LazyLock::new(IndexSet::<_>::default);
         IterableSubject {
             actual: self.actual.as_ref().map_or(&*EMPTY, |actual| {
                 registry.get_disambiguation_supertypes(actual)

@@ -66,8 +66,8 @@ use closure_jscomp::{
     message_bundle::MessageBundle,
     replace_messages::ReplaceMessages,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.ReplaceMessagesTest_Helpers";

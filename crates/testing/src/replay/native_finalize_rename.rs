@@ -79,8 +79,8 @@ use closure_jscomp::{
     substitute_es6_syntax::SubstituteEs6Syntax,
     variable_map::VariableMap,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 // port: ReplayDsl#invoke (resolved signatures backed by native implementations)
@@ -192,9 +192,9 @@ fn decode_name_generator(value: &DslValue) -> Result<Box<dyn NameGenerator>, Thr
     let generator = Arc::<dyn NameGenerator + Send + Sync>::decode_value(value)?;
     Ok(NameGenerator::clone(
         &*generator,
-        Arc::new(std::sync::RwLock::new(IndexSet::new())),
+        Arc::new(std::sync::RwLock::new(IndexSet::<_>::default())),
         JsString::from(""),
-        &IndexSet::new(),
+        &IndexSet::<_>::default(),
     ))
 }
 
@@ -249,7 +249,7 @@ impl NativeObject for NativeDenormalize {
     }
     // port: UnitRecorder#fields (Denormalize: the field the harness reads)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([(
+        Ok(IndexMap::<_, _>::from_iter([(
             "outputFeatureSet".into(),
             self.0.get_output_feature_set().encode_value()?,
         )]))
@@ -308,7 +308,7 @@ impl NativeObject for NativeNormalizeStatements {
     }
     // port: UnitRecorder#fields (NormalizeStatements: the constructor arguments)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             ("assertOnChange".into(), self.1.encode_value()?),
             ("makeDeclaredNamesUnique".into(), DslValue::Null),
         ]))
@@ -417,7 +417,7 @@ impl NativeObject for NativeGatherRawExports {
     }
     // port: UnitRecorder#fields (GatherRawExports: the field the harness walks)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([(
+        Ok(IndexMap::<_, _>::from_iter([(
             "exportedVariables".into(),
             DslValue::Typed {
                 class: "java.util.LinkedHashSet".into(),
@@ -471,7 +471,7 @@ impl NativeObject for NativeRenameVars {
     // port: UnitRecorder#fields (RenameVars: the fields the harness reads)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
         let f = self.0.replay_fields();
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "nameGenerator".into(),
                 crate::replay::options_values::encode_name_generator(f.name_generator)?,
@@ -565,7 +565,7 @@ impl NativeObject for NativeNormalizePassWrapper {
     // port: UnitRecorder#fields (NormalizePassWrapper: its wrappedPass; its compiler field is the
     // replay compiler the pass runs on)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([(
+        Ok(IndexMap::<_, _>::from_iter([(
             "wrappedPass".into(),
             self.wrapped_pass.clone(),
         )]))
@@ -629,8 +629,8 @@ pub fn rename_vars_test_helpers(
     _ctx: &mut Ctx,
     _args: Vec<DslValue>,
 ) -> Result<DslValue, Throwable> {
-    let mut fields = IndexMap::new();
-    let mut field_types = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
+    let mut field_types = IndexMap::<_, _>::default();
     for (name, ty) in [
         ("prefix", "java.lang.String"),
         (
@@ -669,7 +669,7 @@ impl NativeObject for NativeClosurePassAndRenameVars {
     // compiler the pass runs on; the synthetic outer-instance field is what collect walks to reach
     // the renameVars the pass assigns)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([(
+        Ok(IndexMap::<_, _>::from_iter([(
             "this$0".into(),
             DslValue::Object(self.outer.clone()),
         )]))
@@ -707,7 +707,7 @@ impl NativeObject for NativeClosurePassAndRenameVars {
                 false,
                 false,
                 previously_used_map,
-                IndexSet::new(),
+                IndexSet::<_>::default(),
                 Some(closure_pass.get_exported_variable_names().clone()),
                 Box::new(closure_jscomp::default_name_generator::DefaultNameGenerator::new()),
             )
@@ -761,7 +761,7 @@ impl NativeObject for NativeRenameProperties {
     // port: UnitRecorder#fields (RenameProperties: the fields the harness walks)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
         let f = self.0.replay_fields();
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "generatePseudoNames".into(),
                 f.generate_pseudo_names.encode_value()?,

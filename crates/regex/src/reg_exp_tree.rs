@@ -26,9 +26,9 @@ use std::fmt;
 use std::sync::LazyLock;
 
 use closure_rhino::check_state;
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::java_lang;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexSet;
 
 use crate::case_canonicalize;
 use crate::char_ranges::{self, CharRanges};
@@ -330,7 +330,7 @@ impl RegExpTree {
             flags,
             pos: 0,
             num_capturing_groups: 0,
-            capturing_group_names: IndexSet::new(),
+            capturing_group_names: IndexSet::<_>::default(),
             limit: pattern.length(),
             look_for_named_capture_backreferences: false,
         }
@@ -2398,7 +2398,7 @@ impl Charset {
         }
         let mut best = self.ranges.clone();
         if flags.index_of_char(ch(b'i')) >= 0 {
-            let mut options: IndexSet<CharRanges> = IndexSet::new();
+            let mut options: IndexSet<CharRanges> = IndexSet::<_>::default();
             options.insert(case_canonicalize::expand_to_all_matched(&self.ranges));
             options.insert(case_canonicalize::reduce_to_minimum(&self.ranges));
 

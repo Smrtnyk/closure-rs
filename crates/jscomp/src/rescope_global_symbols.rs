@@ -32,8 +32,8 @@ use crate::{
         RescopeGlobalSymbolsRewriteCallback, SymbolInformation,
     },
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{ir::IR, js_string::JsString, node::NodeId};
-use indexmap::IndexSet;
 
 /// Finds all references to global symbols and rewrites them to be property accesses to a special
 /// object with the same name as the global symbol.
@@ -230,10 +230,10 @@ impl FindCrossChunkNamesCallback {
     fn new(track_local_access_sets: bool) -> Self {
         Self {
             track_local_access_sets,
-            cross_chunk_names: IndexSet::new(),
-            cross_chunk_names_with_write_from_other_chunk: IndexSet::new(),
-            global_names_with_read_in_defining_chunk: IndexSet::new(),
-            global_names_with_inner_scope_write_in_defining_chunk: IndexSet::new(),
+            cross_chunk_names: IndexSet::<_>::default(),
+            cross_chunk_names_with_write_from_other_chunk: IndexSet::<_>::default(),
+            global_names_with_read_in_defining_chunk: IndexSet::<_>::default(),
+            global_names_with_inner_scope_write_in_defining_chunk: IndexSet::<_>::default(),
         }
     }
 }
@@ -315,7 +315,7 @@ struct FindNamesReferencingThis {
 impl FindNamesReferencingThis {
     fn new() -> Self {
         Self {
-            maybe_references_this: IndexSet::new(),
+            maybe_references_this: IndexSet::<_>::default(),
         }
     }
 }

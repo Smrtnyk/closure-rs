@@ -21,6 +21,7 @@ use closure_jscomp::{
     guarded_callback::{GuardedCallback, GuardedCallbackSubclass},
     node_traversal::NodeTraversal,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
@@ -32,7 +33,6 @@ use closure_testing::{
     testing::test_externs_builder::TestExternsBuilder,
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 struct GuardedCallbackTest {
@@ -45,7 +45,7 @@ impl GuardedCallbackTest {
             ctx: Ctx::new(
                 "GuardedCallbackTest".into(),
                 closure_testing::replay::replay_values::object([]),
-                IndexMap::new(),
+                IndexMap::<_, _>::default(),
                 Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                     .unwrap(),
             ),

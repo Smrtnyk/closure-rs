@@ -26,11 +26,11 @@ use crate::{
     js_error::JSError,
     warnings_guard::{Priority, WarningsGuard},
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     java_lang::{regex::Pattern, utf_8::BufferedReader},
     js_string::JsString,
 };
-use indexmap::IndexSet;
 use std::{
     any::Any,
     collections::{BTreeMap, BTreeSet},
@@ -77,7 +77,7 @@ pub struct AllowListWarningsGuard {
 impl Default for AllowListWarningsGuard {
     // port: AllowlistWarningsGuard#AllowlistWarningsGuard()
     fn default() -> Self {
-        Self::new(&IndexSet::new())
+        Self::new(&IndexSet::<_>::default())
     }
 }
 
@@ -97,7 +97,7 @@ impl AllowListWarningsGuard {
     /// Also remove lines starting with "#" or are blank lines.
     // port: AllowlistWarningsGuard#normalizeAllowlist
     pub fn normalize_allow_list(allow_list: &IndexSet<String>) -> IndexSet<String> {
-        let mut result = IndexSet::new();
+        let mut result = IndexSet::<_>::default();
         for line in allow_list {
             let trimmed = closure_rhino::java_lang::trim(&JsString::from(line.as_str()));
             if trimmed.is_empty() || trimmed.char_at(0) == u16::from(b'#') {
@@ -139,7 +139,7 @@ impl AllowListWarningsGuard {
     pub fn load_allow_listed_js_warnings_from_reader(
         reader: impl Read,
     ) -> io::Result<IndexSet<String>> {
-        let mut result = IndexSet::new();
+        let mut result = IndexSet::<_>::default();
         // CharStreams.readLines
         let mut reader = BufferedReader::new(reader);
         while let Some(line) = reader.read_line()? {

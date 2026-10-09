@@ -22,7 +22,7 @@ use closure_jscomp::{
     diagnostic_groups,
     lint::check_extra_requires::{CheckExtraRequires, EXTRA_REQUIRE_WARNING},
 };
-use indexmap::IndexSet;
+use closure_rhino::fx_hash::IndexSet;
 
 // port: CheckExtraRequiresWithRemoveListTest#getOptions
 // port: CheckExtraRequiresWithRemoveListTest#getProcessor
@@ -30,7 +30,7 @@ fn case() -> LintTestCase {
     LintTestCase::new(|c| {
         Box::new(CheckExtraRequires::new(
             c,
-            Some(IndexSet::from([
+            Some(IndexSet::<_>::from_iter([
                 "xx".to_string(),
                 "yy".to_string(),
                 "zz".to_string(),

@@ -32,13 +32,13 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     check_state,
     js_string::JsString,
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::IndexMap;
 
 /// Tests whether the named JS function is a "property reflector"; a function that treats a string
 /// literal as a property name.
@@ -74,7 +74,7 @@ impl<'a> ColorFindPropertyReferences<'a> {
         is_property_reflector: IsPropertyReflector<'a>,
     ) -> Self {
         Self {
-            prop_index: Some(IndexMap::new()),
+            prop_index: Some(IndexMap::<_, _>::default()),
             color_graph_node_factory,
             arena,
             is_property_reflector,

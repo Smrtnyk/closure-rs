@@ -49,6 +49,7 @@ use crate::{
     reference_collector::ReferenceCollector,
     syntactic_scope_creator::SyntacticScopeCreator,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,
@@ -58,7 +59,6 @@ use closure_rhino::{
     token::Token,
     token_stream::TokenStream,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{
     cell::RefCell,
     collections::VecDeque,
@@ -509,7 +509,7 @@ impl AggressiveInlineAliases {
             check_not_null!(collector.get_references(inner_name_var)).clone()
         };
 
-        let mut new_nodes: IndexSet<AstChange> = IndexSet::new();
+        let mut new_nodes: IndexSet<AstChange> = IndexSet::<_>::default();
 
         for inner_name_ref in inner_name_refs.iter() {
             // replace all references to the inner name other than its declaration
@@ -597,7 +597,7 @@ impl AggressiveInlineAliases {
         }
 
         if let Some(subclass_prop_name_obj) = subclass_prop_name_obj {
-            let mut new_nodes: IndexSet<AstChange> = IndexSet::new();
+            let mut new_nodes: IndexSet<AstChange> = IndexSet::<_>::default();
 
             // Use this node as a template for rewriteNestedAliasReference.
             let mut superclass_name_node = superclass_name_obj
@@ -741,7 +741,7 @@ impl AggressiveInlineAliases {
 
                 check_not_null!(collector.get_references(alias_var)).clone()
             };
-            let mut new_nodes: IndexSet<AstChange> = IndexSet::new();
+            let mut new_nodes: IndexSet<AstChange> = IndexSet::<_>::default();
 
             if alias_refs.is_well_defined(compiler)
                 && (alias_refs.is_assigned_once_in_lifetime(compiler)
@@ -845,7 +845,7 @@ impl AggressiveInlineAliases {
             }
         }
 
-        let mut new_nodes: IndexSet<AstChange> = IndexSet::new();
+        let mut new_nodes: IndexSet<AstChange> = IndexSet::<_>::default();
         let mut already_seen_initial_alias = false;
         let mut found_non_replaceable_alias = false;
         // Do a second iteration through all the alias references, and replace any inlinable
@@ -1104,7 +1104,7 @@ impl AggressiveInlineAliases {
         aliasing_ref: Ref,
         alias_inlinability: Inlinability,
     ) -> IndexSet<AstChange> {
-        let mut new_nodes: IndexSet<AstChange> = IndexSet::new();
+        let mut new_nodes: IndexSet<AstChange> = IndexSet::<_>::default();
         let refs: Vec<Ref> = aliasing_name.get_refs(namespace);
         let initialization_chunk = match aliasing_name.get_initialization(namespace) {
             Some(initialization) => initialization.get_chunk(namespace),
@@ -1681,7 +1681,7 @@ impl InlineAliases {
     // port: InlineAndCollapseProperties.InlineAliases#InlineAliases
     fn new(compiler: &mut AbstractCompiler) -> Self {
         Self {
-            aliases: IndexMap::new(),
+            aliases: IndexMap::<_, _>::default(),
             namespace: None,
             ast_factory: compiler.create_ast_factory(),
         }
@@ -1879,7 +1879,7 @@ impl AliasesInliner<'_> {
     // port: InlineAndCollapseProperties.InlineAliases.AliasesInliner#resolveAlias
     fn resolve_alias(&mut self, t: &mut NodeTraversal<'_>, name: JsString, n: NodeId) -> JsString {
         let mut name = name;
-        let mut alias_path: IndexSet<JsString> = IndexSet::new();
+        let mut alias_path: IndexSet<JsString> = IndexSet::<_>::default();
         while self.outer.aliases.contains_key(&name) {
             if !alias_path.insert(name.clone()) {
                 let path = format!(
@@ -1963,8 +1963,8 @@ impl CollapseProperties {
             have_modules_been_rewritten: false,
             module_resolution_mode: None,
             decisions_log: None,
-            name_map: IndexMap::new(),
-            dynamically_imported_modules: IndexSet::new(),
+            name_map: IndexMap::<_, _>::default(),
+            dynamically_imported_modules: IndexSet::<_>::default(),
         }
     }
 
@@ -2123,7 +2123,7 @@ impl CollapseProperties {
         compiler: &mut AbstractCompiler,
         namespace: &GlobalNamespace,
     ) -> IndexSet<Name> {
-        let mut escaped: IndexSet<Name> = IndexSet::new();
+        let mut escaped: IndexSet<Name> = IndexSet::<_>::default();
         let mut dynamically_imported_module_refs: IndexSet<JsString> =
             self.dynamically_imported_modules.clone();
         if !self.dynamically_imported_modules.is_empty() {

@@ -41,11 +41,11 @@ use crate::node_traversal::Callback;
 use crate::node_traversal::NodeTraversal;
 use closure_rhino::check_not_null;
 use closure_rhino::check_state;
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
-use indexmap::IndexMap;
 use std::sync::LazyLock;
 
 // port: ProcessTweaks#ID_MATCHER
@@ -224,7 +224,7 @@ impl TweakFunction {
 // A map of function name -> TweakFunction.
 // port: ProcessTweaks#TWEAK_FUNCTIONS_MAP
 static TWEAK_FUNCTIONS_MAP: LazyLock<IndexMap<&'static str, TweakFunction>> = LazyLock::new(|| {
-    let mut map = IndexMap::new();
+    let mut map = IndexMap::<_, _>::default();
     for func in TweakFunction::VALUES {
         map.insert(func.get_name(), func);
     }
@@ -294,7 +294,7 @@ impl ProcessTweaks {
     // port: ProcessTweaks#collectTweaks
     fn collect_tweaks(&self, compiler: &mut AbstractCompiler, root: NodeId) -> CollectTweaksResult {
         let mut pass = CollectTweaks {
-            all_tweaks: IndexMap::new(),
+            all_tweaks: IndexMap::<_, _>::default(),
         };
         NodeTraversal::traverse(compiler, root, &mut pass);
 

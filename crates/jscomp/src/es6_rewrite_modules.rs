@@ -54,6 +54,7 @@ use crate::{
 };
 use closure_jstype::{TypeId, js_type_native::JSTypeNative, static_typed_scope::StaticTypedScope};
 use closure_parsing::parser::feature_set::Feature;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     js_string::JsString,
@@ -63,7 +64,6 @@ use closure_rhino::{
     qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, LazyLock, Mutex};
 
 // port: Es6RewriteModules#LHS_OF_GOOG_REQUIRE_MUST_BE_CONST
@@ -197,8 +197,8 @@ impl Es6RewriteModules {
             ast_factory,
             unknown_type,
             preprocessor_symbol_table,
-            names_to_inline_by_alias: IndexMap::new(),
-            typedefs: IndexSet::new(),
+            names_to_inline_by_alias: IndexMap::<_, _>::default(),
+            typedefs: IndexSet::<_>::default(),
             module_metadata_map,
             module_map,
             global_typed_scope,
@@ -222,8 +222,8 @@ impl Es6RewriteModules {
 
     // port: Es6RewriteModules#clearPerFileState
     fn clear_per_file_state(&mut self) {
-        self.typedefs = IndexSet::new();
-        self.names_to_inline_by_alias = IndexMap::new();
+        self.typedefs = IndexSet::<_>::default();
+        self.names_to_inline_by_alias = IndexMap::<_, _>::default();
     }
 
     /// Rust-only: Java's `moduleMap.getModule(ModulePath)` on the non-null module map.
@@ -1067,7 +1067,7 @@ impl Callback for Es6RewriteModules {
             node_traversal.get_scope();
             RewriteRequiresForEs6Modules {
                 outer: self,
-                rename_table: RenameTable::new(),
+                rename_table: RenameTable::default(),
             }
             .rewrite(node_traversal.get_compiler(), n);
             if Self::is_es6_module_root(node_traversal, n) {
@@ -1122,7 +1122,7 @@ struct RewriteRequiresForEs6Modules<'a> {
 impl RewriteRequiresForEs6Modules<'_> {
     // port: Es6RewriteModules.RewriteRequiresForEs6Modules#rewrite
     fn rewrite(&mut self, compiler: &mut AbstractCompiler, script_node: NodeId) {
-        self.rename_table = RenameTable::new();
+        self.rename_table = RenameTable::default();
         NodeTraversal::traverse(compiler, script_node, self);
 
         if !self.rename_table.is_empty() {

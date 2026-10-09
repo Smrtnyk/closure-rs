@@ -33,11 +33,11 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     check_argument, java_lang::double_to_string, js_string::JsString, jsdoc_info::JSDocInfo,
     node::NodeId,
 };
-use indexmap::IndexSet;
 
 // port: CheckEnums#DUPLICATE_ENUM_VALUE
 pub static DUPLICATE_ENUM_VALUE: DiagnosticType = DiagnosticType::disabled(
@@ -160,7 +160,7 @@ impl CheckEnums {
 
     // port: CheckEnums#checkDuplicateEnumValues
     fn check_duplicate_enum_values(t: &mut NodeTraversal<'_>, enum_node: NodeId) {
-        let mut values: IndexSet<JsString> = IndexSet::new();
+        let mut values: IndexSet<JsString> = IndexSet::<_>::default();
         let mut prop = enum_node.get_first_child(t);
         while let Some(p) = prop {
             let value_node = p.get_last_child(t);

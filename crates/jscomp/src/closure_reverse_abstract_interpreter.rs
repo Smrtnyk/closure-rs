@@ -29,12 +29,12 @@ use crate::{
     reverse_abstract_interpreter::ReverseAbstractInterpreter,
 };
 use closure_jstype::{JSTypeNative, JSTypeRegistry, TypeId};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     js_string::JsString,
     node::{Ast, NodeId},
     outcome::Outcome,
 };
-use indexmap::IndexMap;
 use std::sync::{Arc, Weak};
 
 /// Java's `Function<TypeRestriction, JSType>`: the restricter lambdas of `restricters`.
@@ -54,7 +54,7 @@ pub struct ClosureReverseAbstractInterpreter {
 impl ClosureReverseAbstractInterpreter {
     // port: ClosureReverseAbstractInterpreter#ClosureReverseAbstractInterpreter
     pub fn new(_type_registry: &JSTypeRegistry) -> Arc<Self> {
-        let mut restricters: IndexMap<JsString, Restricter> = IndexMap::new();
+        let mut restricters: IndexMap<JsString, Restricter> = IndexMap::<_, _>::default();
         restricters.insert(JsString::from("isObject"), Self::is_object);
         Arc::new_cyclic(|this: &Weak<Self>| Self {
             links: ChainLinks::new(this.clone()),

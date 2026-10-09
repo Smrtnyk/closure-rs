@@ -33,12 +33,12 @@
 
 use crate::{change_tracker::ChangeTracker, compiler::Compiler};
 pub use closure_resources::js::runtime_js_lib_manager::{FieldsTable, RUNTIME_LIB_DIR};
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,
     node::{Ast, NodeId},
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -129,8 +129,8 @@ impl RuntimeJsLibManager {
             change_tracker,
             resource_provider,
             node_for_code_insertion,
-            injected_libs: IndexSet::new(),
-            interned_fields: IndexMap::new(),
+            injected_libs: IndexSet::<_>::default(),
+            interned_fields: IndexMap::<_, _>::default(),
             last_injected_library: None,
         }
     }

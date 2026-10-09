@@ -60,8 +60,8 @@ use closure_jscomp::{
     cross_chunk_reference_collector::CrossChunkReferenceCollector, reference::Reference,
     syntactic_scope_creator::SyntacticScopeCreator, var::VarId,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.CrossChunkReferenceCollectorTest_Helpers";
@@ -198,7 +198,7 @@ impl NativeObject for ReferenceCollectionView {
     }
     // port: ReplayValues#findField (ReferenceCollection#references)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([(
+        Ok(IndexMap::<_, _>::from_iter([(
             "references".to_string(),
             DslValue::List(self.references.clone()),
         )]))
@@ -257,7 +257,7 @@ impl NativeObject for TopLevelStatementView {
     }
     // port: ReplayValues#findField (TopLevelStatement fields)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "originalOrder".to_string(),
                 DslValue::Int(self.original_order),
@@ -312,7 +312,7 @@ impl CollectorView {
         {
             return Err(bad("collector left a block or draft statement behind"));
         }
-        let mut references_by_node: IndexMap<NodeId, DslValue> = IndexMap::new();
+        let mut references_by_node: IndexMap<NodeId, DslValue> = IndexMap::<_, _>::default();
         let mut reference = |r: &Reference| -> DslValue {
             references_by_node
                 .entry(r.get_node())
@@ -402,7 +402,7 @@ fn var_view(compiler: &AbstractCompiler, var: VarId) -> DslValue {
         DslValue::Null
     };
     native(VarView {
-        fields: IndexMap::from([
+        fields: IndexMap::<_, _>::from_iter([
             (
                 "AbstractVar.name".to_string(),
                 DslValue::String(var.get_name(compiler)),
@@ -475,7 +475,7 @@ impl NativeObject for CollectorView {
                 .map(|(.., view)| view.clone())
                 .ok_or_else(|| bad("referenced variable is not a global name"))
         };
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "varsByName".to_string(),
                 DslValue::Map(
@@ -548,7 +548,7 @@ impl NativeObject for ScopeCreatorView {
     }
     // port: ReplayValues#findField (SyntacticScopeCreator fields)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "compiler".to_string(),
                 DslValue::Compiler(self.compiler.clone()),
@@ -582,7 +582,7 @@ impl NativeObject for Holder {
     }
     // port: ReplayValues#findField (CrossChunkReferenceCollectorTest_Helpers#testedCollector)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([(
+        Ok(IndexMap::<_, _>::from_iter([(
             "testedCollector".to_string(),
             self.tested_collector.clone(),
         )]))

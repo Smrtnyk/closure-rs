@@ -30,6 +30,7 @@ use crate::{
     source_file::SourceFile,
 };
 use closure_parsing::{parser::feature_set::FeatureSet, parser_runner::ParserRunner};
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     input_id::InputId,
     ir::IR,
@@ -39,7 +40,6 @@ use closure_rhino::{
     static_source_file::{SourceKind, StaticSourceFile},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{
     fmt,
     hash::{Hash, Hasher},
@@ -627,7 +627,7 @@ impl DepsFinder {
     // port: CompilerInput.DepsFinder#DepsFinder
     fn new(module_path: ModulePath) -> Self {
         Self {
-            load_flags: IndexMap::new(),
+            load_flags: IndexMap::<_, _>::default(),
             provides: vec![],
             requires: vec![],
             type_requires: vec![],

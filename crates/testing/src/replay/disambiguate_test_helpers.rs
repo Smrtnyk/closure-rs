@@ -76,8 +76,8 @@ use closure_jscomp::{
     node_traversal::{AbstractPostOrderCallback, NodeTraversal},
     warnings_guard::{Priority, WarningsGuard},
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId, token::Token};
-use indexmap::{IndexMap, IndexSet};
 use std::{any::Any, cell::RefCell, fmt, rc::Rc, sync::Arc};
 
 // port: ReplayDsl#invoke (resolved signatures backed by native implementations)
@@ -188,7 +188,7 @@ impl NativeObject for NativeAmbiguateProperties {
     }
     // port: UnitRecorder#fields (AmbiguateProperties#renamingMap, the field RESULT_PRODUCERS reads)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([(
+        Ok(IndexMap::<_, _>::from_iter([(
             "renamingMap".into(),
             renaming_map_value(self.0.replay_renaming_map()),
         )]))
@@ -391,7 +391,7 @@ impl NativeObject for ColorDump {
     // port: UnitRecorder#fields (AutoValue_Color)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
         let c = &self.0;
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "subtractNullOrVoid".to_string(),
                 color_value(c.replay_memoized_subtract_null_or_void()),
@@ -456,7 +456,7 @@ impl NativeObject for ColorIdDump {
     }
     // port: UnitRecorder#fields (ColorId)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([(
+        Ok(IndexMap::<_, _>::from_iter([(
             "rightAligned".to_string(),
             DslValue::Long(self.0.right_aligned()),
         )]))
@@ -476,7 +476,7 @@ impl NativeObject for ColorRegistryDump {
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
         let (native_colors, supertype_graph) = self.0.replay_fields();
         let mismatch_locations = self.0.get_mismatch_locations_for_debugging();
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "nativeColors".to_string(),
                 DslValue::Map(
@@ -558,7 +558,7 @@ impl NativeObject for ColorGraphNodeDump {
     // port: UnitRecorder#fields (ColorGraphNode)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
         let arena = self.web.arena.borrow();
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "color".to_string(),
                 color_value(Some(self.id.get_color(&arena))),
@@ -624,7 +624,7 @@ impl NativeObject for PropertyClusteringDump {
             ));
         }
         let (original_name_cluster_rep, last_invalidation) = self.id.replay_fields(&arena);
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "name".to_string(),
                 DslValue::String(self.id.get_name(&arena).clone()),
@@ -668,8 +668,8 @@ impl NativeObject for InvalidationDump {
             name: reason.into(),
         };
         Ok(match receiver_type {
-            None => IndexMap::from([("reason".to_string(), reason)]),
-            Some(receiver_type) => IndexMap::from([
+            None => IndexMap::<_, _>::from_iter([("reason".to_string(), reason)]),
+            Some(receiver_type) => IndexMap::<_, _>::from_iter([
                 ("receiverType".to_string(), DslValue::Int(receiver_type)),
                 ("Invalidation.reason".to_string(), reason),
             ]),
@@ -693,7 +693,7 @@ impl NativeObject for ColorGraphNodeFactoryDump {
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
         let factory = self.factory.borrow();
         let (type_index, registry) = factory.replay_fields();
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "typeIndex".to_string(),
                 type_index_value(&self.web, type_index),
@@ -722,9 +722,9 @@ impl StubColorGraphNodeFactory {
     // port: ColorFindPropertyReferencesTest_Helpers.StubColorGraphNodeFactory#StubColorGraphNodeFactory
     fn new(registry: Arc<ColorRegistry>) -> Self {
         Self {
-            created: IndexSet::new(),
-            created_nodes: IndexMap::new(),
-            base: ColorGraphNodeFactory::new(IndexMap::new(), registry),
+            created: IndexSet::<_>::default(),
+            created_nodes: IndexMap::<_, _>::default(),
+            base: ColorGraphNodeFactory::new(IndexMap::<_, _>::default(), registry),
         }
     }
 }
@@ -768,7 +768,7 @@ impl NativeObject for StubColorGraphNodeFactoryDump {
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
         let stub = self.stub.borrow();
         let (type_index, registry) = stub.base.replay_fields();
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "created".to_string(),
                 DslValue::Set(
@@ -838,7 +838,7 @@ fn color_find_property_references_test_helpers(
         compiler: c,
         strip_externs_source_info,
         property_reflector_names,
-        labeled_statement_map: IndexMap::new(),
+        labeled_statement_map: IndexMap::<_, _>::default(),
         web: Rc::new(Web::default()),
         finder: None,
         flattener: None,
@@ -890,7 +890,7 @@ impl NativeObject for ColorFindPropertyReferencesTestHelpers {
                 stub: stub.clone(),
             })
         };
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "compiler".to_string(),
                 DslValue::Compiler(state.compiler.clone()),
@@ -899,7 +899,7 @@ impl NativeObject for ColorFindPropertyReferencesTestHelpers {
                 "externsCallback".to_string(),
                 native(LambdaDump {
                     class: CFPR_LAMBDA,
-                    captures: IndexMap::new(),
+                    captures: IndexMap::<_, _>::default(),
                 }),
             ),
             ("processor".to_string(), DslValue::Native(processor)),
@@ -960,7 +960,7 @@ impl NativeObject for ColorFindPropertyReferencesDump {
     }
     // port: UnitRecorder#fields (ColorFindPropertyReferences)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "propIndex".to_string(),
                 self.prop_index.clone().unwrap_or(DslValue::Null),
@@ -971,7 +971,7 @@ impl NativeObject for ColorFindPropertyReferencesDump {
                 // (node) -> propertyReflectorNames.contains(node.getQualifiedName())
                 native(LambdaDump {
                     class: CFPR_LAMBDA,
-                    captures: IndexMap::from([(
+                    captures: IndexMap::<_, _>::from_iter([(
                         "arg$1".to_string(),
                         DslValue::Set(
                             self.property_reflector_names
@@ -1000,7 +1000,7 @@ impl NativeObject for LambdaDump {
     }
     // port: ReplayValues#findField (a lambda has no named fields)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: UnitRecorder#dump (lambda captures)
     fn lambda_captures(&self) -> Option<Result<IndexMap<String, DslValue>, Throwable>> {
@@ -1034,12 +1034,12 @@ impl NativeObject for ColorFindPropertyReferencesTestProcessor {
     }
     // port: ReplayValues#findField (a lambda has no named fields)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: UnitRecorder#dump (lambda captures: arg$1 is the holder, arg$2 the reflector names)
     fn lambda_captures(&self) -> Option<Result<IndexMap<String, DslValue>, Throwable>> {
         let state = self.state.borrow();
-        Some(Ok(IndexMap::from([(
+        Some(Ok(IndexMap::<_, _>::from_iter([(
             "arg$2".to_string(),
             DslValue::Set(
                 state
@@ -1236,12 +1236,12 @@ fn color_graph_builder_test_prepare_processor(
         // ColorGraphNodeFactory graphNodeFactory = this.graphNodeFactory;
         // LinkedHashMap<String, ColorGraphNode> testTypes = new LinkedHashMap<>();
         // this.labelToId = new LinkedHashMap<>();
-        let label_to_id = Rc::new(RefCell::new(IndexMap::new()));
+        let label_to_id = Rc::new(RefCell::new(IndexMap::<_, _>::default()));
         holder.label_to_id = Some(label_to_id.clone());
         // this.processor = (externs, main) -> NodeTraversal.traverse(...);
         holder.processor = Some(Rc::new(RefCell::new(ColorGraphBuilderTestProcessor {
             web: holder.web.clone(),
-            test_types: Rc::new(RefCell::new(IndexMap::new())),
+            test_types: Rc::new(RefCell::new(IndexMap::<_, _>::default())),
             graph_node_factory: holder.graph_node_factory.clone(),
             label_to_id,
         })));
@@ -1286,7 +1286,7 @@ impl NativeObject for ColorGraphBuilderTestHelpers {
     }
     // port: ReplayValues#findField (the holder's instance fields, in declaration order)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "compiler".to_string(),
                 DslValue::Compiler(self.compiler.clone()),
@@ -1347,11 +1347,11 @@ impl NativeObject for ColorGraphBuilderTestProcessor {
     }
     // port: ReplayValues#findField (a lambda has no named fields)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: UnitRecorder#dump (lambda captures; arg$1, the holder, is not modelled)
     fn lambda_captures(&self) -> Option<Result<IndexMap<String, DslValue>, Throwable>> {
-        Some(Ok(IndexMap::from([
+        Some(Ok(IndexMap::<_, _>::from_iter([
             (
                 "arg$2".to_string(),
                 DslValue::Map(

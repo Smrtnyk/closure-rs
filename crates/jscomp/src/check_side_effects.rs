@@ -26,13 +26,13 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     check_state,
     ir::IR,
     js_string::JsString,
     node::{NodeId, Prop},
 };
-use indexmap::IndexSet;
 
 // port: CheckSideEffects#USELESS_CODE_ERROR
 pub static USELESS_CODE_ERROR: DiagnosticType =
@@ -76,7 +76,7 @@ impl CheckSideEffects {
         Self {
             report,
             problem_nodes: Vec::new(),
-            no_side_effect_externs: IndexSet::new(),
+            no_side_effect_externs: IndexSet::<_>::default(),
             protect_side_effect_free_code,
             preserve_function_injected: false,
         }

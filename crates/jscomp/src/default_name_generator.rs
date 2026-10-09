@@ -17,8 +17,8 @@
 //   src/com/google/javascript/jscomp/DefaultNameGenerator.java.
 
 use crate::name_generator::{NameGenerator, ReservedNames};
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, token_stream::TokenStream};
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, RwLock};
 
 pub const FIRST_CHAR: &[u16] =
@@ -99,9 +99,9 @@ impl DefaultNameGenerator {
     }
     // port: DefaultNameGenerator#DefaultNameGenerator()
     pub fn new() -> Self {
-        let reserved_names = Arc::new(RwLock::new(IndexSet::new()));
+        let reserved_names = Arc::new(RwLock::new(IndexSet::<_>::default()));
         let mut result = Self {
-            priority_lookup_map: IndexMap::new(),
+            priority_lookup_map: IndexMap::<_, _>::default(),
             reserved_names: reserved_names.clone(),
             prefix: JsString::from(""),
             name_count: 0,
@@ -109,7 +109,11 @@ impl DefaultNameGenerator {
             non_first_chars: Vec::new(),
         };
         result.build_priority_lookup_map();
-        result.reset(reserved_names, JsString::from(""), &IndexSet::new());
+        result.reset(
+            reserved_names,
+            JsString::from(""),
+            &IndexSet::<_>::default(),
+        );
         result
     }
     // port: DefaultNameGenerator#DefaultNameGenerator(Set,String,Set)
@@ -133,7 +137,7 @@ impl DefaultNameGenerator {
         non_first: &IndexSet<u16>,
     ) -> Self {
         let mut result = Self {
-            priority_lookup_map: IndexMap::new(),
+            priority_lookup_map: IndexMap::<_, _>::default(),
             reserved_names: reserved_names.clone(),
             prefix: prefix.clone(),
             name_count: 0,
@@ -152,7 +156,10 @@ impl DefaultNameGenerator {
         priority_lookup_map: &IndexMap<u16, CharPriority>,
     ) -> Self {
         let mut result = Self {
-            priority_lookup_map: IndexMap::with_capacity(NONFIRST_CHAR.len()),
+            priority_lookup_map: IndexMap::with_capacity_and_hasher(
+                NONFIRST_CHAR.len(),
+                Default::default(),
+            ),
             reserved_names: reserved_names.clone(),
             prefix: prefix.clone(),
             name_count: 0,
@@ -172,7 +179,8 @@ impl DefaultNameGenerator {
     }
     // port: DefaultNameGenerator#buildPriorityLookupMap
     fn build_priority_lookup_map(&mut self) {
-        self.priority_lookup_map = IndexMap::with_capacity(NONFIRST_CHAR.len());
+        self.priority_lookup_map =
+            IndexMap::with_capacity_and_hasher(NONFIRST_CHAR.len(), Default::default());
         let mut order: i32 = 0;
         for &c in NONFIRST_CHAR {
             self.priority_lookup_map

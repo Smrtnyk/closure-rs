@@ -34,12 +34,12 @@ use closure_jscomp::js_message_visitor::{
 use closure_jscomp::node_traversal::{Callback, NodeTraversal};
 use closure_jscomp::source_file::SourceFile;
 use closure_jscomp::source_map_input::SourceMapInput;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use closure_sourcemap::file_position::FilePosition;
 use closure_sourcemap::source_map_generator_v3::SourceMapGeneratorV3;
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 fn s(value: &str) -> JsString {
@@ -301,7 +301,7 @@ fn test_icu_template_parsing() {
         "other {I see {INTERPOLATION_1} and # other people in {INTERPOLATION_2}.}\n",
         "}\n"
     ));
-    let extracted_parts = icu_message_template_string.extract_parts(&IndexSet::from([
+    let extracted_parts = icu_message_template_string.extract_parts(&IndexSet::<_>::from_iter([
         s("INTERPOLATION_1"),
         s("INTERPOLATION_2"),
         s("MISSING"),
@@ -549,7 +549,7 @@ fn test_js_messages_with_src_map() {
     fx.compiler_options
         .as_mut()
         .unwrap()
-        .set_input_source_maps(IndexMap::from([(
+        .set_input_source_maps(IndexMap::<_, _>::from_iter([(
             "testcode".to_string(),
             Arc::new(SourceMapInput::new(Arc::new(SourceFile::from_code(
                 "example.srcmap",
@@ -1641,12 +1641,12 @@ fn test_get_msg_with_options() {
     // `example: { 'name': 'George' }`
     assert_eq!(
         msg.get_placeholder_name_to_example_map(),
-        &IndexMap::from([(s("name"), s("George"))])
+        &IndexMap::<_, _>::from_iter([(s("name"), s("George"))])
     );
     // `original_code: {'name': 'getName()' }`
     assert_eq!(
         msg.get_placeholder_name_to_original_code_map(),
-        &IndexMap::from([(s("name"), s("getName()"))])
+        &IndexMap::<_, _>::from_iter([(s("name"), s("getName()"))])
     );
 }
 

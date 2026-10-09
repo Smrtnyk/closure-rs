@@ -19,6 +19,7 @@
 #![allow(clippy::match_like_matches_macro)] // Retain Java switch bodies.
 use crate::{abstract_compiler::AbstractCompiler, scope::ScopeId};
 use closure_jstype::js_type::JSType as _;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     dtoa::d_to_a,
@@ -34,7 +35,6 @@ use closure_rhino::{
     token::Token,
     token_util::TokenUtil,
 };
-use indexmap::{IndexMap, IndexSet};
 use num_bigint::BigInt;
 use std::sync::{Arc, LazyLock};
 pub struct NodeUtil;
@@ -4642,7 +4642,7 @@ impl NodeUtil {
             &mut scope_creator,
         );
         externs_refs.process(compiler, externs);
-        let mut externs_names = IndexSet::new();
+        let mut externs_names = IndexSet::<_>::default();
         for v in externs_refs.get_all_symbols() {
             if !v.is_param(compiler) {
                 externs_names.insert(v.get_name(compiler));
@@ -4849,7 +4849,7 @@ impl NodeUtil {
             }
         }
         let mut finder = Finder {
-            name_vars: IndexSet::new(),
+            name_vars: IndexSet::<_>::default(),
         };
         NodeTraversal::builder()
             .set_compiler(compiler)
@@ -4904,7 +4904,7 @@ impl NodeUtil {
             }
         }
         let mut finder = Finder {
-            name_var_map: IndexMap::new(),
+            name_var_map: IndexMap::<_, _>::default(),
             ordered_vars: Vec::new(),
             scope,
         };

@@ -23,12 +23,12 @@ use closure_jscomp::{
     module_identifier::ModuleIdentifier, show_by_path_warnings_guard::ShowByPathWarningsGuard,
 };
 use closure_parsing::parser::feature_set::FeatureSet;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     java_lang::{double_to_string, pattern::Pattern},
     js_string::JsString,
 };
 use closure_testing::json::{JsString as RecordString, JsonValue as Value};
-use indexmap::{IndexMap, IndexSet};
 use std::{
     path::{Path, PathBuf},
     sync::Arc,

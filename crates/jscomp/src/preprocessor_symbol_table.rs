@@ -21,12 +21,12 @@ use closure_jstype::{
     JSTypeRegistry, TypeId, simple_reference::SimpleReference, simple_slot::SimpleSlot,
     static_typed_scope::StaticTypedScope, static_typed_slot::StaticTypedSlot,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     check_not_null,
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::IndexMap;
 use std::sync::{Arc, Mutex};
 
 /// A symbol table for references that are removed by preprocessor passes (like
@@ -49,8 +49,8 @@ impl PreprocessorSymbolTable {
     // port: PreprocessorSymbolTable#PreprocessorSymbolTable
     pub fn new(root: Option<NodeId>) -> Self {
         Self {
-            symbols: IndexMap::new(),
-            refs: IndexMap::new(),
+            symbols: IndexMap::<_, _>::default(),
+            refs: IndexMap::<_, _>::default(),
             root,
         }
     }

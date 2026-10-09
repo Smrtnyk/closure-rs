@@ -48,8 +48,8 @@ use crate::{
     throwable::Throwable,
 };
 use closure_jscomp::compiler_options::CompilerOptions;
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.ExternExportsPassTest_Helpers";
@@ -88,7 +88,7 @@ impl NativeObject for ExternExportsPassTestHelpers {
     }
     // port: ReplayValues#findField (the holder declares no fields of its own)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: ReplayDsl#invoke (receiver cast)
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -137,7 +137,7 @@ impl NativeObject for Postcondition {
     }
     // port: ReplayValues#findField (lambda: its capture `consumer` as arg$1)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([(
+        Ok(IndexMap::<_, _>::from_iter([(
             "arg$1".to_string(),
             self.consumer.clone(),
         )]))
@@ -200,7 +200,7 @@ impl NativeObject for CompileAndCheckConsumer {
     }
     // port: ReplayValues#findField (lambda: its capture `expected` as arg$1)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([(
+        Ok(IndexMap::<_, _>::from_iter([(
             "arg$1".to_string(),
             DslValue::String(self.expected.clone()),
         )]))
@@ -310,7 +310,7 @@ impl NativeObject for UseExportsAsExternsWithClassConsumer {
     }
     // port: ReplayValues#findField (lambda: its captures as arg$1, arg$2)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             ("arg$1".to_string(), self.holder.clone()),
             (
                 "arg$2".to_string(),
@@ -381,7 +381,7 @@ fn compile_and_export_externs(
         ctx: Ctx::new(
             "ExternExportsPassTest_Helpers".into(),
             crate::replay::replay_values::object([]),
-            IndexMap::new(),
+            IndexMap::<_, _>::default(),
             crate::replay::registry::Registry::from_tsv(
                 "descriptor\tlookup\tdeclaringClass\tsignature\twidened\n",
             )?,

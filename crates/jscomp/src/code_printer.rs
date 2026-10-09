@@ -26,13 +26,13 @@ use crate::{
 };
 use closure_jstype::JSTypeRegistry;
 use closure_parsing::parser::feature_set::Feature;
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     check_state,
     js_string::JsString,
     node::{Ast, NodeId},
 };
 use closure_sourcemap::file_position::FilePosition;
-use indexmap::IndexSet;
 use std::{any::Any, collections::VecDeque, ops::Deref};
 
 /// CodePrinter prints out JS code in either pretty format or compact format.

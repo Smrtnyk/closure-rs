@@ -30,9 +30,9 @@ use crate::scope::ScopeId;
 use crate::scope_creator::ScopeCreator;
 use crate::var::VarId;
 use closure_rhino::check_state;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
-use indexmap::{IndexMap, IndexSet};
 use std::collections::VecDeque;
 use std::sync::Arc;
 
@@ -98,11 +98,11 @@ impl<'a> ReferenceCollector<'a> {
     ) -> Self {
         Self {
             callback: CollectorCallback {
-                reference_map: IndexMap::new(),
+                reference_map: IndexMap::<_, _>::default(),
                 block_stack: VecDeque::new(),
                 behavior: Box::new(behavior),
                 var_filter,
-                collected_hoisted_functions: IndexSet::new(),
+                collected_hoisted_functions: IndexSet::<_>::default(),
                 narrow_scope: None,
             },
             scope_creator: creator,

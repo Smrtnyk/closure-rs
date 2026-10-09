@@ -38,6 +38,7 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   test/com/google/javascript/rhino/JSDocInfoTest.java.
 
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     js_string::JsString,
     js_type_expression::JSTypeExpression,
@@ -45,7 +46,6 @@ use closure_rhino::{
     node::Ast,
     token::Token,
 };
-use indexmap::IndexSet;
 use std::sync::Arc;
 // port: JSDocInfoTest#fromString
 fn from_string(ast: &mut Ast, s: &str) -> Option<Arc<JSTypeExpression>> {
@@ -279,7 +279,7 @@ fn test_set_file_overview_with_documentation_on() {
 fn test_set_suppressions() {
     let mut builder = JSDocInfo::builder();
     builder.parse_documentation();
-    builder.record_suppressions(&IndexSet::from([
+    builder.record_suppressions(&IndexSet::<_>::from_iter([
         JsString::from("sam"),
         JsString::from("bob"),
     ]));
@@ -287,7 +287,7 @@ fn test_set_suppressions() {
     let info = builder.build().unwrap();
     assert_eq!(
         info.get_suppressions(),
-        IndexSet::from([
+        IndexSet::<_>::from_iter([
             JsString::from("bob"),
             JsString::from("sam"),
             JsString::from("fred")
@@ -299,19 +299,19 @@ fn test_set_suppressions() {
 fn test_set_modifies() {
     let mut builder = JSDocInfo::builder();
     builder.parse_documentation();
-    builder.record_modifies(&IndexSet::from([JsString::from("this")]));
+    builder.record_modifies(&IndexSet::<_>::from_iter([JsString::from("this")]));
     let mut info = builder.build().unwrap();
     assert_eq!(
         info.get_modifies(),
-        IndexSet::from([JsString::from("this")])
+        IndexSet::<_>::from_iter([JsString::from("this")])
     );
     builder = JSDocInfo::builder();
     builder.parse_documentation();
-    builder.record_modifies(&IndexSet::from([JsString::from("arguments")]));
+    builder.record_modifies(&IndexSet::<_>::from_iter([JsString::from("arguments")]));
     info = builder.build().unwrap();
     assert_eq!(
         info.get_modifies(),
-        IndexSet::from([JsString::from("arguments")])
+        IndexSet::<_>::from_iter([JsString::from("arguments")])
     );
 }
 // port: JSDocInfoTest#testAddSingleTemplateTypeName
@@ -438,7 +438,7 @@ fn test_no_closure_unaware_per_file_mode_defaults_to_unspecified() {
 fn test_removes_module_local_names() {
     let mut ast = Ast::new();
     let expr = create_sample_type_expression(&mut ast);
-    let names = IndexSet::from([JsString::from("Item"), JsString::from("AnotherItem")]);
+    let names = IndexSet::<_>::from_iter([JsString::from("Item"), JsString::from("AnotherItem")]);
     let new_expr = expr.replace_names_with_unknown_type(&mut ast, &names);
     let replaced = new_expr.get_all_type_names(&ast);
     assert!(!replaced.contains(&JsString::from("Item")));
@@ -454,7 +454,7 @@ fn test_jsdoc_info_clone_and_replace_names_params() {
     let expr = create_sample_type_expression(&mut ast);
     builder.record_parameter("a", Some(expr.clone()));
     let info = builder.build().unwrap();
-    let names = IndexSet::from([JsString::from("Item"), JsString::from("AnotherItem")]);
+    let names = IndexSet::<_>::from_iter([JsString::from("Item"), JsString::from("AnotherItem")]);
     let cloned = info.clone_and_replace_type_names(&mut ast, &names);
     assert_eq!(cloned.get_parameter_count(), 1);
     assert_eq!(cloned.get_parameter_name_at(0), Some(JsString::from("a")));
@@ -474,7 +474,7 @@ fn test_jsdoc_info_clone_and_replace_names_type() {
     let expr = create_sample_type_expression(&mut ast);
     builder.record_type(Some(expr.clone()));
     let info = builder.build().unwrap();
-    let names = IndexSet::from([JsString::from("Item"), JsString::from("AnotherItem")]);
+    let names = IndexSet::<_>::from_iter([JsString::from("Item"), JsString::from("AnotherItem")]);
     let cloned = info.clone_and_replace_type_names(&mut ast, &names);
     let t = cloned.get_type().unwrap();
     assert!(!Arc::ptr_eq(&t, &expr));
@@ -492,7 +492,7 @@ fn test_jsdoc_info_clone_and_replace_names_type_root_replacement() {
     let expr = create_sample_type_expression_root_replacement(&mut ast);
     builder.record_type(Some(expr.clone()));
     let info = builder.build().unwrap();
-    let names = IndexSet::from([JsString::from("Item"), JsString::from("AnotherItem")]);
+    let names = IndexSet::<_>::from_iter([JsString::from("Item"), JsString::from("AnotherItem")]);
     let cloned = info.clone_and_replace_type_names(&mut ast, &names);
     let t = cloned.get_type().unwrap();
     assert!(!Arc::ptr_eq(&t, &expr));
@@ -512,7 +512,7 @@ fn test_jsdoc_info_clone_and_replace_names_type_single_node() {
     let expr = Arc::new(JSTypeExpression::new(root, ""));
     builder.record_type(Some(expr.clone()));
     let info = builder.build().unwrap();
-    let names = IndexSet::from([JsString::from("Item"), JsString::from("AnotherItem")]);
+    let names = IndexSet::<_>::from_iter([JsString::from("Item"), JsString::from("AnotherItem")]);
     let cloned = info.clone_and_replace_type_names(&mut ast, &names);
     let t = cloned.get_type().unwrap();
     assert!(!Arc::ptr_eq(&t, &expr));

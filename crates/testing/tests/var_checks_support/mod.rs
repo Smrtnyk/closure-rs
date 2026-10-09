@@ -43,6 +43,7 @@
 use closure_jscomp::{
     compiler_options::CompilerOptions, compiler_pass::CompilerPass, diagnostic_type::DiagnosticType,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_testing::{
     compiler_test_case::{
@@ -54,7 +55,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 type Processor = Box<dyn FnMut(CompilerHandle) -> Box<dyn CompilerPass>>;
@@ -77,7 +77,7 @@ impl Hooks {
             ctx: Ctx::new(
                 class.into(),
                 closure_testing::replay::replay_values::object([]),
-                IndexMap::new(),
+                IndexMap::<_, _>::default(),
                 Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                     .unwrap(),
             ),

@@ -57,12 +57,12 @@ use crate::modules::module_map::ModuleMap;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::scope::ScopeId;
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
 use closure_rhino::token::Token;
 use closure_rhino::{check_not_null, check_state};
-use indexmap::IndexMap;
 use std::sync::Arc;
 
 // port: RewriteGoogJsImports#GOOG_JS_IMPORT_MUST_BE_GOOG_STAR
@@ -121,14 +121,14 @@ impl RewriteGoogJsImports {
             mode,
             module_map,
             goog_module: None,
-            module_replacements: IndexMap::new(),
+            module_replacements: IndexMap::<_, _>::default(),
         }
     }
 
     // port: RewriteGoogJsImports#changeModules
     fn change_modules(&mut self, compiler: &mut AbstractCompiler) {
-        let mut resolved_modules: IndexMap<String, Arc<Module>> = IndexMap::new();
-        let mut closure_modules: IndexMap<JsString, Arc<Module>> = IndexMap::new();
+        let mut resolved_modules: IndexMap<String, Arc<Module>> = IndexMap::<_, _>::default();
+        let mut closure_modules: IndexMap<JsString, Arc<Module>> = IndexMap::<_, _>::default();
 
         for (key, value) in self.module_map.get_modules_by_path() {
             let new_module = self.get_replacement_or_default(value);

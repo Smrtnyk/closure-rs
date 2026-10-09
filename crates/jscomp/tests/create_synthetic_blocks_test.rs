@@ -38,6 +38,7 @@ use closure_jscomp::{
     peephole_remove_dead_code::PeepholeRemoveDeadCode,
 };
 use closure_parsing::parser::feature_set::FeatureSet;
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
@@ -47,7 +48,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 // port: CreateSyntheticBlocksTest#START_MARKER
@@ -123,7 +123,7 @@ impl CreateSyntheticBlocksTest {
                 ctx: Ctx::new(
                     "CreateSyntheticBlocksTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

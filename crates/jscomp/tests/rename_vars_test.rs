@@ -36,8 +36,8 @@ use closure_jscomp::{
     source_file::SourceFile,
     variable_map::VariableMap,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId, testing::node_subject::assert_node};
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 // port: CompilerTestCase#GENERATED_SRC_NAME
@@ -96,8 +96,8 @@ fn get_processor() -> RenameVars {
         /* localRenamingOnly= */ false,
         /* generatePseudoNames= */ false,
         /* preferStableNames= */ false,
-        Some(Arc::new(VariableMap::new(&IndexMap::new()))),
-        IndexSet::new(),
+        Some(Arc::new(VariableMap::new(&IndexMap::<_, _>::default()))),
+        IndexSet::<_>::default(),
         None,
         Box::new(DefaultNameGenerator::new()),
     )
@@ -213,7 +213,7 @@ fn make_variable_map(key_val_pairs: &[&str]) -> VariableMap {
     assert!(key_val_pairs.len().is_multiple_of(2));
 
     // ImmutableMap.Builder#buildOrThrow: a duplicate key throws.
-    let mut rename_map = IndexMap::new();
+    let mut rename_map = IndexMap::<_, _>::default();
     for pair in key_val_pairs.chunks(2) {
         let previous = rename_map.insert(JsString::from(pair[0]), JsString::from(pair[1]));
         assert!(

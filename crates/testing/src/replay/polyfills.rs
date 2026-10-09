@@ -60,8 +60,8 @@ use closure_jscomp::{
     polyfill_usage_finder::Polyfills,
     rewrite_polyfills::RewritePolyfills,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, rc::Rc};
 
 const POLYFILLS: &str = "com.google.javascript.jscomp.PolyfillUsageFinder$Polyfills";
@@ -332,11 +332,11 @@ fn rewrite_polyfills_test_helpers(
     }
     Ok(DslValue::Object(Rc::new(RefCell::new(Object {
         class: REWRITE_POLYFILLS_TEST_HELPERS.into(),
-        fields: IndexMap::from([
+        fields: IndexMap::<_, _>::from_iter([
             ("injectableLibraries".into(), DslValue::Map(vec![])),
             ("injectBeforePass".into(), DslValue::Set(vec![])),
         ]),
-        field_types: IndexMap::from([
+        field_types: IndexMap::<_, _>::from_iter([
             ("injectableLibraries".into(), "java.util.Map".into()),
             ("injectBeforePass".into(), "java.util.Set".into()),
         ]),
@@ -358,7 +358,7 @@ fn create_runtime_js_lib_manager_helper(
         return Err(bad());
     };
     let outer = outer.borrow();
-    let mut injectable_libraries = IndexMap::new();
+    let mut injectable_libraries = IndexMap::<_, _>::default();
     match outer.fields.get("injectableLibraries") {
         Some(DslValue::Map(entries)) => {
             for (k, v) in entries {
@@ -375,7 +375,7 @@ fn create_runtime_js_lib_manager_helper(
         },
         _ => return Err(bad()),
     }
-    let mut inject_before_pass = IndexSet::new();
+    let mut inject_before_pass = IndexSet::<_>::default();
     let items = match outer.fields.get("injectBeforePass") {
         Some(DslValue::Set(items) | DslValue::List(items)) => items,
         Some(DslValue::Typed { value, .. }) => match value.as_ref() {

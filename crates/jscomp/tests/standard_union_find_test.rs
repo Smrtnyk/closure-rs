@@ -17,7 +17,7 @@
 //   test/com/google/javascript/jscomp/graph/StandardUnionFindTest.java.
 
 use closure_jscomp::graph::{standard_union_find::StandardUnionFind, union_find::UnionFind};
-use indexmap::IndexSet;
+use closure_rhino::fx_hash::IndexSet;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 // port: StandardUnionFindTest#setUp
 fn set_up() -> StandardUnionFind<&'static str> {
@@ -95,9 +95,9 @@ fn test_all_equivalence_classes() {
 
     let classes = union.all_equivalence_classes();
     assert_eq!(classes.len(), 3);
-    assert!(classes.contains(&IndexSet::from(["A", "B", "C"])));
-    assert!(classes.contains(&IndexSet::from(["D", "E"])));
-    assert!(classes.contains(&IndexSet::from(["F"])));
+    assert!(classes.contains(&IndexSet::<_>::from_iter(["A", "B", "C"])));
+    assert!(classes.contains(&IndexSet::<_>::from_iter(["D", "E"])));
+    assert!(classes.contains(&IndexSet::<_>::from_iter(["F"])));
 }
 // port: StandardUnionFindTest#testFindAll
 #[test]
@@ -112,7 +112,7 @@ fn test_find_all() {
     let a_set = union.find_all("A");
     assert_eq!(
         a_set.iterator(&mut union).collect::<IndexSet<_>>(),
-        IndexSet::from(["A", "B"])
+        IndexSet::<_>::from_iter(["A", "B"])
     );
 
     union.union("B", "C");
@@ -176,7 +176,10 @@ fn test_elements() {
     union.union("D", "E");
 
     let elements = union.elements();
-    assert_eq!(elements, IndexSet::from(["A", "B", "C", "D", "E"]));
+    assert_eq!(
+        elements,
+        IndexSet::<_>::from_iter(["A", "B", "C", "D", "E"])
+    );
     assert!(!elements.contains("F"));
 }
 // port: StandardUnionFindTest#testCopy
@@ -191,13 +194,13 @@ fn test_copy() {
         copy.find_all("Z")
             .iterator(&mut copy)
             .collect::<IndexSet<_>>(),
-        IndexSet::from(["A", "B", "Z"])
+        IndexSet::<_>::from_iter(["A", "B", "Z"])
     );
     assert_eq!(
         copy.find_all("X")
             .iterator(&mut copy)
             .collect::<IndexSet<_>>(),
-        IndexSet::from(["X", "Y"])
+        IndexSet::<_>::from_iter(["X", "Y"])
     );
 }
 // port: StandardUnionFindTest#testChangesToCopyDontAffectOriginal
@@ -213,20 +216,20 @@ fn test_changes_to_copy_dont_affect_original() {
         copy.find_all("D")
             .iterator(&mut copy)
             .collect::<IndexSet<_>>(),
-        IndexSet::from(["A", "B", "C", "D"])
+        IndexSet::<_>::from_iter(["A", "B", "C", "D"])
     );
     assert_eq!(
         union
             .find_all("A")
             .iterator(&mut union)
             .collect::<IndexSet<_>>(),
-        IndexSet::from(["A", "B", "C"])
+        IndexSet::<_>::from_iter(["A", "B", "C"])
     );
     assert_eq!(
         copy.find_all("X")
             .iterator(&mut copy)
             .collect::<IndexSet<_>>(),
-        IndexSet::from(["X", "Y"])
+        IndexSet::<_>::from_iter(["X", "Y"])
     );
     assert!(
         catch_unwind(AssertUnwindSafe(|| {
@@ -261,8 +264,14 @@ fn rust_only_nullable_elements_and_representatives() {
     nullable.add(None);
     nullable.union(None, Some("x"));
     assert_eq!(nullable.find(&Some("x")), None);
-    assert_eq!(nullable.elements(), IndexSet::from([None, Some("x")]));
-    assert_eq!(nullable.all_representatives(), IndexSet::from([None]));
+    assert_eq!(
+        nullable.elements(),
+        IndexSet::<_>::from_iter([None, Some("x")])
+    );
+    assert_eq!(
+        nullable.all_representatives(),
+        IndexSet::<_>::from_iter([None])
+    );
     assert_eq!(
         nullable
             .find_all(None)

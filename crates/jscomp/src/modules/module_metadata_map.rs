@@ -18,12 +18,12 @@
 
 //! Contains metadata around modules (or scripts) that is useful for checking imports / requires.
 use crate::deps::module_loader::ModulePath;
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     check_state,
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::IndexMap;
 use std::{fmt, hash::Hash, sync::Arc};
 
 /// Guava's `ImmutableMultiset` / `LinkedHashMultiset`: distinct elements in first-insertion
@@ -37,7 +37,7 @@ pub struct Multiset<E: Hash + Eq> {
 impl<E: Hash + Eq> Default for Multiset<E> {
     fn default() -> Self {
         Self {
-            counts: IndexMap::new(),
+            counts: IndexMap::<_, _>::default(),
         }
     }
 }
@@ -187,7 +187,7 @@ impl ModuleMetadataMap {
 
     // port: ModuleMetadataMap#emptyForTesting
     pub fn empty_for_testing() -> Self {
-        Self::new(IndexMap::new(), IndexMap::new())
+        Self::new(IndexMap::<_, _>::default(), IndexMap::<_, _>::default())
     }
 }
 

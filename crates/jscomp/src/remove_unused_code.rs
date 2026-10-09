@@ -73,6 +73,7 @@ use crate::{
     var::VarId,
 };
 use closure_resources::resources::resource_loader::ResourceLoader;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,
@@ -80,7 +81,6 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{collections::VecDeque, sync::Arc};
 
 /// Properties that are implicitly used as part of the JS language.
@@ -179,7 +179,7 @@ impl RemoveUnusedCode {
             remove_globals: builder.remove_globals,
             preserve_function_expression_names: builder.preserve_function_expression_names,
             worklist: VecDeque::new(),
-            var_info_map: IndexMap::new(),
+            var_info_map: IndexMap::<_, _>::default(),
             pinned_property_names: IMPLICITLY_USED_PROPERTIES
                 .iter()
                 .map(|s| JsString::from(*s))
@@ -188,7 +188,7 @@ impl RemoveUnusedCode {
             canonical_unremovable_var_info: VarInfoId(0),
             all_function_param_scopes: Vec::new(),
             polyfills: JavaHashMultimap::create(),
-            guarded_usages: IndexSet::new(),
+            guarded_usages: IndexSet::<_>::default(),
             polyfills_from_table,
             scope_creator,
             remove_unused_prototype_properties: builder.remove_unused_prototype_properties,
@@ -1203,7 +1203,7 @@ impl<V: Copy + Eq> JavaHashMultimap<V> {
         Self {
             table: Vec::new(),
             threshold: 0,
-            values: IndexMap::new(),
+            values: IndexMap::<_, _>::default(),
         }
     }
 

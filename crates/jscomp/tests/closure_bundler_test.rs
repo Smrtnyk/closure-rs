@@ -29,8 +29,8 @@ use closure_jscomp::{
         transpiler::Transpiler,
     },
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{java_lang::uri::URI, js_string::JsString};
-use indexmap::IndexMap;
 use std::sync::{Arc, LazyLock};
 
 // port: ClosureBundlerTest#MODULE
@@ -218,7 +218,7 @@ fn test_es6_module() {
         .with_path("nested/path/foo.js");
     let mut sb = String::new();
     bundler.append_runtime_to(&mut sb).unwrap();
-    let mut load_flags = IndexMap::new();
+    let mut load_flags = IndexMap::<_, _>::default();
     load_flags.insert("module".to_string(), "es6".to_string());
     bundler
         .append_to(

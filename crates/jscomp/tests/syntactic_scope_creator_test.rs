@@ -27,10 +27,10 @@ use closure_jscomp::{
     syntactic_scope_creator::{RedeclarationHandler, SyntacticScopeCreator},
     var::VarId,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     ir::IR, js_string::JsString, node::NodeId, static_source_file::SourceKind, token::Token,
 };
-use indexmap::IndexMap;
 use std::sync::{Arc, Mutex};
 
 struct RecordingRedeclarationHandler(Arc<Mutex<IndexMap<JsString, usize>>>);
@@ -57,7 +57,7 @@ fn set_up() -> (
     let mut options = CompilerOptions::new();
     options.set_language_in(LanguageMode::UNSUPPORTED);
     compiler.init_options(options);
-    let redeclarations = Arc::new(Mutex::new(IndexMap::new()));
+    let redeclarations = Arc::new(Mutex::new(IndexMap::<_, _>::default()));
     let scope_creator = SyntacticScopeCreator::new_with_redeclaration_handler(Box::new(
         RecordingRedeclarationHandler(redeclarations.clone()),
     ));

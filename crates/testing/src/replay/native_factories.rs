@@ -39,8 +39,8 @@ use crate::{
     replay::replay_dsl::{Ctx, DslValue, Lambda, invoke_lambda_with_compiler, process_in_compiler},
     throwable::Throwable,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -51,7 +51,7 @@ use std::{
 };
 
 thread_local! {
-    static FACTORIES: RefCell<IndexMap<u64,Rc<Lambda>>> = RefCell::new(IndexMap::new());
+    static FACTORIES: RefCell<IndexMap<u64,Rc<Lambda>>> = RefCell::new(IndexMap::<_, _>::default());
     static CONTEXTS: RefCell<Vec<Rc<RefCell<Ctx>>>> = const { RefCell::new(Vec::new()) };
 }
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);

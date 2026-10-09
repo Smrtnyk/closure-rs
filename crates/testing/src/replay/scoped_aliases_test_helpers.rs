@@ -41,8 +41,8 @@ use crate::{
     throwable::Throwable,
 };
 use closure_jscomp::node_traversal::{Callback, NodeTraversal};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{node::NodeId, testing::node_subject::assert_node};
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const TYPE_VERIFYING_PASS: &str =
@@ -154,7 +154,7 @@ impl NativeObject for TypeVerifyingPass {
     // port: UnitRecorder#collect (fields of a value reachable from the processor)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
         // compiler and actualTypes: neither reaches a recorded result producer.
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self

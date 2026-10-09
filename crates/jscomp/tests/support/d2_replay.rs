@@ -23,8 +23,8 @@ use closure_jscomp::{
     sorting_error_manager::SortingErrorManager, source_excerpt_provider::SourceExcerptProvider,
     source_file::SourceFile, sourcemap_mapping_placeholder::OriginalMapping,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{node::Ast, static_source_file::SourceKind, token::Token};
-use indexmap::IndexMap;
 use serde_json::Value;
 use std::{
     io::{self, Write},
@@ -104,8 +104,8 @@ fn number(value: &Value) -> i32 {
 }
 pub fn render(row: &Value, types: &mut IndexMap<String, &'static DiagnosticType>) -> String {
     let mut provider = Provider {
-        files: IndexMap::new(),
-        mappings: IndexMap::new(),
+        files: IndexMap::<_, _>::default(),
+        mappings: IndexMap::<_, _>::default(),
     };
     for (name, source) in row["sources"].as_object().unwrap() {
         let file = if source.is_null() {

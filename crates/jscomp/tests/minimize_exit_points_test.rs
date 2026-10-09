@@ -24,6 +24,7 @@ use closure_jscomp::{
     minimize_exit_points::MinimizeExitPoints,
     peephole_optimizations_pass::PeepholeOptimizationsPass,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
     replay::{
@@ -32,7 +33,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 struct MinimizeExitPointsTest {
@@ -78,7 +78,7 @@ impl MinimizeExitPointsTest {
                 ctx: Ctx::new(
                     "MinimizeExitPointsTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

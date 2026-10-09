@@ -100,7 +100,7 @@
 //   java.base/sun/nio/fs/UnixFileSystem.java.
 
 //! The Unix glob grammar and regular-expression subset emitted by the JDK.
-use indexmap::IndexSet;
+use closure_rhino::fx_hash::IndexSet;
 
 #[derive(Clone, Debug)]
 enum Token {
@@ -172,7 +172,7 @@ impl Glob {
     // port: Matcher#matches (the regular-expression subset emitted by Globs)
     pub fn matches(&self, path: &str) -> bool {
         let chars: Vec<char> = path.chars().collect();
-        advance(&self.tokens, &chars, IndexSet::from([0])).contains(&chars.len())
+        advance(&self.tokens, &chars, IndexSet::<_>::from_iter([0])).contains(&chars.len())
     }
 }
 // port: Globs#toUnixRegexPattern / Globs#toRegexPattern
@@ -489,7 +489,7 @@ impl PatternParser {
 // port: Matcher#matches (the regular-expression subset emitted by Globs)
 fn advance(tokens: &[Token], chars: &[char], mut positions: IndexSet<usize>) -> IndexSet<usize> {
     for token in tokens {
-        let mut next = IndexSet::new();
+        let mut next = IndexSet::<_>::default();
         for pos in positions {
             match token {
                 Token::Literal(c) => {
@@ -524,7 +524,7 @@ fn advance(tokens: &[Token], chars: &[char], mut positions: IndexSet<usize>) -> 
                 }
                 Token::Group(groups) => {
                     for group in groups {
-                        next.extend(advance(group, chars, IndexSet::from([pos])));
+                        next.extend(advance(group, chars, IndexSet::<_>::from_iter([pos])));
                     }
                 }
             }

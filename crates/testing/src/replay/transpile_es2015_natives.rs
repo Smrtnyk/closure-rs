@@ -71,8 +71,8 @@ use closure_jscomp::{
     pass_factory::PassFactory,
     phase_optimizer::PhaseOptimizer,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 const CLASS_HELPERS: &str = "com.google.javascript.jscomp.Es6RewriteClassTest_Helpers";
@@ -274,7 +274,7 @@ impl NativeObject for Es6RewriteClassTestHelpers {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "es6SubclassTranspilation".into(),
             match &self.es6_subclass_transpilation {
@@ -400,7 +400,7 @@ impl NativeObject for Es6RewriteDestructuringTestHelpers {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "destructuringRewriteMode".into(),
             self.destructuring_rewrite_mode

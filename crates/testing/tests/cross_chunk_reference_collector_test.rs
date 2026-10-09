@@ -32,13 +32,13 @@ use closure_jscomp::{
     syntactic_scope_creator::SyntacticScopeCreator,
     var::VarId,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId, token::Token};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
     replay::replay_dsl::{CompilerHandle, Ctx, DslValue},
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 use support::cross_chunk_fixture::{check, native_ctx, pass, srcs_strings};
 

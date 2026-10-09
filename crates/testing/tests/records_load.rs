@@ -16,9 +16,9 @@
 
 //! Every record of corpus/unit/records loads with zero errors and round-trips losslessly.
 
+use closure_rhino::fx_hash::IndexMap;
 use closure_testing::corpus::{file_stem, map_files_parallel, record_files, records};
 use closure_testing::record::{Api, RecordKind};
-use indexmap::IndexMap;
 
 /// (kind, api, "class#method", call) of one record.
 type RecordKey = (RecordKind, Api, String, i32);
@@ -52,8 +52,8 @@ fn all_records_load_and_round_trip() {
     });
     let mut errors = Vec::new();
     let mut total = 0usize;
-    let mut by_kind: IndexMap<&'static str, usize> = IndexMap::new();
-    let mut by_api: IndexMap<&'static str, usize> = IndexMap::new();
+    let mut by_kind: IndexMap<&'static str, usize> = IndexMap::<_, _>::default();
+    let mut by_api: IndexMap<&'static str, usize> = IndexMap::<_, _>::default();
     let mut nonempty = 0usize;
     let mut table = String::from("stem\ttotal\tcompiler_test_case\tintegration\ttype_check\n");
     println!("stem\ttotal\tcompiler_test_case\tintegration\ttype_check");
@@ -62,7 +62,7 @@ fn all_records_load_and_round_trip() {
             Err(e) => errors.push(e),
             Ok(recs) => {
                 let mut per = [0usize; 3];
-                let mut calls: IndexMap<String, i32> = IndexMap::new();
+                let mut calls: IndexMap<String, i32> = IndexMap::<_, _>::default();
                 for (kind, api, cm, call) in &recs {
                     per[*kind as usize] += 1;
                     *by_kind.entry(kind.name()).or_default() += 1;

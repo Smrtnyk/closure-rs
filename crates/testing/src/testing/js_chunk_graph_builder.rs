@@ -21,8 +21,8 @@
 use closure_jscomp::js_chunk::JSChunk;
 use closure_jscomp::source_file::SourceFile;
 use closure_rhino::check_state;
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::jscomp_base::guava_format;
-use indexmap::IndexMap;
 
 // port: JSChunkGraphBuilder.GraphType
 #[allow(clippy::upper_case_acronyms)] // Java enum constant names
@@ -86,7 +86,7 @@ impl JSChunkGraphBuilder {
         Self {
             graph_type,
             chunks: Vec::new(),
-            chunk_names: IndexMap::new(),
+            chunk_names: IndexMap::<_, _>::default(),
             filename_format: "i%s.js".to_string(),
         }
     }

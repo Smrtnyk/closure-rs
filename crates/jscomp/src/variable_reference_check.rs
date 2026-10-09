@@ -36,11 +36,11 @@ use crate::scope::ScopeId;
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use crate::var::VarId;
 use crate::var_check::{VAR_MULTIPLY_DECLARED_ERROR, VarCheck};
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::qualified_name::QualifiedName;
 use closure_rhino::token::Token;
-use indexmap::IndexSet;
 use std::sync::{Arc, LazyLock};
 
 // port: VariableReferenceCheck#EARLY_REFERENCE
@@ -462,7 +462,7 @@ impl<'a> ReferenceCheckingBehavior<'a> {
     fn new(outer: &'a mut VariableReferenceCheck) -> Self {
         Self {
             outer,
-            vars_in_function_body: IndexSet::new(),
+            vars_in_function_body: IndexSet::<_>::default(),
         }
     }
 

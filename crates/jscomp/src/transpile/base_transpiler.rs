@@ -31,8 +31,8 @@ use crate::{
     variable_renaming_policy::VariableRenamingPolicy,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{java_lang::uri::URI, js_string::JsString};
-use indexmap::IndexMap;
 use std::{
     fmt,
     sync::{Arc, LazyLock},
@@ -143,7 +143,7 @@ impl CompilerSupplier {
             output_feature_set,
             CompilerOptions::new().get_module_resolution_mode(),
             Vec::new(),
-            IndexMap::new(),
+            IndexMap::<_, _>::default(),
         )
     }
 

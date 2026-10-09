@@ -19,8 +19,8 @@ use closure_jscomp::{
     name_generator::{NameGenerator, ReservedNames},
     variable_map::{FromStreamError, VariableMap},
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{java_lang::parse_exception::ParseException, js_string::JsString};
-use indexmap::{IndexMap, IndexSet};
 use std::{
     io::{self, Read},
     sync::{Arc, RwLock},
@@ -28,13 +28,17 @@ use std::{
 
 #[test]
 fn clone_trait_preserves_priorities_and_live_reservations() {
-    let reserved: ReservedNames = Arc::new(RwLock::new(IndexSet::new()));
+    let reserved: ReservedNames = Arc::new(RwLock::new(IndexSet::<_>::default()));
     let mut original = DefaultNameGenerator::new();
     original.favors(&"zzz".into());
-    let mut cloned: Box<dyn NameGenerator> =
-        NameGenerator::clone(&original, reserved.clone(), "".into(), &IndexSet::new());
+    let mut cloned: Box<dyn NameGenerator> = NameGenerator::clone(
+        &original,
+        reserved.clone(),
+        "".into(),
+        &IndexSet::<_>::default(),
+    );
     original.favors(&"aaaa".into());
-    original.reset(reserved.clone(), "".into(), &IndexSet::new());
+    original.reset(reserved.clone(), "".into(), &IndexSet::<_>::default());
     assert_eq!(original.generate_next_name(), "a");
     assert_eq!(cloned.generate_next_name(), "z");
     reserved.write().unwrap().insert("a".into());
@@ -55,7 +59,7 @@ fn priorities_wrap_like_java_and_reservations_retain_order() {
     b.occurrence = i32::MAX;
     assert_eq!(a.compare_to(&b), -1);
     let ng = DefaultNameGenerator::new();
-    let reserved = IndexSet::from([b'c' as u16, b'a' as u16, 0xffff]);
+    let reserved = IndexSet::<_>::from_iter([b'c' as u16, b'a' as u16, 0xffff]);
     let indices = ng.reserve_characters(NONFIRST_CHAR, &reserved);
     assert_eq!(
         indices
@@ -95,7 +99,7 @@ fn file_round_trip_and_checked_load_error() {
     std::fs::create_dir_all(&dir).unwrap();
     let file = dir.join(format!("{}.map", std::process::id()));
     let filename = file.to_str().unwrap();
-    let mut map = IndexMap::from([
+    let mut map = IndexMap::<_, _>::from_iter([
         (JsString::from("z"), JsString::from("last")),
         (JsString::from("a"), JsString::from("first")),
     ]);

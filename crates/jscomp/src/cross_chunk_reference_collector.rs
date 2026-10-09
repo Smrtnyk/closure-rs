@@ -31,11 +31,11 @@ use crate::reference_collection::ReferenceCollection;
 use crate::scope::ScopeId;
 use crate::scope_creator::ScopeCreator;
 use crate::var::VarId;
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use closure_rhino::{check_not_null, check_state};
-use indexmap::IndexMap;
 use std::sync::Arc;
 
 /// Collects global variable references for use by CrossChunkCodeMotion.
@@ -65,8 +65,8 @@ impl<'a> CrossChunkReferenceCollector<'a> {
     // port: CrossChunkReferenceCollector#CrossChunkReferenceCollector
     pub fn new(creator: Box<dyn ScopeCreator + 'a>) -> Self {
         Self {
-            vars_by_name: IndexMap::new(),
-            reference_map: IndexMap::new(),
+            vars_by_name: IndexMap::<_, _>::default(),
+            reference_map: IndexMap::<_, _>::default(),
             block_stack: Vec::new(),
             top_level_statements: Vec::new(),
             scope_creator: Some(creator),

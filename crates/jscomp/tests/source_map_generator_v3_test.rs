@@ -19,12 +19,12 @@
 #[path = "support/source_map_test_case.rs"]
 mod source_map_test_case;
 use closure_jscomp::source_map::{DetailLevel, Format};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_sourcemap::{
     file_position::FilePosition, source_map_consumer_v3::SourceMapConsumerV3,
     source_map_generator_v3::SourceMapGeneratorV3, source_map_section::SourceMapSection,
 };
-use indexmap::IndexMap;
 use source_map_test_case::common::TestJsonBuilder;
 use source_map_test_case::{SourceMapTest as _, SourceMapTestCase, get_source_map};
 #[derive(Default)]
@@ -280,14 +280,14 @@ fn test_parse_source_meta_map() {
     let test = SourceMapGeneratorV3Test::default();
     const INPUT1: &str = "file1";
     const INPUT2: &str = "file2";
-    let mut inputs: IndexMap<JsString, JsString> = IndexMap::new();
+    let mut inputs: IndexMap<JsString, JsString> = IndexMap::<_, _>::default();
     inputs.insert(INPUT1.into(), "var __FOO__ = 1;".into());
     inputs.insert(INPUT2.into(), "var __BAR__ = 2;".into());
     let result1 = test.compile(inputs[&JsString::from(INPUT1)].clone(), INPUT1);
     let result2 = test.compile(inputs[&JsString::from(INPUT2)].clone(), INPUT2);
     const MAP1: &str = "map1";
     const MAP2: &str = "map2";
-    let mut maps: IndexMap<JsString, JsString> = IndexMap::new();
+    let mut maps: IndexMap<JsString, JsString> = IndexMap::<_, _>::default();
     maps.insert(MAP1.into(), result1.source_map_file_content.into());
     maps.insert(MAP2.into(), result2.source_map_file_content.into());
     let mut sections = Vec::new();
@@ -320,7 +320,7 @@ fn test_source_map_merging() {
     let test = SourceMapGeneratorV3Test::default();
     const INPUT1: &str = "file1";
     const INPUT2: &str = "file2";
-    let mut inputs: IndexMap<JsString, JsString> = IndexMap::new();
+    let mut inputs: IndexMap<JsString, JsString> = IndexMap::<_, _>::default();
     inputs.insert(INPUT1.into(), "var __FOO__ = 1;".into());
     inputs.insert(INPUT2.into(), "var __BAR__ = 2;".into());
     let result1 = test.compile(inputs[&JsString::from(INPUT1)].clone(), INPUT1);

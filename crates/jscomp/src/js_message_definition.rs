@@ -18,9 +18,9 @@
 
 //! Port of `com.google.javascript.jscomp.JsMessageDefinition`.
 
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 
 use crate::js_message::JsMessage;
 

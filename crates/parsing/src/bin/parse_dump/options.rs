@@ -27,8 +27,8 @@ use closure_parsing::{
     config::{Config, JsDocParsing, LanguageMode, RunMode, StrictMode},
     parser_runner::ParserRunner,
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexSet;
 use serde_json::Value;
 
 pub struct Options {
@@ -204,7 +204,7 @@ impl Options {
         let mut print_tree = false;
         let mut parse_inline_source_maps = true;
         let mut keep_going = false;
-        let mut annotations = IndexSet::new();
+        let mut annotations = IndexSet::<_>::default();
         let mut i = 0;
         let processed_args = process_args(&args);
         while i < processed_args.len() {

@@ -416,6 +416,7 @@ impl PropertyValue {
         }
     }
 }
+use crate::fx_hash::{IndexMap, IndexSet};
 use crate::{
     check_argument,
     js_string::JsString,
@@ -425,7 +426,6 @@ use crate::{
     source_position::SourcePosition,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{
     collections::BTreeMap,
     ops::{Deref, DerefMut},
@@ -2123,7 +2123,7 @@ impl Builder {
     }
     // port: JSDocInfo.Builder#recordSuppression
     pub fn record_suppression(&mut self, suppression: impl Into<JsString>) {
-        self.record_suppressions(&IndexSet::from([suppression.into()]));
+        self.record_suppressions(&IndexSet::<_>::from_iter([suppression.into()]));
     }
     // port: JSDocInfo.Builder#recordModifies
     pub fn record_modifies(&mut self, modifies: &IndexSet<JsString>) -> bool {
@@ -2166,7 +2166,7 @@ impl Builder {
         let license = license.into();
         if !self
             .license_texts
-            .get_or_insert_with(IndexSet::new)
+            .get_or_insert_with(IndexSet::<_>::default)
             .insert(license.clone())
         {
             return false;
@@ -2275,9 +2275,9 @@ impl Builder {
     // port: JSDocInfo.Builder#putPropEntry
     fn put_prop_entry(&mut self, prop: Property, key: JsString, value: EntryValue) -> bool {
         let default = || match prop.kind {
-            PropertyKind::TypeMap => PropertyValue::TypeMap(IndexMap::new()),
-            PropertyKind::NodeMap => PropertyValue::NodeMap(IndexMap::new()),
-            _ => PropertyValue::StrMap(IndexMap::new()),
+            PropertyKind::TypeMap => PropertyValue::TypeMap(IndexMap::<_, _>::default()),
+            PropertyKind::NodeMap => PropertyValue::NodeMap(IndexMap::<_, _>::default()),
+            _ => PropertyValue::StrMap(IndexMap::<_, _>::default()),
         };
         match (self.get_prop_with_default(prop, default), value) {
             (PropertyValue::TypeMap(m), EntryValue::TypeExpr(v)) => {

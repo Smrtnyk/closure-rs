@@ -52,6 +52,7 @@ use crate::{
 };
 use closure_jstype::js_type_native::JSTypeNative;
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,
@@ -61,7 +62,6 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{collections::VecDeque, sync::Arc};
 
 // port: Es6NormalizeClasses#CLASS_DECL_VAR
@@ -97,7 +97,7 @@ pub static ILLEGAL_PRIVATE_MEMBER_ASSIGNMENT: DiagnosticType = DiagnosticType::e
 /// compiler-generated variable names.
 // port: Es6NormalizeClasses#GENERIC_NAME_REPLACEMENTS
 pub fn generic_name_replacements() -> IndexMap<&'static str, &'static str> {
-    IndexMap::from([
+    IndexMap::<_, _>::from_iter([
         ("CLASS_DECL", CLASS_DECL_VAR),
         ("CLASS_EXTENDS", CLASS_EXTENDS_VAR),
         ("COMP_FIELD", COMP_FIELD_VAR),
@@ -965,7 +965,7 @@ impl ClassRecord {
     ) -> Self {
         ClassRecord {
             private_members: Vec::new(),
-            private_members_by_name: IndexMap::new(),
+            private_members_by_name: IndexMap::<_, _>::default(),
             private_map_var_name: None,
             static_private_map_var_name: None,
             has_instance_private_members: false,
@@ -982,7 +982,7 @@ impl ClassRecord {
             instance_members: VecDeque::new(),
             static_members: VecDeque::new(),
             computed_props_with_side_effects: VecDeque::new(),
-            constructor_vars: IndexSet::new(),
+            constructor_vars: IndexSet::<_>::default(),
             super_calls: Vec::new(),
         }
     }
@@ -1127,7 +1127,7 @@ impl ClassRecord {
             format!("{:?}", self.constructor_vars)
         );
         let args_scope = s.get_parent(compiler).unwrap();
-        let mut constructor_vars = IndexSet::new();
+        let mut constructor_vars = IndexSet::<_>::default();
         constructor_vars.extend(s.get_all_symbols(compiler));
         constructor_vars.extend(args_scope.get_all_symbols(compiler));
         self.constructor_vars = constructor_vars;

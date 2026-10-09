@@ -21,7 +21,7 @@ use super::{
     graph::GraphEdge,
     graph_node::GraphNode,
 };
-use indexmap::IndexSet;
+use closure_rhino::fx_hash::IndexSet;
 use std::{collections::VecDeque, marker::PhantomData};
 
 /// Java's `LinkedHashSet` work set. Elements keep their first insertion position
@@ -36,7 +36,7 @@ impl WorkSet {
     fn new() -> Self {
         Self {
             queue: VecDeque::new(),
-            members: IndexSet::new(),
+            members: IndexSet::<_>::default(),
         }
     }
     // port: LinkedHashSet#add

@@ -62,6 +62,7 @@ use crate::{
 };
 use closure_jstype::js_type_native::JSTypeNative;
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state,
     ir::IR,
@@ -70,7 +71,6 @@ use closure_rhino::{
     node::{NodeId, Prop},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::cell::OnceCell;
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -113,7 +113,7 @@ impl Es6RewriteGenerators {
 
         let nullable_string_type = if compiler.has_optimization_colors() {
             // typechecking has run, so we must preserve and propagate type information
-            Some(Color::create_union(&IndexSet::from([
+            Some(Color::create_union(&IndexSet::<_>::from_iter([
                 standard_colors::NULL_OR_VOID.clone(),
                 standard_colors::STRING.clone(),
             ])))
@@ -481,12 +481,12 @@ impl<'a> SingleGeneratorFunctionTranspiler<'a> {
             pass,
             unique_id,
             context: TranspilationContext {
-                named_labels: IndexMap::new(),
+                named_labels: IndexMap::<_, _>::default(),
                 break_cases: VecDeque::new(),
                 continue_cases: VecDeque::new(),
                 catch_cases: VecDeque::new(),
                 finally_cases: VecDeque::new(),
-                catch_names: IndexSet::new(),
+                catch_names: IndexSet::<_>::default(),
                 all_cases: Vec::new(),
                 switch_breaks: Vec::new(),
                 program_end_case: CaseId(0),

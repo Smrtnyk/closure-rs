@@ -18,7 +18,7 @@
 
 use closure_jscomp::graph::graphviz_graph::{GraphvizEdge, GraphvizGraph, GraphvizNode};
 use closure_jscomp::graph::*;
-use indexmap::IndexSet;
+use closure_rhino::fx_hash::IndexSet;
 use std::{
     any::Any,
     panic::{AssertUnwindSafe, catch_unwind},

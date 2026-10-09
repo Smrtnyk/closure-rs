@@ -88,13 +88,13 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     check_state,
     ir::IR,
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::IndexMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Pattern {
@@ -183,7 +183,7 @@ impl ExtractPrototypeMemberDeclarations {
     pub fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
         let mut extraction_info = GatherExtractionInfo {
             pattern: self.pattern,
-            instances_by_chunk: IndexMap::new(),
+            instances_by_chunk: IndexMap::<_, _>::default(),
         };
         NodeTraversal::traverse(compiler, root, &mut extraction_info);
         self.maybe_do_extraction(compiler, &extraction_info);

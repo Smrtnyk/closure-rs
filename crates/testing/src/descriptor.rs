@@ -27,7 +27,7 @@ use crate::json::JsonValue;
 use crate::reader::{
     ModelError, ModelResult, Obj, ObjOut, arr, as_string, err, int, list_of, map_of, st, strs,
 };
-use indexmap::IndexMap;
+use closure_rhino::fx_hash::IndexMap;
 
 /// One descriptor file.
 #[derive(Clone, Debug, PartialEq, Eq)]

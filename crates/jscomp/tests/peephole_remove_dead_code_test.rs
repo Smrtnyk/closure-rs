@@ -26,6 +26,7 @@ use closure_jscomp::{
     peephole_optimizations_pass::PeepholeOptimizationsPass,
     peephole_remove_dead_code::PeepholeRemoveDeadCode,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
@@ -35,7 +36,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 // port: PeepholeRemoveDeadCodeTest#MATH
@@ -100,7 +100,7 @@ impl PeepholeRemoveDeadCodeTest {
                 ctx: Ctx::new(
                     "PeepholeRemoveDeadCodeTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

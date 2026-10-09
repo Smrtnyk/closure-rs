@@ -36,11 +36,11 @@
 //   com/google/common/collect/JdkBackedImmutableBiMap.java,
 //   com/google/common/collect/JdkBackedImmutableMap.java.
 
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     java_lang::{parse_exception::ParseException, utf_8},
     js_string::JsString,
 };
-use indexmap::IndexMap;
 use std::{
     fmt,
     io::{self, Read},
@@ -94,9 +94,9 @@ impl VariableMap {
     // port: VariableMap#VariableMap
     pub fn new(map: &IndexMap<JsString, JsString>) -> Self {
         let mask = closed_table_size(map.len() as i32, 1.2) - 1;
-        let mut key_table: IndexMap<i32, Vec<usize>> = IndexMap::new();
-        let mut value_table: IndexMap<i32, Vec<usize>> = IndexMap::new();
-        let mut inverse = IndexMap::with_capacity(map.len());
+        let mut key_table: IndexMap<i32, Vec<usize>> = IndexMap::<_, _>::default();
+        let mut value_table: IndexMap<i32, Vec<usize>> = IndexMap::<_, _>::default();
+        let mut inverse = IndexMap::with_capacity_and_hasher(map.len(), Default::default());
         for (i, (k, v)) in map.iter().enumerate() {
             let key_bucket = key_table.entry(smear(k.hash_code()) & mask).or_default();
             // RegularImmutableBiMap checks key-bucket overflow before checking values.
@@ -132,7 +132,8 @@ impl VariableMap {
     }
     // port: com.google.common.collect.JdkBackedImmutableBiMap#create
     fn jdk_backed_inverse(map: &IndexMap<JsString, JsString>) -> IndexMap<JsString, JsString> {
-        let mut backward_delegate = IndexMap::with_capacity(map.len());
+        let mut backward_delegate =
+            IndexMap::with_capacity_and_hasher(map.len(), Default::default());
         for (k, v) in map {
             if let Some(previous) = backward_delegate.get(v) {
                 panic!("Multiple entries with same value: {previous}={v} and {k}={v}");
@@ -244,7 +245,7 @@ impl VariableMap {
     fn build_or_throw(entries: Vec<(JsString, JsString)>) -> IndexMap<JsString, JsString> {
         // RegularImmutableMap builds buckets from the last entry toward the first.
         let mask = closed_table_size(entries.len() as i32, 1.2) - 1;
-        let mut table: IndexMap<i32, Vec<usize>> = IndexMap::new();
+        let mut table: IndexMap<i32, Vec<usize>> = IndexMap::<_, _>::default();
         for (i, (k, v)) in entries.iter().enumerate().rev() {
             let bucket = table.entry(smear(k.hash_code()) & mask).or_default();
             let mut bucket_size: i32 = 0;
@@ -266,7 +267,7 @@ impl VariableMap {
     }
     // port: com.google.common.collect.JdkBackedImmutableMap#create
     fn jdk_backed_map(entries: Vec<(JsString, JsString)>) -> IndexMap<JsString, JsString> {
-        let mut map = IndexMap::new();
+        let mut map = IndexMap::<_, _>::default();
         for (k, v) in entries {
             if let Some(previous) = map.get(&k) {
                 panic!("Multiple entries with same key: {k}={v} and {k}={previous}");

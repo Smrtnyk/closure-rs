@@ -29,10 +29,10 @@ use crate::{
     syntactic_scope_creator::SyntacticScopeCreator,
     var::VarId,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_state, ir::IR, js_string::JsString, node::NodeId, token::Token, token_stream::TokenStream,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 /// Using the infrastructure provided by ReferenceCollector, identify variables that are only ever
@@ -61,7 +61,7 @@ impl CompilerPass for InlineObjectLiterals {
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
         let mut behavior = InliningBehavior {
             safe_name_id_supplier: self.safe_name_id_supplier.clone(),
-            stale_vars: IndexSet::new(),
+            stale_vars: IndexSet::<_>::default(),
         };
         let mut scope_creator = SyntacticScopeCreator::new();
         let mut callback = ReferenceCollector::new(compiler, &mut behavior, &mut scope_creator);
@@ -187,7 +187,7 @@ impl InliningBehavior {
     fn is_inlinable_object(&self, compiler: &AbstractCompiler, refs: &[Reference]) -> bool {
         let ast = compiler;
         let mut ret = false;
-        let mut valid_properties: IndexSet<JsString> = IndexSet::new();
+        let mut valid_properties: IndexSet<JsString> = IndexSet::<_>::default();
         for r in refs {
             let name = r.get_node();
             let parent = r.get_parent(ast);
@@ -326,7 +326,7 @@ impl InliningBehavior {
         reference_info: &ReferenceCollection,
     ) -> IndexMap<JsString, JsString> {
         let ast = compiler;
-        let mut varmap: IndexMap<JsString, JsString> = IndexMap::new();
+        let mut varmap: IndexMap<JsString, JsString> = IndexMap::<_, _>::default();
 
         for r in &reference_info.references {
             if r.is_lvalue(ast) || r.is_initializing_declaration(ast) {
@@ -486,7 +486,7 @@ impl InliningBehavior {
         // can all be properly set as necessary.
         let varmap = self.compute_var_list(compiler, reference_info);
 
-        let mut initvals: IndexMap<JsString, Option<NodeId>> = IndexMap::new();
+        let mut initvals: IndexMap<JsString, Option<NodeId>> = IndexMap::<_, _>::default();
         // Figure out the top-level of the var assign node. If it's a plain
         // ASSIGN, then there's an EXPR_STATEMENT above it, if it's a
         // VAR then it should be directly replaced.

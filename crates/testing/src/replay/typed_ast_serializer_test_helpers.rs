@@ -48,8 +48,8 @@ use closure_jscomp::serialization::{
     serialization_options::SerializationOptions, typed_ast_proto::TypedAst,
     typed_ast_serializer::TypedAstSerializer,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.serialization.TypedAstSerializerTest_Helpers";
@@ -69,7 +69,7 @@ impl NativeObject for TypedAstSerializerTestHelpers {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "testResult".into(),
             match &self.test_result {
@@ -131,7 +131,7 @@ impl NativeObject for GetProcessorPass {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: TypedAstSerializerTest_Helpers#getProcessor (the CompilerPass lambda)
     fn process(

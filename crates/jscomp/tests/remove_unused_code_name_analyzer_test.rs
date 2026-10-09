@@ -25,6 +25,7 @@ use closure_jscomp::{
     abstract_compiler::AbstractCompiler, compiler_pass::CompilerPass,
     pure_function_identifier::Driver, remove_unused_code::RemoveUnusedCode,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
@@ -35,7 +36,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 /// Java's string concatenation `a + b + ...`.
@@ -146,7 +146,7 @@ impl Fixture {
             ctx: Ctx::new(
                 "RemoveUnusedCodeNameAnalyzerTest".into(),
                 object([]),
-                IndexMap::new(),
+                IndexMap::<_, _>::default(),
                 Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                     .unwrap(),
             ),

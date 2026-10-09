@@ -47,8 +47,8 @@ use crate::{
     proxy_object_type::ProxyObjectType,
     template_type_map::TemplateTypeMap,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{check_state, js_string::JsString, node::Ast};
-use indexmap::IndexMap;
 
 const POTENTIALLY_CYCLIC_RECURSION_DEPTH: usize = 20;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -121,7 +121,7 @@ impl EqualityChecker {
         right: Option<TypeId>,
     ) -> bool {
         if self.recursion_depth > POTENTIALLY_CYCLIC_RECURSION_DEPTH && self.eq_cache.is_none() {
-            self.eq_cache = Some(IndexMap::new());
+            self.eq_cache = Some(IndexMap::<_, _>::default());
         }
         if self.eq_cache.is_none() {
             self.recursion_depth += 1;

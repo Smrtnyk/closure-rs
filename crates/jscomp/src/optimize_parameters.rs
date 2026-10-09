@@ -25,6 +25,7 @@ use crate::{
     optimize_calls::{CallGraphCompilerPass, OptimizeCalls, ReferenceMap},
     scope::ScopeId,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     check_not_null, check_state,
     ir::IR,
@@ -32,7 +33,6 @@ use closure_rhino::{
     node::{Ast, NodeId, SideEffectFlags},
     token::Token,
 };
-use indexmap::IndexMap;
 
 /// Optimize function calls and function signatures.
 ///
@@ -913,7 +913,7 @@ impl OptimizeParameters {
 
         // Java: ArrayListMultimap<String, Node>; only "is any group's member an lvalue" is read,
         // so the group order does not matter.
-        let mut names_by_names: IndexMap<JsString, Vec<NodeId>> = IndexMap::new();
+        let mut names_by_names: IndexMap<JsString, Vec<NodeId>> = IndexMap::<_, _>::default();
         NodeUtil::visit_post_order(compiler, param_list, &mut |ast: &mut Ast, n: NodeId| {
             if n.is_name(ast) {
                 names_by_names.entry(n.get_string(ast)).or_default().push(n);

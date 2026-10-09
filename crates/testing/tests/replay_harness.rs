@@ -45,6 +45,7 @@
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/UnitTestUtils.java.
 
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_testing::{
     compiler_test_case::{
@@ -72,7 +73,6 @@ use closure_testing::{
     unit_recorder::ref_value,
     unit_test_utils,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 static ERROR: DiagnosticType = DiagnosticType::error("JSC_TEST", "{0}");
@@ -91,7 +91,7 @@ fn context(tsv: &str) -> Ctx {
     Ctx::new(
         "Fixture".into(),
         object([]),
-        IndexMap::new(),
+        IndexMap::<_, _>::default(),
         Registry::from_tsv(tsv).unwrap(),
     )
 }
@@ -218,8 +218,9 @@ fn generic_names_use_wrapping_hash_and_ordered_plain_replacements() {
         expected: Some(vec![Arc::new(SourceFile::from_code("out.js", "x xx"))]),
         same: false,
     };
-    let prefixes = IndexMap::from([("x".into(), "g".into()), ("g".into(), "z".into())]);
-    let mut reverse = IndexMap::new();
+    let prefixes =
+        IndexMap::<_, _>::from_iter([("x".into(), "g".into()), ("g".into(), "z".into())]);
+    let mut reverse = IndexMap::<_, _>::default();
     let got = unit_test_utils::update_generic_var_names_in_expected_files(
         &inputs,
         &outputs,
@@ -260,7 +261,7 @@ fn generic_names_use_wrapping_hash_and_ordered_plain_replacements() {
     let got = unit_test_utils::update_generic_var_names(
         &negative,
         &outputs,
-        &IndexMap::from([("x".into(), "v".into())]),
+        &IndexMap::<_, _>::from_iter([("x".into(), "v".into())]),
     )
     .unwrap();
     assert!(
@@ -276,7 +277,8 @@ fn generic_names_use_wrapping_hash_and_ordered_plain_replacements() {
 fn all_205_option_defaults_decode_and_round_trip() {
     let mut ctx = context("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n");
     let options =
-        closure_testing::replay::replay_bridge::options(&IndexMap::new(), &mut ctx).unwrap();
+        closure_testing::replay::replay_bridge::options(&IndexMap::<_, _>::default(), &mut ctx)
+            .unwrap();
     let handle = Rc::new(RefCell::new(options));
     let instance = DslValue::Options(handle.clone());
     assert_eq!(options_fields::defaults().fields.len(), 205);
@@ -323,7 +325,7 @@ fn all_205_option_defaults_decode_and_round_trip() {
             &mut options,
             "unknown",
             &closure_testing::value::Value::Bool(true),
-            &IndexMap::new()
+            &IndexMap::<_, _>::default()
         ),
         Err(Throwable::HarnessError(_))
     ));
@@ -332,7 +334,7 @@ fn all_205_option_defaults_decode_and_round_trip() {
             &mut options,
             "checkTypes",
             &closure_testing::value::Value::Null,
-            &IndexMap::new()
+            &IndexMap::<_, _>::default()
         ),
         Err(Throwable::HarnessError(_))
     ));
@@ -340,7 +342,7 @@ fn all_205_option_defaults_decode_and_round_trip() {
 // port: ReplayValues#decode / adapt
 #[test]
 fn value_slots_keep_utf16_numeric_widths_and_live_diagnostic_types() {
-    let m = IndexMap::from([("Old".into(), "New".into())]);
+    let m = IndexMap::<_, _>::from_iter([("Old".into(), "New".into())]);
     let decode = |s: &str, t: &str| decode_json(&json(s), t, &m).unwrap();
     assert!(matches!(decode("257", "byte"), DslValue::Int(1)));
     assert!(matches!(decode("65535", "short"), DslValue::Int(-1)));
@@ -401,7 +403,7 @@ fn recorded_guard_iteration_order_is_rebuilt_in_reverse() {
     let v = decode_json(
         &raw,
         "com.google.javascript.jscomp.ComposeWarningsGuard",
-        &IndexMap::new(),
+        &IndexMap::<_, _>::default(),
     )
     .unwrap();
     let DslValue::WarningsGuard { guard, .. } = v else {
@@ -421,7 +423,7 @@ fn native_path_and_strict_guards_preserve_fields_and_apply_levels() {
         &mut options,
         "warningsGuard",
         &closure_testing::value::Value::from_json(&raw, "$").unwrap(),
-        &IndexMap::new(),
+        &IndexMap::<_, _>::default(),
     )
     .unwrap();
     assert!(neutral_equal(
@@ -457,7 +459,7 @@ fn variable_map_and_source_map_input_options_round_trip_their_captured_fields() 
             &mut options,
             name,
             &closure_testing::value::Value::from_json(raw, "$").unwrap(),
-            &IndexMap::new(),
+            &IndexMap::<_, _>::default(),
         )
         .unwrap();
     }
@@ -543,8 +545,11 @@ fn dsl_evaluation_order_class_map_and_field_assignment() {
     ctx.registry.register("New#mark(java.lang.Object)", mark);
     let holder = DslValue::Object(Rc::new(RefCell::new(Object {
         class: "Holder".into(),
-        fields: IndexMap::new(),
-        field_types: IndexMap::from([("a".into(), "int".into()), ("b".into(), "int".into())]),
+        fields: IndexMap::<_, _>::default(),
+        field_types: IndexMap::<_, _>::from_iter([
+            ("a".into(), "int".into()),
+            ("b".into(), "int".into()),
+        ]),
     })));
     ctx.field_overrides.insert("holder".into(), holder.clone());
     let e = expression(
@@ -586,7 +591,7 @@ fn real_tsv_distinguishes_unported_signatures_from_resolution_errors() {
     let mut ctx = Ctx::new(
         "ChromePassTest".into(),
         object([]),
-        IndexMap::new(),
+        IndexMap::<_, _>::default(),
         registry,
     );
     let e =
@@ -606,7 +611,7 @@ fn native_singleton_list_keeps_its_java_runtime_class() {
     let mut ctx = Ctx::new(
         "Es6NormalizeShorthandPropertiesTest".into(),
         object([]),
-        IndexMap::new(),
+        IndexMap::<_, _>::default(),
         registry,
     );
     let value = eval(
@@ -641,8 +646,8 @@ fn errors_dump_real_diagnostics_in_the_recorded_shape() {
 fn referenceable_dump_cuts_cycles_and_object_depth() {
     let o = Rc::new(RefCell::new(Object {
         class: "Holder".into(),
-        fields: IndexMap::new(),
-        field_types: IndexMap::new(),
+        fields: IndexMap::<_, _>::default(),
+        field_types: IndexMap::<_, _>::default(),
     }));
     let v = DslValue::Object(o.clone());
     o.borrow_mut().fields.insert("next".into(), v.clone());
@@ -795,7 +800,7 @@ fn field_projection_and_class_name_canonicalization() {
             .unwrap()
             .gson_equals(&json(r#"{"changed":3,"before":1}"#))
     );
-    let classes = IndexMap::from([("Old".into(), "New".into())]);
+    let classes = IndexMap::<_, _>::from_iter([("Old".into(), "New".into())]);
     assert!(
         canonical_class_names(
             &json(r#"{"object":"New","fields":{"x":["New",{"enum":"New","name":"Old"}]}}"#),
@@ -856,7 +861,7 @@ impl closure_testing::replay::replay_dsl::NativeObject for ProducerFixture {
     }
     // port: UnitRecorder#collect (live producer fixture)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: UnitRecorder#findMethod (live producer fixture)
     fn call(&mut self, method: &str, _args: Vec<DslValue>) -> Result<DslValue, Throwable> {

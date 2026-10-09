@@ -18,8 +18,8 @@ use closure_jscomp::{
     colors::{Color, ColorId, ColorRegistry, color_registry::REQUIRED_IDS, standard_colors as sc},
     testing::assert_that,
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{js_string::JsString, node::Ast, token::Token};
-use indexmap::IndexSet;
 use std::panic::catch_unwind;
 
 // oracle: corpus-cache/colors/behavior_vectors.txt (ColorBehaviorVectors.java)
@@ -27,7 +27,9 @@ use std::panic::catch_unwind;
 fn node_color_display_and_json_match_java() {
     let color = Color::single_builder()
         .set_id(ColorId::from_ascii("Foo"))
-        .set_own_properties(IndexSet::from([JsString::from("quote\"property")]))
+        .set_own_properties(IndexSet::<_>::from_iter([JsString::from(
+            "quote\"property",
+        )]))
         .build();
     let mut ast = Ast::new();
     let node = ast.new_string_with_token(Token::NAME, "f");
@@ -57,7 +59,9 @@ fn node_color_display_and_json_match_java() {
         Some(
             Color::single_builder()
                 .set_id(ColorId::from_ascii("Foo"))
-                .set_own_properties(IndexSet::from([JsString::from("quote\"property")]))
+                .set_own_properties(IndexSet::<_>::from_iter([JsString::from(
+                    "quote\"property",
+                )]))
                 .build(),
         ),
     );
@@ -91,22 +95,27 @@ fn precondition_messages_match_java() {
 // oracle: corpus-cache/colors/behavior_vectors.txt (ColorBehaviorVectors.java)
 #[test]
 fn subtract_null_or_void_preserves_java_reference_identity() {
-    let nullable = Color::create_union(&IndexSet::from([
+    let nullable = Color::create_union(&IndexSet::<_>::from_iter([
         sc::NULL_OR_VOID.clone(),
         sc::NUMBER.clone(),
     ]));
     assert_that(nullable.subtract_null_or_void()).is_same_instance_as(&sc::NUMBER);
-    let union = Color::create_union(&IndexSet::from([
+    let union = Color::create_union(&IndexSet::<_>::from_iter([
         sc::NULL_OR_VOID.clone(),
         sc::NUMBER.clone(),
         sc::STRING.clone(),
     ]));
     let subtracted = union.subtract_null_or_void();
     assert_that(union.subtract_null_or_void()).is_same_instance_as(&subtracted);
-    let no_null = Color::create_union(&IndexSet::from([sc::NUMBER.clone(), sc::STRING.clone()]));
+    let no_null = Color::create_union(&IndexSet::<_>::from_iter([
+        sc::NUMBER.clone(),
+        sc::STRING.clone(),
+    ]));
     assert_that(no_null.subtract_null_or_void()).is_same_instance_as(&no_null);
-    assert_that(Color::create_union(&IndexSet::from([sc::NUMBER.clone()])))
-        .is_same_instance_as(&sc::NUMBER);
+    assert_that(Color::create_union(&IndexSet::<_>::from_iter([
+        sc::NUMBER.clone()
+    ])))
+    .is_same_instance_as(&sc::NUMBER);
     assert!(catch_unwind(|| sc::NULL_OR_VOID.subtract_null_or_void()).is_err());
 }
 
@@ -117,16 +126,16 @@ fn structural_equality_and_hash_are_independent_of_set_order() {
     let b = JsString::from("b");
     let first = Color::single_builder()
         .set_id(ColorId::from_ascii("Obj"))
-        .set_own_properties(IndexSet::from([a.clone(), b.clone()]))
-        .set_prototypes(IndexSet::from([
+        .set_own_properties(IndexSet::<_>::from_iter([a.clone(), b.clone()]))
+        .set_prototypes(IndexSet::<_>::from_iter([
             sc::TOP_OBJECT.clone(),
             sc::TOP_FUNCTION.clone(),
         ]))
         .build();
     let second = Color::single_builder()
         .set_id(ColorId::from_ascii("Obj"))
-        .set_own_properties(IndexSet::from([b, a]))
-        .set_prototypes(IndexSet::from([
+        .set_own_properties(IndexSet::<_>::from_iter([b, a]))
+        .set_prototypes(IndexSet::<_>::from_iter([
             sc::TOP_FUNCTION.clone(),
             sc::TOP_OBJECT.clone(),
         ]))
@@ -134,9 +143,15 @@ fn structural_equality_and_hash_are_independent_of_set_order() {
     assert!(!first.ptr_eq(&second));
     assert_eq!(first, second);
     assert_eq!(first.hash_code(), second.hash_code());
-    assert_eq!(IndexSet::from([first, second]).len(), 1);
-    let union = Color::create_union(&IndexSet::from([sc::NUMBER.clone(), sc::STRING.clone()]));
-    let reversed = Color::create_union(&IndexSet::from([sc::STRING.clone(), sc::NUMBER.clone()]));
+    assert_eq!(IndexSet::<_>::from_iter([first, second]).len(), 1);
+    let union = Color::create_union(&IndexSet::<_>::from_iter([
+        sc::NUMBER.clone(),
+        sc::STRING.clone(),
+    ]));
+    let reversed = Color::create_union(&IndexSet::<_>::from_iter([
+        sc::STRING.clone(),
+        sc::NUMBER.clone(),
+    ]));
     assert_eq!(union, reversed);
     assert_eq!(union.hash_code(), reversed.hash_code());
     assert_ne!(union.to_string(), reversed.to_string());
@@ -150,7 +165,7 @@ fn registry_preserves_multimap_order_and_builder_snapshots() {
         .set_closure_assert(true)
         .set_constructor(true)
         .set_properties_keep_original_name(true)
-        .set_own_properties(IndexSet::from([JsString::from("own")]))
+        .set_own_properties(IndexSet::<_>::from_iter([JsString::from("own")]))
         .build();
     let mut builder = ColorRegistry::builder();
     builder

@@ -29,10 +29,10 @@ use closure_jstype::{
     static_typed_scope::StaticTypedScope,
 };
 use closure_parsing::type_transformation_parser::{Keywords, OperationKind};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     check_argument, js_string::JsString, js_type_expression::JSTypeExpression, node::NodeId,
 };
-use indexmap::IndexMap;
 use std::sync::Arc;
 
 const VIRTUAL_FILE: &str = "<TypeTransformation.java>";
@@ -343,7 +343,7 @@ impl TypeTransformation {
         ttl_ast: NodeId,
         type_vars: TypeVars,
     ) -> TypeId {
-        self.eval_with_name_vars(compiler, ttl_ast, type_vars, IndexMap::new())
+        self.eval_with_name_vars(compiler, ttl_ast, type_vars, IndexMap::<_, _>::default())
     }
 
     // port: TypeTransformation#eval(Node,ImmutableMap,ImmutableMap)
@@ -842,7 +842,7 @@ impl TypeTransformation {
         record: NodeId,
         name_resolver: &NameResolver,
     ) -> TypeId {
-        let mut props: IndexMap<JsString, TypeId> = IndexMap::new();
+        let mut props: IndexMap<JsString, TypeId> = IndexMap::<_, _>::default();
         let mut prop_node = record.get_first_child(compiler);
         while let Some(prop) = prop_node {
             // If it is a computed property then find the property name using the resolver
@@ -974,7 +974,7 @@ impl TypeTransformation {
     /// {r:{s:string, n:number}} and {a:boolean}
     /// is transformed into {r:{s:string, n:number}, a:boolean}
     fn join_record_types(&self, compiler: &mut AbstractCompiler, rec_types: &[TypeId]) -> TypeId {
-        let mut props: IndexMap<JsString, TypeId> = IndexMap::new();
+        let mut props: IndexMap<JsString, TypeId> = IndexMap::<_, _>::default();
         for &rec_type in rec_types {
             let names = rec_type.get_own_property_names(compiler.get_type_registry());
             for new_prop_name in names {
@@ -1051,7 +1051,7 @@ impl TypeTransformation {
 
         // Compute the new properties using the map function
         let map_fn_body = NodeUtil::get_function_body(compiler, map_function);
-        let mut new_props: IndexMap<JsString, TypeId> = IndexMap::new();
+        let mut new_props: IndexMap<JsString, TypeId> = IndexMap::<_, _>::default();
         let prop_names = objtype.get_own_property_names(compiler.get_type_registry());
         for prop_name in prop_names {
             // The value of the current property

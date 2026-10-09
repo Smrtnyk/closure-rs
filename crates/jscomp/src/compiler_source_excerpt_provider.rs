@@ -21,10 +21,10 @@ use crate::{
     error_manager::ErrorManager, region::Region, source_excerpt_provider::SourceExcerptProvider,
     source_file::SourceFile, source_map_input::SourceMapInput,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_sourcemap::{
     proto::mapping::OriginalMapping, source_map_consumer_v3::SourceMapConsumerV3,
 };
-use indexmap::IndexMap;
 use std::sync::{Arc, Mutex};
 #[derive(Default)]
 pub(crate) struct CompilerSourceExcerptProvider {

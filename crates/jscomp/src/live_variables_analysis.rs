@@ -29,10 +29,10 @@ use crate::{
     scope_creator::ScopeCreator,
     var::VarId,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_state, java_util::bit_set::BitSet, js_string::JsString, node::NodeId, token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::fmt;
 pub const MAX_VARIABLES_TO_ANALYZE: i32 = 100;
 #[derive(Clone, Debug)]
@@ -128,8 +128,8 @@ impl LiveVariablesAnalysis {
             state: DataFlowAnalysisState::new(cfg, false, false),
             js_scope,
             js_scope_child,
-            escaped: IndexSet::new(),
-            scope_variables: IndexMap::new(),
+            escaped: IndexSet::<_>::default(),
+            scope_variables: IndexMap::<_, _>::default(),
             ordered_vars: all_vars_declared_in_function
                 .get_all_variables_in_order()
                 .to_vec(),

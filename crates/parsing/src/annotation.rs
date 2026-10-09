@@ -20,8 +20,8 @@
 
 use std::sync::LazyLock;
 
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 
 /// All natively recognized JSDoc annotations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -123,7 +123,7 @@ impl Annotation {
 }
 
 static RECOGNIZED_ANNOTATIONS: LazyLock<IndexMap<JsString, Annotation>> = LazyLock::new(|| {
-    let mut m = IndexMap::new();
+    let mut m = IndexMap::<_, _>::default();
     put(&mut m, "ngInject", Annotation::NG_INJECT);
     put(&mut m, "abstract", Annotation::ABSTRACT);
     put(

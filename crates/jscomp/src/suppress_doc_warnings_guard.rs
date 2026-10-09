@@ -20,8 +20,8 @@ use crate::{
     abstract_compiler::AbstractCompiler, check_level::CheckLevel,
     diagnostic_group::DiagnosticGroup, diagnostic_groups, js_error::JSError, node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{jsdoc_info::JSDocInfo, node::NodeId};
-use indexmap::IndexMap;
 use std::sync::Arc;
 pub struct SuppressDocWarningsGuard {
     suppressors: IndexMap<String, Arc<DiagnosticGroup>>,

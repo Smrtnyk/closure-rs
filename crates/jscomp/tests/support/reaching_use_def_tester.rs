@@ -31,8 +31,8 @@ use closure_jscomp::{
     scope::ScopeId,
     syntactic_scope_creator::SyntacticScopeCreator,
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::node::NodeId;
-use indexmap::IndexSet;
 use std::sync::Arc;
 pub struct ReachingUseDefTester {
     compiler: Compiler,
@@ -80,7 +80,7 @@ impl ReachingUseDefTester {
         let root = self.root.unwrap();
         let scope = self.compute_function_block_scope(script, root);
         let cfg = self.compute_cfg(root);
-        let mut escaped = IndexSet::new();
+        let mut escaped = IndexSet::<_>::default();
         let parent = scope.get_parent(&self.compiler).unwrap();
         let all_vars = NodeUtil::get_all_vars_declared_in_function(
             &mut self.compiler,
@@ -106,7 +106,7 @@ impl ReachingUseDefTester {
         let root = self.root.unwrap();
         let scope = self.compute_function_block_scope(script, root);
         let cfg = self.compute_cfg(root);
-        let mut escaped = IndexSet::new();
+        let mut escaped = IndexSet::<_>::default();
         let parent = scope.get_parent(&self.compiler).unwrap();
         let all_vars = NodeUtil::get_all_vars_declared_in_function(
             &mut self.compiler,

@@ -35,12 +35,12 @@ use crate::name_generator::NameGenerator;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::variable_map::VariableMap;
 use closure_rhino::check_state;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::java_lang::string::split;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
 use closure_rhino::token::Token;
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, RwLock};
 
 // port: ReplaceStrings#BAD_REPLACEMENT_CONFIGURATION
@@ -150,9 +150,9 @@ impl ReplaceStrings {
             } else {
                 placeholder_token
             }),
-            functions: IndexMap::new(),
+            functions: IndexMap::<_, _>::default(),
             name_generator: Self::create_name_generator(),
-            results: IndexMap::new(),
+            results: IndexMap::<_, _>::default(),
         };
 
         // Initialize the map of functions to inspect for renaming candidates.
@@ -173,7 +173,7 @@ impl ReplaceStrings {
     /// Get the list of replaces as a VariableMap
     // port: ReplaceStrings#getStringMap
     pub fn get_string_map(&self) -> VariableMap {
-        let mut map: IndexMap<JsString, JsString> = IndexMap::new();
+        let mut map: IndexMap<JsString, JsString> = IndexMap::<_, _>::default();
         for result in self.results.values().filter(|r| used_results(r)) {
             // ImmutableMap.Builder#buildOrThrow rejects duplicate keys.
             let previous = map.insert(result.replacement.clone(), result.original.clone());
@@ -484,7 +484,7 @@ impl ReplaceStrings {
             name,
             replacement_parameters,
             if colon == -1 {
-                IndexSet::new()
+                IndexSet::<_>::default()
             } else {
                 split(
                     &function_units
@@ -503,9 +503,9 @@ impl ReplaceStrings {
     // port: ReplaceStrings#createNameGenerator
     fn create_name_generator() -> DefaultNameGenerator {
         let name_prefix = "";
-        let reserved_chars: IndexSet<u16> = IndexSet::new();
+        let reserved_chars: IndexSet<u16> = IndexSet::<_>::default();
         DefaultNameGenerator::with_reserved_characters(
-            Arc::new(RwLock::new(IndexSet::new())),
+            Arc::new(RwLock::new(IndexSet::<_>::default())),
             JsString::from(name_prefix),
             &reserved_chars,
         )

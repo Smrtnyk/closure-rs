@@ -24,8 +24,8 @@ use closure_jscomp::{
     js_chunk_graph::{BitSet, JSChunkGraph},
     source_file::SourceFile,
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::static_source_file::SourceKind;
-use indexmap::IndexSet;
 use std::sync::Arc;
 // port: JSChunkGraphTest#makeDeps
 fn make_deps() -> [JSChunk; 6] {

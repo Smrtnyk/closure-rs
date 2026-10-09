@@ -32,7 +32,7 @@ use closure_jscomp::{
     pass_factory::PassFactory,
     phase_optimizer::PhaseOptimizer,
 };
-use indexmap::IndexMap;
+use closure_rhino::fx_hash::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 const TESTER: &str =
@@ -42,8 +42,8 @@ const TESTER: &str =
 pub fn tester(_ctx: &mut Ctx, _args: Vec<DslValue>) -> Result<DslValue, Throwable> {
     Ok(DslValue::Object(Rc::new(RefCell::new(Object {
         class: TESTER.into(),
-        fields: IndexMap::new(),
-        field_types: IndexMap::new(),
+        fields: IndexMap::<_, _>::default(),
+        field_types: IndexMap::<_, _>::default(),
     }))))
 }
 

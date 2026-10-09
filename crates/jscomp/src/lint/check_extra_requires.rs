@@ -31,6 +31,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument,
     js_string::JsString,
@@ -38,7 +39,6 @@ use closure_rhino::{
     qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::LazyLock;
 
 // port: CheckExtraRequires#EXTRA_REQUIRE_WARNING
@@ -77,8 +77,8 @@ impl CheckExtraRequires {
     // port: CheckExtraRequires#CheckExtraRequires
     pub fn new(_compiler: &AbstractCompiler, requires_to_remove: Option<IndexSet<String>>) -> Self {
         Self {
-            requires: IndexMap::new(),
-            usages: IndexSet::new(),
+            requires: IndexMap::<_, _>::default(),
+            usages: IndexSet::<_>::default(),
             requires_to_remove,
         }
     }

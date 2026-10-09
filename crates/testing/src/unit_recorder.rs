@@ -46,7 +46,7 @@ use crate::{
     },
     throwable::Throwable,
 };
-use indexmap::{IndexMap, IndexSet};
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use std::rc::Rc;
 use std::sync::Arc;
 // port: UnitRecorder#refFields
@@ -55,7 +55,7 @@ pub fn ref_fields(
     keys: &[String],
     depth_left: i32,
 ) -> Result<JsonValue, Throwable> {
-    let mut fields = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
     for key in keys {
         let value = crate::replay::replay_dsl::get_field(holder, key)?;
         fields.insert(key.clone(), ref_value(&value, depth_left)?);
@@ -64,7 +64,7 @@ pub fn ref_fields(
 }
 // port: UnitRecorder#refValue
 pub fn ref_value(value: &DslValue, depth_left: i32) -> Result<JsonValue, Throwable> {
-    dump(value, depth_left, &mut IndexSet::new())
+    dump(value, depth_left, &mut IndexSet::<_>::default())
 }
 // port: UnitRecorder#dump (referenceable mode)
 fn dump(v: &DslValue, depth: i32, seen: &mut IndexSet<usize>) -> Result<JsonValue, Throwable> {
@@ -338,7 +338,7 @@ pub fn post_call_snapshot(
     extra_roots: &[DslValue],
     postcondition_compiler: Option<&CompilerHandle>,
 ) -> Result<JsonValue, Throwable> {
-    let mut comp = IndexMap::new();
+    let mut comp = IndexMap::<_, _>::default();
     if let Some(c) = compiler {
         for key in [
             "externProperties",
@@ -399,14 +399,14 @@ pub fn post_call_snapshot(
         }
     }
     let mut objs = vec![];
-    let mut seen = IndexSet::new();
+    let mut seen = IndexSet::<_>::default();
     if let Some(p) = processor {
         collect(p, 2, &mut objs, &mut seen)?;
     }
     for r in extra_roots {
         collect(r, 1, &mut objs, &mut seen)?;
     }
-    let mut pass = IndexMap::new();
+    let mut pass = IndexMap::<_, _>::default();
     for value in &objs {
         for (class, key, accessor) in RESULT_PRODUCERS {
             if pass.contains_key(*key) || !is_instance(value, class) {
@@ -464,7 +464,7 @@ pub fn post_call_snapshot(
             }
         }
     }
-    let mut snap = IndexMap::new();
+    let mut snap = IndexMap::<_, _>::default();
     snap.insert("compiler".into(), JsonValue::Object(comp));
     snap.insert("pass".into(), JsonValue::Object(pass));
     if let Some(c) = postcondition_compiler {
@@ -601,7 +601,7 @@ fn postcondition_data(c: &CompilerHandle) -> Result<JsonValue, Throwable> {
             stack.extend(children.into_iter().rev());
         }
     }
-    let mut out = IndexMap::new();
+    let mut out = IndexMap::<_, _>::default();
     out.insert("sideEffectFlags".into(), JsonValue::Array(flags));
     out.insert("jsdocTypes".into(), JsonValue::Array(types));
     let extern_export = compiler_snapshot_value(&mut c, "externExport")?.unwrap_or(JsonValue::Null);
@@ -653,7 +653,7 @@ pub fn call(value: &DslValue, method: &str, args: Vec<DslValue>) -> Result<DslVa
 }
 // port: UnitRecorder#moduleMetadata
 pub fn module_metadata(value: &DslValue) -> Result<JsonValue, Throwable> {
-    let mut out = IndexMap::new();
+    let mut out = IndexMap::<_, _>::default();
     for key in [
         "moduleType",
         "usesClosure",
@@ -757,7 +757,7 @@ fn compiler_snapshot_value(
                         .map(|m| {
                             let found = m.get_found().to_string(reg, ast);
                             let required = m.get_required().to_string(reg, ast);
-                            JsonValue::Object(IndexMap::from([
+                            JsonValue::Object(IndexMap::<_, _>::from_iter([
                                 ("found".to_owned(), JsonValue::str(&found)),
                                 ("required".to_owned(), JsonValue::str(&required)),
                             ]))
@@ -934,10 +934,10 @@ fn cross_chunk_references(
 ) -> Result<JsonValue, Throwable> {
     let global_names = call(collector, "getGlobalVariableNamesMap", vec![])?;
     let mut vars = vec![];
-    let mut ids = IndexMap::new();
+    let mut ids = IndexMap::<_, _>::default();
     for (name, var) in map_items(&global_names)? {
         let refs = call(collector, "getReferences", vec![var.clone()])?;
-        let mut vo = IndexMap::new();
+        let mut vo = IndexMap::<_, _>::default();
         vo.insert("name".into(), encode(name)?);
         if matches!(refs, DslValue::Null) {
             vo.insert("references".into(), JsonValue::Null);

@@ -41,6 +41,7 @@
 // Ported from closure-rs' own Java oracle tooling:
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java.
 
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
 use closure_testing::{
     compiler_test_case::{
@@ -55,7 +56,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 static WARNING: DiagnosticType = DiagnosticType::warning("JSC_HARNESS_WARNING", "warning {0}");
@@ -71,7 +71,7 @@ impl Hooks {
             ctx: Ctx::new(
                 "Fixture".into(),
                 closure_testing::replay::replay_values::object([]),
-                IndexMap::new(),
+                IndexMap::<_, _>::default(),
                 Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                     .unwrap(),
             ),
@@ -168,7 +168,7 @@ fn expected_js_keeps_its_compiler_arena_and_uses_real_serializer() {
         &expected.borrow(),
         root,
         true,
-        &IndexMap::new(),
+        &IndexMap::<_, _>::default(),
     )
     .unwrap();
     let (different, root) = harness
@@ -180,7 +180,7 @@ fn expected_js_keeps_its_compiler_arena_and_uses_real_serializer() {
         &different.borrow(),
         root,
         true,
-        &IndexMap::new(),
+        &IndexMap::<_, _>::default(),
     )
     .unwrap_err();
     assert!(
@@ -434,7 +434,7 @@ fn native_node_signatures_execute_in_the_current_arena() {
     let mut ctx = Ctx::new(
         "Fixture".into(),
         closure_testing::replay::replay_values::object([]),
-        IndexMap::new(),
+        IndexMap::<_, _>::default(),
         Registry::from_tsv(tsv).unwrap(),
     );
     ctx.compiler = Some(c.clone());
@@ -484,7 +484,7 @@ fn phase_factory_borrows_the_executing_compiler_and_preserves_replay_state() {
     let mut ctx = Ctx::new(
         "Fixture".into(),
         closure_testing::replay::replay_values::object([]),
-        IndexMap::new(),
+        IndexMap::<_, _>::default(),
         Registry::from_tsv(tsv).unwrap(),
     );
     ctx.compiler = Some(c.clone());
@@ -519,7 +519,7 @@ fn phase_factory_borrows_the_executing_compiler_and_preserves_replay_state() {
                 ],
                 value: Box::new(Expr::Var("pass".into())),
             },
-            captured: IndexMap::from([("pass".into(), pass)]),
+            captured: IndexMap::<_, _>::from_iter([("pass".into(), pass)]),
         }),
     );
     let optimizer = eval(

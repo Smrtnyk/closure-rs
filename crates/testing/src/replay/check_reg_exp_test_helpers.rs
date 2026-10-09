@@ -47,8 +47,8 @@ use crate::{
     throwable::Throwable,
 };
 use closure_jscomp::{check_reg_exp::CheckRegExp, compiler_pass::CompilerPass};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.CheckRegExpTest_Helpers";
@@ -67,8 +67,8 @@ pub fn entry(signature: &str) -> Option<Entry> {
 
 // port: CheckRegExpTest_Helpers#CheckRegExpTest_Helpers
 fn holder(_ctx: &mut Ctx, _args: Vec<DslValue>) -> Result<DslValue, Throwable> {
-    let mut fields = IndexMap::new();
-    let mut field_types = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
+    let mut field_types = IndexMap::<_, _>::default();
     // private @Nullable CheckRegExp last = null;
     fields.insert("last".to_string(), DslValue::Null);
     field_types.insert("last".to_string(), CHECK_REG_EXP.to_string());
@@ -140,7 +140,7 @@ impl NativeObject for NativeCheckRegExp {
     // port: ReplayValues#findField (CheckRegExp's instance fields, in declaration order)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
         let fields = self.pass.replay_fields();
-        Ok(IndexMap::from([
+        Ok(IndexMap::<_, _>::from_iter([
             (
                 "compiler".to_string(),
                 DslValue::Compiler(self.compiler.clone()),

@@ -40,12 +40,12 @@ use crate::{
 };
 use closure_parsing::parser::feature_set::FeatureSet;
 use closure_resources::resources::resource_loader::ResourceLoader;
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     ir::IR,
     js_string::JsString,
     node::{NodeId, Prop},
 };
-use indexmap::IndexSet;
 use std::sync::{Arc, LazyLock};
 
 // port: IsolatePolyfills#POLYFILL_TEMP
@@ -72,7 +72,7 @@ pub struct IsolatePolyfills {
 // port: IsolatePolyfills#FILES_ALLOWED_UNQUALIFIED_POLYFILL_ACCESSES
 static FILES_ALLOWED_UNQUALIFIED_POLYFILL_ACCESSES: LazyLock<IndexSet<String>> =
     LazyLock::new(|| {
-        IndexSet::from([
+        IndexSet::<_>::from_iter([
             format!("{}util/global.js", AbstractCompiler::RUNTIME_LIB_DIR),
             format!(
                 "{}util/shouldpolyfill.js",
@@ -140,7 +140,7 @@ impl IsolatePolyfills {
     /// polyfill injection pass actually runs.
     // port: IsolatePolyfills#findAllInjectedPolyfills
     fn find_all_injected_polyfills(compiler: &mut AbstractCompiler) -> IndexSet<JsString> {
-        let mut actual_polyfills = IndexSet::new();
+        let mut actual_polyfills = IndexSet::<_>::default();
 
         let last_injected_node = compiler.get_node_for_code_insertion(None);
 
@@ -415,7 +415,7 @@ impl CompilerPass for IsolatePolyfills {
             &mut |_, usage| polyfill_usages.push(usage),
         );
 
-        let mut visited_nodes: IndexSet<NodeId> = IndexSet::new();
+        let mut visited_nodes: IndexSet<NodeId> = IndexSet::<_>::default();
         for usage in &polyfill_usages {
             if
             // Some nodes map to more than one polyfill usage. For example, `x.includes` maps to

@@ -17,8 +17,8 @@
 //   src/com/google/javascript/jscomp/MemoizedScopeCreator.java.
 
 use crate::{abstract_compiler::AbstractCompiler, scope::ScopeId, scope_creator::ScopeCreator};
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{check_state, node::NodeId};
-use indexmap::IndexMap;
 
 pub struct MemoizedScopeCreator<'a> {
     scopes_by_scope_root: IndexMap<NodeId, ScopeId>,
@@ -29,7 +29,7 @@ impl<'a> MemoizedScopeCreator<'a> {
     // port: MemoizedScopeCreator#MemoizedScopeCreator
     pub fn new(delegate: Box<dyn ScopeCreator + 'a>) -> Self {
         Self {
-            scopes_by_scope_root: IndexMap::new(),
+            scopes_by_scope_root: IndexMap::<_, _>::default(),
             delegate,
         }
     }

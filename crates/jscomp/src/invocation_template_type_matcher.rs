@@ -33,6 +33,7 @@ use closure_jstype::{
     function_type::{self, Parameter},
     prelude::{FunctionType, JSType, ObjectType, UnionType},
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     jscomp_base::{
         linked_identity_hash_map::LinkedIdentityHashMap,
@@ -40,7 +41,6 @@ use closure_rhino::{
     },
     node::{Ast, NodeId},
 };
-use indexmap::IndexMap;
 
 pub struct InvocationTemplateTypeMatcher<'a> {
     matched_types: LinkedIdentityHashMap<TypeId, TypeId>,
@@ -85,7 +85,7 @@ impl<'a> InvocationTemplateTypeMatcher<'a> {
             .get_template_type_map(self.registry)
             .is_empty()
         {
-            return IndexMap::new();
+            return IndexMap::<_, _>::default();
         }
 
         let target = self.invocation.get_first_child(self.ast).unwrap();
@@ -323,7 +323,7 @@ impl<'a> InvocationTemplateTypeMatcher<'a> {
 
     // port: InvocationTemplateTypeMatcher#copyMatchedTypes
     fn copy_matched_types(&self) -> IndexMap<TypeId, TypeId> {
-        let mut builder = IndexMap::new();
+        let mut builder = IndexMap::<_, _>::default();
         self.matched_types.for_each(|k, v| {
             builder.insert(*k, *v.unwrap());
         });

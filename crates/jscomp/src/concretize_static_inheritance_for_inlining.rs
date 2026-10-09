@@ -100,6 +100,7 @@ use crate::{
     },
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,
@@ -108,7 +109,6 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 // port: ConcretizeStaticInheritanceForInlining#DUPLICATE_CLASS
@@ -157,10 +157,10 @@ impl ConcretizeStaticInheritanceForInlining {
             .unwrap()
             .get_js_lib_field("$jscomp.inherits");
         Self {
-            duplicate_class_names: IndexSet::new(),
+            duplicate_class_names: IndexSet::<_>::default(),
             inherits,
             classes: Vec::new(),
-            class_by_alias: IndexMap::new(),
+            class_by_alias: IndexMap::<_, _>::default(),
         }
     }
 
@@ -334,7 +334,7 @@ impl FindStaticMembers {
     fn new() -> Self {
         Self {
             inherits_calls: Vec::new(),
-            node_order: IndexMap::new(),
+            node_order: IndexMap::<_, _>::default(),
         }
     }
 

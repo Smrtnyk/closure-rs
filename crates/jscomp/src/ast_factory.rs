@@ -60,6 +60,7 @@ use closure_jstype::{
     js_type_native::JSTypeNative, object_type, object_type::ObjectType,
     template_type_replacer::TemplateTypeReplacer,
 };
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,
@@ -69,12 +70,11 @@ use closure_rhino::{
     static_scope::StaticScope,
     token::Token,
 };
-use indexmap::IndexSet;
 use std::sync::{Arc, LazyLock, Mutex};
 
 // port: AstFactory#bigintNumberStringColor
 static BIGINT_NUMBER_STRING_COLOR: LazyLock<Color> = LazyLock::new(|| {
-    Color::create_union(&IndexSet::from([
+    Color::create_union(&IndexSet::<_>::from_iter([
         standard_colors::BIGINT.clone(),
         standard_colors::STRING.clone(),
         standard_colors::NUMBER.clone(),
@@ -1789,7 +1789,7 @@ impl AstFactory {
                 let right_color = check_not_null!(right.get_color(ast), "%s", right.to_string(ast));
                 result.set_color(
                     ast,
-                    Some(Color::create_union(&IndexSet::from([
+                    Some(Color::create_union(&IndexSet::<_>::from_iter([
                         left_color,
                         right_color,
                     ]))),
@@ -2391,7 +2391,7 @@ impl AstFactory {
             }
             TypeMode::COLOR => {
                 // ImmutableSet.of rejects null elements
-                let colors = IndexSet::from([
+                let colors = IndexSet::<_>::from_iter([
                     expr1.get_color(ast).expect("NullPointerException"),
                     expr2.get_color(ast).expect("NullPointerException"),
                 ]);

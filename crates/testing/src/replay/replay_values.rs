@@ -46,8 +46,8 @@ use crate::{
     throwable::Throwable,
     value::{DiagnosticGroupRef, Value},
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -251,7 +251,7 @@ pub fn decode(
                 let object = DslValue::Object(Rc::new(RefCell::new(Object {
                     class,
                     fields,
-                    field_types: IndexMap::new(),
+                    field_types: IndexMap::<_, _>::default(),
                 })));
                 DslValue::WarningsGuard {
                     guard: crate::replay::options_values::decode_guard(&object)?,
@@ -268,7 +268,7 @@ pub fn decode(
                 DslValue::Object(Rc::new(RefCell::new(Object {
                     class,
                     fields,
-                    field_types: IndexMap::new(),
+                    field_types: IndexMap::<_, _>::default(),
                 })))
             }
         }
@@ -374,7 +374,7 @@ pub fn diagnostic_group(g: &DiagnosticGroupRef) -> Arc<DiagnosticGroup> {
 // port: ReplayValues#decode (DiagnosticType)
 pub fn diagnostic_type(key: &str, l: CheckLevel) -> &'static DiagnosticType {
     static TYPES: LazyLock<Mutex<IndexMap<(String, CheckLevel), &'static DiagnosticType>>> =
-        LazyLock::new(|| Mutex::new(IndexMap::new()));
+        LazyLock::new(|| Mutex::new(IndexMap::<_, _>::default()));
     let mut types = TYPES.lock().unwrap();
     types.entry((key.into(), l)).or_insert_with(|| {
         Box::leak(Box::new(DiagnosticType::make(
@@ -413,7 +413,7 @@ pub fn source_files(files: &[crate::value::SourceFile]) -> Vec<Arc<SourceFile>> 
 }
 // port: ReplayValues#chunks
 pub fn chunks(records: &[crate::record::Chunk]) -> Result<Vec<JSChunk>, Throwable> {
-    let mut by_name: IndexMap<String, JSChunk> = IndexMap::new();
+    let mut by_name: IndexMap<String, JSChunk> = IndexMap::<_, _>::default();
     let mut out = Vec::new();
     for c in records {
         let chunk = JSChunk::new(&c.name);
@@ -651,7 +651,7 @@ fn restore_impls(v: &JsonValue, t: &JsonValue) -> JsonValue {
                 ),
             ]);
         }
-        let mut out = IndexMap::new();
+        let mut out = IndexMap::<_, _>::default();
         for (k, x) in a {
             out.insert(
                 k.clone(),

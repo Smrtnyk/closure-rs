@@ -22,11 +22,11 @@
 use std::io::Read;
 use std::sync::{Arc, LazyLock};
 
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::java_lang::pattern::Pattern;
 use closure_rhino::java_lang::sax_parser::{self, Attributes, ContentHandler, SaxParseException};
 use closure_rhino::js_string::JsString;
 use closure_rhino::{check_not_null, check_state};
-use indexmap::IndexMap;
 
 use crate::google_js_message_id_generator::GoogleJsMessageIdGenerator;
 use crate::js_message::{Builder, GrammaticalGenderCase, IdGenerator, JsMessage};
@@ -67,7 +67,7 @@ impl XtbMessageBundle {
         mut xtb: impl Read,
         project_id: Option<&str>,
     ) -> Result<XtbMessageBundle, XtbMessageBundleError> {
-        let mut messages = IndexMap::new();
+        let mut messages = IndexMap::<_, _>::default();
         let id_generator: Arc<dyn IdGenerator> = Arc::new(GoogleJsMessageIdGenerator::new(
             project_id.map(str::to_string),
         ));

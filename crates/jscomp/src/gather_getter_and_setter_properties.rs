@@ -28,13 +28,13 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{
     check_state,
     js_string::JsString,
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::IndexMap;
 use std::sync::Arc;
 
 /// Finds all getters and setters in the compilation (Java `CompilerPass`).
@@ -97,7 +97,7 @@ struct GatherCallback {
 impl GatherCallback {
     fn new() -> Self {
         Self {
-            properties: IndexMap::new(),
+            properties: IndexMap::<_, _>::default(),
         }
     }
 

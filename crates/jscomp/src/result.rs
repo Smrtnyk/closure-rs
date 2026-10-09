@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/Result.java.
 
 use crate::{js_error::JSError, source_map::SourceMap, variable_map::VariableMap};
-use indexmap::IndexSet;
+use closure_rhino::fx_hash::IndexSet;
 use std::sync::{Arc, Mutex};
 pub struct Result {
     pub success: bool,
@@ -96,7 +96,11 @@ impl Result {
 
     // port: Result#pruneResultForPartialCompilation
     pub fn prune_result_for_partial_compilation(result: Result) -> Self {
-        let empty_variable_map = Arc::new(VariableMap::from_map(&indexmap::IndexMap::new()));
+        let empty_variable_map =
+            Arc::new(VariableMap::from_map(&closure_rhino::fx_hash::IndexMap::<
+                _,
+                _,
+            >::default()));
         Self::new(
             result.errors,
             result.warnings,

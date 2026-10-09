@@ -40,6 +40,7 @@ use crate::node_util::NodeUtil;
 use crate::optional_chain_rewriter::{OptionalChainRewriter, TmpVarNameCreator};
 use crate::scope::Scope;
 use closure_jstype::{js_type::JSType, js_type_native::JSTypeNative, object_type::ObjectType};
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,
@@ -50,7 +51,6 @@ use closure_rhino::{
     qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::IndexSet;
 use std::collections::VecDeque;
 use std::fmt;
 use std::sync::{Arc, LazyLock};

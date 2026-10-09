@@ -26,11 +26,11 @@ use crate::{
     abstract_compiler::AbstractCompiler, node_traversal::Callback, node_traversal::NodeTraversal,
     node_util::NodeUtil,
 };
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{hash::Hash, rc::Rc};
 
 pub struct GuardedCallback<T> {
@@ -121,9 +121,9 @@ impl<T: Clone + Eq + Hash> GuardedCallback<T> {
     // port: GuardedCallback#GuardedCallback
     pub fn new() -> Self {
         Self {
-            registered_guards: IndexMap::new(),
-            guarded: IndexMap::new(),
-            installed_guards: IndexMap::new(),
+            registered_guards: IndexMap::<_, _>::default(),
+            guarded: IndexMap::<_, _>::default(),
+            installed_guards: IndexMap::<_, _>::default(),
             context_stack: Vec::new(),
         }
     }

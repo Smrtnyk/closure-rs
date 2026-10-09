@@ -30,8 +30,8 @@ use crate::{
     },
     throwable::{Throwable, assert_that},
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 pub struct IntegrationTestCase {
     pub externs: Vec<Arc<SourceFile>>,
@@ -277,7 +277,7 @@ impl IntegrationTestCase {
                 &expected.0.borrow(),
                 expected.1,
                 false,
-                &IndexMap::new(),
+                &IndexMap::<_, _>::default(),
             )?;
         }
         Ok(())
@@ -305,7 +305,7 @@ impl IntegrationTestCase {
                 &expected.0.borrow(),
                 expected.1,
                 false,
-                &IndexMap::new(),
+                &IndexMap::<_, _>::default(),
             )?;
         }
         let mut errors = c.borrow().get_errors();
@@ -341,7 +341,7 @@ impl IntegrationTestCase {
                 &expected.0.borrow(),
                 expected.1,
                 false,
-                &IndexMap::new(),
+                &IndexMap::<_, _>::default(),
             )?;
         }
         let errors = c.borrow().get_errors();
@@ -496,7 +496,7 @@ impl IntegrationTestCase {
                 &expected.0.borrow(),
                 expected.1,
                 false,
-                &IndexMap::new(),
+                &IndexMap::<_, _>::default(),
             )?;
         }
         Ok(())

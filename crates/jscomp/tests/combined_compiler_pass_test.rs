@@ -21,9 +21,9 @@ use closure_jscomp::combined_compiler_pass::CombinedCompilerPass;
 use closure_jscomp::compiler::Compiler;
 use closure_jscomp::compiler_options::CompilerOptions;
 use closure_jscomp::node_traversal::{Callback, NodeTraversal, ScopedCallback};
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
-use indexmap::IndexSet;
 
 /// Returns a Node tree with the post-order traversal a b c d e f g h i j k l m and the in-order
 /// traversal m d a b c h e f g l i j k:

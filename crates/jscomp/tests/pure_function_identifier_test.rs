@@ -50,6 +50,7 @@ use closure_jscomp::{
     node_util::NodeUtil,
     pure_function_identifier,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
 use closure_testing::{
     compiler_test_case::{
@@ -63,7 +64,6 @@ use closure_testing::{
     testing::js_comp_correspondences::equality_when_parsed_as_expression,
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 // port: PureFunctionIdentifierTest#TEST_EXTERNS
@@ -275,7 +275,7 @@ impl PureFunctionIdentifierTest {
             ctx: Ctx::new(
                 "PureFunctionIdentifierTest".into(),
                 object([]),
-                IndexMap::new(),
+                IndexMap::<_, _>::default(),
                 Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                     .unwrap(),
             ),

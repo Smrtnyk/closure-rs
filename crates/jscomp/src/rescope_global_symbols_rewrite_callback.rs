@@ -26,13 +26,13 @@ use crate::{
     node_util::NodeUtil,
 };
 use closure_parsing::parser::feature_set::Feature;
+use closure_rhino::fx_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_state,
     ir::IR,
     js_string::JsString,
     node::{NodeId, Prop},
 };
-use indexmap::{IndexMap, IndexSet};
 
 /// Node traversal callback to rewrite global symbols as part of the RescopeGlobalSymbols pass.
 pub struct RescopeGlobalSymbolsRewriteCallback {
@@ -135,9 +135,9 @@ impl RescopeGlobalSymbolsRewriteCallback {
             extern_names,
             symbol_info,
             pre_declarations: Vec::new(),
-            local_aliases_for_unwrapped_cross_chunk_names: IndexMap::new(),
-            chunks_using_wrapped_reassignable_symbols: IndexMap::new(),
-            wrapped_reassignable_cross_chunk_names: IndexSet::new(),
+            local_aliases_for_unwrapped_cross_chunk_names: IndexMap::<_, _>::default(),
+            chunks_using_wrapped_reassignable_symbols: IndexMap::<_, _>::default(),
+            wrapped_reassignable_cross_chunk_names: IndexSet::<_>::default(),
         };
         this.wrapped_reassignable_cross_chunk_names =
             this.collect_wrapped_reassignable_cross_chunk_names(compiler);
@@ -179,10 +179,10 @@ impl RescopeGlobalSymbolsRewriteCallback {
         if self.optimize_local_access
             != OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS
         {
-            return IndexSet::new();
+            return IndexSet::<_>::default();
         }
 
-        let mut builder: IndexSet<JsString> = IndexSet::new();
+        let mut builder: IndexSet<JsString> = IndexSet::<_>::default();
         builder.extend(
             self.symbol_info
                 .cross_chunk_names_with_write_from_other_chunk()
@@ -603,7 +603,8 @@ impl RescopeGlobalSymbolsRewriteCallback {
         let default_root_chunk = chunks[0].clone();
 
         // Compute the chunk in which to define the wrapper for each wrapped reassignable symbol.
-        let mut wrapper_assignment_chunks: IndexMap<JsString, Option<JSChunk>> = IndexMap::new();
+        let mut wrapper_assignment_chunks: IndexMap<JsString, Option<JSChunk>> =
+            IndexMap::<_, _>::default();
         if !self.wrapped_reassignable_cross_chunk_names.is_empty() {
             for name in &self.wrapped_reassignable_cross_chunk_names {
                 let using_chunks: Vec<JSChunk> = self
@@ -647,11 +648,11 @@ impl RescopeGlobalSymbolsRewriteCallback {
         let insertion_point = script.get_first_child(compiler);
         let mut changed = false;
 
-        let mut wrapped_reassignable_local_aliases: IndexSet<JsString> = IndexSet::new();
+        let mut wrapped_reassignable_local_aliases: IndexSet<JsString> = IndexSet::<_>::default();
         if self.optimize_local_access
             == OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS
         {
-            wrapped_reassignable_local_aliases = IndexSet::new();
+            wrapped_reassignable_local_aliases = IndexSet::<_>::default();
 
             for name in &self.wrapped_reassignable_cross_chunk_names {
                 let assignment_chunk = wrapper_assignment_chunks.get(name).cloned().flatten();

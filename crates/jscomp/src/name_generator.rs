@@ -16,8 +16,8 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   src/com/google/javascript/jscomp/NameGenerator.java.
 
+use closure_rhino::fx_hash::IndexSet;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexSet;
 
 /// "This set is referenced rather than copied, so changes to the set will be reflected
 /// in how names are generated."

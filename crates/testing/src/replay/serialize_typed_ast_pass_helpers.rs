@@ -60,8 +60,8 @@ use closure_jscomp::{
         typed_ast_proto::TypedAst,
     },
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const TYPED_AST: &str = "com.google.javascript.jscomp.serialization.TypedAst";
@@ -96,7 +96,7 @@ impl NativeObject for TypedAstConsumerLambda {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: UnitRecorder#dump (lambda captures: the TypedAst[1] array)
     fn lambda_captures(&self) -> Option<Result<IndexMap<String, DslValue>, Throwable>> {
@@ -112,7 +112,7 @@ impl NativeObject for TypedAstConsumerLambda {
             })
             .collect::<Result<Vec<_>, _>>();
         Some(items.map(|items| {
-            let mut captures = IndexMap::new();
+            let mut captures = IndexMap::<_, _>::default();
             captures.insert(
                 "arg$1".to_string(),
                 DslValue::Array {
@@ -143,7 +143,7 @@ impl NativeObject for ConsumerHolder {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             self.field.to_string(),
             match &self.consumer {
@@ -230,7 +230,7 @@ impl NativeObject for Options {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "includeDebugInfo".into(),
             DslValue::Bool(self.options.include_debug_info()),
@@ -348,7 +348,7 @@ impl NativeObject for NativeSerializeTypedAstPass {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert("compiler".into(), DslValue::Compiler(self.compiler.clone()));
         fields.insert("consumer".into(), DslValue::Native(self.consumer.clone()));
         fields.insert(

@@ -29,9 +29,9 @@ use closure_jscomp::{
     compiler_options::{DevMode, JsonStreamMode, TweakProcessing},
     dependency_options::DependencyOptions,
 };
+use closure_rhino::fx_hash::IndexMap;
 use closure_rhino::java_lang::charset::Charset;
 use closure_rhino::static_source_file::StaticSourceFile;
-use indexmap::IndexMap;
 use std::io::{Read, Write};
 use std::sync::Arc;
 
@@ -619,7 +619,7 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
     pub fn parse_chunk_output_files(
         specs: &[String],
     ) -> Result<IndexMap<String, String>, FlagUsageException> {
-        let mut outputs = IndexMap::new();
+        let mut outputs = IndexMap::<_, _>::default();
         for spec in specs {
             let (name, filename) = spec.split_once(':').ok_or_else(|| {
                 FlagUsageException(format!(
@@ -686,7 +686,7 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
     }
     // port: AbstractCommandLineRunner#constructRootRelativePathsMap
     pub fn construct_root_relative_paths_map(&self) -> IndexMap<String, String> {
-        let mut result = IndexMap::new();
+        let mut result = IndexMap::<_, _>::default();
         for value in &self.config.manifest_maps {
             let colon = value.find(':').expect("missing colon");
             assert!(colon > 0);
@@ -1071,7 +1071,7 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
             (&self.config.output_manifests, "output_manifest"),
             (&self.config.output_bundles, "output_bundle"),
         ] {
-            let mut unique = indexmap::IndexSet::new();
+            let mut unique = closure_rhino::fx_hash::IndexSet::<_>::default();
             for filename in files {
                 if !unique.insert(filename) {
                     return Err(FlagUsageException(format!(
@@ -1361,8 +1361,8 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
     ) -> Result<Vec<JSChunk>, FlagUsageException> {
         assert!(!specs.is_empty());
         let mut names = Vec::new();
-        let mut chunks: IndexMap<String, JSChunk> = IndexMap::new();
-        let mut counts = IndexMap::new();
+        let mut chunks: IndexMap<String, JSChunk> = IndexMap::<_, _>::default();
+        let mut counts = IndexMap::<_, _>::default();
         let mut expected = 0i32;
         let mut minimum = 0i32;
         for spec in specs {
@@ -1904,7 +1904,7 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
         use closure_jscomp::ijs::ijs_errors::{BAD_IJS_FILE_NAME, CONFLICTING_IJS_FILE};
         use closure_jscomp::js_error::JSError;
         let mut errors = Vec::new();
-        let mut relative_to_absolute_name = IndexMap::new();
+        let mut relative_to_absolute_name = IndexMap::<_, _>::default();
         for file in files.iter() {
             if matches!(file.flag, JsSourceType::JS | JsSourceType::WEAKDEP) {
                 let absolute_name = &file.value;
