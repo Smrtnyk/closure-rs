@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the oracle jar $ORACLE_JAR (build/oracle/oracle.jar for the default reference;
+# Builds the oracle jar $ORACLE_JAR (build/oracle-v20261006/oracle.jar for the default reference;
 # scripts/paths.sh, docs/PORTING.md §9) from this checkout's oracle/src against the pinned
 # reference uberjar $REF_JAR (classpath only; the reference src/ is never modified).
 # Refuses a reference whose jar sha256 is not pinned in scripts/references.tsv.

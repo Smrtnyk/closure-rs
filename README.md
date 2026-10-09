@@ -5,12 +5,15 @@ the JavaScript optimizer, checker and transpiler. Its goal is **byte-identical b
 same input files and flags, `closure-rs` produces exactly the same output, diagnostics, exit code and
 source maps as the Java compiler, without needing a JVM.
 
-**Upstream version:** closure-rs is based on [Closure Compiler](https://github.com/google/closure-compiler)
-at commit
-[`bb8c8e7cb8d0b14b27ff5e969d186bb97017eb06`](https://github.com/google/closure-compiler/tree/bb8c8e7cb8d0b14b27ff5e969d186bb97017eb06)
-(2026-10-05), and is meant to stay byte-identical to that commit.
+**Upstream version:** closure-rs matches the npm package
+[`google-closure-compiler@20261006.0.0`](https://www.npmjs.com/package/google-closure-compiler/v/20261006.0.0),
+that is [Closure Compiler](https://github.com/google/closure-compiler) release
+[`v20261006`](https://github.com/google/closure-compiler/tree/v20261006) (commit
+[`48f4107ca2aac52149546ccc42894522fcfdb17d`](https://github.com/google/closure-compiler/tree/48f4107ca2aac52149546ccc42894522fcfdb17d)),
+and is meant to stay byte-identical to it. closure-rs follows upstream *releases*, the versions
+published on npm, not upstream master commits: each sync moves it to a newer npm release.
 
-It is a translation of Closure Compiler's Java sources at that commit. Every Rust function names
+It is a translation of Closure Compiler's Java sources at that release. Every Rust function names
 the Java method it ports, and the Java test suites are replayed against the port. This is an
 independent project, **not affiliated with or endorsed by
 Google**; for the original compiler, its documentation and support, see:
@@ -59,9 +62,10 @@ This repository does not take bug reports and does not fix bugs in the compiler'
 closure-rs exists to behave exactly like upstream Closure Compiler, so a bug in what the compiler
 does is a bug in Closure Compiler: report it upstream at
 <https://github.com/google/closure-compiler/issues>. The repository syncs with upstream
-periodically: upstream changes are ported, and the pinned commit above moves forward.
+releases: the changes of a newer npm release are ported, and the pinned release above moves
+forward to it.
 
-A difference between closure-rs and the Java compiler at the pinned commit is a porting defect,
+A difference between closure-rs and the Java compiler at the pinned release is a porting defect,
 not a compiler bug. The project finds those with its own differential testing (see
 [How the port is checked](#how-the-port-is-checked)), so there is no need to report them either.
 

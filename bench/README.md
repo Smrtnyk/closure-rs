@@ -3,9 +3,10 @@
 D7 requires that **on every benchmark in this directory** the Rust CLI's wall-clock time is
 at most Java's and its peak RSS is at most Java's. Java is measured as users run it: a cold
 `java -jar closure-compiler.jar ...` per compile (the reference uberjar of the D2 golden
-pipeline, `build/reference/closure-compiler.jar`, sha256 `4ef5a893...`, run with the project's
-JDK 21 at `tools/jdk-21`, with no extra JVM flags). Each compile is a separate process for both
-compilers, so JVM start-up and warm-up count, as they do for users.
+pipeline: `$REF_JAR`, for the default reference `build/reference-v20261006/closure-compiler.jar`,
+sha256 `cfa8886f...`, see docs/PORTING.md §9; run with the project's JDK 21 at `tools/jdk-21`,
+with no extra JVM flags). Each compile is a separate process for both compilers, so JVM start-up
+and warm-up count, as they do for users.
 
 The benchmarks also compare the two compilers' results byte for byte (exit code, stdout,
 stderr, output file). A difference is a porting defect to report and fix, not a benchmark
@@ -67,7 +68,7 @@ trees are left alone, wrong or partial ones are fetched again; `--check` only ve
 `run_bench.py` derives the repository root from its own location, runs every compile with
 cwd = that root (the argv holds repo-relative paths, which appear in warnings), a fixed minimal
 environment and stdin `/dev/null`, under `/usr/bin/time` for the peak RSS. Java and the jar are
-taken from the data root (this checkout if it has `build/reference/closure-compiler.jar`, else
+taken from the data root (this checkout if it has the reference jar, else
 `$CLOSURE_RS_DATA_ROOT`, else the main checkout of a worktree); `--java`, `--jar` and `--bin`
 override them. Each repetition runs Java then Rust; the medians are reported, per job and as
 totals per project and level (time summed, RSS maximum). Run it on an otherwise idle machine,
