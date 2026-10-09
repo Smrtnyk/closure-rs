@@ -223,3 +223,15 @@ Binary distributions
   no system zlib is used, and the MIT notice of Microsoft's mimalloc allocator, whose C sources
   libmimalloc-sys compiles into the binary. scripts/third_party_licenses.py writes it from
   Cargo.lock.
+
+  The linux-x64 executable is statically linked (Rust target x86_64-unknown-linux-musl) and also
+  contains the C runtime that the Rust toolchain ships for that target:
+    musl 1.2.5 (the C library libc.a and the startup objects rcrt1.o, crti.o, crtn.o):
+      Copyright (c) 2005-2020 Rich Felker, et al. Licensed under the MIT License; musl's COPYRIGHT
+      file, which also names its contributors and the code under other permissive terms, is
+      reproduced in LICENSES/MIT-musl.txt.
+    LLVM libunwind (libunwind.a) and LLVM compiler-rt (crtbeginS.o, crtendS.o), LLVM 22.1.2:
+      Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions
+      (LICENSES/Apache-2.0-WITH-LLVM-exception-libunwind.txt and
+      LICENSES/Apache-2.0-WITH-LLVM-exception-compiler-rt.txt).
+  LICENSES/THIRD_PARTY_RUST.md lists them with the crates and reproduces both texts.

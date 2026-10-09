@@ -1,7 +1,8 @@
 # Builds the closure-rs CLI for Linux and Windows, checks it, tests the npm wrapper (npm/closure-rs/)
 # against each binary, and packs ONE npm package `closure-rs` with both binaries bundled
 # (bin/<platform>-<arch>/; the wrapper picks the one for the running machine).
-# Linux is built on ubuntu-22.04 so the binary runs on older glibc (Jenkins agents, Ubuntu CI).
+# The Linux binary is static (target x86_64-unknown-linux-musl): it runs on any x86-64 Linux, glibc
+# or musl (Alpine), with no C library version requirement.
 # Publishing is a separate, manual job: run the workflow by hand with "publish" checked. It uses npm
 # trusted publishing (GitHub OIDC, no stored token): the package's npm settings must name this
 # repository, this workflow file and the environment `npm`. Nothing is published otherwise.
@@ -35,15 +36,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # static: musl's C library and LLVM's libunwind are linked in, no system C library needed
           - os: ubuntu-22.04
             platform: linux
             arch: x64
             exe: closure-rs
+            target: x86_64-unknown-linux-musl
+            out: target/x86_64-unknown-linux-musl/release
           - os: windows-latest
             platform: win32
             arch: x64
             exe: closure-rs.exe
+            out: target/release
     runs-on: ${{ matrix.os }}
+    env:
+      # the shipped binary, tested by every step below
+      BIN: bins/${{ matrix.platform }}-${{ matrix.arch }}/${{ matrix.exe }}
     steps:
       - uses: actions/checkout@v7
 
@@ -52,17 +60,51 @@ jobs:
         shell: bash
         run: rustup show active-toolchain || rustup toolchain install
 
+      # musl-tools: musl-gcc, which the cc crate uses for the C code of the -sys crates (mimalloc,
+      # zlib); rustc links with the musl libc.a and crt objects of the Rust target itself
+      - name: musl target
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        shell: bash
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          sudo apt-get update -q && sudo apt-get install -y -q musl-tools
+
       - uses: Swatinem/rust-cache@v2
 
       - name: Build the CLI (release)
         shell: bash
-        run: cargo build --release --locked --bin closure-rs
+        env:
+          TARGET: ${{ matrix.target }}
+        run: cargo build --release --locked --bin closure-rs ${TARGET:+--target "$TARGET"}
+
+      # the release profile keeps debug info for the D2 runs; the shipped binary is stripped
+      - name: Stage the binary (bins/<platform>-<arch>/)
+        shell: bash
+        run: |
+          mkdir -p bins/${{ matrix.platform }}-${{ matrix.arch }}
+          cp ${{ matrix.out }}/${{ matrix.exe }} "$BIN"
+          if [ "${{ matrix.platform }}" = linux ]; then strip "$BIN"; fi
+
+      - name: Static binary (no dynamic loader, no shared libraries)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          file "$BIN"
+          file "$BIN" | grep -Eq 'statically linked|static-pie linked'
 
       - name: Smoke test (ADVANCED compile)
         shell: bash
         run: |
           printf 'function greet(name){var unused=1;return "Hello, "+name}\nwindow["greet"]=greet;\nconsole.log(greet("world"));\n' > smoke.js
-          out=$(target/release/${{ matrix.exe }} --compilation_level=ADVANCED --js=smoke.js)
+          out=$("$BIN" --compilation_level=ADVANCED --js=smoke.js)
+          echo "$out"
+          test "$out" = 'function a(b){return"Hello, "+b}window.greet=a;console.log(a("world"));'
+
+      - name: Smoke test on Alpine (musl, no gcompat)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          out=$(docker run --rm -v "$PWD:/w" -w /w node:24-alpine "$BIN" --compilation_level=ADVANCED --js=smoke.js)
           echo "$out"
           test "$out" = 'function a(b){return"Hello, "+b}window.greet=a;console.log(a("world"));'
 
@@ -80,15 +122,14 @@ jobs:
 
       - name: Test the npm wrapper against this binary
         shell: bash
-        run: CLOSURE_RS_BINARY=target/release/${{ matrix.exe }} node --test npm/closure-rs/test/wrapper.test.mjs
+        run: CLOSURE_RS_BINARY="$BIN" node --test npm/closure-rs/test/wrapper.test.mjs
 
-      # the release profile keeps debug info for the D2 runs; the shipped binary is stripped
-      - name: Stage the binary (bins/<platform>-<arch>/)
+      - name: Test the npm wrapper against this binary on Alpine (musl, no gcompat)
+        if: matrix.platform == 'linux'
         shell: bash
         run: |
-          mkdir -p bins/${{ matrix.platform }}-${{ matrix.arch }}
-          cp target/release/${{ matrix.exe }} bins/${{ matrix.platform }}-${{ matrix.arch }}/
-          if [ "${{ matrix.platform }}" = linux ]; then strip bins/linux-${{ matrix.arch }}/${{ matrix.exe }}; fi
+          docker run --rm -v "$PWD:/w" -w /w -e CLOSURE_RS_BINARY="$BIN" node:24-alpine \
+            node --test npm/closure-rs/test/wrapper.test.mjs
 
       - uses: actions/upload-artifact@v7
         with:
