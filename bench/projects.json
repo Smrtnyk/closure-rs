@@ -475,6 +475,125 @@
           "advanced_entry_point": "bench/entries/fabric.js"
         }
       ]
+    },
+    {
+      "name": "three-bundle",
+      "description": "three.js r186 as a pre-bundled single-file ES module (build/three.module.js, which imports build/three.core.js), as committed at the release tag.",
+      "sources": [
+        {
+          "name": "three.js-build",
+          "kind": "git",
+          "repo": "https://github.com/mrdoob/three.js.git",
+          "ref": "r186",
+          "commit": "9b4a2ac29c63ccb43fd51c5661f2f873ac2c39b8",
+          "license": "MIT",
+          "dest": "three-bundle",
+          "paths": [
+            "build/three.module.js",
+            "build/three.core.js",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "13d255c979f59f5b8fbcb3b15a7aaa43671aaefea79d5e90bc9f118cffb46135"
+        }
+      ],
+      "flags": [
+        "--language_in=ECMASCRIPT_NEXT",
+        "--language_out=ECMASCRIPT_2015",
+        "--module_resolution=NODE",
+        "--dependency_mode=PRUNE",
+        "--externs=bench/externs/webxr.js",
+        "--jscomp_off=visibility"
+      ],
+      "jobs": [
+        {
+          "name": "three-bundle",
+          "entry_point": "bench-cache/three-bundle/build/three.module.js",
+          "js": [
+            "bench-cache/three-bundle/build/three.core.js",
+            "bench-cache/three-bundle/build/three.module.js"
+          ],
+          "advanced_entry_point": "bench/entries/three-bundle.js"
+        }
+      ]
+    },
+    {
+      "name": "d3-bundle",
+      "description": "d3 7.9.0: the umbrella package's single-file UMD bundle (dist/d3.js, about 580 KB) from the npm release tarball.",
+      "sources": [
+        {
+          "name": "d3",
+          "kind": "npm-tarball",
+          "repo": "https://github.com/d3/d3.git",
+          "ref": "v7.9.0",
+          "commit": "1f8dd3b92960f58726006532c11e9457864513ec",
+          "url": "https://registry.npmjs.org/d3/-/d3-7.9.0.tgz",
+          "tarball_sha256": "7e36605710a2ba54846797c8c6d888911341b215ae53257dc32a49a0b824355e",
+          "integrity": "sha512-e1U46jVP+w7Iut8Jt8ri1YsPOvFpg46k+K8TpCb0P+zjCkjkPnV7WzfDJzMHy1LnA+wj5pLT1wjO901gLXeEhA==",
+          "license": "ISC",
+          "dest": "d3-bundle",
+          "paths": [
+            "dist/d3.js",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "a26db73c6379be0ff17f851187e89a17c829955deb41b26215eacedcdfb211a2"
+        }
+      ],
+      "flags": [
+        "--language_in=ECMASCRIPT_NEXT",
+        "--language_out=ECMASCRIPT_2015",
+        "--module_resolution=NODE",
+        "--dependency_mode=PRUNE"
+      ],
+      "jobs": [
+        {
+          "name": "d3-bundle",
+          "entry_point": "bench-cache/d3-bundle/dist/d3.js",
+          "js": [
+            "bench-cache/d3-bundle/dist/d3.js"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "lodash-bundle",
+      "description": "lodash 4.17.21: the monolithic single-file build (lodash.js, about 540 KB) from the npm release tarball.",
+      "sources": [
+        {
+          "name": "lodash",
+          "kind": "npm-tarball",
+          "repo": "https://github.com/lodash/lodash.git",
+          "ref": "4.17.21",
+          "commit": "c6e281b878b315c7a10d90f9c2af4cdb112d9625",
+          "url": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz",
+          "tarball_sha256": "6a087ac9e5702a0c9d60fbcd48696012646ec8df1491dea472b150e79fcaf804",
+          "integrity": "sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==",
+          "license": "MIT",
+          "dest": "lodash-bundle",
+          "paths": [
+            "lodash.js",
+            "package.json",
+            "LICENSE"
+          ],
+          "tree_sha256": "3b2bac383d7709ac18358992a286111d6d88ab243de6ddb11fdea0fdb29ef520"
+        }
+      ],
+      "flags": [
+        "--language_in=ECMASCRIPT_NEXT",
+        "--language_out=ECMASCRIPT_2015",
+        "--module_resolution=NODE",
+        "--dependency_mode=PRUNE"
+      ],
+      "jobs": [
+        {
+          "name": "lodash-bundle",
+          "entry_point": "bench-cache/lodash-bundle/lodash.js",
+          "js": [
+            "bench-cache/lodash-bundle/lodash.js"
+          ]
+        }
+      ]
     }
   ]
 }

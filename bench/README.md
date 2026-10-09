@@ -33,6 +33,9 @@ are part of the output that must match.
 | `three` | three.js r186, entry `src/Three.js` (about 750 ES modules, 4.6 MB). | One large ES-module graph with heavy JSDoc. |
 | `lodash-es` | lodash 4.17.21-es, entry `lodash.js` (about 640 tiny ES modules). | Many small modules: per-file overheads, module rewriting. |
 | `fabric` | fabric.js 7.4.0, `dist/index.mjs` (one bundled ES module, about 790 KB). | One large single file. The repository's sources are TypeScript and its `dist/` is not committed, so the release tarball's ES-module build (from registry.npmjs.org, the build of tag `v740`, commit `ce64f450`) is used; only `dist/index.mjs`, `package.json` and `LICENSE` are extracted, nothing is installed or run. |
+| `three-bundle` | three.js r186, `build/three.module.js` (the release's pre-bundled ES module, about 660 KB, which imports `build/three.core.js`, about 1.46 MB), as committed at the pinned tag. | Pre-bundled single-file inputs, compiled the way a project compiles its own bundles: one compile per bundle, with the time spent in the passes walking one huge script rather than in per-file work. |
+| `d3-bundle` | d3 7.9.0, `dist/d3.js` (the umbrella package's single-file UMD bundle, about 590 KB) from the npm release tarball (the build of tag `v7.9.0`, commit `1f8dd3b9`). | As `three-bundle`; a script (UMD), not a module. |
+| `lodash-bundle` | lodash 4.17.21, `lodash.js` (the monolithic single-file build, about 540 KB) from the npm release tarball (commit `c6e281b8`). | As `three-bundle`; a script (an IIFE). |
 
 Inputs and flags that are not the library's own:
 
@@ -42,7 +45,11 @@ Inputs and flags that are not the library's own:
   `import * as lib from "<library entry>"; window["<job>"] = lib;`, which keeps every export,
   as an application's `index.js` that uses the library does. SIMPLE compiles the library's own
   entry point.
-- **three.js**: `--externs=bench/externs/webxr.js` declares `XRWebGLLayer`, which Closure's
+- **Self-contained scripts** (`d3-bundle`, `lodash-bundle`): the bundle publishes the library
+  itself (a UMD wrapper assigning to the global object, an IIFE assigning `_`), so ADVANCED
+  keeps it without an application entry, and both levels compile the bundle as the only input
+  and entry point.
+- **three.js** (`three` and `three-bundle`): `--externs=bench/externs/webxr.js` declares `XRWebGLLayer`, which Closure's
   default externs lack (ADVANCED stops at `JSC_UNDEFINED_VARIABLE`, an error, without it), and
   `--jscomp_off=visibility`, because three.js marks exported module functions `@private`, which
   ADVANCED reports as `JSC_BAD_PRIVATE_GLOBAL_ACCESS` errors. With both, every job of every
