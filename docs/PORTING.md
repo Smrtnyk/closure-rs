@@ -276,8 +276,11 @@ A sync:
 2. Builds the new reference jar (`oracle/REFERENCE.md`), pins its sha256 in the registry, builds
    the oracle (`oracle/build.sh`), and re-runs `gates/gate_0_1.sh`.
 3. Regenerates what is derived from the reference: `scope/flags.txt` (`scope/gen_flags.py`), the
-   npm types (`scripts/gen_npm_types.mjs`), the unit corpus (`corpus/unit/RECORDING.md`,
-   `scripts/unit_record_all.sh`) and the D2 golden results (`gates/lib/golden_all.py`).
+   npm types (`scripts/gen_npm_types.mjs`), the jar resources
+   (`crates/resources/tools/sync_from_jar.py "$REF_JAR" "$REF_SRC"`, which keeps the license
+   header of `jar_contents.rs`), the unit corpus (`corpus/unit/RECORDING.md`,
+   `scripts/unit_record_all.sh`, `scripts/unit_options_defaults.sh`) and the D2 golden results
+   (`gates/lib/golden_all.py`).
 4. Ports the Java diff between the old and the new pin (§7), and refreshes the license headers
    (`scripts/license_headers.py --apply`).
 5. Verifies the result as in §4: every unit record and D2 pair that matched before still matches
