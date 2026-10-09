@@ -69,7 +69,9 @@ No shell is involved, so values need no quoting. The flags are the Java compiler
 
 `run(callback)` starts the process and returns it. The callback receives `(exitCode, stdout,
 stderr)` once the process has closed; for a non-zero exit code `stderr` starts with the full
-command line. Without `--js` the compiler reads the input from stdin: write it to the returned
+command line. If the process is ended by a signal (for example killed by the out-of-memory
+killer), `exitCode` is 128 + the signal number, as a shell reports it (137 for `SIGKILL`), and
+`stderr` names the signal. The official package passes `null` in that case. Without `--js` the compiler reads the input from stdin: write it to the returned
 process's `stdin` and end it.
 
 ### Types
