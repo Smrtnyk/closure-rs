@@ -4,6 +4,7 @@
   python3 scripts/run_bench.py [--reps N] [--project P]... [--job REGEX] [--level L]...
                                [--bin PATH] [--java PATH] [--jar PATH] [--impl both|java|rust]
                                [--timeout S] [--out FILE] [--keep-failing] [--no-save] [--print-args]
+                               [--write-args DIR]
 
 docs/PORTING.md §3, D7: on every benchmark, the Rust CLI's wall-clock time <= Java's (a cold
 `java -jar closure-compiler.jar`, as users run it) and its peak RSS <= Java's. See bench/README.md.
@@ -236,6 +237,9 @@ def main() -> int:
     ap.add_argument("--keep-failing", action="store_true")
     ap.add_argument("--print-args", action="store_true",
                     help="print each selected job's compiler argv (one per line) and exit")
+    ap.add_argument("--write-args", metavar="DIR",
+                    help="write each selected job's compiler argv (one per line) to "
+                         "DIR/<job id>.args and exit (the training runs of scripts/pgo_build.sh)")
     a = ap.parse_args()
 
     with open(os.path.join(ROOT, "bench/projects.json"), encoding="utf-8") as f:
@@ -250,6 +254,13 @@ def main() -> int:
     if a.print_args:
         for job in jobs:
             print("\n".join(compiler_args(job, f"build/bench/{job['id'].replace('/', '-')}.js")))
+        return 0
+    if a.write_args:
+        os.makedirs(a.write_args, exist_ok=True)
+        for job in jobs:
+            name = job["id"].replace("/", "-")
+            with open(os.path.join(a.write_args, f"{name}.args"), "w", encoding="utf-8") as f:
+                f.write("\n".join(compiler_args(job, f"build/bench/{name}.js")) + "\n")
         return 0
     if not os.access(TIME, os.X_OK):
         print(f"{TIME} (GNU time) is required to measure peak RSS", file=sys.stderr)

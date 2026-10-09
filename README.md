@@ -79,6 +79,8 @@ cargo build --release --bin closure-rs
 ```
 
 The binary is `target/release/closure-rs`. `gates/ci.sh` runs formatting, clippy, the license-header check and the tests.
+The released binaries are built profile-guided by `scripts/pgo_build.sh` (trained on benchmark
+projects; same output, less CPU time).
 Comparing against the Java compiler needs the pinned Java reference (`scripts/fetch_reference.sh`)
 and the corpus inputs, which are fetched by scripts, not stored in this repository.
 

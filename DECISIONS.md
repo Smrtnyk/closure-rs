@@ -305,6 +305,9 @@ here (one line each) to ease upstream syncs.
 - `cli/src/main.rs`: the binary uses mimalloc as its global allocator (Java: the JVM's heap);
   about 9% faster compiles for about 100 MB more peak memory.
 - `Cargo.toml` `[profile.release]`: fat LTO and one codegen unit, about 5% faster.
+- `scripts/pgo_build.sh`, `.github/workflows/release.yml`: the released binaries are built with a
+  profile (PGO) from training compiles of the d3-12, lodash-es and three benchmark projects
+  (`scripts/run_bench.py --write-args`); about 8% less CPU time.
 - `jscomp/parallel_parse.rs`: inputs are parsed on up to 8 worker threads into arenas of their
   own (`Ast::new_for_preparse`) while the compiler runs; `CompilerInput#parse` moves a finished
   parse into the compiler's arena (`Ast::append_preparsed`) with the node ids, object sharing
