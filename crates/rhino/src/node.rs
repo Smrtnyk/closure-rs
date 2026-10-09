@@ -1316,14 +1316,10 @@ impl NodeId {
     }
     // port: Node#putProp
     pub fn put_prop(self, ast: &mut Ast, prop: Prop, value: Option<ObjectProp>) {
-        ast[self].prop_list_head =
-            Self::rebuild_list_without_prop(ast[self].prop_list_head.clone(), prop);
+        self.remove_prop(ast, prop);
         if let Some(value) = value {
-            ast[self].prop_list_head = Some(PropListItem::object(
-                prop as u8,
-                value,
-                ast[self].prop_list_head.clone(),
-            ));
+            let head = ast[self].prop_list_head.take();
+            ast[self].prop_list_head = Some(PropListItem::object(prop as u8, value, head));
         }
     }
     // port: Node#putBooleanProp
@@ -1332,20 +1328,21 @@ impl NodeId {
     }
     // port: Node#putIntProp
     pub fn put_int_prop(self, ast: &mut Ast, prop: Prop, value: i32) {
-        ast[self].prop_list_head =
-            Self::rebuild_list_without_prop(ast[self].prop_list_head.clone(), prop);
+        self.remove_prop(ast, prop);
         if value != 0 {
-            ast[self].prop_list_head = Some(PropListItem::int(
-                prop as u8,
-                value,
-                ast[self].prop_list_head.clone(),
-            ));
+            let head = ast[self].prop_list_head.take();
+            ast[self].prop_list_head = Some(PropListItem::int(prop as u8, value, head));
         }
     }
     // port: Node#removeProp
     pub fn remove_prop(self, ast: &mut Ast, prop: Prop) {
-        ast[self].prop_list_head =
-            Self::rebuild_list_without_prop(ast[self].prop_list_head.clone(), prop);
+        // Rust-only: rebuildListWithoutProp returns the list itself when `prop` is absent; skip
+        // the walk that copies references then (D-025).
+        if self.lookup_property_ref(ast, prop).is_none() {
+            return;
+        }
+        let head = ast[self].prop_list_head.take();
+        ast[self].prop_list_head = Self::rebuild_list_without_prop(head, prop);
     }
     // port: Node#nodePropertyToBit
     pub fn node_property_to_bit(prop: NodeProperty) -> i64 {

@@ -118,14 +118,15 @@ pub(crate) fn start(compiler: &mut AbstractCompiler, inputs: &[CompilerInput]) {
         next: AtomicUsize::new(0),
         stop: AtomicBool::new(false),
     });
+    // A worker that cannot be started leaves its share to the others or to the compiler.
     let workers = (0..threads.min(shared.jobs.len()))
-        .map(|_| {
+        .filter_map(|_| {
             let shared = Arc::clone(&shared);
             std::thread::Builder::new()
                 .name(THREAD_NAME.into())
                 .stack_size(crate::compiler_executor::COMPILER_STACK_SIZE)
                 .spawn(move || work(&shared))
-                .expect("failed to spawn a parser thread")
+                .ok()
         })
         .collect();
     compiler.preparser = Some(Preparser {
