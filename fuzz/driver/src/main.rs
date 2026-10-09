@@ -33,8 +33,15 @@
 //!       in four, never ws) and, for single-file programs under simple/advanced/advanced_strict/
 //!       pretty/sourcemap, `--language_out=ECMASCRIPT5|ECMASCRIPT_2015` (one in three; the
 //!       program is generated in low_target mode).
-//!       A worker thread that panics is a harness crash: it is counted in the report
-//!       (`harness_crashes`) and the process exits 3.
+//!       --work must lie inside the repository (an absolute path that resolves there is
+//!       accepted): case_args builds argv from repo-relative paths only, so any other --work
+//!       is rejected up front with exit 2. --findings and --report may be anywhere.
+//!       Exit status (the report's `status`): 0 `ok`; 2 usage error; 3 `harness_crash` (a
+//!       worker thread panicked, counted in `harness_crashes`); 4 `oracle_failure`
+//!       (`ORACLE_FAIL_WINDOW` consecutive programs that were not parse-rejected all ended as
+//!       oracle errors: the run stops early and prints the first error of the streak; a Java
+//!       crash or a compared program ends a streak); 5 `nothing_compared` (the run
+//!       ended with zero compared programs).
 //!   minimize-selftest --seed S [--count N]
 //!       Synthetic predicate: "the program still parses and Java's SIMPLE output still contains
 //!       NEEDLE". Reports size before/after and predicate calls.
@@ -62,7 +69,7 @@ use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -703,6 +710,11 @@ fn parse_opts() -> Opts {
     if !ENGINES_B.contains(&o.engine_b.as_str()) {
         die(&format!("unknown --engine-b {}", o.engine_b));
     }
+    if o.cmd == "run"
+        && let Some(w) = &o.work
+    {
+        o.work = Some(check_work_dir(w, &repo_root()).unwrap_or_else(|e| die(&e)));
+    }
     if o.engine_b == "rust" {
         let bin = o.rust_bin.clone().unwrap_or_else(default_rust_bin);
         if !bin.is_file() {
@@ -731,6 +743,48 @@ fn default_rust_bin() -> PathBuf {
         repo_root().join(target)
     };
     target.join("release/closure-rs")
+}
+
+/// `p` with `.` and `..` components resolved lexically (no file-system access, so symlinked
+/// directories such as `build/` keep their in-repository spelling).
+fn lexical_normalize(p: &Path) -> PathBuf {
+    use std::path::Component;
+    let mut out = PathBuf::new();
+    for c in p.components() {
+        match c {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !matches!(
+                    out.components().next_back(),
+                    None | Some(Component::RootDir | Component::Prefix(_))
+                ) {
+                    out.pop();
+                }
+            }
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// `--work`: the normalized absolute directory, or why it is refused. case_args
+/// (`compiler_args`) raises "out_dir must be repo-relative" for an absolute out_dir, and the
+/// driver passes out_dir (and the inputs) as paths relative to `root`, so the work directory
+/// must lie inside the repository.
+fn check_work_dir(work: &Path, root: &Path) -> Result<PathBuf, String> {
+    let w = lexical_normalize(&root.join(work));
+    let r = lexical_normalize(root);
+    if w.starts_with(&r) {
+        Ok(w)
+    } else {
+        Err(format!(
+            "--work {} is outside the repository {}: gates/lib/case_args.py takes repo-relative \
+             paths only, so every program would end as an oracle error; use a directory under \
+             the repository (default build/fuzz/work/<run>)",
+            w.display(),
+            r.display()
+        ))
+    }
 }
 
 fn die(m: &str) -> ! {
@@ -1666,6 +1720,12 @@ impl Counts {
     }
 }
 
+/// Fail fast: when this many consecutive programs that passed the parse filter (or failed in
+/// it with an oracle error) all end as oracle errors, the oracle side is systematically broken
+/// (e.g. case_args refuses every argv) and the run stops with exit 4. Java crashes (D-009 drops)
+/// and compared programs break the streak; parse rejections do not count either way.
+const ORACLE_FAIL_WINDOW: u64 = 50;
+
 #[derive(Default, Clone, Debug)]
 struct Tally {
     total: Counts,
@@ -1674,12 +1734,56 @@ struct Tally {
     java_crashes: Vec<String>,
     oracle_error_samples: Vec<String>,
     filed: Vec<String>,
+    /// Current run of consecutive oracle errors ([`ORACLE_FAIL_WINDOW`]).
+    oracle_error_streak: u64,
+    /// The first oracle error of the current streak.
+    streak_first_error: Option<String>,
+    /// Set when the run stops early on systematic oracle failure.
+    abort: Option<String>,
 }
 
 impl Tally {
     fn bump(&mut self, cat: &str, f: impl Fn(&mut Counts)) {
         f(&mut self.total);
         f(self.by_category.entry(cat.to_string()).or_default());
+    }
+
+    /// Count an oracle error for program `i`; returns true when the run must stop
+    /// ([`ORACLE_FAIL_WINDOW`] consecutive oracle errors).
+    fn oracle_error(&mut self, cat: &str, sample: String) -> bool {
+        self.bump(cat, |c| c.oracle_errors += 1);
+        if self.oracle_error_samples.len() < 50 {
+            self.oracle_error_samples.push(sample.clone());
+        }
+        self.oracle_error_streak += 1;
+        self.streak_first_error.get_or_insert(sample);
+        if self.oracle_error_streak >= ORACLE_FAIL_WINDOW && self.abort.is_none() {
+            self.abort = Some(format!(
+                "{} consecutive programs ended as oracle errors; first: {}",
+                self.oracle_error_streak,
+                self.streak_first_error.as_deref().unwrap_or("?")
+            ));
+        }
+        self.abort.is_some()
+    }
+
+    /// The oracle answered for a program (compared, or a Java crash): the streak ends.
+    fn oracle_ok(&mut self) {
+        self.oracle_error_streak = 0;
+        self.streak_first_error = None;
+    }
+
+    /// `(status, exit code)` of a finished run (module doc, "Exit status").
+    fn status(&self, harness_crashes: u64) -> (&'static str, i32) {
+        if harness_crashes > 0 {
+            ("harness_crash", 3)
+        } else if self.abort.is_some() {
+            ("oracle_failure", 4)
+        } else if self.total.compared == 0 {
+            ("nothing_compared", 5)
+        } else {
+            ("ok", 0)
+        }
     }
 }
 
@@ -1706,6 +1810,8 @@ fn rust_bin_json(o: &Opts) -> Value {
 
 fn run_report(o: &Opts, run_id: &str, t: &Tally, wall: f64, crashes: u64, done: bool) -> Value {
     json!({
+        "status": if done { t.status(crashes).0 } else { "running" },
+        "abort_reason": t.abort,
         "run": run_id, "engine_a": "java-oracle", "engine_b": o.engine_b, "source": o.source,
         "rust_bin": rust_bin_json(o),
         "seed": o.seed, "servers": o.servers, "wide": o.wide,
@@ -1744,14 +1850,16 @@ fn run(o: &Opts) {
     std::fs::create_dir_all(&o.findings).unwrap_or_else(|e| die(&e.to_string()));
     let next = Arc::new(AtomicU64::new(0));
     let tally = Arc::new(Mutex::new(Tally::default()));
+    let stop = Arc::new(AtomicBool::new(false));
     let opts = Arc::new(o.clone());
     let t0 = Instant::now();
     let deadline = o.duration.map(|d| t0 + d);
     let mut hs = vec![];
     for w in 0..o.servers {
-        let (next, tally, opts, d2, work) = (
+        let (next, tally, stop, opts, d2, work) = (
             next.clone(),
             tally.clone(),
+            stop.clone(),
             opts.clone(),
             d2.clone(),
             work.clone(),
@@ -1760,7 +1868,7 @@ fn run(o: &Opts) {
             let eng = RefCell::new(Engines::start(&opts.engine_b, opts.rust_bin.clone()));
             let lists = profile_lists(&mut eng.borrow_mut().args);
             loop {
-                if deadline.is_some_and(|d| Instant::now() >= d) {
+                if stop.load(Ordering::SeqCst) || deadline.is_some_and(|d| Instant::now() >= d) {
                     return;
                 }
                 let i = next.fetch_add(1, Ordering::SeqCst);
@@ -1778,10 +1886,12 @@ fn run(o: &Opts) {
                     }
                     Err(e) => {
                         eprintln!("[{i}] oracle error in parse filter: {e}");
-                        let mut t = tally.lock().unwrap();
-                        t.bump(cat, |c| c.oracle_errors += 1);
-                        if t.oracle_error_samples.len() < 50 {
-                            t.oracle_error_samples.push(format!("{i} parse: {e}"));
+                        if tally
+                            .lock()
+                            .unwrap()
+                            .oracle_error(cat, format!("{i} parse: {e}"))
+                        {
+                            stop.store(true, Ordering::SeqCst);
                         }
                         continue;
                     }
@@ -1813,24 +1923,33 @@ fn run(o: &Opts) {
                             rel(&keep)
                         );
                         let mut t = tally.lock().unwrap();
+                        t.oracle_ok();
                         t.bump(cat, |c| c.java_crashes += 1);
                         t.java_crashes.push(format!("{} {profile}", prog.origin));
                     }
                     Err(e) => {
                         eprintln!("[{i}] oracle error: {e}");
-                        let mut t = tally.lock().unwrap();
-                        t.bump(cat, |c| c.oracle_errors += 1);
-                        if t.oracle_error_samples.len() < 50 {
-                            t.oracle_error_samples
-                                .push(format!("{i} {profile} {}: {e}", prog.origin));
+                        if tally
+                            .lock()
+                            .unwrap()
+                            .oracle_error(cat, format!("{i} {profile} {}: {e}", prog.origin))
+                        {
+                            stop.store(true, Ordering::SeqCst);
                         }
                     }
-                    Ok(None) => tally.lock().unwrap().bump(cat, |c| c.compared += 1),
+                    Ok(None) => {
+                        let mut t = tally.lock().unwrap();
+                        t.oracle_ok();
+                        t.bump(cat, |c| c.compared += 1);
+                    }
                     Ok(Some((diff, _, _))) => {
-                        tally.lock().unwrap().bump(cat, |c| {
+                        let mut t = tally.lock().unwrap();
+                        t.oracle_ok();
+                        t.bump(cat, |c| {
                             c.compared += 1;
                             c.mismatches += 1;
                         });
+                        drop(t);
                         eprintln!("[{i}] MISMATCH under {profile}: {diff}; minimizing");
                         let id =
                             file_finding(&opts, &eng, &prog, &profile, &diff, &in_dir, &out_dir);
@@ -1880,9 +1999,23 @@ fn run(o: &Opts) {
     }
     std::fs::write(&report_path, serde_json::to_string_pretty(&report).unwrap()).unwrap();
     println!("{}", serde_json::to_string_pretty(&report).unwrap());
-    if crashes > 0 {
-        eprintln!("fuzz-driver: {crashes} worker thread(s) panicked (harness crash)");
-        std::process::exit(3);
+    let (status, code) = t.status(crashes);
+    match status {
+        "harness_crash" => {
+            eprintln!("fuzz-driver: {crashes} worker thread(s) panicked (harness crash)")
+        }
+        "oracle_failure" => eprintln!(
+            "fuzz-driver: stopped on systematic oracle failure: {}",
+            t.abort.as_deref().unwrap_or("?")
+        ),
+        "nothing_compared" => eprintln!(
+            "fuzz-driver: the run compared no program ({} programs, {} parse-rejected, {} oracle errors, {} Java crashes)",
+            t.total.programs, t.total.parse_rejected, t.total.oracle_errors, t.total.java_crashes
+        ),
+        _ => {}
+    }
+    if code != 0 {
+        std::process::exit(code);
     }
 }
 
@@ -2307,6 +2440,85 @@ exit 3"#,
         assert!(String::from_utf8_lossy(&o.stderr).contains("killed after"));
         assert!(run_binary(&d.join("missing"), &[], &d, &d, "n", Duration::from_secs(1)).is_err());
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn work_dir_must_be_inside_the_repository() {
+        let root = Path::new("/r/repo");
+        let ok = |w: &str| check_work_dir(Path::new(w), root);
+        assert_eq!(
+            ok("build/fuzz/w").unwrap(),
+            Path::new("/r/repo/build/fuzz/w")
+        );
+        assert_eq!(ok("/r/repo/build/w").unwrap(), Path::new("/r/repo/build/w"));
+        assert_eq!(ok("./a/../b/./c").unwrap(), Path::new("/r/repo/b/c"));
+        assert_eq!(ok("/r/repo/x/../y").unwrap(), Path::new("/r/repo/y"));
+        for bad in [
+            "/tmp/w",
+            "../w",
+            "/r/repo/../w",
+            "/r/repository/w",
+            "a/../../w",
+        ] {
+            let e = ok(bad).unwrap_err();
+            assert!(e.contains("outside the repository"), "{bad}: {e}");
+        }
+        assert_eq!(
+            lexical_normalize(Path::new("/../a/./b/..")),
+            Path::new("/a")
+        );
+    }
+
+    #[test]
+    fn oracle_error_streak_stops_the_run_and_sets_the_status() {
+        let mut t = Tally::default();
+        // Sporadic oracle errors between compared programs and Java crashes never stop a run.
+        for k in 0..10 * ORACLE_FAIL_WINDOW {
+            if k % 7 == 0 {
+                assert!(!t.oracle_error("lang", format!("{k} sporadic")));
+            } else if k % 31 == 0 {
+                t.oracle_ok();
+                t.bump("lang", |c| c.java_crashes += 1);
+            } else {
+                t.oracle_ok();
+                t.bump("lang", |c| c.compared += 1);
+            }
+        }
+        assert_eq!(t.status(0), ("ok", 0));
+        assert_eq!(t.status(1), ("harness_crash", 3));
+        // A streak one short of the window does not stop it either.
+        for k in 0..ORACLE_FAIL_WINDOW - 1 {
+            assert!(!t.oracle_error("lang", format!("{k} e")));
+        }
+        t.oracle_ok();
+        assert!(t.abort.is_none());
+        // ORACLE_FAIL_WINDOW in a row does, naming the first error of the streak.
+        let stops: Vec<bool> = (0..ORACLE_FAIL_WINDOW)
+            .map(|k| t.oracle_error("closure", format!("{k} out_dir must be repo-relative")))
+            .collect();
+        assert!(stops[..stops.len() - 1].iter().all(|s| !s));
+        assert!(stops[stops.len() - 1]);
+        let why = t.abort.clone().unwrap();
+        assert!(
+            why.contains("first: 0 out_dir must be repo-relative"),
+            "{why}"
+        );
+        assert_eq!(t.status(0), ("oracle_failure", 4));
+        assert_eq!(t.status(2).1, 3);
+    }
+
+    #[test]
+    fn a_run_that_compared_nothing_is_a_failure() {
+        let mut t = Tally::default();
+        assert_eq!(t.status(0), ("nothing_compared", 5));
+        t.bump("lang", |c| {
+            c.programs += 3;
+            c.parse_rejected += 2;
+            c.java_crashes += 1;
+        });
+        assert_eq!(t.status(0), ("nothing_compared", 5));
+        t.bump("lang", |c| c.compared += 1);
+        assert_eq!(t.status(0), ("ok", 0));
     }
 
     #[test]
