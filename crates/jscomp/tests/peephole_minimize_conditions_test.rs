@@ -26,6 +26,7 @@ use closure_jscomp::{
     peephole_minimize_conditions::PeepholeMinimizeConditions,
     peephole_optimizations_pass::PeepholeOptimizationsPass,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, DEFAULT_EXTERNS},
@@ -35,7 +36,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 struct PeepholeMinimizeConditionsTest {
@@ -89,7 +89,7 @@ impl PeepholeMinimizeConditionsTest {
                 ctx: Ctx::new(
                     "PeepholeMinimizeConditionsTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

@@ -22,7 +22,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
-use closure_rhino::{js_string::JsString, node::NodeId, token::Token};
+use closure_rhino::{node::NodeId, token::Token};
 
 // port: CheckGlobalThis#GLOBAL_THIS
 pub static GLOBAL_THIS: DiagnosticType = DiagnosticType::warning(
@@ -170,7 +170,7 @@ impl Callback for CheckGlobalThis {
                         .unwrap()
                         .get_root()
                         .get_string(t)
-                        .ends_with(&JsString::from(".prototype"))
+                        .ends_with(".prototype")
                 {
                     return false;
                 }
@@ -206,11 +206,11 @@ impl Callback for CheckGlobalThis {
                 // Only traverse the right side if it's not an assignment to a prototype
                 // property or subproperty.
                 if NodeUtil::is_normal_get(t, lhs) {
-                    if lhs.is_get_prop(t) && lhs.get_string(t) == "prototype" {
+                    if lhs.is_get_prop(t) && lhs.get_string_ref(t) == "prototype" {
                         return false;
                     }
                     let llhs = lhs.get_first_child(t).unwrap();
-                    if llhs.is_get_prop(t) && llhs.get_string(t) == "prototype" {
+                    if llhs.is_get_prop(t) && llhs.get_string_ref(t) == "prototype" {
                         return false;
                     }
                 }

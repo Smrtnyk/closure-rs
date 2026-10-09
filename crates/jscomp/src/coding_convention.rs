@@ -365,16 +365,18 @@ impl Builder {
 }
 #[derive(Clone, Debug)]
 pub struct AssertionFunctionLookup {
-    internal: indexmap::IndexMap<AssertionFunctionId, AssertionFunctionSpec>,
+    internal: closure_rhino::fast_hash::IndexMap<AssertionFunctionId, AssertionFunctionSpec>,
 }
 impl AssertionFunctionLookup {
     // port: CodingConvention.AssertionFunctionLookup#AssertionFunctionLookup
-    fn new(internal: indexmap::IndexMap<AssertionFunctionId, AssertionFunctionSpec>) -> Self {
+    fn new(
+        internal: closure_rhino::fast_hash::IndexMap<AssertionFunctionId, AssertionFunctionSpec>,
+    ) -> Self {
         Self { internal }
     }
     // port: CodingConvention.AssertionFunctionLookup#of
     pub fn of(specs: impl IntoIterator<Item = AssertionFunctionSpec>) -> Self {
-        let mut internal = indexmap::IndexMap::new();
+        let mut internal = closure_rhino::fast_hash::IndexMap::<_, _>::default();
         for spec in specs {
             let id = spec.get_id();
             closure_rhino::check_argument!(

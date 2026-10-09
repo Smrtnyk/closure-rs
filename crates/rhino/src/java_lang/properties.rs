@@ -29,8 +29,8 @@
 //! the key/value split and the escape conversion. Values are returned in file order; a later
 //! duplicate key replaces the earlier value, as `Hashtable#put` does.
 
+use crate::fast_hash::IndexMap;
 use crate::js_string::JsString;
-use indexmap::IndexMap;
 
 /// `Properties.LineReader` over an in-memory character source.
 struct LineReader<'a> {
@@ -199,7 +199,7 @@ pub fn load(source: &str) -> IndexMap<String, String> {
 pub fn load_js_strings(source: &JsString) -> IndexMap<JsString, JsString> {
     let units = source.as_units();
     let mut lr = LineReader::new(units);
-    let mut result = IndexMap::new();
+    let mut result = IndexMap::<_, _>::default();
     let mut limit: i32;
     let mut key_len: usize;
     let mut value_start: usize;

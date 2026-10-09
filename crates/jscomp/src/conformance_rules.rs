@@ -44,6 +44,7 @@ use crate::{
 };
 use closure_jstype::{prelude::*, property::Property};
 use closure_parsing::js_doc_info_parser::JsDocInfoParser;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_state,
     java_lang::regex::Pattern,
@@ -55,7 +56,6 @@ use closure_rhino::{
     qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, LazyLock};
 
 // port: ConformanceRules#ALL_TS_ALLOWLIST
@@ -1398,7 +1398,7 @@ impl BannedName {
         let requirement_type = requirement.get_type();
 
         let mut qualified_builder: Vec<NodeId> = Vec::new();
-        let mut short_builder: IndexSet<JsString> = IndexSet::new();
+        let mut short_builder: IndexSet<JsString> = IndexSet::<_>::default();
         for name in requirement.get_value_list() {
             let qualified_name = NodeUtil::new_qname(compiler, name.as_str());
             qualified_builder.push(qualified_name);
@@ -1508,7 +1508,7 @@ impl BannedProperty {
 
         let (registry, ast) = compiler.get_type_registry_and_ast();
 
-        let mut builder: IndexMap<JsString, Vec<TypeId>> = IndexMap::new();
+        let mut builder: IndexMap<JsString, Vec<TypeId>> = IndexMap::<_, _>::default();
         for value in requirement.get_value_list() {
             let typename = ConformanceUtil::get_class_from_declaration_name(value);
             let property = ConformanceUtil::get_property_from_declaration_name(value);
@@ -1796,7 +1796,7 @@ impl AbstractRuleImpl for RestrictedNameCall {
                         return ConformanceResult::violation();
                     }
                 } else if n.is_get_prop(t)
-                    && n.get_string(t) == "call"
+                    && n.get_string_ref(t) == "call"
                     && n.get_first_child(t)
                         .unwrap()
                         .matches_qualified_name_node(t, r.name)
@@ -1951,7 +1951,7 @@ impl AbstractRuleImpl for RestrictedMethodCall {
 
             if Self::matches_prop(t, n, r) {
                 result = self.check_conformance_restriction(t, n, r, false);
-            } else if n.get_string(t) == "call"
+            } else if n.get_string_ref(t) == "call"
                 && Self::matches_prop(t, n.get_first_child(t).unwrap(), r)
             {
                 // handle .call invocation
@@ -2824,7 +2824,7 @@ impl BanCreateElement {
         requirement: &Requirement,
     ) -> Result<Self, InvalidRequirementSpec> {
         let base = AbstractRule::new(compiler, requirement)?;
-        let mut banned_tags: IndexSet<String> = IndexSet::new();
+        let mut banned_tags: IndexSet<String> = IndexSet::<_>::default();
         for value in requirement.get_value_list() {
             // Ascii.toLowerCase
             banned_tags.insert(value.to_ascii_lowercase());
@@ -3088,7 +3088,7 @@ impl BanCreateDom {
         if !target.is_get_prop(t) {
             return false;
         }
-        if target.get_string(t) != "createDom" {
+        if target.get_string_ref(t) != "createDom" {
             return false;
         }
 

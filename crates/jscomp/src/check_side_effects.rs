@@ -26,13 +26,13 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_state,
     ir::IR,
     js_string::JsString,
     node::{NodeId, Prop},
 };
-use indexmap::IndexSet;
 
 // port: CheckSideEffects#USELESS_CODE_ERROR
 pub static USELESS_CODE_ERROR: DiagnosticType =
@@ -76,7 +76,7 @@ impl CheckSideEffects {
         Self {
             report,
             problem_nodes: Vec::new(),
-            no_side_effect_externs: IndexSet::new(),
+            no_side_effect_externs: IndexSet::<_>::default(),
             protect_side_effect_free_code,
             preserve_function_injected: false,
         }
@@ -162,7 +162,7 @@ impl Callback for CheckSideEffects {
 
         // This no-op statement was there so that JSDoc information could
         // be attached to the name. This check should not complain about it.
-        if n.is_qualified_name(t) && n.get_jsdoc_info(t).is_some() {
+        if n.is_qualified_name(t) && n.get_jsdoc_info_ref(t).is_some() {
             return;
         }
 
@@ -174,7 +174,7 @@ impl Callback for CheckSideEffects {
             && n.get_source_file_name(t)
                 .unwrap()
                 .starts_with(AbstractCompiler::RUNTIME_LIB_DIR)
-            && n.get_string(t).starts_with(&JsString::from("require "))
+            && n.get_string_ref(t).starts_with("require ")
         {
             return;
         }

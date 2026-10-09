@@ -24,9 +24,9 @@ use crate::compiler_pass::CompilerPass;
 use crate::scope::ScopeId;
 use crate::syntactic_scope_creator::{RedeclarationHandler, SyntacticScopeCreator};
 use closure_rhino::check_argument;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
-use indexmap::IndexSet;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -53,7 +53,7 @@ impl RemoveUnnecessarySyntheticExterns {
     // port: RemoveUnnecessarySyntheticExterns#RemoveUnnecessarySyntheticExterns
     pub fn new(_compiler: &AbstractCompiler) -> Self {
         Self {
-            nodes_to_detach: Rc::new(RefCell::new(IndexSet::new())),
+            nodes_to_detach: Rc::new(RefCell::new(IndexSet::<_>::default())),
         }
     }
 }

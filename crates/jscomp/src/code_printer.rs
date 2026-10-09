@@ -26,13 +26,13 @@ use crate::{
 };
 use closure_jstype::JSTypeRegistry;
 use closure_parsing::parser::feature_set::Feature;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_state,
     js_string::JsString,
     node::{Ast, NodeId},
 };
 use closure_sourcemap::file_position::FilePosition;
-use indexmap::IndexSet;
 use std::{any::Any, collections::VecDeque, ops::Deref};
 
 /// CodePrinter prints out JS code in either pretty format or compact format.
@@ -199,7 +199,7 @@ impl<'a> MappedCodePrinter<'a> {
             builder.push(line_end_pos - line_start_pos);
             // Next line starts where current line ends + 1 to skip "\n" character.
             line_start_pos = line_end_pos + 1;
-            line_end_pos = code.index_of_from(&"\n".into(), line_start_pos);
+            line_end_pos = code.index_of_from("\n", line_start_pos);
         }
         builder
     }

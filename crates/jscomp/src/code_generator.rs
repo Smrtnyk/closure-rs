@@ -155,7 +155,7 @@ impl<'a> CodeGenerator<'a> {
     // port: CodeGenerator#isIndirectEval
     fn is_indirect_eval(ast: &Ast, n: NodeId) -> bool {
         n.is_name(ast)
-            && n.get_string(ast) == "eval"
+            && n.get_string_ref(ast) == "eval"
             && !n.get_boolean_prop(ast, NodeId::DIRECT_EVAL)
     }
     /// @return Whether the Node is a DO or a declaration that is only allowed in restricted contexts.
@@ -646,7 +646,7 @@ pub trait CodeGeneration<'a> {
                     if (child_count == 1) {
                         self.code_generator_mut().cc.maybe_insert_space();
                         if (self.code_generator().preserve_type_annotations
-                            && first.unwrap().get_jsdoc_info(ast).is_some())
+                            && first.unwrap().get_jsdoc_info_ref(ast).is_some())
                         {
                             self.add(&("(").into());
                             self.add_node(ast, first.unwrap());
@@ -715,7 +715,11 @@ pub trait CodeGeneration<'a> {
                     }
                 }
                 Token::LABEL_NAME => {
-                    check_state!(!node.get_string(ast).is_empty(), "%s", node.to_string(ast));
+                    check_state!(
+                        !node.get_string_ref(ast).is_empty(),
+                        "%s",
+                        node.to_string(ast)
+                    );
                     self.add_identifier(node.get_string(ast));
                 }
                 Token::DESTRUCTURING_LHS => {
@@ -2203,7 +2207,11 @@ pub trait CodeGeneration<'a> {
         last: NodeId,
         context: Context,
     ) {
-        check_state!(first.get_string(ast).is_empty(), "%s", first.to_string(ast));
+        check_state!(
+            first.get_string_ref(ast).is_empty(),
+            "%s",
+            first.to_string(ast)
+        );
         let func_needs_parens = self.arrow_function_needs_parens(ast, n);
         if func_needs_parens {
             self.add(&("(").into());
@@ -2259,7 +2267,7 @@ pub trait CodeGeneration<'a> {
         );
         if n.is_generator_function(ast) {
             self.add(&("*").into());
-            if !first.get_string(ast).is_empty() {
+            if !first.get_string_ref(ast).is_empty() {
                 self.code_generator_mut().cc.maybe_insert_space();
             }
         }

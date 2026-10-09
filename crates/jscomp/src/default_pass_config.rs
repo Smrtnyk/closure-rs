@@ -59,13 +59,13 @@ use closure_parsing::{
     parser::feature_set::{Feature, FeatureSet},
     parser_runner::ParserRunner,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_argument,
     ir::IR,
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::IndexMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -2121,8 +2121,10 @@ impl DefaultPassConfig {
         root: NodeId,
     ) -> crate::variable_map::VariableMap {
         let options = compiler.get_options();
-        let reserved_chars: indexmap::IndexSet<u16> = indexmap::IndexSet::new();
-        let mut reserved_names: indexmap::IndexSet<JsString> = indexmap::IndexSet::new();
+        let reserved_chars: closure_rhino::fast_hash::IndexSet<u16> =
+            closure_rhino::fast_hash::IndexSet::<_>::default();
+        let mut reserved_names: closure_rhino::fast_hash::IndexSet<JsString> =
+            closure_rhino::fast_hash::IndexSet::<_>::default();
         if let Some(rename_prefix_namespace) = options.get_rename_prefix_namespace() {
             // don't use the prefix name as a global symbol.
             reserved_names.insert(JsString::from(rename_prefix_namespace));
@@ -2156,9 +2158,11 @@ impl DefaultPassConfig {
     ) -> Box<dyn crate::name_generator::NameGenerator> {
         crate::name_generator::NameGenerator::clone(
             &**options.get_name_generator(),
-            Arc::new(std::sync::RwLock::new(indexmap::IndexSet::new())),
+            Arc::new(std::sync::RwLock::new(
+                closure_rhino::fast_hash::IndexSet::<_>::default(),
+            )),
             JsString::from(""),
-            &indexmap::IndexSet::new(),
+            &closure_rhino::fast_hash::IndexSet::<_>::default(),
         )
     }
     // port: DefaultPassConfig#createGatherExternProperties
@@ -2215,7 +2219,7 @@ impl DefaultPassConfig {
         ast: &mut Ast,
         options: &CompilerOptions,
     ) -> IndexMap<String, NodeId> {
-        let mut additional_replacements = IndexMap::new();
+        let mut additional_replacements = IndexMap::<_, _>::default();
         if options.should_mark_as_compiled() || options.get_closure_pass() {
             additional_replacements.insert("COMPILED".into(), IR::true_node(ast));
         }
@@ -3351,12 +3355,12 @@ impl CompilerPass for ClosureReplaceGetCssNamePass {
     // port: DefaultPassConfig#closureReplaceGetCssName (anonymous CompilerPass#process)
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, js_root: NodeId) {
         let options = compiler.get_options();
-        let mut css_names: Option<indexmap::IndexSet<String>> = if options.should_gather_css_names()
-        {
-            Some(indexmap::IndexSet::new())
-        } else {
-            None
-        };
+        let mut css_names: Option<closure_rhino::fast_hash::IndexSet<String>> =
+            if options.should_gather_css_names() {
+                Some(closure_rhino::fast_hash::IndexSet::<_>::default())
+            } else {
+                None
+            };
         let css_renaming_map = options
             .get_css_renaming_map()
             .clone()

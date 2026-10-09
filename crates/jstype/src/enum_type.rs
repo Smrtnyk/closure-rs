@@ -46,13 +46,13 @@ use crate::{
     prototype_object_type::{PrototypeObjectTypeBuilder, PrototypeObjectTypeData},
     type_string_builder::TypeStringBuilder,
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     error_reporter::ErrorReporter,
     js_string::JsString,
     jscomp_base::Tri,
     node::{Ast, NodeId},
 };
-use indexmap::IndexSet;
 
 pub(crate) struct EnumTypeData {
     pub(crate) prototype: PrototypeObjectTypeData,
@@ -134,7 +134,7 @@ fn new(reg: &mut JSTypeRegistry, ast: &Ast, builder: EnumTypeBuilder) -> TypeId 
     let data = EnumTypeData {
         prototype: PrototypeObjectTypeData::from_builder(reg, &builder.prototype),
         element_type: None,
-        elements: IndexSet::new(),
+        elements: IndexSet::<_>::default(),
         source: builder.source,
         goog_module_id: builder.goog_module_id,
     };

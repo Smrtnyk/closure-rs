@@ -40,6 +40,7 @@
 //   src/com/google/javascript/rhino/JSTypeExpression.java.
 
 //! Port of the JSDoc type AST wrapper.
+use crate::fast_hash::IndexSet;
 use crate::{
     js_string::JsString,
     node::{Ast, NodeId},
@@ -47,7 +48,6 @@ use crate::{
     static_source_file::SourceKind,
     token::Token,
 };
-use indexmap::IndexSet;
 use std::sync::Arc;
 
 pub const IMPLICIT_TEMPLATE_BOUND_SOURCE: &str = "<IMPLICIT_TEMPLATE_BOUND>";
@@ -64,10 +64,22 @@ impl JSTypeExpression {
             source_name: source_name.into(),
         }
     }
+    /// Rust-only: this expression with another root node (for `Ast::append_preparsed`).
+    pub fn with_root(&self, root: NodeId) -> Self {
+        Self {
+            root,
+            source_name: self.source_name.clone(),
+        }
+    }
     // port: JSTypeExpression#IMPLICIT_TEMPLATE_BOUND
     pub fn implicit_template_bound(ast: &mut Ast) -> Arc<Self> {
         if let Some(expr) = &ast.implicit_template_bound {
-            return expr.clone();
+            let expr = expr.clone();
+            if ast.preparse && ast.preparse_bound_first_use.is_none() {
+                // Rust-only: a preparse arena's placeholder (see `Ast::new_for_preparse`).
+                ast.preparse_bound_first_use = Some(ast.node_count());
+            }
+            return expr;
         }
         let root = ast.new_node(Token::QMARK);
         root.set_static_source_file(
@@ -134,7 +146,7 @@ impl JSTypeExpression {
     }
     // port: JSTypeExpression#getAllTypeNames
     pub fn get_all_type_names(&self, ast: &Ast) -> IndexSet<JsString> {
-        let mut builder = IndexSet::new();
+        let mut builder = IndexSet::<_>::default();
         Self::visit_all_type_nodes(ast, Some(self.root), &mut |n| {
             builder.insert(n.get_string(ast));
         });
@@ -227,7 +239,7 @@ impl JSTypeExpression {
     }
     // port: JSTypeExpression#getRecordPropertyNames
     pub fn get_record_property_names(&self, ast: &Ast) -> IndexSet<JsString> {
-        let mut builder = IndexSet::new();
+        let mut builder = IndexSet::<_>::default();
         Self::get_record_property_names_recursive(ast, Some(self.root), &mut builder);
         builder
     }

@@ -512,7 +512,7 @@ impl<'a> TypeTransformationParser<'a> {
             self.warn_invalid("string");
             return false;
         }
-        if expr.get_string(ast).is_empty() {
+        if expr.get_string_ref(ast).is_empty() {
             self.warn_invalid("string parameter");
             return false;
         }

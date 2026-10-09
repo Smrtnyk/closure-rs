@@ -21,11 +21,11 @@ use crate::{
     code_change_handler::CodeChangeHandler, compiler_input::CompilerInput,
     compiler_options::TracerMode, node_util::NodeUtil, pass_names, platform::Platform,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::IndexMap;
 use std::{
     fmt::Write,
     sync::Arc,
@@ -351,7 +351,7 @@ impl PerformanceTracker {
     }
     // port: PerformanceTracker#populatePassSummary
     fn populate_pass_summary(&mut self) {
-        let mut summary = IndexMap::new();
+        let mut summary = IndexMap::<_, _>::default();
         for stat in &self.log {
             let entry = summary
                 .entry(stat.pass.clone())
@@ -371,7 +371,7 @@ impl PerformanceTracker {
         if self.ast_manifest.is_some() {
             return;
         }
-        let mut manifest = IndexMap::new();
+        let mut manifest = IndexMap::<_, _>::default();
         fn visit(ast: &Ast, n: NodeId, m: &mut IndexMap<Token, i32>) {
             *m.entry(n.get_token(ast)).or_default() += 1;
             for c in n.children(ast) {

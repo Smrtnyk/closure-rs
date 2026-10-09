@@ -17,8 +17,8 @@
 //   src/com/google/javascript/jscomp/Timeline.java,
 //   test/com/google/javascript/jscomp/TimelineTest.java.
 
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexMap;
 use std::hash::{Hash, Hasher};
 
 struct Event<T> {
@@ -84,8 +84,8 @@ pub struct Timeline<T> {
 impl<T: Clone + Eq + Hash> Timeline<T> {
     pub fn new() -> Self {
         Self {
-            events_by_time: IndexMap::new(),
-            events_by_value: IndexMap::new(),
+            events_by_time: IndexMap::<_, _>::default(),
+            events_by_value: IndexMap::<_, _>::default(),
             head_event: 0,
             events: vec![Event::new(EventValue::Time(Time::new("-beginning-")))],
         }

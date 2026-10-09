@@ -17,8 +17,8 @@
 //   src/com/google/javascript/jscomp/colors/ColorRegistry.java.
 
 use super::{Color, ColorId, standard_colors};
+use crate::fast_hash::{IndexMap, IndexSet};
 use crate::{check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 use std::sync::LazyLock;
 
 pub struct ColorRegistry {
@@ -30,7 +30,7 @@ pub struct ColorRegistry {
 // port: ColorRegistry#REQUIRED_IDS
 pub static REQUIRED_IDS: LazyLock<IndexSet<ColorId>> =
     LazyLock::new(|| standard_colors::STANDARD_OBJECT_IDS.clone());
-static EMPTY_SUPERTYPES: LazyLock<IndexSet<Color>> = LazyLock::new(IndexSet::new);
+static EMPTY_SUPERTYPES: LazyLock<IndexSet<Color>> = LazyLock::new(IndexSet::<_>::default);
 
 impl ColorRegistry {
     // port: ColorRegistry#ColorRegistry
@@ -89,9 +89,9 @@ impl Builder {
     // port: ColorRegistry.Builder#Builder
     fn new() -> Self {
         Self {
-            native_colors: IndexMap::new(),
-            color_to_disambiguation_supertype_graph: IndexMap::new(),
-            mismatch_locations: IndexMap::new(),
+            native_colors: IndexMap::<_, _>::default(),
+            color_to_disambiguation_supertype_graph: IndexMap::<_, _>::default(),
+            mismatch_locations: IndexMap::<_, _>::default(),
         }
     }
     // port: ColorRegistry.Builder#setNativeColor

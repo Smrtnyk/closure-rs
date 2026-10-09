@@ -17,8 +17,8 @@
 //   src/com/google/javascript/jscomp/colors/Color.java.
 
 use super::{ColorId, standard_colors};
+use crate::fast_hash::IndexSet;
 use crate::{check_state, js_string::JsString};
-use indexmap::IndexSet;
 use std::{
     fmt,
     hash::{Hash, Hasher},
@@ -96,12 +96,12 @@ impl Color {
         Builder::new()
             .set_closure_assert(false)
             .set_constructor(false)
-            .set_instance_colors(IndexSet::new())
+            .set_instance_colors(IndexSet::<_>::default())
             .set_invalidating(false)
-            .set_own_properties(IndexSet::new())
+            .set_own_properties(IndexSet::<_>::default())
             .set_properties_keep_original_name(false)
-            .set_prototypes(IndexSet::new())
-            .set_union_elements(IndexSet::new())
+            .set_prototypes(IndexSet::<_>::default())
+            .set_union_elements(IndexSet::<_>::default())
     }
 
     // port: Color#createUnion
@@ -111,11 +111,11 @@ impl Color {
             1 => return elements.first().unwrap().clone(),
             _ => {}
         }
-        let mut instance_colors = IndexSet::new();
-        let mut prototypes = IndexSet::new();
-        let mut new_elements = IndexSet::new();
-        let mut ids = IndexSet::new();
-        let mut own_properties = IndexSet::new();
+        let mut instance_colors = IndexSet::<_>::default();
+        let mut prototypes = IndexSet::<_>::default();
+        let mut new_elements = IndexSet::<_>::default();
+        let mut ids = IndexSet::<_>::default();
+        let mut own_properties = IndexSet::<_>::default();
         let mut is_closure_assert = true;
         let mut is_constructor = true;
         let mut is_invalidating = false;

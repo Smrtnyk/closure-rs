@@ -24,7 +24,7 @@
 //! objects is map equality (key order ignored), as JSON object semantics and Gson's
 //! `JsonObject.equals` define it.
 
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::fmt;
 
 /// A JS (UTF-16) string: a sequence of UTF-16 code units, lone surrogates allowed (WTF-16).
@@ -332,7 +332,7 @@ impl Parser<'_> {
             }
             Some(b'{') => {
                 self.pos += 1;
-                let mut members = IndexMap::new();
+                let mut members = IndexMap::<_, _>::default();
                 self.skip_ws();
                 if self.bytes.get(self.pos) == Some(&b'}') {
                     self.pos += 1;
@@ -565,7 +565,7 @@ mod tests {
         assert_eq!(a[3], JsonValue::Bool(false));
         assert!(a[4].is_null());
         assert_eq!(a[5], JsonValue::str("x"));
-        assert_eq!(o["b"], JsonValue::Object(IndexMap::new()));
+        assert_eq!(o["b"], JsonValue::Object(IndexMap::<_, _>::default()));
     }
 
     #[test]

@@ -133,12 +133,18 @@ fn test_es6_module() {
             "goog.addDependency('path/from/closure.js', [], ['nexttoclosure.js'], {'module':'es6'});\ngoog.addDependency('nexttoclosure.js', [], [], {'module':'es6'});\n");
     let expected = vec![
         SimpleDependencyInfo::builder("path/from/closure.js", SRC_PATH)
-            .set_load_flags(IndexMap::from([("module".into(), "es6".into())]))
+            .set_load_flags(IndexMap::<_, _>::from_iter([(
+                "module".into(),
+                "es6".into(),
+            )]))
             .set_provides(vec!["path/from/closure.js"])
             .set_requires([Require::parsed_from_deps("nexttoclosure.js")])
             .build(),
         SimpleDependencyInfo::builder("nexttoclosure.js", SRC_PATH)
-            .set_load_flags(IndexMap::from([("module".into(), "es6".into())]))
+            .set_load_flags(IndexMap::<_, _>::from_iter([(
+                "module".into(),
+                "es6".into(),
+            )]))
             .set_provides(vec!["nexttoclosure.js"])
             .build(),
     ];
@@ -156,10 +162,13 @@ fn test_load_flags() {
             "goog.addDependency('yes1', [], [], {'module': 'goog'});\ngoog.addDependency('yes2', [], [], {\"lang\": \"es6\"});\ngoog.addDependency('yes3', [], [], {});\n");
     let expected = vec![
         SimpleDependencyInfo::builder("yes1", SRC_PATH)
-            .set_load_flags(IndexMap::from([("module".into(), "goog".into())]))
+            .set_load_flags(IndexMap::<_, _>::from_iter([(
+                "module".into(),
+                "goog".into(),
+            )]))
             .build(),
         SimpleDependencyInfo::builder("yes2", SRC_PATH)
-            .set_load_flags(IndexMap::from([("lang".into(), "es6".into())]))
+            .set_load_flags(IndexMap::<_, _>::from_iter([("lang".into(), "es6".into())]))
             .build(),
         SimpleDependencyInfo::builder("yes3", SRC_PATH).build(),
     ];

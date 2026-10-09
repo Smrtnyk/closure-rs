@@ -40,6 +40,7 @@ use crate::node_util::NodeUtil;
 use crate::optional_chain_rewriter::{OptionalChainRewriter, TmpVarNameCreator};
 use crate::scope::Scope;
 use closure_jstype::{js_type::JSType, js_type_native::JSTypeNative, object_type::ObjectType};
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,
@@ -50,7 +51,6 @@ use closure_rhino::{
     qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::IndexSet;
 use std::collections::VecDeque;
 use std::fmt;
 use std::sync::{Arc, LazyLock};
@@ -1142,7 +1142,7 @@ impl ExpressionDecomposer {
         name.is_name(compiler)
             && name
                 .get_string(compiler)
-                .starts_with(&JsString::from(format!(
+                .starts_with(JsString::from(format!(
                     "{}_const{}",
                     self.temp_name_prefix,
                     ContextualRenamer::UNIQUE_ID_SEPARATOR
@@ -1550,12 +1550,13 @@ impl ExpressionDecomposer {
             if NodeUtil::is_object_call_method(compiler, parent, &JsString::from("call"))
                 || parent.get_boolean_prop(compiler, Prop::FREE_CALL)
             {
-                let callee = if tree.is_get_prop(compiler) && tree.get_string(compiler) == "call" {
-                    tree.get_first_child(compiler)
-                        .expect("NullPointerException")
-                } else {
-                    tree
-                };
+                let callee =
+                    if tree.is_get_prop(compiler) && tree.get_string_ref(compiler) == "call" {
+                        tree.get_first_child(compiler)
+                            .expect("NullPointerException")
+                    } else {
+                        tree
+                    };
                 if tree.is_first_child_of(compiler, Some(parent))
                     && (self.is_temp_constant_value_name(compiler, callee)
                         || callee

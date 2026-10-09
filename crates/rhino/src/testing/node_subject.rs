@@ -174,7 +174,7 @@ type Serializer = Box<dyn Fn(&Ast, NodeId) -> String>;
 pub struct NodeSubject {
     actual: NodeId,
     serializer: Option<Serializer>,
-    generic_name_replacements: indexmap::IndexMap<String, String>,
+    generic_name_replacements: crate::fast_hash::IndexMap<String, String>,
 }
 // port: NodeSubject#assertNode
 pub fn assert_node(node: NodeId) -> NodeSubject {
@@ -186,7 +186,7 @@ impl NodeSubject {
         Self {
             actual: node,
             serializer: None,
-            generic_name_replacements: indexmap::IndexMap::new(),
+            generic_name_replacements: crate::fast_hash::IndexMap::<_, _>::default(),
         }
     }
     // port: NodeSubject#isEqualTo(Node)
@@ -290,7 +290,7 @@ impl NodeSubject {
     // port: NodeSubject#withGenericNameReplacements
     pub fn with_generic_name_replacements(
         mut self,
-        replacements: indexmap::IndexMap<String, String>,
+        replacements: crate::fast_hash::IndexMap<String, String>,
     ) -> Self {
         self.generic_name_replacements = replacements;
         self
@@ -579,7 +579,7 @@ mod tests {
                     "generated\n".into()
                 }
             })
-            .with_generic_name_replacements(indexmap::IndexMap::from([(
+            .with_generic_name_replacements(crate::fast_hash::IndexMap::<_, _>::from_iter([(
                 "generated".into(),
                 "short".into(),
             )]))

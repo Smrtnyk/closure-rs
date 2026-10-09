@@ -23,11 +23,10 @@ use crate::compiler_pass::CompilerPass;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
 use closure_rhino::check_state;
-use closure_rhino::js_string::JsString;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::jsdoc_info::JSDocInfo;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
-use indexmap::IndexSet;
 
 /// Gathers property names defined in externs.
 ///
@@ -79,7 +78,7 @@ impl Mode {
 impl GatherExternProperties {
     // port: GatherExternProperties#GatherExternProperties
     pub fn new(compiler: &AbstractCompiler, mode: Mode) -> Self {
-        let mut extern_properties = IndexSet::new();
+        let mut extern_properties = IndexSet::<_>::default();
         if let Some(properties) = compiler.get_extern_properties() {
             extern_properties.extend(properties.iter().cloned());
         }
@@ -139,9 +138,7 @@ impl GatherExternProperties {
             );
             let mut field_name = field_name_node.get_string(ast);
             // TODO(bradfordcsmith): The JSDoc parser should do this.
-            if field_name.starts_with(&JsString::from("'"))
-                || field_name.starts_with(&JsString::from("\""))
-            {
+            if field_name.starts_with("'") || field_name.starts_with("\"") {
                 field_name = field_name.substring(1, field_name.length() - 1);
             }
             self.extern_properties.insert(field_name.to_string_lossy());
@@ -198,9 +195,9 @@ impl Callback for GatherExternProperties {
                 _ => {}
             }
         }
-        let js_doc_info = n.get_jsdoc_info(t);
-        if let Some(js_doc_info) = js_doc_info
-            && self.mode.check()
+        // (The mode is tested first, so the JSDoc is only copied when it is read.)
+        if self.mode.check()
+            && let Some(js_doc_info) = n.get_jsdoc_info(t)
         {
             self.gather_properties_from_jsdoc_info(t, &js_doc_info);
         }

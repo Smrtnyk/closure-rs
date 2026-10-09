@@ -21,11 +21,11 @@
 //! (closure-jscomp cannot depend on closure-cli).
 use closure_cli::abstract_command_line_runner::AbstractCommandLineRunner;
 use closure_jscomp::compiler_options::CompilerOptions;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::IndexMap;
 
 type Runner = AbstractCommandLineRunner<(), ()>;
 
@@ -37,7 +37,7 @@ fn strings(defines: &[&str]) -> Vec<String> {
 #[test]
 fn test_define_no_overriding() {
     let mut ast = Ast::new();
-    let empty_map: IndexMap<String, NodeId> = IndexMap::new();
+    let empty_map: IndexMap<String, NodeId> = IndexMap::<_, _>::default();
     let defines: Vec<String> = Vec::new();
     assert_define_overrides(&mut ast, &empty_map, &defines);
 }
@@ -53,7 +53,7 @@ fn test_define_overriding1() {
         "DEF_NUMBER=5.5",
         "DEF_STRING='bye'",
     ]);
-    let mut expected = IndexMap::new();
+    let mut expected = IndexMap::<_, _>::default();
     expected.insert("COMPILED".to_string(), ast.new_node(Token::TRUE));
     expected.insert("DEF_TRUE".to_string(), ast.new_node(Token::TRUE));
     expected.insert("DEF_FALSE".to_string(), ast.new_node(Token::FALSE));
@@ -67,7 +67,7 @@ fn test_define_overriding1() {
 fn test_define_overriding2() {
     let mut ast = Ast::new();
     let defines = strings(&["DEF_STRING='='"]);
-    let mut expected = IndexMap::new();
+    let mut expected = IndexMap::<_, _>::default();
     expected.insert("DEF_STRING".to_string(), ast.new_string("="));
     assert_define_overrides(&mut ast, &expected, &defines);
 }
@@ -77,7 +77,7 @@ fn test_define_overriding2() {
 fn test_define_overriding3() {
     let mut ast = Ast::new();
     let defines = strings(&["a.DEBUG"]);
-    let mut expected = IndexMap::new();
+    let mut expected = IndexMap::<_, _>::default();
     expected.insert("a.DEBUG".to_string(), ast.new_node(Token::TRUE));
     assert_define_overrides(&mut ast, &expected, &defines);
 }

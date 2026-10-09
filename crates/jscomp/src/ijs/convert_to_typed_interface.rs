@@ -350,7 +350,7 @@ impl Callback for RemoveNonDeclarations {
                         false
                     }
                     Token::GETPROP => {
-                        if !expr.is_qualified_name(t) || expr.get_jsdoc_info(t).is_none() {
+                        if !expr.is_qualified_name(t) || expr.get_jsdoc_info_ref(t).is_none() {
                             NodeUtil::delete_node(t.get_compiler(), n);
                             return false;
                         }
@@ -360,7 +360,7 @@ impl Callback for RemoveNonDeclarations {
                         if ConvertToTypedInterface::is_symbol_prop(
                             t,
                             expr.get_second_child(t).unwrap(),
-                        ) && expr.get_jsdoc_info(t).is_some()
+                        ) && expr.get_jsdoc_info_ref(t).is_some()
                         {
                             return true;
                         }
@@ -631,7 +631,7 @@ impl<'a> SimplifyDeclarations<'a> {
             .cloned()
             .collect();
         for name in names {
-            if name.starts_with(&JsString::from("this.")) {
+            if name.starts_with("this.") {
                 continue;
             }
             let decl_list = self.current_file.get_declarations().get_mut(&name).unwrap();
@@ -776,7 +776,7 @@ impl<'a> SimplifyDeclarations<'a> {
 
     // port: ConvertToTypedInterface.SimplifyDeclarations#rootName
     fn root_name(qualified_name: &JsString) -> JsString {
-        let dot_index = qualified_name.index_of(&JsString::from("."));
+        let dot_index = qualified_name.index_of(".");
         if dot_index == -1 {
             return qualified_name.clone();
         }
@@ -793,7 +793,7 @@ impl<'a> SimplifyDeclarations<'a> {
         if decl.is_detached(compiler) {
             return true;
         }
-        if Self::root_name(name).starts_with(&JsString::from("$jscomp")) {
+        if Self::root_name(name).starts_with("$jscomp") {
             // These are created by goog.scope processing, but clash with each other
             // and should not be depended on.
             if decl.get_rhs().is_some_and(|rhs| rhs.is_class(compiler))
@@ -811,7 +811,7 @@ impl<'a> SimplifyDeclarations<'a> {
             return true;
         }
         // This looks like an update rather than a declaration in this file.
-        !name.starts_with(&JsString::from("this."))
+        !name.starts_with("this.")
             && !decl.is_definite_declaration(compiler)
             && !decl.get_lhs().is_member_field_def(compiler)
             && !self.current_file.is_prefix_provided(name)

@@ -32,6 +32,7 @@ use crate::{
     node_util::NodeUtil,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_state,
     ir::IR,
@@ -39,7 +40,6 @@ use closure_rhino::{
     node::{NodeId, ObjectProp, Prop},
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -83,8 +83,8 @@ impl ConvertChunksToESModules {
     // port: ConvertChunksToESModules#ConvertChunksToESModules
     pub fn new() -> Self {
         Self {
-            cross_chunk_exports: IndexMap::new(),
-            cross_chunk_imports: IndexMap::new(),
+            cross_chunk_exports: IndexMap::<_, _>::default(),
+            cross_chunk_imports: IndexMap::<_, _>::default(),
             dynamic_import_callbacks: Vec::new(),
         }
     }
@@ -483,7 +483,8 @@ impl CompilerPass for ConvertChunksToESModules {
                 && !self.cross_chunk_imports.contains_key(&chunk)
                 && !chunk.get_inputs().is_empty()
             {
-                self.cross_chunk_exports.insert(chunk, IndexSet::new());
+                self.cross_chunk_exports
+                    .insert(chunk, IndexSet::<_>::default());
             }
         }
 

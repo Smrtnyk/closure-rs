@@ -25,8 +25,8 @@ use crate::{
     diagnostic_type::DiagnosticType,
     js_chunk::{JSChunk, WEAK_CHUNK_NAME},
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::static_source_file::StaticSourceFile;
-use indexmap::{IndexMap, IndexSet};
 use std::{cmp::Ordering, fmt};
 
 pub static WEAK_FILE_REACHABLE_FROM_ENTRY_POINT_ERROR: DiagnosticType = DiagnosticType::error(
@@ -201,7 +201,7 @@ impl JSChunkGraph {
             self_plus_transitive_deps: vec![],
             subtree_size: vec![],
             chunks_by_depth: vec![],
-            dependency_map: std::sync::Mutex::new(IndexMap::new()),
+            dependency_map: std::sync::Mutex::new(IndexMap::<_, _>::default()),
         };
         graph.chunks_by_depth = graph.init_chunks_by_depth()?;
         graph.self_plus_transitive_deps = graph.init_transitive_deps_bit_sets();
@@ -543,7 +543,8 @@ impl JSChunkGraph {
             &original_inputs,
             &sorter,
         )?;
-        let mut inputs_by_provide: IndexMap<String, IndexSet<CompilerInput>> = IndexMap::new();
+        let mut inputs_by_provide: IndexMap<String, IndexSet<CompilerInput>> =
+            IndexMap::<_, _>::default();
         for input in &original_inputs {
             for provide in input.get_known_provides() {
                 inputs_by_provide
@@ -576,7 +577,7 @@ impl JSChunkGraph {
             .map(|view| view.input)
             .collect();
         let mut entry_point_inputs_per_chunk: IndexMap<JSChunk, Vec<CompilerInput>> =
-            IndexMap::new();
+            IndexMap::<_, _>::default();
         for input in &entry_point_inputs {
             entry_point_inputs_per_chunk
                 .entry(input.get_chunk().unwrap())
@@ -587,7 +588,7 @@ impl JSChunkGraph {
             chunk.remove_all();
         }
         let mut ordered_inputs = Vec::new();
-        let mut reached_inputs = IndexSet::new();
+        let mut reached_inputs = IndexSet::<_>::default();
         for chunk in &self.chunks {
             let entries = entry_point_inputs_per_chunk
                 .get(chunk)
@@ -732,7 +733,7 @@ impl JSChunkGraph {
         >,
     ) -> Result<IndexSet<CompilerInput>, DependencyManagementError> {
         use crate::{deps::sorted_dependencies::MissingProvideException, js_error::JSError};
-        let mut entry_point_inputs = IndexSet::new();
+        let mut entry_point_inputs = IndexSet::<_>::default();
         let chunks_by_name = self.get_chunks_by_name();
         if dependency_options.should_prune() {
             if let Some(base) = sorter.maybe_get_input_providing("goog") {

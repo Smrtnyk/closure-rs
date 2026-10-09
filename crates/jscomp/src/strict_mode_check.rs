@@ -28,10 +28,10 @@ use crate::js_error::JSError;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
 use closure_jstype::prelude::*;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
-use indexmap::IndexSet;
 
 // port: StrictModeCheck#USE_OF_WITH
 pub static USE_OF_WITH: DiagnosticType = DiagnosticType::error(
@@ -148,9 +148,9 @@ impl StrictModeCheck {
     fn check_assignment(&self, compiler: &mut AbstractCompiler, n: NodeId) {
         let first = n.get_first_child(compiler).unwrap();
         if first.is_name(compiler) {
-            if first.get_string(compiler) == "arguments" {
+            if first.get_string_ref(compiler) == "arguments" {
                 self.report(compiler, n, &ARGUMENTS_ASSIGNMENT, &[]);
-            } else if first.get_string(compiler) == "eval" {
+            } else if first.get_string_ref(compiler) == "eval" {
                 // Note that assignment to eval is already illegal because any use of
                 // that name is illegal.
                 self.report(compiler, n, &EVAL_ASSIGNMENT, &[]);
@@ -175,10 +175,10 @@ impl StrictModeCheck {
     /// Checks that object literal keys or class method names are valid.
     // port: StrictModeCheck#checkObjectLiteralOrClass
     fn check_object_literal_or_class(&self, compiler: &mut AbstractCompiler, n: NodeId) {
-        let mut getters: IndexSet<JsString> = IndexSet::new();
-        let mut setters: IndexSet<JsString> = IndexSet::new();
-        let mut static_getters: IndexSet<JsString> = IndexSet::new();
-        let mut static_setters: IndexSet<JsString> = IndexSet::new();
+        let mut getters: IndexSet<JsString> = IndexSet::<_>::default();
+        let mut setters: IndexSet<JsString> = IndexSet::<_>::default();
+        let mut static_getters: IndexSet<JsString> = IndexSet::<_>::default();
+        let mut static_setters: IndexSet<JsString> = IndexSet::<_>::default();
 
         /*
          * Iterate backwards because the last duplicate is the one that will be used in sloppy or
@@ -301,9 +301,9 @@ impl NonExternChecks<'_> {
     /// Checks for illegal declarations.
     // port: StrictModeCheck.NonExternChecks#checkDeclaration
     fn check_declaration(&self, compiler: &mut AbstractCompiler, n: NodeId) {
-        if n.get_string(compiler) == "eval" {
+        if n.get_string_ref(compiler) == "eval" {
             self.outer.report(compiler, n, &EVAL_DECLARATION, &[]);
-        } else if n.get_string(compiler) == "arguments" {
+        } else if n.get_string_ref(compiler) == "arguments" {
             self.outer.report(compiler, n, &ARGUMENTS_DECLARATION, &[]);
         }
     }
@@ -314,12 +314,12 @@ impl NonExternChecks<'_> {
         let target = n.get_first_child(compiler).unwrap();
         let name = n.get_string(compiler);
         if name == "callee" {
-            if target.is_name(compiler) && target.get_string(compiler) == "arguments" {
+            if target.is_name(compiler) && target.get_string_ref(compiler) == "arguments" {
                 self.outer
                     .report(compiler, n, &ARGUMENTS_CALLEE_FORBIDDEN, &[]);
             }
         } else if name == "caller" {
-            if target.is_name(compiler) && target.get_string(compiler) == "arguments" {
+            if target.is_name(compiler) && target.get_string_ref(compiler) == "arguments" {
                 self.outer
                     .report(compiler, n, &ARGUMENTS_CALLER_FORBIDDEN, &[]);
             } else if StrictModeCheck::is_function_type(compiler, target) {

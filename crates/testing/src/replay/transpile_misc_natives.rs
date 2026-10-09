@@ -88,7 +88,7 @@ use closure_jscomp::{
     },
     transpilation_passes::TranspilationPasses,
 };
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -487,8 +487,8 @@ fn es6_for_of_converter_test_get_processor_holder(
 ) -> Result<DslValue, Throwable> {
     Ok(DslValue::Object(Rc::new(RefCell::new(Object {
         class: ES6_FOR_OF_CONVERTER_TEST_GET_PROCESSOR.into(),
-        fields: IndexMap::new(),
-        field_types: IndexMap::new(),
+        fields: IndexMap::<_, _>::default(),
+        field_types: IndexMap::<_, _>::default(),
     }))))
 }
 
@@ -536,8 +536,8 @@ fn es6_template_literals_test_get_processor_host(
 ) -> Result<DslValue, Throwable> {
     Ok(DslValue::Object(Rc::new(RefCell::new(Object {
         class: ES6_TEMPLATE_LITERALS_TEST_GET_PROCESSOR_HOST.into(),
-        fields: IndexMap::new(),
-        field_types: IndexMap::new(),
+        fields: IndexMap::<_, _>::default(),
+        field_types: IndexMap::<_, _>::default(),
     }))))
 }
 
@@ -584,8 +584,8 @@ fn es6_transpilation_integration_test_get_processor_holder(
 ) -> Result<DslValue, Throwable> {
     Ok(DslValue::Object(Rc::new(RefCell::new(Object {
         class: ES6_TRANSPILATION_INTEGRATION_TEST_GET_PROCESSOR.into(),
-        fields: IndexMap::new(),
-        field_types: IndexMap::new(),
+        fields: IndexMap::<_, _>::default(),
+        field_types: IndexMap::<_, _>::default(),
     }))))
 }
 
@@ -685,8 +685,8 @@ fn instrument_async_context_test_helpers(
     _args: Vec<DslValue>,
 ) -> Result<DslValue, Throwable> {
     // private boolean instrumentAwait = true;
-    let mut fields = IndexMap::new();
-    let mut field_types = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
+    let mut field_types = IndexMap::<_, _>::default();
     fields.insert("instrumentAwait".to_string(), DslValue::Bool(true));
     field_types.insert("instrumentAwait".to_string(), "boolean".to_string());
     Ok(DslValue::Object(Rc::new(RefCell::new(Object {
@@ -706,12 +706,12 @@ fn instrument_async_context_test_get_processor_holder(
             "InstrumentAsyncContextTest_Helpers$GetProcessor#<init> arguments".into(),
         ));
     };
-    let mut fields = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
     fields.insert("this$0".to_string(), DslValue::Object(outer.clone()));
     Ok(DslValue::Object(Rc::new(RefCell::new(Object {
         class: INSTRUMENT_ASYNC_CONTEXT_TEST_GET_PROCESSOR.into(),
         fields,
-        field_types: IndexMap::new(),
+        field_types: IndexMap::<_, _>::default(),
     }))))
 }
 

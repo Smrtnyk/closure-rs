@@ -65,9 +65,9 @@ use crate::{
     js_error::JSError,
     node_traversal::NodeTraversal,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_argument, js_string::JsString, node::NodeId};
 use closure_sourcemap::gson::stream::json_writer::JsonWriter;
-use indexmap::{IndexMap, IndexSet};
 use std::{cmp::Ordering, sync::Arc};
 
 // port: DisambiguateProperties#PROPERTY_INVALIDATION
@@ -92,7 +92,7 @@ impl DisambiguateProperties {
         Self {
             properties_that_must_disambiguate,
             registry: Arc::clone(compiler.get_color_registry()),
-            may_have_property_seen_set: IndexSet::new(),
+            may_have_property_seen_set: IndexSet::<_>::default(),
         }
     }
 }
@@ -494,7 +494,7 @@ fn to_sorted_set<T>(mut elements: Vec<T>, compare: impl Fn(&T, &T) -> Ordering) 
 
 /// `registry.getMismatchLocationsForDebugging()::inverse`.
 fn mismatch_locations_inverse(registry: &ColorRegistry) -> MismatchLocationsInverseJson {
-    let mut inverse: IndexMap<String, IndexSet<String>> = IndexMap::new();
+    let mut inverse: IndexMap<String, IndexSet<String>> = IndexMap::<_, _>::default();
     for (id, locations) in registry.get_mismatch_locations_for_debugging() {
         for location in locations {
             inverse

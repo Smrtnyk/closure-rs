@@ -52,6 +52,7 @@ use crate::{
     node_util::NodeUtil,
     variable_map::VariableMap,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state,
     ir::IR,
@@ -60,7 +61,6 @@ use closure_rhino::{
     token::Token,
     token_stream::TokenStream,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, RwLock};
 
 /// Filter function for property names. The function takes a node as input and returns true if the
@@ -186,7 +186,7 @@ impl RenameProperties {
         name_generator: Box<dyn NameGenerator>,
         property_rename_eligibility_filter: PropertyRenameEligibilityFilter,
     ) -> Self {
-        let mut externed_names = IndexSet::new();
+        let mut externed_names = IndexSet::<_>::default();
         externed_names.insert(JsString::from("prototype"));
         externed_names.extend(
             check_not_null!(compiler.get_extern_properties())
@@ -198,15 +198,15 @@ impl RenameProperties {
             prev_used_property_map,
             to_remove: Vec::new(),
             string_nodes_to_rename: Vec::new(),
-            call_node_to_parent_map: IndexMap::new(),
+            call_node_to_parent_map: IndexMap::<_, _>::default(),
             reserved_first_characters,
             reserved_non_first_characters,
-            property_map: IndexMap::new(),
+            property_map: IndexMap::<_, _>::default(),
             externed_names,
-            quoted_names: IndexSet::new(),
+            quoted_names: IndexSet::<_>::default(),
             name_generator,
             property_rename_eligibility_filter,
-            filtered_out_names: IndexSet::new(),
+            filtered_out_names: IndexSet::<_>::default(),
         }
     }
 
@@ -216,8 +216,10 @@ impl RenameProperties {
 
         NodeTraversal::traverse(compiler, root, &mut ProcessProperties { this: self });
 
-        let mut reserved_names: IndexSet<JsString> =
-            IndexSet::with_capacity(self.externed_names.len() + self.quoted_names.len());
+        let mut reserved_names: IndexSet<JsString> = IndexSet::with_capacity_and_hasher(
+            self.externed_names.len() + self.quoted_names.len(),
+            Default::default(),
+        );
         reserved_names.extend(self.externed_names.iter().cloned());
         reserved_names.extend(self.quoted_names.iter().cloned());
         let reserved_names: ReservedNames = Arc::new(RwLock::new(reserved_names));
@@ -376,7 +378,7 @@ impl RenameProperties {
     /// Returns a mapping from original names to new names
     // port: RenameProperties#getPropertyMap
     pub fn get_property_map(&self) -> VariableMap {
-        let mut map: IndexMap<JsString, JsString> = IndexMap::new();
+        let mut map: IndexMap<JsString, JsString> = IndexMap::<_, _>::default();
         for p in self.property_map.values() {
             if let Some(new_name) = &p.new_name {
                 // ImmutableMap.Builder#buildOrThrow: duplicate keys throw; property names are

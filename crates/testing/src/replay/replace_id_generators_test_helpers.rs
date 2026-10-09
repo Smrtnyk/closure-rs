@@ -47,8 +47,8 @@ use closure_jscomp::{
     compiler_pass::CompilerPass, renaming_map::RenamingMap, renaming_token::RenamingToken,
     replace_id_generators::ReplaceIdGenerators,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 const ID_TEST_MAP: &str = "com.google.javascript.jscomp.ReplaceIdGeneratorsTest_Helpers$IdTestMap";
@@ -84,7 +84,7 @@ impl NativeObject for IdTestMap {
     }
     // port: UnitRecorder#collect (no recorded result producer is reachable from this map)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
@@ -117,7 +117,7 @@ impl NativeObject for NativeReplaceIdGenerators {
     }
     // port: UnitRecorder#collect (the processor's fields hold no other result producer)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: ReplaceIdGenerators#process
     fn process(
@@ -170,7 +170,8 @@ pub fn replace_id_generators(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslV
     let id_gens = match id_gens {
         DslValue::Null => None,
         DslValue::Map(entries) => {
-            let mut map: IndexMap<String, Arc<dyn RenamingMap + Send + Sync>> = IndexMap::new();
+            let mut map: IndexMap<String, Arc<dyn RenamingMap + Send + Sync>> =
+                IndexMap::<_, _>::default();
             for (k, v) in entries {
                 let DslValue::String(k) = k else {
                     return Err(bad());

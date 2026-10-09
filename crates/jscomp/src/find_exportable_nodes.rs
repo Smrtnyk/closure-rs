@@ -26,11 +26,11 @@ use crate::diagnostic_type::DiagnosticType;
 use crate::js_error::JSError;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
 use closure_rhino::token::Token;
 use closure_rhino::{check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 
 // port: FindExportableNodes#NON_GLOBAL_ERROR
 pub static NON_GLOBAL_ERROR: DiagnosticType = DiagnosticType::error(
@@ -77,9 +77,9 @@ impl FindExportableNodes {
     // port: FindExportableNodes#FindExportableNodes
     pub fn new(_compiler: &AbstractCompiler, allow_local_exports: bool) -> Self {
         Self {
-            exports: IndexMap::new(),
-            es6_class_exports: IndexMap::new(),
-            local_exports: IndexSet::new(),
+            exports: IndexMap::<_, _>::default(),
+            es6_class_exports: IndexMap::<_, _>::default(),
+            local_exports: IndexSet::<_>::default(),
             allow_local_exports,
         }
     }

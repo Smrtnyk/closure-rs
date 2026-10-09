@@ -30,12 +30,12 @@ use crate::node_traversal::{
 };
 use crate::node_util::NodeUtil;
 use closure_jstype::{TypeId, function_type::FunctionType, js_type::JSType};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::jsdoc_info::JSDocInfo;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::{check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 
@@ -100,12 +100,12 @@ impl ExternExportsPass {
         let externs_root = IR::script(compiler);
         let mut pass = Self {
             exports: Vec::new(),
-            definition_map: IndexMap::new(),
+            definition_map: IndexMap::<_, _>::default(),
             externs_root,
-            already_exported_paths: IndexSet::new(),
-            mapped_paths: IndexMap::new(),
-            export_symbol_function_names: IndexSet::new(),
-            export_property_function_names: IndexSet::new(),
+            already_exported_paths: IndexSet::<_>::default(),
+            mapped_paths: IndexMap::<_, _>::default(),
+            export_symbol_function_names: IndexSet::<_>::default(),
+            export_property_function_names: IndexSet::<_>::default(),
         };
         pass.init_export_methods(compiler);
         pass
@@ -115,14 +115,14 @@ impl ExternExportsPass {
     fn init_export_methods(&mut self, compiler: &AbstractCompiler) {
         let convention = compiler.get_coding_convention();
         // ImmutableSet.of throws on a null element.
-        self.export_symbol_function_names = IndexSet::from([
+        self.export_symbol_function_names = IndexSet::<_>::from_iter([
             convention
                 .get_export_symbol_function()
                 .expect("NullPointerException: getExportSymbolFunction"), // goog.exportSymbol(name, value)
             JsString::from("google_exportSymbol"), // used within Google
         ]);
 
-        self.export_property_function_names = IndexSet::from([
+        self.export_property_function_names = IndexSet::<_>::from_iter([
             convention
                 .get_export_property_function()
                 .expect("NullPointerException: getExportPropertyFunction"), // goog.exportProperty(owner, name, value)
@@ -278,7 +278,7 @@ impl ExternExportsPass {
             // it gets initialized to the externed version of the value.
             let is_complete_path_prefix = i == path_prefixes.len() - 1;
 
-            let skip_path_prefix = path_prefix.ends_with(&JsString::from(".prototype"))
+            let skip_path_prefix = path_prefix.ends_with(".prototype")
                 || (self.already_exported_paths.contains(path_prefix) && !is_complete_path_prefix);
             if skip_path_prefix {
                 continue;
@@ -459,7 +459,7 @@ impl ExternExportsPass {
         let mut name_generator = DefaultNameGenerator::with_reserved_characters(
             Arc::new(RwLock::new(original_param_names.iter().cloned().collect())),
             JsString::from(""),
-            /* reservedCharacters= */ &IndexSet::new(),
+            /* reservedCharacters= */ &IndexSet::<_>::default(),
         );
         for original_param_name in original_param_names {
             let extern_param_name = if original_param_name.is_empty() {
@@ -549,7 +549,7 @@ impl ExternExportsPass {
     fn build_namespace_js_doc() -> Option<Arc<JSDocInfo>> {
         let mut builder = JSDocInfo::builder();
         builder.record_constancy();
-        builder.record_suppressions(&IndexSet::from([
+        builder.record_suppressions(&IndexSet::<_>::from_iter([
             JsString::from("const"),
             JsString::from("duplicate"),
         ]));

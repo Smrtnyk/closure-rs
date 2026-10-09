@@ -88,13 +88,13 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_state,
     ir::IR,
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::IndexMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Pattern {
@@ -183,7 +183,7 @@ impl ExtractPrototypeMemberDeclarations {
     pub fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
         let mut extraction_info = GatherExtractionInfo {
             pattern: self.pattern,
-            instances_by_chunk: IndexMap::new(),
+            instances_by_chunk: IndexMap::<_, _>::default(),
         };
         NodeTraversal::traverse(compiler, root, &mut extraction_info);
         self.maybe_do_extraction(compiler, &extraction_info);
@@ -532,7 +532,7 @@ impl PrototypeMemberDeclaration {
     fn get_prototype_class_name(ast: &Ast, q_name: NodeId) -> Option<NodeId> {
         let mut cur = q_name;
         while cur.is_get_prop(ast) {
-            if cur.get_string(ast) == "prototype" {
+            if cur.get_string_ref(ast) == "prototype" {
                 return cur.get_first_child(ast);
             } else {
                 cur = cur.get_first_child(ast).unwrap();
@@ -550,7 +550,7 @@ impl PrototypeMemberDeclaration {
         if lvalue.is_get_prop(ast) {
             let mut cur = lvalue.get_first_child(ast).unwrap();
             while cur.is_get_prop(ast) {
-                if cur.get_string(ast) == "prototype" {
+                if cur.get_string_ref(ast) == "prototype" {
                     return cur.is_qualified_name(ast);
                 }
                 cur = cur.get_first_child(ast).unwrap();

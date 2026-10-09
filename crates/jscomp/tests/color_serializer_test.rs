@@ -24,10 +24,10 @@ use closure_jscomp::serialization::types_proto::{
     ObjectTypeProto, SubtypingEdge, TypePool, TypePoolDebugInfo, TypePoolDebugInfoMismatch,
     TypeProto, UnionTypeProto,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_colors::color::Color;
 use closure_rhino::jscomp_colors::color_id::ColorId;
-use indexmap::{IndexMap, IndexSet};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -785,9 +785,9 @@ struct Tester {
 impl Tester {
     fn new() -> Self {
         Self {
-            sub_color_to_super_colors_map: IndexMap::new(),
-            color_to_mismatch_location_strings_map: IndexMap::new(),
-            string_to_pool_offset_map: Rc::new(RefCell::new(IndexMap::new())),
+            sub_color_to_super_colors_map: IndexMap::<_, _>::default(),
+            color_to_mismatch_location_strings_map: IndexMap::<_, _>::default(),
+            string_to_pool_offset_map: Rc::new(RefCell::new(IndexMap::<_, _>::default())),
             color_serializer: None,
             serialization_mode: SerializationOptions::builder()
                 .set_include_debug_info(true)

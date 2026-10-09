@@ -146,6 +146,19 @@ impl SourceFile {
         }
         Ok(self.state.lock().unwrap().code.clone().unwrap())
     }
+    /// Rust-only: the code `get_code` returns, without caching it in this SourceFile (for
+    /// `parallel_parse`, which must not change the file's state).
+    pub fn load_code_uncached(&self) -> Result<JsString, IOException> {
+        if let Some(code) = self.state.lock().unwrap().code.clone() {
+            return Ok(code);
+        }
+        let mut code = self.loader.load_uncached_code()?;
+        // set_code_and_do_bookkeeping
+        if code.as_units().first() == Some(&0xfeff) {
+            code = code.substring_from(1);
+        }
+        Ok(code)
+    }
     // port: SourceFile#setCodeDeprecated
     pub fn set_code_deprecated(&self, code: impl Into<JsString>) {
         self.set_code_and_do_bookkeeping(Some(code.into()));

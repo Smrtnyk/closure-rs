@@ -52,8 +52,8 @@ use crate::template_type_map::TemplateTypeMap;
 use crate::templatized_type::TemplatizedType;
 use crate::union_type::UnionType;
 use crate::visitor::Visitor;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_state, node::Ast};
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
@@ -120,7 +120,7 @@ impl TemplateTypeReplacer {
     // port: TemplateTypeReplacer#initSeenTypes
     fn init_seen_types(&mut self) {
         if self.seen_types.is_none() {
-            self.seen_types = Some(IndexSet::new());
+            self.seen_types = Some(IndexSet::<_>::default());
         }
     }
     // port: TemplateTypeReplacer#caseFunctionTypeUnguarded
@@ -338,7 +338,7 @@ impl TemplateTypeReplacer {
         match &mut self.visited_object_types {
             Some(visited) => visited.get(&type_).copied(),
             None => {
-                self.visited_object_types = Some(IndexMap::new());
+                self.visited_object_types = Some(IndexMap::<_, _>::default());
                 None
             }
         }

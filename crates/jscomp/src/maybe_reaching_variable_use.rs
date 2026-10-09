@@ -27,11 +27,11 @@ use crate::{
     node_util::NodeUtil,
     var::VarId,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state, hamt_pmap::HamtPMap, js_string::JsString, node::NodeId,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 #[derive(Clone)]
 pub struct ReachingUses {
     may_use_pmap: HamtPMap<VarId, HamtPMap<NodeId, NodeId>>,

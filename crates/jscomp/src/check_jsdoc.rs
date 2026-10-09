@@ -671,13 +671,9 @@ impl CheckJSDoc {
     /// Returns whether of not the given name is valid target for the result of goog.getMsg
     fn is_valid_msg_name(ast: &Ast, name_node: NodeId) -> bool {
         if name_node.is_name(ast) || name_node.is_string_key(ast) {
-            name_node
-                .get_string(ast)
-                .starts_with(&JsString::from("MSG_"))
+            name_node.get_string(ast).starts_with("MSG_")
         } else if name_node.is_qualified_name(ast) {
-            name_node
-                .get_string(ast)
-                .starts_with(&JsString::from("MSG_"))
+            name_node.get_string(ast).starts_with("MSG_")
         } else {
             false
         }

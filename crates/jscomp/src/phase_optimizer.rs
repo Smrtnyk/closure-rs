@@ -22,8 +22,8 @@ use crate::{
     compiler_pass::CompilerPass, node_util::NodeUtil, pass_factory::PassFactory, pass_names,
     performance_tracker::PerformanceTracker, platform::Platform,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::NodeId;
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicI32, Ordering},
@@ -92,7 +92,7 @@ impl PhaseOptimizer {
             validity_check: None,
             print_ast_hashcodes: false,
             current_pass: None,
-            last_runs: IndexMap::new(),
+            last_runs: IndexMap::<_, _>::default(),
             change_verifier: None,
             scope_change_state: Arc::new(Mutex::new(ScopeChangeState::default())),
         }
@@ -307,7 +307,7 @@ impl Loop {
     fn new() -> Self {
         Self {
             my_passes: vec![],
-            my_names: IndexSet::new(),
+            my_names: IndexSet::<_>::default(),
             is_code_removal_loop: false,
             howmany_iterations_under_threshold: 0,
         }
@@ -347,9 +347,9 @@ impl Loop {
         for i in 0..self.my_passes.len() {
             optimizer.last_runs.insert(i, START_TIME);
         }
-        let mut made_changes = IndexSet::new();
-        let mut run_in_prev_iter = IndexSet::new();
-        let mut did_not_make_changes = IndexSet::new();
+        let mut made_changes = IndexSet::<_>::default();
+        let mut run_in_prev_iter = IndexSet::<_>::default();
+        let mut did_not_make_changes = IndexSet::<_>::default();
         let mut state = State::RUN_PASSES_NOT_RUN_IN_PREV_ITER;
         let mut count = 1;
         let mut ast_size = NodeUtil::count_ast_size(compiler, root);

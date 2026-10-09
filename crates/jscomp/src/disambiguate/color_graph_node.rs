@@ -21,9 +21,9 @@
 
 use super::property_clustering::PropertyClustering;
 use crate::colors::{Color, standard_colors};
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::java_util::bit_set::BitSet;
 use closure_rhino::{check_argument, check_not_null};
-use indexmap::IndexMap;
 use std::fmt;
 
 /// Rust-only owner of the disambiguate package's object web. Java's `ColorGraphNode` and
@@ -147,7 +147,7 @@ impl ColorGraphNode {
         let id = ColorGraphNodeId(arena.nodes.len() as u32);
         arena.nodes.push(ColorGraphNode {
             color: single,
-            associated_props: IndexMap::new(),
+            associated_props: IndexMap::<_, _>::default(),
             index,
             subtype_indices: BitSet::new_default(),
         });

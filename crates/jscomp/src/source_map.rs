@@ -18,6 +18,7 @@
 
 #![allow(clippy::collapsible_if, clippy::unnecessary_unwrap)] // Retain Java nested conditionals and null checks.
 use crate::{node_util::NodeUtil, source_file_mapping::SourceFileMapping};
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     js_string::JsString,
     node::{Ast, NodeId},
@@ -26,7 +27,6 @@ use closure_sourcemap::{
     file_position::FilePosition, proto::mapping::OriginalMapping,
     source_map_generator::SourceMapGenerator,
 };
-use indexmap::IndexMap;
 use std::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -198,7 +198,7 @@ impl SourceMap {
         Self {
             generator,
             prefix_mappings: Vec::new(),
-            source_location_fixup_cache: IndexMap::new(),
+            source_location_fixup_cache: IndexMap::<_, _>::default(),
             mapping: None,
         }
     }

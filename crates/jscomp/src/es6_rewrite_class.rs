@@ -33,6 +33,7 @@ use crate::{
     transpilation_util::TranspilationUtil,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,
@@ -43,7 +44,6 @@ use closure_rhino::{
     node::{NodeId, Prop},
     token::Token,
 };
-use indexmap::IndexMap;
 use std::sync::{Arc, LazyLock};
 
 // port: Es6RewriteClass#features
@@ -932,7 +932,7 @@ impl ClassDeclarationMetadata {
     // port: Es6RewriteClass.ClassDeclarationMetadata#builder
     fn builder() -> ClassDeclarationMetadataBuilder {
         let mut builder = ClassDeclarationMetadataBuilder::default();
-        builder.set_class_members_to_declare(IndexMap::new());
+        builder.set_class_members_to_declare(IndexMap::<_, _>::default());
         builder
     }
 

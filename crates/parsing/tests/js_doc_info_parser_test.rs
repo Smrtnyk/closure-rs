@@ -34,6 +34,7 @@ use closure_parsing::{
     js_doc_token_stream::JsDocTokenStream,
     parser_runner::ParserRunner,
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     ir::IR,
     js_string::JsString,
@@ -44,7 +45,6 @@ use closure_rhino::{
     testing::{node_subject::assert_node, test_error_reporter::TestErrorReporter},
     token::Token,
 };
-use indexmap::IndexSet;
 use std::sync::Arc;
 const MISSING_TYPE_DECL_WARNING_TEXT: &str = "Missing type declaration.";
 struct Fixture {
@@ -2087,7 +2087,7 @@ fn test_parse_define_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("description of element")))
+        .index_of(JsString::from("description of element"))
             >= 0
     );
     assert!(
@@ -2098,7 +2098,7 @@ fn test_parse_define_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("next line")))
+        .index_of(JsString::from("next line"))
             >= 0
     );
 }
@@ -2127,7 +2127,7 @@ fn test_parse_private_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("description ")))
+        .index_of(JsString::from("description "))
             >= 0
     );
     assert!(
@@ -2138,7 +2138,7 @@ fn test_parse_private_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("next line")))
+        .index_of(JsString::from("next line"))
             >= 0
     );
 }
@@ -2167,7 +2167,7 @@ fn test_parse_package_private_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("description ")))
+        .index_of(JsString::from("description "))
             >= 0
     );
     assert!(
@@ -2178,7 +2178,7 @@ fn test_parse_package_private_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("next line")))
+        .index_of(JsString::from("next line"))
             >= 0
     );
 }
@@ -2207,7 +2207,7 @@ fn test_parse_protected_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("description ")))
+        .index_of(JsString::from("description "))
             >= 0
     );
     assert!(
@@ -2218,7 +2218,7 @@ fn test_parse_protected_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("next line")))
+        .index_of(JsString::from("next line"))
             >= 0
     );
 }
@@ -10806,7 +10806,7 @@ fn test_export_type() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("descr")))
+        .index_of(JsString::from("descr"))
             >= 0
     );
     assert!(
@@ -10817,7 +10817,7 @@ fn test_export_type() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("next line")))
+        .index_of(JsString::from("next line"))
             >= 0
     );
 }

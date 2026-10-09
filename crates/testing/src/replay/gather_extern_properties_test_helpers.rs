@@ -49,8 +49,8 @@ use closure_jscomp::{
     compiler_pass::CompilerPass,
     gather_extern_properties::{GatherExternProperties, Mode},
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.GatherExternPropertiesTest_Helpers";
@@ -89,7 +89,7 @@ impl NativeObject for GatherExternPropertiesTestHelpers {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "mode".into(),
             self.mode.map_or(DslValue::Null, |m| DslValue::Enum {
@@ -155,7 +155,7 @@ impl NativeObject for NativeGatherExternProperties {
     // UnitRecorder#collect walks the processor for result producers: GatherExternProperties
     // holds only its property set, its mode and the compiler, none of them a result producer.
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: GatherExternProperties#process
     fn process(
@@ -185,7 +185,7 @@ impl NativeObject for ExpectExterns {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "properties".into(),
             DslValue::Array {

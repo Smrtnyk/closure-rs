@@ -20,8 +20,8 @@ use crate::{
     abstract_compiler::AbstractCompiler, change_tracker::ChangeTracker, node_printing,
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::NodeId;
-use indexmap::{IndexMap, IndexSet};
 
 pub struct ChangeVerifier {
     clones_by_current: IndexMap<NodeId, NodeId>,
@@ -31,7 +31,7 @@ impl ChangeVerifier {
     // port: ChangeVerifier#ChangeVerifier
     pub fn new(_compiler: &AbstractCompiler) -> Self {
         Self {
-            clones_by_current: IndexMap::new(),
+            clones_by_current: IndexMap::<_, _>::default(),
             snapshot_change: 0,
         }
     }
@@ -82,7 +82,7 @@ impl ChangeVerifier {
         } else {
             format!("{pass_name}: ")
         };
-        let mut snapshot_scope_nodes = IndexSet::new();
+        let mut snapshot_scope_nodes = IndexSet::<_>::default();
         // port: ChangeVerifier.<anonymous>#visit
         visit_pre_order(compiler, self.clones_by_current[&root], &mut |n| {
             if ChangeTracker::is_change_scope_root(compiler, n) {

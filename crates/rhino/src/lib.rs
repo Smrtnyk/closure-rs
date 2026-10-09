@@ -21,6 +21,7 @@ pub mod closure_primitive;
 pub mod common_hash;
 pub mod dtoa;
 pub mod error_reporter;
+pub mod fast_hash;
 pub mod hamt_pmap;
 pub mod input_id;
 pub mod ir;

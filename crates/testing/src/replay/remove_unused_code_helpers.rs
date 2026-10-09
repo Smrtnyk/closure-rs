@@ -53,8 +53,8 @@ use closure_jscomp::{
     abstract_compiler::AbstractCompiler, compiler_pass::CompilerPass,
     pure_function_identifier::Driver, remove_unused_code::RemoveUnusedCode,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const BUILDER: &str = "com.google.javascript.jscomp.RemoveUnusedCode$Builder";
@@ -329,8 +329,8 @@ fn process_borrowed(
 
 // port: RemoveUnusedCodeTestHelpers#RemoveUnusedCodeTestHelpers
 fn test_helpers(_ctx: &mut Ctx, _args: Vec<DslValue>) -> Result<DslValue, Throwable> {
-    let mut fields = IndexMap::new();
-    let mut field_types = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
+    let mut field_types = IndexMap::<_, _>::default();
     for name in ["removeGlobal", "preserveFunctionExpressionNames"] {
         fields.insert(name.to_string(), DslValue::Bool(false));
         field_types.insert(name.to_string(), "boolean".to_string());

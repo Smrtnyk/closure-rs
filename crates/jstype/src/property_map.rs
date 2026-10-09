@@ -148,7 +148,17 @@ impl PropertyMap {
     #[allow(clippy::collapsible_if)] // Keep Java's constructor and abstract checks.
     // port: PropertyMap#getSecondaryParentObjects
     fn get_secondary_parent_objects(&self, reg: &mut JSTypeRegistry, ast: &Ast) -> Vec<TypeId> {
-        let Some(parent_source) = self.parent_source else {
+        Self::secondary_parent_objects_of(self.parent_source, reg, ast)
+    }
+    // port: PropertyMap#getSecondaryParentObjects
+    /// Rust-only: `getSecondaryParentObjects` of the map whose parent source is `parent_source`.
+    #[allow(clippy::collapsible_if)] // Keep Java's constructor and abstract checks.
+    fn secondary_parent_objects_of(
+        parent_source: Option<TypeId>,
+        reg: &mut JSTypeRegistry,
+        ast: &Ast,
+    ) -> Vec<TypeId> {
+        let Some(parent_source) = parent_source else {
             return Vec::new();
         };
         if let Some(ctor) = parent_source.get_constructor(reg) {
@@ -166,24 +176,73 @@ impl PropertyMap {
         name: impl Into<PropertyKey>,
     ) -> Option<OwnedProperty> {
         let name = name.into();
-        let mut map = Some(self.clone());
-        while let Some(current) = map {
-            if let Some(prop) = current.get_own_property(reg, ast, &name) {
-                return Some(OwnedProperty::new(current.parent_source, prop));
-            }
-            map = current.get_primary_parent(reg, ast);
+        if let Some(prop) = self.get_own_property(reg, ast, &name) {
+            return Some(OwnedProperty::new(self.parent_source, prop));
         }
-        let mut map = Some(self.clone());
-        while let Some(current) = map {
-            for o in current.get_secondary_parent_objects(reg, ast) {
+        Self::find_closest_after_own(self.parent_source, reg, ast, &name)
+    }
+    /// Rust-only: `findClosest` on the property map of `t`, without copying that map.
+    pub fn find_closest_of_type(
+        t: TypeId,
+        reg: &mut JSTypeRegistry,
+        ast: &Ast,
+        name: &PropertyKey,
+    ) -> Option<OwnedProperty> {
+        let (prop, parent_source) = Self::own_property_of_type(t, reg, ast, name);
+        if let Some(prop) = prop {
+            return Some(OwnedProperty::new(parent_source, prop));
+        }
+        Self::find_closest_after_own(parent_source, reg, ast, name)
+    }
+    // port: PropertyMap#findClosest
+    /// Rust-only: the rest of `findClosest` once the start map (whose parent source is
+    /// `parent_source`) lacks the property. Java walks PropertyMap objects; the walk only needs
+    /// each map's parent source and own lookup, so it reads the maps in place instead of copying
+    /// each one (same calls in the same order, D-025).
+    fn find_closest_after_own(
+        parent_source: Option<TypeId>,
+        reg: &mut JSTypeRegistry,
+        ast: &Ast,
+        name: &PropertyKey,
+    ) -> Option<OwnedProperty> {
+        let mut source = parent_source;
+        while let Some(next) = source.and_then(|t| t.get_implicit_prototype(reg, ast)) {
+            let (prop, next_source) = Self::own_property_of_type(next, reg, ast, name);
+            if let Some(prop) = prop {
+                return Some(OwnedProperty::new(next_source, prop));
+            }
+            source = next_source;
+        }
+        let mut source = parent_source;
+        loop {
+            for o in Self::secondary_parent_objects_of(source, reg, ast) {
                 let parent = o.get_property_map(reg).clone();
                 if let Some(e) = parent.find_closest(reg, ast, name.clone()) {
                     return Some(e);
                 }
             }
-            map = current.get_primary_parent(reg, ast);
+            match source.and_then(|t| t.get_implicit_prototype(reg, ast)) {
+                Some(next) => source = next.get_property_map(reg).parent_source,
+                None => return None,
+            }
         }
-        None
+    }
+    /// Rust-only: `getOwnProperty` on the property map of `t` and that map's parent source.
+    fn own_property_of_type(
+        t: TypeId,
+        reg: &mut JSTypeRegistry,
+        ast: &Ast,
+        name: &PropertyKey,
+    ) -> (Option<PropertyId>, Option<TypeId>) {
+        let map = t.get_property_map(reg);
+        let parent_source = map.parent_source;
+        match name {
+            PropertyKey::String(n) => (map.properties.get(n).copied(), parent_source),
+            PropertyKey::Symbol(_) => {
+                let map = map.clone();
+                (map.get_own_property(reg, ast, name), parent_source)
+            }
+        }
     }
     // port: PropertyMap#getOwnProperty
     pub fn get_own_property(

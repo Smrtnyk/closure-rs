@@ -24,6 +24,7 @@ use closure_jscomp::{
     compiler_options::AliasStringsMode, compiler_pass::CompilerPass, js_chunk::JSChunk,
     replace_messages_constants,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
@@ -34,7 +35,6 @@ use closure_testing::{
     testing::js_chunk_graph_builder::JSChunkGraphBuilder,
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 // port: AliasStringsTest#EXTERNS
@@ -88,7 +88,7 @@ impl AliasStringsTest {
                 ctx: Ctx::new(
                     "AliasStringsTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

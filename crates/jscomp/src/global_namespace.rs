@@ -47,6 +47,7 @@ use crate::{
     node_util::NodeUtil,
     scope::ScopeId,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,
@@ -57,7 +58,6 @@ use closure_rhino::{
     static_source_file::StaticSourceFile,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{
     fmt,
     hash::{Hash, Hasher},
@@ -221,13 +221,13 @@ impl GlobalNamespace {
             root,
             externs_root,
             global_root,
-            spread_sibling_cache: Mutex::new(IndexMap::new()),
+            spread_sibling_cache: Mutex::new(IndexMap::<_, _>::default()),
             source_kind: None,
             generated: false,
             decisions_log,
             global_names: Vec::new(),
-            name_map: IndexMap::new(),
-            name_map_by_module: IndexMap::new(),
+            name_map: IndexMap::<_, _>::default(),
+            name_map_by_module: IndexMap::<_, _>::default(),
             should_traverse_script: Arc::new(|_, _| true),
             names: Vec::new(),
             refs: Vec::new(),
@@ -1509,11 +1509,11 @@ impl<'g> BuildGlobalNamespace<'g> {
 
         let mut num_levels_to_remove: i32;
         let prefix: JsString;
-        if name.ends_with(&JsString::from(".prototype")) {
+        if name.ends_with(".prototype") {
             num_levels_to_remove = 1;
             prefix = name.substring(0, name.length() - 10);
         } else {
-            let mut i = name.index_of(&JsString::from(".prototype."));
+            let mut i = name.index_of(".prototype.");
             if i == -1 {
                 return false;
             }
@@ -1926,7 +1926,7 @@ impl Name {
         }
         if let RefsForNode::Single(existing_ref) = data.refs_for_node {
             // Convert the singleton Ref object into a map, so that we can store a second Ref.
-            let mut refs_for_node_map = IndexMap::new();
+            let mut refs_for_node_map = IndexMap::<_, _>::default();
             refs_for_node_map.insert(existing_ref.get_node(gn), existing_ref);
             gn.name_data_mut(self).refs_for_node = RefsForNode::Map(refs_for_node_map);
         }

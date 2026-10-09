@@ -28,13 +28,13 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     js_string::JsString,
     jsdoc_info::Visibility,
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::IndexSet;
 
 // port: CheckConstPrivateProperties#MISSING_CONST_PROPERTY
 pub static MISSING_CONST_PROPERTY: DiagnosticType = DiagnosticType::disabled(
@@ -53,8 +53,8 @@ impl CheckConstPrivateProperties {
     pub fn new(_compiler: &AbstractCompiler) -> Self {
         Self {
             candidates: Vec::new(),
-            modified: IndexSet::new(),
-            constructors_and_interfaces: IndexSet::new(),
+            modified: IndexSet::<_>::default(),
+            constructors_and_interfaces: IndexSet::<_>::default(),
         }
     }
 

@@ -16,8 +16,8 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   src/com/google/javascript/jscomp/colors/ColorId.java.
 
+use crate::fast_hash::IndexSet;
 use crate::{check_state, common_hash::farm_hash_fingerprint64, js_string::JsString};
-use indexmap::IndexSet;
 use std::fmt;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]

@@ -92,7 +92,7 @@ impl AccessControlUtils {
             Self::get_defining_source(reg, ast, property, reference_type, &property_name);
         let file_overview_visibility = file_visibility_map.get(defining_source.as_ref());
         let parent = property.get_parent(ast).unwrap();
-        let is_override = parent.get_jsdoc_info(ast).is_some()
+        let is_override = parent.get_jsdoc_info_ref(ast).is_some()
             && parent.is_assign(ast)
             && parent.get_first_child(ast) == Some(property);
         let object_type =

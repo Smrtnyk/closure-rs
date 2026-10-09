@@ -28,6 +28,7 @@ use crate::{
     typed_scope::TypedScope,
 };
 use closure_jstype::prelude::*;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_not_null, check_state,
     ir::IR,
@@ -35,7 +36,6 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::IndexMap;
 
 // Custom Token types for to use as placeholders in the template AST.
 // port: TemplateAstMatcher#TEMPLATE_TYPE_PARAM
@@ -105,7 +105,7 @@ impl TemplateAstMatcher {
             param_node_matches: Vec::new(),
             template_locals: Vec::new(),
             local_var_matches: Vec::new(),
-            string_literal_matches: IndexMap::new(),
+            string_literal_matches: IndexMap::<_, _>::default(),
             is_loose_match: false,
             type_matching_strategy,
         };
@@ -210,7 +210,7 @@ impl TemplateAstMatcher {
     /// template 'fn' with placeholder nodes use to facility matching.
     // port: TemplateAstMatcher#prepTemplatePlaceholders
     fn prep_template_placeholders(&mut self, compiler: &mut AbstractCompiler, fn_: NodeId) {
-        let mut param_types: IndexMap<JsString, TypeId> = IndexMap::new();
+        let mut param_types: IndexMap<JsString, TypeId> = IndexMap::<_, _>::default();
 
         // drop the function name so it isn't include in the name maps
         let fn_name_node = fn_.get_first_child(compiler).unwrap();
@@ -273,7 +273,7 @@ impl TemplateAstMatcher {
             if let Some(index) = self.template_params.iter().position(|p| *p == name) {
                 let type_ = param_types[&name];
                 let is_string_literal = type_.is_string_value_type(compiler.get_type_registry())
-                    && name.starts_with(&JsString::from("string_literal"));
+                    && name.starts_with("string_literal");
                 let replacement =
                     Self::create_template_parameter_node(compiler, index, type_, is_string_literal);
                 Self::replace_node_in_place(compiler, n, replacement);

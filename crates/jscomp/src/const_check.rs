@@ -27,10 +27,10 @@ use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
 use crate::var::VarId;
 use closure_rhino::check_not_null;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
 use closure_rhino::token::Token;
-use indexmap::IndexSet;
 
 // port: ConstCheck#CONST_REASSIGNED_VALUE_ERROR
 pub static CONST_REASSIGNED_VALUE_ERROR: DiagnosticType = DiagnosticType::warning(
@@ -57,7 +57,7 @@ impl ConstCheck {
     // port: ConstCheck#ConstCheck
     pub fn new(_compiler: &AbstractCompiler) -> Self {
         Self {
-            initialized_constants: IndexSet::new(),
+            initialized_constants: IndexSet::<_>::default(),
         }
     }
 

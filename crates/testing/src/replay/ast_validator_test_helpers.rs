@@ -49,11 +49,11 @@ use closure_jscomp::{
     ast_validator::{AstValidator, TypeInfoValidation, ViolationHandler},
     compiler_pass::CompilerPass,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.AstValidatorTest_Helpers";
@@ -78,7 +78,7 @@ impl NativeObject for AstValidatorTestHelpers {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "lastCheckViolationMessages".into(),
             self.last_check_violation_messages.borrow().as_ref().map_or(
@@ -194,7 +194,7 @@ impl NativeObject for NativeAstValidator {
     // compiler, violation handler, current script, validation mode and two flags, none of them a
     // result producer.
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: AstValidator#process
     fn process(

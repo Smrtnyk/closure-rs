@@ -19,6 +19,7 @@
 #![allow(clippy::match_like_matches_macro)] // Retain Java switch bodies.
 use crate::{abstract_compiler::AbstractCompiler, scope::ScopeId};
 use closure_jstype::js_type::JSType as _;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     dtoa::d_to_a,
@@ -34,7 +35,6 @@ use closure_rhino::{
     token::Token,
     token_util::TokenUtil,
 };
-use indexmap::{IndexMap, IndexSet};
 use num_bigint::BigInt;
 use std::sync::{Arc, LazyLock};
 pub struct NodeUtil;
@@ -96,7 +96,7 @@ impl NodeUtil {
                     Tri::UNKNOWN
                 }
             }
-            Token::STRINGLIT => Tri::for_boolean(n.get_string(ast).length() > 0),
+            Token::STRINGLIT => Tri::for_boolean(n.get_string_ref(ast).length() > 0),
             Token::NUMBER => Tri::for_boolean(n.get_double(ast) != 0.0),
             Token::BIGINT => Tri::for_boolean(*n.get_big_int(ast) != BigInt::from(0)),
             Token::NOT => Self::get_boolean_value(ast, n.get_last_child(ast).unwrap()).not(),
@@ -410,7 +410,7 @@ impl NodeUtil {
             }
             _ => {
                 let fun_name_node = n.get_first_child(ast).unwrap();
-                if fun_name_node.is_empty(ast) || fun_name_node.get_string(ast).is_empty() {
+                if fun_name_node.is_empty(ast) || fun_name_node.get_string_ref(ast).is_empty() {
                     None
                 } else {
                     Some(fun_name_node)
@@ -1077,7 +1077,7 @@ impl NodeUtil {
     pub fn is_undefined(ast: &Ast, n: NodeId) -> bool {
         match n.get_token(ast) {
             Token::VOID => true,
-            Token::NAME => n.get_string(ast) == "undefined",
+            Token::NAME => n.get_string_ref(ast) == "undefined",
             _ => false,
         }
     }
@@ -1862,7 +1862,7 @@ impl NodeUtil {
     }
     // port: NodeUtil#isReferenceName
     pub fn is_reference_name(ast: &Ast, n: NodeId) -> bool {
-        n.is_name(ast) && !n.get_string(ast).is_empty()
+        n.is_name(ast) && !n.get_string_ref(ast).is_empty()
     }
     // port: NodeUtil#isNonlocalModuleExportName
     pub fn is_nonlocal_module_export_name(ast: &Ast, n: NodeId) -> bool {
@@ -2202,7 +2202,11 @@ impl NodeUtil {
     // port: NodeUtil#isNamedFunctionExpression
     pub fn is_named_function_expression(ast: &Ast, n: NodeId) -> bool {
         Self::is_function_expression(ast, n)
-            && !n.get_first_child(ast).unwrap().get_string(ast).is_empty()
+            && !n
+                .get_first_child(ast)
+                .unwrap()
+                .get_string_ref(ast)
+                .is_empty()
     }
     // port: NodeUtil#isClassExpression
     pub fn is_class_expression(ast: &Ast, n: NodeId) -> bool {
@@ -2224,7 +2228,7 @@ impl NodeUtil {
     }
     // port: NodeUtil#isBleedingFunctionName
     pub fn is_bleeding_function_name(ast: &Ast, n: NodeId) -> bool {
-        if !n.is_name(ast) || n.get_string(ast).is_empty() {
+        if !n.is_name(ast) || n.get_string_ref(ast).is_empty() {
             return false;
         }
         let parent = n.get_parent(ast).unwrap();
@@ -2246,7 +2250,7 @@ impl NodeUtil {
     }
     // port: NodeUtil#referencesArgumentsHelper
     pub fn references_arguments_helper(ast: &Ast, node: NodeId) -> bool {
-        if node.is_name(ast) && node.get_string(ast) == "arguments" {
+        if node.is_name(ast) && node.get_string_ref(ast) == "arguments" {
             return true;
         }
         if Self::is_non_arrow_function(ast, node) {
@@ -2719,7 +2723,7 @@ impl NodeUtil {
     // port: NodeUtil#newQName(AbstractCompiler,String)
     pub fn new_qname(compiler: &mut AbstractCompiler, name: impl Into<JsString>) -> NodeId {
         let name = name.into();
-        let dot = name.index_of(&".".into());
+        let dot = name.index_of(".");
         let mut end_pos = if dot == -1 {
             name.length()
         } else {
@@ -2736,7 +2740,7 @@ impl NodeUtil {
         qname.set_length(compiler, end_pos as i32);
         let mut start_pos = end_pos + 1;
         while end_pos < name.length() {
-            let dot = name.index_of_from(&".".into(), start_pos as i32);
+            let dot = name.index_of_from(".", start_pos as i32);
             end_pos = if dot == -1 {
                 name.length()
             } else {
@@ -2850,7 +2854,7 @@ impl NodeUtil {
     }
     // port: NodeUtil#getRootOfQualifiedName(String)
     pub fn get_root_of_qualified_name_string(q_name: &JsString) -> JsString {
-        let dot = q_name.index_of(&".".into());
+        let dot = q_name.index_of(".");
         if dot == -1 {
             q_name.clone()
         } else {
@@ -2911,13 +2915,13 @@ impl NodeUtil {
     }
     // port: NodeUtil#isValidQualifiedName(FeatureSet,String)
     pub fn is_valid_qualified_name_features(mode: FeatureSet, name: &JsString) -> bool {
-        if name.ends_with(&".".into()) || name.starts_with(&".".into()) {
+        if name.ends_with(".") || name.starts_with(".") {
             return false;
         }
         let mut parts = Vec::new();
         let mut start = 0;
         loop {
-            let dot = name.index_of_from(&".".into(), start as i32);
+            let dot = name.index_of_from(".", start as i32);
             let end = if dot == -1 {
                 name.length()
             } else {
@@ -3090,7 +3094,7 @@ impl NodeUtil {
         if !getprop.is_get_prop(ast) {
             return false;
         }
-        getprop.get_string(ast) == "defineProperties"
+        getprop.get_string_ref(ast) == "defineProperties"
             && Self::is_known_global_object_reference(ast, getprop.get_first_child(ast).unwrap())
     }
 }
@@ -3104,7 +3108,7 @@ impl NodeUtil {
     // port: NodeUtil#isKnownGlobalObjectReference
     fn is_known_global_object_reference(ast: &Ast, n: NodeId) -> bool {
         match n.get_token(ast) {
-            Token::NAME => n.get_string(ast) == "Object",
+            Token::NAME => n.get_string_ref(ast) == "Object",
             Token::GETPROP => {
                 GLOBAL_OBJECT.matches(ast, n) || GLOBAL_OBJECT_MANGLED.matches(ast, n)
             }
@@ -3120,7 +3124,7 @@ impl NodeUtil {
         if !getprop.is_get_prop(ast) {
             return false;
         }
-        getprop.get_string(ast) == "defineProperty"
+        getprop.get_string_ref(ast) == "defineProperty"
             && Self::is_known_global_object_reference(ast, getprop.get_first_child(ast).unwrap())
     }
     // port: NodeUtil#getObjectDefinedPropertiesKeys
@@ -3153,7 +3157,7 @@ impl NodeUtil {
             return false;
         }
         let recv = n.get_first_child(ast).unwrap();
-        recv.is_get_prop(ast) && recv.get_string(ast) == "prototype"
+        recv.is_get_prop(ast) && recv.get_string_ref(ast) == "prototype"
     }
     // port: NodeUtil#isPrototypeMethod
     pub fn is_prototype_method(ast: &Ast, n: NodeId) -> bool {
@@ -3174,7 +3178,7 @@ impl NodeUtil {
         let parent = get_prop.get_parent(ast).unwrap();
         parent.is_assign(ast)
             && get_prop.is_first_child_of(ast, Some(parent))
-            && get_prop.get_string(ast) == "prototype"
+            && get_prop.get_string_ref(ast) == "prototype"
     }
     // port: NodeUtil#isPropertyTest
     pub fn is_property_test(compiler: &AbstractCompiler, prop_access: NodeId) -> bool {
@@ -3235,11 +3239,11 @@ impl NodeUtil {
         if !q_name.is_get_prop(ast) {
             return None;
         }
-        if q_name.get_string(ast) == "prototype" {
+        if q_name.get_string_ref(ast) == "prototype" {
             return q_name.get_first_child(ast);
         }
         let recv = q_name.get_first_child(ast).unwrap();
-        if recv.is_get_prop(ast) && recv.get_string(ast) == "prototype" {
+        if recv.is_get_prop(ast) && recv.get_string_ref(ast) == "prototype" {
             return recv.get_first_child(ast);
         }
         None
@@ -3247,7 +3251,7 @@ impl NodeUtil {
     // port: NodeUtil#getPrototypePropertyName
     pub fn get_prototype_property_name(ast: &Ast, q_name: NodeId) -> JsString {
         let q_name_str = q_name.get_qualified_name(ast).unwrap();
-        let prototype_idx = q_name_str.last_index_of(&".prototype.".into());
+        let prototype_idx = q_name_str.last_index_of(".prototype.");
         let member_index = prototype_idx + ".prototype".len() as i32 + 1;
         q_name_str.substring_from(member_index as usize)
     }
@@ -3727,7 +3731,7 @@ impl NodeUtil {
         }
         let params = function.get_second_child(ast).unwrap();
         for param in params.children(ast) {
-            if param.get_jsdoc_info(ast).is_some() {
+            if param.get_jsdoc_info_ref(ast).is_some() {
                 return true;
             }
         }
@@ -4054,7 +4058,7 @@ impl NodeUtil {
         if n.is_expr_result(ast) {
             return Self::get_best_jsdoc_info_node(ast, n.get_first_child(ast).unwrap());
         }
-        let info = n.get_jsdoc_info(ast);
+        let info = n.get_jsdoc_info_ref(ast);
         if info.is_none() {
             let parent = n.get_parent(ast);
             if parent.is_none() || n.is_expr_result(ast) {
@@ -4335,7 +4339,7 @@ impl NodeUtil {
     }
     // port: NodeUtil#isNaN
     pub fn is_nan(ast: &Ast, n: NodeId) -> bool {
-        (n.is_name(ast) && n.get_string(ast) == "NaN")
+        (n.is_name(ast) && n.get_string_ref(ast) == "NaN")
             || (n.get_token(ast) == Token::DIV
                 && n.get_first_child(ast).unwrap().is_number(ast)
                 && n.get_first_child(ast).unwrap().get_double(ast) == 0.0
@@ -4444,7 +4448,7 @@ impl NodeUtil {
         scope: ScopeId,
         possible_name: NodeId,
     ) -> bool {
-        if !possible_name.is_name(compiler) || possible_name.get_string(compiler) != "exports" {
+        if !possible_name.is_name(compiler) || possible_name.get_string_ref(compiler) != "exports" {
             return false;
         }
         let name = possible_name.get_string(compiler);
@@ -4575,7 +4579,7 @@ impl NodeUtil {
             .unwrap()
             .is_class_members(ast)
             && !member_function_def.is_static_member(ast)
-            && member_function_def.get_string(ast) == "constructor"
+            && member_function_def.get_string_ref(ast) == "constructor"
     }
     // port: NodeUtil#isEs6Constructor
     pub fn is_es6_constructor(ast: &Ast, fn_node: NodeId) -> bool {
@@ -4600,7 +4604,11 @@ impl NodeUtil {
         key_name == "get" || key_name == "set"
     }
     // port: NodeUtil#isCallTo(Node,String)
-    pub fn is_call_to(ast: &Ast, n: NodeId, qualified_name: impl Into<JsString>) -> bool {
+    pub fn is_call_to(
+        ast: &Ast,
+        n: NodeId,
+        qualified_name: impl closure_rhino::js_string::JsStrLike,
+    ) -> bool {
         n.is_call(ast)
             && n.get_first_child(ast)
                 .unwrap()
@@ -4634,7 +4642,7 @@ impl NodeUtil {
             &mut scope_creator,
         );
         externs_refs.process(compiler, externs);
-        let mut externs_names = IndexSet::new();
+        let mut externs_names = IndexSet::<_>::default();
         for v in externs_refs.get_all_symbols() {
             if !v.is_param(compiler) {
                 externs_names.insert(v.get_name(compiler));
@@ -4841,7 +4849,7 @@ impl NodeUtil {
             }
         }
         let mut finder = Finder {
-            name_vars: IndexSet::new(),
+            name_vars: IndexSet::<_>::default(),
         };
         NodeTraversal::builder()
             .set_compiler(compiler)
@@ -4896,7 +4904,7 @@ impl NodeUtil {
             }
         }
         let mut finder = Finder {
-            name_var_map: IndexMap::new(),
+            name_var_map: IndexMap::<_, _>::default(),
             ordered_vars: Vec::new(),
             scope,
         };
@@ -5199,12 +5207,12 @@ impl NodeUtil {
         let mut name = strip_unique_name_suffix(name);
         name =
             crate::make_declared_names_unique::ContextualRenameInverter::get_original_name(&name);
-        if name.starts_with(&"module$exports$".into()) {
+        if name.starts_with("module$exports$") {
             let last_dollar = name.last_index_of_char(u16::from(b'$'));
             if last_dollar != -1 {
                 name = name.substring_from((last_dollar + 1) as usize);
             }
-        } else if name.starts_with(&"module$contents$".into()) {
+        } else if name.starts_with("module$contents$") {
             let last_underscore = name.last_index_of_char(u16::from(b'_'));
             if last_underscore != -1 {
                 name = name.substring_from((last_underscore + 1) as usize);

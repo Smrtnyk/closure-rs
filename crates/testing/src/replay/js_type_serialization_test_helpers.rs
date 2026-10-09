@@ -62,8 +62,8 @@ use closure_jscomp::{
     type_mismatch::TypeMismatch,
 };
 use closure_jstype::prelude::*;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{js_string::JsString, jscomp_colors::color_id::ColorId, node::NodeId};
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const HASHER_HOLDER: &str =
@@ -73,12 +73,12 @@ const RECONSERIALIZER_HOLDER: &str =
 
 /// `ColorId` as the recorder dumps it (`{"object": ColorId, "fields": {"rightAligned": long}}`).
 fn color_id_value(id: ColorId) -> DslValue {
-    let mut fields = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
     fields.insert("rightAligned".into(), DslValue::Long(id.right_aligned()));
     DslValue::Object(Rc::new(RefCell::new(Object {
         class: "com.google.javascript.jscomp.colors.ColorId".into(),
         fields,
-        field_types: IndexMap::new(),
+        field_types: IndexMap::<_, _>::default(),
     })))
 }
 
@@ -101,7 +101,7 @@ impl NativeObject for JSTypeColorIdHasherTestHelpers {
     // port: ReplayValues#findField (native object adapter). `hasher` and `colorIdToJSTypes` are
     // skipped by the descriptor (testFieldsAfterSkip): they hold Java-internal JSType graphs.
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "labelToColorId".into(),
             match &self.label_to_color_id {
@@ -148,8 +148,8 @@ pub fn hasher_get_processor(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslVa
         let (registry, _ast) = compiler.get_type_registry_and_ast();
         Rc::new(JSTypeColorIdHasher::new(registry))
     };
-    let label_to_color_id = Rc::new(RefCell::new(IndexMap::new()));
-    let color_id_to_js_types = Rc::new(RefCell::new(IndexMap::new()));
+    let label_to_color_id = Rc::new(RefCell::new(IndexMap::<_, _>::default()));
+    let color_id_to_js_types = Rc::new(RefCell::new(IndexMap::<_, _>::default()));
     this.hasher = Some(hasher.clone());
     this.label_to_color_id = Some(label_to_color_id.clone());
     this.color_id_to_js_types = Some(color_id_to_js_types.clone());
@@ -227,7 +227,7 @@ impl NativeObject for HasherProcessor {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: JSTypeColorIdHasherTest_Helpers#getProcessor (the CompilerPass lambda)
     fn process(
@@ -270,7 +270,7 @@ impl NativeObject for JSTypeReconserializerTestHelpers {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "shouldSerializeProperty".into(),
             self.should_serialize_property.clone(),
@@ -291,7 +291,7 @@ impl NativeObject for JSTypeReconserializerTestHelpers {
                 None => DslValue::Null,
                 Some(builder) => {
                     let builder = builder.borrow();
-                    let mut fields = IndexMap::new();
+                    let mut fields = IndexMap::<_, _>::default();
                     fields.insert("maxLength".into(), DslValue::Int(builder.max_length()));
                     fields.insert(
                         "pool".into(),
@@ -307,7 +307,7 @@ impl NativeObject for JSTypeReconserializerTestHelpers {
                         class: "com.google.javascript.jscomp.serialization.StringPool$Builder"
                             .into(),
                         fields,
-                        field_types: IndexMap::new(),
+                        field_types: IndexMap::<_, _>::default(),
                     })))
                 }
             },
@@ -372,7 +372,7 @@ pub fn reconserializer_get_processor(
         .downcast_mut::<JSTypeReconserializerTestHelpers>()
         .ok_or_else(bad)?;
     let string_pool_builder = Rc::new(RefCell::new(StringPool::builder()));
-    let label_to_pointer = Rc::new(RefCell::new(IndexMap::new()));
+    let label_to_pointer = Rc::new(RefCell::new(IndexMap::<_, _>::default()));
     this.string_pool_builder = Some(string_pool_builder.clone());
     this.label_to_pointer = Some(label_to_pointer.clone());
     let DslValue::Lambda(predicate) = &this.should_serialize_property else {
@@ -415,7 +415,7 @@ impl NativeObject for ReconserializerProcessor {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: JSTypeReconserializerTest_Helpers#getProcessor (the CompilerPass lambda)
     fn process(

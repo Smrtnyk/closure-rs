@@ -30,6 +30,7 @@ use closure_jscomp::{
     peephole_replace_known_methods::PeepholeReplaceKnownMethods,
     peephole_substitute_alternate_syntax::PeepholeSubstituteAlternateSyntax,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
@@ -39,7 +40,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 struct PeepholeIntegrationTest {
@@ -111,7 +111,7 @@ impl PeepholeIntegrationTest {
                 ctx: Ctx::new(
                     "PeepholeIntegrationTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

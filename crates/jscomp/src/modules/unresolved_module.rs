@@ -27,8 +27,8 @@ use crate::{
         non_es_module_processor::NonEsModule, resolve_export_result::ResolveExportResult,
     },
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexSet;
 use std::sync::Arc;
 
 /// Handle of a Java `UnresolvedModule` object in the [`UnresolvedModules`] arena. Java uses
@@ -202,8 +202,8 @@ impl UnresolvedModuleId {
                     module_request_resolver,
                     /* moduleSpecifier= */ None,
                     export_name,
-                    &mut IndexSet::new(),
-                    &mut IndexSet::new(),
+                    &mut IndexSet::<_>::default(),
+                    &mut IndexSet::<_>::default(),
                 ),
         }
     }

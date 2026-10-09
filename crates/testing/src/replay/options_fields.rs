@@ -51,7 +51,7 @@ use crate::{
     throwable::Throwable,
     value::Value,
 };
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::sync::LazyLock;
 // port: ReplayOptions#buildSkipping (captured Java default schema)
 pub fn defaults() -> &'static OptionsDefaults {

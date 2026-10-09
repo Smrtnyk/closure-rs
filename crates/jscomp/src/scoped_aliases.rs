@@ -33,6 +33,7 @@ use crate::{
     scope::ScopeId,
     var::VarId,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state,
     input_id::InputId,
@@ -43,7 +44,6 @@ use closure_rhino::{
     qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{
     rc::Rc,
     sync::{Arc, LazyLock, Mutex},
@@ -182,7 +182,7 @@ impl ScopedAliases {
             preprocessor_symbol_table,
             module_metadata_map: compiler.get_module_metadata_map().cloned(),
             unique_id_input: None,
-            scoped_alias_names: IndexMap::new(),
+            scoped_alias_names: IndexMap::<_, _>::default(),
             closure_namespaces,
             invalid_module_get_handling,
         }
@@ -251,7 +251,7 @@ impl Builder {
             compiler,
             self.preprocessor_symbol_table,
             match &self.module_metadata_map {
-                None => IndexSet::new(),
+                None => IndexSet::<_>::default(),
                 Some(module_metadata_map) => module_metadata_map
                     .get_modules_by_goog_namespace()
                     .keys()
@@ -424,7 +424,7 @@ impl AliasUsage {
         let alias_definition = self.alias_var.get_initial_value(compiler);
         let alias_name = self.alias_var.get_name(compiler);
         let type_name = self.alias_reference.get_string(compiler);
-        if type_name.starts_with(&"$jscomp$scope$".into()) {
+        if type_name.starts_with("$jscomp$scope$") {
             // Already visited.
             return;
         }
@@ -531,10 +531,10 @@ impl<'p> Traversal<'p> {
             alias_definitions_to_delete: Vec::new(),
             scope_calls: Vec::new(),
             alias_usages: Vec::new(),
-            aliases: IndexMap::new(),
-            injected_decls: IndexSet::new(),
-            deleted_alias_vars: IndexSet::new(),
-            forbidden_locals: IndexSet::from([JsString::from("$jscomp")]),
+            aliases: IndexMap::<_, _>::default(),
+            injected_decls: IndexSet::<_>::default(),
+            deleted_alias_vars: IndexSet::<_>::default(),
+            forbidden_locals: IndexSet::<_>::from_iter([JsString::from("$jscomp")]),
             has_namespace_shadows: false,
             has_errors: false,
             scope_function_body: None,

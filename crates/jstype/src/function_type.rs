@@ -1072,8 +1072,11 @@ pub fn get_slot(
     }
 }
 // port: FunctionType#getOwnPropertyNames
-pub fn get_own_property_names(t: TypeId, reg: &JSTypeRegistry) -> indexmap::IndexSet<JsString> {
-    let mut names = indexmap::IndexSet::new();
+pub fn get_own_property_names(
+    t: TypeId,
+    reg: &JSTypeRegistry,
+) -> closure_rhino::fast_hash::IndexSet<JsString> {
+    let mut names = closure_rhino::fast_hash::IndexSet::<_>::default();
     if reg.function_data(t).prototype_slot.is_some() {
         names.insert("prototype".into());
     }
@@ -1581,8 +1584,8 @@ pub fn get_property_type_map(
     t: TypeId,
     reg: &mut JSTypeRegistry,
     ast: &Ast,
-) -> indexmap::IndexMap<JsString, TypeId> {
-    let mut map = indexmap::IndexMap::new();
+) -> closure_rhino::fast_hash::IndexMap<JsString, TypeId> {
+    let mut map = closure_rhino::fast_hash::IndexMap::<_, _>::default();
     update_property_type_map(t, reg, ast, &mut map, &mut Vec::new());
     map
 }
@@ -1591,7 +1594,7 @@ fn update_property_type_map(
     t: TypeId,
     reg: &mut JSTypeRegistry,
     ast: &Ast,
-    map: &mut indexmap::IndexMap<JsString, TypeId>,
+    map: &mut closure_rhino::fast_hash::IndexMap<JsString, TypeId>,
     cache: &mut Vec<(i32, TypeId)>,
 ) {
     let prototype = t.get_prototype(reg, ast);
@@ -1667,5 +1670,5 @@ fn calculate_constructor_ambiguity(
 // port: FunctionType#isDelegateProxy
 fn is_delegate_proxy(t: TypeId, reg: &JSTypeRegistry) -> bool {
     t.get_reference_name(reg)
-        .is_some_and(|name| name.ends_with(&"(Proxy)".into()))
+        .is_some_and(|name| name.ends_with("(Proxy)"))
 }

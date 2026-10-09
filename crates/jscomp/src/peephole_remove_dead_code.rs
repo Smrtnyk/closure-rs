@@ -67,7 +67,7 @@ impl PeepholeRemoveDeadCode {
         let mut remove_val = false;
 
         // If the default is `undefined` always remove the value
-        if val.is_name(compiler) && val.get_string(compiler) == "undefined" {
+        if val.is_name(compiler) && val.get_string_ref(compiler) == "undefined" {
             remove_val = true;
         }
 

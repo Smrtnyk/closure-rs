@@ -288,7 +288,7 @@ impl ReportUntranspilableFeatures {
         } else {
             JsString::from("")
         };
-        if flags.index_of(&JsString::from("s")) >= 0 {
+        if flags.index_of("s") >= 0 {
             self.report_untranspilable(compiler, Feature::REGEXP_FLAG_S, regexp_node);
         }
     }
@@ -357,7 +357,7 @@ impl ReportUntranspilableFeatures {
         } else {
             JsString::from("")
         };
-        if flags.index_of(&JsString::from("d")) >= 0 {
+        if flags.index_of("d") >= 0 {
             self.report_untranspilable(compiler, Feature::REGEXP_FLAG_D, regexp_node);
         }
     }

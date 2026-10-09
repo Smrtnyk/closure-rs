@@ -28,13 +28,13 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_state,
     js_string::JsString,
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::IndexMap;
 use std::sync::Arc;
 
 /// Finds all getters and setters in the compilation (Java `CompilerPass`).
@@ -97,7 +97,7 @@ struct GatherCallback {
 impl GatherCallback {
     fn new() -> Self {
         Self {
-            properties: IndexMap::new(),
+            properties: IndexMap::<_, _>::default(),
         }
     }
 
@@ -131,9 +131,9 @@ impl GatherCallback {
         let mut key = descriptor.get_first_child(ast);
         while let Some(k) = key {
             if k.is_string_key(ast) || k.is_member_function_def(ast) {
-                if k.get_string(ast) == "get" {
+                if k.get_string_ref(ast) == "get" {
                     self.record(property_name.clone(), PropertyAccessKind::GETTER_ONLY);
-                } else if k.get_string(ast) == "set" {
+                } else if k.get_string_ref(ast) == "set" {
                     self.record(property_name.clone(), PropertyAccessKind::SETTER_ONLY);
                 }
             }

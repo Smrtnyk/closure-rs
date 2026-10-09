@@ -20,12 +20,12 @@ use crate::{
     abstract_compiler::AbstractCompiler, abstract_var::AbstractVar, node_util::NodeUtil,
     scope::ScopeId, scoped_name::ScopedName, typed_scope::TypedScope,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     js_string::JsString,
     node::{Ast, NodeId},
 };
-use indexmap::IndexMap;
 use std::{
     collections::BTreeMap,
     ops::{Deref, DerefMut},
@@ -34,7 +34,8 @@ use std::{
 /// Fields shared by syntactic and future typed scope handles.
 #[derive(Debug)]
 pub struct AbstractScopeData<V> {
-    pub(crate) vars: IndexMap<JsString, V>,
+    // Java LinkedHashMap (the fast hasher keeps the insertion order, D-025).
+    pub(crate) vars: closure_rhino::fast_hash::IndexMap<JsString, V>,
     pub(crate) implicit_vars: BTreeMap<ImplicitVar, V>,
     pub(crate) root_node: NodeId,
 }
@@ -43,7 +44,7 @@ impl<V> AbstractScopeData<V> {
     // port: AbstractScope#AbstractScope
     pub(crate) fn new(root_node: NodeId) -> Self {
         Self {
-            vars: IndexMap::new(),
+            vars: Default::default(),
             implicit_vars: BTreeMap::new(),
             root_node,
         }
@@ -277,7 +278,7 @@ pub trait AbstractScope: Copy + Eq {
 
     // port: AbstractScope#getAllAccessibleVariables
     fn get_all_accessible_variables(self, compiler: &AbstractCompiler) -> Vec<Self::Var> {
-        let mut accessible_vars = IndexMap::new();
+        let mut accessible_vars = IndexMap::<_, _>::default();
         let mut s = Some(self.this_scope());
         while let Some(scope) = s {
             for var in scope.get_var_iterable(compiler) {
@@ -522,6 +523,22 @@ impl ImplicitVar {
             Self::SUPER => "super",
             Self::THIS => "this",
         }
+    }
+
+    /// Rust-only: `name` as a JS string, made once per process (implicit vars are declared in
+    /// every function scope).
+    pub fn js_name(self) -> JsString {
+        static NAMES: std::sync::OnceLock<[JsString; 4]> = std::sync::OnceLock::new();
+        let names = NAMES.get_or_init(|| {
+            [
+                ImplicitVar::ARGUMENTS,
+                ImplicitVar::EXPORTS,
+                ImplicitVar::SUPER,
+                ImplicitVar::THIS,
+            ]
+            .map(|var| JsString::from(var.name()))
+        });
+        names[self as usize].clone()
     }
 
     // port: AbstractScope.ImplicitVar#isMadeByScope

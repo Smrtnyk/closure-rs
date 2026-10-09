@@ -36,7 +36,6 @@ use crate::{
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,
-    js_string::JsString,
     jscomp_base::Tri,
     node::{Ast, NodeId},
     token::Token,
@@ -861,7 +860,7 @@ impl PeepholeMinimizeConditions {
                     if called_fn.is_get_elem(ast) || called_fn.is_opt_chain_get_elem(ast) {
                         return false;
                     } else if (called_fn.is_get_prop(ast) || called_fn.is_opt_chain_get_prop(ast))
-                        && called_fn.get_string(ast).starts_with(&JsString::from("on"))
+                        && called_fn.get_string_ref(ast).starts_with("on")
                     {
                         return false;
                     }

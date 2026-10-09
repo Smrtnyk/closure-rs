@@ -18,8 +18,8 @@
 
 //! Port of `IdMappingUtil.java`.
 
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
-use indexmap::{IndexMap, IndexSet};
 
 /// A utility class for generating and parsing id mappings held by `ReplaceIdGenerators`.
 pub struct IdMappingUtil;
@@ -234,7 +234,7 @@ impl IdMappingUtil {
         stream: &mut dyn std::io::Read,
         section_filter: &str,
     ) -> std::io::Result<IndexMap<JsString, JsString>> {
-        let mut map_builder: IndexMap<JsString, JsString> = IndexMap::new();
+        let mut map_builder: IndexMap<JsString, JsString> = IndexMap::<_, _>::default();
 
         let mut bytes = Vec::new();
         stream.read_to_end(&mut bytes)?;
@@ -265,10 +265,10 @@ impl IdMappingUtil {
 
     // port: IdMappingUtil#parseSerializedIdMappings(BufferedReader)
     fn parse_serialized_id_mappings_reader(br: LineReader) -> IndexMap<JsString, BiMap> {
-        let mut result_map: IndexMap<JsString, BiMap> = IndexMap::new();
+        let mut result_map: IndexMap<JsString, BiMap> = IndexMap::<_, _>::default();
         let mut mr = MappingReader::new(br);
         let mut current_section: Option<JsString> = None;
-        let mut section_names: IndexSet<JsString> = IndexSet::new();
+        let mut section_names: IndexSet<JsString> = IndexSet::<_>::default();
 
         while mr.next() {
             if mr.is_section() {
@@ -302,7 +302,7 @@ impl IdMappingUtil {
     // port: IdMappingUtil#parseSerializedIdMappings(String)
     pub fn parse_serialized_id_mappings(id_mappings: Option<&str>) -> IndexMap<JsString, BiMap> {
         match id_mappings {
-            None | Some("") => IndexMap::new(),
+            None | Some("") => IndexMap::<_, _>::default(),
             Some(id_mappings) => {
                 let br = LineReader::new(&JsString::from(id_mappings));
                 Self::parse_serialized_id_mappings_reader(br)

@@ -29,6 +29,7 @@ use closure_jscomp::{
     modules::module_map_creator::ModuleMapCreator,
     source_file::SourceFile,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, GENERATED_EXTERNS_NAME, GENERATED_SRC_NAME},
     replay::{
@@ -39,7 +40,6 @@ use closure_testing::{
     },
     testing::test_externs_builder::TestExternsBuilder,
 };
-use indexmap::IndexMap;
 use std::sync::Arc;
 
 /// The fields of RewriteDynamicImportsTest that aliasExternInjectedSimpleImport sets and reads.
@@ -58,7 +58,7 @@ impl RewriteDynamicImportsTest {
         let mut ctx = Ctx::new(
             "RewriteDynamicImportsTest".into(),
             object([]),
-            IndexMap::new(),
+            IndexMap::<_, _>::default(),
             Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n").unwrap(),
         );
         // private @Nullable String dynamicImportAlias = "imprt_";

@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/graph/StandardUnionFind.java.
 
 use super::union_find::UnionFind;
-use indexmap::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::{cell::Cell, fmt::Display, hash::Hash};
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct NodeId(usize);
@@ -60,7 +60,7 @@ impl<E: Clone + Eq + Hash> StandardUnionFind<E> {
     pub fn new_with_value_to_string(value_to_string: fn(&E) -> String) -> Self {
         Self {
             value_to_string,
-            elmap: IndexMap::new(),
+            elmap: IndexMap::<_, _>::default(),
             nodes: Vec::new(),
         }
     }
@@ -157,7 +157,7 @@ impl<E: Clone + Eq + Hash> UnionFind<E> for StandardUnionFind<E> {
     }
     // port: StandardUnionFind#allEquivalenceClasses
     fn all_equivalence_classes(&mut self) -> Vec<IndexSet<E>> {
-        let mut groups: IndexMap<NodeId, IndexSet<E>> = IndexMap::new();
+        let mut groups: IndexMap<NodeId, IndexSet<E>> = IndexMap::<_, _>::default();
         for elem in self.elmap.values().copied().collect::<Vec<_>>() {
             let root = self.find_root(elem);
             groups

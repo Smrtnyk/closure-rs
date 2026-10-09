@@ -33,6 +33,7 @@ use crate::{
     transpilation_util,
 };
 use closure_parsing::parser::feature_set::Feature;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_not_null, check_state,
     ir::IR,
@@ -40,7 +41,6 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use indexmap::IndexSet;
 use std::collections::BTreeMap;
 
 // port: Es6RewriteModulesToCommonJsModules#JSCOMP_DEFAULT_EXPORT
@@ -119,14 +119,14 @@ impl LocalQName {
 // port: Es6RewriteModulesToCommonJsModules#normalizePath
 fn normalize_path(path: &str) -> String {
     let mut path = JsString::from(path);
-    let index_of_protocol = path.index_of(&"://".into());
+    let index_of_protocol = path.index_of("://");
     if index_of_protocol > -1 {
         path = path.substring_from(index_of_protocol as usize + 3);
-        let index_of_slash = path.index_of(&"/".into());
+        let index_of_slash = path.index_of("/");
         if index_of_slash > -1 {
             path = path.substring_from(index_of_slash as usize + 1);
         }
-    } else if path.starts_with(&JsString::from("/")) {
+    } else if path.starts_with("/") {
         path = path.substring_from(1);
     }
     path.to_string_lossy()
@@ -199,8 +199,8 @@ impl Rewriter {
             require_insert_spot: None,
             // TreeMap because ES6 orders the export key using natural ordering.
             exported_name_to_local_q_name: BTreeMap::new(),
-            import_requests: IndexSet::new(),
-            imports: IndexSet::new(),
+            import_requests: IndexSet::<_>::default(),
+            imports: IndexSet::<_>::default(),
             module_path,
         }
     }
@@ -353,7 +353,7 @@ impl Rewriter {
                 import_decl.detach(compiler);
             }
 
-            let mut imported_names: IndexSet<JsString> = IndexSet::new();
+            let mut imported_names: IndexSet<JsString> = IndexSet::<_>::default();
 
             for request in &self.import_requests {
                 let var_name = request.var_name.clone();

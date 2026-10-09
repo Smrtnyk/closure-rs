@@ -39,13 +39,13 @@ use crate::{
     typed_scope::TypedScope,
 };
 use closure_jstype::{JSTypeNative, TypeId, object_type::ObjectType};
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     js_string::JsString,
     node::{Ast, NodeId, Prop},
     qualified_name::QualifiedName,
 };
-use indexmap::IndexMap;
 use std::sync::{Arc, LazyLock};
 
 /// Rust-only: Java's `Function<Node, TypedScope> nodeToScopeMapper`.
@@ -223,7 +223,7 @@ impl ModuleImportResolver {
         if !scope.is_module_scope(compiler) {
             panic!("IllegalArgumentException: {}", scope.to_string(compiler));
         }
-        let mut missing_names: IndexMap<NodeId, Simple> = IndexMap::new();
+        let mut missing_names: IndexMap<NodeId, Simple> = IndexMap::<_, _>::default();
         for (local_name, binding) in module.bound_names() {
             if !binding.is_created_by_es_import() {
                 continue;

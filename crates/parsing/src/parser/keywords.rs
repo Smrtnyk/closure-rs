@@ -73,14 +73,14 @@ pub enum Keywords {
     FALSE,
 }
 // Java enum singleton fields, constructed in declaration order.
+// (The token type is `Keywords::type_of`, which needs no value string.)
 struct KeywordsData {
     value: JsString,
-    type_: TokenType,
 }
 impl KeywordsData {
     // port: Keywords#<init>
-    fn new(value: JsString, type_: TokenType) -> Self {
-        Self { value, type_ }
+    fn new(value: JsString) -> Self {
+        Self { value }
     }
 }
 impl Keywords {
@@ -132,7 +132,10 @@ impl Keywords {
             Self::TRUE => "true",
             Self::FALSE => "false",
         };
-        let type_ = match self {
+        KeywordsData::new(JsString::from(value))
+    }
+    fn type_of(self) -> TokenType {
+        match self {
             Self::BREAK => TokenType::BREAK,
             Self::CASE => TokenType::CASE,
             Self::CATCH => TokenType::CATCH,
@@ -178,14 +181,14 @@ impl Keywords {
             Self::NULL => TokenType::NULL,
             Self::TRUE => TokenType::TRUE,
             Self::FALSE => TokenType::FALSE,
-        };
-        KeywordsData::new(JsString::from(value), type_)
+        }
     }
     pub fn value(self) -> JsString {
         self.data().value
     }
     pub fn type_(self) -> TokenType {
-        self.data().type_
+        // Rust-only: the token type without building the value string (D-025).
+        self.type_of()
     }
 
     // port: Keywords#toString
@@ -223,52 +226,65 @@ impl Keywords {
     }
     // port: Keywords#get
     pub fn get_by_name(value: &JsString) -> Option<Self> {
-        match value {
-            value if value == "break" => Some(Self::BREAK),
-            value if value == "case" => Some(Self::CASE),
-            value if value == "catch" => Some(Self::CATCH),
-            value if value == "continue" => Some(Self::CONTINUE),
-            value if value == "debugger" => Some(Self::DEBUGGER),
-            value if value == "default" => Some(Self::DEFAULT),
-            value if value == "delete" => Some(Self::DELETE),
-            value if value == "do" => Some(Self::DO),
-            value if value == "else" => Some(Self::ELSE),
-            value if value == "finally" => Some(Self::FINALLY),
-            value if value == "for" => Some(Self::FOR),
-            value if value == "function" => Some(Self::FUNCTION),
-            value if value == "if" => Some(Self::IF),
-            value if value == "in" => Some(Self::IN),
-            value if value == "instanceof" => Some(Self::INSTANCEOF),
-            value if value == "new" => Some(Self::NEW),
-            value if value == "return" => Some(Self::RETURN),
-            value if value == "switch" => Some(Self::SWITCH),
-            value if value == "this" => Some(Self::THIS),
-            value if value == "throw" => Some(Self::THROW),
-            value if value == "try" => Some(Self::TRY),
-            value if value == "typeof" => Some(Self::TYPEOF),
-            value if value == "var" => Some(Self::VAR),
-            value if value == "void" => Some(Self::VOID),
-            value if value == "while" => Some(Self::WHILE),
-            value if value == "with" => Some(Self::WITH),
-            value if value == "class" => Some(Self::CLASS),
-            value if value == "const" => Some(Self::CONST),
-            value if value == "enum" => Some(Self::ENUM),
-            value if value == "export" => Some(Self::EXPORT),
-            value if value == "extends" => Some(Self::EXTENDS),
-            value if value == "import" => Some(Self::IMPORT),
-            value if value == "super" => Some(Self::SUPER),
-            value if value == "implements" => Some(Self::IMPLEMENTS),
-            value if value == "interface" => Some(Self::INTERFACE),
-            value if value == "let" => Some(Self::LET),
-            value if value == "package" => Some(Self::PACKAGE),
-            value if value == "private" => Some(Self::PRIVATE),
-            value if value == "protected" => Some(Self::PROTECTED),
-            value if value == "public" => Some(Self::PUBLIC),
-            value if value == "static" => Some(Self::STATIC),
-            value if value == "yield" => Some(Self::YIELD),
-            value if value == "null" => Some(Self::NULL),
-            value if value == "true" => Some(Self::TRUE),
-            value if value == "false" => Some(Self::FALSE),
+        // Java looks the name up in a HashMap; every keyword is 2 to 10 lowercase ASCII letters,
+        // so match the bytes instead of comparing against each keyword in turn (D-025).
+        let units = value.as_units();
+        if !(2..=10).contains(&units.len()) {
+            return None;
+        }
+        let mut bytes = [0u8; 10];
+        for (byte, &unit) in bytes.iter_mut().zip(units) {
+            if !(u16::from(b'a')..=u16::from(b'z')).contains(&unit) {
+                return None;
+            }
+            *byte = unit as u8;
+        }
+        match &bytes[..units.len()] {
+            b"break" => Some(Self::BREAK),
+            b"case" => Some(Self::CASE),
+            b"catch" => Some(Self::CATCH),
+            b"continue" => Some(Self::CONTINUE),
+            b"debugger" => Some(Self::DEBUGGER),
+            b"default" => Some(Self::DEFAULT),
+            b"delete" => Some(Self::DELETE),
+            b"do" => Some(Self::DO),
+            b"else" => Some(Self::ELSE),
+            b"finally" => Some(Self::FINALLY),
+            b"for" => Some(Self::FOR),
+            b"function" => Some(Self::FUNCTION),
+            b"if" => Some(Self::IF),
+            b"in" => Some(Self::IN),
+            b"instanceof" => Some(Self::INSTANCEOF),
+            b"new" => Some(Self::NEW),
+            b"return" => Some(Self::RETURN),
+            b"switch" => Some(Self::SWITCH),
+            b"this" => Some(Self::THIS),
+            b"throw" => Some(Self::THROW),
+            b"try" => Some(Self::TRY),
+            b"typeof" => Some(Self::TYPEOF),
+            b"var" => Some(Self::VAR),
+            b"void" => Some(Self::VOID),
+            b"while" => Some(Self::WHILE),
+            b"with" => Some(Self::WITH),
+            b"class" => Some(Self::CLASS),
+            b"const" => Some(Self::CONST),
+            b"enum" => Some(Self::ENUM),
+            b"export" => Some(Self::EXPORT),
+            b"extends" => Some(Self::EXTENDS),
+            b"import" => Some(Self::IMPORT),
+            b"super" => Some(Self::SUPER),
+            b"implements" => Some(Self::IMPLEMENTS),
+            b"interface" => Some(Self::INTERFACE),
+            b"let" => Some(Self::LET),
+            b"package" => Some(Self::PACKAGE),
+            b"private" => Some(Self::PRIVATE),
+            b"protected" => Some(Self::PROTECTED),
+            b"public" => Some(Self::PUBLIC),
+            b"static" => Some(Self::STATIC),
+            b"yield" => Some(Self::YIELD),
+            b"null" => Some(Self::NULL),
+            b"true" => Some(Self::TRUE),
+            b"false" => Some(Self::FALSE),
             _ => None,
         }
     }

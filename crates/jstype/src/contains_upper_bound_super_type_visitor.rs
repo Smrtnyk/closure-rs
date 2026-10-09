@@ -47,8 +47,8 @@ use crate::template_type::TemplateType;
 use crate::templatized_type::TemplatizedType;
 use crate::union_type::UnionType;
 use crate::visitor::WithDefaultCase;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::node::Ast;
-use indexmap::IndexSet;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Result {
@@ -67,7 +67,7 @@ impl ContainsUpperBoundSuperTypeVisitor {
     pub fn new(target: Option<TypeId>) -> Self {
         Self {
             target,
-            seen: IndexSet::new(),
+            seen: IndexSet::<_>::default(),
         }
     }
     // port: ContainsUpperBoundSuperTypeVisitor#caseForwardingType

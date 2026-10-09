@@ -16,8 +16,8 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   src/com/google/javascript/jscomp/JSCompZipFileCache.java.
 
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{check_not_null, java_lang::io_exception::IOException};
-use indexmap::IndexMap;
 use std::{
     fs,
     io::Read,
@@ -32,7 +32,7 @@ static ZIP_CACHE_SIZE: LazyLock<usize> = LazyLock::new(|| {
         .unwrap()
 });
 static ZIP_FILE_CACHE: LazyLock<Mutex<IndexMap<String, CachedZipFile>>> =
-    LazyLock::new(|| Mutex::new(IndexMap::new()));
+    LazyLock::new(|| Mutex::new(IndexMap::<_, _>::default()));
 impl JSCompZipFileCache {
     // port: JSCompZipFileCache#getEntryStream
     pub fn get_entry_stream(zip_name: &str, entry_name: &str) -> Result<Vec<u8>, IOException> {
@@ -65,7 +65,7 @@ impl CachedZipFile {
             path: zip_name.into(),
             zip_file: None,
             last_modified: None,
-            entry_indices: IndexMap::new(),
+            entry_indices: IndexMap::<_, _>::default(),
         }
     }
     // port: JSCompZipFileCache.CachedZipFile#getEntryStream

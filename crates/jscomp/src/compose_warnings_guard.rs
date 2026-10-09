@@ -20,8 +20,8 @@ use crate::{
     check_level::CheckLevel, diagnostic_group::DiagnosticGroup, js_error::JSError,
     warnings_guard::WarningsGuard,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{check_state, jscomp_base::Tri};
-use indexmap::IndexMap;
 use std::{
     any::Any,
     fmt,
@@ -44,7 +44,7 @@ impl ComposeWarningsGuard {
     pub fn new(guards: Vec<Arc<dyn WarningsGuard>>) -> Self {
         let result = Self {
             state: Mutex::new(State {
-                order_of_addition: IndexMap::new(),
+                order_of_addition: IndexMap::<_, _>::default(),
                 number_of_adds: 0,
                 demote_errors: false,
                 guards: Vec::new(),

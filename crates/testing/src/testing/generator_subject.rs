@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/testing/GeneratorSubject.java.
 
 //! Port of testing/GeneratorSubject.java: a Truth Subject for a lazy sequence of values.
-use indexmap::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use std::{fmt::Display, hash::Hash};
 
 /// Create some result, optionally based on an index.
@@ -63,12 +63,12 @@ impl<'a, U: Eq + Hash + Display> GeneratorSubject<'a, U> {
 
     // port: GeneratorSubject#generatesAtLeast
     pub fn generates_at_least(&self, expected: Vec<U>) {
-        let mut expected_set: IndexSet<U> = IndexSet::new();
+        let mut expected_set: IndexSet<U> = IndexSet::<_>::default();
         expected_set.extend(expected);
 
         let mut missing_set: IndexSet<&U> = expected_set.iter().collect();
-        let mut found_set: IndexSet<&U> = IndexSet::new();
-        let mut extra_set: IndexSet<U> = IndexSet::new();
+        let mut found_set: IndexSet<&U> = IndexSet::<_>::default();
+        let mut extra_set: IndexSet<U> = IndexSet::<_>::default();
 
         let mut i = 0;
         while i < MAX_GENERATION_COUNT {

@@ -25,12 +25,12 @@ use closure_jscomp::serialization::types_proto::{
     ObjectTypeProto, PrimitiveType, SubtypingEdge, TypePool, TypePoolDebugInfo,
     TypePoolDebugInfoMismatch, TypeProto, UnionTypeProto,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_colors::color::{Builder as ColorBuilder, Color};
 use closure_rhino::jscomp_colors::color_id::ColorId;
 use closure_rhino::jscomp_colors::color_registry::{self, ColorRegistry};
 use closure_rhino::jscomp_colors::standard_colors;
-use indexmap::{IndexMap, IndexSet};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
@@ -1020,7 +1020,7 @@ fn reconcile_debug_info_mismatches() {
     );
 
     // Then
-    let mut expected: IndexMap<ColorId, IndexSet<String>> = IndexMap::new();
+    let mut expected: IndexMap<ColorId, IndexSet<String>> = IndexMap::<_, _>::default();
     for (id, location) in [
         (standard_colors::BOOLEAN.get_id(), "location_0"),
         (standard_colors::STRING.get_id(), "location_0"),

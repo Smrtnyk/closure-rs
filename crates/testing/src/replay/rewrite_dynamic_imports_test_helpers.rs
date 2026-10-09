@@ -50,8 +50,8 @@ use closure_jscomp::{
     compiler_options::ChunkOutputType, compiler_pass::CompilerPass,
     es6_rewrite_modules::Es6RewriteModules, rewrite_dynamic_imports::RewriteDynamicImports,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.RewriteDynamicImportsTest_Helpers";
@@ -65,8 +65,8 @@ fn bad() -> Throwable {
 
 // port: RewriteDynamicImportsTest_Helpers#RewriteDynamicImportsTest_Helpers
 pub fn holder(_ctx: &mut Ctx, _args: Vec<DslValue>) -> Result<DslValue, Throwable> {
-    let mut fields = IndexMap::new();
-    let mut field_types = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
+    let mut field_types = IndexMap::<_, _>::default();
     // private @Nullable String dynamicImportAlias = "imprt_";
     fields.insert(
         "dynamicImportAlias".to_string(),
@@ -147,7 +147,7 @@ impl NativeObject for Processor {
     // port: UnitRecorder#collect (fields of a value reachable from the processor): the lambda has
     // only its captured arguments, which the recorder skips.
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: ReplayDsl#invoke (native method receiver cast)
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {

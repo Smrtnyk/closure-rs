@@ -30,12 +30,12 @@ use crate::source_map_input::SourceMapInput;
 use crate::source_map_resolver::SourceMapResolver;
 use closure_parsing::parser::feature_set::FeatureSet;
 use closure_rhino::check_argument;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_colors::color_registry::ColorRegistry;
 use closure_rhino::node::{NodeId, ObjectProp};
 use closure_rhino::static_source_file::StaticSourceFile;
-use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 /// Java's `ConcurrentMap<SourceFile, Supplier<Node>>`: keyed by the SourceFile's identity (its
@@ -94,11 +94,11 @@ impl<'a> TypedAstDeserializer<'a> {
             mode,
             color_pool_builder,
             required_input_files,
-            file_pool_builder: IndexMap::new(),
-            canonical_file_pool: IndexMap::new(),
-            typed_ast_filesystem: IndexMap::new(),
-            extern_properties: IndexSet::new(),
-            runtime_libraries: IndexSet::new(),
+            file_pool_builder: IndexMap::<_, _>::default(),
+            canonical_file_pool: IndexMap::<_, _>::default(),
+            typed_ast_filesystem: IndexMap::<_, _>::default(),
+            extern_properties: IndexSet::<_>::default(),
+            runtime_libraries: IndexSet::<_>::default(),
             synthetic_externs_deserializers: Vec::new(),
         }
     }
@@ -127,7 +127,8 @@ impl TypedAstDeserializer<'_> {
         resolve_source_map_annotations: bool,
         parse_inline_source_maps: bool,
     ) -> DeserializedAst {
-        let mut source_files_by_name: IndexMap<String, Arc<SourceFile>> = IndexMap::new();
+        let mut source_files_by_name: IndexMap<String, Arc<SourceFile>> =
+            IndexMap::<_, _>::default();
         for file in required_input_files {
             let previous = source_files_by_name.insert(file.get_name().to_string(), file.clone());
             check_argument!(
@@ -171,7 +172,7 @@ impl TypedAstDeserializer<'_> {
             // we don't a priori know the SourceFiles corresponding to the runtime libraries like
             // we do for normal CompilerInputs
             None,
-            IndexMap::new(),
+            IndexMap::<_, _>::default(),
             color_pool,
             typed_asts_stream,
             Mode::RUNTIME_LIBRARY_ONLY,

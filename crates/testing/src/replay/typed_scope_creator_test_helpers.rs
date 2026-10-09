@@ -59,8 +59,8 @@ use closure_jscomp::{
     typed_scope_creator::TypedScopeCreator,
 };
 use closure_jstype::js_type::JSType;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const HOLDER: &str = "com.google.javascript.jscomp.TypedScopeCreatorTest_Helpers";
@@ -117,7 +117,7 @@ impl NativeObject for TypedScopeCreatorTestHelpers {
                 Some(scope) => native_scope(scope, state.compiler.clone().ok_or_else(bad)?),
             })
         };
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert("globalScope".into(), scope(state.global_scope)?);
         fields.insert("lastLocalScope".into(), scope(state.last_local_scope)?);
         fields.insert(
@@ -164,7 +164,7 @@ impl NativeObject for NativeLabeledStatement {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert(
             "statementNode".into(),
             DslValue::Node(self.statement.statement_node),
@@ -342,7 +342,7 @@ impl NativeObject for Processor {
     // port: UnitRecorder#collect (the processor's fields)
     // The lambda captures the holder and the compiler; neither is a recorded result producer.
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: TypedScopeCreatorTest_Helpers#getProcessor (the returned CompilerPass)
     fn process(
@@ -406,7 +406,7 @@ pub fn get_processor(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslValue, Th
         let mut state = receiver.state.borrow_mut();
         state.compiler = Some(compiler.clone());
         // Create a fresh statement map for each test case.
-        state.labeled_statement_map = Some(IndexMap::new());
+        state.labeled_statement_map = Some(IndexMap::<_, _>::default());
     }
     compiler.borrow_mut().get_type_registry();
     Ok(DslValue::Native(Rc::new(RefCell::new(Processor {

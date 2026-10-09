@@ -71,6 +71,7 @@ use crate::{
     unknown_type::UnknownType,
     void_type::VoidType,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_state,
     error_reporter::ErrorReporter,
@@ -82,7 +83,6 @@ use closure_rhino::{
     qualified_name::QualifiedName,
     token::Token,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, Mutex};
 
 pub const OBJECT_ELEMENT_TEMPLATE: &str = "IOBJECT_VALUE";
@@ -543,7 +543,7 @@ impl JSTypeRegistry {
                 field_type_node
             };
             let mut field_name = field_name_node.get_string(ast);
-            if field_name.starts_with(&"'".into()) || field_name.starts_with(&"\"".into()) {
+            if field_name.starts_with("'") || field_name.starts_with("\"") {
                 field_name = field_name.substring(1, field_name.length() - 1);
             }
             let field_type = if has_type {
@@ -695,7 +695,7 @@ impl SyntheticTemplateScope {
         delegate: Arc<dyn StaticTypedScope>,
         templates: impl IntoIterator<Item = TypeId>,
     ) -> Self {
-        let mut types = IndexMap::new();
+        let mut types = IndexMap::<_, _>::default();
         for key in templates {
             types.insert(key.get_reference_name(reg).unwrap(), key);
         }
@@ -1025,16 +1025,16 @@ impl JSTypeRegistry {
             empty_template_type_map: None,
             reporter: SharedErrorReporter::new(reporter),
             native_types: vec![None; JSTypeNative::VALUES.len()],
-            scoped_name_table: IndexMap::new(),
-            closure_namespaces: IndexMap::new(),
+            scoped_name_table: IndexMap::<_, _>::default(),
+            closure_namespaces: IndexMap::<_, _>::default(),
             name_table_global_root: ast.new_node(Token::ROOT),
-            non_nullable_type_names: IndexMap::new(),
+            non_nullable_type_names: IndexMap::<_, _>::default(),
             forward_declared_types,
-            non_ref_types_indexed_by_property: IndexMap::new(),
+            non_ref_types_indexed_by_property: IndexMap::<_, _>::default(),
             sentinel_object_literal: None,
-            properties_of_supertypes_in_unions: IndexSet::new(),
-            dropped_properties_of_unions: IndexSet::new(),
-            each_ref_type_indexed_by_property: IndexMap::new(),
+            properties_of_supertypes_in_unions: IndexSet::<_>::default(),
+            dropped_properties_of_unions: IndexSet::<_>::default(),
+            each_ref_type_indexed_by_property: IndexMap::<_, _>::default(),
             i_object_index_template_key: None,
             i_object_element_template_key: None,
             iterable_value_template: None,

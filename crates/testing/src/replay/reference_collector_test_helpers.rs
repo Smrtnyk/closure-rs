@@ -67,8 +67,8 @@ use closure_jscomp::{
     syntactic_scope_creator::SyntacticScopeCreator,
     var::VarId,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId, token::Token};
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 const PREFIX: &str = "com.google.javascript.jscomp.ReferenceCollectorTest_Helpers$";
@@ -89,7 +89,7 @@ impl NativeObject for NativeBehavior {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     // port: ReplayDsl#invoke (receiver cast)
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -147,7 +147,7 @@ impl NativeObject for NativeReferenceCollector {
     // UnitRecorder#collect reaches the behavior (no fields); the collector itself is the result
     // producer the recorder reads through getAllSymbols / getReferences.
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         fields.insert("behavior".into(), DslValue::Native(self.behavior.clone()));
         Ok(fields)
     }
@@ -277,7 +277,7 @@ impl NativeObject for ReferenceCollectionView {
     }
     // port: ReplayValues#findField (ReferenceCollection#references)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        Ok(IndexMap::from([(
+        Ok(IndexMap::<_, _>::from_iter([(
             "references".to_string(),
             DslValue::List(self.references.clone()),
         )]))

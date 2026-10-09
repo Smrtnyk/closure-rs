@@ -24,7 +24,7 @@ use crate::{
         dominator_tree::DominatorTree, graph::Graph, linked_directed_graph::LinkedDirectedGraph,
     },
 };
-use indexmap::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::fmt;
 
 // Limit the size of the "bottleneck" report to the top N files.
@@ -112,9 +112,10 @@ impl<'a> PruningAnalysis<'a> {
 
     // port: PruningAnalysis#calculateTotalBlame
     fn calculate_total_blame(&self) -> ImmutableMap {
-        let mut reachability_per_entry_point: IndexMap<String, i32> = IndexMap::new();
+        let mut reachability_per_entry_point: IndexMap<String, i32> = IndexMap::<_, _>::default();
         for provider in &self.entry_points {
-            let mut transitive_closure: IndexSet<CompilerInputDependencyInfo> = IndexSet::new();
+            let mut transitive_closure: IndexSet<CompilerInputDependencyInfo> =
+                IndexSet::<_>::default();
             transitive_closure.extend(self.sorter.get_strong_dependencies_of(
                 std::slice::from_ref(provider),
                 /* sorted= */ false,
@@ -142,7 +143,7 @@ impl<'a> PruningAnalysis<'a> {
 
         let dominator_tree = DominatorTree::compute(&graph, VIRTUAL_ROOT.to_owned());
 
-        let mut bottleneck_blame: IndexMap<String, i32> = IndexMap::new();
+        let mut bottleneck_blame: IndexMap<String, i32> = IndexMap::<_, _>::default();
         for (node, &retained_count) in dominator_tree.get_all_subtree_sizes() {
             if node != VIRTUAL_ROOT && retained_count > 1 {
                 bottleneck_blame.insert(node.clone(), retained_count);
@@ -170,7 +171,7 @@ impl<'a> PruningAnalysis<'a> {
 
         for input in self.sorter.get_sorted_list() {
             let name = input.get_name();
-            let mut dep_symbols: IndexSet<String> = IndexSet::new();
+            let mut dep_symbols: IndexSet<String> = IndexSet::<_>::default();
             for req in input.get_requires() {
                 dep_symbols.insert(req.get_symbol().to_owned());
             }

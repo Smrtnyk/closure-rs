@@ -27,8 +27,8 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId, token::Token};
-use indexmap::{IndexMap, IndexSet};
 
 // port: CheckConstantCaseNames#MISSING_CONST_PROPERTY
 pub static MISSING_CONST_PROPERTY: DiagnosticType = DiagnosticType::disabled(
@@ -55,8 +55,8 @@ impl CheckConstantCaseNames {
         // Java keeps `convention = compiler.getCodingConvention()`; the convention is read from
         // the compiler at each use instead (DESIGN 6: a pass never stores the compiler).
         Self {
-            invalid_names_per_module: IndexMap::new(),
-            reassigned_names: IndexSet::new(),
+            invalid_names_per_module: IndexMap::<_, _>::default(),
+            reassigned_names: IndexSet::<_>::default(),
         }
     }
 
@@ -80,8 +80,8 @@ impl CheckConstantCaseNames {
                 ));
             }
         }
-        self.invalid_names_per_module = IndexMap::new();
-        self.reassigned_names = IndexSet::new();
+        self.invalid_names_per_module = IndexMap::<_, _>::default();
+        self.reassigned_names = IndexSet::<_>::default();
     }
 }
 

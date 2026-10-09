@@ -26,6 +26,7 @@
 //! CompilerTestCase port of crates/testing. The 5 `*_typed` tests call `enableTypeCheck()` (real
 //! TypeCheck, type-check).
 use closure_jscomp::{compiler_pass::CompilerPass, remove_unused_code::RemoveUnusedCode};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
@@ -40,7 +41,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, rc::Rc};
 
 // port: RemoveUnusedCodeTest#RemoveUnusedCodeTest (the externs used in the test cases)
@@ -135,7 +135,7 @@ impl Fixture {
             ctx: Ctx::new(
                 "RemoveUnusedCodeTest".into(),
                 object([]),
-                IndexMap::new(),
+                IndexMap::<_, _>::default(),
                 Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                     .unwrap(),
             ),
@@ -196,10 +196,10 @@ impl PolyfillRemovalTester {
     fn new() -> Self {
         Self {
             externs: Vec::new(),
-            polyfills: IndexSet::new(),
+            polyfills: IndexSet::<_>::default(),
             input_source: None,
             expected_source: None,
-            polyfills_expected_to_be_removed: Some(IndexSet::new()),
+            polyfills_expected_to_be_removed: Some(IndexSet::<_>::default()),
         }
     }
 
@@ -245,7 +245,7 @@ impl PolyfillRemovalTester {
 
     // port: RemoveUnusedCodeTest.PolyfillRemovalTester#expectNoPolyfillsRemoved
     fn expect_no_polyfills_removed(&mut self) -> &mut Self {
-        self.polyfills_expected_to_be_removed = Some(IndexSet::new());
+        self.polyfills_expected_to_be_removed = Some(IndexSet::<_>::default());
         self
     }
 
@@ -264,7 +264,7 @@ impl PolyfillRemovalTester {
             "non-existent polyfill cannot be removed: >{polyfill}<"
         );
         match &mut self.polyfills_expected_to_be_removed {
-            None => self.polyfills_expected_to_be_removed = Some(IndexSet::new()),
+            None => self.polyfills_expected_to_be_removed = Some(IndexSet::<_>::default()),
             Some(removed) => assert!(
                 !removed.contains(polyfill),
                 "polyfill cannot be removed twice: >{polyfill}<"

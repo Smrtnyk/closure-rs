@@ -35,12 +35,12 @@ use crate::{
     normalize::Normalize,
     var_check::VarCheck,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state,
     js_string::JsString,
     node::{NodeId, Prop},
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, Mutex};
 
 // port: ValidityCheck#EXTERN_PROPERTIES_CHANGED
@@ -169,7 +169,7 @@ impl VerifyConstants {
     pub fn new(_compiler: &AbstractCompiler, check_user_declarations: bool) -> Self {
         Self {
             check_user_declarations,
-            constant_map: IndexMap::new(),
+            constant_map: IndexMap::<_, _>::default(),
         }
     }
 }
@@ -200,7 +200,7 @@ impl Callback for VerifyConstants {
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
         if n.is_name(t) {
             let name = n.get_string(t);
-            if n.get_string(t).is_empty() {
+            if n.get_string_ref(t).is_empty() {
                 return;
             }
 

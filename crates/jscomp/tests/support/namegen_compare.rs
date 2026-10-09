@@ -19,8 +19,8 @@ use closure_jscomp::{
     name_generator::{NameGenerator, ReservedNames},
     variable_map::{FromStreamError, VariableMap},
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{java_lang::parse_exception::ParseException, js_string::JsString};
-use indexmap::{IndexMap, IndexSet};
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{Arc, RwLock},
@@ -64,14 +64,14 @@ fn chars(h: &str) -> IndexSet<u16> {
 }
 fn names(h: &str) -> ReservedNames {
     Arc::new(RwLock::new(if h == "-" {
-        IndexSet::new()
+        IndexSet::<_>::default()
     } else {
         h.split(',').map(string).collect()
     }))
 }
 fn map(h: &str) -> IndexMap<JsString, JsString> {
     if h == "-" {
-        return IndexMap::new();
+        return IndexMap::<_, _>::default();
     }
     h.split(',')
         .map(|e| {
@@ -183,7 +183,7 @@ pub fn generate(line: &str) -> Vec<u8> {
             ),
             _ => panic!("unknown constructor"),
         };
-        let mut gs = IndexMap::from([("A", a)]);
+        let mut gs = IndexMap::<_, _>::from_iter([("A", a)]);
         let mut result = Vec::new();
         for op in p[6].split(';') {
             let q: Vec<_> = op.split(':').collect();

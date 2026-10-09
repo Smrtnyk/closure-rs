@@ -155,7 +155,12 @@ impl CheckInterfaces {
                 // Only field declarations are expected inside @record and @interface.
                 t.report(s, &NON_DECLARATION_STATEMENT_IN_INTERFACE, &[]);
                 break;
-            } else if s.get_first_child(t).unwrap().get_jsdoc_info(t).is_none() {
+            } else if s
+                .get_first_child(t)
+                .unwrap()
+                .get_jsdoc_info_ref(t)
+                .is_none()
+            {
                 // A field declaration that's missing a JSDoc.
                 t.report(s, &MISSING_JSDOC_IN_DECLARATION_STATEMENT, &[]);
                 break;

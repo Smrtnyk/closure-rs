@@ -27,6 +27,7 @@ use closure_jscomp::{
     peephole_optimizations_pass::PeepholeOptimizationsPass,
     peephole_substitute_alternate_syntax::PeepholeSubstituteAlternateSyntax,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
@@ -36,7 +37,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 // port: PeepholeSubstituteAlternateSyntaxTest#FOLD_CONSTANTS_TEST_EXTERNS
@@ -99,7 +99,7 @@ impl PeepholeSubstituteAlternateSyntaxTest {
                 ctx: Ctx::new(
                     "PeepholeSubstituteAlternateSyntaxTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

@@ -63,7 +63,7 @@ use closure_jscomp::{
     forbid_dynamic_import_usage::ForbidDynamicImportUsage, modules::module_map::ModuleMap,
     modules::module_map_creator::ModuleMapCreator,
 };
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 const PASS_PROCESS: &str =
@@ -125,7 +125,7 @@ impl NativeObject for NativeModuleMap {
     // port: UnitRecorder#collect (fields of a value reachable from the processor)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
         // No field of a ModuleMap reaches a recorded result producer.
-        Ok(IndexMap::new())
+        Ok(IndexMap::<_, _>::default())
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self

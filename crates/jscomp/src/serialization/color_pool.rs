@@ -21,6 +21,7 @@ use super::malformed_typed_ast_exception::{DebugParam, MalformedTypedAstExceptio
 use super::string_pool::StringPool;
 use super::type_pointers::{OFFSET_TO_AXIOMATIC_COLOR, TypePointers};
 use super::types_proto::{TypePool, TypeProto, TypeProtoKindCase};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_base::tri::Tri;
 use closure_rhino::jscomp_colors::color::Color;
@@ -28,7 +29,6 @@ use closure_rhino::jscomp_colors::color_id::ColorId;
 use closure_rhino::jscomp_colors::color_registry::{self, ColorRegistry};
 use closure_rhino::jscomp_colors::standard_colors;
 use closure_rhino::{check_not_null, check_state};
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{Arc, LazyLock, Mutex, OnceLock};
 
 /// port: ColorPool
@@ -187,15 +187,15 @@ static PENDING_COLOR: LazyLock<Color> = LazyLock::new(|| {
 impl Builder {
     // port: ColorPool.Builder#<init>
     fn new() -> Self {
-        let mut id_to_color = IndexMap::new();
+        let mut id_to_color = IndexMap::<_, _>::default();
         for (id, color) in standard_colors::AXIOMATIC_COLORS.iter() {
             id_to_color.insert(*id, color.clone());
         }
         Self {
-            proto_to_shard: IndexMap::new(),
+            proto_to_shard: IndexMap::<_, _>::default(),
             id_to_color,
             registry: ColorRegistry::builder(),
-            id_to_proto: IndexMap::new(),
+            id_to_proto: IndexMap::<_, _>::default(),
             for_testing: false,
             reconcilation_debug_stack: Vec::new(),
         }
@@ -386,9 +386,9 @@ impl Builder {
         id: ColorId,
         view_to_proto: &[(Arc<ShardView>, TypeProto)],
     ) -> Color {
-        let mut instance_colors: IndexSet<Color> = IndexSet::new();
-        let mut prototypes: IndexSet<Color> = IndexSet::new();
-        let mut own_properties: IndexSet<JsString> = IndexSet::new();
+        let mut instance_colors: IndexSet<Color> = IndexSet::<_>::default();
+        let mut prototypes: IndexSet<Color> = IndexSet::<_>::default();
+        let mut own_properties: IndexSet<JsString> = IndexSet::<_>::default();
         let mut is_closure_assert = Tri::UNKNOWN;
         let mut is_constructor = false;
         let mut is_invalidating = false;
@@ -445,7 +445,7 @@ impl Builder {
         id: ColorId,
         view_to_proto: &[(Arc<ShardView>, TypeProto)],
     ) -> Color {
-        let mut union: IndexSet<Color> = IndexSet::new();
+        let mut union: IndexSet<Color> = IndexSet::<_>::default();
         for (shard, proto) in view_to_proto {
             check_state!(proto.has_union(), "%s", format!("{proto:?}"));
             let union_member_list = proto.get_union().get_union_member_list();
@@ -494,7 +494,7 @@ fn create_trimmed_offset_to_id(type_pool: &TypePool) -> Vec<ColorId> {
         }
     }
 
-    let mut seen_ids: IndexSet<ColorId> = IndexSet::new();
+    let mut seen_ids: IndexSet<ColorId> = IndexSet::<_>::default();
     for (i, id) in ids.iter().enumerate() {
         let proto = type_pool.get_type(i as i32);
         MalformedTypedAstException::check_well_formed_with_param(
@@ -514,7 +514,7 @@ fn create_union_color_id(proto: &TypeProto, all_object_ids: &[Option<ColorId>]) 
         "Union has too few members",
         &DebugParam(&proto),
     );
-    let mut members: IndexSet<ColorId> = IndexSet::new();
+    let mut members: IndexSet<ColorId> = IndexSet::<_>::default();
     let union_member_list = proto.get_union().get_union_member_list();
     for &member_pointer in union_member_list {
         let member_id = if TypePointers::is_axiomatic(member_pointer) {

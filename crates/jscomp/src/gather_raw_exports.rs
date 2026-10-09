@@ -34,8 +34,8 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{check_state, js_string::JsString, node::NodeId};
-use indexmap::IndexSet;
 
 pub struct GatherRawExports {
     exported_variables: IndexSet<JsString>,
@@ -62,7 +62,7 @@ impl GatherRawExports {
     // port: GatherRawExports#GatherRawExports
     pub fn new() -> Self {
         Self {
-            exported_variables: IndexSet::new(),
+            exported_variables: IndexSet::<_>::default(),
         }
     }
 

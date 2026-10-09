@@ -21,6 +21,7 @@ use closure_jscomp::{
     compiler_options::PropertyCollapseLevel, compiler_pass::CompilerPass,
     isolate_polyfills::IsolatePolyfills, polyfill_usage_finder::Polyfills,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{ir::IR, js_string::JsString, node::NodeId};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
@@ -31,7 +32,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, rc::Rc};
 
 const LANGUAGE_MODE: &str = "com.google.javascript.jscomp.CompilerOptions$LanguageMode";
@@ -71,12 +71,12 @@ impl IsolatePolyfillsTest {
             ctx: Ctx::new(
                 "IsolatePolyfillsTest".into(),
                 closure_testing::replay::replay_values::object([]),
-                IndexMap::new(),
+                IndexMap::<_, _>::default(),
                 Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                     .unwrap(),
             ),
             polyfill_table: Vec::new(),
-            polyfills_to_inject: IndexSet::new(),
+            polyfills_to_inject: IndexSet::<_>::default(),
             enable_property_flattening: false,
         }
     }

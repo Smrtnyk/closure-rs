@@ -42,6 +42,7 @@ use closure_jscomp::{
         CANNOT_HAVE_MODULE_VAR_NAMED_GOOG, GOOG_JS_IMPORT_MUST_BE_GOOG_STAR, GOOG_JS_REEXPORTED,
     },
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
     replay::{
@@ -51,7 +52,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 
 struct Hooks {
     ctx: Ctx,
@@ -80,7 +80,7 @@ fn set_up() -> (CompilerTestCase, Hooks) {
         ctx: Ctx::new(
             "CheckGoogJsImportTest".into(),
             closure_testing::replay::replay_values::object([]),
-            IndexMap::new(),
+            IndexMap::<_, _>::default(),
             Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n").unwrap(),
         ),
     };

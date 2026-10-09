@@ -38,13 +38,13 @@ use crate::diagnostic::log_file::LogFile;
 use crate::diagnostic_type::DiagnosticType;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::ir::IR;
 use closure_rhino::java_lang;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use closure_rhino::{check_argument, check_state};
-use indexmap::IndexSet;
 
 // port: StripCode#STRIP_TYPE_INHERIT_ERROR
 pub static STRIP_TYPE_INHERIT_ERROR: DiagnosticType = DiagnosticType::error(
@@ -176,7 +176,7 @@ impl StripCode {
         Self {
             strip_name_suffixes,
             strip_name_prefixes,
-            vars_to_remove: IndexSet::new(),
+            vars_to_remove: IndexSet::<_>::default(),
             strip_types_list,
             strip_type_prefixes_list,
             strip_name_prefixes_lower_case_list,

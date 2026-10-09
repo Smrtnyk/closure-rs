@@ -31,7 +31,7 @@ use closure_jscomp::conformance_config::ConformanceConfig;
 use closure_jscomp::protobuf::text_format::{
     FieldKind, FieldValue, Message, ParseException, get_all_fields,
 };
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 
 fn bad(what: &str) -> Throwable {
     Throwable::HarnessError(format!("undecodable protobuf value: {what}"))
@@ -39,7 +39,7 @@ fn bad(what: &str) -> Throwable {
 
 // port: UnitRecorder#value (MessageOrBuilder)
 pub fn encode_message(message: &dyn Message) -> ProtoMessage {
-    let mut fields = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
     for field in get_all_fields(message) {
         let values: Vec<ProtoValue> = message
             .get_field(field.get_number())

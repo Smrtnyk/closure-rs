@@ -74,7 +74,7 @@ impl CheckNestedNames {
     /// True for `someExpression.prototype`.
     // port: CheckNestedNames#isDotPrototype
     fn is_dot_prototype(ast: &Ast, get_prop: NodeId) -> bool {
-        get_prop.is_get_prop(ast) && get_prop.get_string(ast) == "prototype"
+        get_prop.is_get_prop(ast) && get_prop.get_string_ref(ast) == "prototype"
     }
 
     // port: CheckNestedNames#getNestedDeclarationKind
@@ -145,7 +145,7 @@ impl Callback for CheckNestedNames {
             && !Self::is_dot_prototype(t, target_get_prop)
         {
             let owner = target_get_prop.get_first_child(t).unwrap();
-            if !owner.is_name(t) || owner.get_string(t) == "exports" {
+            if !owner.is_name(t) || owner.get_string_ref(t) == "exports" {
                 return; //  For example `this` or `super` or `exports.SomeEnum = {}`
             }
             let owner_name = owner.get_string(t).to_string();

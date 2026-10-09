@@ -20,8 +20,8 @@
 
 use std::sync::OnceLock;
 
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
-use indexmap::IndexSet;
 
 use crate::config::{Config, JsDocParsing, LanguageMode, RunMode, StrictMode};
 use crate::parser_configuration::ParserConfiguration;
@@ -126,7 +126,8 @@ impl ParserRunner {
         // preserving the Java parser -> transformer diagnostic order without storing a reference.
         for report in &es6_error_reporter.borrow().reports {
             let location = &report.location;
-            let source_name = location.source.as_ref().map_or("", |s| s.name.as_str());
+            let source_name = location.source.map(|s| s.name());
+            let source_name = source_name.as_deref().unwrap_or("");
             if report.is_error {
                 error_reporter.error_js_string(
                     &report.message,

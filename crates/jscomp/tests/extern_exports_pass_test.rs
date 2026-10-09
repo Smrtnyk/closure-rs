@@ -22,6 +22,7 @@
 //!
 //! `exportClassWithoutTypeCheck` is `@Ignore`d in Java (b/141729691) and is not ported.
 use closure_jscomp::{compiler_options::CompilerOptions, extern_exports_pass::ExternExportsPass};
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, MINIMAL_EXTERNS, TestPart},
@@ -31,7 +32,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 struct ExternExportsPassTest {
@@ -118,7 +118,7 @@ impl ExternExportsPassTest {
                 ctx: Ctx::new(
                     "ExternExportsPassTest".into(),
                     closure_testing::replay::replay_values::object([]),
-                    IndexMap::new(),
+                    IndexMap::<_, _>::default(),
                     Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                         .unwrap(),
                 ),

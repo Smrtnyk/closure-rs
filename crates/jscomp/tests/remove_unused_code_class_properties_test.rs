@@ -23,6 +23,7 @@
 //! on the native CompilerTestCase port of crates/testing. 15 tests call `enableTypeCheck()` (real
 //! TypeCheck, type-check).
 use closure_jscomp::{compiler_pass::CompilerPass, remove_unused_code::RemoveUnusedCode};
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
@@ -34,7 +35,6 @@ use closure_testing::{
     },
     throwable::Throwable,
 };
-use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 
 // port: RemoveUnusedCodeClassPropertiesTest#EXTERNS
@@ -141,7 +141,7 @@ impl Fixture {
             ctx: Ctx::new(
                 "RemoveUnusedCodeClassPropertiesTest".into(),
                 object([]),
-                IndexMap::new(),
+                IndexMap::<_, _>::default(),
                 Registry::from_tsv("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n")
                     .unwrap(),
             ),

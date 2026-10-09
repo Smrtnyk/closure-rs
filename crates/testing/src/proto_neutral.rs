@@ -42,7 +42,7 @@ use closure_jscomp::{
         source_file_proto, typed_ast_proto, types_proto,
     },
 };
-use indexmap::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 
 /// The descriptor tables of every generated file (all in package `jscomp`).
 fn message_descriptor_tables() -> [&'static [Descriptor]; 5] {
@@ -145,8 +145,8 @@ pub fn from_bytes(full_name: &str, bytes: &[u8]) -> Result<ProtoMessage, String>
     let descriptor = find_message_type(full_name)?;
     // Values per field number in wire order; singular message fields keep their concatenated
     // bytes (a repeated occurrence merges, as parsing the concatenation does).
-    let mut values: IndexMap<u32, Vec<ProtoValue>> = IndexMap::new();
-    let mut message_bytes: IndexMap<u32, Vec<u8>> = IndexMap::new();
+    let mut values: IndexMap<u32, Vec<ProtoValue>> = IndexMap::<_, _>::default();
+    let mut message_bytes: IndexMap<u32, Vec<u8>> = IndexMap::<_, _>::default();
     let mut input = CodedInputStream::new_instance(bytes);
     loop {
         let tag = input.read_tag().map_err(|e| e.get_message().to_string())?;
@@ -202,7 +202,7 @@ pub fn from_bytes(full_name: &str, bytes: &[u8]) -> Result<ProtoMessage, String>
         }
         slot.extend(read);
     }
-    let mut fields = IndexMap::new();
+    let mut fields = IndexMap::<_, _>::default();
     for field in descriptor.fields {
         let Some(mut read) = values.shift_remove(&field.number) else {
             continue;

@@ -59,8 +59,8 @@ use closure_jscomp::{
     phase_optimizer::PhaseOptimizer,
     validity_check::ValidityCheck,
 };
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{check_state, node::Ast, node::NodeId};
-use indexmap::IndexMap;
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -88,7 +88,7 @@ impl NativeObject for ClosureUnawarePhaseOptimizerTestHelpers {
     }
     // port: ReplayValues#findField (native object adapter)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let mut fields = IndexMap::new();
+        let mut fields = IndexMap::<_, _>::default();
         let shadow_nodes = self.shadow_nodes.lock().expect("shadowNodes");
         fields.insert(
             "shadowNodes".into(),

@@ -27,10 +27,10 @@ use closure_jscomp::{
     node_util::NodeUtil,
     source_info_check::SourceInfoCheck,
 };
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, js_string::JsString, node::NodeId, testing::node_subject::assert_node,
 };
-use indexmap::{IndexMap, IndexSet};
 use std::sync::{
     Arc,
     atomic::{AtomicI32, Ordering},
@@ -86,7 +86,7 @@ impl FunctionArgumentInjectorTest {
                 &mut self.compiler,
                 r#fn,
                 &args,
-                &IndexSet::new(),
+                &IndexSet::<_>::default(),
                 Some(&ClosureCodingConvention::new()),
             );
 
