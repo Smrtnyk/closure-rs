@@ -306,6 +306,21 @@ pub fn entry(signature: &str) -> Option<Entry> {
         "com.google.javascript.jscomp.TypeCheckFunctionCheckTest_Helpers$GetProcessorPass#<init>()" => {
             crate::replay::type_check_function_check_test_helpers::new_pass
         }
+        "com.google.javascript.jscomp.ProcessDefines$Builder#<init>(com.google.javascript.jscomp.AbstractCompiler)" => {
+            crate::replay::process_defines_test_helpers::builder_new
+        }
+        "com.google.javascript.jscomp.ProcessDefines$Builder#setMode(com.google.javascript.jscomp.ProcessDefines$Mode)" => {
+            crate::replay::process_defines_test_helpers::builder_set_mode
+        }
+        "com.google.javascript.jscomp.ProcessDefines$Builder#build()" => {
+            crate::replay::process_defines_test_helpers::builder_build
+        }
+        "com.google.javascript.jscomp.NodeUtilTest_Helpers#<init>()" => {
+            crate::replay::node_util_test_helpers::holder
+        }
+        "com.google.javascript.jscomp.NodeUtilTest_Helpers#getProcessor(com.google.javascript.jscomp.Compiler)" => {
+            crate::replay::node_util_test_helpers::get_processor
+        }
         "com.google.javascript.jscomp.TypeValidatorTest_Helpers$Anon1#<init>()" => {
             crate::replay::type_validator_test_helpers::new_pass
         }

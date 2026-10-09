@@ -50,6 +50,7 @@ pub mod native_registry;
 pub mod native_type_check;
 pub mod native_type_inference;
 pub mod native_unported;
+pub mod node_util_test_helpers;
 pub mod normalize_test_helpers;
 pub mod optimize_calls_helpers;
 pub mod optimize_calls_task_helpers;
