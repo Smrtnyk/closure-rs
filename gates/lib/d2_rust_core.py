@@ -362,6 +362,19 @@ def _collect_outputs(out_abs: str) -> dict[str, bytes]:
     return dict(sorted(outputs.items()))
 
 
+def _make_out_dir(out_abs: str) -> None:
+    """os.makedirs for <case>/<profile>, safe against a sibling profile of the same case finishing
+    at the same time: its _remove_out_dir can remove the still-empty <case> dir between makedirs
+    creating it and creating <profile> inside it, which fails with FileNotFoundError. Retry."""
+    for _ in range(100):
+        try:
+            os.makedirs(out_abs, exist_ok=True)
+            return
+        except FileNotFoundError:
+            continue
+    os.makedirs(out_abs, exist_ok=True)
+
+
 def _remove_out_dir(out_abs: str) -> None:
     shutil.rmtree(out_abs, ignore_errors=True)
     try:
@@ -393,7 +406,7 @@ def run_pair(pair: dict, *, binary: str, run_root: str, data_root: str, profiles
 
     out_abs = os.path.join(run_root, out_dir)
     shutil.rmtree(out_abs, ignore_errors=True)
-    os.makedirs(out_abs, exist_ok=True)
+    _make_out_dir(out_abs)
     t0 = time.monotonic()
     try:
         proc = subprocess.Popen([binary, *cargs], cwd=run_root, env=run_reference.child_env(),
