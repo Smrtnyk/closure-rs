@@ -5,7 +5,7 @@ Rust output was never used to create expectations. Rust CI runs them without Jav
 | --- | ---: | --- |
 | standard.tsv | 8,000 | full standard.tsv.gz: DToA.numberToString and Double.toString |
 | modes.tsv | 3,000 | full modes.tsv.gz: reflective JS_dtostr |
-| jdk.tsv | 8,000 | unchanged full jdk.tsv.gz: Double.toString |
+| jdk.tsv | 8,000 | full jdk.tsv.gz: Double.toString |
 | raw.tsv | 1,000 | full raw.tsv.gz: JS_dtoa modes -1..10, both bias settings |
 
 Standard/modes/raw use the exact `=`, `!`, `?` outcome encoding described in ../java/README.md.
@@ -24,9 +24,10 @@ UTF-16 code units. Large eligible results remain in the full cached corpora and 
 The 151,804-unit result is separately generated and compared in full; its k=151471 falls inside the
 mandated generator exclusion interval. The combined committed TSV size is below 3 MB.
 
-`python3 crates/rhino/tests/java/sample_golden.py` reproduces the three refreshed samples from the
-full gzip corpora and category-head/stride samples. It preserves each exceptional/non-ASCII/surrogate
-outcome kind explicitly and selects the rest deterministically. The JDK sample is unchanged.
+`python3 crates/rhino/tests/java/sample_golden.py` reproduces the standard, modes and raw samples
+from the full gzip corpora and category-head/stride samples. It preserves each
+exceptional/non-ASCII/surrogate outcome kind explicitly and selects the rest deterministically.
+It does not touch `jdk.tsv`.
 Java classes and full corpora live under `corpus-cache/dtoa/` of the main checkout (not tracked).
 Reference jar: `build/reference/closure-compiler.jar` of the main checkout.
 JDK: tools/jdk-21 (21.0.12.1+1-LTS). The modes/raw generator disables HotSpot fast-throw optimization

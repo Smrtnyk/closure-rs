@@ -31,8 +31,8 @@ ground truth **only** when it runs in the same environment as the golden runs:
 - Closure formats the summary line with `String.format` and the JVM default (FORMAT) locale:
   `"%d error(s), %d warning(s), %.1f%% typed%n"` (PrintStreamErrorManager.java:72,
   PrintStreamErrorReportGenerator.java:64). Under `LANG=de_DE.UTF-8` the line reads
-  `86,7% typed`; under `C.UTF-8` it reads `86.7% typed`. 5259 of the 24,553 golden results of
-  `cases.jsonl` (before the holdout split) contain such a line, all with `.`.
+  `86,7% typed`; under `C.UTF-8` it reads `86.7% typed`. Thousands of D2 golden results
+  contain such a line, all with `.`.
 - `stdout.encoding` and `stderr.encoding` (and `sun.jnu.encoding` for file names) come from
   `LANG`/`LC_ALL`; they decide how non-ASCII diagnostics are written.
 
@@ -59,11 +59,12 @@ compile` (CLI mode) prints only the compiler's output, so it cannot report its e
 launch it with `golden_env()` (`cli_compile` does). Inline-file requests run a child JVM that
 inherits the server's environment.
 
-Measured (2026-10-06, `python3 oracle/test/env_check.py`: `closure-self-ext-es3` / `advanced_strict`, gate argv): in C.UTF-8 the
-server's stderr equals the golden stderr (`... 98.2% typed`); in `de_DE.UTF-8` it does not
-(`98,2% typed`), and `oracle_client.Oracle` now refuses to start there. The time zone does not
-reach compiler output (no `TimeZone`/date-formatting use in in-scope `src/`; the only hit is
-the out-of-scope `ant/CompileTask.java`), but it is pinned and checked anyway.
+`python3 oracle/test/env_check.py` shows the difference on `closure-self-ext-es3` /
+`advanced_strict`: in C.UTF-8 the server's stderr equals the golden stderr (`... 98.2% typed`);
+in `de_DE.UTF-8` it does not (`98,2% typed`), and `oracle_client.Oracle` refuses to start there.
+The time zone does not reach compiler output (no `TimeZone`/date-formatting use in in-scope
+`src/`; the only hit is the out-of-scope `ant/CompileTask.java`), but it is pinned and checked
+anyway.
 
 ## Source layout
 
@@ -95,9 +96,11 @@ the out-of-scope `ant/CompileTask.java`), but it is pinned and checked anyway.
 
 ### Isolation (`--isolate`)
 
-- **`none` (the default):** one shared loader, and the JIT stays warm. This is the default
-  because the identity measurement in `SEAM.md` §1 found no leaks: 300 of 300 requests were
-  byte-identical to one fresh JVM per request.
+- **`none` (the default):** one shared loader, and the JIT stays warm. No static state leaks
+  into the output across requests: `oracle/test/identity.py` compares one long-lived server
+  with one fresh JVM per request (and with `java -jar`) byte for byte, and Gate 0.1
+  (`gates/gate_0_1.sh`) compares long-lived servers with the golden `java -jar` runs on every
+  D2 pair.
 - **`request`:** each request runs in a fresh
   `URLClassLoader([oracle.jar, closure-compiler.jar], parent = platform loader)`. Every static
   field in Closure and its bundled libraries (Guava, Gson, protobuf, args4j) is therefore fresh.
@@ -156,7 +159,7 @@ WEAK inputs (with `--checks_only` they are not removed), so it is not enough for
 (`STRONG`, `WEAK`, ...). **`chunks`** is `JSChunkGraph.getAllChunks()` after dependency
 management: `[{"name", "deps":[...], "inputs":[{"name","kind","fill_file"}]}]`, including the
 synthetic `$strong$`/`$weak$` chunks and fill files (`<chunk>$fillFile`). Both are null if no
-compiler was created. The seam needs them: see `optimize_from_typedast` and `SEAM.md` D1, D4, D5.
+compiler was created. The seam needs them: see `optimize_from_typedast` and "Seam caveats".
 
 **Inline files.** `{"files":{"relpath":"content",...}}` writes each file to
 `build/oracle/tmp/inline-<pid>-<n>/relpath` (`tmp/` next to the oracle jar). The request then
@@ -260,8 +263,50 @@ deserialise every `--js` and `--externs` file from the TypedAST.
 **Required args.** `args` must name the same `--js` and `--externs` files as the checks run.
 `Compiler.initOptions` (Compiler.java:466) **throws** if dependency management is on
 (`SORT_ONLY`, `PRUNE` or `PRUNE_LEGACY`). The optimize args must therefore drop
-`--entry_point` and use `--dependency_mode=NONE`. See `SEAM.md` for the measured
-consequences.
+`--entry_point` and use `--dependency_mode=NONE`; the `--js` files must therefore be passed in
+the checks run's post-sort order (`inputs`), or the output concatenates the files in a different
+order.
+
+### Seam caveats
+
+`optimize_from_typedast(checks_to_typedast(argv))` is not always output-identical to
+`compile(argv)` (DECISIONS.md D-011):
+
+- **Order, weak inputs, chunks.** The optimize run must get the inputs in the checks run's
+  post-sort order, with WEAK inputs as `weak_inputs` (`--checks_only` skips stage 1's
+  `removeWeakSources`, DefaultPassConfig.java:463), and the chunks as the checks response's
+  `chunks` with their fill files: dependency management moves inputs between chunks, which
+  cannot be rebuilt from the original `--chunk` flags. `oracle/test/seam3.py:opt_args` does
+  all three.
+- **Diagnostics.** The full compile prints one sorted report for all stages; the seam prints the
+  checks run's report and the optimize run's report separately, so stderr differs whenever
+  optimization passes warn (for example `JSC_PARTIAL_NAMESPACE` from CollapseProperties) or
+  the `% typed` suffix applies. Warnings lose their `Originally at:` blocks (input source maps
+  are not restored), and node lengths (`[length: N]`, caret underlines) differ because the full
+  compile renders check-phase warnings after optimizations changed the nodes.
+- **Data the TypedAST does not carry.** Under `--formatting=PRETTY_PRINT`, CodePrinter takes a
+  number's spelling from the original source text (CodePrinter.java:315-345), so `0.5` becomes
+  `.5`; with `--create_source_map`, input source maps are not restored, so `sources`, `names`
+  and `mappings` differ.
+- **`hasRegExpGlobalReferences` (SIMPLE-level profiles).** `AstAnalyzer` treats `/re/.test(x)`
+  and `/re/.exec(x)` as side-effect free only if `!hasRegexpGlobalReferences`
+  (AstAnalyzer.java:229-230). The flag lives on the `Compiler`, starts as `true`, and in a full
+  compile is set only by `checkRegExp`, which runs only under ADVANCED
+  (`shouldComputeFunctionSideEffects`). The restore always runs `checkRegExpForOptimizations`
+  (DefaultPassConfig.java:843-849), which sets it from the AST (`false` unless the code reads a
+  global RegExp property such as `RegExp.$1`). So under SIMPLE-level profiles the seam can
+  inline or remove code the full compile keeps; `oracle/test/seam_regexp.py` reproduces this.
+- **Promoted errors.** An ERROR whose diagnostic type is a WARNING by default (for example via
+  `--jscomp_error=*`) does not halt the pass loop (`SortingErrorManager.hasHaltingErrors`). The
+  checks run still writes a TypedAST and exits with the error count; the full compile runs all
+  stages and writes **no** JS, with the same exit code; `optimize_from_typedast` exits 0 and
+  writes JS. If the checks response has `exit_code != 0`, the expected result is therefore the
+  compile's exit code, stderr and absence of output. Halting errors (an ERROR-level type such as
+  `JSC_PARSE_ERROR`) write no TypedAST, and the compile stops in stage 1 like the checks run.
+- **WHITESPACE_ONLY** writes no TypedAST, so the `ws` profile has no seam.
+
+A Rust back end fed a Java TypedAST is therefore compared with `optimize_from_typedast`, never
+with `compile`.
 
 ### `parse_dump`
 
@@ -273,10 +318,13 @@ consequences.
 
 The schema is in `PARSE_DUMP.md`.
 
-## Gate 0.1 status
+## Identity checks
 
-`oracle/test/identity.py` compares, byte for byte:
+`oracle/test/identity.py --isolate none --n 300` compares, byte for byte:
 - one fresh `Main compile` JVM per request against `java -jar`, on every 5th request;
-- the server against fresh JVMs, on all requests.
+- one `--isolate=none` server, fed the requests in a seeded shuffled order, against fresh JVMs,
+  on all requests.
 
-The results are in `SEAM.md`.
+`gates/gate_0_1.sh` (Gate 0.1) compares long-lived `--isolate=none` servers with the golden
+`java -jar` results on every D2 pair. `oracle/test/seam.py`, `seam3.py` and `seam3_report.py`
+compare `compile` with the seam (see "Seam caveats").

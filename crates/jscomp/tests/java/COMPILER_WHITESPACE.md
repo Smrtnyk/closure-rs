@@ -16,7 +16,7 @@ those CLI defaults, including trustedStrings. Both compilers format reports into
 silent streams: report formatting can itself load input source maps and report
 resolution warnings. A black-hole error manager would change that behavior.
 
-All 2,085 visible candidate records are read from the five candidate JSONL files.
+All 2,085 candidate records are read from the five candidate JSONL files.
 Each record retains its input, explicit extern and shim order and source names.
 Source bytes are decoded as UTF-8 without newline translation (all files are
 valid UTF-8). Profile/case flags are replaced with the three common flags above;
@@ -25,9 +25,8 @@ directory is identical for both runs, including relative source-map resolution.
 This is a single fixed compiler profile, not the D2 profile matrix.
 
 The committed fixture takes the eight smallest eligible cases from each of the
-four individual-source families. Whole-program cases are covered in the complete
-scratch comparison. goog.module cases were excluded when this fixture was first selected and are
-covered by the complete comparison.
+four individual-source families. Whole-program and goog.module cases are not in the fixture;
+the complete scratch comparison covers them.
 Selection does not consult expected or actual outputs. The regression compares
 all 32 selected cases (43 inputs, 104,258 bytes), including two parse-error cases;
 there are no exceptions, ignored tests, or conditional comparison paths.

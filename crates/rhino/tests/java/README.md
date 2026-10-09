@@ -18,8 +18,8 @@ python3 crates/rhino/tests/java/sample_golden.py
 ```
 
 `standard` generates 7,097,372 doubles; `modes` generates 407,372 doubles, four modes per input;
-`raw` generates 20,068 doubles, modes -1..10 and both bias settings. `jdk` regenerates the
-unchanged 7,097,372-row Double.toString corpus. Seed: `0x44546f415f323031`.
+`raw` generates 20,068 doubles, modes -1..10 and both bias settings. `jdk` generates the
+7,097,372-row Double.toString corpus. Seed: `0x44546f415f323031`.
 
 Every DToA string is encoded as `=` followed by printable ASCII, escaping backslash as `\\`
 and each other UTF-16 unit as `\u` plus four lowercase hex digits. Exceptions are `!<class>: <message>`.

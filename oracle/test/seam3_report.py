@@ -5,7 +5,8 @@ Usage: python3 oracle/test/seam3_report.py [RUN_DIR]
 
 "JS/exit differs" compares exit code, stdout and every output file. Its sub-column "D8" counts
 the pairs where the checks run exited non-zero (promoted, non-halting errors), compile wrote no
-output file and optimize_from_typedast exited 0 (oracle/SEAM.md, D8); "other" is the rest.
+output file and optimize_from_typedast exited 0 (oracle/PROTOCOL.md, "Seam caveats",
+promoted errors); "other" is the rest.
 The last lines list the JVM environments (oracle/PROTOCOL.md, "Environment") the results were
 produced in, as stored per result in "jvm_env" (absent = an older result, run in the inherited env).
 """

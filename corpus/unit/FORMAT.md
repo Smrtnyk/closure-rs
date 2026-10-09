@@ -623,7 +623,7 @@ compiler thread). A record without `passTrace` is unverified: gate (a) counts it
 the 3% cap. Replay (ReplayMain under the same agent mode) compares the replayed set with
 `passTrace` by JSON equality; a difference fails the record (`passTrace differs`), and
 `--trace-out` writes one status line per record (`equal`, `mismatch`, `unverified`).
-`processorIdentityNote` is no longer evidence of processor identity.
+`processorIdentityNote` is not evidence of processor identity.
 
 ## Postcondition data (D-017 item 1)
 For a `compiler_test_case` record whose call ran at least one postcondition
@@ -644,7 +644,7 @@ hooked call inside a lambda does not replace it; when no postcondition ran, the 
 postCall equality covers it.
 
 The lambdas of `UnitRecorder.POSTCONDITION_DATA_CLASSES` (PureFunctionIdentifierTest,
-ExternExportsPassTest, GatherExternPropertiesTest, ScopedAliasesTest) are no longer listed in the
+ExternExportsPassTest, GatherExternPropertiesTest, ScopedAliasesTest) are not listed in the
 record-level `unrepresentable`; their indices are listed in `expected.postconditionsCaptured`, and
 their `expected.postconditionValues[i]` (class name plus captures, which descriptors decode) is
 kept as recorded. Gate (e) does not count the lambda placeholders inside
@@ -668,7 +668,6 @@ lies inside the argument list of a hooked call (or hooked helper call), after a 
 in that argument list, in a method whose recorded calls ran postconditions
 (`expected.postconditions > 0`) or in a non-@Test helper of a class that has such methods. Such an
 assertion runs inside the call as (or from) a Postcondition; the postcondition-count rule and
-gate (e) govern it. Measured on the round-7 records: 1343 flagged methods before, 1268 after; the 75
-methods leaving post-call classification are ExternExportsPassTest 65, PureFunctionIdentifierTest
-9, PolymerPassTest 1. In-call lambdas that are not postconditions (ReferenceCollectorTest's
+gate (e) govern it. The rule takes 75 methods out of post-call classification
+(ExternExportsPassTest 65, PureFunctionIdentifierTest 9, PolymerPassTest 1). In-call lambdas that are not postconditions (ReferenceCollectorTest's
 Behavior callbacks, no postconditions recorded) stay under post-call classification.

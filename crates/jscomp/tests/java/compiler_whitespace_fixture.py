@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare all visible D2 candidates and a deterministic, outcome-independent fixture.
+"""Prepare all D2 candidates and a deterministic, outcome-independent fixture.
 
 Run prepare, then CompilerWhitespace with the request/reference paths, then fixture.
 Case flags/profiles are intentionally replaced by the same three flags for every

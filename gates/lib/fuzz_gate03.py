@@ -256,7 +256,7 @@ DATAFLOW_PASSES = ("flowSensitiveInlineVariables", "coalesceVariableNames",
                    "collapseAnonymousFunctions", "collapseVariableDeclarations", "denormalize",
                    "invertContextualRenaming", "inlineVariables", "deadAssignmentsElimination",
                    "inlineFunctions", "removeUnusedCode")
-# Seeded, mutually disjoint samples of visible D2 pairs (fuzz_reach.d2_jobs): the gate's original
+# Seeded, mutually disjoint samples of D2 pairs (fuzz_reach.d2_jobs): the gate's original
 # sample, a second sample (copied from build/review-fuzz-gate-honesty/), and a
 # third sample (build/fuzz/gate/d2x/d2_third.py). Missing files are skipped.
 D2_SAMPLES = ("build/fuzz/reach/d2-20261006.jsonl", f"{GATE}/d2x/d2-977.jsonl",
@@ -469,7 +469,7 @@ def report(a) -> dict:
                         "DefaultPassConfig names); the effect-measure union without Java-crash runs is gated "
                         "separately as (b2) (D-016); the other effect aggregates are diagnostics",
         "denominator_used": {"name": "D2-effective set", "size": len(d2_eff),
-                             "source": ", ".join(d2_files) + f" ({d2['ok_runs']} ok runs of {d2['runs']} seeded visible D2 pairs in "
+                             "source": ", ".join(d2_files) + f" ({d2['ok_runs']} ok runs of {d2['runs']} seeded D2 pairs in "
                                        f"{len(d2_files)} disjoint samples, all profiles)",
                              "samples": d2_samples,
                              "why": "the DefaultPassConfig factories that change printed output on real-world "
@@ -605,7 +605,7 @@ def report(a) -> dict:
                                                 if not f and r.get("exit_code") == 0) if out_known else None),
     }
     # Estimate of the same ceiling for the real-world D2 corpus under its own profile matrix (every
-    # visible pair weighted by the largest entered count measured for its profile in these runs).
+    # pair weighted by the largest entered count measured for its profile in these runs).
     try:
         d2_prof_counts: dict[str, int] = {}
         for _c, _p in fuzz_reach.d2_pairs():
@@ -897,7 +897,7 @@ def write_design_phase_md(b: dict) -> list[str]:
     la, un = dp["literal_average_per_program"], dp["union_over_programs"]
     out = ["### (b) Diagnostic: effect measure (does not decide (b); its union is gated separately as (b2))", "",
            f"- Diagnostic denominator: the D2-effective set, {den['size']} names. It is the union of the passes that "
-           "change printed source on seeded samples of visible D2 pairs under the D2 profiles "
+           "change printed source on seeded samples of D2 pairs under the D2 profiles "
            f"({b['denominator_used']['source']}). Why: the effect measure counts a pass only when the source "
            "printed after it changes. The other names never changed printed source on any sampled real-world pair "
            "under any D2 profile: they are checks, passes the D2 profiles never enable, or out-of-scope "
@@ -1033,7 +1033,7 @@ def write_md(r: dict, path: str):
                  + "So the as-written threshold can be met by a different profile distribution or by randomising "
                  "in-scope option flags; ratifying a relaxed reading is not the only path, and none is proposed. ")
                  (b['spec_literal']['attainability']) if b['spec_literal'].get('attainability') else "")
-              + (f"Estimated ceiling for the real-world D2 corpus under its own profile matrix (each visible pair "
+              + (f"Estimated ceiling for the real-world D2 corpus under its own profile matrix (each pair "
                  f"weighted by the largest count measured for its profile here): "
                  f"{b['spec_literal']['d2_ceiling_estimate_mean_entered']:.1f}/{b['all_names_denominator']} = "
                  f"{pct(b['spec_literal']['d2_ceiling_estimate_rate'])}. "

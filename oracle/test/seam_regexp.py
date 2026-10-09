@@ -1,4 +1,4 @@
-"""SEAM.md D7 experiment: does Compiler.hasRegExpGlobalReferences explain the
+"""Seam experiment (oracle/PROTOCOL.md, "Seam caveats"): does Compiler.hasRegExpGlobalReferences explain the
 simple-10 (whole-program-minimist-1.2.8, simple) seam divergence?
 Usage: python3 oracle/test/seam_regexp.py  (1 oracle server in golden_env(), about 1 minute).
 Variants differ only in one appended line of a copy of the case's shim."""
