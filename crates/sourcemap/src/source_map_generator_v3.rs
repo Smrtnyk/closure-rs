@@ -896,7 +896,13 @@ impl<'a> JavaAppendable<'a> {
 }
 impl Write for JavaAppendable<'_> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.units.extend_from_slice(JsString::from(s).as_units());
+        // Rust-only: the code units are appended directly, not through a JS string (D-025).
+        self.units.extend(s.encode_utf16());
         self.out.write_str(s)
+    }
+    fn write_char(&mut self, c: char) -> fmt::Result {
+        let mut buf = [0u16; 2];
+        self.units.extend_from_slice(c.encode_utf16(&mut buf));
+        self.out.write_char(c)
     }
 }

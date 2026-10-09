@@ -440,6 +440,12 @@ here (one line each) to ease upstream syncs.
 - `rhino/js_string.rs`: a string caches its `hashCode()` in front of its code units (Java's
   String caches it too); `Hash` writes the cached value, `equals` and `compareTo` short-cut on
   identity.
+- Source maps: `sourcemap/source_map_generator_v3.rs` `JavaAppendable` appends code units
+  without making a JS string per write; `util.rs` `escapeString` copies unescaped runs and
+  escapes directly; `jscomp/source_map.rs`, `compiler_source_excerpt_provider.rs` reuse the
+  file name conversions of the previous mapping and the parsed input map
+  (`SourceMapInput::get_cached_source_map`); `cli/java_io.rs` `EncodedWriter` writes UTF-8
+  text to a UTF-8 stream without the UTF-16 round trip.
 
 ## D-026 — Upstream syncs follow npm releases; first sync to 20261006.0.0 (2026-10-09)
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**

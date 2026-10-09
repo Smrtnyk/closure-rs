@@ -33,12 +33,19 @@ pub(crate) struct CompilerSourceExcerptProvider {
     pub input_source_maps: Arc<Mutex<crate::compiler::InputSourceMaps>>,
     pub pending_errors: crate::sorting_error_manager::DeferredReports,
     resolved_source_map: Mutex<ResolvedSourceMap>,
+    /// Rust-only: the file name of the last `SourceFileMapping::get_source_mapping` call and its
+    /// conversion to a Rust string.
+    last_mapping_name: Mutex<Option<(closure_rhino::js_string::JsString, String)>>,
 }
 #[derive(Default)]
 struct ResolvedSourceMap {
     original_path: String,
     source_map_path: String,
     relative_path: String,
+    /// Rust-only: `source_map_path` and `relative_path` as JS strings, so that a mapping in the
+    /// file last resolved needs no string conversion (D-025).
+    source_map_path_js: closure_rhino::js_string::JsString,
+    relative_path_js: closure_rhino::js_string::JsString,
 }
 impl CompilerSourceExcerptProvider {
     fn get_file(&self, name: Option<&str>) -> Option<Arc<SourceFile>> {
@@ -51,6 +58,10 @@ impl CompilerSourceExcerptProvider {
             .or_else(|| self.original_sources.lock().unwrap().get(name).cloned())
     }
     pub fn get_consumer(&self, map: &SourceMapInput) -> Option<Arc<SourceMapConsumerV3>> {
+        // Rust-only fast path: a map parsed before reports nothing more (D-025).
+        if let Some(consumer) = map.get_cached_source_map() {
+            return consumer;
+        }
         // Formatters can run with ErrorManager already borrowed. Collect and replay only the
         // SourceMapInput reports, which Java sends directly to ErrorManager (without guards).
         let mut manager = BlackHoleErrorManager::new();
@@ -124,13 +135,15 @@ impl SourceExcerptProvider for CompilerSourceExcerptProvider {
             return Some(OriginalMapping::get_default_instance().clone());
         };
         let source_map_original_path = map.get_original_path();
-        let result_original_path = result.get_original_file().to_string_lossy();
         let mut cache = self.resolved_source_map.lock().unwrap();
+        // Rust-only: compares the result's file as a JS string, so the common case (the file
+        // last resolved) converts no string (D-025).
         let relative_path = if source_map_original_path == cache.original_path
-            && result_original_path == cache.source_map_path
+            && result.get_original_file() == cache.source_map_path_js
         {
-            cache.relative_path.clone()
+            cache.relative_path_js.clone()
         } else {
+            let result_original_path = result.get_original_file().to_string_lossy();
             let relative =
                 Compiler::resolve_sibling(source_map_original_path, &result_original_path);
             if self.get_file(Some(&relative)).is_none() && !result_original_path.is_empty() {
@@ -146,8 +159,10 @@ impl SourceExcerptProvider for CompilerSourceExcerptProvider {
             }
             cache.original_path = source_map_original_path.into();
             cache.source_map_path = result_original_path;
-            cache.relative_path = relative.clone();
-            relative
+            cache.source_map_path_js = result.get_original_file().clone();
+            cache.relative_path_js = relative.as_str().into();
+            cache.relative_path = relative;
+            cache.relative_path_js.clone()
         };
         Some(
             result
@@ -165,11 +180,12 @@ impl crate::source_file_mapping::SourceFileMapping for Arc<CompilerSourceExcerpt
         line: i32,
         column: i32,
     ) -> Option<OriginalMapping> {
-        SourceExcerptProvider::get_source_mapping(
-            self.as_ref(),
-            Some(&name.to_string_lossy()),
-            line,
-            column,
-        )
+        // Rust-only: the name converted for the previous call is reused (D-025).
+        let mut last = self.last_mapping_name.lock().unwrap();
+        if last.as_ref().is_none_or(|(js, _)| js != name) {
+            *last = Some((name.clone(), name.to_string_lossy()));
+        }
+        let name = &last.as_ref().unwrap().1;
+        SourceExcerptProvider::get_source_mapping(self.as_ref(), Some(name), line, column)
     }
 }

@@ -191,6 +191,8 @@ pub struct SourceMap {
     /// compilation job have been generated from, and used to create a source map that maps all the way
     /// back to original inputs. {@code null} if no such mapping is wanted.
     mapping: Option<Box<dyn SourceFileMapping + Send>>,
+    /// Rust-only: the last source file name seen by `add_mapping_for_node`, and as a JS string.
+    last_source_file_name: Option<(String, JsString)>,
 }
 impl SourceMap {
     // port: SourceMap#SourceMap
@@ -199,6 +201,7 @@ impl SourceMap {
             generator,
             prefix_mappings: Vec::new(),
             source_location_fixup_cache: IndexMap::<_, _>::default(),
+            last_source_file_name: None,
             mapping: None,
         }
     }
@@ -222,7 +225,17 @@ impl SourceMap {
         if source_file.is_none() || node.get_lineno(ast) < 0 {
             return;
         }
-        let mut source_file_name = JsString::from(source_file.unwrap().get_name());
+        // Rust-only: the file name converted for the previous node is reused (D-025).
+        let source_file = source_file.unwrap();
+        if self
+            .last_source_file_name
+            .as_ref()
+            .is_none_or(|(name, _)| name != source_file.get_name())
+        {
+            let name = source_file.get_name();
+            self.last_source_file_name = Some((name.to_owned(), JsString::from(name)));
+        }
+        let mut source_file_name = self.last_source_file_name.as_ref().unwrap().1.clone();
         let mut line_no = node.get_lineno(ast);
         let mut char_no = node.get_charno(ast);
         let mut original_name = Self::get_original_name(ast, node);

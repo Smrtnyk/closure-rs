@@ -155,10 +155,12 @@ impl UnescapedRegion {
     // port: Util.UnescapedRegion#appendUnescaped
     fn append_unescaped(&mut self, s: &JsString, sb: &mut String) {
         if self.unescaped_region_start != self.unescaped_region_end {
-            sb.push_str(
-                &s.substring(self.unescaped_region_start, self.unescaped_region_end)
-                    .to_string_lossy(),
-            );
+            // Rust-only (D-025): the region holds only characters that need no escape (printable
+            // ASCII), copied directly instead of through a substring.
+            let region = &s.as_units()[self.unescaped_region_start..self.unescaped_region_end];
+            sb.extend(region.iter().map(|&unit| {
+                char::from_u32(u32::from(unit)).unwrap_or(char::REPLACEMENT_CHARACTER)
+            }));
         }
         self.unescaped_region_start = self.unescaped_region_end;
     }
@@ -175,14 +177,9 @@ impl UnescapedRegion {
         self.unescaped_region_end += 1;
     }
     // port: Util.UnescapedRegion#appendForEscapedChar
-    fn append_for_escaped_char(
-        &mut self,
-        s: &JsString,
-        sb: &mut String,
-        escaped: impl Into<JsString>,
-    ) {
+    fn append_for_escaped_char(&mut self, s: &JsString, sb: &mut String, escaped: &str) {
         self.append_unescaped(s, sb);
         self.increment_for_escaped_char();
-        sb.push_str(&escaped.into().to_string_lossy());
+        sb.push_str(escaped);
     }
 }

@@ -103,6 +103,12 @@ impl SourceMapInput {
         }
         state.parsed_source_map.clone()
     }
+    /// Rust-only: `getSourceMap()` once it has been parsed (it then reports nothing), else
+    /// `None`.
+    pub fn get_cached_source_map(&self) -> Option<Option<Arc<SourceMapConsumerV3>>> {
+        let state = self.state.lock().unwrap();
+        state.cached.then(|| state.parsed_source_map.clone())
+    }
     // port: SourceMapInput#getOriginalPath
     pub fn get_original_path(&self) -> &str {
         self.source_file.get_name()
