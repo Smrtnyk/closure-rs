@@ -83,7 +83,6 @@ pub type Scope = ScopeId;
 pub(crate) struct ScopeData {
     pub(crate) abstract_scope: AbstractScopeData<VarId>,
     pub(crate) parent: Option<ScopeId>,
-    pub(crate) depth: i32,
     /// Rust-only: the canonical closure-jstype view (Java passes the Scope itself as a
     /// StaticScope), created on first use; see `ScopeView`.
     pub(crate) view: OnceLock<&'static Arc<ScopeView>>,
@@ -187,29 +186,18 @@ impl ScopeId {
 
     // port: Scope#Scope(Scope, Node)
     fn new_with_parent(compiler: &mut AbstractCompiler, parent: Self, root_node: NodeId) -> Self {
-        let scope = Self::allocate(compiler, root_node);
-        scope.check_child_scope(compiler, parent);
+        // Rust-only: the parent and depth are stored with the new slot (one lock); Java assigns
+        // the fields after checkChildScope, which only reads the root nodes.
         let depth = parent.get_depth(compiler).wrapping_add(1);
-        let mut arena = ScopeArena::write(compiler);
-        let data = &mut arena.scopes[scope.index()];
-        data.parent = Some(parent);
-        data.depth = depth;
-        drop(arena);
-        let meta = &mut compiler.scope_mirror.scopes[scope.index()];
-        meta.parent = Some(parent);
-        meta.depth = depth;
+        let scope = Self::allocate(compiler, root_node, Some(parent), depth);
+        scope.check_child_scope(compiler, parent);
         scope
     }
 
     // port: Scope#Scope(Node)
     fn new(compiler: &mut AbstractCompiler, root_node: NodeId) -> Self {
-        let scope = Self::allocate(compiler, root_node);
+        let scope = Self::allocate(compiler, root_node, None, 0);
         scope.check_root_scope(compiler);
-        let mut arena = ScopeArena::write(compiler);
-        let data = &mut arena.scopes[scope.index()];
-        data.parent = None;
-        data.depth = 0;
-        drop(arena);
         scope
     }
 
@@ -266,30 +254,50 @@ impl ScopeId {
         check_argument!(!name.is_empty());
         if ImplicitVar::of(&name).is_none() {
             // Rust-only fast path (D-025): with no implicit slot for `name`, getOwnSlot,
-            // hasOwnSlot and canDeclare only read declared vars; read them under one lock.
-            let (declared, count) = {
-                let arena = ScopeArena::read(compiler);
-                let vars = &arena.scopes[self.index()].abstract_scope.vars;
-                (vars.contains_key(&name), vars.len())
-            };
-            check_state!(!declared);
-            let index = i32::try_from(count).unwrap();
-            let var = VarId::new(compiler, &name, name_node.into(), self, index, input, None);
+            // hasOwnSlot and canDeclare only read declared vars, so the checks, the new Var and
+            // its declaration take one lock.
+            let name_node = name_node.into();
+            VarId::check_name_node(compiler, name_node);
+            let parent = self
+                .is_function_block_scope(compiler)
+                .then(|| self.get_parent(compiler))
+                .flatten();
+            let mut mirror = std::mem::take(&mut compiler.scope_mirror);
+            let mut arena = ScopeArena::write(compiler);
+            let vars = &arena.scopes[self.index()].abstract_scope.vars;
+            check_state!(!vars.contains_key(&name));
+            let index = i32::try_from(vars.len()).unwrap();
             // canDeclare: only a function block scope can refuse, when its parent has the name.
-            let parent_declares = self.is_function_block_scope(compiler)
-                && self.get_parent(compiler).is_some_and(|parent| {
-                    ScopeArena::read(compiler).scopes[parent.index()]
-                        .abstract_scope
-                        .vars
-                        .contains_key(&name)
-                });
-            if parent_declares {
-                self.declare_internal(compiler, name, var);
+            let parent_declares = parent.is_some_and(|parent| {
+                arena.scopes[parent.index()]
+                    .abstract_scope
+                    .vars
+                    .contains_key(&name)
+            });
+            let data = crate::abstract_var::AbstractVarData::new(
+                compiler,
+                name.clone(),
+                name_node,
+                Some(self),
+                index,
+                input,
+                None,
+            );
+            let var = VarId::push(&mut arena, data);
+            mirror.sync_vars(&arena);
+            let undeclared = if parent_declares {
+                Some(name)
             } else {
-                ScopeArena::write(compiler).scopes[self.index()]
+                arena.scopes[self.index()]
                     .abstract_scope
                     .vars
                     .insert(name, var);
+                None
+            };
+            drop(arena);
+            compiler.scope_mirror = mirror;
+            if let Some(name) = undeclared {
+                self.declare_internal(compiler, name, var);
             }
             return var;
         }
@@ -335,20 +343,24 @@ impl ScopeId {
     }
 
     // Rust-only allocation separates arena identity from the common Java constructor data.
-    fn allocate(compiler: &mut AbstractCompiler, root_node: NodeId) -> Self {
+    fn allocate(
+        compiler: &mut AbstractCompiler,
+        root_node: NodeId,
+        parent: Option<ScopeId>,
+        depth: i32,
+    ) -> Self {
         let mut arena = ScopeArena::write(compiler);
         let scope = Self(NonZeroU32::new(u32::try_from(arena.scopes.len() + 1).unwrap()).unwrap());
         arena.scopes.push(ScopeData {
             abstract_scope: AbstractScopeData::new(root_node),
-            parent: None,
-            depth: 0,
+            parent,
             view: OnceLock::new(),
         });
         drop(arena);
         compiler.scope_mirror.scopes.push(ScopeMeta {
             root_node,
-            parent: None,
-            depth: 0,
+            parent,
+            depth,
         });
         scope
     }

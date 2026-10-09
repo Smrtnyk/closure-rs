@@ -423,8 +423,18 @@ here (one line each) to ease upstream syncs.
 - `jscomp/thread_safe_delegating_error_manager.rs`, `compiler.rs` `hasHaltingErrors`: a flag
   set when the manager found no halting errors and cleared by every change to it lets the
   per-node check of CombinedCompilerPass skip the locks.
-- `rhino/node.rs` `NodeData::prop_mask`: one bit per property type present in the node's
-  property list, so a lookup of an absent property does not walk the list.
+- `rhino/node.rs` `Ast::prop_masks`: per node, one bit per property type present in its
+  property list, in a dense array, so a lookup of an absent property reads neither the node nor
+  the list.
+- `rhino/node.rs` `NodeData`, `NodeCold`, `NodeType`: a node's fields are split over three
+  dense arrays, the payload and property list (read by most passes), the source position and
+  original name, and the type or color (Java: one object).
+- Name lookups read the NAME node's string in place instead of copying it
+  (`ScopeId::get_var_of_node`; PolyfillUsageFinder, OptimizeCalls, VarCheck,
+  RemoveUnusedCode, DataFlowAnalysis#computeEscaped, InlineFunctions, GatherModuleMetadata,
+  PeepholeFoldConstants); OptimizeCalls keeps the extern property names as JS strings instead
+  of converting each property name to compare it.
+- `jscomp/scope.rs` `declare`, `allocate`: a new var or scope takes the arena lock once.
 
 ## D-026 — Upstream syncs follow npm releases; first sync to 20261006.0.0 (2026-10-09)
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**

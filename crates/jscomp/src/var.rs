@@ -58,6 +58,19 @@ impl VarId {
             input,
             implicit_goog_namespace_definition,
         );
+        Self::check_name_node(compiler, name_node);
+        let arena_lock = std::sync::Arc::clone(&compiler.scope_arena);
+        let mut arena = arena_lock
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let var = Self::push(&mut arena, data);
+        compiler.scope_mirror.sync_vars(&arena);
+        drop(arena);
+        var
+    }
+
+    /// Rust-only: `Var#Var`'s check of the name node.
+    pub(crate) fn check_name_node(compiler: &AbstractCompiler, name_node: Option<NodeId>) {
         if let Some(name_node) = name_node {
             check_argument!(
                 matches!(
@@ -68,14 +81,6 @@ impl VarId {
                 name_node.to_string(compiler)
             );
         }
-        let arena_lock = std::sync::Arc::clone(&compiler.scope_arena);
-        let mut arena = arena_lock
-            .write()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let var = Self::push(&mut arena, data);
-        compiler.scope_mirror.sync_vars(&arena);
-        drop(arena);
-        var
     }
 
     /// Rust-only: the lock-free copy of this var's immutable fields, when the mirror has it.

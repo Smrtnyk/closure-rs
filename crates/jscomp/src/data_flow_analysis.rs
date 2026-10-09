@@ -428,10 +428,9 @@ pub fn compute_escaped(
             if !n.is_name(t) || parent.is_some_and(|p| p.is_function(t)) {
                 return;
             }
-            let name = n.get_string(t);
             let scope = t.get_scope();
             let compiler = t.get_compiler();
-            let Some(var) = scope.get_var(compiler, &name) else {
+            let Some(var) = scope.get_var_of_node(compiler, n) else {
                 return;
             };
             let variable_cfg_scope = var.get_scope(compiler).get_closest_cfg_root_scope(compiler);

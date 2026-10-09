@@ -471,10 +471,10 @@ impl<'a> Finder<'a> {
 
     // port: GatherModuleMetadata.Finder#visitName
     fn visit_name(&mut self, t: &mut NodeTraversal<'_>, n: NodeId) {
-        let name = n.get_string(t);
-        if self.toggle_module_names.contains(&name) {
+        // Rust-only: the name is read in place (D-025).
+        if self.toggle_module_names.contains(n.get_string_ref(t)) {
             let scope = t.get_scope();
-            let name_var = scope.get_var(t.get_compiler(), name.clone());
+            let name_var = scope.get_var_of_node(t.get_compiler(), n);
             if self.toggle_modules_contains(t.get_compiler(), name_var) {
                 let parent = n.get_parent(t).unwrap();
                 if parent.is_get_prop(t) {
@@ -489,7 +489,7 @@ impl<'a> Finder<'a> {
                 }
             }
         }
-        if name != "goog" {
+        if n.get_string_ref(t) != "goog" {
             return;
         }
 

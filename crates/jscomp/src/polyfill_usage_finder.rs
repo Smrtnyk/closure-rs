@@ -356,12 +356,16 @@ impl PolyfillUsageFinder {
             get_prop_node.is_get_prop(traversal) || get_prop_node.is_opt_chain_get_prop(traversal),
             &get_prop_node.to_string(traversal)
         );
-        let last_component = get_prop_node.get_string(traversal);
-        if !self.polyfills.suffixes.contains(&last_component) {
+        if !self
+            .polyfills
+            .suffixes
+            .contains(get_prop_node.get_string_ref(traversal))
+        {
             // Save execution time by bailing out early if the property name at the end of the chain
             // doesn't match any of the known polyfills.
             return None;
         }
+        let last_component = get_prop_node.get_string(traversal);
         // NOTE: We are not using isQualifiedName() and getQualifiedName() here, because we want to
         // locate the owner node and also have this code work for optional chains.
         let mut components: VecDeque<JsString> = VecDeque::new();
@@ -507,11 +511,18 @@ impl<'a, 'c> Traverser<'a, 'c> {
 
     // port: PolyfillUsageFinder.Traverser#visitName
     fn visit_name(&mut self, traversal: &mut NodeTraversal<'_>, name_node: NodeId) {
-        let name = name_node.get_string(traversal);
-        let Some(polyfill) = self.outer.polyfills.statics.get(&name).cloned() else {
+        // Rust-only: the name is looked up in place and copied only for a polyfill (D-025).
+        let Some(polyfill) = self
+            .outer
+            .polyfills
+            .statics
+            .get(name_node.get_string_ref(traversal))
+            .cloned()
+        else {
             // no polyfill exists for this name
             return;
         };
+        let name = name_node.get_string(traversal);
 
         if self.outer.is_polyfill_visible_in_scope(traversal, &name)
             && self

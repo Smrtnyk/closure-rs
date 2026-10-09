@@ -404,7 +404,7 @@ pub trait AbstractScope: Copy + Eq {
 
     // port: AbstractScope#checkChildScope
     fn check_child_scope(self, compiler: &AbstractCompiler, parent: Self) {
-        let root_node = self.scope_data(compiler).root_node;
+        let root_node = self.get_root_node(compiler);
         check_argument!(
             NodeUtil::creates_scope(compiler, root_node),
             &root_node.to_string(compiler)
@@ -418,7 +418,7 @@ pub trait AbstractScope: Copy + Eq {
 
     // port: AbstractScope#checkRootScope
     fn check_root_scope(self, compiler: &AbstractCompiler) {
-        let root_node = self.scope_data(compiler).root_node;
+        let root_node = self.get_root_node(compiler);
         check_argument!(
             NodeUtil::creates_scope(compiler, root_node)
                 || root_node.is_script(compiler)
