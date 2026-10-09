@@ -1,0 +1,7 @@
+WARNING - [SOURCEMAP_PARSE_FAILED] Failed to parse malformed sourcemap in a.map: JSON parse exception: com.google.gson.JsonSyntaxException: java.io.EOFException: End of input at line 2 column 1 path $.bad
+
+WARNING - [SOURCEMAP_PARSE_FAILED] Failed to parse malformed sourcemap in b.map: Unknown version: 2
+
+WARNING - [SOURCEMAP_RESOLVE_FAILED] Failed to resolve sourcemap at missing.map: missing.map
+
+0 error(s), 3 warning(s)

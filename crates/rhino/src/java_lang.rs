@@ -152,6 +152,7 @@
 //! Ported from jdk.internal.math.DoubleToDecimal and MathUtils.
 pub mod big_integer;
 mod character_bmp;
+pub mod concurrent_hash_map;
 pub mod double;
 pub mod hash_map;
 mod integer;

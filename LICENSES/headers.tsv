@@ -1053,6 +1053,7 @@ crates/rhino/src/java_lang/character_bmp_data.rs	34fa9feb584cb27a	GPL-2.0-only W
 crates/rhino/src/java_lang/character_case_data.rs	34fa9feb584cb27a	GPL-2.0-only WITH Classpath-exception-2.0 AND Unicode-DFS-2016	jdk:java.base/java/lang/Character.java
 crates/rhino/src/java_lang/character_data.rs	34fa9feb584cb27a	GPL-2.0-only WITH Classpath-exception-2.0 AND Unicode-DFS-2016	jdk:java.base/java/lang/Character.java
 crates/rhino/src/java_lang/charset.rs	850dfa0d406e4829	GPL-2.0-only WITH Classpath-exception-2.0	jdk:java.base/java/nio/charset/Charset.java; jdk:java.base/java/nio/charset/CharsetDecoder.java; jdk:java.base/sun/nio/cs/UTF_8.java; jdk:java.base/sun/nio/cs/UnicodeDecoder.java; jdk:java.base/java/nio/charset/CharsetEncoder.java
+crates/rhino/src/java_lang/concurrent_hash_map.rs	fe5a5b12870939f5	GPL-2.0-only WITH Classpath-exception-2.0	jdk:java.base/java/util/concurrent/ConcurrentHashMap.java
 crates/rhino/src/java_lang/double.rs	71a8f73873f86939	GPL-2.0-only WITH Classpath-exception-2.0	jdk:java.base/java/lang/Double.java; jdk:java.base/jdk/internal/math/FloatingDecimal.java
 crates/rhino/src/java_lang/formatter.rs	6776a849141ab4fb	GPL-2.0-only WITH Classpath-exception-2.0	jdk:java.base/java/util/Formatter.java; jdk:java.base/jdk/internal/math/FormattedFPDecimal.java
 crates/rhino/src/java_lang/hash_map.rs	4c8a7f4dc1f45a87	GPL-2.0-only WITH Classpath-exception-2.0	jdk:java.base/java/util/HashMap.java
@@ -1128,6 +1129,7 @@ crates/rhino/tests/dtoa_golden.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/tests/farm_hash_fingerprint64_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/tests/hamt_pmap_test.rs	980489859b9d7324	(MPL-1.1 OR GPL-2.0-or-later)	closure:test/com/google/javascript/rhino/HamtPMapTest.java
 crates/rhino/tests/ir_test.rs	f3cf87e61070a99e	(MPL-1.1 OR GPL-2.0-or-later)	closure:test/com/google/javascript/rhino/IRTest.java
+crates/rhino/tests/java_concurrent_hash_map_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/tests/java_hash_map_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/tests/java_lang_numeric_parse_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/tests/java_lang_parser_test.rs	322fc2ba37b98b96	Apache-2.0	-

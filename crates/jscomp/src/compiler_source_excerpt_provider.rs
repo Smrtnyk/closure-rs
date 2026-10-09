@@ -30,7 +30,7 @@ use std::sync::{Arc, Mutex};
 pub(crate) struct CompilerSourceExcerptProvider {
     pub files: Mutex<IndexMap<String, Arc<SourceFile>>>,
     pub original_sources: Arc<Mutex<IndexMap<String, Arc<SourceFile>>>>,
-    pub input_source_maps: Arc<Mutex<IndexMap<String, Arc<SourceMapInput>>>>,
+    pub input_source_maps: Arc<Mutex<crate::compiler::InputSourceMaps>>,
     pub pending_errors: crate::sorting_error_manager::DeferredReports,
     resolved_source_map: Mutex<ResolvedSourceMap>,
 }
