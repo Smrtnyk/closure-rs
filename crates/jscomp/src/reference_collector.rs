@@ -361,9 +361,8 @@ impl Callback for CollectorCallback<'_> {
                 return;
             }
 
-            let name = n.get_string(t);
             let scope = t.get_scope();
-            let v = scope.get_var(t.get_compiler(), name);
+            let v = scope.get_var_of_node(t.get_compiler(), n);
 
             if let Some(v) = v {
                 self.add_reference(v, n, t);

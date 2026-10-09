@@ -90,6 +90,7 @@ crates/jscomp/src/check_super.rs	74bf25295c999b5c	Apache-2.0	closure:src/com/goo
 crates/jscomp/src/check_suspicious_code.rs	a3dfb3a369f1d545	Apache-2.0	closure:src/com/google/javascript/jscomp/CheckSuspiciousCode.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
 crates/jscomp/src/check_type_import_code_references.rs	1c8684b5a972cc2c	Apache-2.0	closure:src/com/google/javascript/jscomp/CheckTypeImportCodeReferences.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
 crates/jscomp/src/check_unreachable_code.rs	976ba2f8436db648	Apache-2.0	closure:src/com/google/javascript/jscomp/CheckUnreachableCode.java
+crates/jscomp/src/chunked_vec.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/closure_check_module.rs	78e6e50c5a48566c	Apache-2.0	closure:src/com/google/javascript/jscomp/ClosureCheckModule.java; closure:src/com/google/javascript/jscomp/NodeUtil.java
 crates/jscomp/src/closure_code_removal.rs	0e1ff4fa189b4629	Apache-2.0	closure:src/com/google/javascript/jscomp/ClosureCodeRemoval.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
 crates/jscomp/src/closure_coding_convention.rs	a2056b96c91fe2c4	Apache-2.0	closure:src/com/google/javascript/jscomp/ClosureCodingConvention.java

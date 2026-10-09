@@ -2221,13 +2221,14 @@ impl PeepholeFoldConstants {
     fn try_fold_get_prop(&self, compiler: &mut AbstractCompiler, n: NodeId) -> NodeId {
         check_argument!(n.is_get_prop(compiler) || n.is_opt_chain_get_prop(compiler));
         let left = n.get_first_child(compiler).unwrap();
-        let name = n.get_string(compiler);
 
         if left.is_object_lit(compiler) {
+            let name = n.get_string(compiler);
             return self.try_fold_object_prop_access(compiler, n, left, &name);
         }
 
-        if name == "length" {
+        // Rust-only: the name is compared in place (D-025).
+        if n.get_string_ref(compiler) == "length" {
             if NodeUtil::is_l_value(compiler, n) {
                 return n;
             }

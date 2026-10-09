@@ -103,13 +103,13 @@ impl RhinoStringPool {
     fn add_or_get_shared(s: JsString) -> JsString {
         let mut pool = shard(s.as_units()).lock().unwrap();
         if let Some(interned) = pool.get(s.as_units()).and_then(Weak::upgrade) {
-            return JsString(interned);
+            return JsString::from_shared(interned);
         }
         // Weak entries cannot retain the string. Remove their keys as well.
         if pool.len().is_multiple_of(1024) {
             pool.retain(|_, v| v.strong_count() != 0);
         }
-        pool.insert(s.as_units().into(), Arc::downgrade(&s.0));
+        pool.insert(s.as_units().into(), Arc::downgrade(s.shared()));
         s
     }
     // port: RhinoStringPool#RhinoStringPool

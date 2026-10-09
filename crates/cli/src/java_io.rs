@@ -20,11 +20,21 @@ use closure_rhino::{java_lang::charset::Charset, js_string::JsString};
 use std::io::{self, Write};
 // port: StreamEncoder#implWrite / CharsetEncoder#encode (the six shared Charset variants)
 pub fn encode(value: &JsString, charset: Charset, emit_bom: bool) -> Vec<u8> {
-    let mut out = Vec::new();
-    if charset == Charset::UTF_16 && emit_bom && !value.is_empty() {
+    encode_units(value.as_units(), charset, emit_bom)
+}
+/// Rust-only: `encode` of code units, with a fast path for ASCII in UTF-8 (D-025).
+fn encode_units(units: &[u16], charset: Charset, emit_bom: bool) -> Vec<u8> {
+    let mut out = Vec::with_capacity(units.len());
+    if charset == Charset::UTF_16 && emit_bom && !units.is_empty() {
         out.extend([0xfe, 0xff]);
     }
-    for c in char::decode_utf16(value.as_units().iter().copied()) {
+    let mut units = units;
+    if charset == Charset::UTF_8 {
+        let ascii = units.iter().position(|u| *u >= 0x80).unwrap_or(units.len());
+        out.extend(units[..ascii].iter().map(|u| *u as u8));
+        units = &units[ascii..];
+    }
+    for c in char::decode_utf16(units.iter().copied()) {
         match charset {
             Charset::UTF_8 => match c {
                 Ok(c) => {
@@ -181,13 +191,26 @@ impl Write for EncodedWriter<'_> {
         if self.closed {
             return Err(io::Error::other("Stream closed"));
         }
+        // Rust-only fast path (D-025): bytes written as UTF-8 reach a UTF-8 stream unchanged
+        // (after the replacement of malformed input that the UTF-16 round trip makes).
+        if self.charset == Charset::UTF_8 && self.pending_chars.is_empty() {
+            if !self.pending.is_empty() {
+                let text = String::from_utf8_lossy(&self.pending);
+                self.stream.write_all(text.as_bytes())?;
+                self.pending.clear();
+                self.emit_bom = false;
+            }
+            return self.stream.flush();
+        }
         self.pending_chars
             .extend(String::from_utf8_lossy(&self.pending).encode_utf16());
         self.pending.clear();
         if !self.pending_chars.is_empty() {
-            let value = JsString::from_units(self.pending_chars.clone());
-            self.stream
-                .write_all(&encode(&value, self.charset, self.emit_bom))?;
+            self.stream.write_all(&encode_units(
+                &self.pending_chars,
+                self.charset,
+                self.emit_bom,
+            ))?;
             self.pending_chars.clear();
             self.emit_bom = false;
         }

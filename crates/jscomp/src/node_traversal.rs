@@ -106,6 +106,9 @@ pub struct NodeTraversal<'a> {
     /// Rust-only: the CompilerInput found for `compiler_input` (Java's cached `compilerInput`;
     /// a shared handle), so that `get_input` needs no input lookup by id (D-025).
     compiler_input_object: Option<CompilerInput>,
+    /// Rust-only: the chunk of `compiler_input_object`, read once per script (D-025; Java's
+    /// `getChunk` reads the input's field, which needs a lock and a weak upgrade here).
+    chunk_of_input: Option<Option<JSChunk>>,
 }
 
 pub trait Callback {
@@ -885,6 +888,7 @@ impl<'a> NodeTraversal<'a> {
             input_id: None,
             compiler_input: None,
             compiler_input_object: None,
+            chunk_of_input: None,
         }
     }
 
@@ -1262,6 +1266,11 @@ impl<'a> NodeTraversal<'a> {
     // port: NodeTraversal#getInput
     #[allow(clippy::collapsible_if)] // Retain Java control flow.
     pub fn get_input(&mut self) -> Option<&CompilerInput> {
+        // Rust-only fast path (D-025): once the input is cached, getInputId() has been computed
+        // and the lookup below is skipped, so the id need not be copied again.
+        if self.compiler_input_object.is_some() {
+            return self.compiler_input_object.as_ref();
+        }
         let input_id = self.get_input_id();
         if self.compiler_input.is_none() {
             if let Some(input_id) = input_id {
@@ -1285,7 +1294,14 @@ impl<'a> NodeTraversal<'a> {
 
     // port: NodeTraversal#getChunk
     pub fn get_chunk(&mut self) -> Option<JSChunk> {
-        self.get_input().and_then(|input| input.get_chunk())
+        if let Some(chunk) = &self.chunk_of_input {
+            return chunk.clone();
+        }
+        let chunk = self.get_input().and_then(|input| input.get_chunk());
+        if self.compiler_input_object.is_some() {
+            self.chunk_of_input = Some(chunk.clone());
+        }
+        chunk
     }
 
     // port: NodeTraversal#getCurrentNode
@@ -1927,6 +1943,7 @@ impl<'a> NodeTraversal<'a> {
         self.source_name = None;
         self.compiler_input = None;
         self.compiler_input_object = None;
+        self.chunk_of_input = None;
     }
 
     // port: NodeTraversal#getInputId

@@ -852,8 +852,9 @@ impl RemoveUnusedCode {
         n: NodeId,
         scope: ScopeId,
     ) -> VarInfoId {
-        let name = n.get_string(compiler);
-        if self.polyfills.contains_key(&name) {
+        // Rust-only: the name is read in place, copied only for a polyfill (D-025).
+        if self.polyfills.contains_key(n.get_string_ref(compiler)) {
+            let name = n.get_string(compiler);
             for info in self.polyfills.get(&name) {
                 if self.polyfill_infos[info.0].is_removable {
                     self.polyfill_info_consider_possible_reference(compiler, info, n);
@@ -1099,9 +1100,8 @@ impl RemoveUnusedCode {
         name_node: NodeId,
         scope: ScopeId,
     ) -> VarId {
-        let name = name_node.get_string(compiler);
         check_not_null!(
-            scope.get_var(compiler, name),
+            scope.get_var_of_node(compiler, name_node),
             "%s",
             name_node.to_string(compiler)
         )

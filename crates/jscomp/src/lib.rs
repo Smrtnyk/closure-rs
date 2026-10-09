@@ -25,6 +25,7 @@ pub mod black_hole_error_manager;
 pub mod bundle;
 pub mod by_path_warnings_guard;
 pub mod check_level;
+pub(crate) mod chunked_vec;
 pub mod closure_unaware_code_warnings_guard;
 pub mod closure_unaware_options;
 pub mod code_consumer;

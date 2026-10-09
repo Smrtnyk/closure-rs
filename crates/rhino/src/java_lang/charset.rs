@@ -129,7 +129,19 @@ impl Charset {
                 little = true;
             }
         }
+        // Rust-only (D-025): one output buffer, sized up front, and a fast path for ASCII runs
+        // of UTF-8 (Java's decoder loops over a char buffer too; the result is the same).
+        out.reserve(bytes.len().saturating_sub(i));
         while i < bytes.len() {
+            if self == Self::UTF_8 && bytes[i] < 128 {
+                let run = bytes[i..]
+                    .iter()
+                    .position(|b| *b >= 128)
+                    .unwrap_or(bytes.len() - i);
+                out.extend(bytes[i..i + run].iter().map(|b| u16::from(*b)));
+                i += run;
+                continue;
+            }
             let (units, consumed, malformed) = match self {
                 Self::ISO_8859_1 => (vec![bytes[i] as u16], 1, false),
                 Self::US_ASCII => (vec![bytes[i] as u16], 1, bytes[i] >= 128),
