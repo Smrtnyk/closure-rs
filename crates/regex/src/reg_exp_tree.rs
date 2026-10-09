@@ -2803,7 +2803,7 @@ impl Concatenation {
                 // \1(?:0) bleeds if there are 10 or more capturing groups preceding.
                 matches!(element, RegExpTree::BackReference(back_reference) if back_reference.group_index < 10)
                     // foo{(?:10}) bleeds.
-                    || matches!(element, RegExpTree::Text(text) if text.text.ends_with(&JsString::from("{")));
+                    || matches!(element, RegExpTree::Text(text) if text.text.ends_with("{"));
         }
     }
 

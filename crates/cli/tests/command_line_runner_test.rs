@@ -2017,11 +2017,7 @@ fn test_es5_strict_use_strict() {
         "--emit_use_strict=true".into(),
     ]);
     h.compile_sources(&["var x = f.function"]);
-    assert!(
-        h.get_compiler()
-            .to_source()
-            .starts_with(&closure_rhino::js_string::JsString::from("'use strict'"))
-    );
+    assert!(h.get_compiler().to_source().starts_with("'use strict'"));
 }
 // port: CommandLineRunnerTest#testES5StrictUseStrictMultipleInputs
 #[test]
@@ -2038,7 +2034,7 @@ fn test_es5_strict_use_strict_multiple_inputs() {
         "var z = f.function",
     ]);
     let output = h.get_compiler().to_source();
-    assert!(output.starts_with(&closure_rhino::js_string::JsString::from("'use strict'")));
+    assert!(output.starts_with("'use strict'"));
     assert!(
         !output
             .substring_from(13)

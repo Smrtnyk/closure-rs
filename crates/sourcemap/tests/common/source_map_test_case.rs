@@ -170,13 +170,13 @@ impl SourceMapTestCase {
                 mapping.get_line_number()
             );
             let mut start = input_token.position.get_column() + 1;
-            if input_token.token_name.starts_with(&"STR".into()) {
+            if input_token.token_name.starts_with("STR") {
                 start -= 1;
             }
             if self.validate_columns {
                 assert_eq!(mapping.get_column_position(), start);
             }
-            if !input_token.token_name.starts_with(&"STR".into()) {
+            if !input_token.token_name.starts_with("STR") {
                 assert!(!mapping.get_identifier().is_empty());
             }
             if !mapping.get_identifier().is_empty() {

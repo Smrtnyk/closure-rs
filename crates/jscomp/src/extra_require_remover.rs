@@ -376,10 +376,7 @@ impl ExtraRequireRemover {
         }
         let module_id = call.get_second_child(ast);
         module_id.is_some_and(|module_id| {
-            module_id.is_string_lit(ast)
-                && module_id
-                    .get_string(ast)
-                    .starts_with(&JsString::from("proto."))
+            module_id.is_string_lit(ast) && module_id.get_string(ast).starts_with("proto.")
         })
     }
 }

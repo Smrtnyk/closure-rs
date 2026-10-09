@@ -83,13 +83,13 @@ impl Callback for RenameMessagesVisitor {
     // port: JsMessageVisitorTest.RenameMessagesVisitor#visit
     #[allow(clippy::if_same_then_else)] // Retain the Java control flow.
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        if n.is_name(t) && n.get_string(t).starts_with(&s("MSG_")) {
+        if n.is_name(t) && n.get_string(t).starts_with(s("MSG_")) {
             let original_name = n.get_string(t);
             n.set_original_name(t, Some(original_name.clone()));
             n.set_string(t, s("some_prefix_").concat(&original_name));
         } else if n.is_get_prop(t)
             && parent.unwrap().is_assign(t)
-            && n.get_qualified_name(t).unwrap().index_of(&s(".MSG_")) >= 0
+            && n.get_qualified_name(t).unwrap().index_of(s(".MSG_")) >= 0
         {
             let original_name = n.get_string(t);
             n.set_original_name(t, Some(original_name.clone()));

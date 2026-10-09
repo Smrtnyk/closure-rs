@@ -1509,11 +1509,11 @@ impl<'g> BuildGlobalNamespace<'g> {
 
         let mut num_levels_to_remove: i32;
         let prefix: JsString;
-        if name.ends_with(&JsString::from(".prototype")) {
+        if name.ends_with(".prototype") {
             num_levels_to_remove = 1;
             prefix = name.substring(0, name.length() - 10);
         } else {
-            let mut i = name.index_of(&JsString::from(".prototype."));
+            let mut i = name.index_of(".prototype.");
             if i == -1 {
                 return false;
             }

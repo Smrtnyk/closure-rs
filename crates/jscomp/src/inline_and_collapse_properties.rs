@@ -637,7 +637,7 @@ impl AggressiveInlineAliases {
         alias_refs: &ReferenceCollection,
     ) -> bool {
         let aliased_name_str = name.get_full_name(namespace);
-        if !aliased_name_str.starts_with(&JsString::from(MODULE_EXPORTS_PREFIX)) {
+        if !aliased_name_str.starts_with(JsString::from(MODULE_EXPORTS_PREFIX)) {
             return false;
         }
         // the first rhs value Node we find assigned to the name

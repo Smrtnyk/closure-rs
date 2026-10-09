@@ -96,7 +96,7 @@ pub struct Assignment {
 impl Assignment {
     // port: RenameVars.Assignment#Assignment
     fn new(name: JsString, assignment_count: &mut i32) -> Self {
-        let is_local = name.starts_with(&JsString::from(RenameVars::LOCAL_VAR_PREFIX));
+        let is_local = name.starts_with(JsString::from(RenameVars::LOCAL_VAR_PREFIX));
         // Represents the order at which a symbol appears in the source.
         let order_of_occurrence = *assignment_count;
         *assignment_count += 1;

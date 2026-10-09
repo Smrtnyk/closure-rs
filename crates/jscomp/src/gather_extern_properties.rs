@@ -23,7 +23,6 @@ use crate::compiler_pass::CompilerPass;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
 use closure_rhino::check_state;
-use closure_rhino::js_string::JsString;
 use closure_rhino::jsdoc_info::JSDocInfo;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
@@ -139,9 +138,7 @@ impl GatherExternProperties {
             );
             let mut field_name = field_name_node.get_string(ast);
             // TODO(bradfordcsmith): The JSDoc parser should do this.
-            if field_name.starts_with(&JsString::from("'"))
-                || field_name.starts_with(&JsString::from("\""))
-            {
+            if field_name.starts_with("'") || field_name.starts_with("\"") {
                 field_name = field_name.substring(1, field_name.length() - 1);
             }
             self.extern_properties.insert(field_name.to_string_lossy());

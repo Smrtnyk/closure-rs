@@ -471,7 +471,7 @@ pub(crate) fn guava_whitespace(c: u16) -> bool {
 }
 // port: String#indexOf(String,int)
 fn find(s: &JsString, needle: &str, from: usize) -> Option<usize> {
-    usize::try_from(s.index_of_from(&JsString::from(needle), from as i32)).ok()
+    usize::try_from(s.index_of_from(JsString::from(needle), from as i32)).ok()
 }
 struct StringLines {
     input: JsString,

@@ -34,7 +34,8 @@ use std::{
 /// Fields shared by syntactic and future typed scope handles.
 #[derive(Debug)]
 pub struct AbstractScopeData<V> {
-    pub(crate) vars: IndexMap<JsString, V>,
+    // Java LinkedHashMap; the Fx hasher keeps the insertion order (D-025).
+    pub(crate) vars: closure_rhino::fx_hash::FxIndexMap<JsString, V>,
     pub(crate) implicit_vars: BTreeMap<ImplicitVar, V>,
     pub(crate) root_node: NodeId,
 }
@@ -43,7 +44,7 @@ impl<V> AbstractScopeData<V> {
     // port: AbstractScope#AbstractScope
     pub(crate) fn new(root_node: NodeId) -> Self {
         Self {
-            vars: IndexMap::new(),
+            vars: Default::default(),
             implicit_vars: BTreeMap::new(),
             root_node,
         }

@@ -3129,7 +3129,7 @@ impl NodeId {
             "%s",
             self.to_string(ast)
         );
-        check_state!(self.get_string_ref(ast).starts_with(&"#".into()));
+        check_state!(self.get_string_ref(ast).starts_with("#"));
         self.put_boolean_prop(ast, Prop::PRIVATE_IDENTIFIER, true);
     }
     // port: Node#isAdd

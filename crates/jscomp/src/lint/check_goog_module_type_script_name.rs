@@ -69,7 +69,7 @@ impl CheckGoogModuleTypeScriptName {
         // Java String operations on UTF-16 code units.
         let mut source_name = JsString::from(source_name);
         // MOE::begin_strip
-        let google3_index = source_name.index_of(&JsString::from("google3"));
+        let google3_index = source_name.index_of("google3");
         if google3_index == -1 {
             source_name = JsString::from("google3/").concat(&source_name);
         } else if google3_index != 0 {
@@ -91,7 +91,7 @@ impl CheckGoogModuleTypeScriptName {
             JsString::from_units(replaced).substring(0, source_name.length() - ".js".len());
         if original_namespace != replacement_namespace {
             for allowed_directory in ALLOWED_DIRECTORIES {
-                if source_name.starts_with(&JsString::from(allowed_directory)) {
+                if source_name.starts_with(JsString::from(allowed_directory)) {
                     t.report(
                         n,
                         &MODULE_NAMESPACE_MISMATCHES_TYPESCRIPT_NAMESPACE,

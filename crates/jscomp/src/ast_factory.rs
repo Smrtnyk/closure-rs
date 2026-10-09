@@ -945,7 +945,7 @@ impl AstFactory {
         );
         let result = IR::name(cx.get_type_registry_and_ast_mut().1, name.clone());
         self.set_js_type_or_color(cx, type_, result);
-        if self.life_cycle_stage.is_normalized() && name.starts_with(&JsString::from("$jscomp")) {
+        if self.life_cycle_stage.is_normalized() && name.starts_with("$jscomp") {
             // $jscomp will always be a constant and needs to be marked that way to satisfy
             // the normalization invariants.
             // TODO: b/322009741 - Stop depending on lifeCycleStage.isNormalized() and "$jscomp"

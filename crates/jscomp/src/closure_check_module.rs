@@ -567,7 +567,7 @@ impl ClosureCheckModule {
     // port: ClosureCheckModule#checkShortName
     fn check_short_name(t: &mut NodeTraversal<'_>, short_name_node: NodeId, namespace: &JsString) {
         let next_qname_part = short_name_node.get_string(t);
-        if namespace.starts_with(&JsString::from("google3.")) {
+        if namespace.starts_with("google3.") {
             // `google3` namespaces don't provide capitalization context for the import name
             return;
         }

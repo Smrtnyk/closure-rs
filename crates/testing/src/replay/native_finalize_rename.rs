@@ -836,7 +836,7 @@ fn get_prefix_filter(_ctx: &mut Ctx, _args: Vec<DslValue>) -> Result<DslValue, T
         "com.google.javascript.jscomp.RenamePropertiesTest_Helpers$GetPrefixFilter",
         Box::new(|ast, node| {
             let name = node.get_string(ast);
-            name.starts_with(&JsString::from("get"))
+            name.starts_with("get")
         }),
     ))
 }

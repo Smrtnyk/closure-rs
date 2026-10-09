@@ -1882,7 +1882,7 @@ fn test_inline_non_js_doc_comment_attachment_to_var() {
             .as_ref()
             .unwrap()
             .get_comment_string()
-            .index_of(&JsString::from("/* blah */"))
+            .index_of("/* blah */")
             >= 0
     );
 }
@@ -1919,7 +1919,7 @@ fn test_inline_non_js_doc_comment_attachment_to_obj_pat_normal_prop() {
     assert!(
         normal_prop_target
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* blah */"))
+            .index_of("/* blah */")
             >= 0
     );
 }
@@ -1973,7 +1973,7 @@ fn test_inline_non_js_doc_comment_attachment_to_obj_pat_normal_prop_key() {
         normal_prop_key
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* blah */"))
+            .index_of("/* blah */")
             >= 0
     );
 }
@@ -2061,7 +2061,7 @@ fn test_inline_non_js_doc_attachment_to_obj_pat_shorthand_prop() {
         shorthand_prop
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* blah */"))
+            .index_of("/* blah */")
             >= 0
     );
 }
@@ -2093,7 +2093,7 @@ fn test_inline_non_js_doc_comment_attachment_to_obj_pat_normal_prop_with_default
         normal_prop_with_default_target
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* blah */"))
+            .index_of("/* blah */")
             >= 0
     );
 }
@@ -2126,7 +2126,7 @@ fn test_inline_non_js_doc_comment_attachment_to_obj_pat_shorthand_with_default()
         shorthand_prop_with_default_target
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* blah */"))
+            .index_of("/* blah */")
             >= 0
     );
 }
@@ -2146,7 +2146,7 @@ fn test_obj_lit_key_non_js_doc_comment() {
         string_key
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("// blah"))
+            .index_of("// blah")
             >= 0
     );
 }
@@ -2164,7 +2164,7 @@ fn test_label_non_js_doc_comment() {
         label
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("// blah"))
+            .index_of("// blah")
             >= 0
     );
 }
@@ -2187,7 +2187,7 @@ fn test_field_non_js_doc_comment() {
         field
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("// blah"))
+            .index_of("// blah")
             >= 0
     );
 }
@@ -2214,7 +2214,7 @@ fn test_property_name_assignment_non_js_doc_comment() {
         var_name
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("// blah"))
+            .index_of("// blah")
             >= 0
     );
 }
@@ -2234,7 +2234,7 @@ fn test_get_prop_call_non_js_doc_comment() {
         baz_access
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("// blah"))
+            .index_of("// blah")
             >= 0
     );
 }
@@ -2254,7 +2254,7 @@ fn test_get_prop_optional_call_non_js_doc_comment() {
         baz_access
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("// blah"))
+            .index_of("// blah")
             >= 0
     );
 }
@@ -2274,7 +2274,7 @@ fn test_get_prop_assignment_non_js_doc_comment() {
         baz_access
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("// blah"))
+            .index_of("// blah")
             >= 0
     );
 }
@@ -2390,7 +2390,7 @@ fn test_inline_block_comment_attachment() {
         x_node
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* blah */"))
+            .index_of("/* blah */")
             >= 0
     );
 }
@@ -2413,7 +2413,7 @@ fn test_inline_line_comment_attachment() {
         x_node
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("// blah"))
+            .index_of("// blah")
             >= 0
     );
 }
@@ -2434,7 +2434,7 @@ fn test_inline_non_js_doc_comments_trailing_and_non_trailing_param_list() {
         x_node
             .unwrap()
             .get_trailing_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* first */"))
+            .index_of("/* first */")
             >= 0
     );
     assert_eq!(
@@ -2459,7 +2459,7 @@ fn test_inline_non_js_doc_trailing_comments_param_list() {
         x_node
             .unwrap()
             .get_trailing_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* first */"))
+            .index_of("/* first */")
             >= 0
     );
     assert!(
@@ -2486,7 +2486,7 @@ fn test_inline_non_js_doc_trailing_comments_formal_param_list_single_param() {
         x_node
             .unwrap()
             .get_trailing_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* first */"))
+            .index_of("/* first */")
             >= 0
     );
 }
@@ -2815,14 +2815,14 @@ fn test_inline_non_js_doc_comments_on_separate_let_declarations() {
             .get_first_first_child(&h.ast)
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* leading a */"))
+            .index_of("/* leading a */")
             >= 0
     );
     assert!(
         let_a_decl
             .unwrap()
             .get_trailing_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* trailing */"))
+            .index_of("/* trailing */")
             >= 0
     );
     assert!(
@@ -2831,7 +2831,7 @@ fn test_inline_non_js_doc_comments_on_separate_let_declarations() {
             .get_first_child(&h.ast)
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* leading b */"))
+            .index_of("/* leading b */")
             >= 0
     );
 }
@@ -2854,7 +2854,7 @@ fn test_multiple_inline_line_comments_attachment() {
         x_node
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("// blah1"))
+            .index_of("// blah1")
             >= 0
     );
     let mut y_node = fn_node
@@ -2886,7 +2886,7 @@ fn test_multiple_inline_mixed_comments_attachment() {
         x_node
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* blah1 */"))
+            .index_of("/* blah1 */")
             >= 0
     );
     let mut y_node = fn_node
@@ -2918,7 +2918,7 @@ fn test_multiple_inline_non_js_doc_comments_get_attached_to_same_node() {
         x_node
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* blah1 */\n// blah"))
+            .index_of(JsString::from("/* blah1 */\n// blah"))
             >= 0
     );
 }
@@ -2941,14 +2941,14 @@ fn test_both_trailing_and_non_trailing_non_js_doc_comments_get_attached_to_same_
         x_node
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* blah1 */"))
+            .index_of("/* blah1 */")
             >= 0
     );
     assert!(
         x_node
             .unwrap()
             .get_trailing_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("// blah"))
+            .index_of("// blah")
             >= 0
     );
 }
@@ -3060,14 +3060,14 @@ fn test_both_trailing_and_non_trailing_non_js_doc_comments_get_attached_to_same_
         x_node
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* blah1 */"))
+            .index_of("/* blah1 */")
             >= 0
     );
     assert!(
         x_node
             .unwrap()
             .get_trailing_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/ blah"))
+            .index_of("/ blah")
             >= 0
     );
 }
@@ -3094,14 +3094,14 @@ fn test_inline_trailing_non_js_doc_comments_function_args_and_body() {
     assert!(
         x_node
             .get_trailing_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* first */"))
+            .index_of("/* first */")
             >= 0
     );
     assert!(
         y_node
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* second */"))
+            .index_of("/* second */")
             >= 0
     );
 }
@@ -3121,7 +3121,7 @@ fn test_inline_non_js_doc_comments_function_call() {
         one_arg_node
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* first */"))
+            .index_of("/* first */")
             >= 0
     );
 }
@@ -3142,7 +3142,7 @@ fn test_inline_trailing_non_js_doc_comments_multiple_args() {
         one_arg_node
             .unwrap()
             .get_trailing_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* first */"))
+            .index_of("/* first */")
             >= 0
     );
     assert!(
@@ -3168,7 +3168,7 @@ fn test_inline_trailing_non_js_doc_comments_single_argument() {
         one_arg_node
             .unwrap()
             .get_trailing_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* first */"))
+            .index_of("/* first */")
             >= 0
     );
 }
@@ -7822,7 +7822,7 @@ fn test_default_parameter_inline_non_js_doc_comment() {
         a_name
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("/* number */"))
+            .index_of("/* number */")
             >= 0
     );
 }
@@ -13229,7 +13229,7 @@ fn test_both_js_doc_and_non_js_doc_comments_get_attached() {
         x_node
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("// nonJSDoc"))
+            .index_of("// nonJSDoc")
             >= 0
     );
 }
@@ -13255,7 +13255,7 @@ fn test_both_non_js_doc_and_js_doc_comments_get_attached() {
         x_node
             .unwrap()
             .get_non_jsdoc_comment_string(&h.ast)
-            .index_of(&JsString::from("// nonJSDoc"))
+            .index_of("// nonJSDoc")
             >= 0
     );
 }

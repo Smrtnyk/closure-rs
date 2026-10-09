@@ -2087,7 +2087,7 @@ fn test_parse_define_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("description of element")))
+        .index_of(JsString::from("description of element"))
             >= 0
     );
     assert!(
@@ -2098,7 +2098,7 @@ fn test_parse_define_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("next line")))
+        .index_of(JsString::from("next line"))
             >= 0
     );
 }
@@ -2127,7 +2127,7 @@ fn test_parse_private_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("description ")))
+        .index_of(JsString::from("description "))
             >= 0
     );
     assert!(
@@ -2138,7 +2138,7 @@ fn test_parse_private_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("next line")))
+        .index_of(JsString::from("next line"))
             >= 0
     );
 }
@@ -2167,7 +2167,7 @@ fn test_parse_package_private_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("description ")))
+        .index_of(JsString::from("description "))
             >= 0
     );
     assert!(
@@ -2178,7 +2178,7 @@ fn test_parse_package_private_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("next line")))
+        .index_of(JsString::from("next line"))
             >= 0
     );
 }
@@ -2207,7 +2207,7 @@ fn test_parse_protected_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("description ")))
+        .index_of(JsString::from("description "))
             >= 0
     );
     assert!(
@@ -2218,7 +2218,7 @@ fn test_parse_protected_description() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("next line")))
+        .index_of(JsString::from("next line"))
             >= 0
     );
 }
@@ -10806,7 +10806,7 @@ fn test_export_type() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("descr")))
+        .index_of(JsString::from("descr"))
             >= 0
     );
     assert!(
@@ -10817,7 +10817,7 @@ fn test_export_type() {
         .get_item()
         .cloned())
         .unwrap())
-        .index_of(&(JsString::from("next line")))
+        .index_of(JsString::from("next line"))
             >= 0
     );
 }

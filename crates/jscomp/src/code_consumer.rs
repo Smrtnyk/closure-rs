@@ -109,7 +109,7 @@ pub trait CodeConsumer {
             // template literals).
             self.start_new_line();
             start_of_line = end_of_line as usize + 1; // Jump over the newline char.
-            end_of_line = newcode.index_of_from(&"\n".into(), start_of_line as i32);
+            end_of_line = newcode.index_of_from("\n", start_of_line as i32);
         }
         if newcode.length() > start_of_line {
             // Append line only if it is non-empty.

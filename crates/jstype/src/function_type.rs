@@ -1667,5 +1667,5 @@ fn calculate_constructor_ambiguity(
 // port: FunctionType#isDelegateProxy
 fn is_delegate_proxy(t: TypeId, reg: &JSTypeRegistry) -> bool {
     t.get_reference_name(reg)
-        .is_some_and(|name| name.ends_with(&"(Proxy)".into()))
+        .is_some_and(|name| name.ends_with("(Proxy)"))
 }

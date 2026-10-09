@@ -199,7 +199,7 @@ impl<'a> MappedCodePrinter<'a> {
             builder.push(line_end_pos - line_start_pos);
             // Next line starts where current line ends + 1 to skip "\n" character.
             line_start_pos = line_end_pos + 1;
-            line_end_pos = code.index_of_from(&"\n".into(), line_start_pos);
+            line_end_pos = code.index_of_from("\n", line_start_pos);
         }
         builder
     }

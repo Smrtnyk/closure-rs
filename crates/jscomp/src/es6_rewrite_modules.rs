@@ -115,7 +115,7 @@ fn dot_splitter_split_to_list(name: &JsString, limit: usize) -> Vec<JsString> {
             result.push(name.substring_from(start));
             return result;
         }
-        let index = name.index_of_from(&JsString::from("."), start as i32);
+        let index = name.index_of_from(".", start as i32);
         if index < 0 {
             result.push(name.substring_from(start));
             return result;
@@ -253,7 +253,7 @@ impl Es6RewriteModules {
     fn visit_import(&mut self, t: &mut NodeTraversal<'_>, import_decl: NodeId, parent: NodeId) {
         check_argument!(parent.is_module_body(t), "%s", parent.to_string(t));
         let import_name = import_decl.get_last_child(t).unwrap().get_string(t);
-        let is_namespace_import = import_name.starts_with(&JsString::from("goog:"));
+        let is_namespace_import = import_name.starts_with("goog:");
         if is_namespace_import {
             // Allow importing Closure namespace objects (e.g. from goog.provide or goog.module) as
             //   import ... from 'goog:my.ns.Object'.

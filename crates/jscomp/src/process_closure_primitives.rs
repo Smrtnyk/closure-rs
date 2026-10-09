@@ -450,7 +450,7 @@ impl ProcessClosurePrimitives {
         }
 
         let enclosing_qname = enclosing_fn_name_node.get_qualified_name(compiler).unwrap();
-        if enclosing_qname.index_of(&JsString::from(".prototype.")) < 0 {
+        if enclosing_qname.index_of(".prototype.") < 0 {
             self.rewrite_base_call_in_constructor(
                 compiler,
                 &enclosing_qname,
@@ -952,11 +952,7 @@ impl ProcessClosurePrimitives {
                 &[&callee_name, "The first argument must be a string literal."],
             )),
             Some(prop_name) => {
-                if prop_name
-                    .get_string(compiler)
-                    .index_of(&JsString::from("."))
-                    >= 0
-                {
+                if prop_name.get_string(compiler).index_of(".") >= 0 {
                     compiler.report(JSError::make(
                         compiler,
                         call,

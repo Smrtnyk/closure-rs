@@ -273,7 +273,7 @@ impl TemplateAstMatcher {
             if let Some(index) = self.template_params.iter().position(|p| *p == name) {
                 let type_ = param_types[&name];
                 let is_string_literal = type_.is_string_value_type(compiler.get_type_registry())
-                    && name.starts_with(&JsString::from("string_literal"));
+                    && name.starts_with("string_literal");
                 let replacement =
                     Self::create_template_parameter_node(compiler, index, type_, is_string_literal);
                 Self::replace_node_in_place(compiler, n, replacement);

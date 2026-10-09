@@ -1618,15 +1618,15 @@ pub fn is_start_of_icu_message(part: &JsString) -> bool {
     // ICU messages start with a '{' followed by an identifier, followed by a ',' and then
     // 'plural' or 'select' followed by another comma.
     // the 'startsWith' check is redundant but should allow us to skip using the matcher
-    if !part.starts_with(&JsString::from("{")) {
+    if !part.starts_with("{") {
         return false;
     }
-    let comma_index = part.index_of_from(&JsString::from(","), 1);
+    let comma_index = part.index_of_from(",", 1);
     // if commaIndex == 1 that means the identifier is empty, which isn't allowed.
     if comma_index <= 1 {
         return false;
     }
-    let next_bracket_index = part.index_of_from(&JsString::from("{"), 1);
+    let next_bracket_index = part.index_of_from("{", 1);
     (next_bracket_index == -1 || next_bracket_index > comma_index)
         && (java_starts_with_at(part, "plural,", comma_index + 1)
             || java_starts_with_at(part, "select,", comma_index + 1))

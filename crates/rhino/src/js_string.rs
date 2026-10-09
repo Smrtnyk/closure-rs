@@ -65,22 +65,24 @@ impl JsString {
         self.substring(b, self.length())
     }
     // port: String#indexOf(String)
-    pub fn index_of(&self, needle: &Self) -> i32 {
+    pub fn index_of(&self, needle: impl JsStrLike) -> i32 {
         self.index_of_from(needle, 0)
     }
     // port: String#indexOf(String, int)
-    pub fn index_of_from(&self, needle: &Self, from: i32) -> i32 {
-        let b = (from.max(0) as usize).min(self.length());
-        if needle.is_empty() {
-            return b as i32;
-        }
-        if needle.length() > self.length() - b {
-            return -1;
-        }
-        self.0[b..]
-            .windows(needle.length())
-            .position(|v| v == needle.as_units())
-            .map_or(-1, |i| (b + i) as i32)
+    pub fn index_of_from(&self, needle: impl JsStrLike, from: i32) -> i32 {
+        needle.with_units(|needle| {
+            let b = (from.max(0) as usize).min(self.length());
+            if needle.is_empty() {
+                return b as i32;
+            }
+            if needle.len() > self.length() - b {
+                return -1;
+            }
+            self.0[b..]
+                .windows(needle.len())
+                .position(|v| v == needle)
+                .map_or(-1, |i| (b + i) as i32)
+        })
     }
     // port: String#indexOf(int)
     pub fn index_of_char(&self, c: u16) -> i32 {
@@ -94,25 +96,28 @@ impl JsString {
             .map_or(-1, |i| i as i32)
     }
     // port: String#lastIndexOf(String)
-    pub fn last_index_of(&self, needle: &Self) -> i32 {
-        if needle.is_empty() {
-            return self.length() as i32;
-        }
-        if needle.length() > self.length() {
-            return -1;
-        }
-        self.as_units()
-            .windows(needle.length())
-            .rposition(|value| value == needle.as_units())
-            .map_or(-1, |index| index as i32)
+    pub fn last_index_of(&self, needle: impl JsStrLike) -> i32 {
+        needle.with_units(|needle| {
+            if needle.is_empty() {
+                return self.length() as i32;
+            }
+            if needle.len() > self.length() {
+                return -1;
+            }
+            self.as_units()
+                .windows(needle.len())
+                .rposition(|value| value == needle)
+                .map_or(-1, |index| index as i32)
+        })
     }
     // port: String#startsWith
-    pub fn starts_with(&self, s: &Self) -> bool {
-        self.0.starts_with(&s.0)
+    pub fn starts_with(&self, s: impl JsStrLike) -> bool {
+        // (Any string form: callers need not allocate a JsString for a literal.)
+        s.with_units(|s| self.0.starts_with(s))
     }
     // port: String#endsWith
-    pub fn ends_with(&self, s: &Self) -> bool {
-        self.0.ends_with(&s.0)
+    pub fn ends_with(&self, s: impl JsStrLike) -> bool {
+        s.with_units(|s| self.0.ends_with(s))
     }
     // port: String#isEmpty
     pub fn is_empty(&self) -> bool {

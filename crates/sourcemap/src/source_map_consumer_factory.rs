@@ -40,11 +40,11 @@ impl SourceMapConsumerFactory {
         supplier: Option<&dyn SourceMapSupplier>,
     ) -> Result<Box<dyn SourceMapping>, Error> {
         let contents = contents.into();
-        if contents.starts_with(&"/** Begin line maps. **/".into()) {
+        if contents.starts_with("/** Begin line maps. **/") {
             return Err(Error::new(
                 "This appears to be a V1 SourceMap, which is not supported.",
             ));
-        } else if contents.starts_with(&"{".into()) {
+        } else if contents.starts_with("{") {
             let source_map_object = SourceMapObjectParser::parse(contents)?;
             return match source_map_object.get_version() {
                 3 => {
@@ -63,7 +63,7 @@ impl SourceMapConsumerFactory {
     // port: SourceMapConsumerFactory#parseFast
     pub fn parse_fast(contents: impl Into<JsString>) -> Result<SourceMapConsumerV3, Error> {
         let contents = contents.into();
-        if contents.starts_with(&"{".into()) {
+        if contents.starts_with("{") {
             let source_map_object = SourceMapObjectParser::parse_fast(&contents)?;
             assert!(
                 source_map_object.get_version() == 3,

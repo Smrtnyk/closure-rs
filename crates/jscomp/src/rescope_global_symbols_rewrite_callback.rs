@@ -393,7 +393,7 @@ impl RescopeGlobalSymbolsRewriteCallback {
         let suffix = JsString::from(DISAMBIGUATION_SUFFIX);
         if !var.is_global(t.get_compiler())
             && (name == self.global_symbol_namespace
-                || name.starts_with(&self.global_symbol_namespace.concat(&suffix)))
+                || name.starts_with(self.global_symbol_namespace.concat(&suffix)))
         {
             n.set_string(t, name.concat(&suffix));
             t.get_compiler().report_change_to_enclosing_scope(n);

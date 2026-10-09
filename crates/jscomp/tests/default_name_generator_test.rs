@@ -38,7 +38,7 @@ fn generate(ng: &mut DefaultNameGenerator, prefix: &str, num: i32) -> Vec<JsStri
         .map(|_| {
             let result = ng.generate_next_name();
             assert!(
-                result.starts_with(&JsString::from(prefix)),
+                result.starts_with(JsString::from(prefix)),
                 "Error: {result}"
             );
             result

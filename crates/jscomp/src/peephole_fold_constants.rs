@@ -1215,9 +1215,7 @@ impl PeepholeFoldConstants {
         let last_left = left.get_last_child(compiler).unwrap();
         let first_right = right.get_first_child(compiler).unwrap();
         if self.ends_with_unescaped_dollar(&last_left.get_raw_string(compiler))
-            && first_right
-                .get_raw_string(compiler)
-                .starts_with(&JsString::from("{"))
+            && first_right.get_raw_string(compiler).starts_with("{")
         {
             return old_node;
         }
@@ -1278,7 +1276,7 @@ impl PeepholeFoldConstants {
     /// returns true if the raw string ends with an unescaped dollar sign
     // port: PeepholeFoldConstants#endsWithUnescapedDollar
     fn ends_with_unescaped_dollar(&self, raw: &JsString) -> bool {
-        if !raw.ends_with(&JsString::from("$")) {
+        if !raw.ends_with("$") {
             return false;
         }
         let mut backslash_count = 0;
@@ -1343,9 +1341,7 @@ impl PeepholeFoldConstants {
                             if str_value.is_empty()
                                 && self
                                     .ends_with_unescaped_dollar(&cur_node.get_raw_string(compiler))
-                                && next_next
-                                    .get_raw_string(compiler)
-                                    .starts_with(&JsString::from("{"))
+                                && next_next.get_raw_string(compiler).starts_with("{")
                             {
                                 cur = Some(next);
                                 continue;
@@ -1408,7 +1404,7 @@ impl PeepholeFoldConstants {
         }
 
         // Check if prefix ends with an unescaped \0
-        if prefix_raw.ends_with(&JsString::from("0")) {
+        if prefix_raw.ends_with("0") {
             let before_zero = prefix_raw.substring(0, prefix_raw.length() - 1);
             return self.ends_with_unescaped_backslash(&before_zero);
         }

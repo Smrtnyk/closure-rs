@@ -754,10 +754,10 @@ impl PeepholeReplaceKnownMethods {
         }
 
         let mut is_negative = false;
-        if string_val.starts_with(&JsString::from("-")) {
+        if string_val.starts_with("-") {
             is_negative = true;
             string_val = string_val.substring_from(1);
-        } else if string_val.starts_with(&JsString::from("+")) {
+        } else if string_val.starts_with("+") {
             string_val = string_val.substring_from(1);
         }
 
@@ -768,9 +768,7 @@ impl PeepholeReplaceKnownMethods {
                 radix = 16;
                 string_val = string_val.substring_from(2);
             } else if radix == 0 {
-                if !self.is_ecma_script5_or_greater(compiler)
-                    && string_val.starts_with(&JsString::from("0"))
-                {
+                if !self.is_ecma_script5_or_greater(compiler) && string_val.starts_with("0") {
                     return n;
                 }
                 radix = 10;
@@ -1264,7 +1262,7 @@ impl PeepholeReplaceKnownMethods {
 
         let look_for_pattern = arg1.get_string(compiler);
         let replacement_pattern = arg2.get_string(compiler);
-        if replacement_pattern.index_of(&JsString::from("$")) >= 0 {
+        if replacement_pattern.index_of("$") >= 0 {
             // 'special' replacements aren't supported yet.
             return n;
         }
@@ -1314,7 +1312,7 @@ impl PeepholeReplaceKnownMethods {
         }
 
         let replacement_pattern = arg2.get_string(compiler);
-        if replacement_pattern.index_of(&JsString::from("$")) >= 0 {
+        if replacement_pattern.index_of("$") >= 0 {
             // 'special' replacements aren't supported yet.
             return n;
         }

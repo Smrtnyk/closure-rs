@@ -174,7 +174,7 @@ impl<'a> ReplaceCssNames<'a> {
         if let Some(symbol_map) = &self.symbol_map {
             let replacement: JsString;
 
-            if name.starts_with(&JsString::from("--")) {
+            if name.starts_with("--") {
                 // Force BY_WHOLE style for CSS variables.
                 let Some(r) = symbol_map.get(&name) else {
                     let name = name.to_string();

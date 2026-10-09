@@ -130,7 +130,7 @@ impl ExportTestFunctions {
             .unwrap()
             .get_qualified_name(compiler)
             .unwrap();
-        if first_qname.starts_with(&JsString::from("window.")) {
+        if first_qname.starts_with("window.") {
             test_function_name = first_qname.substring_from("window.".len());
         }
 

@@ -163,7 +163,8 @@ pub struct Compiler {
     js_root: Option<NodeId>,
     extern_and_js_root: Option<NodeId>,
     allowable_features: Option<FeatureSet>,
-    inputs_by_id: IndexMap<InputId, CompilerInput>,
+    // Fx hasher: same insertion order, cheaper lookups (D-025).
+    inputs_by_id: closure_rhino::fx_hash::FxIndexMap<InputId, CompilerInput>,
     source_map_original_sources: Arc<std::sync::Mutex<IndexMap<String, Arc<SourceFile>>>>,
     default_coding_convention: ClosureCodingConvention,
     pub change_tracker: ChangeTracker,
@@ -265,7 +266,7 @@ impl Compiler {
             js_root: None,
             extern_and_js_root: None,
             allowable_features: None,
-            inputs_by_id: IndexMap::new(),
+            inputs_by_id: Default::default(),
             source_map_original_sources,
             default_coding_convention: ClosureCodingConvention::new(),
             change_tracker,
@@ -1376,7 +1377,7 @@ impl Compiler {
         self.chunk_graph.as_ref().unwrap().get_input_count()
     }
     // port: Compiler#getInputsById
-    pub fn get_inputs_by_id(&self) -> &IndexMap<InputId, CompilerInput> {
+    pub fn get_inputs_by_id(&self) -> &closure_rhino::fx_hash::FxIndexMap<InputId, CompilerInput> {
         &self.inputs_by_id
     }
     // port: Compiler#getExternsInOrder

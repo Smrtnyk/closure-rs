@@ -866,7 +866,7 @@ impl PrivateMember {
 
     // port: Es6NormalizeClasses.ClassRecord.PrivateMember#propertyName
     fn property_name(&self) -> JsString {
-        if self.name.starts_with(&JsString::from("#")) {
+        if self.name.starts_with("#") {
             self.name.substring_from(1)
         } else {
             self.name.clone()
@@ -995,7 +995,7 @@ impl ClassRecord {
         } else {
             n.get_string(ast)
         };
-        check_argument!(name.starts_with(&JsString::from("#")), "%s", name);
+        check_argument!(name.starts_with("#"), "%s", name);
         let is_static = n.is_static_member(ast);
 
         let kind = if n.is_member_field_def(ast) || n.is_computed_field_def(ast) {

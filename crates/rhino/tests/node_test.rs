@@ -964,7 +964,7 @@ fn test_matches_name_nodes() {
 // port: NodeTest#qname
 fn qname(ast: &mut Ast, name: &str) -> NodeId {
     let name = JsString::from(name);
-    let mut end_pos = name.index_of(&".".into());
+    let mut end_pos = name.index_of(".");
     if end_pos == -1 {
         return IR::name(ast, name);
     }
@@ -978,7 +978,7 @@ fn qname(ast: &mut Ast, name: &str) -> NodeId {
     };
     loop {
         let start_pos = end_pos + 1;
-        end_pos = name.index_of_from(&".".into(), start_pos);
+        end_pos = name.index_of_from(".", start_pos);
         let part = if end_pos == -1 {
             name.substring_from(start_pos as usize)
         } else {

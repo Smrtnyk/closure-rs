@@ -227,7 +227,7 @@ impl Callback for LabelFinder {
                     "Multiple D: labels in test src"
                 );
                 self.extracted_def = n.get_last_child(t);
-            } else if label.starts_with(&"U".into()) {
+            } else if label.starts_with("U") {
                 self.extracted_uses.push(n.get_last_child(t).unwrap());
             }
         }

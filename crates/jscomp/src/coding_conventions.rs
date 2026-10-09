@@ -299,7 +299,7 @@ impl CodingConvention for DefaultCodingConvention {
     }
     // port: CodingConventions.DefaultCodingConvention#isExported
     fn is_exported(&self, name: &JsString, local: bool) -> bool {
-        local && name.starts_with(&JsString::from("$super"))
+        local && name.starts_with("$super")
     }
     // port: CodingConventions.DefaultCodingConvention#getPackageName
     fn get_package_name(&self, source: &dyn StaticSourceFile) -> Option<String> {

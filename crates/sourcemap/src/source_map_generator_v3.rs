@@ -300,7 +300,7 @@ impl SourceMapGeneratorV3 {
         object: ExtensionValue,
     ) -> Result<(), Error> {
         let name = name.into();
-        if !name.starts_with(&"x_".into()) {
+        if !name.starts_with("x_") {
             return Err(Error::new(
                 JsString::from("Extension '")
                     .concat(&name)

@@ -212,7 +212,7 @@ impl VariableMap {
         let mut map = Vec::new();
         let mut start_of_line: i32 = 0;
         while start_of_line < string.length() as i32 {
-            let mut new_line = string.index_of_from(&JsString::from("\n"), start_of_line);
+            let mut new_line = string.index_of_from("\n", start_of_line);
             if new_line == -1 {
                 new_line = string.length() as i32;
             }
@@ -295,7 +295,7 @@ impl VariableMap {
         let len = value.length() as i32;
         let mut i: i32 = 0;
         while i < len {
-            let stop_char_index = value.index_of_from(&JsString::from_units(vec![stop_char]), i);
+            let stop_char_index = value.index_of_from(JsString::from_units(vec![stop_char]), i);
             if stop_char_index == -1 {
                 return -1;
             }

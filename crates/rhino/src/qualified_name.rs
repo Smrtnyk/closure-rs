@@ -90,7 +90,7 @@ impl QualifiedName {
         let mut last_index = 0;
         let mut builder = Vec::new();
         loop {
-            let index = string.index_of_from(&".".into(), last_index as i32);
+            let index = string.index_of_from(".", last_index as i32);
             let term = string.substring(
                 last_index,
                 if index < 0 {

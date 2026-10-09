@@ -252,15 +252,14 @@ impl LineParser for JsFileRegexParser {
     }
     // port: JsFileRegexParser#parseJsDocCommentLine
     fn parse_js_doc_comment_line(&mut self, line: &JsString) -> bool {
-        if self.include_goog_base
-            && line.index_of(&JsString::from(Self::PROVIDES_GOOG_COMMENT)) >= 0
+        if self.include_goog_base && line.index_of(JsString::from(Self::PROVIDES_GOOG_COMMENT)) >= 0
         {
             self.provides.push("goog".into());
             return false;
-        } else if line.index_of(&JsString::from(Self::EXTERNS_COMMENT)) >= 0 {
+        } else if line.index_of(JsString::from(Self::EXTERNS_COMMENT)) >= 0 {
             self.has_externs_annotation = true;
             return false;
-        } else if line.index_of(&JsString::from(Self::NOCOMPILE_COMMENT)) >= 0 {
+        } else if line.index_of(JsString::from(Self::NOCOMPILE_COMMENT)) >= 0 {
             self.has_no_compile_annotation = true;
             return false;
         }
@@ -269,14 +268,14 @@ impl LineParser for JsFileRegexParser {
     // port: JsFileRegexParser#parseLine
     fn parse_line(&mut self, line: &JsString) -> Result<bool, ParseException> {
         let mut line_has_provides_or_requires = false;
-        if line.starts_with(&JsString::from(Self::BUNDLED_GOOG_MODULE_START)) {
+        if line.starts_with(JsString::from(Self::BUNDLED_GOOG_MODULE_START)) {
             self.seen_load_module = true;
         }
-        let line_has_provides_or_requires_words = line.index_of(&JsString::from("provide")) >= 0
-            || line.index_of(&JsString::from("require")) >= 0
-            || line.index_of(&JsString::from("module")) >= 0
-            || line.index_of(&JsString::from("addDependency")) >= 0
-            || line.index_of(&JsString::from("declareModuleId")) >= 0;
+        let line_has_provides_or_requires_words = line.index_of("provide") >= 0
+            || line.index_of("require") >= 0
+            || line.index_of("module") >= 0
+            || line.index_of("addDependency") >= 0
+            || line.index_of("declareModuleId") >= 0;
         if !self.goog_matcher_buffer.is_empty() {
             line_has_provides_or_requires =
                 self.apply_goog_matcher(&self.goog_matcher_buffer.concat(line))?;
@@ -289,9 +288,7 @@ impl LineParser for JsFileRegexParser {
         } else {
             self.goog_matcher_buffer = JsString::from("");
         }
-        if line.starts_with(&JsString::from("import"))
-            || line.starts_with(&JsString::from("export"))
-        {
+        if line.starts_with("import") || line.starts_with("export") {
             self.es6_matcher.reset(line);
             while self.es6_matcher.find() {
                 self.set_module_type(ModuleType::ES6_MODULE);
@@ -325,8 +322,8 @@ impl LineParser for JsFileRegexParser {
             || !self.goog_matcher_buffer.is_empty()
             || line.as_units().iter().copied().all(guava_whitespace)
             || line.index_of_char(b';' as u16) == -1
-            || line.index_of(&JsString::from("goog.setTestOnly")) >= 0
-            || line.index_of(&JsString::from("goog.module.declareLegacyNamespace")) >= 0)
+            || line.index_of("goog.setTestOnly") >= 0
+            || line.index_of("goog.module.declareLegacyNamespace") >= 0)
     }
 }
 #[cfg(test)]

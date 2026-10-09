@@ -70,7 +70,7 @@ impl SourceMapObjectParser {
         builder.set_names(Self::get_java_string_array(source_map_root.get("names")));
         let mut extensions = IndexMap::new();
         for (key, value) in source_map_root.entry_set() {
-            if key.starts_with(&"x_".into()) {
+            if key.starts_with("x_") {
                 extensions.insert(key.clone(), ExtensionValue::JsonElement(value.clone()));
             }
         }
@@ -131,7 +131,7 @@ impl SourceMapObjectParser {
                             builder.set_names(Self::read_string_array(&mut lexer)?);
                         }
                         _ => {
-                            if name.starts_with(&"x_".into()) {
+                            if name.starts_with("x_") {
                                 let value = gson
                                     .from_json(lexer.next_raw_value()?, Target::JsonElement)
                                     .unwrap_or_else(|ex| {

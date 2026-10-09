@@ -99,7 +99,7 @@ impl CodingConvention for GoogleCodingConvention {
             || (parameter.is_name(ast)
                 && parameter
                     .get_string(ast)
-                    .starts_with(&JsString::from(Self::OPTIONAL_ARG_PREFIX)))
+                    .starts_with(JsString::from(Self::OPTIONAL_ARG_PREFIX)))
     }
     // port: GoogleCodingConvention#isVarArgsParameter
     fn is_var_args_parameter(&self, ast: &Ast, parameter: NodeId) -> bool {
@@ -108,7 +108,7 @@ impl CodingConvention for GoogleCodingConvention {
     }
     // port: GoogleCodingConvention#isExported
     fn is_exported(&self, name: &JsString, local: bool) -> bool {
-        self.proxy.is_exported(name, local) || (!local && name.starts_with(&JsString::from("_")))
+        self.proxy.is_exported(name, local) || (!local && name.starts_with("_"))
     }
     // port: GoogleCodingConvention#isClassFactoryCall
     fn is_class_factory_call(&self, ast: &Ast, call_node: NodeId) -> bool {

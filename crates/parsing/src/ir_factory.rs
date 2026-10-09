@@ -760,7 +760,7 @@ impl<'a> IRFactory<'a> {
                         .as_ref()
                         .unwrap()
                         .value
-                        .index_of(&JsString::from("@license"))
+                        .index_of("@license")
                         >= 0
                     {
                         self.jsdoc_tracker.advance();
@@ -3590,7 +3590,7 @@ impl<'a> IRFactory<'a> {
             }
             result.push(c);
             start = cur as usize + 1;
-            cur = value.index_of_from(&JsString::from("\\"), start as i32);
+            cur = value.index_of_from("\\", start as i32);
         }
         result.extend_from_slice(&value.as_units()[start..last_slash]);
         JsString::from_units(result)
@@ -3724,7 +3724,7 @@ impl<'a> IRFactory<'a> {
                 _ => result.push(c),
             }
             start = cur as usize + 1;
-            cur = value.index_of_from(&JsString::from("\\"), start as i32);
+            cur = value.index_of_from("\\", start as i32);
         }
         result.extend_from_slice(
             &value.as_units()[start..if template_literal {

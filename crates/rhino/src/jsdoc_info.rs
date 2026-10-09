@@ -1591,7 +1591,7 @@ impl JSDocInfo {
     // port: JSDocInfo#isAtSignCodePresent
     pub fn is_at_sign_code_present(&self) -> bool {
         self.get_original_comment_string()
-            .is_some_and(|s| s.index_of(&"@code".into()) != -1)
+            .is_some_and(|s| s.index_of("@code") != -1)
     }
     // port: JSDocInfo#getOriginalCommentPosition
     pub fn get_original_comment_position(&self) -> i32 {

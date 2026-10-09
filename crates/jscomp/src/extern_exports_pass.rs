@@ -278,7 +278,7 @@ impl ExternExportsPass {
             // it gets initialized to the externed version of the value.
             let is_complete_path_prefix = i == path_prefixes.len() - 1;
 
-            let skip_path_prefix = path_prefix.ends_with(&JsString::from(".prototype"))
+            let skip_path_prefix = path_prefix.ends_with(".prototype")
                 || (self.already_exported_paths.contains(path_prefix) && !is_complete_path_prefix);
             if skip_path_prefix {
                 continue;

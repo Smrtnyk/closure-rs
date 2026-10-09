@@ -55,7 +55,7 @@ fn generate_source_map(file: &JsString) -> JsString {
     let mut source_file_line_number = 0;
     for i in 0..lines.len() {
         let line = &lines[i];
-        if line.starts_with(&"// ".into()) {
+        if line.starts_with("// ") {
             current_source_file = line.substring(3, line.length());
             source_file_line_number = 0;
             continue;

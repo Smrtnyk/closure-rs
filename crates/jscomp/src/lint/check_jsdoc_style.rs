@@ -393,7 +393,7 @@ impl CheckJSDocStyle {
             node_to_check = param.get_first_child(t).unwrap();
             name_optional = true;
         } else if param.is_name(t) {
-            name_optional = param.get_string_ref(t).starts_with(&JsString::from("opt_"));
+            name_optional = param.get_string_ref(t).starts_with("opt_");
         } else {
             check_state!(
                 param.is_destructuring_pattern(t) || param.is_rest(t),
@@ -524,7 +524,7 @@ impl CheckJSDocStyle {
         let Some(license) = info.get_license() else {
             return;
         };
-        if license.index_of(&JsString::from("@externs")) >= 0 {
+        if license.index_of("@externs") >= 0 {
             t.report(n, &LICENSE_CONTAINS_AT_EXTERNS, &[]);
         }
     }

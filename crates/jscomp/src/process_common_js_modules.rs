@@ -2763,8 +2763,7 @@ impl RewriteModule {
                 }
                 if var.get_name_node(t.get_compiler()) == exported_name {
                     let export_base_q_name = export_base_q_name.unwrap();
-                    let export_prefix: JsString = if export_base_q_name.starts_with(&MODULE.into())
-                    {
+                    let export_prefix: JsString = if export_base_q_name.starts_with(MODULE) {
                         JsString::from(format!("{MODULE}.{EXPORTS}"))
                     } else {
                         JsString::from(EXPORTS)
@@ -2882,7 +2881,7 @@ impl RewriteModule {
             // Type nodes can be module paths.
             if ModuleLoader::is_path_identifier(&name.to_string()) {
                 let last_slash = name.last_index_of_char(u16::from(b'/'));
-                let mut end_index = name.index_of_from(&".".into(), last_slash);
+                let mut end_index = name.index_of_from(".", last_slash);
                 let mut local_type_name = None;
                 if end_index == -1 {
                     end_index = name.length() as i32;
@@ -2915,7 +2914,7 @@ impl RewriteModule {
                 let mut was_rewritten = false;
                 let mut end_index: i32 = -1;
                 while end_index < name.length() as i32 {
-                    end_index = name.index_of_from(&".".into(), end_index + 1);
+                    end_index = name.index_of_from(".", end_index + 1);
                     if end_index == -1 {
                         end_index = name.length() as i32;
                     }

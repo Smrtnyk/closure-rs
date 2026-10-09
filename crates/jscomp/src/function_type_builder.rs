@@ -1545,8 +1545,7 @@ impl FunctionTypeBuilder {
             .syntactic_fn_name
             .clone()
             .expect("NullPointerException");
-        if !syntactic_fn_name.is_empty() && !syntactic_fn_name.starts_with(&JsString::from("this."))
-        {
+        if !syntactic_fn_name.is_empty() && !syntactic_fn_name.starts_with("this.") {
             let (reg, ast) = compiler.get_type_registry_and_ast();
             let instance_type = fn_type.get_instance_type(reg).unwrap();
             reg.declare_type_for_exact_scope(

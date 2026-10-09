@@ -2723,7 +2723,7 @@ impl NodeUtil {
     // port: NodeUtil#newQName(AbstractCompiler,String)
     pub fn new_qname(compiler: &mut AbstractCompiler, name: impl Into<JsString>) -> NodeId {
         let name = name.into();
-        let dot = name.index_of(&".".into());
+        let dot = name.index_of(".");
         let mut end_pos = if dot == -1 {
             name.length()
         } else {
@@ -2740,7 +2740,7 @@ impl NodeUtil {
         qname.set_length(compiler, end_pos as i32);
         let mut start_pos = end_pos + 1;
         while end_pos < name.length() {
-            let dot = name.index_of_from(&".".into(), start_pos as i32);
+            let dot = name.index_of_from(".", start_pos as i32);
             end_pos = if dot == -1 {
                 name.length()
             } else {
@@ -2854,7 +2854,7 @@ impl NodeUtil {
     }
     // port: NodeUtil#getRootOfQualifiedName(String)
     pub fn get_root_of_qualified_name_string(q_name: &JsString) -> JsString {
-        let dot = q_name.index_of(&".".into());
+        let dot = q_name.index_of(".");
         if dot == -1 {
             q_name.clone()
         } else {
@@ -2915,13 +2915,13 @@ impl NodeUtil {
     }
     // port: NodeUtil#isValidQualifiedName(FeatureSet,String)
     pub fn is_valid_qualified_name_features(mode: FeatureSet, name: &JsString) -> bool {
-        if name.ends_with(&".".into()) || name.starts_with(&".".into()) {
+        if name.ends_with(".") || name.starts_with(".") {
             return false;
         }
         let mut parts = Vec::new();
         let mut start = 0;
         loop {
-            let dot = name.index_of_from(&".".into(), start as i32);
+            let dot = name.index_of_from(".", start as i32);
             let end = if dot == -1 {
                 name.length()
             } else {
@@ -3251,7 +3251,7 @@ impl NodeUtil {
     // port: NodeUtil#getPrototypePropertyName
     pub fn get_prototype_property_name(ast: &Ast, q_name: NodeId) -> JsString {
         let q_name_str = q_name.get_qualified_name(ast).unwrap();
-        let prototype_idx = q_name_str.last_index_of(&".prototype.".into());
+        let prototype_idx = q_name_str.last_index_of(".prototype.");
         let member_index = prototype_idx + ".prototype".len() as i32 + 1;
         q_name_str.substring_from(member_index as usize)
     }
@@ -5207,12 +5207,12 @@ impl NodeUtil {
         let mut name = strip_unique_name_suffix(name);
         name =
             crate::make_declared_names_unique::ContextualRenameInverter::get_original_name(&name);
-        if name.starts_with(&"module$exports$".into()) {
+        if name.starts_with("module$exports$") {
             let last_dollar = name.last_index_of_char(u16::from(b'$'));
             if last_dollar != -1 {
                 name = name.substring_from((last_dollar + 1) as usize);
             }
-        } else if name.starts_with(&"module$contents$".into()) {
+        } else if name.starts_with("module$contents$") {
             let last_underscore = name.last_index_of_char(u16::from(b'_'));
             if last_underscore != -1 {
                 name = name.substring_from((last_underscore + 1) as usize);

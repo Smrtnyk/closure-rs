@@ -112,7 +112,7 @@ impl FileInfo {
     ) -> bool {
         for prefix in prefix_namespaces {
             if fully_qualified_name == prefix
-                || fully_qualified_name.starts_with(&prefix.concat(&JsString::from(".")))
+                || fully_qualified_name.starts_with(prefix.concat(&JsString::from(".")))
             {
                 return true;
             }
@@ -133,7 +133,7 @@ impl FileInfo {
     // port: FileInfo#isStrictPrefixDeclared
     pub fn is_strict_prefix_declared(&self, fully_qualified_name: &JsString) -> bool {
         for prefix in self.declarations.keys() {
-            if fully_qualified_name.starts_with(&prefix.concat(&JsString::from("."))) {
+            if fully_qualified_name.starts_with(prefix.concat(&JsString::from("."))) {
                 return true;
             }
         }

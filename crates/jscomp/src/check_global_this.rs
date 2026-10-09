@@ -22,7 +22,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
-use closure_rhino::{js_string::JsString, node::NodeId, token::Token};
+use closure_rhino::{node::NodeId, token::Token};
 
 // port: CheckGlobalThis#GLOBAL_THIS
 pub static GLOBAL_THIS: DiagnosticType = DiagnosticType::warning(
@@ -170,7 +170,7 @@ impl Callback for CheckGlobalThis {
                         .unwrap()
                         .get_root()
                         .get_string(t)
-                        .ends_with(&JsString::from(".prototype"))
+                        .ends_with(".prototype")
                 {
                     return false;
                 }

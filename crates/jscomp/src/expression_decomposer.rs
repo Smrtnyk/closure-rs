@@ -1142,7 +1142,7 @@ impl ExpressionDecomposer {
         name.is_name(compiler)
             && name
                 .get_string(compiler)
-                .starts_with(&JsString::from(format!(
+                .starts_with(JsString::from(format!(
                     "{}_const{}",
                     self.temp_name_prefix,
                     ContextualRenamer::UNIQUE_ID_SEPARATOR

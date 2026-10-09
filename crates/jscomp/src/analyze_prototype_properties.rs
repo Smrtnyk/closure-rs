@@ -446,7 +446,7 @@ impl Callback for ProcessProperties<'_> {
                     NodeUtil::get_best_l_value_name(t, NodeUtil::get_best_l_value(t, n));
                 if l_value_name
                     .as_ref()
-                    .is_some_and(|name| name.ends_with(&JsString::from(".prototype")))
+                    .is_some_and(|name| name.ends_with(".prototype"))
                 {
                     return;
                 }
@@ -650,7 +650,7 @@ impl ProcessProperties<'_> {
         let last_dot = last_dot as usize;
 
         let first_part = l_value_name.substring(0, last_dot);
-        if !first_part.ends_with(&JsString::from(".prototype")) {
+        if !first_part.ends_with(".prototype") {
             return None;
         }
 

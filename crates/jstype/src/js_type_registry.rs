@@ -543,7 +543,7 @@ impl JSTypeRegistry {
                 field_type_node
             };
             let mut field_name = field_name_node.get_string(ast);
-            if field_name.starts_with(&"'".into()) || field_name.starts_with(&"\"".into()) {
+            if field_name.starts_with("'") || field_name.starts_with("\"") {
                 field_name = field_name.substring(1, field_name.length() - 1);
             }
             let field_type = if has_type {

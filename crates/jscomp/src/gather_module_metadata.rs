@@ -457,7 +457,7 @@ impl<'a> Finder<'a> {
                     .get_last_child(compiler)
                     .unwrap()
                     .get_string(compiler)
-                    .ends_with(&"/goog.js".into())
+                    .ends_with("/goog.js")
         })
     }
 
@@ -589,7 +589,7 @@ impl<'a> Finder<'a> {
                     .get_last_child(t)
                     .unwrap()
                     .get_string(t)
-                    .ends_with(&"$2etoggles".into())
+                    .ends_with("$2etoggles")
             {
                 return; // only do anything with toggle namespaces
             }
@@ -626,7 +626,7 @@ impl<'a> Finder<'a> {
                     .metadata_builder
                     .strongly_required_goog_namespaces_builder()
                     .add(namespace.clone());
-                if namespace.ends_with(&"$2etoggles".into()) {
+                if namespace.ends_with("$2etoggles") {
                     // Track imports of *.toggles.ts, which are rewritten to $2etoggles.
                     let call_parent = n.get_parent(t).unwrap();
                     let lhs = call_parent.get_first_child(t);

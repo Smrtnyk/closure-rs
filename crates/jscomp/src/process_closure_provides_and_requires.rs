@@ -405,7 +405,7 @@ impl ProcessClosureProvidesAndRequires {
             .get_first_child(compiler)
             .unwrap()
             .get_qualified_name(compiler);
-        let Some(name) = name.filter(|name| name.index_of(&JsString::from(".")) >= 0) else {
+        let Some(name) = name.filter(|name| name.index_of(".") >= 0) else {
             // @typedefs on simple names are okay.
             return;
         };
@@ -413,7 +413,7 @@ impl ProcessClosureProvidesAndRequires {
             // non-provided names don't matter.
             return;
         }
-        let parent_name = name.substring(0, name.last_index_of(&JsString::from(".")) as usize);
+        let parent_name = name.substring(0, name.last_index_of(".") as usize);
         let parent = self.provided_names.get(&parent_name).unwrap();
         let parent_definition = parent.get_candidate_definition();
         let Some(parent_definition) = parent_definition else {

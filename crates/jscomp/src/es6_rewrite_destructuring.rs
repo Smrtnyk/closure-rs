@@ -738,7 +738,7 @@ impl Es6RewriteDestructuring {
 
                 let rest_name = c.get_only_child(compiler); // e.g. get `rest` from `const {...rest} = {};`
                 let rest_name_string = rest_name.get_string(compiler);
-                if rest_name_string.starts_with(&DESTRUCTURING_TEMP_VAR.into()) {
+                if rest_name_string.starts_with(DESTRUCTURING_TEMP_VAR) {
                     check_state!(
                         rest_name.is_name(compiler),
                         "%s",

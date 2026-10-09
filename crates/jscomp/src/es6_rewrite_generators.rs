@@ -806,7 +806,7 @@ impl<'a> SingleGeneratorFunctionTranspiler<'a> {
             // as inner generator functions are transpiled first).
             check_state!(
                 !function_name.is_empty()
-                    && !function_name.starts_with(&JsString::from(GENERATOR_FUNCTION))
+                    && !function_name.starts_with(JsString::from(GENERATOR_FUNCTION))
             );
             self.hoist_function_declaration_node(compiler, n);
             return;

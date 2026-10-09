@@ -897,7 +897,7 @@ impl RemoveUnusedCode {
             let mut polyfill_name = first_arg.get_string(compiler).to_string_lossy();
             if callee
                 .get_string(compiler)
-                .ends_with(&JsString::from("polyfillTypedArrayMethod"))
+                .ends_with("polyfillTypedArrayMethod")
             {
                 polyfill_name = format!("TypedArray.prototype.{polyfill_name}");
             }

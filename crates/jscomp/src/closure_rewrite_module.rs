@@ -2876,12 +2876,12 @@ impl ClosureRewriteModule {
 
     // port: ClosureRewriteModule#isModuleExport
     pub fn is_module_export(name: &JsString) -> bool {
-        name.starts_with(&MODULE_EXPORTS_PREFIX.into())
+        name.starts_with(MODULE_EXPORTS_PREFIX)
     }
 
     // port: ClosureRewriteModule#isModuleContent
     pub fn is_module_content(name: &JsString) -> bool {
-        name.starts_with(&MODULE_CONTENTS_PREFIX.into())
+        name.starts_with(MODULE_CONTENTS_PREFIX)
     }
 
     /// Returns whether this is a) a reference to the name "exports" and b) based on scoping,

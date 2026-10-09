@@ -218,7 +218,7 @@ impl RewriteGoogJsImports {
                 && c.get_last_child(compiler)
                     .unwrap()
                     .get_string(compiler)
-                    .ends_with(&JsString::from("/goog.js"))
+                    .ends_with("/goog.js")
             {
                 if c.get_first_child(compiler).unwrap().is_empty(compiler)
                     && c.get_second_child(compiler)
@@ -499,7 +499,7 @@ impl FindReexports {
                 .get_last_child(compiler)
                 .unwrap()
                 .get_string(compiler)
-                .ends_with(&JsString::from("/goog.js"))
+                .ends_with("/goog.js")
         {
             t.report(export, &GOOG_JS_REEXPORTED, &[]);
         }

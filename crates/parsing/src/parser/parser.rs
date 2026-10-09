@@ -166,7 +166,7 @@ impl scanner::CommentRecorder for CommentRecorder {
             .is_none_or(|end| range.end.offset > end.offset)
         {
             let value = trim(&value);
-            if value.starts_with(&SOURCE_MAPPING_URL_PREFIX) {
+            if value.starts_with(&*SOURCE_MAPPING_URL_PREFIX) {
                 self.source_map_url =
                     Some(value.substring_from(SOURCE_MAPPING_URL_PREFIX.length()));
             }

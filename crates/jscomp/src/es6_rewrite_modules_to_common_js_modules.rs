@@ -119,14 +119,14 @@ impl LocalQName {
 // port: Es6RewriteModulesToCommonJsModules#normalizePath
 fn normalize_path(path: &str) -> String {
     let mut path = JsString::from(path);
-    let index_of_protocol = path.index_of(&"://".into());
+    let index_of_protocol = path.index_of("://");
     if index_of_protocol > -1 {
         path = path.substring_from(index_of_protocol as usize + 3);
-        let index_of_slash = path.index_of(&"/".into());
+        let index_of_slash = path.index_of("/");
         if index_of_slash > -1 {
             path = path.substring_from(index_of_slash as usize + 1);
         }
-    } else if path.starts_with(&JsString::from("/")) {
+    } else if path.starts_with("/") {
         path = path.substring_from(1);
     }
     path.to_string_lossy()

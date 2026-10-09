@@ -367,7 +367,7 @@ impl ContextualRenameInverter {
 
     // port: MakeDeclaredNamesUnique.ContextualRenameInverter#indexOfSeparator
     fn index_of_separator(name: &JsString) -> i32 {
-        name.last_index_of(&ContextualRenamer::UNIQUE_ID_SEPARATOR.into())
+        name.last_index_of(ContextualRenamer::UNIQUE_ID_SEPARATOR)
     }
 
     // port: MakeDeclaredNamesUnique.ContextualRenameInverter#createDeclaredVariableInfo

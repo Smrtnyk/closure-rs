@@ -424,7 +424,7 @@ impl AliasUsage {
         let alias_definition = self.alias_var.get_initial_value(compiler);
         let alias_name = self.alias_var.get_name(compiler);
         let type_name = self.alias_reference.get_string(compiler);
-        if type_name.starts_with(&"$jscomp$scope$".into()) {
+        if type_name.starts_with("$jscomp$scope$") {
             // Already visited.
             return;
         }

@@ -116,7 +116,7 @@ impl LineParser for DepsFileRegexParser {
     // port: DepsFileRegexParser#parseLine
     fn parse_line(&mut self, line: &JsString) -> Result<bool, ParseException> {
         let mut has_dependencies = false;
-        if line.index_of(&JsString::from("addDependency")) >= 0 {
+        if line.index_of("addDependency") >= 0 {
             self.dep_matcher.reset(line);
             if self.dep_matcher.matches() {
                 has_dependencies = true;

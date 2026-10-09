@@ -438,7 +438,7 @@ impl ReplaceStrings {
         let function_units = JsString::from(function);
         let first = function_units.index_of_char(u16::from(b'('));
         let last = function_units.index_of_char(u16::from(b')'));
-        let colon = function_units.index_of(&JsString::from(EXCLUSION_PREFIX));
+        let colon = function_units.index_of(JsString::from(EXCLUSION_PREFIX));
 
         // TODO(johnlenz): Make parsing precondition checks JSErrors reports.
         check_state!(first != -1 && last != -1);
