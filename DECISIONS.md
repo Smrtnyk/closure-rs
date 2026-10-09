@@ -364,3 +364,6 @@ here (one line each) to ease upstream syncs.
   unremovable log: messages are formatted only when used (Java formats eagerly).
 - `jscomp/reference.rs`, `node_traversal.rs` `get_input_id_of_input`: references share the
   traversal's `InputId` `Arc` instead of copying it after an input lookup.
+- `cli/src/main.rs`: the binary uses mimalloc as its global allocator (Java: the JVM's heap);
+  about 9% faster compiles for about 100 MB more peak memory.
+- `Cargo.toml` `[profile.release]`: fat LTO and one codegen unit, about 5% faster again.
