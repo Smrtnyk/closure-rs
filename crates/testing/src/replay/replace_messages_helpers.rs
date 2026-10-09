@@ -34,6 +34,7 @@
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+//   src/com/google/javascript/jscomp/GoogleJsMessageIdGenerator.java,
 //   src/com/google/javascript/jscomp/ReplaceMessages.java,
 //   test/com/google/javascript/jscomp/ReplaceMessagesTest.java.
 
@@ -329,6 +330,7 @@ pub fn entry(signature: &str) -> Option<Entry> {
         "com.google.javascript.jscomp.ReplaceMessagesTest_Helpers$SimpleMessageBundle#<init>(com.google.javascript.jscomp.ReplaceMessagesTest_Helpers)" => {
             new_simple_message_bundle
         }
+        GOOGLE_JS_MESSAGE_ID_GENERATOR_INIT => new_google_js_message_id_generator,
         _ => return None,
     })
 }
@@ -450,4 +452,65 @@ fn get_replacement_completion_pass(
 ) -> Result<DslValue, Throwable> {
     let pass = take_receiver(&args)?.get_replacement_completion_pass();
     Ok(DslValue::Pass(Rc::new(RefCell::new(Box::new(pass)))))
+}
+
+const GOOGLE_JS_MESSAGE_ID_GENERATOR: &str =
+    "com.google.javascript.jscomp.GoogleJsMessageIdGenerator";
+const GOOGLE_JS_MESSAGE_ID_GENERATOR_INIT: &str =
+    "com.google.javascript.jscomp.GoogleJsMessageIdGenerator#<init>(java.lang.String)";
+
+/// A `GoogleJsMessageIdGenerator` built by a processor expression (ReplaceMessagesForChromeTest
+/// passes it to the ReplaceMessagesForChrome constructor).
+struct NativeGoogleJsMessageIdGenerator {
+    /// `private final String projectId`.
+    project_id: Option<String>,
+}
+
+impl NativeObject for NativeGoogleJsMessageIdGenerator {
+    // port: ReplayDsl#invoke (runtime declaring class)
+    fn class_name(&self) -> &str {
+        GOOGLE_JS_MESSAGE_ID_GENERATOR
+    }
+    fn is_instance_of(&self, class: &str) -> bool {
+        matches!(
+            class,
+            GOOGLE_JS_MESSAGE_ID_GENERATOR
+                | "com.google.javascript.jscomp.JsMessage$IdGenerator"
+                | "java.lang.Object"
+        )
+    }
+    // port: ReplayValues#findField (native object adapter)
+    fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
+        let mut fields = IndexMap::<_, _>::default();
+        fields.insert(
+            "projectId".into(),
+            match &self.project_id {
+                Some(id) => DslValue::String(id.as_str().into()),
+                None => DslValue::Null,
+            },
+        );
+        Ok(fields)
+    }
+    // port: ReplayDsl#invoke (receiver cast)
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+// port: GoogleJsMessageIdGenerator#GoogleJsMessageIdGenerator
+fn new_google_js_message_id_generator(
+    _ctx: &mut Ctx,
+    args: Vec<DslValue>,
+) -> Result<DslValue, Throwable> {
+    let project_id = match args.as_slice() {
+        [DslValue::Null] => None,
+        [v] => match v.untyped() {
+            DslValue::String(s) => Some(s.to_string()),
+            _ => return Err(bad("GoogleJsMessageIdGenerator")),
+        },
+        _ => return Err(bad("GoogleJsMessageIdGenerator")),
+    };
+    Ok(DslValue::Native(Rc::new(RefCell::new(
+        NativeGoogleJsMessageIdGenerator { project_id },
+    ))))
 }
