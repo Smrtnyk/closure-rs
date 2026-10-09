@@ -28,7 +28,13 @@ getFirstSupportedPlatform(platforms);
 
 const compiler = new Compiler(args);
 compiler.spawnOptions = {stdio: 'inherit'};
-const child = compiler.run((exitCode) => {
+const child = compiler.run((exitCode, stdout, stderr) => {
+  // stdio is inherited, so the binary's own output is already on the terminal; only the wrapper's
+  // note about a process ended by a signal (exit code 128 + signal number) is printed here.
+  const signal = /closure-rs was terminated by signal .*/.exec(stderr);
+  if (signal) {
+    process.stderr.write(`${signal[0]}\n`);
+  }
   process.exitCode = exitCode;
 });
 child.on('error', (e) => {
