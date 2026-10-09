@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java.
 
 #![allow(dead_code)] // Each test binary uses a different subset of the fixture.

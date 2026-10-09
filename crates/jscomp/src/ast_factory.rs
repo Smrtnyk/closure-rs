@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   src/com/google/javascript/jscomp/AstFactory.java.
 
 //! Port of `AstFactory.java`: creates AST nodes and subtrees.
@@ -2535,6 +2535,31 @@ impl AstFactory {
         let call = self.create_call(cx, make_iterator_name, type_, &[iterable]);
         call.put_boolean_prop(cx.get_type_registry_and_ast_mut().1, Prop::FREE_CALL, true);
         call
+    }
+
+    // port: AstFactory#createJscompIteratorCloseCall
+    pub fn create_jscomp_iterator_close_call<C, S>(
+        &self,
+        cx: &mut C,
+        iterator: NodeId,
+        iter_result: NodeId,
+        scope: &S,
+    ) -> NodeId
+    where
+        C: AstFactoryContext + ?Sized,
+        S: AstFactoryStaticScope<C> + ?Sized,
+    {
+        let iterator_close = self.get_js_lib_field("$jscomp.iteratorClose");
+        let iterator_close_name = self.create_qname_for_field(cx, scope, iterator_close.as_ref());
+        self.create_call(
+            cx,
+            iterator_close_name,
+            Self::type_native_and_color(
+                JSTypeNative::VOID_TYPE,
+                standard_colors::NULL_OR_VOID.clone(),
+            ),
+            &[iterator, iter_result],
+        )
     }
 
     /// Given an iterator like `rhs` in

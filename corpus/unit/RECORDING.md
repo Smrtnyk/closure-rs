@@ -1,7 +1,9 @@
 # Unit corpus recording (docs/PORTING.md §4.2)
 
 ## Method
-- **Workspace:** `scripts/unit_make_recording_ws.sh` clones the pristine checkout at bb8c8e7,
+- **Workspace:** `scripts/unit_make_recording_ws.sh` clones the pristine reference checkout
+  (`$REF_SRC`, `reference/closure-compiler-v20261006` at `48f4107ca` for the default reference
+  `v20261006`; docs/PORTING.md §9) into `$REF_RECORDING_WS`,
   copies the untracked `MODULE.bazel.lock`, and applies `oracle/patches/*.patch`. The script
   refuses any patch that touches `src/`.
 - **Jars:** `scripts/unit_bazel_build.sh` builds `build/unit/jars/unit_support_deploy.jar`
@@ -17,7 +19,7 @@
 - **Summary:** `scripts/unit_report.sh` writes `build/unit/report/{classes.json,table.md}`
   (per-class entries and records, kinds, failures, unrepresentable values).
 
-The corpus holds 24,768 records from 255 of the 432 test classes (kinds compiler_test_case,
+The corpus holds 24,782 records from 255 of the 432 test classes (kinds compiler_test_case,
 type_check and integration). Hooked entries below the outermost one are nested calls, such as
 `compile` inside `test` or `parseAndTypeCheckWithScope` inside `TypeTestBuilder.run`; they are
 counted but, by design, not recorded.
@@ -59,7 +61,7 @@ The recorder is `UnitRecorder` in patch 0002 (FORMAT.md has the schema):
 The recording does not run through Bazel targets; it runs `UnitRecordingMain` with plain `java`
 (`scripts/unit_record_all.sh`). That script builds the NoopAgent jar
 (`scripts/unit_noop_agent_build.sh`) and the trace scope file (`scripts/unit_trace_scope.py`,
-the in-scope `src/` top-level classes at bb8c8e7) and adds
+the in-scope `src/` top-level classes of the reference) and adds
 `--add-exports=java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED
 -javaagent:build/unit/noop-agent/noop-agent.jar=trace=build/unit/trace/scope.txt` to every
 recording JVM, so each record stores `passTrace`. `UnitRecorder.enter` (outermost call) calls
@@ -67,9 +69,10 @@ recording JVM, so each record stores `passTrace`. `UnitRecorder.enter` (outermos
 recorder writes no `passTrace`. No `src/` file is touched; the patch (0002) changes `test/` only.
 
 ## Changing the recorder
-1. Edit the recording workspace (`reference/closure-compiler-recording`, `test/` only).
+1. Edit the recording workspace (`$REF_RECORDING_WS`, `reference/closure-compiler-v20261006-recording`
+   for the default reference, `test/` only).
 2. Regenerate `oracle/patches/0002-recording-hooks.patch` from it (`git diff -- test/`) and check
-   that a fresh clone of the pristine checkout at bb8c8e7 plus patches 0001 and 0002 is
+   that a fresh clone of the pristine reference checkout plus patches 0001 and 0002 is
    byte-identical to the workspace in `test/` and `BUILD.bazel`, and that its `src/` is identical
    to the pristine `src/`.
 3. Rebuild `build/unit/jars` (`scripts/unit_bazel_build.sh`; the oracle jar is not touched,

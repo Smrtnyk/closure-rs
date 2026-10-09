@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Rebuilds the recording workspace $REF_RECORDING_WS (reference/closure-compiler-recording for the
-# default reference; docs/PORTING.md §9) from scratch: a clone of the pristine reference checkout
-# $REF_SRC at $REF_COMMIT plus this checkout's oracle/patches/*.patch (test/ and BUILD only).
+# Rebuilds the recording workspace $REF_RECORDING_WS (for the default reference
+# reference/closure-compiler-v20261006-recording; docs/PORTING.md §9) from scratch: a clone of
+# the pristine reference checkout $REF_SRC at $REF_COMMIT plus this checkout's
+# oracle/patches/*.patch (test/ and BUILD only).
 # The pristine checkout is only read (git clone), never modified.
 #   scripts/unit_make_recording_ws.sh [--dry-run]   (--dry-run: print the targets, change nothing)
 set -euo pipefail

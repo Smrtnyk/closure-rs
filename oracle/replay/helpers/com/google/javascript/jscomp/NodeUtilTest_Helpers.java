@@ -1,10 +1,10 @@
 /*
  * closure-rs unit-corpus helper (corpus/unit/DSL.md "helper"). The holder class and its no-arg
  * constructor are generated. Copied VERBATIM from
- * test/com/google/javascript/jscomp/NodeUtilTest.java (closure-compiler commit bb8c8e7):
- *   getProcessor: lines 4699-4708, of the static nested test class
+ * test/com/google/javascript/jscomp/NodeUtilTest.java (closure-compiler commit 48f4107ca):
+ *   getProcessor: lines 4837-4846, of the static nested test class
  *                 NodeUtilTest.CreateSynthesizedExternsSymbolTests (returns an anonymous
- *                 CompilerPass). The @Override annotation on line 4699 is dropped, because the
+ *                 CompilerPass). The @Override annotation on line 4837 is dropped, because the
  *                 holder does not extend CompilerTestCase, and the method is one indentation
  *                 level (2 spaces) shallower because the nesting test class is not copied.
  * DSL: {"mutationPoint": "com.google.javascript.jscomp.NodeUtil",

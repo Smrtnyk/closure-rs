@@ -11,7 +11,7 @@
 // externs/ comes from crates/resources/data/externs (the jar's externs.zip, identical to the
 // official package's externs/). contrib/ is the Closure Compiler repository's contrib/ folder at
 // the pinned reference commit: by default the reference checkout's contrib/ (scripts/paths.mjs
-// REF_SRC, reference/closure-compiler/contrib for the default reference;
+// REF_SRC, reference/closure-compiler-v20261006/contrib for the default reference;
 // scripts/fetch_reference.sh); --no-contrib packs without it (local testing only).
 // Run `node scripts/gen_npm_types.mjs` first; this script refuses stale types.
 import {execFileSync} from 'node:child_process';

@@ -75,7 +75,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   src/com/google/javascript/rhino/Node.java,
 //   src/com/google/javascript/rhino/testing/NodeSubject.java.
 

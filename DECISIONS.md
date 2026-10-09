@@ -400,3 +400,24 @@ here (one line each) to ease upstream syncs.
 - `jscomp/node_traversal.rs` `get_input`, `syntactic_scope_creator.rs` `ScopeScanner`: the
   CompilerInput found for the current input id is kept (Java keeps the object) instead of being
   looked up by id again; `ImplicitVar::js_name` makes the implicit var names once.
+
+## D-026 — Upstream syncs follow npm releases; first sync to 20261006.0.0 (2026-10-09)
+closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**
+(`google-closure-compiler@YYYYMMDD.0.0` = upstream tag `vYYYYMMDD`), never to unreleased master
+commits, so it always matches a compiler that users can install. The first pin, `bb8c8e7`, is
+release `v20261005` (npm `20261005.0.0`). The first sync targets release `v20261006` = commit
+`48f4107ca2aac52149546ccc42894522fcfdb17d` (npm `20261006.0.0`, seven upstream commits after
+`bb8c8e7`), registry tag `v20261006`, uberjar sha256
+`cfa8886f9bcb9c05d29006dab5cd7012221a7ab2337d14c6fbd8d685b31f2264` (unstamped, reproducible
+after `bazelisk clean`).
+
+The references live alongside each other through `scripts/references.tsv` (docs/PORTING.md §9):
+the new one has its own checkout (`reference/closure-compiler-v20261006`), recording workspace,
+uberjar (`build/reference-v20261006/`), oracle jar (`build/oracle-v20261006/`) and D2 golden
+store (`ref-cfa8886f`); the `bb8c8e7` checkout, jars, recording workspace and golden store
+`ref-4ef5a893` are kept unchanged. A registry tag of a new reference is its upstream release tag.
+
+The closure-self D2 cases keep their inputs at `bb8c8e7`: their case ids (`@bb8c8e7`) and their
+input paths under `reference/closure-compiler/` stay as they are, so `reference/closure-compiler`
+is kept as a permanent input checkout and is not removed when a later reference becomes the
+default. Only the compiler that processes those inputs changes with the reference.

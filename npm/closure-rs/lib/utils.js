@@ -1,6 +1,6 @@
 // Locating the closure-rs binary and choosing a "platform".
 //
-// Behaviour pinned to google-closure-compiler@20261005.0.0 lib/utils.js (getNativeImagePath, lines
+// Behaviour pinned to google-closure-compiler@20261006.0.0 lib/utils.js (getNativeImagePath, lines
 // 28-42; getFirstSupportedPlatform, lines 48-67). That package picks between a native binary from
 // an optional per-platform package and the Java jar. closure-rs has only the native binary, so
 // both 'native' and 'java' select it.

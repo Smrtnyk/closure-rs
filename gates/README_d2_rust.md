@@ -41,7 +41,9 @@ Pairs: every case of `corpus/d2/cases.jsonl` (the final visible corpus, 2,085 ca
 - env = `run_reference.child_env()` (fixed), stdin `/dev/null`, own session; on timeout the
   whole process group is killed;
 - the out_dir is created empty before the run and removed afterwards;
-- compared with `corpus-cache/d2/_golden/ref-4ef5a893/<case>/<profile>.json`, **byte for byte,
+- compared with `corpus-cache/d2/_golden/$REF_GOLDEN_TAG/<case>/<profile>.json` (`ref-<first 8
+  hex digits of the reference jar's sha256>`: `ref-cfa8886f` for `v20261006`; the store of
+  every older reference, such as `ref-4ef5a893`, stays next to it), **byte for byte,
   no normalization**: exit code, stdout, stderr, the set of files in the out_dir and each
   file's bytes (`out.js`, `out.js.map`, `c0.js`...). A pair passes only if everything is
   identical and it did not time out.

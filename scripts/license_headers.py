@@ -31,7 +31,7 @@ so the script is idempotent; the report says whether each replaced block was amo
 Inputs (defaults resolve against the main checkout, scripts/paths.py ROOT, as reference/, tools/
 and build/ are not tracked; $CLOSURE_RS_ROOT overrides it):
   reference/closure-compiler          Closure Compiler at the selected reference (paths.REF_SRC,
-                                      bb8c8e7 by default; scripts/fetch_reference.sh)
+                                      v20261006 by default; scripts/fetch_reference.sh)
   tools/jdk-21/lib/src.zip            the pinned JDK 21 sources (DECISIONS.md D-003)
   protobuf v30.2 source tree          ~/.cache/bazel/_bazel_*/*/external/protobuf+ (Closure's
                                       Bazel build), or --protobuf DIR

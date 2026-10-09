@@ -37,7 +37,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   src/com/google/javascript/rhino/Node.java.
 
 // Keep the Java control flow visible for side-by-side port review.
@@ -3706,6 +3706,10 @@ impl NodeId {
     // port: Node#isParamList
     pub fn is_param_list(self, ast: &Ast) -> bool {
         ast[L(self)].token == Token::PARAM_LIST
+    }
+    // port: Node#isPos
+    pub fn is_pos(self, ast: &Ast) -> bool {
+        ast[L(self)].token == Token::POS
     }
     // port: Node#isRegExp
     pub fn is_reg_exp(self, ast: &Ast) -> bool {

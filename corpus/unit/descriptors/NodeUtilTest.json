@@ -1,5 +1,5 @@
 {
-  "source": "test/com/google/javascript/jscomp/NodeUtilTest.java, nested test class CreateSynthesizedExternsSymbolTests, getProcessor (lines 4699-4708, an anonymous CompilerPass), copied verbatim into helper NodeUtilTest_Helpers, bb8c8e7",
+  "source": "test/com/google/javascript/jscomp/NodeUtilTest.java, nested test class CreateSynthesizedExternsSymbolTests, getProcessor (lines 4837-4846, an anonymous CompilerPass), copied verbatim into helper NodeUtilTest_Helpers, 48f4107ca",
   "cases": [
     {
       "when": {"instanceClass": "com.google.javascript.jscomp.NodeUtilTest$CreateSynthesizedExternsSymbolTests"},

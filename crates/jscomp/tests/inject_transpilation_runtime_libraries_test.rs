@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   test/com/google/javascript/jscomp/InjectTranspilationRuntimeLibrariesTest.java.
 
 //! Port of InjectTranspilationRuntimeLibrariesTest.java.
@@ -117,7 +117,10 @@ fn test_for_of_injects_make_iterator() {
     let mut t = InjectTranspilationRuntimeLibrariesTest::setup();
     let injected = t.parse_and_run_injection_pass("for (x of []) {}");
 
-    assert_contains_exactly(&injected, &["es6/util/makeiterator"]);
+    assert_contains_exactly(
+        &injected,
+        &["es6/util/makeiterator", "es6/util/iteratorclose"],
+    );
 }
 
 // port: InjectTranspilationRuntimeLibrariesTest#testArrayPattern_injectsMakeIterator

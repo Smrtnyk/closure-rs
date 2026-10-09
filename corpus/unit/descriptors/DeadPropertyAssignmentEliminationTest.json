@@ -1,5 +1,5 @@
 {
-  "source": "test/com/google/javascript/jscomp/DeadPropertyAssignmentEliminationTest.java getProcessor (lines 1892-1895): new DeadPropertyAssignmentElimination(compiler). setUp (lines 27-32) only calls enableGatherExternProperties(), a harness field that comes from the record.",
+  "source": "test/com/google/javascript/jscomp/DeadPropertyAssignmentEliminationTest.java getProcessor (lines 2024-2027, commit 48f4107ca): new DeadPropertyAssignmentElimination(compiler). setUp (lines 27-32) only calls enableGatherExternProperties(), a harness field that comes from the record.",
   "cases": [
     {
       "when": {},
