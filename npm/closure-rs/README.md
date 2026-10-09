@@ -7,6 +7,8 @@ A Rust port of the [Closure Compiler](https://github.com/google/closure-compiler
 
 The compiler is a native binary. The package carries one per supported system (Linux x64 and
 Windows x64 for now, under `bin/<platform>-<arch>/`) and runs the one for yours; no Java is needed.
+The Linux binary is statically linked: it runs on any x86-64 Linux, glibc or musl (Alpine, without
+gcompat), with no C library version requirement.
 
 ## Switching from google-closure-compiler
 
@@ -120,4 +122,6 @@ all arguments to the binary, except `--platform`, which is removed.
 ## License
 
 Apache-2.0. The bundled `externs/` and `contrib/` folders are from the Closure Compiler repository
-(Apache-2.0).
+(Apache-2.0). The binaries contain code under other licenses (translated Java libraries, Rust
+crates, and in the Linux binary the musl C library and LLVM runtime code); `NOTICE` and
+`LICENSES/` in the package list them with their license texts.

@@ -13,7 +13,9 @@ dependencies only (no build or dev dependencies, no proc macros, which run in th
 not linked), for every target platform, so that one file covers every npm platform package. Package
 metadata comes from `cargo metadata`. Both run with --locked --offline: the script reads Cargo.lock
 and the registry and changes neither (fetch missing crates with `cargo fetch` first). The Rust
-standard library is linked as well; its license is stated at the end.
+standard library is linked as well; its license is stated after the crates. Last comes the C runtime
+that the Rust target of the linux-x64 binary links statically (STATIC_RUNTIME below), with the
+license texts kept verbatim in LICENSES/.
 
 --check exits 1 when FILE differs from what the script would write.
 """
@@ -40,6 +42,37 @@ VENDORED = {
     # feature, which closure-rs does not enable).
     'libmimalloc-sys': [('c_src/mimalloc/v2/LICENSE', 'mimalloc (bundled C sources, Microsoft Corporation)')],
 }
+
+
+# The linux-x64 binary is built for the Rust target x86_64-unknown-linux-musl, which links it
+# statically and self-contained: rustc links the objects of the target's rust-std component
+# (lib/rustlib/x86_64-unknown-linux-musl/lib/self-contained), not the system's. For a static-pie
+# executable these are rcrt1.o, crti.o, crtbeginS.o, crtendS.o and crtn.o, libc.a (`-lc`, from the
+# libc crate) and libunwind.a (`-lunwind`, from std's unwind crate). Rust's CI builds them in
+# src/ci/docker/host-x86_64/dist-x86_64-musl: musl with scripts/musl-toolchain.sh, crtbegin/crtend
+# and libunwind from the src/llvm-project submodule (bootstrap's llvm::CrtBeginEnd and
+# llvm::Libunwind). The versions below are those of Rust STATIC_RUNTIME_TOOLCHAIN; --check fails when
+# rust-toolchain.toml names another toolchain, so that they are confirmed again on an update.
+STATIC_RUNTIME_TOOLCHAIN = '1.95.0'
+STATIC_RUNTIME_TARGET = 'x86_64-unknown-linux-musl'
+LLVM_VERSION = ('LLVM 22.1.2 (rust-lang/llvm-project commit 1cb4e3833c1919c2e6fb579a23ac0e2b22587b7e, '
+                'the src/llvm-project submodule of Rust 1.95.0)')
+STATIC_RUNTIME = [
+    # (component, version, SPDX, what the binary contains, license file in LICENSES/, its source)
+    ('musl', 'musl 1.2.5, with the patches for CVE-2025-26519, CVE-2026-6042 and CVE-2026-40200',
+     'MIT', 'the C library (`libc.a`) and the startup objects `rcrt1.o`, `crti.o`, `crtn.o`',
+     'MIT-musl.txt',
+     '`COPYRIGHT` of musl v1.2.5, <https://git.musl-libc.org/cgit/musl/tree/COPYRIGHT?h=v1.2.5>'),
+    ('LLVM libunwind', LLVM_VERSION, 'Apache-2.0 WITH LLVM-exception',
+     'the stack unwinder (`libunwind.a`) that Rust panics use',
+     'Apache-2.0-WITH-LLVM-exception-libunwind.txt',
+     '`libunwind/LICENSE.TXT` of that commit'),
+    ('LLVM compiler-rt', LLVM_VERSION, 'Apache-2.0 WITH LLVM-exception',
+     '`crtbeginS.o` and `crtendS.o` (`compiler-rt/lib/builtins/crtbegin.c`, `crtend.c`); also the '
+     'compiler-rt builtins in the standard library\'s `compiler_builtins` crate',
+     'Apache-2.0-WITH-LLVM-exception-compiler-rt.txt',
+     '`compiler-rt/LICENSE.TXT` of that commit'),
+]
 
 
 def run(args):
@@ -163,8 +196,10 @@ def render():
             sections += [title, '', f + 'text', text.rstrip('\n'), f, '']
     lines += ['', 'The binary also links the Rust standard library (`std`, `core`, `alloc` and their '
               f'dependencies) of the pinned toolchain (`rust-toolchain.toml`), which is licensed MIT '
-              'OR Apache-2.0 (<https://www.rust-lang.org/policies/licenses>); see the end of this '
-              'file.', '']
+              'OR Apache-2.0 (<https://www.rust-lang.org/policies/licenses>), and the linux-x64 '
+              'binary, which is statically linked, also contains the C library musl (MIT) and '
+              'runtime code of LLVM (Apache-2.0 WITH LLVM-exception); see the last two sections of '
+              'this file.', '']
     lines += sections
     apache = next((f'`{f}` of {c}' for c, f in seen.values() if f == 'LICENSE-APACHE'),
                   '`../LICENSE`')
@@ -176,6 +211,26 @@ def render():
               'closure-rs\' `LICENSE`. The MIT terms (rust-lang/rust `LICENSE-MIT`):', '']
     f = fence(RUST_MIT)
     lines += [f + 'text', RUST_MIT.rstrip('\n'), f, '']
+    lines += ['## C runtime statically linked into the linux-x64 binary', '',
+              f'The linux-x64 binary is built for the Rust target `{STATIC_RUNTIME_TARGET}` and is '
+              'statically linked: besides the crates above it contains the C library and runtime '
+              f'objects that the target\'s `rust-std` component of Rust {STATIC_RUNTIME_TOOLCHAIN} '
+              'ships (self-contained linking), each under its own license. The Windows binary '
+              'contains none of them. The license texts below are verbatim copies of the files '
+              'named, kept in `LICENSES/`.', '',
+              '| Component | License | In the binary | License file |', '| --- | --- | --- | --- |']
+    for name, _, spdx, contents, fname, _ in STATIC_RUNTIME:
+        lines.append(f'| {name} | {spdx} | {contents} | `LICENSES/{fname}` |')
+    lines.append('')
+    for name, version, spdx, _, fname, origin in STATIC_RUNTIME:
+        path = os.path.join(ROOT, 'LICENSES', fname)
+        if not os.path.isfile(path):
+            sys.exit(f'{name}: license file {path} is missing')
+        text = read(path)
+        f = fence(text)
+        lines += [f'### {name}', '', f'Version: {version}.', f'License: {spdx}.',
+                  f'License text (`LICENSES/{fname}`): {origin}.', '',
+                  f + 'text', text.rstrip('\n'), f, '']
     return '\n'.join(lines).rstrip('\n') + '\n'
 
 
@@ -184,6 +239,12 @@ def main():
     ap.add_argument('--out', default=os.path.join(ROOT, 'LICENSES', 'THIRD_PARTY_RUST.md'))
     ap.add_argument('--check', action='store_true')
     args = ap.parse_args()
+    channel = toolchain_channel()
+    if channel != STATIC_RUNTIME_TOOLCHAIN:
+        sys.exit(f'rust-toolchain.toml names Rust {channel}, STATIC_RUNTIME was confirmed for '
+                 f'{STATIC_RUNTIME_TOOLCHAIN}: check the musl and LLVM versions (and license texts) '
+                 f'that the new toolchain\'s {STATIC_RUNTIME_TARGET} target links, then update '
+                 'STATIC_RUNTIME and STATIC_RUNTIME_TOOLCHAIN')
     text = render()
     if args.check:
         try:
