@@ -57,6 +57,7 @@ generator	es6/generator_engine
 getConstructImplementation	es6/util/construct
 getCurrentModulePath	es6/modules/runtime
 getGlobal	util/global
+getIteratorPrototype	es6/util/getiteratorprototype
 getRestArguments	es6/util/restarguments
 getSmallerAndLargerSets	es6/set_extensions
 getSuperPropertyDescriptor_	es6_dart_runtime
@@ -64,6 +65,7 @@ global	util/global
 hasModule	es6/modules/runtime
 inherits	es6/util/inherits
 initSymbol	es6/symbol
+iteratorClose	es6/util/iteratorclose
 iteratorFromArray	es6/util/iteratorfromarray
 iteratorPrototype	es6/symbol
 makeAsyncIterator	es6/util/makeasynciterator
