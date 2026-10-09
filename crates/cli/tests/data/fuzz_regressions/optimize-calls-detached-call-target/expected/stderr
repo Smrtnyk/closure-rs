@@ -1,0 +1,13 @@
+in.js:3:37: WARNING - [JSC_NOT_A_CONSTRUCTOR] cannot instantiate non-constructor, found type: number
+  3| C.prototype.val = function(){ return new d0(); };
+                                          ^^^^^^^^
+
+in.js:4:12: WARNING - [JSC_NOT_A_CONSTRUCTOR] cannot instantiate non-constructor, found type: function(): undefined
+  4| console.log(new C().val(), new C().val());
+                 ^^^^^^^
+
+in.js:4:27: WARNING - [JSC_NOT_A_CONSTRUCTOR] cannot instantiate non-constructor, found type: function(): undefined
+  4| console.log(new C().val(), new C().val());
+                                ^^^^^^^
+
+0 error(s), 3 warning(s), 58.8% typed

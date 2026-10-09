@@ -1042,7 +1042,7 @@ impl ReplacementCompletionPass {
                         compiler,
                         node_to_replace,
                         &BUNDLE_DOES_NOT_HAVE_THE_MESSAGE,
-                        &[&original_msg.get_id().to_string_lossy()],
+                        &[&original_msg.get_id().to_string()],
                     ));
                 }
                 msg_to_use = original_msg.clone();
@@ -1206,7 +1206,7 @@ impl FullReplacementPass {
                     compiler,
                     msg_node,
                     &BUNDLE_DOES_NOT_HAVE_THE_MESSAGE,
-                    &[&message.get_id().to_string_lossy()],
+                    &[&message.get_id().to_string()],
                 ));
                 // Fallback to the default message
                 return;

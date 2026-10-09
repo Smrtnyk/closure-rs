@@ -1,0 +1,14 @@
+{
+ "argv": [
+  "--compilation_level=ADVANCED",
+  "--js",
+  "in.js",
+  "--js_output_file",
+  "out/out.js"
+ ],
+ "origin": "fz-b67df42e8d08, fz-a4d175d0b522 (seed 2001): OptimizeCalls.ReferenceMap#isCallTarget on a reference whose parent is detached; Java reads grandParent only after parent.isGetProp()",
+ "exit_code": 0,
+ "outputs": [
+  "out/out.js"
+ ]
+}

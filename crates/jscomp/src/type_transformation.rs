@@ -446,7 +446,7 @@ impl TypeTransformation {
                 compiler,
                 ttl_ast,
                 &UNKNOWN_TYPENAME,
-                &[&type_name.to_string_lossy()],
+                &[&type_name.to_string()],
             );
             return self.get_unknown_type(compiler);
         };
@@ -497,7 +497,7 @@ impl TypeTransformation {
                 compiler,
                 ttl_ast,
                 &UNKNOWN_TYPEVAR,
-                &[&type_var.to_string_lossy()],
+                &[&type_var.to_string()],
             );
             return self.get_unknown_type(compiler);
         };
@@ -549,12 +549,7 @@ impl TypeTransformation {
             // Return the empty string if the name variable cannot be resolved
             let name = ttl_ast.get_string(compiler);
             if !name_resolver.name_vars.contains_key(&name) {
-                self.report_warning(
-                    compiler,
-                    ttl_ast,
-                    &UNKNOWN_STRVAR,
-                    &[&name.to_string_lossy()],
-                );
+                self.report_warning(compiler, ttl_ast, &UNKNOWN_STRVAR, &[&name.to_string()]);
                 return JsString::from("");
             }
             return name_resolver.name_vars.get(&name).unwrap().clone();
@@ -736,7 +731,7 @@ impl TypeTransformation {
                 compiler,
                 ttl_ast,
                 &DUPLICATE_VARIABLE,
-                &[&param_name.to_string_lossy()],
+                &[&param_name.to_string()],
             );
             return self.get_unknown_type(compiler);
         }
@@ -859,7 +854,7 @@ impl TypeTransformation {
                         compiler,
                         record,
                         &UNKNOWN_NAMEVAR,
-                        &[&comp_prop_name.to_string_lossy()],
+                        &[&comp_prop_name.to_string()],
                     );
                     return self.get_unknown_type(compiler);
                 }
@@ -1040,7 +1035,7 @@ impl TypeTransformation {
                 compiler,
                 ttl_ast,
                 &DUPLICATE_VARIABLE,
-                &[&param_key.to_string_lossy()],
+                &[&param_key.to_string()],
             );
             return self.get_unknown_type(compiler);
         }
@@ -1049,7 +1044,7 @@ impl TypeTransformation {
                 compiler,
                 ttl_ast,
                 &DUPLICATE_VARIABLE,
-                &[&param_value.to_string_lossy()],
+                &[&param_value.to_string()],
             );
             return self.get_unknown_type(compiler);
         }
@@ -1131,12 +1126,7 @@ impl TypeTransformation {
             slot.and_then(|slot| slot.get_type(registry))
         };
         let Some(type_) = type_ else {
-            self.report_warning(
-                compiler,
-                ttl_ast,
-                &VAR_UNDEFINED,
-                &[&name.to_string_lossy()],
-            );
+            self.report_warning(compiler, ttl_ast, &VAR_UNDEFINED, &[&name.to_string()]);
             return self.get_unknown_type(compiler);
         };
         type_

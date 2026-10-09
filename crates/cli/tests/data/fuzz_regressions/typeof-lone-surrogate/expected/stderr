@@ -1,0 +1,13 @@
+in.js:1:20: WARNING - [JSC_UNKNOWN_TYPEOF_VALUE] unknown type: ?
+  1| var a = typeof 0 == '\uD800';
+                         ^^^^^^^^
+
+in.js:2:8: WARNING - [JSC_UNKNOWN_TYPEOF_VALUE] unknown type: ?x
+  2| var b = '\uDC00x' === typeof a;
+             ^^^^^^^^^
+
+in.js:3:20: WARNING - [JSC_UNKNOWN_TYPEOF_VALUE] unknown type: 😀
+  3| var c = typeof a == '\uD83D\uDE00';
+                         ^^^^^^^^^^^^^^
+
+0 error(s), 3 warning(s), 100.0% typed

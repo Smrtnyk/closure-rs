@@ -18,9 +18,8 @@
 
 use crate::{
     black_hole_error_manager::BlackHoleErrorManager, check_level::CheckLevel, compiler::Compiler,
-    error_manager::ErrorManager, js_error::JSError, region::Region,
-    source_excerpt_provider::SourceExcerptProvider, source_file::SourceFile,
-    source_map_input::SourceMapInput,
+    error_manager::ErrorManager, region::Region, source_excerpt_provider::SourceExcerptProvider,
+    source_file::SourceFile, source_map_input::SourceMapInput,
 };
 use closure_sourcemap::{
     proto::mapping::OriginalMapping, source_map_consumer_v3::SourceMapConsumerV3,
@@ -32,7 +31,7 @@ pub(crate) struct CompilerSourceExcerptProvider {
     pub files: Mutex<IndexMap<String, Arc<SourceFile>>>,
     pub original_sources: Arc<Mutex<IndexMap<String, Arc<SourceFile>>>>,
     pub input_source_maps: Arc<Mutex<IndexMap<String, Arc<SourceMapInput>>>>,
-    pub pending_errors: Mutex<Vec<(CheckLevel, JSError)>>,
+    pub pending_errors: crate::sorting_error_manager::DeferredReports,
     resolved_source_map: Mutex<ResolvedSourceMap>,
 }
 #[derive(Default)]

@@ -127,7 +127,7 @@ impl CheckNoMutatedEs6Exports {
                     compiler,
                     mutation,
                     &MUTATED_EXPORT,
-                    &[&mutated_export.to_string_lossy()],
+                    &[&mutated_export.to_string()],
                 ));
             }
         }

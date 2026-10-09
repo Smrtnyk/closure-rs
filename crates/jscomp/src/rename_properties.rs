@@ -407,13 +407,13 @@ impl RenameProperties {
         let fn_name = call_node.get_first_child(t).unwrap().get_string(t);
         let first_arg = call_node.get_second_child(t).unwrap();
         if !first_arg.is_string_lit(t) {
-            t.report(call_node, &BAD_CALL, &[&fn_name.to_string_lossy()]);
+            t.report(call_node, &BAD_CALL, &[&fn_name.to_string()]);
             return;
         }
 
         for name in dot_splitter_split(&first_arg.get_string(t)) {
             if !TokenStream::is_js_identifier(&name) {
-                t.report(call_node, &BAD_ARG, &[&fn_name.to_string_lossy()]);
+                t.report(call_node, &BAD_ARG, &[&fn_name.to_string()]);
                 continue;
             }
             if !self.externed_names.contains(&name) {

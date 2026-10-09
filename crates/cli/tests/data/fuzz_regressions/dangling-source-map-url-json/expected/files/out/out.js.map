@@ -1,0 +1,8 @@
+{
+"version":3,
+"file":"out/out.js",
+"lineCount":1,
+"mappings":"AAIAA,KAAA,CAHS,CAGT;",
+"sources":["in.js"],
+"names":["alert"]
+}

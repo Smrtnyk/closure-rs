@@ -1,0 +1,9 @@
+a.js:1:0: ERROR - [JSC_INVALID_NAMESPACE_OR_MODULE_ID] Namespace and module ID must be a dot-separated sequence of legal property identifiers and must only contain ASCII, 0-9, $, ., and _. Found 'a?'
+  1| goog.provide('a\uD800');
+     ^^^^^^^^^^^^^^^^^^^^^^^
+
+b.js:1:0: ERROR - [JSC_INVALID_NAMESPACE_OR_MODULE_ID] Namespace and module ID must be a dot-separated sequence of legal property identifiers and must only contain ASCII, 0-9, $, ., and _. Found '?b'
+  1| goog.module('\uDC00b');
+     ^^^^^^^^^^^^^^^^^^^^^^
+
+2 error(s), 0 warning(s)

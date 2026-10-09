@@ -88,7 +88,7 @@ impl CheckPrimitiveAsObject {
             t.report(
                 node,
                 &PRIMITIVE_OBJECT_DECLARATION,
-                &[&type_name.to_string_lossy()],
+                &[&type_name.to_string()],
             );
         }
     }
@@ -100,11 +100,7 @@ impl CheckPrimitiveAsObject {
             if constructor_function.is_name(t) {
                 let constructor_name = constructor_function.get_string(t);
                 if is_primitive_object_constructor(&constructor_name) {
-                    t.report(
-                        n,
-                        &NEW_PRIMITIVE_OBJECT,
-                        &[&constructor_name.to_string_lossy()],
-                    );
+                    t.report(n, &NEW_PRIMITIVE_OBJECT, &[&constructor_name.to_string()]);
                 }
             }
         }

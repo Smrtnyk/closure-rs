@@ -119,7 +119,17 @@ Production { name, weight, leaf, when: fn(&Ctx) -> bool, emit: fn(&mut Gen) }
    - `java`: a second, independent oracle JVM. This proves the comparison path.
    - `java-perturbed`: a synthetic bug. Output files (or stderr) get an extra line when the
      input contains `switch`. This proves the minimize-and-file path.
-   - `rust`: the Rust CLI (not wired into the driver yet; the driver rejects it).
+   - `rust`: the closure-rs CLI (`--rust-bin`, default `$CARGO_TARGET_DIR/release/closure-rs`),
+     run with the same argv as engine A, from the repository root, in the golden environment
+     with stdin `/dev/null`, as `gates/d2_rust.py` runs it. Its outcome is the exit status
+     (128 + signal for a signal; a run past 120 s is killed and filed), stdout, stderr and every
+     file under the run's out_dir. Output-file keys of both engines are compared after
+     collapsing `//` and `/./`. Each worker then owns one oracle JVM.
+   `--wide` adds two draws on top of the D-016 ones (off by default): `--jscomp_off=checkTypes`
+   or `--jscomp_warning=checkTypes` for one program in four (never `ws`), and, for single-file
+   programs under `simple`, `advanced`, `advanced_strict`, `pretty` or `sourcemap`,
+   `--language_out=ECMASCRIPT5` or `ECMASCRIPT_2015` for one in three (generated in `low_target`
+   mode). Both are seeded per program (`WIDE_SALT`).
 5. **Compare.** The comparison covers the exit code, stdout, stderr and every output file,
    byte for byte (`fuzz_oracle::Outcome::diff`).
 6. **Minimize.** A mismatch is minimized with `minimize::reduce`, one file at a time for

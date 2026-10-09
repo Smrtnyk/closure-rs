@@ -738,7 +738,8 @@ impl<'a> Finder<'a> {
         t: &mut NodeTraversal<'_>,
         n: NodeId,
     ) {
-        let namespace_str = namespace.to_string_lossy();
+        // Display: the text Java's UTF-8 error stream writes for the message argument.
+        let namespace_str = namespace.to_string();
         if module_type == ModuleType::GOOG_PROVIDE || module_type == ModuleType::LEGACY_GOOG_MODULE
         {
             let compiler = t.get_compiler();
