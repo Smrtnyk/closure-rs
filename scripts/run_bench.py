@@ -40,10 +40,12 @@ import sys
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import paths  # noqa: E402  the reference (scripts/paths.py, scripts/references.tsv)
 # The reference uberjar of the D2 golden pipeline (oracle/REFERENCE.md, gates/lib/run_reference.py)
 JAVA_REL = "tools/jdk-21/bin/java"
-JAR_REL = "build/reference/closure-compiler.jar"
-JAR_SHA256 = "4ef5a893f30378aad76e53efc20353e06830289a4d835be0a12cd34bab2af821"
+JAR_REL = paths.REF.jar  # build/reference/closure-compiler.jar for the default reference
+JAR_SHA256 = paths.REF.jar_sha256  # "-" while not pinned: only --jar runs then
 TIME = "/usr/bin/time"
 
 

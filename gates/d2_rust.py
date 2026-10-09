@@ -5,7 +5,7 @@
                                [--sample N [--seed K]] [--limit N] [--jobs N] [--timeout S]
                                [--out DIR] [--data-root DIR] [--keep-failing]
                                [--baseline RATCHET.json]
-  python3 gates/d2_rust.py check --baseline OLD.json --current NEW.json
+  python3 gates/d2_rust.py check --baseline OLD.json --current NEW.json [--rebase]
   python3 gates/d2_rust.py selftest [--java-sample N] [--seed K] [--jobs N] [--out DIR]
 
 Exit codes: 0 ok; 1 ratchet regression / self-test failure; 2 harness error or ratchets not
@@ -63,7 +63,8 @@ def cmd_run(a) -> int:
 
 
 def cmd_check(a) -> int:
-    code, msgs = core.check_ratchet(core.load_json(a.baseline), core.load_json(a.current))
+    check = core.check_ratchet_rebase if a.rebase else core.check_ratchet
+    code, msgs = check(core.load_json(a.baseline), core.load_json(a.current))
     print("\n".join(msgs))
     return code
 
@@ -151,6 +152,9 @@ def main(argv: list[str] | None = None) -> int:
     c = sub.add_parser("check", help="compare two ratchet.json files (only goes up)")
     c.add_argument("--baseline", required=True)
     c.add_argument("--current", required=True)
+    c.add_argument("--rebase", action="store_true",
+                   help="CURRENT was measured against another golden tag (a reference change): "
+                        "compare per (case, profile) pair; fail on any previously passing pair lost")
     c.set_defaults(func=cmd_check)
 
     s = sub.add_parser("selftest", help="Java-backed fake = 100%%, empty fake = 0%%")

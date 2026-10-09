@@ -47,11 +47,21 @@ public final class Main {
   public static void main(String[] argv) throws Exception {
     oracleJar = Path.of(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI());
     projectRoot = oracleJar.getParent().getParent().getParent();
+    // The reference jar is the one CommandLineRunner was loaded from (the jar after oracle.jar on
+    // the classpath, docs/PORTING.md §9); -Doracle.reference_jar overrides.
+    String refProp = System.getProperty("oracle.reference_jar");
     referenceJar =
-        Path.of(
-            System.getProperty(
-                "oracle.reference_jar",
-                projectRoot.resolve("build/reference/closure-compiler.jar").toString()));
+        refProp != null
+            ? Path.of(refProp)
+            : Path.of(
+                Class.forName(
+                        "com.google.javascript.jscomp.CommandLineRunner",
+                        false,
+                        Main.class.getClassLoader())
+                    .getProtectionDomain()
+                    .getCodeSource()
+                    .getLocation()
+                    .toURI());
     if (argv.length == 0) {
       System.err.println("usage: Main compile ARGV... | request | server [--isolate=request|none]");
       System.exit(2);
@@ -219,8 +229,9 @@ public final class Main {
 
   static String runInline(JsonObject req) throws Exception {
     Path dir =
-        projectRoot
-            .resolve("build/oracle/tmp")
+        oracleJar
+            .getParent()
+            .resolve("tmp")
             .resolve("inline-" + ProcessHandle.current().pid() + "-" + counter.incrementAndGet());
     Files.createDirectories(dir);
     for (Map.Entry<String, com.google.gson.JsonElement> e :

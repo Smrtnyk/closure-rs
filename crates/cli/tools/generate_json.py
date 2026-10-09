@@ -4,7 +4,7 @@ from pathlib import Path
 import sys as _sys
 _sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
 import paths as _paths  # noqa: E402  scripts/paths.py: ROOT is the main checkout
-repo=Path(_paths.ROOT);root=Path(__file__).resolve().parents[1];cache=repo/'corpus-cache/cli';classes=cache/'classes';jar=repo/'build/reference/closure-compiler.jar'
+repo=Path(_paths.ROOT);root=Path(__file__).resolve().parents[1];cache=repo/'corpus-cache/cli';classes=cache/'classes';jar=Path(_paths.REF_JAR)
 subprocess.run(['javac','-cp',str(jar),'-d',str(classes),str(root/'tools/CliJson.java')],check=True)
 cases=['[]','[{}]','[null]','[null,{}]','[{"src":"x","path":"a.js","source_map":"map","webpack_id":"0"}]']
 for v in ['null','true','false','TRUE','FALSE','1','-0','1e3','1.0','01','0x1','NaN','Infinity','"x"',"'x'",'unquoted','"\\ud800"','"\\udc00"','"\\ud83d\\ude00"','"\\u2028\\u2029<>&=\\t\\n"','"a\\q"','"\\uabcd"','"\\uZZZZ"','[]','{}']:

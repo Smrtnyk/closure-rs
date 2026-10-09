@@ -1,14 +1,15 @@
 # Project-local toolchains (bazelisk, JDK 21) — see DECISIONS.md D-003
-/tools/
-# Pinned Java reference checkouts (scripts/fetch_reference.sh)
-/reference/
+/tools
+# Pinned Java reference checkouts (scripts/fetch_reference.sh). No trailing slash on these three:
+# a worktree may hold them as symlinks to the main checkout.
+/reference
 # Build outputs (cargo target directories at any level, work directories and reports, npm packs)
 /build/
 target/
 dist/
 *.tgz
 # Downloaded corpus inputs (re-fetched and hash-verified by scripts)
-/corpus-cache/
+/corpus-cache
 # Node dependencies (npm/closure-rs has none; installed only for local tests)
 node_modules/
 

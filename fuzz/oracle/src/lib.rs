@@ -6,6 +6,9 @@
 
 #![forbid(unsafe_code)]
 
+#[path = "../../references.rs"]
+pub mod references;
+
 use base64::Engine;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -24,6 +27,28 @@ pub fn repo_root() -> PathBuf {
         .join("../..")
         .canonicalize()
         .expect("repo root")
+}
+
+/// The oracle and reference jars: `$CLOSURE_RS_ORACLE_JAR` and `$CLOSURE_RS_REFERENCE_JAR`
+/// (scripts/paths.sh exports both), else the [`references::reference`] row's paths under `root`.
+pub fn jars(root: &Path) -> Result<(PathBuf, PathBuf), String> {
+    let env = |k: &str| {
+        std::env::var_os(k)
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+    };
+    let (oracle, reference) = (
+        env("CLOSURE_RS_ORACLE_JAR"),
+        env("CLOSURE_RS_REFERENCE_JAR"),
+    );
+    if let (Some(o), Some(r)) = (&oracle, &reference) {
+        return Ok((o.clone(), r.clone()));
+    }
+    let row = references::reference()?;
+    Ok((
+        oracle.unwrap_or_else(|| root.join(&row.oracle_jar)),
+        reference.unwrap_or_else(|| root.join(&row.jar)),
+    ))
 }
 
 /// `oracle_client.golden_env()`.
@@ -100,11 +125,8 @@ impl Server {
     pub fn start(xmx: &str) -> Result<Server, String> {
         let root = repo_root();
         let java = root.join("tools/jdk-21/bin/java");
-        let cp = format!(
-            "{}:{}",
-            root.join("build/oracle/oracle.jar").display(),
-            root.join("build/reference/closure-compiler.jar").display()
-        );
+        let (oracle_jar, reference_jar) = jars(&root)?;
+        let cp = format!("{}:{}", oracle_jar.display(), reference_jar.display());
         let mut cmd = Command::new(java);
         cmd.args(server_jvm_flags(xmx))
             .args([

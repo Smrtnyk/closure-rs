@@ -10,12 +10,14 @@
 // the wrapper picks the one for the running machine (lib/utils.js bundledBinaryPath).
 // externs/ comes from crates/resources/data/externs (the jar's externs.zip, identical to the
 // official package's externs/). contrib/ is the Closure Compiler repository's contrib/ folder at
-// the pinned reference commit: by default reference/closure-compiler/contrib
-// (scripts/fetch_reference.sh); --no-contrib packs without it (local testing only).
+// the pinned reference commit: by default the reference checkout's contrib/ (scripts/paths.mjs
+// REF_SRC, reference/closure-compiler/contrib for the default reference;
+// scripts/fetch_reference.sh); --no-contrib packs without it (local testing only).
 // Run `node scripts/gen_npm_types.mjs` first; this script refuses stale types.
 import {execFileSync} from 'node:child_process';
 import {chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {basename, join, resolve} from 'node:path';
+import {REF_SRC} from './paths.mjs';
 
 const argv = process.argv.slice(2);
 const out = argv[0];
@@ -31,7 +33,7 @@ const root = resolve(new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-
 const src = join(root, 'npm', 'closure-rs');
 const cfg = JSON.parse(readFileSync(join(root, 'npm', 'config.json'), 'utf8'));
 const contrib = contribIdx >= 0 ? resolve(argv[contribIdx + 1])
-    : join(root, 'reference', 'closure-compiler', 'contrib');
+    : join(REF_SRC, 'contrib');
 if (!noContrib && !existsSync(join(contrib, 'externs'))) {
   console.error(`npm_pack_main: no contrib folder at ${contrib} (run scripts/fetch_reference.sh or pass --contrib)`);
   process.exit(2);

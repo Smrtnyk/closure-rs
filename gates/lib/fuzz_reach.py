@@ -46,6 +46,7 @@ sys.path.insert(0, os.path.join(REPO, "oracle"))
 import case_args  # noqa: E402
 import oracle_client as oc  # noqa: E402
 
+# Logical names (reported as is); read from the selected reference checkout (ref_src()).
 DPC = "reference/closure-compiler/src/com/google/javascript/jscomp/DefaultPassConfig.java"
 PASSNAMES = "reference/closure-compiler/src/com/google/javascript/jscomp/PassNames.java"
 PROCESS_DEFINES = "reference/closure-compiler/src/com/google/javascript/jscomp/ProcessDefines.java"
@@ -60,6 +61,11 @@ def rp(rel: str) -> str:
     return os.path.join(REPO, rel)
 
 
+def ref_src(logical: str) -> str:
+    """A reference/closure-compiler/... path in the selected reference checkout (paths.REF_SRC)."""
+    return os.path.join(case_args.paths.REF_SRC, logical.removeprefix("reference/closure-compiler/"))
+
+
 # ---------------------------------------------------------------------------------------
 # Denominator
 
@@ -67,13 +73,13 @@ def rp(rel: str) -> str:
 def denominator() -> dict:
     """Every name a DefaultPassConfig PassFactory can carry (PassFactory.builder().setName)."""
     consts = {}
-    with open(rp(PASSNAMES), encoding="utf-8") as f:
+    with open(ref_src(PASSNAMES), encoding="utf-8") as f:
         for m in re.finditer(r'static final String (\w+)\s*=\s*"([^"]+)"', f.read()):
             consts[m.group(1)] = m.group(2)
-    with open(rp(PROCESS_DEFINES), encoding="utf-8") as f:
+    with open(ref_src(PROCESS_DEFINES), encoding="utf-8") as f:
         pd = f.read()
     modes = re.findall(r"^\s+([A-Z_]+)\((?:true|false), (?:true|false)\)", pd, re.M)
-    with open(rp(DPC), encoding="utf-8") as f:
+    with open(ref_src(DPC), encoding="utf-8") as f:
         src = f.read()
     factories = []
     for m in re.finditer(r"\.setName\(\s*(PassNames\.(\w+)|\"([^\"]+)\"(\s*\+\s*mode\.name\(\))?)",

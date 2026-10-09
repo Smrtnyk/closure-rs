@@ -10,7 +10,7 @@
 # Classpath = build/unit/jars/unit_support_deploy.jar (compiler + compiler_tests_lib, no *Test
 # class) + the replay classes. The script refuses to run if any closure *Test class is on it.
 set -euo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/paths.sh"  # ROOT, WT, SSD_WT
+. "$(dirname "${BASH_SOURCE[0]}")/paths.sh"  # ROOT, REF_SRC, REF_RECORDING_WS
 . "$ROOT/tools/env.sh"
 BUILD="$ROOT/build/unit/replay-$$"
 CLASSES=""
@@ -40,7 +40,7 @@ javac -nowarn -encoding UTF-8 -proc:none -d "$BUILD/classes" -cp "$SUPPORT" @"$B
 # Rule 6, binary-name form (same rule as gate 0.2(a)): no class on the replay classpath
 # may have the binary name of an original *Test class (any reference test/**/*Test.java) or be nested
 # under one, whatever source file it was compiled from.
-python3 - "$ROOT/reference/closure-compiler/test" "$SUPPORT" "$BUILD/classes" <<'PY' || exit 3
+python3 - "$REF_SRC/test" "$SUPPORT" "$BUILD/classes" <<'PY' || exit 3
 import os, sys, zipfile
 test_root, jar, classes = sys.argv[1:4]
 orig = set()
@@ -74,7 +74,7 @@ if [ -n "$MUTATE" ]; then
   JAVA_OPTS+=(--add-exports=java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED
               "-javaagent:$BUILD/noop-agent.jar=$MUTATE,report=$BUILD/noop-agent.txt")
 fi
-cd "$ROOT/reference/closure-compiler-recording"
+cd "$REF_RECORDING_WS"
 set +e
 LC_ALL=C.UTF-8 TZ=UTC java "${JAVA_OPTS[@]}" -cp "$BUILD/classes:$SUPPORT" com.google.javascript.jscomp.ReplayMain "${ARGS[@]}"
 rc=$?

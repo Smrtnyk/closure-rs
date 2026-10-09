@@ -8,7 +8,9 @@ Usage:
 The compiler argv comes from case_args.compiler_args() (shared with every later gate).
 The process runs with cwd = repository root, repo-relative paths only, and a minimal fixed
 environment.  The result is written atomically to
-  corpus-cache/d2/_golden/ref-4ef5a893/<case-id>/<profile>.json
+  corpus-cache/d2/_golden/<golden tag>/<case-id>/<profile>.json
+(golden tag ref-<first 8 hex of the jar sha256>, ref-4ef5a893 for the default reference; the jar
+and its sha256 are the scripts/references.tsv row $CLOSURE_RS_REF, docs/PORTING.md §9)
 as {args, compiler_args, exit_code, timed_out, stdout, stderr, outputs, wall_ms,
 peak_rss_kb, ...}.  Text that is not valid UTF-8 is stored as {"base64": "..."}.
 """
@@ -28,16 +30,20 @@ import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
 import case_args  # noqa: E402
+import paths  # noqa: E402  the reference (scripts/paths.py)
 
 REPO = case_args.REPO
 RUNNER_VERSION = 2  # v2: peak_rss_kb measured via rss_spawn.py (v1 was polluted by driver RSS)
 JAVA = "tools/jdk-21/bin/java"
-JAR = "build/reference/closure-compiler.jar"
-JAR_SHA256 = "4ef5a893f30378aad76e53efc20353e06830289a4d835be0a12cd34bab2af821"
-REF_TAG = "ref-" + JAR_SHA256[:8]
+JAR = paths.REF.jar  # repo-relative
+# None while the reference's jar sha256 is not pinned ("-" in the registry); check_jar() refuses.
+JAR_SHA256 = None if paths.REF.jar_sha256 == "-" else paths.REF.jar_sha256
+REF_TAG = "ref-" + JAR_SHA256[:8] if JAR_SHA256 else f"ref-unpinned-{paths.REF.tag}"
 GOLDEN_ROOT = f"corpus-cache/d2/_golden/{REF_TAG}"
-CDS_ARCHIVE = "build/golden-tmp/cds.jsa"
+# A dynamic AppCDS archive belongs to one jar: keyed by its sha256.
+CDS_ARCHIVE = f"build/golden-tmp/cds-{REF_TAG[4:]}.jsa"
 DEFAULT_TIMEOUT_S = 180
 DEFAULT_XMX = "3g"
 
@@ -73,6 +79,8 @@ def check_jar() -> None:
     global _jar_checked
     if _jar_checked:
         return
+    if JAR_SHA256 is None:
+        raise SystemExit(f"reference {paths.REF.tag} has no pinned jar sha256 in scripts/references.tsv")
     h = hashlib.sha256()
     with open(os.path.join(REPO, JAR), "rb") as f:
         for blk in iter(lambda: f.read(1 << 20), b""):

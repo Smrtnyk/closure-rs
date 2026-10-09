@@ -39,7 +39,7 @@ for language in ['ECMASCRIPT3','ECMASCRIPT5','ECMASCRIPT5_STRICT','ES6','ES_2017
  valid.append(['--language_out',language]);
  if language!='NO_TRANSPILE':valid.append(['--language_in',language])
 argv+=valid
-cmd=[os.environ.get('JAVA','java'),'-Xmx2g','-cp',str(repo/'build/codex/cli')+':'+str(repo/'build/reference/closure-compiler.jar'),'com.google.javascript.jscomp.CliOptionSetup']
+cmd=[os.environ.get('JAVA','java'),'-Xmx2g','-cp',str(repo/'build/codex/cli')+':'+_paths.REF_JAR,'com.google.javascript.jscomp.CliOptionSetup']
 r=subprocess.run(cmd,input=json.dumps(argv).encode(),capture_output=True,cwd=fixture,check=True)
 (cache/'option-setup-raw.json').write_bytes(r.stdout)
 rows=json.loads(r.stdout)

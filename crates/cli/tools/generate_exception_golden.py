@@ -28,7 +28,7 @@ CASES.append(('variable-map-malformed', ['--variable_map_input_file=' + str(malf
 records = []
 for name, args, stdin in CASES:
     result = subprocess.run(['java', '-Xmx2g', '-XX:-OmitStackTraceInFastThrow', '-jar',
-                             str(DATA / 'build/reference/closure-compiler.jar'), *args],
+                             _paths.REF_JAR, *args],
                             input=stdin.encode(), capture_output=True, check=False)
     records.append(dict(name=name, args=args, stdin=stdin, exit=result.returncode,
                         stdout=result.stdout.decode(), stderr=result.stderr.decode()))

@@ -17,8 +17,8 @@ import re
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
-from paths import ROOT  # noqa: E402  the main checkout (scripts/paths.py)
-PRISTINE_TEST = ROOT + "/reference/closure-compiler/test/"
+from paths import ROOT, REF_SRC  # noqa: E402  the main checkout, the reference (scripts/paths.py)
+PRISTINE_TEST = REF_SRC + "/test/"
 
 HOOK = (r'\b(test|testSame|testError|testWarning|testNoWarning|testErrorAndWarning|testExternChanges|testTypes|'
         r'testTypesWithExterns|testTypesWithCommonExterns|testClosureTypes|testClosureTypesMultipleWarnings|newTest|'
