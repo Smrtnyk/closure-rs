@@ -1,6 +1,6 @@
 {
   "name": "closure-rs",
-  "version": "0.0.1-alpha.0",
+  "version": "0.0.1-alpha.1",
   "description": "Rust port of the Closure Compiler CLI. Not affiliated with or published by Google.",
   "license": "Apache-2.0",
   "type": "module",
@@ -45,9 +45,5 @@
   ],
   "engines": {
     "node": ">=18"
-  },
-  "optionalDependencies": {
-    "closure-rs-linux-x64": "0.0.1-alpha.0",
-    "closure-rs-win32-x64": "0.0.1-alpha.0"
   }
 }

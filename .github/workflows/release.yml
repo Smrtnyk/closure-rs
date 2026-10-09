@@ -15,9 +15,14 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: 'Publish the packed npm packages (dist-tag alpha)'
+        description: 'Publish the packed npm package'
         type: boolean
         default: false
+      dist_tag:
+        description: 'npm dist-tag to publish under (latest: what a plain `npm install closure-rs` gets)'
+        type: choice
+        options: [alpha, latest]
+        default: alpha
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -195,5 +200,7 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: npm >= 11.5.1 (trusted publishing)
         run: npm install -g npm@^11.5.1 --ignore-scripts
-      - name: Publish (dist-tag alpha)
-        run: npm publish dist/*.tgz --tag alpha --access public
+      - name: Publish (dist-tag from the run form)
+        env:
+          DIST_TAG: ${{ inputs.dist_tag }}
+        run: npm publish dist/*.tgz --tag "$DIST_TAG" --access public

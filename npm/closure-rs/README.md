@@ -14,7 +14,7 @@ Change only `package.json`:
 
 ```json
 "devDependencies": {
-  "google-closure-compiler": "npm:closure-rs@0.0.1-alpha.0"
+  "google-closure-compiler": "npm:closure-rs@alpha"
 }
 ```
 
