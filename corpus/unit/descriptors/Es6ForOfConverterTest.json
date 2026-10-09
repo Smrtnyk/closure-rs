@@ -1,5 +1,5 @@
 {
-  "source": "test/com/google/javascript/jscomp/Es6ForOfConverterTest.java getProcessor (lines 56-64; a PhaseOptimizer of makePassFactory method references), replayed through helper Es6ForOfConverterTest_Helpers.GetProcessor. customSetUp (lines 40-54) affects only harness fields (enableNormalize, setAcceptedLanguage, setLanguageOut, enableTypeCheck, enableTypeInfoValidation, replaceTypesWithColors, enableMultistageCompilation, setGenericNameReplacements), which come from the record.",
+  "source": "test/com/google/javascript/jscomp/Es6ForOfConverterTest.java getProcessor (lines 55-63, commit 48f4107ca; a PhaseOptimizer of makePassFactory method references), replayed through helper Es6ForOfConverterTest_Helpers.GetProcessor. customSetUp (lines 40-53) affects only harness fields (enableNormalize, setAcceptedLanguage, setLanguageOut, enableTypeCheck, enableTypeInfoValidation, replaceTypesWithColors, enableMultistageCompilation, setGenericNameReplacements), which come from the record.",
   "cases": [
     {
       "when": {},

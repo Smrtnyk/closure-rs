@@ -8,7 +8,7 @@
    "via": [
     "postCall.compiler.allowableFeatures"
    ],
-   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 1293-1308: after each of the two test(...) calls (ES3 output, then ES5 output; records 0 and 1) the method asserts getLastCompiler().getAllowableFeatures().contains(Feature.STRING_CONTINUATION) isFalse(). Captured by postCall.compiler.allowableFeatures: the list of FeatureSet.Feature names of getLastCompiler().getAllowableFeatures() (D-017 item 2), present on every record of the method; replay compares the postCall object by JSON equality, so the whole feature set is compared, which is stricter than the asserted isEqualTo/contains check. Recorded: ['REGEXP_SYNTAX'] and the five ES5 feature names; STRING_CONTINUATION is in neither."
+   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 1292-1307: after each of the two test(...) calls (ES3 output, then ES5 output; records 0 and 1) the method asserts getLastCompiler().getAllowableFeatures().contains(Feature.STRING_CONTINUATION) isFalse(). Captured by postCall.compiler.allowableFeatures: the list of FeatureSet.Feature names of getLastCompiler().getAllowableFeatures() (D-017 item 2), present on every record of the method; replay compares the postCall object by JSON equality, so the whole feature set is compared, which is stricter than the asserted isEqualTo/contains check. Recorded: ['REGEXP_SYNTAX'] and the five ES5 feature names; STRING_CONTINUATION is in neither."
   },
   {
    "method": "testES5FeatureTrailingCommaIsRemovedUnconditionally",
@@ -16,7 +16,7 @@
    "via": [
     "postCall.compiler.allowableFeatures"
    ],
-   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 1277-1290: after the ES3 test(...) call (record 0) the method asserts getAllowableFeatures() isEqualTo(FeatureSet.ES3); after the ES5 call (record 1) it asserts the set does not contain Feature.TRAILING_COMMA. Captured by postCall.compiler.allowableFeatures: the list of FeatureSet.Feature names of getLastCompiler().getAllowableFeatures() (D-017 item 2), present on every record of the method; replay compares the postCall object by JSON equality, so the whole feature set is compared, which is stricter than the asserted isEqualTo/contains check."
+   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 1276-1289: after the ES3 test(...) call (record 0) the method asserts getAllowableFeatures() isEqualTo(FeatureSet.ES3); after the ES5 call (record 1) it asserts the set does not contain Feature.TRAILING_COMMA. Captured by postCall.compiler.allowableFeatures: the list of FeatureSet.Feature names of getLastCompiler().getAllowableFeatures() (D-017 item 2), present on every record of the method; replay compares the postCall object by JSON equality, so the whole feature set is compared, which is stricter than the asserted isEqualTo/contains check."
   },
   {
    "method": "testExtends",
@@ -24,7 +24,7 @@
    "via": [
     "postCall.compiler.injectedLibraries"
    ],
-   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 478-491: after the first test(...) call (record 0) the method asserts the injected libraries containsExactly(es6/util/inherits, es6/util/construct, es6/util/arrayfromiterable); the later calls (records 1-3) assert nothing after the call. Captured by postCall.compiler.injectedLibraries: getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() as a list of library names in injection order (D-017 item 2); replay compares it by JSON equality (in order, stricter than containsExactly without inOrder). All 4 records carry the key (the three names), so the claim holds for every record of the method."
+   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 477-490: after the first test(...) call (record 0) the method asserts the injected libraries containsExactly(es6/util/inherits, es6/util/construct, es6/util/arrayfromiterable); the later calls (records 1-3) assert nothing after the call. Captured by postCall.compiler.injectedLibraries: getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() as a list of library names in injection order (D-017 item 2); replay compares it by JSON equality (in order, stricter than containsExactly without inOrder). All 4 records carry the key (the three names), so the claim holds for every record of the method."
   },
   {
    "method": "testInitSymbol",
@@ -32,7 +32,7 @@
    "via": [
     "postCall.compiler.injectedLibraries"
    ],
-   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 2087-2177: after the first two test(...) calls (records 0 and 1) the method asserts the injected libraries containsExactly(es6/symbol). Captured by postCall.compiler.injectedLibraries: getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() as a list of library names in injection order (D-017 item 2); replay compares it by JSON equality (in order, stricter than containsExactly without inOrder). Records 0-3 carry ['es6/symbol']. Records 4 and 5 (the last test(...) and the final testSame, no assertion after them) inject nothing, so their snapshot has no injectedLibraries key; replay compares that absence too (exact key sets), but this single-key via does not hold for them and the gate rejects the claim (harness request filed: a via form for a key whose presence or absence is compared)."
+   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 2086-2176: after the first two test(...) calls (records 0 and 1) the method asserts the injected libraries containsExactly(es6/symbol). Captured by postCall.compiler.injectedLibraries: getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() as a list of library names in injection order (D-017 item 2); replay compares it by JSON equality (in order, stricter than containsExactly without inOrder). Records 0-3 carry ['es6/symbol']. Records 4 and 5 (the last test(...) and the final testSame, no assertion after them) inject nothing, so their snapshot has no injectedLibraries key; replay compares that absence too (exact key sets), but this single-key via does not hold for them and the gate rejects the claim (harness request filed: a via form for a key whose presence or absence is compared)."
   },
   {
    "method": "testObjectLiteralMemberFunctionDef",
@@ -40,7 +40,7 @@
    "via": [
     "postCallAbsent.compiler.injectedLibraries"
    ],
-   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 169-174: after test(...) (record 0) the method asserts getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() isEmpty(). Captured by postCallAbsent.compiler.injectedLibraries: the key is written only when the injected-library list is non-empty (FORMAT.md post-call snapshot table), and replay compares postCall key sets exactly (D-017 item 3, FORMAT.md \"postCall key-set equality\"), so the asserted isEmpty() is the key's absence in the record and in replay."
+   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 168-173: after test(...) (record 0) the method asserts getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() isEmpty(). Captured by postCallAbsent.compiler.injectedLibraries: the key is written only when the injected-library list is non-empty (FORMAT.md post-call snapshot table), and replay compares postCall key sets exactly (D-017 item 3, FORMAT.md \"postCall key-set equality\"), so the asserted isEmpty() is the key's absence in the record and in replay."
   },
   {
    "method": "testObjectLiteralStringKeysWithNoValue",
@@ -48,7 +48,7 @@
    "via": [
     "postCallAbsent.compiler.injectedLibraries"
    ],
-   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 155-159: after test(...) (record 0) the method asserts getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() isEmpty(). Captured by postCallAbsent.compiler.injectedLibraries: the key is written only when the injected-library list is non-empty (FORMAT.md post-call snapshot table), and replay compares postCall key sets exactly (D-017 item 3, FORMAT.md \"postCall key-set equality\"), so the asserted isEmpty() is the key's absence in the record and in replay."
+   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 154-158: after test(...) (record 0) the method asserts getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() isEmpty(). Captured by postCallAbsent.compiler.injectedLibraries: the key is written only when the injected-library list is non-empty (FORMAT.md post-call snapshot table), and replay compares postCall key sets exactly (D-017 item 3, FORMAT.md \"postCall key-set equality\"), so the asserted isEmpty() is the key's absence in the record and in replay."
   },
   {
    "method": "testOutputLevelES3_compilerFeatureSetIsUpdated",
@@ -56,7 +56,7 @@
    "via": [
     "postCall.compiler.allowableFeatures"
    ],
-   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 1250-1264: after test(...) (record 0) the method asserts getLastCompiler().getAllowableFeatures() isEqualTo(FeatureSet.ES3). Captured by postCall.compiler.allowableFeatures: the list of FeatureSet.Feature names of getLastCompiler().getAllowableFeatures() (D-017 item 2), present on every record of the method; replay compares the postCall object by JSON equality, so the whole feature set is compared, which is stricter than the asserted isEqualTo/contains check."
+   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 1249-1263: after test(...) (record 0) the method asserts getLastCompiler().getAllowableFeatures() isEqualTo(FeatureSet.ES3). Captured by postCall.compiler.allowableFeatures: the list of FeatureSet.Feature names of getLastCompiler().getAllowableFeatures() (D-017 item 2), present on every record of the method; replay compares the postCall object by JSON equality, so the whole feature set is compared, which is stricter than the asserted isEqualTo/contains check."
   },
   {
    "method": "testSpreadLibInjection",
@@ -64,7 +64,7 @@
    "via": [
     "postCall.compiler.injectedLibraries"
    ],
-   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 162-166: after test(...) (record 0) the method asserts the injected libraries containsExactly(es6/util/arrayfromiterable). Captured by postCall.compiler.injectedLibraries: getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() as a list of library names in injection order (D-017 item 2); replay compares it by JSON equality (in order, stricter than containsExactly without inOrder). The record carries ['es6/util/arrayfromiterable']."
+   "note": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 161-165: after test(...) (record 0) the method asserts the injected libraries containsExactly(es6/util/arrayfromiterable). Captured by postCall.compiler.injectedLibraries: getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() as a list of library names in injection order (D-017 item 2); replay compares it by JSON equality (in order, stricter than containsExactly without inOrder). The record carries ['es6/util/arrayfromiterable']."
   }
  ]
 }

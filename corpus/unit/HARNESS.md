@@ -32,7 +32,7 @@ themselves, run with the arguments given; the printer is the ported CodePrinter.
 - A **DiagnosticGroup** matches a JSError when the group contains the error's type (by key).
 
 ## Harness field index
-Every key of `harness.fields` (21,297/21,297 `compiler_test_case` records carry all of them),
+Every key of `harness.fields` (21,308/21,308 `compiler_test_case` records carry all of them),
 with the step where it acts. Values are taken after `harness.fieldsAfterGetOptions` is applied.
 `__currentRec`, `__recCompiler`, `lastCompiler` and `setUpRan` are bookkeeping, never inputs.
 
