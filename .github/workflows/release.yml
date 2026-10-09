@@ -32,7 +32,8 @@ concurrency:
 jobs:
   # The training compiles of the profile-guided build (scripts/pgo_build.sh): three benchmark
   # projects of bench/projects.json, fetched at their pinned commits, and their compiler flags.
-  # Never fails: without these inputs the binaries are built without a profile.
+  # Never fails itself: without these inputs a publish run stops at the profile-guided build and
+  # any other run builds without a profile.
   pgo-training:
     name: PGO training inputs
     runs-on: ubuntu-22.04
@@ -109,13 +110,18 @@ jobs:
           path: .
 
       # Profile-guided (about 8% less CPU time; the output is the same). Should any step of it
-      # fail, the binary is built without a profile and the run shows a warning.
+      # fail, a publish run stops; any other run builds without a profile and shows a warning.
       - name: Build the CLI (release, profile-guided)
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
+          PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
         run: |
           if ! bash scripts/pgo_build.sh --training pgo-training ${TARGET:+--target "$TARGET"}; then
+            if [ "$PUBLISH" = true ]; then
+              echo "::error::the profile-guided build failed; a publish run ships only profile-guided binaries"
+              exit 1
+            fi
             echo "::warning::the profile-guided build failed; building without a profile"
             cargo build --release --locked --bin closure-rs ${TARGET:+--target "$TARGET"}
           fi
@@ -142,6 +148,18 @@ jobs:
           out=$("$BIN" --compilation_level=ADVANCED --js=smoke.js)
           echo "$out"
           test "$out" = 'function a(b){return"Hello, "+b}window.greet=a;console.log(a("world"));'
+
+      # Docker Hub sometimes times out; the docker run steps below then use the pulled image
+      - name: Pull node:24-alpine
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          for attempt in 1 2 3 4 5; do
+            docker pull -q node:24-alpine && exit 0
+            echo "::warning::docker pull failed (attempt $attempt)"
+            sleep $((attempt * 15))
+          done
+          exit 1
 
       - name: Smoke test on Alpine (musl, no gcompat)
         if: matrix.platform == 'linux'

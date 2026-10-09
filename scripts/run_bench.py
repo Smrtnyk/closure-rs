@@ -93,20 +93,23 @@ def expand(patterns: list[str]) -> list[str]:
     return files
 
 
-def load_jobs(spec: dict) -> list[dict]:
+def load_jobs(spec: dict, selected=lambda job: True) -> list[dict]:
+    """The jobs of bench/projects.json for which `selected` holds; only their inputs must exist."""
     jobs = []
     for proj in spec["projects"]:
         for job in proj["jobs"]:
             for level in spec["levels"]:
-                entry = job["entry_point"]
-                js = expand(job["js"])
-                if level == "ADVANCED" and job.get("advanced_entry_point"):
-                    entry = job["advanced_entry_point"]
-                    js = [entry] + js
-                jobs.append({"project": proj["name"], "job": job["name"], "level": level,
+                advanced_entry = level == "ADVANCED" and job.get("advanced_entry_point")
+                entry = job["advanced_entry_point"] if advanced_entry else job["entry_point"]
+                meta = {"project": proj["name"], "job": job["name"], "level": level,
                              "id": f"{proj['name']}/{job['name']}/{level}"
-                                   if proj["name"] != job["name"] else f"{job['name']}/{level}",
-                             "entry_point": entry, "js": js,
+                                   if proj["name"] != job["name"] else f"{job['name']}/{level}"}
+                if not selected(meta):
+                    continue
+                js = expand(job["js"])
+                if advanced_entry:
+                    js = [entry] + js
+                jobs.append({**meta, "entry_point": entry, "js": js,
                              "flags": [f"--compilation_level={level}", *proj["flags"],
                                        f"--entry_point={entry}"]})
     return jobs
@@ -244,10 +247,9 @@ def main() -> int:
 
     with open(os.path.join(ROOT, "bench/projects.json"), encoding="utf-8") as f:
         spec = json.load(f)
-    jobs = [j for j in load_jobs(spec)
-            if (not a.project or j["project"] in a.project)
-            and (not a.level or j["level"] in a.level)
-            and (not a.job or re.search(a.job, j["id"]))]
+    jobs = load_jobs(spec, lambda j: (not a.project or j["project"] in a.project)
+                     and (not a.level or j["level"] in a.level)
+                     and (not a.job or re.search(a.job, j["id"])))
     if not jobs:
         print("no job selected", file=sys.stderr)
         return 2
