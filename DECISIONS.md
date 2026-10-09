@@ -310,7 +310,12 @@ here (one line each) to ease upstream syncs.
   parse into the compiler's arena (`Ast::append_preparsed`) with the node ids, object sharing
   and error order that parsing in place gives, or parses itself (Java: on the compiler thread).
 - `rhino/rhino_string_pool.rs`: the intern pool is 64 independently locked shards, with a
-  per-thread cache for the parser threads (Java: one weak interner).
+  per-thread cache for the parser threads (Java: one weak interner). Interned strings are never
+  freed, so copying one needs no reference count (`CLOSURE_RS_REFCOUNTED_NAMES` restores
+  reference-counted entries, to compare the two).
+- `rhino/js_string.rs`: a `JsString` carries its cached `hashCode` beside the reference to its
+  code units (Java: a field of the String object), so hashing and comparing unequal strings
+  read no code units; two interned strings are equal exactly when they are the same entry.
 - `rhino/fast_hash.rs`: every `IndexMap`/`IndexSet` uses a multiplicative word hasher instead
   of SipHash (insertion order, so iteration and output, are unaffected).
 - `rhino/node.rs`: token and tree links of all nodes live in one dense array (`NodeLinks`) apart

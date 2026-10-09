@@ -20,13 +20,23 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-/// Rust-only layout (D-025): the shared array starts with `HASH_UNITS` units holding the
-/// string's `hashCode()` (low half first), computed once when the string is made, as Java's
-/// String caches it; the string's code units follow. Hashing and `hashCode` read the cached
-/// value, and equal strings compare their hashes first.
+/// Rust-only layout (D-025): a string carries its `hashCode()` next to the reference to its
+/// code units, computed once when the string is made (Java's String caches it in the object).
+/// Hashing and `hashCode` read it without touching the code units, and strings with different
+/// hashes compare unequal without reading them.
+///
+/// A string interned by `RhinoStringPool` is `Interned`: the pool keeps its code units for the
+/// rest of the process, so copies of it share them without reference counting, and two interned
+/// strings are equal exactly when they share them (Java: the interner is weak and the garbage
+/// collector frees strings no node uses any more). Every other string is `Shared`, a
+/// reference-counted array.
 #[derive(Clone)]
-pub struct JsString(Arc<[u16]>);
-const HASH_UNITS: usize = 2;
+pub struct JsString(Repr);
+#[derive(Clone)]
+enum Repr {
+    Interned(u32, &'static [u16]),
+    Shared(u32, Arc<[u16]>),
+}
 impl Default for JsString {
     fn default() -> Self {
         Self::from_slice(&[])
@@ -34,34 +44,53 @@ impl Default for JsString {
 }
 impl JsString {
     pub fn from_units(units: impl Into<Vec<u16>>) -> Self {
-        Self::from_slice(&units.into())
+        let units: Vec<u16> = units.into();
+        Self(Repr::Shared(Self::java_hash(&units), units.into()))
     }
     /// Rust-only: a string of the code units `units`.
     pub fn from_slice(units: &[u16]) -> Self {
-        let hash = units
+        Self(Repr::Shared(Self::java_hash(units), units.into()))
+    }
+    /// Rust-only: `String#hashCode` of `units`.
+    fn java_hash(units: &[u16]) -> u32 {
+        units
             .iter()
-            .fold(0i32, |h, c| h.wrapping_mul(31).wrapping_add(i32::from(*c)))
-            as u32;
-        Self(
-            [hash as u16, (hash >> 16) as u16]
-                .into_iter()
-                .chain(units.iter().copied())
-                .collect(),
-        )
+            .fold(0i32, |h, c| h.wrapping_mul(31).wrapping_add(i32::from(*c))) as u32
     }
-    /// Rust-only: the shared array (with the hash prefix), for the string pool.
-    pub(crate) fn shared(&self) -> &Arc<[u16]> {
-        &self.0
+    /// Rust-only: whether the string pool made this string.
+    pub(crate) fn is_interned(&self) -> bool {
+        matches!(self.0, Repr::Interned(..))
     }
-    /// Rust-only: a string from a shared array made by `from_slice`, for the string pool.
-    pub(crate) fn from_shared(shared: Arc<[u16]>) -> Self {
-        Self(shared)
+    /// Rust-only: an interned copy of this string whose code units live for the rest of the
+    /// process, for the string pool.
+    pub(crate) fn leak_interned(&self) -> Self {
+        let units: &'static [u16] = Box::leak(self.as_units().into());
+        Self(Repr::Interned(self.hash_bits(), units))
+    }
+    /// Rust-only: the code units of an interned string, which live for the rest of the process.
+    pub(crate) fn static_units(&self) -> &'static [u16] {
+        match self.0 {
+            Repr::Interned(_, units) => units,
+            Repr::Shared(..) => panic!("not an interned string"),
+        }
+    }
+    fn hash_bits(&self) -> u32 {
+        match &self.0 {
+            Repr::Interned(hash, _) | Repr::Shared(hash, _) => *hash,
+        }
     }
     pub fn as_units(&self) -> &[u16] {
-        &self.0[HASH_UNITS..]
+        match &self.0 {
+            Repr::Interned(_, units) => units,
+            Repr::Shared(_, units) => units,
+        }
     }
     pub fn ptr_eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
+        match (&self.0, &other.0) {
+            (Repr::Interned(_, a), Repr::Interned(_, b)) => std::ptr::eq(*a, *b),
+            (Repr::Shared(_, a), Repr::Shared(_, b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }
     }
     // port: String#length
     pub fn length(&self) -> usize {
@@ -156,7 +185,7 @@ impl JsString {
     }
     // port: String#hashCode
     pub fn hash_code(&self) -> i32 {
-        (u32::from(self.0[0]) | u32::from(self.0[1]) << 16) as i32
+        self.hash_bits() as i32
     }
     // port: String#compareTo
     pub fn compare_to(&self, s: &Self) -> i32 {
@@ -289,8 +318,15 @@ impl From<&JsString> for JsString {
 }
 impl PartialEq for JsString {
     fn eq(&self, s: &Self) -> bool {
-        // The cached hashes are compared first (equal strings have equal hashes).
-        self.ptr_eq(s) || self.0 == s.0
+        // The cached hashes are compared first (equal strings have equal hashes); two interned
+        // strings are equal only if they are the same pool entry.
+        if self.hash_bits() != s.hash_bits() {
+            return false;
+        }
+        match (&self.0, &s.0) {
+            (Repr::Interned(_, a), Repr::Interned(_, b)) => std::ptr::eq(*a, *b),
+            _ => self.ptr_eq(s) || self.as_units() == s.as_units(),
+        }
     }
 }
 impl Eq for JsString {}

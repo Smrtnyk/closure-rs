@@ -42,18 +42,33 @@
 use crate::js_string::JsString;
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicI32, Ordering};
-use std::sync::{Arc, Mutex, OnceLock, Weak};
+use std::sync::{Mutex, OnceLock};
 
 pub struct RhinoStringPool;
 // Java's weak interner. Rust-only (D-025): split into independently locked shards by hash, so
 // that inputs parsed on several threads (jscomp `parallel_parse`) rarely wait for each other;
-// which shard holds a string never matters, only that equal strings share one entry.
-type Interner = crate::fast_hash::IndexMap<Box<[u16]>, Weak<[u16]>>;
+// which shard holds a string never matters, only that equal strings share one entry. Entries
+// are never removed: an interned string lives for the rest of the process (see `JsString`).
+type Interner = crate::fast_hash::IndexMap<&'static [u16], JsString>;
 const SHARD_BITS: u32 = 6;
 static INTERNER: OnceLock<Vec<Mutex<Interner>>> = OnceLock::new();
 thread_local! {
-    static THREAD_CACHE: std::cell::RefCell<Option<crate::fast_hash::IndexMap<Box<[u16]>, JsString>>> =
+    static THREAD_CACHE: std::cell::RefCell<Option<crate::fast_hash::IndexMap<&'static [u16], JsString>>> =
         const { std::cell::RefCell::new(None) };
+}
+/// Rust-only: with `CLOSURE_RS_REFCOUNTED_NAMES` set in the environment, the pool keeps the
+/// reference-counted strings it is given instead of permanent copies (to compare the two).
+fn refcounted_names() -> bool {
+    static ON: OnceLock<bool> = OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("CLOSURE_RS_REFCOUNTED_NAMES").is_some())
+}
+/// Rust-only: the key of a pool entry.
+fn static_key(interned: &JsString) -> &'static [u16] {
+    if interned.is_interned() {
+        interned.static_units()
+    } else {
+        Box::leak(interned.as_units().into())
+    }
 }
 fn shard(units: &[u16]) -> &'static Mutex<Interner> {
     let shards = INTERNER.get_or_init(|| {
@@ -73,6 +88,10 @@ impl RhinoStringPool {
     // port: RhinoStringPool#addOrGet
     pub fn add_or_get(s: impl Into<JsString>) -> JsString {
         let s = s.into();
+        // Rust-only: an interned string is its own pool entry.
+        if s.is_interned() {
+            return s;
+        }
         // Rust-only: a parser thread's own cache of pool entries (see `with_thread_cache`).
         if let Some(cached) = THREAD_CACHE
             .with_borrow(|cache| cache.as_ref().map(|cache| cache.get(s.as_units()).cloned()))
@@ -83,7 +102,7 @@ impl RhinoStringPool {
                     cache
                         .as_mut()
                         .unwrap()
-                        .insert(interned.as_units().into(), interned.clone())
+                        .insert(static_key(&interned), interned.clone())
                 });
                 interned
             });
@@ -102,15 +121,16 @@ impl RhinoStringPool {
     }
     fn add_or_get_shared(s: JsString) -> JsString {
         let mut pool = shard(s.as_units()).lock().unwrap();
-        if let Some(interned) = pool.get(s.as_units()).and_then(Weak::upgrade) {
-            return JsString::from_shared(interned);
+        if let Some(interned) = pool.get(s.as_units()) {
+            return interned.clone();
         }
-        // Weak entries cannot retain the string. Remove their keys as well.
-        if pool.len().is_multiple_of(1024) {
-            pool.retain(|_, v| v.strong_count() != 0);
-        }
-        pool.insert(s.as_units().into(), Arc::downgrade(s.shared()));
-        s
+        let interned = if refcounted_names() {
+            s
+        } else {
+            s.leak_interned()
+        };
+        pool.insert(static_key(&interned), interned.clone());
+        interned
     }
     // port: RhinoStringPool#RhinoStringPool
     fn new() -> Self {
