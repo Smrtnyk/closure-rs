@@ -55,7 +55,7 @@ if [ "${1:-all}" != "report" ] && [ -d "$G" ] && [ "$(cat "$G/fuzz-src.sha256" 2
   mv "$G" "$STALE"
   mkdir -p "$G"
   # The D2 pass-dump samples (the D2-effective diagnostic denominator, fuzz_gate03.D2_SAMPLES) are
-  # measured on visible D2 pairs and do not depend on the fuzz/ sources: carry them over.
+  # measured on D2 pairs and do not depend on the fuzz/ sources: carry them over.
   [ -d "$STALE/d2x" ] && cp -a "$STALE/d2x" "$G/d2x"
 fi
 mkdir -p "$G"

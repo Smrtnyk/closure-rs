@@ -8,7 +8,7 @@ The fuzzer lives in the Cargo workspace rooted at `/Cargo.toml`, together with `
 | Crate | Kind | Role |
 |---|---|---|
 | `fuzz/jsgen` | lib + bin `jsgen` | Grammar-based generator. It is seeded and deterministic, and its depth is capped at 64 or less (D-010). |
-| `fuzz/mutate` | lib + bin `mutate` | Token-level mutator over visible D2 inputs (`corpus/d2/cases.jsonl`). |
+| `fuzz/mutate` | lib + bin `mutate` | Token-level mutator over D2 inputs (`corpus/d2/cases.jsonl`). |
 | `fuzz/minimize` | lib + bin `minimize` | AST delta debugging over `parse_dump` ranges, then line-level ddmin. |
 | `fuzz/oracle` (`fuzz-oracle`) | lib | Rust client for the Java oracle server. It enforces the golden environment, and `ArgsHelper` builds argv through `case_args.py`. |
 | `fuzz/driver` (`fuzz-driver`) | bin | The differential loop: parse filter, random D2 profile, engine A against engine B, compare, minimize, file. |
@@ -87,7 +87,7 @@ Production { name, weight, leaf, when: fn(&Ctx) -> bool, emit: fn(&mut Gen) }
    function/class declarations, `import {a as b}`, `export {x} from` and side-effect imports,
    guarded by the unit test `module_forms_appear`), 5% sloppy (jsgen sloppy dialect,
    `--strict_mode_input=false` for parse and compile) and 25% mutate (`mutate_with`, whole
-   visible pool as donors). `gen` keeps the four jsgen categories at 30:25:15:5. The
+   D2 pool as donors). `gen` keeps the four jsgen categories at 30:25:15:5. The
    `unsupported` dialect is never used by the driver.
 2. **Parse filter.** The program goes through the oracle's `parse_dump` with CLI default
    options. A program with `errors != []` is rejected and counted.
@@ -175,7 +175,7 @@ prints only on change). The denominator is every `PassFactory` name in
 `DefaultPassConfig`: 139 factories and 138 unique names once the
 `processDefines_<mode>` names are expanded and duplicate names are merged.
 
-The subcommands are `denominator`, `d2` (a seeded sample of visible pairs), `dir` (a
+The subcommands are `denominator`, `d2` (a seeded sample of D2 pairs), `dir` (a
 directory of generated programs, each with a profile) and `report`.
 
 Gate 0.3 (b) is gated only on its definition: pass-entry counters
@@ -188,10 +188,9 @@ the names, which is why D-016 weights the profile draw (Driver flow, step 3).
 D-016 adds **(b2)**, gated in addition to (b) and not instead of it: the union over the
 programs of the passes the effect measure finds effective, counted over runs where Java did not
 crash (exit 254, which D-009 drops from every comparison), must cover at least 85% of the
-D2-effective set (the passes effective on seeded samples of visible D2 pairs,
+D2-effective set (the passes effective on seeded samples of D2 pairs,
 `fuzz_gate03.D2_SAMPLES`). The other effect aggregates (the per-program average, the union
-against all 138 names) remain diagnostics, and no relaxed reading of (b) built on them is
-proposed.
+against all 138 names) are diagnostics only.
 
 Two facts matter when reading (b) (Java `SortingErrorManager.hasHaltingErrors`,
 `PhaseOptimizer`, `Result.success`):
@@ -203,9 +202,9 @@ Two facts matter when reading (b) (Java `SortingErrorManager.hasHaltingErrors`,
   The Gate 0.3 report therefore gives, as diagnostics that do not change (b), the (b) mean over
   exit-0 runs only and the share of measured runs without comparable output, split into runs
   that reached the end of their profile's pipeline (marker: `latePeepholeOptimizations`; for
-  `ws`, the names every exit-0 `ws` run enters) and runs that halted early. On the D-016 data
-  the exit-0-only mean is just below the 60% threshold; a type-clean or strict-aware generation
-  mode for `advanced_strict` would raise it (a known gap).
+  `ws`, the names every exit-0 `ws` run enters) and runs that halted early. A type-clean or
+  strict-aware generation mode for `advanced_strict` would raise the exit-0-only mean (a known
+  gap, D-016 item 5).
 
 The report marks itself STALE when the fuzz/ sources on disk (`*.rs` and `Cargo.toml`) differ
 from the ones the results were measured with.

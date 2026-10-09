@@ -52,8 +52,8 @@ The rules are applied in order, and the first match decides:
 3. The flag name or an alias matches an area rule (`AREA_RULES` in `gen_flags.py`): **out**.
    The areas are refactoring, lint, instrumentation, ant, debugger, J2CL, Polymer and Chrome,
    and each rule carries its evidence (the package or pass the flag configures). The header
-   shows how many flags each rule matched, so a rule that matches nothing is visible. Today
-   refactoring, lint, ant and debugger match no `CommandLineRunner` flag. `--debug` is not the
+   shows how many flags each rule matched, so a rule that matches nothing is visible. At the
+   pinned reference, refactoring, lint, ant and debugger match no `CommandLineRunner` flag. `--debug` is not the
    `debugger/` package: it turns on debug renaming.
 4. Otherwise: **in**.
 

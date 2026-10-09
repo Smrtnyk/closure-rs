@@ -1,7 +1,7 @@
 # D2 differential runner and ratchet (`gates/d2_rust.py`, `gates/full.sh`)
 
 A change is checked for two things (docs/PORTING.md §7): CI passes, and no previously passing D2
-pair regresses. `gates/d2_rust.py` runs a Rust CLI on the visible D2 corpus, compares it with the
+pair regresses. `gates/d2_rust.py` runs a Rust CLI on the D2 corpus, compares it with the
 golden Java results byte for byte, and writes a report and `ratchet.json`. `gates/full.sh`
 runs CI, then the D2 runner, then the unit-record runner hook.
 
@@ -32,7 +32,7 @@ Exit codes: 0 = the run completed (any pass rate) and, with `--baseline`, no reg
 
 ## What is compared
 
-Pairs: every case of `corpus/d2/cases.jsonl` (the final visible corpus, 2,085 cases) x
+Pairs: every case of `corpus/d2/cases.jsonl` (the final corpus, 2,085 cases) x
 `case_args.case_profiles(case)` = 21,155 pairs. For each pair:
 
 - argv = `case_args.compiler_args(case, profile)` with the default out_dir

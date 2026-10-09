@@ -160,8 +160,7 @@ whose constants and all builder sections are checked against the pinned Java hel
 
 The stable record ID is the pair `(class,index)`, where `index` is the zero-based line in that
 class's `.jsonl.gz` record file. A human-readable spelling is `Class[index]`. `method` and `call`
-are supplementary source identifiers, not replacements for the stable pair. Report version 1
-and its fields are unchanged.
+are supplementary source identifiers, not replacements for the stable pair.
 
 Missing native factories are preserved through the compiler's panic wrappers and reported as
 unported. Rust panics follow the precondition rule above. The replay harness never synthesizes a

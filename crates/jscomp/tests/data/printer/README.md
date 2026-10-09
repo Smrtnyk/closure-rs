@@ -13,7 +13,7 @@ the reference CodeGenerator has no printing arm for this token.
 The complete sweep has 3,520 distinct successfully parsed D2 inputs. Java selected 3,600 paths
 and rejected 80 with parser errors. It uses OracleRunner.createOptionsForParseDump with UNSTABLE
 input and INCLUDE_ALL_COMMENTS, the reference jar, oracle_client.golden_env(), JDK 21, -Xmx2g,
-and -Xss64m. The oracle jar and oracle dump implementation are unchanged; PrinterGolden adds
+and -Xss64m. It uses the oracle jar and its dump implementation as they are; PrinterGolden adds
 metadata to its own dump.
 
 Every fixture and sweep input runs the same 39 configurations:

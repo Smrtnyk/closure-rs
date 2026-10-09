@@ -146,13 +146,13 @@ the jar's sha256>`; the results of an older reference, such as `ref-4ef5a893`, s
 
 **`peak_rss_kb` caveat (runner_version 1).** Linux stores the *old* address space's
 high-water RSS into a process's maxrss at `execve()`, and CPython spawns children with
-vfork. A JVM started straight from the driver therefore reported
-max(driver peak RSS, JVM peak RSS). In the first full run, 16,260 of 17,970 results carry
-the driver's 1,345,772 kB. Runner version 2 starts the JVM through
-`gates/lib/rss_spawn.py`, a small fork+exec wrapper that leaves argv, env, cwd and stdio
-unchanged, so `peak_rss_kb` is the JVM's own peak. `golden_all.py` ignores v1 RSS values.
-The compiler outputs of v1 results are unaffected. `wall_ms` was measured on a heavily
-loaded host (load average 70–100), so use it for scheduling only, not for D7.
+vfork. A JVM started straight from the driver therefore reports
+max(driver peak RSS, JVM peak RSS), so most `runner_version` 1 results carry the driver's
+RSS. Runner version 2 starts the JVM through `gates/lib/rss_spawn.py`, a small fork+exec
+wrapper that leaves argv, env, cwd and stdio unchanged, so `peak_rss_kb` is the JVM's own
+peak. `golden_all.py` ignores v1 RSS values; the compiler outputs of v1 results are
+unaffected. Golden runs are not timed under benchmark conditions, so use `wall_ms` for
+scheduling only, not for D7.
 
 Text that is not valid UTF-8 is stored as `{"base64": …}`.
 

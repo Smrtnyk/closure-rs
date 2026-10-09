@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seam measurement (oracle/SEAM.md): compile(argv) vs optimize_from_typedast(checks_to_typedast(argv)).
+"""Seam measurement (oracle/PROTOCOL.md, "Seam caveats"): compile(argv) vs optimize_from_typedast(checks_to_typedast(argv)).
 
 Usage: python3 oracle/test/seam.py [--n 320] [--servers 3] [--isolate request] [--seed 20261006]
 Resumable: one result file per pair under build/oracle/seam/results/<idx>.json.

@@ -21,8 +21,8 @@ against the sha256 recorded in `sources.lock.json`.
 }
 ```
 
-- **`group`:** the unit used to split off the holdout. All cases from one origin
-  (a package version or a library directory) land on the same side of the split.
+- **`group`:** groups the cases of one origin (a package version or a library
+  directory); `scripts/fetch_d2.sh --group` fetches one group.
 - **`shims`:** small generated entry files, committed to the repository. A shim keeps
   ADVANCED-mode output non-trivial, for example by writing the exports of the code under
   test to `globalThis['name']`.
@@ -66,6 +66,6 @@ from the candidates and the golden results. Compared with a candidate line:
 `sources.lock.json` merges the five candidate locks: `files` maps every repo-relative path to
 its sha256, byte count, source and how to fetch it (`url`, `tarball`, `tarball_file`, or
 `in_repo` for shims and the reference checkout); `tarballs` holds the npm tarballs (url, sha256,
-integrity, shasum); `groups` lists, per holdout group, its cases, files and tarballs.
+integrity, shasum); `groups` lists, per group, its cases, files and tarballs.
 `scripts/fetch_d2.sh` re-creates and verifies the cache from it (`--group`, `--source`,
 `--check`, `--cache-dir`).

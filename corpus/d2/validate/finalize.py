@@ -399,7 +399,7 @@ def write_reports(cands, final, drops, dropped_cases, scan, files, wp_res, meta,
     L.append(md_table(["", "Candidates", "Final"], [
         ["Cases", len(cands), len(final)],
         ["(case, profile) pairs", tot_pairs, len(kept_pairs)],
-        ["Groups (holdout split units)", len({c['group'] for c in cands}), len({c['group'] for c in final})],
+        ["Groups (cases of one origin)", len({c['group'] for c in cands}), len({c['group'] for c in final})],
     ]))
     L.append("")
     L.append("Requirement: at least 2,000 cases with every source represented: "
