@@ -89,8 +89,8 @@ and the corpus inputs, which are fetched by scripts, not stored in this reposito
 - **Differential corpus:** real-world inputs are compiled by both compilers in 11 option profiles
   and compared byte for byte (`corpus/d2/`, `gates/d2_rust.py`). A ratchet keeps every pair that
   matches once matching forever.
-- **Holdout and fuzzing:** a held-out part of the differential corpus and a differential fuzzer
-  guard against fitting the port to the visible cases.
+- **Unseen inputs:** a differential fuzzer and large real-world bundles outside the corpus
+  (`fuzz/`, `bench/`) guard against fitting the port to the corpus cases.
 
 [`docs/PORTING.md`](docs/PORTING.md) describes the scope, what byte-identical means, how the port
 mirrors the Java code, how fidelity is verified and how the port follows upstream.

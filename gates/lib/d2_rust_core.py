@@ -1,4 +1,4 @@
-"""D2 differential runner core: run a Rust CLI on every visible D2 (case, profile) pair and
+"""D2 differential runner core: run a Rust CLI on every D2 (case, profile) pair and
 compare stdout, stderr, exit code and every output file (JS chunks, source maps) byte for byte
 with the golden Java results.  See gates/README_d2_rust.md.
 
@@ -28,7 +28,7 @@ import case_args  # noqa: E402
 import run_reference  # noqa: E402
 
 CHECKOUT = case_args.REPO  # the checkout these gates live in (main checkout or a worktree)
-CASES_FILE = "corpus/d2/cases.jsonl"  # the final visible corpus (corpus/d2/FORMAT.md)
+CASES_FILE = "corpus/d2/cases.jsonl"  # the final corpus (corpus/d2/FORMAT.md)
 GOLDEN_TAG = run_reference.REF_TAG
 GOLDEN_ROOT = run_reference.GOLDEN_ROOT  # repo-relative, under the data root
 DEFAULT_TIMEOUT_S = run_reference.DEFAULT_TIMEOUT_S
@@ -463,7 +463,7 @@ def run(binary: str, *, flt: dict | None = None, jobs: int | None = None,
         timeout_s: float = DEFAULT_TIMEOUT_S, out: str | None = None,
         data_root: str | None = None, keep_failing: bool = False,
         progress_every: int = 500, quiet: bool = False) -> dict:
-    """Run the binary on the (filtered) visible corpus; write results.jsonl, report.json,
+    """Run the binary on the (filtered) corpus; write results.jsonl, report.json,
     report.md and ratchet.json into `out`.  Returns the report dict."""
     flt = flt or {}
     binary = os.path.abspath(binary)

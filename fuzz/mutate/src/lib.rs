@@ -1,9 +1,8 @@
-//! Structure-aware mutator over visible D2 inputs (docs/PORTING.md §4.6).
+//! Structure-aware mutator over D2 inputs (docs/PORTING.md §4.6).
 //!
-//! Inputs come from `corpus/d2/cases.jsonl` (visible cases only; the holdout is never in the
-//! repository, D-008). [`syntax::analyze`] recovers statement lists, conditions and
-//! expressions from a token stream, and the operators below edit them so that the result
-//! stays parseable by construction:
+//! Inputs come from `corpus/d2/cases.jsonl`. [`syntax::analyze`] recovers statement lists,
+//! conditions and expressions from a token stream, and the operators below edit them so that
+//! the result stays parseable by construction:
 //!
 //! | operator | edit |
 //! |---|---|
@@ -16,7 +15,7 @@
 //! | `wrap` | 1-3 statements wrapped in a block, `if (true)`, `try/finally`, a label, `do/while(false)`, or a function/arrow IIFE |
 //! | `strict` | `'use strict'` directive added or removed (program or simple-parameter function) |
 //!
-//! Donor statements and expressions come from other visible D2 inputs ([`Donors`]); only
+//! Donor statements and expressions come from other D2 inputs ([`Donors`]); only
 //! portable ones are kept (no `yield`/`await`/`super`/`import`/`export`/`new.target`/private
 //! names, no `break`/`continue` that would leave their loop, `return` only into functions).
 //! After every edit the result is re-analyzed, and an edit that breaks the lexical structure

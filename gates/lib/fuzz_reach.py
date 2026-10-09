@@ -17,7 +17,7 @@ that changes only non-printed state (types, JSDoc-only, node props) is not count
 Subcommands
   denominator                         every pass name DefaultPassConfig can register
   d2   [--sample 300] [--seed N] [--servers 5]    effective passes on a seeded sample of
-                                      visible D2 pairs (resumable; results in build/fuzz/reach/)
+                                      D2 pairs (resumable; results in build/fuzz/reach/)
   dir  --dir D [--servers 5]          effective passes on a directory of generated programs:
                                       D/<name>.js with D/<name>.json = {"profile": "..."}
   report [--seed N] [--fuzz-results F] summary JSON (denominator, D2-effective set, fuzz reach)

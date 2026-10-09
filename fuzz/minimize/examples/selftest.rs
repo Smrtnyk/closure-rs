@@ -8,8 +8,8 @@
 //! runs. Predicates (all built deterministically):
 //!   * 12 x "Java SIMPLE output still contains NEEDLE" on jsgen programs (seed 20261006);
 //!   * 4 x "Java SIMPLE still reports warning key K" on jsgen programs;
-//!   * 4 x "Java SIMPLE output still contains word W" on small visible D2 inputs;
-//!   * 1 real divergence: a visible D2 case listed in corpus/d2/JAVA_FAILURES.md whose Java
+//!   * 4 x "Java SIMPLE output still contains word W" on small D2 inputs;
+//!   * 1 real divergence: a D2 case listed in corpus/d2/JAVA_FAILURES.md whose Java
 //!     compile crashes (exit 254): "the crash signature (exit code, exception class, first
 //!     com.google.javascript frame) persists".
 //!

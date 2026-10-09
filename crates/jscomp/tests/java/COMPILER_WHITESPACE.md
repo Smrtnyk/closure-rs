@@ -16,7 +16,7 @@ those CLI defaults, including trustedStrings. Both compilers format reports into
 silent streams: report formatting can itself load input source maps and report
 resolution warnings. A black-hole error manager would change that behavior.
 
-All 2,085 visible candidate records are read from the five candidate JSONL files.
+All 2,085 candidate records are read from the five candidate JSONL files.
 Each record retains its input, explicit extern and shim order and source names.
 Source bytes are decoded as UTF-8 without newline translation (all files are
 valid UTF-8). Profile/case flags are replaced with the three common flags above;
