@@ -435,6 +435,11 @@ here (one line each) to ease upstream syncs.
   PeepholeFoldConstants); OptimizeCalls keeps the extern property names as JS strings instead
   of converting each property name to compare it.
 - `jscomp/scope.rs` `declare`, `allocate`: a new var or scope takes the arena lock once.
+- `jscomp/chunked_vec.rs`: the syntactic scope arena and its mirror grow in fixed-size chunks
+  instead of one `Vec`, so growing never copies the scopes and vars already made.
+- `rhino/js_string.rs`: a string caches its `hashCode()` in front of its code units (Java's
+  String caches it too); `Hash` writes the cached value, `equals` and `compareTo` short-cut on
+  identity.
 
 ## D-026 — Upstream syncs follow npm releases; first sync to 20261006.0.0 (2026-10-09)
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**

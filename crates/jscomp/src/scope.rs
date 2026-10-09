@@ -18,6 +18,7 @@
 //   src/com/google/javascript/jscomp/AbstractScope.java,
 //   src/com/google/javascript/jscomp/AbstractVar.java, src/com/google/javascript/jscomp/Scope.java.
 
+use crate::chunked_vec::ChunkedVec;
 use crate::typed_scope::{TypedArenaMut, TypedArenaRef};
 use crate::{
     abstract_compiler::AbstractCompiler,
@@ -93,10 +94,10 @@ pub(crate) struct ScopeData {
 /// closure-jstype views can read it while the registry is borrowed from the compiler.
 #[derive(Debug, Default)]
 pub struct ScopeArena {
-    pub(crate) scopes: Vec<ScopeData>,
-    pub(crate) vars: Vec<AbstractVarData<ScopeId>>,
+    pub(crate) scopes: ChunkedVec<ScopeData>,
+    pub(crate) vars: ChunkedVec<AbstractVarData<ScopeId>>,
     /// Rust-only: the canonical view of each var (parallel to `vars`); see `VarView`.
-    pub(crate) var_views: Vec<OnceLock<&'static VarView>>,
+    pub(crate) var_views: ChunkedVec<OnceLock<&'static VarView>>,
 }
 
 /// Rust-only, not in Java (D-025): the fields of scopes and vars that never change after
@@ -107,8 +108,8 @@ pub struct ScopeArena {
 /// resynchronises, and is then read from the arena.
 #[derive(Debug, Default)]
 pub(crate) struct ScopeMirror {
-    pub(crate) scopes: Vec<ScopeMeta>,
-    pub(crate) vars: Vec<VarMeta>,
+    pub(crate) scopes: ChunkedVec<ScopeMeta>,
+    pub(crate) vars: ChunkedVec<VarMeta>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -142,7 +143,7 @@ impl VarMeta {
 impl ScopeMirror {
     /// Appends the vars the arena has and the mirror lacks.
     pub(crate) fn sync_vars(&mut self, arena: &ScopeArena) {
-        for data in &arena.vars[self.vars.len()..] {
+        for data in arena.vars.iter_from(self.vars.len()) {
             self.vars.push(VarMeta::of(data));
         }
     }

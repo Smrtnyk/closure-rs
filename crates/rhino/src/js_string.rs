@@ -20,25 +20,56 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-#[derive(Clone, Default)]
-pub struct JsString(pub(crate) Arc<[u16]>);
+/// Rust-only layout (D-025): the shared array starts with `HASH_UNITS` units holding the
+/// string's `hashCode()` (low half first), computed once when the string is made, as Java's
+/// String caches it; the string's code units follow. Hashing and `hashCode` read the cached
+/// value, and equal strings compare their hashes first.
+#[derive(Clone)]
+pub struct JsString(Arc<[u16]>);
+const HASH_UNITS: usize = 2;
+impl Default for JsString {
+    fn default() -> Self {
+        Self::from_slice(&[])
+    }
+}
 impl JsString {
     pub fn from_units(units: impl Into<Vec<u16>>) -> Self {
-        Self(Arc::from(units.into()))
+        Self::from_slice(&units.into())
+    }
+    /// Rust-only: a string of the code units `units`.
+    pub fn from_slice(units: &[u16]) -> Self {
+        let hash = units
+            .iter()
+            .fold(0i32, |h, c| h.wrapping_mul(31).wrapping_add(i32::from(*c)))
+            as u32;
+        Self(
+            [hash as u16, (hash >> 16) as u16]
+                .into_iter()
+                .chain(units.iter().copied())
+                .collect(),
+        )
+    }
+    /// Rust-only: the shared array (with the hash prefix), for the string pool.
+    pub(crate) fn shared(&self) -> &Arc<[u16]> {
+        &self.0
+    }
+    /// Rust-only: a string from a shared array made by `from_slice`, for the string pool.
+    pub(crate) fn from_shared(shared: Arc<[u16]>) -> Self {
+        Self(shared)
     }
     pub fn as_units(&self) -> &[u16] {
-        &self.0
+        &self.0[HASH_UNITS..]
     }
     pub fn ptr_eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }
     // port: String#length
     pub fn length(&self) -> usize {
-        self.0.len()
+        self.as_units().len()
     }
     // port: String#charAt
     pub fn char_at(&self, i: usize) -> u16 {
-        self.0[i]
+        self.as_units()[i]
     }
     // port: String#codePointAt
     pub fn code_point_at(&self, i: usize) -> u32 {
@@ -57,7 +88,7 @@ impl JsString {
         if b == 0 && e == self.length() {
             self.clone()
         } else {
-            Self::from_units(self.0[b..e].to_vec())
+            Self::from_slice(&self.as_units()[b..e])
         }
     }
     // port: String#substring(int)
@@ -78,16 +109,19 @@ impl JsString {
             if needle.len() > self.length() - b {
                 return -1;
             }
-            find_units(&self.0[b..], needle).map_or(-1, |i| (b + i) as i32)
+            find_units(&self.as_units()[b..], needle).map_or(-1, |i| (b + i) as i32)
         })
     }
     // port: String#indexOf(int)
     pub fn index_of_char(&self, c: u16) -> i32 {
-        self.0.iter().position(|v| *v == c).map_or(-1, |i| i as i32)
+        self.as_units()
+            .iter()
+            .position(|v| *v == c)
+            .map_or(-1, |i| i as i32)
     }
     // port: String#lastIndexOf(int)
     pub fn last_index_of_char(&self, c: u16) -> i32 {
-        self.0
+        self.as_units()
             .iter()
             .rposition(|v| *v == c)
             .map_or(-1, |i| i as i32)
@@ -110,25 +144,23 @@ impl JsString {
     // port: String#startsWith
     pub fn starts_with(&self, s: impl JsStrLike) -> bool {
         // (Any string form: callers need not allocate a JsString for a literal.)
-        s.with_units(|s| self.0.starts_with(s))
+        s.with_units(|s| self.as_units().starts_with(s))
     }
     // port: String#endsWith
     pub fn ends_with(&self, s: impl JsStrLike) -> bool {
-        s.with_units(|s| self.0.ends_with(s))
+        s.with_units(|s| self.as_units().ends_with(s))
     }
     // port: String#isEmpty
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.as_units().is_empty()
     }
     // port: String#hashCode
     pub fn hash_code(&self) -> i32 {
-        self.0
-            .iter()
-            .fold(0i32, |h, c| h.wrapping_mul(31).wrapping_add(*c as i32))
+        (u32::from(self.0[0]) | u32::from(self.0[1]) << 16) as i32
     }
     // port: String#compareTo
     pub fn compare_to(&self, s: &Self) -> i32 {
-        for (a, b) in self.0.iter().zip(s.0.iter()) {
+        for (a, b) in self.as_units().iter().zip(s.as_units().iter()) {
             if a != b {
                 return *a as i32 - *b as i32;
             }
@@ -140,8 +172,8 @@ impl JsString {
         if s.is_empty() {
             return self.clone();
         }
-        let mut units = self.0.to_vec();
-        units.extend_from_slice(&s.0);
+        let mut units = self.as_units().to_vec();
+        units.extend_from_slice(s.as_units());
         Self::from_units(units)
     }
     // port: String#replace(CharSequence,CharSequence)
@@ -172,7 +204,7 @@ impl JsString {
     }
     /// Explicitly lossy UTF-8 convenience conversion; Java strings stay in `as_units()`.
     pub fn to_string_lossy(&self) -> String {
-        String::from_utf16_lossy(&self.0)
+        String::from_utf16_lossy(self.as_units())
     }
 }
 /// Rust-only (D-025): the first index of `needle` (non-empty) in `hay`, as `String#indexOf`
@@ -257,18 +289,22 @@ impl From<&JsString> for JsString {
 }
 impl PartialEq for JsString {
     fn eq(&self, s: &Self) -> bool {
+        // The cached hashes are compared first (equal strings have equal hashes).
         self.ptr_eq(s) || self.0 == s.0
     }
 }
 impl Eq for JsString {}
 impl Hash for JsString {
     fn hash<H: Hasher>(&self, h: &mut H) {
-        self.0.hash(h);
+        h.write_u32(self.hash_code() as u32);
     }
 }
 impl Ord for JsString {
     fn cmp(&self, s: &Self) -> Ordering {
-        self.0.cmp(&s.0)
+        if self.ptr_eq(s) {
+            return Ordering::Equal;
+        }
+        self.as_units().cmp(s.as_units())
     }
 }
 impl PartialOrd for JsString {
@@ -279,18 +315,18 @@ impl PartialOrd for JsString {
 impl PartialEq<str> for JsString {
     fn eq(&self, s: &str) -> bool {
         // A str of n bytes has at most n UTF-16 code units (cheap early exit).
-        if self.0.len() > s.len() {
+        if self.as_units().len() > s.len() {
             return false;
         }
         // Rust-only fast path: an ASCII str has one code unit per byte.
-        if self.0.len() == s.len() && s.is_ascii() {
+        if self.as_units().len() == s.len() && s.is_ascii() {
             return self
-                .0
+                .as_units()
                 .iter()
                 .zip(s.bytes())
                 .all(|(a, b)| *a == u16::from(b));
         }
-        self.0.iter().copied().eq(s.encode_utf16())
+        self.as_units().iter().copied().eq(s.encode_utf16())
     }
 }
 impl PartialEq<&str> for JsString {
@@ -308,6 +344,6 @@ impl fmt::Display for JsString {
 }
 impl fmt::Debug for JsString {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("JsString").field(&self.0).finish()
+        f.debug_tuple("JsString").field(&self.as_units()).finish()
     }
 }
