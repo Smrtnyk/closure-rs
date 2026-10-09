@@ -342,7 +342,8 @@ here (one line each) to ease upstream syncs.
 - `jscomp/rhino_error_reporter.rs` `JSErrorQueue`: the registry error queue's empty check is a
   flag load, not a lock.
 - `jscomp/compiler.rs` `get_extern_properties_js`: the extern property names are converted to JS
-  strings once per value, not on every RemoveUnusedCode run.
+  strings once per value, not on every RemoveUnusedCode run, and interned (copied without a
+  reference count).
 - `jscomp/node_traversal.rs` `get_input`, `syntactic_scope_creator.rs` `ScopeScanner`: the
   CompilerInput found for the current input id is kept (Java keeps the object) instead of being
   looked up by id again; `ImplicitVar::js_name` makes the implicit var names once.

@@ -3276,13 +3276,14 @@ impl Compiler {
     pub fn get_extern_properties(&self) -> Option<&closure_rhino::fast_hash::IndexSet<String>> {
         self.extern_properties.as_ref()
     }
-    /// Rust-only: `get_extern_properties` as JS strings.
+    /// Rust-only: `get_extern_properties` as JS strings, interned so that copying one needs no
+    /// reference count (RemoveUnusedCode and OptimizeCalls copy them all on every run).
     pub fn get_extern_properties_js(&self) -> Option<&[closure_rhino::js_string::JsString]> {
         let properties = self.extern_properties.as_ref()?;
         Some(self.extern_properties_js.get_or_init(|| {
             properties
                 .iter()
-                .map(|s| closure_rhino::js_string::JsString::from(s.as_str()))
+                .map(|s| closure_rhino::rhino_string_pool::RhinoStringPool::add_or_get(s.as_str()))
                 .collect()
         }))
     }
