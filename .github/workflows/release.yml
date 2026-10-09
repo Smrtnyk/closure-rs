@@ -20,9 +20,9 @@ on:
         type: boolean
         default: false
       dist_tag:
-        description: 'npm dist-tag to publish under (latest: what a plain `npm install closure-rs` gets)'
+        description: 'npm dist-tag to publish under (latest: what a plain `npm install closure-rs` gets; exp: experimental builds)'
         type: choice
-        options: [alpha, latest]
+        options: [alpha, latest, exp]
         default: alpha
 
 concurrency:
