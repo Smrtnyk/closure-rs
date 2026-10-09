@@ -206,4 +206,5 @@ jobs:
       - name: Publish (dist-tag from the run form)
         env:
           DIST_TAG: ${{ inputs.dist_tag }}
-        run: npm publish dist/*.tgz --tag "$DIST_TAG" --access public
+        # ./ is required: npm reads a bare dist/x.tgz as the GitHub repository shorthand "dist/x.tgz"
+        run: npm publish ./dist/*.tgz --tag "$DIST_TAG" --access public
