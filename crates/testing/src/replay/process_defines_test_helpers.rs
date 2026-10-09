@@ -30,8 +30,10 @@
  */
 // Ported from closure-rs' own Java oracle tooling:
 //   UnitRecorder.java (oracle/patches/0002-recording-hooks.patch),
+//   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+//   src/com/google/javascript/jscomp/ProcessDefines.java,
 //   test/com/google/javascript/jscomp/ProcessDefinesTest.java.
 
 //! Port of the replay helper `oracle/replay/helpers/.../ProcessDefinesTest_Helpers.java` (DSL
@@ -530,4 +532,89 @@ pub fn get_processor(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslValue, Th
         recognize_closure_defines: this.recognize_closure_defines,
     };
     Ok(DslValue::Native(Rc::new(RefCell::new(pass))))
+}
+
+const BUILDER: &str = "com.google.javascript.jscomp.ProcessDefines$Builder";
+const PROCESS_DEFINES: &str = "com.google.javascript.jscomp.ProcessDefines";
+
+/// The DSL receiver for `ProcessDefines.Builder` (J2clUtilGetDefineRewriterPassTest's processor):
+/// the setters are recorded until `build()` applies them to the Rust builder, which needs the
+/// compiler mutably.
+struct BuilderObject {
+    compiler: CompilerHandle,
+    mode: Option<Mode>,
+}
+
+impl NativeObject for BuilderObject {
+    // port: ReplayDsl#invoke (runtime declaring class)
+    fn class_name(&self) -> &str {
+        BUILDER
+    }
+    // port: ReplayDsl#invoke (receiver cast)
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+impl BuilderObject {
+    // port: ProcessDefines.Builder#build
+    fn build(&self, compiler: &mut crate::jscomp_api::Compiler) -> DslValue {
+        let mut builder = Builder::new(compiler);
+        if let Some(mode) = self.mode {
+            builder = builder.set_mode(mode);
+        }
+        let pass: Box<dyn CompilerPass> = Box::new(builder.build(compiler));
+        DslValue::Typed {
+            class: PROCESS_DEFINES.into(),
+            value: Box::new(DslValue::Pass(Rc::new(RefCell::new(pass)))),
+        }
+    }
+}
+
+fn with_builder<R>(
+    receiver: &DslValue,
+    f: impl FnOnce(&mut BuilderObject) -> R,
+) -> Result<R, Throwable> {
+    let DslValue::Native(object) = receiver else {
+        return Err(bad());
+    };
+    let mut borrowed = object.borrow_mut();
+    let this = borrowed
+        .as_any_mut()
+        .downcast_mut::<BuilderObject>()
+        .ok_or_else(bad)?;
+    Ok(f(this))
+}
+
+// port: ProcessDefines.Builder#Builder
+pub fn builder_new(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslValue, Throwable> {
+    let [DslValue::Compiler(compiler)] = args.as_slice() else {
+        return Err(bad());
+    };
+    Ok(native(BuilderObject {
+        compiler: Rc::clone(compiler),
+        mode: None,
+    }))
+}
+
+// port: ProcessDefines.Builder#setMode
+pub fn builder_set_mode(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslValue, Throwable> {
+    let [receiver, mode] = args.as_slice() else {
+        return Err(bad());
+    };
+    let mode = decode_mode(mode)?;
+    with_builder(receiver, |this| this.mode = Some(mode))?;
+    Ok(receiver.clone())
+}
+
+// port: ProcessDefines.Builder#build
+pub fn builder_build(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslValue, Throwable> {
+    let [receiver] = args.as_slice() else {
+        return Err(bad());
+    };
+    with_builder(receiver, |this| {
+        let compiler = Rc::clone(&this.compiler);
+        let mut compiler = compiler.borrow_mut();
+        this.build(&mut compiler)
+    })
 }
