@@ -20,6 +20,12 @@
 use closure_cli::{
     abstract_command_line_runner::SystemExitCodeReceiver, command_line_runner::CommandLineRunner,
 };
+
+// Not in Java (the JVM has its own allocator): mimalloc is much faster than the system allocator
+// for the compiler's many small, short-lived allocations (DECISIONS.md D-025). It changes no output.
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 // port: CommandLineRunner#main
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();

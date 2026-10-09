@@ -37,6 +37,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 base64 = "0.22"
 sha2 = "0.10"
+# Global allocator of the closure-rs binary (crates/cli/src/main.rs); MIT.
+mimalloc = { version = "0.1.52", default-features = false }
 jsgen = { path = "fuzz/jsgen" }
 mutate = { path = "fuzz/mutate" }
 minimize = { path = "fuzz/minimize" }
@@ -51,6 +53,10 @@ all = { level = "warn", priority = -1 }
 
 [profile.release]
 debug = 1
+# Whole-program optimisation for the shipped binary: about 5% faster compiles than the default
+# (thin, per-crate) LTO with 16 codegen units, for a slower release build (DECISIONS.md D-025).
+lto = "fat"
+codegen-units = 1
 
 # closure-testing parses the whole unit corpus (~750 MB of JSON) in `cargo test`; optimise it and
 # its gzip decoder in the default test profile so CI stays fast.
