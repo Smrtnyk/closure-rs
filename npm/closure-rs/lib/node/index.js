@@ -7,14 +7,28 @@
 //   - `JAR_PATH` defaults to null, so no JVM arguments are added and `extraCommandArgs` (JVM
 //     arguments in the official package) are ignored unless a caller sets JAR_PATH itself;
 //   - a spawn failure calls the callback once; the official class also calls it a second time
-//     from the 'close' event (Node emits 'error' and then 'close' with a negative code).
+//     from the 'close' event (Node emits 'error' and then 'close' with a negative code);
+//   - a process ended by a signal gives the callback 128 + the signal number (as a shell reports
+//     it) instead of null, and stderr names the signal: the official class passes null on, which
+//     an `if (exitCode)` check takes for success.
 import {spawn} from 'node:child_process';
+import {constants as osConstants} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {getNativeImagePath, platformPackageName} from '../utils.js';
+import {getNativeImagePath} from '../utils.js';
 
 const resolved = getNativeImagePath();
 
+/** The usual cause of a signal, appended to the message for a process ended by one. */
+const SIGNAL_HINTS = {
+  SIGKILL: ' (on Linux usually the out-of-memory killer: check the memory limit of the machine or ' +
+      'container, and how many compiles run at once)',
+  SIGILL: ' (an instruction this CPU does not support)',
+  SIGSEGV: ' (a crash)',
+  SIGBUS: ' (a crash)',
+  SIGABRT: ' (an abort)',
+  SIGSYS: ' (a system call blocked by a seccomp profile, for example in a container)',
+};
 /**
  * The executable `run()` spawns: the closure-rs binary from the platform package (or
  * CLOSURE_RS_BINARY). When neither exists, 'closure-rs' is looked up on PATH, just as the official
@@ -111,13 +125,19 @@ export default class Compiler {
           err += chunk;
         });
       }
-      child.on('close', (code) => {
+      child.on('close', (code, signal) => {
+        if (code === null && signal) {
+          const number = osConstants.signals[signal] || 0;
+          finish(128 + number, this.prependFullCommand(
+              `${err}closure-rs was terminated by signal ${signal}${SIGNAL_HINTS[signal] || ''}.`));
+          return;
+        }
         finish(code, code !== 0 ? this.prependFullCommand(err) : err);
       });
       child.on('error', (e) => {
         finish(1, this.prependFullCommand(
-            'Process spawn error. Is the closure-rs binary installed? It comes from the optional ' +
-            `package ${platformPackageName}; CLOSURE_RS_BINARY can point at a binary instead.\n` +
+            'Process spawn error. Is the closure-rs binary installed? It ships in this package under ' +
+            `bin/${process.platform}-${process.arch}/; CLOSURE_RS_BINARY can point at a binary instead.\n` +
             e.message));
       });
     }

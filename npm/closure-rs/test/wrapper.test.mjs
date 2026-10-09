@@ -183,6 +183,20 @@ test('missing executable: callback once with exit code 1', async () => {
   assert.match(result.stderr, /Process spawn error/);
 });
 
+test('terminated by a signal: exit code 128 + signal number, stderr names the signal',
+    {skip: process.platform === 'win32'}, async () => {
+  const fake = path.join(dir, 'killed-by-signal.sh');
+  writeFileSync(fake, '#!/bin/sh\nkill -KILL $$\n', {mode: 0o755});
+  const c = new ClosureCompiler({js: smoke});
+  c.javaPath = fake;
+  const result = await new Promise((resolve) => {
+    c.run((code, stdout, stderr) => resolve({code, stderr}));
+  });
+  assert.equal(result.code, 137);
+  assert.match(result.stderr, /terminated by signal SIGKILL \(on Linux usually the out-of-memory killer/);
+  assert.ok(result.stderr.startsWith(c.getFullCommand()));
+});
+
 test('gulp and grunt are stubs that throw', () => {
   assert.throws(() => gcc.gulp({js: 'a.js'}), /does not implement the gulp plugin/);
   assert.throws(() => gcc.grunt({}), /does not implement the grunt plugin/);
