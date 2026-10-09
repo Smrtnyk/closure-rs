@@ -354,7 +354,7 @@ impl ExportDefinition {
             return true;
         }
         let maybe_goog = method.get_first_child(compiler).unwrap();
-        if !maybe_goog.is_name(compiler) || maybe_goog.get_string(compiler) != "goog" {
+        if !maybe_goog.is_name(compiler) || maybe_goog.get_string_ref(compiler) != "goog" {
             return true;
         }
         let name = method.get_string(compiler);
@@ -1327,7 +1327,7 @@ impl ClosureRewriteModule {
         class_or_function_node: NodeId,
     ) {
         let name_node = class_or_function_node.get_first_child(t).unwrap();
-        if name_node.is_name(t) && !name_node.get_string(t).is_empty() {
+        if name_node.is_name(t) && !name_node.get_string_ref(t).is_empty() {
             let name = name_node.get_string(t);
             self.cur_mut().top_level_names.insert(name);
         }
@@ -1680,7 +1680,7 @@ impl ClosureRewriteModule {
         };
         check_state!(
             parent.is_await(compiler)
-                || (parent.is_get_prop(compiler) && parent.get_string(compiler) == "then"),
+                || (parent.is_get_prop(compiler) && parent.get_string_ref(compiler) == "then"),
             "goog.requireDynamic() in only allowed in await/then expression"
         );
 
@@ -2024,7 +2024,7 @@ impl ClosureRewriteModule {
 
         let exports_name_node = getprop_node.get_first_child(t).unwrap();
         check_state!(
-            exports_name_node.get_string(t) == "exports",
+            exports_name_node.get_string_ref(t) == "exports",
             "%s",
             exports_name_node.to_string(t)
         );
@@ -2063,7 +2063,7 @@ impl ClosureRewriteModule {
 
         // Update "exports.foo = Foo" to "module$exports$pkg$Foo.foo = Foo";
         let exports_name_node = getprop_node.get_first_child(t).unwrap();
-        check_state!(exports_name_node.get_string(t) == "exports");
+        check_state!(exports_name_node.get_string_ref(t) == "exports");
         let exported_namespace = self.cur().get_exported_namespace();
         self.safe_set_maybe_qualified_string(
             t.get_compiler(),

@@ -72,7 +72,7 @@ impl ClosureCodingConvention {
     }
     // port: ClosureCodingConvention#endsWithPrototype
     fn ends_with_prototype(ast: &Ast, qualified_name: NodeId) -> bool {
-        qualified_name.is_get_prop(ast) && qualified_name.get_string(ast) == "prototype"
+        qualified_name.is_get_prop(ast) && qualified_name.get_string_ref(ast) == "prototype"
     }
     // port: ClosureCodingConvention#extractClassNameIfGoog
     fn extract_class_name_if_goog(
@@ -106,7 +106,7 @@ impl ClosureCodingConvention {
         if target.is_get_prop(ast) {
             matches_qualified_name_pattern(ast, target, &GOOG_CACHE_REFLECT.0, GOOG_CACHE_REFLECT.1)
         } else if target.is_name(ast) {
-            target.get_string(ast) == "goog$reflect$cache"
+            target.get_string_ref(ast) == "goog$reflect$cache"
         } else {
             false
         }
@@ -262,7 +262,7 @@ impl CodingConvention for ClosureCodingConvention {
             let src = target.get_first_child(ast).unwrap();
             let prop = target.get_string(ast);
             if src.is_name(ast)
-                && src.get_string(ast) == "goog"
+                && src.get_string_ref(ast) == "goog"
                 && (prop == "isArrayLike" || prop == "isObject")
             {
                 return true;

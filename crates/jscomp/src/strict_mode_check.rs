@@ -148,9 +148,9 @@ impl StrictModeCheck {
     fn check_assignment(&self, compiler: &mut AbstractCompiler, n: NodeId) {
         let first = n.get_first_child(compiler).unwrap();
         if first.is_name(compiler) {
-            if first.get_string(compiler) == "arguments" {
+            if first.get_string_ref(compiler) == "arguments" {
                 self.report(compiler, n, &ARGUMENTS_ASSIGNMENT, &[]);
-            } else if first.get_string(compiler) == "eval" {
+            } else if first.get_string_ref(compiler) == "eval" {
                 // Note that assignment to eval is already illegal because any use of
                 // that name is illegal.
                 self.report(compiler, n, &EVAL_ASSIGNMENT, &[]);
@@ -301,9 +301,9 @@ impl NonExternChecks<'_> {
     /// Checks for illegal declarations.
     // port: StrictModeCheck.NonExternChecks#checkDeclaration
     fn check_declaration(&self, compiler: &mut AbstractCompiler, n: NodeId) {
-        if n.get_string(compiler) == "eval" {
+        if n.get_string_ref(compiler) == "eval" {
             self.outer.report(compiler, n, &EVAL_DECLARATION, &[]);
-        } else if n.get_string(compiler) == "arguments" {
+        } else if n.get_string_ref(compiler) == "arguments" {
             self.outer.report(compiler, n, &ARGUMENTS_DECLARATION, &[]);
         }
     }
@@ -314,12 +314,12 @@ impl NonExternChecks<'_> {
         let target = n.get_first_child(compiler).unwrap();
         let name = n.get_string(compiler);
         if name == "callee" {
-            if target.is_name(compiler) && target.get_string(compiler) == "arguments" {
+            if target.is_name(compiler) && target.get_string_ref(compiler) == "arguments" {
                 self.outer
                     .report(compiler, n, &ARGUMENTS_CALLEE_FORBIDDEN, &[]);
             }
         } else if name == "caller" {
-            if target.is_name(compiler) && target.get_string(compiler) == "arguments" {
+            if target.is_name(compiler) && target.get_string_ref(compiler) == "arguments" {
                 self.outer
                     .report(compiler, n, &ARGUMENTS_CALLER_FORBIDDEN, &[]);
             } else if StrictModeCheck::is_function_type(compiler, target) {

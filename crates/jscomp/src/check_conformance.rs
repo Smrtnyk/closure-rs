@@ -162,7 +162,7 @@ impl Precondition {
             }
             Precondition::BannedNameIsCandidateNode => match n.get_token(t) {
                 Token::GETPROP => n.get_first_child(t).unwrap().is_qualified_name(t),
-                Token::NAME => !n.get_string(t).is_empty(),
+                Token::NAME => !n.get_string_ref(t).is_empty(),
                 _ => false,
             },
             Precondition::BannedProperty(p) => p.should_check(t, n),

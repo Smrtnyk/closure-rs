@@ -1726,7 +1726,7 @@ impl TypeCheck {
                 let object_first = object.get_first_child(compiler).unwrap();
                 let js_type = self.get_js_type(compiler, object_first);
                 if js_type.is_interface(compiler.get_type_registry())
-                    && object.get_string(compiler) == "prototype"
+                    && object.get_string_ref(compiler) == "prototype"
                 {
                     self.visit_interface_property_assignment(compiler, object, lvalue);
                 }
@@ -1941,7 +1941,7 @@ impl TypeCheck {
         //
         // As-is, this misses many other ways to override a property.
 
-        if object.is_get_prop(compiler) && object.get_string(compiler) == "prototype" {
+        if object.is_get_prop(compiler) && object.get_string_ref(compiler) == "prototype" {
             // ASSIGN = assign
             //   GETPROP
             //     GETPROP = object
@@ -2804,7 +2804,7 @@ impl TypeCheck {
         // Skip empty function expression names. They don't need a type.
         let is_function_name =
             n.get_parent(t).unwrap().is_function(t) && n.is_first_child_of(t, parent);
-        if is_function_name && n.get_string(t).is_empty() {
+        if is_function_name && n.get_string_ref(t).is_empty() {
             return false;
         }
 

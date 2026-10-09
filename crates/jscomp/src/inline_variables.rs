@@ -553,7 +553,7 @@ impl InliningBehavior {
         if NodeUtil::is_normal_or_opt_chain_call(ast, call_node) {
             let callee_node = call_node.get_first_child(ast).unwrap();
             if NodeUtil::is_normal_or_opt_chain_get_prop(ast, callee_node)
-                && callee_node.get_string(ast) == "apply"
+                && callee_node.get_string_ref(ast) == "apply"
             {
                 let this_arg_node = callee_node.get_next(ast);
                 if let Some(this_arg_node) = this_arg_node {

@@ -1412,7 +1412,7 @@ fn maybe_get_inner_name_node(
         let name_node = maybe_function_or_class_node.get_first_child(ast).unwrap();
         check_state!(name_node.is_name(ast), "%s", name_node.to_string(ast));
         // functions with no name have a NAME node with an empty string
-        if name_node.get_string(ast).is_empty() {
+        if name_node.get_string_ref(ast).is_empty() {
             None
         } else {
             Some(name_node)

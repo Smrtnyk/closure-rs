@@ -390,7 +390,7 @@ impl AbstractPeepholeOptimization for RemoveNodesNamedXUnderVarOptimization {
             let mut nodes_to_remove: IndexSet<NodeId> = IndexSet::new();
             let mut child = node.get_first_child(compiler);
             while let Some(c) = child {
-                if c.get_string(compiler) == "x" {
+                if c.get_string_ref(compiler) == "x" {
                     nodes_to_remove.insert(c);
                 }
                 child = c.get_next(compiler);
@@ -424,7 +424,7 @@ impl AbstractPeepholeOptimization for RemoveNodesNamedXOptimization {
         compiler: &mut AbstractCompiler,
         node: NodeId,
     ) -> Option<NodeId> {
-        if node.is_name(compiler) && node.get_string(compiler) == "x" {
+        if node.is_name(compiler) && node.get_string_ref(compiler) == "x" {
             self.report_change_to_enclosing_scope(compiler, node);
             node.detach(compiler);
             return None;
@@ -453,7 +453,7 @@ impl AbstractPeepholeOptimization for RemoveParentVarsForNodesNamedX {
         compiler: &mut AbstractCompiler,
         node: NodeId,
     ) -> Option<NodeId> {
-        if node.is_name(compiler) && node.get_string(compiler) == "x" {
+        if node.is_name(compiler) && node.get_string_ref(compiler) == "x" {
             let parent = node.get_parent(compiler).unwrap();
             if parent.is_var(compiler) {
                 self.report_change_to_enclosing_scope(compiler, parent);
@@ -485,7 +485,7 @@ impl AbstractPeepholeOptimization for RenameYToX {
         compiler: &mut AbstractCompiler,
         node: NodeId,
     ) -> Option<NodeId> {
-        if node.is_name(compiler) && node.get_string(compiler) == "y" {
+        if node.is_name(compiler) && node.get_string_ref(compiler) == "y" {
             let replacement = compiler.new_string_with_token(Token::NAME, "x");
             node.replace_with(compiler, replacement);
             self.report_change_to_enclosing_scope(compiler, replacement);

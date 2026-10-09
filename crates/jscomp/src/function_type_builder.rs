@@ -138,7 +138,7 @@ type CompilerReportFn = Arc<dyn Fn(JSError) + Send + Sync>;
 /// output).
 fn get_compiler_report_fn(compiler: &AbstractCompiler) -> CompilerReportFn {
     let queue = compiler.type_registry_error_queue();
-    Arc::new(move |error: JSError| queue.lock().unwrap().push(error))
+    Arc::new(move |error: JSError| queue.push(error))
 }
 
 // port: FunctionTypeBuilder.ValidatorBase

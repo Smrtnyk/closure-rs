@@ -1935,7 +1935,7 @@ impl<'a> JsDocInfoParser<'a> {
                 if !self.match_token(JsDocToken::RIGHT_CURLY) {
                     self.report_type_syntax_warning(
                         ast,
-                        if n.is_string_lit(ast) && n.get_string(ast) == "import" {
+                        if n.is_string_lit(ast) && n.get_string_ref(ast) == "import" {
                             Msg::JSDOC_IMPORT
                         } else {
                             Msg::JSDOC_MISSING_RC

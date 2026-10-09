@@ -272,7 +272,7 @@ impl AstAnalyzer {
             if self.assume_known_builtins_are_pure
                 && callee.get_first_child(ast).unwrap().is_name(ast)
                 && callee.is_qualified_name(ast)
-                && callee.get_first_child(ast).unwrap().get_string(ast) == "Math"
+                && callee.get_first_child(ast).unwrap().get_string_ref(ast) == "Math"
             {
                 match method.to_string_lossy().as_str() {
                     "abs" | "acos" | "acosh" | "asin" | "asinh" | "atan" | "atanh" | "atan2"

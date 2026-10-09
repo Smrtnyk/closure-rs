@@ -1013,7 +1013,7 @@ impl RewriteAsyncIteration {
 
     // port: RewriteAsyncIteration#replaceArguments
     fn replace_arguments(&mut self, compiler: &mut AbstractCompiler, ctx: ContextId, n: NodeId) {
-        check_argument!(n.is_name(compiler) && n.get_string(compiler) == "arguments");
+        check_argument!(n.is_name(compiler) && n.get_string_ref(compiler) == "arguments");
         check_argument!(self.must_replace_this_super_args(compiler, ctx));
         let function = self.ctx(ctx).function;
         check_argument!(

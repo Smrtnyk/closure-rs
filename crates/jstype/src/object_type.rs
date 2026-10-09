@@ -303,8 +303,14 @@ impl ObjectType for TypeId {
         ast: &Ast,
         name: impl Into<PropertyKey>,
     ) -> Option<PropertyId> {
-        let map = self.get_property_map(reg).clone();
-        map.get_own_property(reg, ast, &name.into())
+        let name = name.into();
+        let map = self.get_property_map(reg);
+        if let PropertyKey::String(n) = &name {
+            // getOwnProperty of a string key only reads the map: no copy (D-025).
+            return map.properties.get(n).copied();
+        }
+        let map = map.clone();
+        map.get_own_property(reg, ast, &name)
     }
     // port: ObjectType#getTypeOfThis
     fn get_type_of_this(self, reg: &JSTypeRegistry) -> Option<TypeId> {
@@ -439,8 +445,7 @@ impl ObjectType for TypeId {
         ast: &Ast,
         name: impl Into<PropertyKey>,
     ) -> Option<OwnedProperty> {
-        let map = self.get_property_map(reg).clone();
-        map.find_closest(reg, ast, name)
+        PropertyMap::find_closest_of_type(self, reg, ast, &name.into())
     }
     // port: ObjectType#getImplicitPrototype
     fn get_implicit_prototype(self, reg: &mut JSTypeRegistry, ast: &Ast) -> Option<TypeId> {
@@ -886,9 +891,7 @@ pub fn get_slot(
     ast: &Ast,
     name: &PropertyKey,
 ) -> Option<PropertyId> {
-    let map = t.get_property_map(reg).clone();
-    map.find_closest(reg, ast, name.clone())
-        .map(OwnedProperty::get_value)
+    PropertyMap::find_closest_of_type(t, reg, ast, name).map(OwnedProperty::get_value)
 }
 // port: ObjectType#getJSDocInfo
 pub fn get_jsdoc_info(t: TypeId, reg: &JSTypeRegistry) -> Option<Arc<JSDocInfo>> {

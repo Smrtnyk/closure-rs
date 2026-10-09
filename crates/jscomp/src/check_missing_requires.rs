@@ -195,7 +195,7 @@ impl CheckMissingRequires {
             self.visit_qualified_name(t, n, current_module, &qualified_name, Strength::CODE);
         }
 
-        if n.is_name(t) && !n.get_string(t).is_empty() {
+        if n.is_name(t) && !n.get_string_ref(t).is_empty() {
             self.visit_maybe_declaration(t, n, current_module);
         }
 

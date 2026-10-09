@@ -176,7 +176,7 @@ impl CheckNoMutatedEs6Exports {
                     return;
                 }
                 let name_node = declaration.get_first_child(compiler).unwrap();
-                if !name_node.is_empty(compiler) && !name_node.get_string(compiler).is_empty() {
+                if !name_node.is_empty(compiler) && !name_node.get_string_ref(compiler).is_empty() {
                     self.exported_local_names
                         .insert(name_node.get_string(compiler));
                 }

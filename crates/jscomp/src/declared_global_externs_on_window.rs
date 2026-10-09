@@ -169,7 +169,7 @@ impl Callback for DeclaredGlobalExternsOnWindow {
                 }
                 // Skip 'location' since there is an existing definition
                 // for window.location which conflicts with the "var location" one.
-                if cur.get_string(t) != "location" {
+                if cur.get_string_ref(t) != "location" {
                     self.nodes.insert(cur);
                 }
                 c = cur.get_next(t);

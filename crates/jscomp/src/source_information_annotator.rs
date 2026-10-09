@@ -96,7 +96,7 @@ impl SourceInformationAnnotator {
     }
     // port: SourceInformationAnnotator#setOriginalName(Node,Node)
     fn set_original_name_from_node(ast: &mut Ast, n: NodeId, name: NodeId) {
-        if !name.get_string(ast).is_empty() && n.get_original_name(ast).is_none() {
+        if !name.get_string_ref(ast).is_empty() && n.get_original_name(ast).is_none() {
             n.set_original_name_from_name(ast, name);
         }
     }

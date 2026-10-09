@@ -291,7 +291,7 @@ impl LiveVariablesAnalysis {
                 );
             }
             Token::NAME => {
-                if n.get_string(compiler) == "arguments" {
+                if n.get_string_ref(compiler) == "arguments" {
                     self.mark_all_parameters_escaped(compiler);
                 } else if !NodeUtil::is_lhs_by_destructuring(compiler, n) {
                     self.add_to_set_if_local(compiler, n, r#gen);

@@ -534,9 +534,11 @@ impl TypedScopeCreator {
             // prevents type resolution from accidentally returning a type from an outer scope that
             // is shadowed.
             let mut reserved_names = IndexSet::new();
+            // Java HashMap#remove; the map is never iterated, so the O(1) swap_remove keeps
+            // the output (shift_remove is O(n) per call).
             reserved_names.extend(
                 self.reserved_names_for_scope
-                    .shift_remove(&root)
+                    .swap_remove(&root)
                     .unwrap_or_default(),
             );
             if module.is_some() && module.as_ref().unwrap().metadata().is_goog_module() {
@@ -5113,7 +5115,7 @@ impl AbstractScopeBuilder<'_> {
         {
             let parent = parent.expect("NullPointerException");
             // Declare bleeding class name in scope.  Pull the type off the AST.
-            check_state!(!n.get_string(compiler).is_empty()); // anonymous classes have EMPTY nodes, not NAME
+            check_state!(!n.get_string_ref(compiler).is_empty()); // anonymous classes have EMPTY nodes, not NAME
             let current_scope = self.current_scope;
             let parent_type = parent.get_jstype(compiler);
             SlotDefiner::new()
@@ -5671,7 +5673,8 @@ impl AbstractScopeBuilder<'_> {
         if let Some(count) = self.creator.assigned_var_names.get_mut(&scoped_name) {
             *count -= 1;
             if *count == 0 {
-                self.creator.assigned_var_names.shift_remove(&scoped_name);
+                // Never iterated: O(1) swap_remove instead of Java-order shift_remove.
+                self.creator.assigned_var_names.swap_remove(&scoped_name);
             }
         } // free up memory
         var

@@ -221,7 +221,7 @@ impl Callback for PropagateConstantPropertyOverVars {
     // port: Normalize.PropagateConstantPropertyOverVars#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
         // Note: Constant properties annotations are not propagated.
-        if !n.is_name(t) || n.get_string(t).is_empty() {
+        if !n.is_name(t) || n.get_string_ref(t).is_empty() {
             return;
         }
 

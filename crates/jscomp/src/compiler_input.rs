@@ -668,7 +668,7 @@ impl DepsFinder {
                     let argument = n.get_last_child(compiler).unwrap();
                     match callee.get_string(compiler).to_string_lossy().as_str() {
                         "module" | "provide" => {
-                            if callee.get_string(compiler) == "module"
+                            if callee.get_string_ref(compiler) == "module"
                                 && parent.unwrap().is_expr_result(compiler)
                                 && parent
                                     .unwrap()

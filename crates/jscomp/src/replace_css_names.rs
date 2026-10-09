@@ -541,7 +541,7 @@ impl GatherCssNamesTraversal {
         let assignment_target = n.get_first_child(ast);
         let is_css_closure_classes_assignment = n.is_assign(ast)
             && assignment_target.is_some_and(|target| {
-                target.is_get_prop(ast) && target.get_string(ast) == "classes"
+                target.is_get_prop(ast) && target.get_string_ref(ast) == "classes"
             });
 
         let mut css_closure_classes_qualified_name = None;

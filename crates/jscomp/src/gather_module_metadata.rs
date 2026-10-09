@@ -444,7 +444,7 @@ impl<'a> Finder<'a> {
         // goog".
         name_node.is_some_and(|name_node| {
             name_node.is_import_star(compiler)
-                && name_node.get_string(compiler) == "goog"
+                && name_node.get_string_ref(compiler) == "goog"
                 && name_node
                     .get_parent(compiler)
                     .unwrap()
@@ -522,7 +522,7 @@ impl<'a> Finder<'a> {
             first_prop = first_prop.get_first_child(t).unwrap();
         }
 
-        if !first_prop.is_name(t) || first_prop.get_string(t) != "goog" {
+        if !first_prop.is_name(t) || first_prop.get_string_ref(t) != "goog" {
             return;
         }
 

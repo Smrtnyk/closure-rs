@@ -861,7 +861,9 @@ impl PeepholeMinimizeConditions {
                     if called_fn.is_get_elem(ast) || called_fn.is_opt_chain_get_elem(ast) {
                         return false;
                     } else if (called_fn.is_get_prop(ast) || called_fn.is_opt_chain_get_prop(ast))
-                        && called_fn.get_string(ast).starts_with(&JsString::from("on"))
+                        && called_fn
+                            .get_string_ref(ast)
+                            .starts_with(&JsString::from("on"))
                     {
                         return false;
                     }

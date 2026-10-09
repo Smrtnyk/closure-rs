@@ -1309,7 +1309,7 @@ impl OptimizeParameters {
                 return false;
             }
             Token::NAME => {
-                if n.get_string(compiler) == "arguments" {
+                if n.get_string_ref(compiler) == "arguments" {
                     return false;
                 } else {
                     // If it isn't in global scope, then it is in local scope.  This logic depends

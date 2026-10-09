@@ -120,7 +120,7 @@ pub struct Compiler {
     type_registry: Option<closure_jstype::JSTypeRegistry>,
     /// Rust-only: errors the type registry's reporter queued for `Compiler#report` (see
     /// `QueueingOldRhinoErrorReporter`).
-    queued_type_registry_errors: Arc<std::sync::Mutex<Vec<JSError>>>,
+    queued_type_registry_errors: Arc<crate::rhino_error_reporter::JSErrorQueue>,
     forward_declared_types: Arc<std::sync::Mutex<ForwardDeclaredTypes>>,
     type_checking_has_run: bool,
     color_registry: Option<Arc<closure_rhino::jscomp_colors::color_registry::ColorRegistry>>,
@@ -170,6 +170,8 @@ pub struct Compiler {
     synthetic_externs_input: Option<CompilerInput>,
     pub ast: Ast,
     pub(crate) scope_arena: std::sync::Arc<std::sync::RwLock<ScopeArena>>,
+    /// Rust-only: lock-free copies of the immutable fields of `scope_arena` (see `ScopeMirror`).
+    pub(crate) scope_mirror: crate::scope::ScopeMirror,
     pub(crate) typed_scope_arena:
         std::sync::Arc<std::sync::RwLock<crate::typed_scope::TypedScopeArena>>,
 }
@@ -216,7 +218,7 @@ impl Compiler {
             cross_chunk_id_generator: crate::id_generator::IdGenerator::default(),
             index_providers_by_type: IndexMap::new(),
             type_registry: None,
-            queued_type_registry_errors: Arc::new(std::sync::Mutex::new(Vec::new())),
+            queued_type_registry_errors: Arc::default(),
             forward_declared_types: Arc::new(
                 std::sync::Mutex::new(ForwardDeclaredTypes::default()),
             ),
@@ -270,6 +272,7 @@ impl Compiler {
             synthetic_externs_input: None,
             ast: Ast::new(),
             scope_arena: ScopeArena::shared(),
+            scope_mirror: crate::scope::ScopeMirror::default(),
             typed_scope_arena: crate::typed_scope::TypedScopeArena::shared(),
         }
     }
@@ -593,7 +596,7 @@ impl Compiler {
     /// Rust-only: reports, in order, the errors the type registry's reporter queued
     /// (`QueueingOldRhinoErrorReporter`), as Java's reporter would have through `Compiler#report`.
     pub fn report_queued_type_registry_errors(&mut self) {
-        let queued = std::mem::take(&mut *self.queued_type_registry_errors.lock().unwrap());
+        let queued = self.queued_type_registry_errors.take();
         for error in queued {
             self.report_now(error);
         }
@@ -602,7 +605,9 @@ impl Compiler {
     /// other `Compiler#report` calls made from registry callbacks, where no `&mut Compiler` is in
     /// reach (FunctionTypeBuilder's @extends/@implements validators). Queued errors are reported
     /// in order before the Compiler next reports or reads errors.
-    pub(crate) fn type_registry_error_queue(&self) -> Arc<std::sync::Mutex<Vec<JSError>>> {
+    pub(crate) fn type_registry_error_queue(
+        &self,
+    ) -> Arc<crate::rhino_error_reporter::JSErrorQueue> {
         Arc::clone(&self.queued_type_registry_errors)
     }
     /// Rust-only: `report_queued_type_registry_errors` for the `&self` readers of the error
@@ -612,7 +617,7 @@ impl Compiler {
         if self.options.is_none() || self.error_manager.is_none() {
             return;
         }
-        let queued = std::mem::take(&mut *self.queued_type_registry_errors.lock().unwrap());
+        let queued = self.queued_type_registry_errors.take();
         for error in queued {
             // Compiler#report
             let level = self.get_error_level(&error);

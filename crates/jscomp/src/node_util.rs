@@ -96,7 +96,7 @@ impl NodeUtil {
                     Tri::UNKNOWN
                 }
             }
-            Token::STRINGLIT => Tri::for_boolean(n.get_string(ast).length() > 0),
+            Token::STRINGLIT => Tri::for_boolean(n.get_string_ref(ast).length() > 0),
             Token::NUMBER => Tri::for_boolean(n.get_double(ast) != 0.0),
             Token::BIGINT => Tri::for_boolean(*n.get_big_int(ast) != BigInt::from(0)),
             Token::NOT => Self::get_boolean_value(ast, n.get_last_child(ast).unwrap()).not(),
@@ -410,7 +410,7 @@ impl NodeUtil {
             }
             _ => {
                 let fun_name_node = n.get_first_child(ast).unwrap();
-                if fun_name_node.is_empty(ast) || fun_name_node.get_string(ast).is_empty() {
+                if fun_name_node.is_empty(ast) || fun_name_node.get_string_ref(ast).is_empty() {
                     None
                 } else {
                     Some(fun_name_node)
@@ -1077,7 +1077,7 @@ impl NodeUtil {
     pub fn is_undefined(ast: &Ast, n: NodeId) -> bool {
         match n.get_token(ast) {
             Token::VOID => true,
-            Token::NAME => n.get_string(ast) == "undefined",
+            Token::NAME => n.get_string_ref(ast) == "undefined",
             _ => false,
         }
     }
@@ -1862,7 +1862,7 @@ impl NodeUtil {
     }
     // port: NodeUtil#isReferenceName
     pub fn is_reference_name(ast: &Ast, n: NodeId) -> bool {
-        n.is_name(ast) && !n.get_string(ast).is_empty()
+        n.is_name(ast) && !n.get_string_ref(ast).is_empty()
     }
     // port: NodeUtil#isNonlocalModuleExportName
     pub fn is_nonlocal_module_export_name(ast: &Ast, n: NodeId) -> bool {
@@ -2202,7 +2202,11 @@ impl NodeUtil {
     // port: NodeUtil#isNamedFunctionExpression
     pub fn is_named_function_expression(ast: &Ast, n: NodeId) -> bool {
         Self::is_function_expression(ast, n)
-            && !n.get_first_child(ast).unwrap().get_string(ast).is_empty()
+            && !n
+                .get_first_child(ast)
+                .unwrap()
+                .get_string_ref(ast)
+                .is_empty()
     }
     // port: NodeUtil#isClassExpression
     pub fn is_class_expression(ast: &Ast, n: NodeId) -> bool {
@@ -2224,7 +2228,7 @@ impl NodeUtil {
     }
     // port: NodeUtil#isBleedingFunctionName
     pub fn is_bleeding_function_name(ast: &Ast, n: NodeId) -> bool {
-        if !n.is_name(ast) || n.get_string(ast).is_empty() {
+        if !n.is_name(ast) || n.get_string_ref(ast).is_empty() {
             return false;
         }
         let parent = n.get_parent(ast).unwrap();
@@ -2246,7 +2250,7 @@ impl NodeUtil {
     }
     // port: NodeUtil#referencesArgumentsHelper
     pub fn references_arguments_helper(ast: &Ast, node: NodeId) -> bool {
-        if node.is_name(ast) && node.get_string(ast) == "arguments" {
+        if node.is_name(ast) && node.get_string_ref(ast) == "arguments" {
             return true;
         }
         if Self::is_non_arrow_function(ast, node) {
@@ -3090,7 +3094,7 @@ impl NodeUtil {
         if !getprop.is_get_prop(ast) {
             return false;
         }
-        getprop.get_string(ast) == "defineProperties"
+        getprop.get_string_ref(ast) == "defineProperties"
             && Self::is_known_global_object_reference(ast, getprop.get_first_child(ast).unwrap())
     }
 }
@@ -3104,7 +3108,7 @@ impl NodeUtil {
     // port: NodeUtil#isKnownGlobalObjectReference
     fn is_known_global_object_reference(ast: &Ast, n: NodeId) -> bool {
         match n.get_token(ast) {
-            Token::NAME => n.get_string(ast) == "Object",
+            Token::NAME => n.get_string_ref(ast) == "Object",
             Token::GETPROP => {
                 GLOBAL_OBJECT.matches(ast, n) || GLOBAL_OBJECT_MANGLED.matches(ast, n)
             }
@@ -3120,7 +3124,7 @@ impl NodeUtil {
         if !getprop.is_get_prop(ast) {
             return false;
         }
-        getprop.get_string(ast) == "defineProperty"
+        getprop.get_string_ref(ast) == "defineProperty"
             && Self::is_known_global_object_reference(ast, getprop.get_first_child(ast).unwrap())
     }
     // port: NodeUtil#getObjectDefinedPropertiesKeys
@@ -3153,7 +3157,7 @@ impl NodeUtil {
             return false;
         }
         let recv = n.get_first_child(ast).unwrap();
-        recv.is_get_prop(ast) && recv.get_string(ast) == "prototype"
+        recv.is_get_prop(ast) && recv.get_string_ref(ast) == "prototype"
     }
     // port: NodeUtil#isPrototypeMethod
     pub fn is_prototype_method(ast: &Ast, n: NodeId) -> bool {
@@ -3174,7 +3178,7 @@ impl NodeUtil {
         let parent = get_prop.get_parent(ast).unwrap();
         parent.is_assign(ast)
             && get_prop.is_first_child_of(ast, Some(parent))
-            && get_prop.get_string(ast) == "prototype"
+            && get_prop.get_string_ref(ast) == "prototype"
     }
     // port: NodeUtil#isPropertyTest
     pub fn is_property_test(compiler: &AbstractCompiler, prop_access: NodeId) -> bool {
@@ -3235,11 +3239,11 @@ impl NodeUtil {
         if !q_name.is_get_prop(ast) {
             return None;
         }
-        if q_name.get_string(ast) == "prototype" {
+        if q_name.get_string_ref(ast) == "prototype" {
             return q_name.get_first_child(ast);
         }
         let recv = q_name.get_first_child(ast).unwrap();
-        if recv.is_get_prop(ast) && recv.get_string(ast) == "prototype" {
+        if recv.is_get_prop(ast) && recv.get_string_ref(ast) == "prototype" {
             return recv.get_first_child(ast);
         }
         None
@@ -4335,7 +4339,7 @@ impl NodeUtil {
     }
     // port: NodeUtil#isNaN
     pub fn is_nan(ast: &Ast, n: NodeId) -> bool {
-        (n.is_name(ast) && n.get_string(ast) == "NaN")
+        (n.is_name(ast) && n.get_string_ref(ast) == "NaN")
             || (n.get_token(ast) == Token::DIV
                 && n.get_first_child(ast).unwrap().is_number(ast)
                 && n.get_first_child(ast).unwrap().get_double(ast) == 0.0
@@ -4444,7 +4448,7 @@ impl NodeUtil {
         scope: ScopeId,
         possible_name: NodeId,
     ) -> bool {
-        if !possible_name.is_name(compiler) || possible_name.get_string(compiler) != "exports" {
+        if !possible_name.is_name(compiler) || possible_name.get_string_ref(compiler) != "exports" {
             return false;
         }
         let name = possible_name.get_string(compiler);
@@ -4575,7 +4579,7 @@ impl NodeUtil {
             .unwrap()
             .is_class_members(ast)
             && !member_function_def.is_static_member(ast)
-            && member_function_def.get_string(ast) == "constructor"
+            && member_function_def.get_string_ref(ast) == "constructor"
     }
     // port: NodeUtil#isEs6Constructor
     pub fn is_es6_constructor(ast: &Ast, fn_node: NodeId) -> bool {
@@ -4600,7 +4604,11 @@ impl NodeUtil {
         key_name == "get" || key_name == "set"
     }
     // port: NodeUtil#isCallTo(Node,String)
-    pub fn is_call_to(ast: &Ast, n: NodeId, qualified_name: impl Into<JsString>) -> bool {
+    pub fn is_call_to(
+        ast: &Ast,
+        n: NodeId,
+        qualified_name: impl closure_rhino::js_string::JsStrLike,
+    ) -> bool {
         n.is_call(ast)
             && n.get_first_child(ast)
                 .unwrap()

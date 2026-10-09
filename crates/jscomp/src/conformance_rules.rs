@@ -1796,7 +1796,7 @@ impl AbstractRuleImpl for RestrictedNameCall {
                         return ConformanceResult::violation();
                     }
                 } else if n.is_get_prop(t)
-                    && n.get_string(t) == "call"
+                    && n.get_string_ref(t) == "call"
                     && n.get_first_child(t)
                         .unwrap()
                         .matches_qualified_name_node(t, r.name)
@@ -1951,7 +1951,7 @@ impl AbstractRuleImpl for RestrictedMethodCall {
 
             if Self::matches_prop(t, n, r) {
                 result = self.check_conformance_restriction(t, n, r, false);
-            } else if n.get_string(t) == "call"
+            } else if n.get_string_ref(t) == "call"
                 && Self::matches_prop(t, n.get_first_child(t).unwrap(), r)
             {
                 // handle .call invocation
@@ -3088,7 +3088,7 @@ impl BanCreateDom {
         if !target.is_get_prop(t) {
             return false;
         }
-        if target.get_string(t) != "createDom" {
+        if target.get_string_ref(t) != "createDom" {
             return false;
         }
 

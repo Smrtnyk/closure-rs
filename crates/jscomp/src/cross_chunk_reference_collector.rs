@@ -221,7 +221,7 @@ impl<'a> CrossChunkReferenceCollector<'a> {
             return false;
         }
         let name = property.get_first_child(ast).unwrap();
-        name.is_name(ast) && name.get_string(ast) == "Symbol"
+        name.is_name(ast) && name.get_string_ref(ast) == "Symbol"
     }
 
     // port: CrossChunkReferenceCollector#pop

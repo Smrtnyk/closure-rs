@@ -224,7 +224,10 @@ impl RewriteGoogJsImports {
                     && c.get_second_child(compiler)
                         .unwrap()
                         .is_import_star(compiler)
-                    && c.get_second_child(compiler).unwrap().get_string(compiler) == "goog"
+                    && c.get_second_child(compiler)
+                        .unwrap()
+                        .get_string_ref(compiler)
+                        == "goog"
                 {
                     goog_import_node = Some(c);
                 } else {
@@ -409,7 +412,7 @@ impl ReferenceReplacer {
         parent: NodeId,
     ) {
         let compiler = t.get_compiler();
-        if !parent.is_get_prop(compiler) || name_node.get_string(compiler) != "goog" {
+        if !parent.is_get_prop(compiler) || name_node.get_string_ref(compiler) != "goog" {
             return;
         }
 
@@ -510,7 +513,7 @@ impl FindReexports {
         parent: NodeId,
     ) {
         let compiler = t.get_compiler();
-        if self.has_goog_import && name_node.get_string(compiler) == "goog" {
+        if self.has_goog_import && name_node.get_string_ref(compiler) == "goog" {
             if (parent.is_export_spec(compiler)
                 && parent.get_first_child(compiler) == Some(name_node))
                 || parent.is_export(compiler)

@@ -410,8 +410,8 @@ impl InlineFunctions {
         if (parent.is_get_elem(ast)
             && Some(name) == parent.get_first_child(ast)
             && parent.get_second_child(ast).unwrap().is_string_lit(ast)
-            && parent.get_second_child(ast).unwrap().get_string(ast) == "call")
-            || (parent.is_get_prop(ast) && parent.get_string(ast) == "call")
+            && parent.get_second_child(ast).unwrap().get_string_ref(ast) == "call")
+            || (parent.is_get_prop(ast) && parent.get_string_ref(ast) == "call")
         {
             let grandparent = name.get_ancestor(ast, 2).unwrap();
             if grandparent.is_call(ast) && grandparent.get_first_child(ast) == Some(parent) {

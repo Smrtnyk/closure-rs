@@ -89,7 +89,7 @@ impl PeepholeSubstituteAlternateSyntax {
             let name_node = node.get_first_child(compiler).unwrap();
 
             // Since normalization has run we know we're referring to the global window.
-            if name_node.get_string(compiler) == "window"
+            if name_node.get_string_ref(compiler) == "window"
                 && set_contains(BUILTIN_EXTERNS, &node.get_string(compiler))
             {
                 let node_string = node.get_string(compiler);

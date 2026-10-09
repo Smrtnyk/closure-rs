@@ -121,7 +121,7 @@ impl ReverseAbstractInterpreter for ClosureReverseAbstractInterpreter {
                 let param_type = self.get_type_if_refinable(compiler, param, &blind_scope);
                 let ast = &compiler.ast;
                 let receiver = callee.get_first_child(ast).unwrap();
-                if receiver.is_name(ast) && receiver.get_string(ast) == "goog" {
+                if receiver.is_name(ast) && receiver.get_string_ref(ast) == "goog" {
                     let restricter = self.restricters.get(&callee.get_string(ast)).copied();
                     if let Some(restricter) = restricter {
                         return self.restrict_parameter(

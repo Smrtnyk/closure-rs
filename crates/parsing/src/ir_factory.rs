@@ -1445,7 +1445,7 @@ impl<'a> IRFactory<'a> {
                 break;
             }
             let directive = statement.get_first_child(ast).unwrap();
-            if !directive.is_string_lit(ast) || directive.get_string(ast) != "use strict" {
+            if !directive.is_string_lit(ast) || directive.get_string_ref(ast) != "use strict" {
                 break;
             }
             use_strict = true;
@@ -1651,7 +1651,7 @@ impl<'a> IRFactory<'a> {
         }
         if !Self::is_normal_or_opt_chain_get(ast, callee) {
             n.put_boolean_prop(ast, NodeId::FREE_CALL, true);
-            if callee.is_name(ast) && callee.get_string(ast) == "eval" {
+            if callee.is_name(ast) && callee.get_string_ref(ast) == "eval" {
                 callee.put_boolean_prop(ast, NodeId::DIRECT_EVAL, true);
             } else if callee.is_comma(ast) && callee.get_first_child(ast).unwrap().is_number(ast) {
                 let real_callee = callee.get_second_child(ast).unwrap();

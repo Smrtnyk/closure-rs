@@ -16,6 +16,7 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   src/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java.
 
+use closure_rhino::jscomp_parsing_parser::util::source_position::SourceFileId;
 use std::sync::Arc;
 
 use super::{
@@ -26,6 +27,8 @@ use super::{
 /// Utility for finding line and column offsets within a source file.
 pub struct LineNumberScanner {
     source_file: Arc<SourceFile>,
+    /// Rust-only: the copyable identity of `source_file` that positions carry.
+    source_file_id: SourceFileId,
     source_length: i32,
     last_line: i32,
     last_line_start: i32,
@@ -37,6 +40,7 @@ impl LineNumberScanner {
     pub fn new(source_file: Arc<SourceFile>) -> Self {
         Self {
             source_length: source_file.contents.length() as i32,
+            source_file_id: SourceFileId::register(&source_file),
             source_file,
             last_line: -1,
             last_line_start: -1,
@@ -59,7 +63,7 @@ impl LineNumberScanner {
             self.advance_line();
         }
         SourcePosition::new(
-            Some(self.source_file.clone()),
+            Some(self.source_file_id),
             offset,
             self.last_line,
             offset - self.last_line_start,
@@ -78,12 +82,7 @@ impl LineNumberScanner {
     /// necessary if backing up to a previous line.
     // port: LineNumberScanner#rewindTo
     pub fn rewind_to(&mut self, position: &SourcePosition) {
-        assert!(
-            position
-                .source
-                .as_ref()
-                .is_some_and(|source| Arc::ptr_eq(source, &self.source_file))
-        );
+        assert!(position.source == Some(self.source_file_id));
         if position.offset < self.last_line_start {
             self.last_line = position.line - 1;
             self.next_line_start = position.offset - position.column;

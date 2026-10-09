@@ -132,7 +132,7 @@ impl ClosureRequireProcessor {
             return None;
         }
         let owner = callee.get_first_child(ast).unwrap();
-        if !owner.is_name(ast) || owner.get_string(ast) != "goog" {
+        if !owner.is_name(ast) || owner.get_string_ref(ast) != "goog" {
             return None;
         }
 

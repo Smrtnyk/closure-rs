@@ -1393,7 +1393,7 @@ impl NativeObject for ColorGraphBuilderTestProcessor {
                     if failure.is_some() {
                         return;
                     }
-                    if n.is_name(t) && n.get_string(t).starts_with(&JsString::from("test")) {
+                    if n.is_name(t) && n.get_string_ref(t).starts_with(&JsString::from("test")) {
                         let color = n.get_color(t);
                         test_types.insert(
                             n.get_string(t),

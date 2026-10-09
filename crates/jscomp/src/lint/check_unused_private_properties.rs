@@ -118,7 +118,7 @@ impl CheckUnusedPrivateProperties {
             || target
                 .get_qualified_name(ast)
                 .is_some_and(|q| self.constructors_and_interfaces.contains(&q))
-            || (target.is_get_prop(ast) && target.get_string(ast) == "prototype")
+            || (target.is_get_prop(ast) && target.get_string_ref(ast) == "prototype")
     }
 
     /// @return Whether the property is used in a way that prevents its removal.

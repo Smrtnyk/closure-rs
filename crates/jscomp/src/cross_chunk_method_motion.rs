@@ -301,7 +301,7 @@ impl CrossChunkMethodMotion {
         let owner_dot_prototype_node = assign_node.get_first_child(compiler).unwrap();
         check_state!(
             owner_dot_prototype_node.is_qualified_name(compiler)
-                && owner_dot_prototype_node.get_string(compiler) == "prototype",
+                && owner_dot_prototype_node.get_string_ref(compiler) == "prototype",
             "%s",
             owner_dot_prototype_node.to_string(compiler)
         );
@@ -458,7 +458,7 @@ impl CrossChunkMethodMotion {
         let owner_dot_prototype_node = assign_node.get_first_child(compiler).unwrap();
         check_state!(
             owner_dot_prototype_node.is_qualified_name(compiler)
-                && owner_dot_prototype_node.get_string(compiler) == "prototype",
+                && owner_dot_prototype_node.get_string_ref(compiler) == "prototype",
             "%s",
             owner_dot_prototype_node.to_string(compiler)
         );

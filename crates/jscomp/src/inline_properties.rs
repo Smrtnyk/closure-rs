@@ -162,7 +162,7 @@ impl GatherCandidates<'_> {
             return false;
         } else if t.in_global_hoist_scope()
             && src.is_get_prop(t)
-            && src.get_string(t) == "prototype"
+            && src.get_string_ref(t) == "prototype"
         {
             // This is a prototype assignment like:
             //    x.prototype.foo = 1;

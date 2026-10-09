@@ -655,7 +655,7 @@ impl<'a> SingleGeneratorFunctionTranspiler<'a> {
             check_state!(gen_func_name.is_name(compiler));
             // The transpiled function needs to be able to refer to itself, so make sure it has a
             // name.
-            if gen_func_name.get_string(compiler).is_empty() {
+            if gen_func_name.get_string_ref(compiler).is_empty() {
                 let name = self.get_scoped_name(GENERATOR_FUNCTION);
                 gen_func_name.set_string(compiler, name);
                 if af.is_adding_colors() {
@@ -3100,7 +3100,7 @@ impl Callback for UnmarkedNodeTranspiler<'_, '_> {
             self.visit_this(t.get_compiler(), n);
         } else if n.is_return(t) {
             self.visit_return(t.get_compiler(), n);
-        } else if n.is_name(t) && n.get_string(t) == "arguments" {
+        } else if n.is_name(t) && n.get_string_ref(t) == "arguments" {
             self.visit_arguments(t.get_compiler(), n);
         } else if n.is_var(t) {
             let parent = parent.expect("java.lang.NullPointerException");

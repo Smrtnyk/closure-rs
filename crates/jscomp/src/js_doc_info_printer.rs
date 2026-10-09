@@ -562,7 +562,7 @@ impl JSDocInfoPrinter {
                         sb.push(b':' as u16);
                         self.append_type_node(ast, sb, colon.get_last_child(ast).unwrap());
                     } else {
-                        sb.extend_from_slice(colon.get_string(ast).as_units());
+                        sb.extend_from_slice(colon.get_string_ref(ast).as_units());
                     }
                     if Some(colon) != last_colon {
                         sb.push(b',' as u16);
@@ -587,7 +587,7 @@ impl JSDocInfoPrinter {
                 sb.push(b'>' as u16);
             }
             Token::STRINGLIT => {
-                sb.extend_from_slice(type_node.get_string(ast).as_units());
+                sb.extend_from_slice(type_node.get_string_ref(ast).as_units());
                 if type_node.has_children(ast) {
                     self.append_type_node(ast, sb, type_node.get_only_child(ast));
                 }

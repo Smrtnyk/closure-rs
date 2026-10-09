@@ -206,11 +206,11 @@ impl Callback for CheckGlobalThis {
                 // Only traverse the right side if it's not an assignment to a prototype
                 // property or subproperty.
                 if NodeUtil::is_normal_get(t, lhs) {
-                    if lhs.is_get_prop(t) && lhs.get_string(t) == "prototype" {
+                    if lhs.is_get_prop(t) && lhs.get_string_ref(t) == "prototype" {
                         return false;
                     }
                     let llhs = lhs.get_first_child(t).unwrap();
-                    if llhs.is_get_prop(t) && llhs.get_string(t) == "prototype" {
+                    if llhs.is_get_prop(t) && llhs.get_string_ref(t) == "prototype" {
                         return false;
                     }
                 }

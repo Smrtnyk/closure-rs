@@ -325,7 +325,7 @@ impl CrossChunkCodeMotion {
             let undefined_string = expression.get_first_child(compiler).unwrap();
             let typeof_node = expression.get_last_child(compiler).unwrap();
             undefined_string.is_string_lit(compiler)
-                && undefined_string.get_string(compiler) == "undefined"
+                && undefined_string.get_string_ref(compiler) == "undefined"
                 && typeof_node.is_type_of(compiler)
                 && typeof_node
                     .get_first_child(compiler)
@@ -335,7 +335,7 @@ impl CrossChunkCodeMotion {
             let function_string = expression.get_first_child(compiler).unwrap();
             let typeof_node = expression.get_last_child(compiler).unwrap();
             function_string.is_string_lit(compiler)
-                && function_string.get_string(compiler) == "function"
+                && function_string.get_string_ref(compiler) == "function"
                 && typeof_node.is_type_of(compiler)
                 && typeof_node
                     .get_first_child(compiler)

@@ -859,8 +859,8 @@ impl FunctionInjector {
         let result = NodeUtil::has(
             ast,
             r#fn,
-            &|ast, n| n.is_name(ast) && n.get_string(ast) == "eval", // Match predicate
-            &|ast, n| !n.is_function(ast) || n == r#fn,              // Explore node predicate
+            &|ast, n| n.is_name(ast) && n.get_string_ref(ast) == "eval", // Match predicate
+            &|ast, n| !n.is_function(ast) || n == r#fn,                  // Explore node predicate
         );
         self.references_eval_cache.insert(r#fn, result);
         result

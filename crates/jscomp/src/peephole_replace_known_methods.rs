@@ -152,7 +152,7 @@ impl PeepholeReplaceKnownMethods {
 
         // Method node might not be a string if callTarget is a GETELEM.
         // e.g. Array[something]()
-        if call_target.get_string(compiler) != "of" {
+        if call_target.get_string_ref(compiler) != "of" {
             return subtree;
         }
 
@@ -943,13 +943,13 @@ impl PeepholeReplaceKnownMethods {
 
         let array_node = call_target.get_first_child(compiler).unwrap();
 
-        if !array_node.is_array_lit(compiler) || call_target.get_string(compiler) != "join" {
+        if !array_node.is_array_lit(compiler) || call_target.get_string_ref(compiler) != "join" {
             return n;
         }
 
         if let Some(right) = right
             && (NodeUtil::is_undefined(compiler, right)
-                || (right.is_string_lit(compiler) && right.get_string(compiler) == ","))
+                || (right.is_string_lit(compiler) && right.get_string_ref(compiler) == ","))
         {
             // "," is the default, it doesn't need to be explicit
             right.detach(compiler);
@@ -1602,7 +1602,7 @@ impl PeepholeReplaceKnownMethods {
         let call_target = n.get_first_child(ast);
         check_not_null!(call_target);
         let call_target = call_target.unwrap();
-        if !call_target.is_get_prop(ast) || call_target.get_string(ast) != "concat" {
+        if !call_target.is_get_prop(ast) || call_target.get_string_ref(ast) != "concat" {
             return None;
         }
         let callee_node = call_target.get_first_child(ast);
@@ -1634,7 +1634,7 @@ impl PeepholeReplaceKnownMethods {
         }
         let callee = n.get_first_child(ast).unwrap();
         callee.is_get_prop(ast)
-            && callee.get_string(ast) == "concat"
+            && callee.get_string_ref(ast) == "concat"
             && Self::contains_exactly_array(ast, callee.get_first_child(ast))
     }
 }

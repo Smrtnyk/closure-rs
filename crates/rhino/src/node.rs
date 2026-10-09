@@ -51,7 +51,7 @@
 use crate::input_id::InputId;
 use crate::ir::IR;
 use crate::java_lang::double_to_string;
-use crate::js_string::JsString;
+use crate::js_string::{JsStrLike, JsString};
 use crate::js_type_expression::JSTypeExpression;
 use crate::jscomp_base::JSCompDoubles;
 use crate::jscomp_colors::Color;
@@ -1399,8 +1399,14 @@ impl NodeId {
     }
     // port: Node#getString
     pub fn get_string(self, ast: &Ast) -> JsString {
+        self.get_string_ref(ast).clone()
+    }
+    // port: Node#getString
+    /// Rust-only: `get_string` by reference, for readers that need no owned copy (saves the
+    /// reference-count traffic of a clone).
+    pub fn get_string_ref(self, ast: &Ast) -> &JsString {
         match &ast[self].kind {
-            NodeKind::String { str } => str.clone(),
+            NodeKind::String { str } => str,
             _ => panic!("ClassCastException"),
         }
     }
@@ -2455,8 +2461,12 @@ impl NodeId {
     pub fn get_qualified_name(self, ast: &Ast) -> Option<JsString> {
         match ast[self].token {
             Token::NAME => {
-                let name = self.get_string(ast);
-                if name.is_empty() { None } else { Some(name) }
+                let name = self.get_string_ref(ast);
+                if name.is_empty() {
+                    None
+                } else {
+                    Some(name.clone())
+                }
             }
             Token::GETPROP => self
                 .get_qualified_name_for_get_prop(ast, 0)
@@ -2476,7 +2486,7 @@ impl NodeId {
     }
     // port: Node#getQualifiedNameForGetProp
     fn get_qualified_name_for_get_prop(self, ast: &Ast, mut reserve: i32) -> Option<Vec<u16>> {
-        let prop_name = self.get_string(ast);
+        let prop_name = self.get_string_ref(ast);
         reserve = reserve
             .wrapping_add(1)
             .wrapping_add(prop_name.length() as i32);
@@ -2485,11 +2495,23 @@ impl NodeId {
         if first.is_get_prop(ast) {
             builder = first.get_qualified_name_for_get_prop(ast, reserve)?;
         } else {
-            let left = first.get_qualified_name(ast)?;
+            // getQualifiedName on the left side, read in place (no JsString copy).
+            let left: &[u16] = match ast[first].token {
+                Token::NAME => {
+                    let name = first.get_string_ref(ast);
+                    if name.is_empty() {
+                        return None;
+                    }
+                    name.as_units()
+                }
+                Token::THIS => &[116, 104, 105, 115],
+                Token::SUPER => &[115, 117, 112, 101, 114],
+                _ => return None,
+            };
             builder = Vec::with_capacity(
-                usize::try_from((left.length() as i32).wrapping_add(reserve)).unwrap(),
+                usize::try_from((left.len() as i32).wrapping_add(reserve)).unwrap(),
             );
-            builder.extend_from_slice(left.as_units());
+            builder.extend_from_slice(left);
         }
         builder.push(b'.' as u16);
         builder.extend_from_slice(prop_name.as_units());
@@ -2519,60 +2541,56 @@ impl NodeId {
     // port: Node#isQualifiedName
     pub fn is_qualified_name(self, ast: &Ast) -> bool {
         match self.get_token(ast) {
-            Token::NAME => !self.get_string(ast).is_empty(),
+            Token::NAME => !self.get_string_ref(ast).is_empty(),
             Token::THIS | Token::SUPER => true,
             Token::GETPROP => ast[self].first.unwrap().is_qualified_name(ast),
             _ => false,
         }
     }
     // port: Node#matchesName(String)
-    pub fn matches_name(self, ast: &Ast, name: impl Into<JsString>) -> bool {
+    pub fn matches_name(self, ast: &Ast, name: impl JsStrLike) -> bool {
         if ast[self].token != Token::NAME {
             return false;
         }
-        let internal_string = self.get_string(ast);
-        !internal_string.is_empty() && name.into() == internal_string
+        let internal_string = self.get_string_ref(ast);
+        !internal_string.is_empty() && name.with_units(|name| name == internal_string.as_units())
     }
     // port: Node#matchesName(Node)
     pub fn matches_name_node(self, ast: &Ast, n: NodeId) -> bool {
         if ast[self].token != Token::NAME || ast[n].token != Token::NAME {
             return false;
         }
-        let internal_string = self.get_string(ast);
+        let internal_string = self.get_string_ref(ast);
         !internal_string.is_empty()
-            && RhinoStringPool::unchecked_equals(&internal_string, &n.get_string(ast))
+            && RhinoStringPool::unchecked_equals(internal_string, n.get_string_ref(ast))
     }
     // port: Node#matchesQualifiedName(String)
-    pub fn matches_qualified_name(self, ast: &Ast, name: impl Into<JsString>) -> bool {
-        let name = name.into();
-        self.matches_qualified_name_to_index(ast, &name, name.length())
+    pub fn matches_qualified_name(self, ast: &Ast, name: impl JsStrLike) -> bool {
+        name.with_units(|name| self.matches_qualified_name_to_index(ast, name, name.len()))
     }
     // port: Node#matchesQualifiedName(String, int)
-    fn matches_qualified_name_to_index(
-        self,
-        ast: &Ast,
-        qname: &JsString,
-        end_index: usize,
-    ) -> bool {
-        let start = qname.as_units()[..end_index]
+    fn matches_qualified_name_to_index(self, ast: &Ast, qname: &[u16], end_index: usize) -> bool {
+        let start = qname[..end_index]
             .iter()
             .rposition(|c| *c == b'.' as u16)
             .map_or(0, |i| i + 1);
         match self.get_token(ast) {
             Token::NAME | Token::IMPORT_STAR => {
-                let name = self.get_string(ast);
+                let name = self.get_string_ref(ast);
                 start == 0
                     && !name.is_empty()
                     && name.length() == end_index
-                    && qname.starts_with(&name)
+                    && qname.starts_with(name.as_units())
             }
-            Token::THIS => start == 0 && end_index == 4 && qname.starts_with(&"this".into()),
-            Token::SUPER => start == 0 && end_index == 5 && qname.starts_with(&"super".into()),
+            Token::THIS => start == 0 && end_index == 4 && qname.starts_with(&[116, 104, 105, 115]),
+            Token::SUPER => {
+                start == 0 && end_index == 5 && qname.starts_with(&[115, 117, 112, 101, 114])
+            }
             Token::GETPROP => {
-                let prop = self.get_string(ast);
+                let prop = self.get_string_ref(ast);
                 start > 1
                     && prop.length() == end_index - start
-                    && prop.as_units() == &qname.as_units()[start..end_index]
+                    && prop.as_units() == &qname[start..end_index]
                     && ast[self].first.unwrap().matches_qualified_name_to_index(
                         ast,
                         qname,
@@ -2591,7 +2609,7 @@ impl NodeId {
             Token::NAME => self.matches_name_node(ast, n),
             Token::THIS | Token::SUPER => true,
             Token::GETPROP => {
-                RhinoStringPool::unchecked_equals(&self.get_string(ast), &n.get_string(ast))
+                RhinoStringPool::unchecked_equals(self.get_string_ref(ast), n.get_string_ref(ast))
                     && ast[self]
                         .first
                         .unwrap()
@@ -2603,7 +2621,7 @@ impl NodeId {
     // port: Node#isUnscopedQualifiedName
     pub fn is_unscoped_qualified_name(self, ast: &Ast) -> bool {
         match self.get_token(ast) {
-            Token::NAME => !self.get_string(ast).is_empty(),
+            Token::NAME => !self.get_string_ref(ast).is_empty(),
             Token::GETPROP => ast[self].first.unwrap().is_unscoped_qualified_name(ast),
             _ => false,
         }
@@ -3111,7 +3129,7 @@ impl NodeId {
             "%s",
             self.to_string(ast)
         );
-        check_state!(self.get_string(ast).starts_with(&"#".into()));
+        check_state!(self.get_string_ref(ast).starts_with(&"#".into()));
         self.put_boolean_prop(ast, Prop::PRIVATE_IDENTIFIER, true);
     }
     // port: Node#isAdd

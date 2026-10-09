@@ -375,11 +375,37 @@ impl ErrorReporter for OldRhinoErrorReporter<'_> {
 /// (`Compiler::report_queued_type_registry_errors`) before it next reports or reads errors. The error
 /// managers keep errors sorted (`SortingErrorManager`), so the deferral does not change any output.
 pub struct QueueingOldRhinoErrorReporter {
-    queue: std::sync::Arc<std::sync::Mutex<Vec<JSError>>>,
+    queue: std::sync::Arc<JSErrorQueue>,
 }
 impl QueueingOldRhinoErrorReporter {
-    pub fn new(queue: std::sync::Arc<std::sync::Mutex<Vec<JSError>>>) -> Self {
+    pub fn new(queue: std::sync::Arc<JSErrorQueue>) -> Self {
         Self { queue }
+    }
+}
+/// Rust-only: the queue behind `QueueingOldRhinoErrorReporter`. The Compiler drains it before
+/// every report and error read, which is very often while it is nearly always empty; the
+/// `pending` flag makes the empty check a plain load instead of a lock (D-025).
+#[derive(Default)]
+pub struct JSErrorQueue {
+    pending: std::sync::atomic::AtomicBool,
+    errors: std::sync::Mutex<Vec<JSError>>,
+}
+impl JSErrorQueue {
+    pub fn push(&self, error: JSError) {
+        let mut errors = self.errors.lock().unwrap();
+        errors.push(error);
+        self.pending
+            .store(true, std::sync::atomic::Ordering::Release);
+    }
+    /// Removes and returns the queued errors, in order.
+    pub fn take(&self) -> Vec<JSError> {
+        if !self.pending.load(std::sync::atomic::Ordering::Acquire) {
+            return Vec::new();
+        }
+        let mut errors = self.errors.lock().unwrap();
+        self.pending
+            .store(false, std::sync::atomic::Ordering::Release);
+        std::mem::take(&mut *errors)
     }
 }
 impl ErrorReporter for QueueingOldRhinoErrorReporter {
@@ -416,30 +442,24 @@ impl ErrorReporter for QueueingOldRhinoErrorReporter {
     // port: RhinoErrorReporter.OldRhinoErrorReporter#error
     fn error(&mut self, message: &str, source_name: &str, line: i32, line_offset: i32) {
         // RhinoErrorReporter#errorAtLine
-        self.queue
-            .lock()
-            .unwrap()
-            .push(RhinoErrorReporter::make_error(
-                message,
-                source_name,
-                line,
-                line_offset,
-                CheckLevel::ERROR,
-            ));
+        self.queue.push(RhinoErrorReporter::make_error(
+            message,
+            source_name,
+            line,
+            line_offset,
+            CheckLevel::ERROR,
+        ));
     }
     // port: RhinoErrorReporter.OldRhinoErrorReporter#warning
     fn warning(&mut self, message: &str, source_name: &str, line: i32, line_offset: i32) {
         // RhinoErrorReporter#warningAtLine
-        self.queue
-            .lock()
-            .unwrap()
-            .push(RhinoErrorReporter::make_error(
-                message,
-                source_name,
-                line,
-                line_offset,
-                CheckLevel::WARNING,
-            ));
+        self.queue.push(RhinoErrorReporter::make_error(
+            message,
+            source_name,
+            line,
+            line_offset,
+            CheckLevel::WARNING,
+        ));
     }
 }
 #[derive(Default)]

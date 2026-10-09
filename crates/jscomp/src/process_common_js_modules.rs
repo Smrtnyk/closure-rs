@@ -403,7 +403,11 @@ impl ProcessCommonJSModules {
             .unwrap();
 
         if call_parent_target.matches_qualified_name(ast, format!("{WEBPACK_REQUIRE}.e"))
-            && call_parent.get_first_child(ast).unwrap().get_string(ast) == "then"
+            && call_parent
+                .get_first_child(ast)
+                .unwrap()
+                .get_string_ref(ast)
+                == "then"
         {
             return true;
         } else if PROMISE_ALL.matches(ast, call_parent_target)
@@ -498,7 +502,11 @@ impl ProcessCommonJSModules {
                 .get_first_first_child(compiler)
                 .unwrap()
                 .is_function(compiler)
-            && call.get_first_child(compiler).unwrap().get_string(compiler) == "call"
+            && call
+                .get_first_child(compiler)
+                .unwrap()
+                .get_string_ref(compiler)
+                == "call"
         {
             fnc = call.get_first_first_child(compiler).unwrap();
 
@@ -1459,10 +1467,10 @@ impl FindImportsAndExports {
     // port: ProcessCommonJSModules.FindImportsAndExports#getOutermostUmdTest (NodeUtil.Visitor#visit)
     fn collect_umd_tests(ast: &Ast, node: NodeId, umd_tests: &mut Vec<NodeId>) {
         let matches = match node.get_token(ast) {
-            Token::NAME => node.get_string(ast) == MODULE || node.get_string(ast) == "define",
+            Token::NAME => node.get_string(ast) == MODULE || node.get_string_ref(ast) == "define",
             Token::GETPROP => WINDOW_DEFINE.matches(ast, node),
             Token::STRINGLIT => {
-                node.get_parent(ast).unwrap().is_in(ast) && node.get_string(ast) == "amd"
+                node.get_parent(ast).unwrap().is_in(ast) && node.get_string_ref(ast) == "amd"
             }
             _ => false,
         };

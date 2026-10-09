@@ -200,7 +200,7 @@ impl Callback for VerifyConstants {
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
         if n.is_name(t) {
             let name = n.get_string(t);
-            if n.get_string(t).is_empty() {
+            if n.get_string_ref(t).is_empty() {
                 return;
             }
 

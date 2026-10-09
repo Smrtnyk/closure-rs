@@ -93,8 +93,8 @@ impl CheckEnums {
         let enum_type_expr = js_doc_info.get_enum_parameter_type().unwrap();
 
         let enum_type = enum_type_expr.get_root();
-        let is_string_enum = enum_type.is_string_lit(t) && enum_type.get_string(t) == "string";
-        let is_number_enum = enum_type.is_string_lit(t) && enum_type.get_string(t) == "number";
+        let is_string_enum = enum_type.is_string_lit(t) && enum_type.get_string_ref(t) == "string";
+        let is_number_enum = enum_type.is_string_lit(t) && enum_type.get_string_ref(t) == "number";
         if !is_string_enum && !is_number_enum {
             // warn on `@enum {?}`, `@enum {boolean}`, `@enum {Some|Another}`, `@enum {SomeName}`
             // etc`

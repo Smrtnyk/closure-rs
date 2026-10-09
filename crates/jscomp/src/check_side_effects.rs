@@ -174,7 +174,7 @@ impl Callback for CheckSideEffects {
             && n.get_source_file_name(t)
                 .unwrap()
                 .starts_with(AbstractCompiler::RUNTIME_LIB_DIR)
-            && n.get_string(t).starts_with(&JsString::from("require "))
+            && n.get_string_ref(t).starts_with(&JsString::from("require "))
         {
             return;
         }

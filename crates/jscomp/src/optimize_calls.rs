@@ -476,7 +476,7 @@ impl ReferenceMap {
         parent.is_get_prop(compiler)
             && grand_parent.unwrap().is_call(compiler)
             && parent.is_first_child_of(compiler, grand_parent)
-            && parent.get_string(compiler) == "call"
+            && parent.get_string_ref(compiler) == "call"
     }
 
     /// Whether the provided node acts as the target function in an optional chain call
@@ -493,7 +493,7 @@ impl ReferenceMap {
         parent.is_opt_chain_get_prop(compiler)
             && grand_parent.unwrap().is_opt_chain_call(compiler)
             && parent.is_first_child_of(compiler, grand_parent)
-            && parent.get_string(compiler) == "call"
+            && parent.get_string_ref(compiler) == "call"
     }
 
     /// Whether the provided node acts as the target function in a new expression.

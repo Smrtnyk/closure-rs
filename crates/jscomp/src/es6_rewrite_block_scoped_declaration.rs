@@ -721,7 +721,7 @@ impl LoopClosureTransformer {
         loop_object_name: &str,
     ) {
         if node.is_name(compiler)
-            && !node.get_string(compiler).is_empty()
+            && !node.get_string_ref(compiler).is_empty()
             /* not an anonymous function name */
             && node.get_string(compiler) == loop_object_name
         {

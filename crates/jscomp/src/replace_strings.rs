@@ -367,7 +367,7 @@ impl ReplaceStrings {
                 return prefix;
             }
             Token::STRINGLIT => {
-                key_builder.extend_from_slice(expr.get_string(t).as_units());
+                key_builder.extend_from_slice(expr.get_string_ref(t).as_units());
                 return prefix;
             }
             Token::NAME => {

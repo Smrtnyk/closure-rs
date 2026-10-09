@@ -232,7 +232,7 @@ impl<'a> ScopeScanner<'a> {
                     return;
                 }
                 let fn_name_node = check_not_null!(n.get_first_child(compiler));
-                if fn_name_node.get_string(compiler).is_empty() {
+                if fn_name_node.get_string_ref(compiler).is_empty() {
                     return;
                 }
                 self.declare_var(compiler, check_not_null!(block_scope), fn_name_node);
@@ -243,7 +243,7 @@ impl<'a> ScopeScanner<'a> {
                     return;
                 }
                 let class_name_node = check_not_null!(n.get_first_child(compiler));
-                if class_name_node.get_string(compiler).is_empty() {
+                if class_name_node.get_string_ref(compiler).is_empty() {
                     return;
                 }
                 self.declare_var(compiler, check_not_null!(block_scope), class_name_node);

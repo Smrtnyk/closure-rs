@@ -86,7 +86,7 @@ impl Callback for ThisAndArgumentsReferenceUpdater<'_> {
             }
 
             n.replace_with(t, name);
-        } else if n.is_name(t) && n.get_string(t) == "arguments" {
+        } else if n.is_name(t) && n.get_string_ref(t) == "arguments" {
             self.context.set_needs_arguments_var();
 
             let name = self

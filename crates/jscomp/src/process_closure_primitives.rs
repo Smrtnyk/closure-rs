@@ -209,7 +209,7 @@ impl ProcessClosurePrimitives {
         }
         if n.is_string_lit(compiler)
             && !n.has_children(compiler) // templated object types are ok.
-            && n.get_string(compiler) == "Object"
+            && n.get_string_ref(compiler) == "Object"
         {
             compiler.report(JSError::make(
                 compiler,
@@ -389,7 +389,7 @@ impl ProcessClosurePrimitives {
         // structure is what we expect it to be.
 
         let call_target = n.get_first_child(compiler).unwrap();
-        if !call_target.is_get_prop(compiler) || call_target.get_string(compiler) != "base" {
+        if !call_target.is_get_prop(compiler) || call_target.get_string_ref(compiler) != "base" {
             return;
         }
 
@@ -521,7 +521,7 @@ impl ProcessClosurePrimitives {
         // Handle methods.
         let method_name_node = this_arg.get_next(compiler);
         let Some(method_name_node) = method_name_node
-            .filter(|m| m.is_string_lit(compiler) && m.get_string(compiler) == "constructor")
+            .filter(|m| m.is_string_lit(compiler) && m.get_string_ref(compiler) == "constructor")
         else {
             self.report_bad_base_method_use(
                 compiler,

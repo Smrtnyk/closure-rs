@@ -173,6 +173,43 @@ impl JsString {
         String::from_utf16_lossy(&self.0)
     }
 }
+/// Rust-only: a string argument compared against JS strings without allocating a `JsString`
+/// (Java passes `String`s, which need no conversion).
+pub trait JsStrLike {
+    /// Calls `f` with the UTF-16 code units of the string.
+    fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R;
+}
+impl JsStrLike for str {
+    fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R {
+        // A str of n bytes has at most n UTF-16 code units.
+        let mut buf = [0u16; 128];
+        if self.len() <= buf.len() {
+            let mut n = 0;
+            for unit in self.encode_utf16() {
+                buf[n] = unit;
+                n += 1;
+            }
+            f(&buf[..n])
+        } else {
+            f(&self.encode_utf16().collect::<Vec<_>>())
+        }
+    }
+}
+impl JsStrLike for String {
+    fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R {
+        self.as_str().with_units(f)
+    }
+}
+impl JsStrLike for JsString {
+    fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R {
+        f(self.as_units())
+    }
+}
+impl<T: JsStrLike + ?Sized> JsStrLike for &T {
+    fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R {
+        (**self).with_units(f)
+    }
+}
 impl From<&str> for JsString {
     fn from(s: &str) -> Self {
         Self::from_units(s.encode_utf16().collect::<Vec<_>>())
@@ -211,7 +248,8 @@ impl PartialOrd for JsString {
 }
 impl PartialEq<str> for JsString {
     fn eq(&self, s: &str) -> bool {
-        self.0.iter().copied().eq(s.encode_utf16())
+        // A str of n bytes has at most n UTF-16 code units (cheap early exit).
+        self.0.len() <= s.len() && self.0.iter().copied().eq(s.encode_utf16())
     }
 }
 impl PartialEq<&str> for JsString {

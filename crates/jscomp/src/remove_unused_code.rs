@@ -1129,7 +1129,7 @@ fn is_jscomp_polyfill(ast: &Ast, n: NodeId) -> bool {
                 || property_name == "patch"
                 || property_name == "polyfillTypedArrayMethod")
                 && n.get_first_child(ast).unwrap().is_name(ast)
-                && n.get_first_child(ast).unwrap().get_string(ast) == "$jscomp"
+                && n.get_first_child(ast).unwrap().get_string_ref(ast) == "$jscomp"
                 && n.get_next(ast).unwrap().is_string_lit(ast)
         }
         _ => false,
@@ -1139,7 +1139,7 @@ fn is_jscomp_polyfill(ast: &Ast, n: NodeId) -> bool {
 /// True for `someExpression.prototype`.
 // port: RemoveUnusedCode#isDotPrototype
 fn is_dot_prototype(ast: &Ast, n: NodeId) -> bool {
-    NodeUtil::is_normal_or_opt_chain_get_prop(ast, n) && n.get_string(ast) == "prototype"
+    NodeUtil::is_normal_or_opt_chain_get_prop(ast, n) && n.get_string_ref(ast) == "prototype"
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2033,7 +2033,7 @@ fn is_assignment_to_prototype(ast: &Ast, n: NodeId) -> bool {
 fn is_name_dot_prototype(ast: &Ast, n: NodeId) -> bool {
     n.is_get_prop(ast)
         && n.get_first_child(ast).unwrap().is_name(ast)
-        && n.get_string(ast) == "prototype"
+        && n.get_string_ref(ast) == "prototype"
 }
 
 impl RemoveUnusedCode {
@@ -2082,7 +2082,7 @@ impl RemoveUnusedCode {
             .create_scope(compiler, body, Some(fparam_scope));
 
         let name_node = function.get_first_child(compiler).unwrap();
-        if !name_node.get_string(compiler).is_empty() {
+        if !name_node.get_string_ref(compiler).is_empty() {
             // var x = function funcName() {};
             // make sure funcName gets into the varInfoMap so it will be considered for removal.
             let var_info = self.traverse_name_node(compiler, name_node, fparam_scope);
@@ -3981,7 +3981,7 @@ impl RemoveUnusedCode {
         );
         let obj_expression = obj_dot_prototype.get_first_child(compiler).unwrap();
         check_state!(
-            obj_dot_prototype.get_string(compiler) == "prototype",
+            obj_dot_prototype.get_string_ref(compiler) == "prototype",
             "%s",
             obj_dot_prototype.to_string(compiler)
         );

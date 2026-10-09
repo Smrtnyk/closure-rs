@@ -486,7 +486,7 @@ impl FunctionArgumentInjector {
                     }
                     Token::THIS => requires_temporary = false,
                     Token::STRINGLIT => {
-                        requires_temporary = c_arg.get_string(compiler).length() >= 2
+                        requires_temporary = c_arg.get_string_ref(compiler).length() >= 2
                     }
                     _ => requires_temporary = !NodeUtil::is_immutable_value(compiler, c_arg),
                 }

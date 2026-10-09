@@ -1550,12 +1550,13 @@ impl ExpressionDecomposer {
             if NodeUtil::is_object_call_method(compiler, parent, &JsString::from("call"))
                 || parent.get_boolean_prop(compiler, Prop::FREE_CALL)
             {
-                let callee = if tree.is_get_prop(compiler) && tree.get_string(compiler) == "call" {
-                    tree.get_first_child(compiler)
-                        .expect("NullPointerException")
-                } else {
-                    tree
-                };
+                let callee =
+                    if tree.is_get_prop(compiler) && tree.get_string_ref(compiler) == "call" {
+                        tree.get_first_child(compiler)
+                            .expect("NullPointerException")
+                    } else {
+                        tree
+                    };
                 if tree.is_first_child_of(compiler, Some(parent))
                     && (self.is_temp_constant_value_name(compiler, callee)
                         || callee
