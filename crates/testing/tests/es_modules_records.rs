@@ -31,7 +31,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   test/com/google/javascript/jscomp/Es6RelativizeImportPathsTest.java,
 //   test/com/google/javascript/jscomp/Es6RewriteModulesBeforeTypeCheckingTest.java,
 //   test/com/google/javascript/jscomp/Es6RewriteModulesTest.java,

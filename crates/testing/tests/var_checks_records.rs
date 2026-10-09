@@ -33,7 +33,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   test/com/google/javascript/jscomp/ConstCheckTest.java,
 //   test/com/google/javascript/jscomp/DeclaredGlobalExternsOnWindowTest.java,
 //   test/com/google/javascript/jscomp/RemoveUnnecessarySyntheticExternsTest.java,
