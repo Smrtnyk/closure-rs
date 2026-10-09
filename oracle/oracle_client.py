@@ -13,7 +13,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from paths import ORACLE_JAR, REF_JAR  # noqa: E402  the reference's jars (scripts/paths.py)
-JAVA = os.path.join(ROOT, "tools", "jdk-21", "bin", "java")
+from paths import ROOT as MAIN_ROOT  # noqa: E402  the main checkout (tools/ lives only there)
+JAVA = os.path.join(MAIN_ROOT, "tools", "jdk-21", "bin", "java")
 CP = ORACLE_JAR + ":" + REF_JAR
 
 
