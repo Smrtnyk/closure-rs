@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   src/com/google/javascript/jscomp/InlineFunctions.java.
 
 //! Port of `com.google.javascript.jscomp.InlineFunctions`.
@@ -383,7 +383,7 @@ impl InlineFunctions {
 
     /// Returns whether the name is used in a way that might be a candidate for inlining.
     // port: InlineFunctions#isCandidateUsage
-    pub fn is_candidate_usage(ast: &Ast, name: NodeId) -> bool {
+    fn is_candidate_usage(ast: &Ast, name: NodeId) -> bool {
         let parent = name.get_parent(ast).unwrap();
         check_state!(name.is_name(ast));
         if NodeUtil::is_name_declaration(ast, Some(parent)) || parent.is_function(ast) {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Command line entry point: `npx closure-rs ...` or, installed as the google-closure-compiler
 // alias, `npx google-closure-compiler ...`. All arguments go to the closure-rs binary unchanged,
-// except the wrapper-only --platform flag, which is removed (google-closure-compiler@20261005.0.0
+// except the wrapper-only --platform flag, which is removed (google-closure-compiler@20261006.0.0
 // cli.js lines 23-31 and 62-84). Every accepted platform ('native', 'java') runs closure-rs.
 import Compiler from './lib/node/index.js';
 import {getFirstSupportedPlatform} from './lib/utils.js';

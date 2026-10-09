@@ -175,8 +175,8 @@ fn case_selection_and_unrepresentable_entries() {
     }
     assert!(errors.is_empty(), "{} records without a case", errors.len());
     println!("selected a case: {selected:?}; no case (optional): {no_match_optional:?}");
-    assert_eq!(ctc, 21_297);
-    assert_eq!(selected["compiler_test_case"], 21_297);
+    assert_eq!(ctc, 21_308);
+    assert_eq!(selected["compiler_test_case"], 21_308);
 }
 
 #[test]
@@ -216,7 +216,7 @@ fn expected_pipeline_matches_records() {
         }
     }
     assert_eq!(matched, entries.len());
-    assert_eq!(matched, 21_297);
+    assert_eq!(matched, 21_308);
 }
 
 fn has_lone_surrogate(v: &JsonValue) -> bool {

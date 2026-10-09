@@ -1,6 +1,6 @@
 // closure-rs: drop-in replacement for the google-closure-compiler npm package (programmatic API).
 //
-// Exports the same names as google-closure-compiler@20261005.0.0 index.js (lines 25-37): JAR_PATH,
+// Exports the same names as google-closure-compiler@20261006.0.0 index.js (lines 25-37): JAR_PATH,
 // CONTRIB_PATH, EXTERNS_PATH, grunt, gulp, compiler (also the default export) and javaPath. It
 // adds COMPILER_PATH (the binary's path; the official README documents that name).
 import path from 'node:path';

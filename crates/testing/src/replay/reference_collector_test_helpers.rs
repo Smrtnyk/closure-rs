@@ -35,7 +35,7 @@
 //   oracle/replay/helpers/com/google/javascript/jscomp/ReferenceCollectorTest_Helpers.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   src/com/google/javascript/jscomp/AbstractVar.java,
 //   src/com/google/javascript/jscomp/Reference.java,
 //   src/com/google/javascript/jscomp/ReferenceCollection.java,

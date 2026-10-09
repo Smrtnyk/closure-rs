@@ -46,7 +46,7 @@
  */
 // Ported from Gson 2.9.1 (https://github.com/google/gson): com/google/gson/Gson.java,
 //   com/google/gson/internal/bind/TypeAdapters.java, com/google/gson/stream/JsonReader.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   src/com/google/javascript/jscomp/AbstractCommandLineRunner.java.
 
 //! Gson 2.9.1 JsonReader subset, checked against its decompiled stream state machine.

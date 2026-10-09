@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fetches the pinned Java reference (docs/PORTING.md §1) into its checkout: the
 # scripts/references.tsv row $CLOSURE_RS_REF (default: the registry's default), commit
-# $REF_COMMIT into $REF_SRC (reference/closure-compiler for the default; docs/PORTING.md §9).
+# $REF_COMMIT into $REF_SRC (reference/closure-compiler-v20261006 for the default; docs/PORTING.md §9).
 # Idempotent; verifies the checked-out commit. Refuses to touch a checkout that holds a different
 # commit (references live alongside each other; an existing checkout is never moved).
 #   scripts/fetch_reference.sh [--dry-run]   (--dry-run: print the target and the guard verdict)

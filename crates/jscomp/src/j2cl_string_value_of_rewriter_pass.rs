@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   src/com/google/javascript/jscomp/J2clStringValueOfRewriterPass.java.
 
 //! Port of `J2clStringValueOfRewriterPass.java` as a named, gated no-op (J2CL is out of scope, docs/PORTING.md §2).

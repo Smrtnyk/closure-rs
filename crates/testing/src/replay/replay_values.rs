@@ -31,7 +31,7 @@
 // Ported from closure-rs' own Java oracle tooling:
 //   UnitRecorder.java (oracle/patches/0002-recording-hooks.patch),
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   src/com/google/javascript/jscomp/CheckLevel.java.
 
 //! ReplayValues decoder and the recorder's referenceable value/error projection.

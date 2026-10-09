@@ -1,6 +1,6 @@
 // Low-level class that runs the closure-rs binary from Node.
 //
-// Same public behaviour as the `Compiler` class of google-closure-compiler@20261005.0.0
+// Same public behaviour as the `Compiler` class of google-closure-compiler@20261006.0.0
 // (lib/node/index.js), independently implemented. Line numbers below refer to that file.
 // Differences, all because closure-rs is a native binary and not a jar:
 //   - `javaPath` (the executable that is spawned) defaults to the closure-rs binary, not 'java';

@@ -1,7 +1,7 @@
 # index	name	utf8_len	sha256  (AbstractCommandLineRunner.getBuiltinExterns(BROWSER))
-0	externs.zip//es3.js	76554	567950f320dd3b632dc37db03594dd61ce002490fa23e617f413f5d071d17c07
+0	externs.zip//es3.js	76751	2dfa0bdc776140bdf6dbac3424310a03df2e2a873d5666fe5cd0a9d0379dc74d
 1	externs.zip//es5.js	7672	ad354cf25b705bcdf36ed0699bdf5aa884362364c8ab31d07f93dcf85758415a
-2	externs.zip//es6.js	56083	050dae726f0ab203ce5de662430669fa7af3c797d90c4eb03246b8cfe32e1cec
+2	externs.zip//es6.js	56290	19d3eaaf64bb10c95d18eaf9e86983aaebf3c60e6cb4473b2f179b96b0b9c57a
 3	externs.zip//es6_typed_array.js	140507	24ee0d3da80b68e228fcb42641049376626a6725c21abda107986debdc06d753
 4	externs.zip//es6_collections.js	13584	372aea95c8f28960f4908eb0d402cf35b5fb264b05f73835a803e17bec34330f
 5	externs.zip//intl.js	21098	b8fe65136bade0a336cea55b12fb636a6195ac46924d42eb17ed4208ad1add37

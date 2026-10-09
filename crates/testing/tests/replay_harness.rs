@@ -38,7 +38,7 @@
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayMain.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   src/com/google/javascript/jscomp/CompilerOptions.java,
 //   src/com/google/javascript/jscomp/JSError.java,
 //   src/com/google/javascript/jscomp/NodeTraversal.java,
@@ -916,13 +916,13 @@ fn convenience_helpers_preserve_file_names_extern_copying_and_postorder() {
         CompilerTestCase::minimal_externs().unwrap().as_units(),
         golden.get("minimal").unwrap().as_js_string().unwrap().0
     );
-    // VAR_CHECK_EXTERNS: one `var <symbol>;` line per VarCheck.REQUIRED_SYMBOLS entry (32, in
+    // VAR_CHECK_EXTERNS: one `var <symbol>;` line per VarCheck.REQUIRED_SYMBOLS entry (33, in
     // keep-sorted order, var-checks).
     let var_check_externs = CompilerTestCase::var_check_externs()
         .unwrap()
         .to_string_lossy();
     assert!(var_check_externs.starts_with("var AggregateError;\nvar Array;\nvar Error;\n"));
-    assert_eq!(var_check_externs.lines().count(), 32);
+    assert_eq!(var_check_externs.lines().count(), 33);
     assert!(
         var_check_externs
             .lines()

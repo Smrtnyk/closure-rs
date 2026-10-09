@@ -1,6 +1,6 @@
 Resources of the reference Closure Compiler jar (Apache-2.0), stored verbatim as data:
 externs/ holds the entries of the jar's externs.zip (Bazel rule externs_zip, built from
-reference/closure-compiler/externs/**/*.js with the externs/ prefix stripped);
+the reference checkout's externs/**/*.js with the externs/ prefix stripped);
 com/google/javascript/jscomp/js/ holds the runtime JS libraries (from
 src/com/google/javascript/jscomp/js/) plus the Bazel-generated polyfills.txt and
 transpilation_libs.txt; runtime_libs.typedast is the Bazel-generated typed AST of the runtime

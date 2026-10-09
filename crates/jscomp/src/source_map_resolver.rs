@@ -28,7 +28,7 @@
  */
 // Ported from Guava 33.4.6-jre (https://github.com/google/guava):
 //   com/google/common/io/BaseEncoding.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   src/com/google/javascript/jscomp/SourceMapResolver.java.
 
 use crate::source_file::SourceFile;

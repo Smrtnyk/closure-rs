@@ -35,7 +35,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   test/com/google/javascript/rhino/NodeTest.java.
 
 use closure_rhino::{
@@ -1648,4 +1648,15 @@ fn test_check_tree_type_aware_equals_colors_different_null() {
     node1.set_color(&mut ast, Some(sc::NUMBER.clone()));
     let node2 = ast.new_string_with_token(Token::NAME, "f");
     assert!(!node1.is_equivalent_to_typed(&ast, node2));
+}
+// port: NodeTest#testIsPos
+#[test]
+fn test_is_pos() {
+    let mut ast = Ast::new();
+    let pos = ast.new_node(Token::POS);
+    assert!(pos.is_pos(&ast));
+    let neg = ast.new_node(Token::NEG);
+    assert!(!neg.is_pos(&ast));
+    let number = ast.new_number(1.0);
+    assert!(!number.is_pos(&ast));
 }

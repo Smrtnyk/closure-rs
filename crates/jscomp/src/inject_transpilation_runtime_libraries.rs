@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   src/com/google/javascript/jscomp/InjectTranspilationRuntimeLibraries.java.
 
 //! Injects JS library code that may be needed by the transpiled form of the input source code.
@@ -165,6 +165,10 @@ impl CompilerPass for InjectTranspilationRuntimeLibraries {
             // transpile a destructuring case that contains it, we transpile the entire
             // destructured assignment, which may also include `ARRAY_DESTRUCTURING`.
             self.inject_lib_for_field(compiler, "$jscomp.makeIterator");
+        }
+
+        if must_be_compiled_away.contains(Feature::FOR_OF) {
+            self.inject_lib_for_field(compiler, "$jscomp.iteratorClose");
         }
 
         if must_be_compiled_away.contains(Feature::ARRAY_PATTERN_REST) {

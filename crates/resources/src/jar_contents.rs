@@ -898,9 +898,21 @@ pub static JAR_ENTRIES: &[ArchiveEntry] = &[
         )),
     },
     ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/util/getiteratorprototype.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/util/getiteratorprototype.js"
+        )),
+    },
+    ArchiveEntry {
         name: "com/google/javascript/jscomp/js/es6/util/inherits.js",
         content: EntryContent::File(include_bytes!(
             "../data/com/google/javascript/jscomp/js/es6/util/inherits.js"
+        )),
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/util/iteratorclose.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/util/iteratorclose.js"
         )),
     },
     ArchiveEntry {

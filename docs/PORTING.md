@@ -18,10 +18,12 @@ closure-rs is a Rust implementation of Closure Compiler whose observable behavio
 It is a faithful port, not a redesign: it does not "improve" the optimizer or its output. A
 difference from the Java compiler at the pinned commit is a porting defect.
 
-**Reference:** `github.com/google/closure-compiler` at commit
-`bb8c8e7cb8d0b14b27ff5e969d186bb97017eb06` (2026-10-05). `scripts/fetch_reference.sh` fetches it
-into `reference/closure-compiler` (gitignored); `oracle/REFERENCE.md` describes how the reference
-jar is built. The pin moves only when the port is synced with upstream (§9).
+**Reference:** `github.com/google/closure-compiler` release `v20261006`, commit
+`48f4107ca2aac52149546ccc42894522fcfdb17d` (2026-10-06), the release published on npm as
+`google-closure-compiler@20261006.0.0` (registry tag `v20261006` in `scripts/references.tsv`).
+`scripts/fetch_reference.sh` fetches it into `reference/closure-compiler-v20261006` (gitignored);
+`oracle/REFERENCE.md` describes how the reference jar is built. The pin moves only when the port
+is synced with upstream (§9), and only to an upstream release that is published on npm.
 
 For orientation: the reference's `src` has about 278k lines of Java (`jscomp` 180k, `rhino` and
 `rhino/jstype` together 30k) and its `test` about 398k lines. The externs and the runtime JS
@@ -238,6 +240,12 @@ in `DefaultPassConfig` order. `crates/DESIGN.md` gives the detailed Java-to-Rust
 
 closure-rs follows upstream Closure Compiler: upstream changes are ported, and the pin (§1) moves
 forward.
+
+**Syncs target npm releases only.** The pin moves from one upstream release to a later one, and
+only to a release that is published on npm as a `google-closure-compiler` version (upstream tag
+`vYYYYMMDD` = npm `YYYYMMDD.0.0`), never to an unreleased master commit, so closure-rs always
+matches a compiler users can install (DECISIONS.md D-026). A new registry tag is the upstream
+release tag (`bb8c8e7`, the first pin, is release `v20261005` = npm `20261005.0.0`).
 
 **The reference registry.** `scripts/references.tsv` lists every pinned reference: per tag its
 commit, the uberjar's sha256 (`-` until the jar is built and pinned), and its paths relative to

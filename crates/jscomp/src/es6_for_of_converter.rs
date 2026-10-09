@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   src/com/google/javascript/jscomp/Es6ForOfConverter.java.
 
 //! Port of `Es6ForOfConverter.java`.
@@ -45,8 +45,6 @@ fn transpiled_features() -> FeatureSet {
 const ITER_BASE: &str = "$jscomp$iter$";
 
 const ITER_RESULT: &str = "$jscomp$key$";
-
-const RET_FN: &str = "$jscomp$retFn$";
 
 /// Converts ES6 "for of" loops to ES5.
 ///
@@ -121,16 +119,6 @@ impl Es6ForOfConverter {
             .create_name_with_unknown_type(t.get_compiler(), iterator_result_name.as_str());
         iter_result.make_non_indexable(t);
 
-        let ret_fn_id = t
-            .get_compiler()
-            .get_unique_id_supplier()
-            .get_unique_id(&input);
-        let return_func_name = format!("{RET_FN}{ret_fn_id}");
-        let ret_fn = self
-            .ast_factory
-            .create_name_with_unknown_type(t.get_compiler(), return_func_name.as_str());
-        ret_fn.make_non_indexable(t);
-
         // `$jscomp.makeIterator(iterable)`
         let call_make_iterator = self
             .ast_factory
@@ -145,9 +133,6 @@ impl Es6ForOfConverter {
         let get_next_clone = get_next.clone_tree(t);
         let init_iter_result = IR::var_with_value(t, iter_result_clone, get_next_clone)
             .srcref_tree_if_missing(t, iterable);
-        // var $jscomp$retFn$0;
-        let ret_fn_clone = ret_fn.clone_tree(t);
-        let init_ret_fn = IR::var(t, ret_fn_clone).srcref_tree_if_missing(t, iterable);
 
         // !$jscomp$key$extraName.done
         let iter_result_clone = iter_result.clone_tree(t);
@@ -216,57 +201,24 @@ impl Es6ForOfConverter {
         let new_for = IR::for_node(t, empty, cond, incr, new_body).srcref_tree_if_missing(t, node);
 
         // Build finally block:
-        // if ($jscomp$key$extraName && !$jscomp$key$extraName.done && ($jscomp$retFn$0 =
-        // $jscomp$iter$0.return)) {
-        //   $jscomp$retFn$0.call($jscomp$iter$0);
-        // }
-        let iter_result_clone = iter_result.clone_tree(t);
-        let done = self.ast_factory.create_get_prop(
-            t.get_compiler(),
-            iter_result_clone,
-            "done",
-            AstFactory::type_(standard_colors::BOOLEAN.clone()),
-        );
-        let not_done = self.ast_factory.create_not(t.get_compiler(), done);
-        let iter_result_clone = iter_result.clone_tree(t);
-        let and1 = self
-            .ast_factory
-            .create_and(t.get_compiler(), iter_result_clone, not_done);
+        // (0, $jscomp.iteratorClose)($jscomp$iter$0, $jscomp$key$extraName);
         let iter_name_clone = iter_name.clone_tree(t);
-        let get_return = self.ast_factory.create_get_prop_with_unknown_type(
-            t.get_compiler(),
-            iter_name_clone,
-            "return",
-        );
-        let ret_fn_clone = ret_fn.clone_tree(t);
-        let assign_ret_fn =
-            self.ast_factory
-                .create_assign(t.get_compiler(), ret_fn_clone, get_return);
-        let if_cond = self
+        let iter_result_clone = iter_result.clone_tree(t);
+        let call_iterator_close = self
             .ast_factory
-            .create_and(t.get_compiler(), and1, assign_ret_fn);
-
-        let ret_fn_clone = ret_fn.clone_tree(t);
-        let call_prop = self.ast_factory.create_get_prop_with_unknown_type(
-            t.get_compiler(),
-            ret_fn_clone,
-            "call",
-        );
-        let iter_name_clone = iter_name.clone_tree(t);
-        let call_ret_fn = self.ast_factory.create_call(
-            t.get_compiler(),
-            call_prop,
-            AstFactory::type_(standard_colors::UNKNOWN.clone()),
-            &[iter_name_clone],
-        );
-        let call_stmt = self.ast_factory.expr_result(t.get_compiler(), call_ret_fn);
-        let if_body = self
+            .create_jscomp_iterator_close_call(
+                t.get_compiler(),
+                iter_name_clone,
+                iter_result_clone,
+                &self.namespace,
+            )
+            .srcref_tree_if_missing(t, node);
+        let call_stmt = self
+            .ast_factory
+            .expr_result(t.get_compiler(), call_iterator_close);
+        let finally_block = self
             .ast_factory
             .create_block(t.get_compiler(), &[call_stmt]);
-        let if_stmt = self
-            .ast_factory
-            .create_if(t.get_compiler(), if_cond, if_body);
-        let finally_block = self.ast_factory.create_block(t.get_compiler(), &[if_stmt]);
 
         // Check if the for loop has a parent that is a label i.e. `loop1: for(...of ...)`
         let mut label_names: Vec<NodeId> = Vec::new();
@@ -297,7 +249,6 @@ impl Es6ForOfConverter {
 
         init_iter.insert_before(t, try_finally);
         init_iter_result.insert_after(t, init_iter);
-        init_ret_fn.insert_after(t, init_iter_result);
         t.get_compiler()
             .report_change_to_enclosing_scope(try_finally);
     }

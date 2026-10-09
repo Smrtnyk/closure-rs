@@ -1,11 +1,11 @@
 {
- "source": "TypeCheckTestCase subclass (test/com/google/javascript/jscomp/TypeCheckTest.java, commit bb8c8e7): no getProcessor, no overridden harness hooks, no instance fields; records replay through ReplayTypeCheckTest; there is no processor. The instance compiler is built by CompilerTypeTestCase.setUp/initializeNewCompiler (new Compiler(), initOptions(getDefaultOptions()), markFeatureNotAllowed(MODULES)), which the type_check replay path models; newTestLegacy() wraps that instance compiler, newTest() builds a fresh one.",
+ "source": "TypeCheckTestCase subclass (test/com/google/javascript/jscomp/TypeCheckTest.java, commit 48f4107ca): no getProcessor, no overridden harness hooks, no instance fields; records replay through ReplayTypeCheckTest; there is no processor. The instance compiler is built by CompilerTypeTestCase.setUp/initializeNewCompiler (new Compiler(), initOptions(getDefaultOptions()), markFeatureNotAllowed(MODULES)), which the type_check replay path models; newTestLegacy() wraps that instance compiler, newTest() builds a fresh one.",
  "cases": [
   {
    "when": {
     "method": "testTemplateTypeForwardReference_declaredMissing"
    },
-   "note": "TypeCheckTest.java lines 22475-22486: compiler.forwardDeclareType(\"Foo\"); compiler.forwardDeclareType(\"DoesNotExist\"); then newTestLegacy() (the instance compiler) ... .run(). Compiler.forwardDeclaredTypes is a LinkedHashSet shared by reference with the JSTypeRegistry, so adding after initOptions (as setUp then the test body do) is equivalent.",
+   "note": "TypeCheckTest.java lines 22533-22544: compiler.forwardDeclareType(\"Foo\"); compiler.forwardDeclareType(\"DoesNotExist\"); then newTestLegacy() (the instance compiler) ... .run(). Compiler.forwardDeclaredTypes is a LinkedHashSet shared by reference with the JSTypeRegistry, so adding after initOptions (as setUp then the test body do) is equivalent.",
    "compilerSetup": [
     {
      "call": {
@@ -35,7 +35,7 @@
    "when": {
     "method": "testTemplateTypeForwardReference_extends"
    },
-   "note": "TypeCheckTest.java lines 22488-22501: compiler.forwardDeclareType(\"Bar\"); compiler.forwardDeclareType(\"Baz\"); then newTestLegacy() (the instance compiler) ... .run().",
+   "note": "TypeCheckTest.java lines 22546-22559: compiler.forwardDeclareType(\"Bar\"); compiler.forwardDeclareType(\"Baz\"); then newTestLegacy() (the instance compiler) ... .run().",
    "compilerSetup": [
     {
      "call": {
@@ -62,6 +62,6 @@
    ]
   }
  ],
- "note": "testTemplateTypeForwardReference_declared (lines 22388-22409) also calls compiler.forwardDeclareType(\"Foo\") on the instance compiler, but then uses newTest(), which builds its own fresh Compiler; the forward declaration cannot reach that compiler, so the record needs no case. Lines 7853/7868 (compiler.getOptions().setCodingConvention(...)) are followed by newTest(), so they also do not reach the compiler under test.",
+ "note": "testTemplateTypeForwardReference_declared (lines 22446-22467) also calls compiler.forwardDeclareType(\"Foo\") on the instance compiler, but then uses newTest(), which builds its own fresh Compiler; the forward declaration cannot reach that compiler, so the record needs no case. Lines 7853/7868 (compiler.getOptions().setCodingConvention(...)) are followed by newTest(), so they also do not reach the compiler under test.",
  "postCallAssertionsMoved": "Classify batch 3 (2026-10-07): the legacy postCallAssertions entry (out_of_scope: testAddingMethodsUsingPrototypeIdiomComplexNamespace1, testAddingMethodsUsingPrototypeIdiomComplexNamespace2) moved to corpus/unit/postcall/TypeCheckTest.json, which classifies all 44 flagged methods as rust_unit_test (FORMAT.md 'corpus/unit/postcall/<Class>.json'); descriptor postCallAssertions are no longer read."
 }
