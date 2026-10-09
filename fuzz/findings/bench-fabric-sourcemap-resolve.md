@@ -22,7 +22,8 @@ printed `1 warning(s)`.
 
 ## Resolution
 
-- status: fixed (commit "SortingErrorManager: count reports a formatter makes during generateReport").
+- status: fixed in #3 (`SortingErrorManager` counts the reports a formatter makes during
+  `generateReport`).
 - root cause: Java resolves an input source map lazily. While `PrintStreamErrorReportGenerator`
   (or `JsonErrorReportGenerator`) prints, the formatter calls `Compiler#getSourceMapping`, whose
   `SourceMapInput#getSourceMap` reports SOURCEMAP_RESOLVE_FAILED straight into the error manager.
