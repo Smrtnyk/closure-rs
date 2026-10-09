@@ -142,6 +142,26 @@ Production { name, weight, leaf, when: fn(&Ctx) -> bool, emit: fn(&mut Gen) }
    program with its origin (seed and index, or the mutated D2 file). Each such file is one
    porting defect to fix (docs/PORTING.md §7).
 
+**Arguments and exit status.** `--work` must lie inside the repository: `case_args.py`
+refuses an absolute `out_dir` ("out_dir must be repo-relative"), and the driver passes the
+inputs and `out_dir` relative to the repository root. An absolute path that resolves inside the
+repository (after `.`/`..` are resolved lexically) is accepted; any other `--work` is refused
+before a server starts, with exit 2. `--findings` and `--report` may be anywhere. A run that
+cannot compare anything must not look like success, so `run` exits with a status that the
+report's `status` field repeats:
+
+| exit | `status` | meaning |
+| --- | --- | --- |
+| 0 | `ok` | at least one program compared, no harness crash |
+| 2 | (no report) | usage error, including a `--work` outside the repository |
+| 3 | `harness_crash` | a worker thread panicked (`harness_crashes`) |
+| 4 | `oracle_failure` | `ORACLE_FAIL_WINDOW` (50) consecutive programs past the parse filter ended as oracle errors: the run stops early and prints the first error of the streak (`abort_reason`) |
+| 5 | `nothing_compared` | the run ended with `compared == 0` |
+
+Java crashes (D-009 drops) and compared programs end an oracle-error streak and parse
+rejections do not count either way, so a normal run with a few percent Java crashes or the
+odd oracle error is unaffected.
+
 Heap: each driver worker owns 2 oracle JVMs at `-Xmx1536m`. All JVMs start through
 `fuzz_oracle::Server::start`, which clears the environment, sets `golden_env()`, and refuses
 to use a server whose ready-line `env` differs from `GOLDEN_JVM_ENV`.
