@@ -1,5 +1,5 @@
 {
-  "source": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java getProcessor (lines 100-148), replayed through helper Es6TranspilationIntegrationTest_Helpers.GetProcessor (verbatim copy; it builds a PhaseOptimizer from PassFactory lambdas, which the DSL cannot express). setUp (lines 72-98) affects only harness fields, which come from the record.",
+  "source": "test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java getProcessor (lines 99-147, commit 48f4107ca), replayed through helper Es6TranspilationIntegrationTest_Helpers.GetProcessor (verbatim copy; it builds a PhaseOptimizer from PassFactory lambdas, which the DSL cannot express). setUp (lines 72-97) affects only harness fields, which come from the record.",
   "cases": [
     {
       "when": {"instanceClass": "com.google.javascript.jscomp.Es6TranspilationIntegrationTest"},

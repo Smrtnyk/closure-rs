@@ -19,7 +19,7 @@
 - **Summary:** `scripts/unit_report.sh` writes `build/unit/report/{classes.json,table.md}`
   (per-class entries and records, kinds, failures, unrepresentable values).
 
-The corpus holds 24,768 records from 255 of the 432 test classes (kinds compiler_test_case,
+The corpus holds 24,782 records from 255 of the 432 test classes (kinds compiler_test_case,
 type_check and integration). Hooked entries below the outermost one are nested calls, such as
 `compile` inside `test` or `parseAndTypeCheckWithScope` inside `TypeTestBuilder.run`; they are
 counted but, by design, not recorded.

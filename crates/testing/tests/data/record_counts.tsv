@@ -114,7 +114,7 @@ CrossChunkMethodMotionTest	85	85	0	0
 CrossChunkReferenceCollectorTest	46	46	0	0
 DataFlowAnalysisTest	0	0	0	0
 DeadAssignmentsEliminationTest	262	262	0	0
-DeadPropertyAssignmentEliminationTest	120	120	0	0
+DeadPropertyAssignmentEliminationTest	126	126	0	0
 DeclaredGlobalExternsOnWindowTest	20	20	0	0
 DefaultCodingConventionTest	0	0	0	0
 DefaultNameGeneratorTest	0	0	0	0
@@ -197,7 +197,7 @@ InjectTranspilationRuntimeLibrariesTest	0	0	0	0
 InlineAliasesTest	54	54	0	0
 InlineAndCollapsePropertiesTest	260	260	0	0
 InlineCostEstimatorTest	0	0	0	0
-InlineFunctionsTest	449	449	0	0
+InlineFunctionsTest	453	453	0	0
 InlineObjectLiteralsTest	91	91	0	0
 InlinePropertiesTest	51	51	0	0
 InlineSimpleMethodsTest	81	81	0	0
@@ -273,7 +273,7 @@ OptimizeCallsIntegrationTest	101	101	0	0
 OptimizeCallsTest	8	8	0	0
 OptimizeConstructorsTest	35	35	0	0
 OptimizeLetAndConstTest	14	14	0	0
-OptimizeParametersTest	332	332	0	0
+OptimizeParametersTest	333	333	0	0
 OptimizeReturnsTest	64	64	0	0
 OptionalChainTypeCheckTest	60	0	0	60
 OptionalChainingIntegrationTest	6	0	6	0
@@ -406,7 +406,7 @@ TypeCheckNoTranspileTest	587	0	0	587
 TypeCheckStructuralInterfaceTest	71	0	0	71
 TypeCheckSymbolsTest	13	0	0	13
 TypeCheckTemplatizedTest	43	0	0	43
-TypeCheckTest	1672	0	0	1672
+TypeCheckTest	1675	0	0	1675
 TypeCheckTypedPercentTest	0	0	0	0
 TypeInferenceTest	0	0	0	0
 TypeMatchingStrategyTest	0	0	0	0

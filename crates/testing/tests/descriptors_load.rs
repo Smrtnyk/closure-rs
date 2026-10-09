@@ -131,7 +131,7 @@ fn options_defaults_load_and_round_trip() {
 #[test]
 fn expected_pipeline_loads_and_round_trips() {
     let entries = load_expected_pipeline().unwrap();
-    assert_eq!(entries.len(), 21_297);
+    assert_eq!(entries.len(), 21_308);
     for (e, raw) in &entries {
         assert_eq!(&e.to_json(), raw);
     }

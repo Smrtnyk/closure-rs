@@ -2,8 +2,8 @@
  * closure-rs unit-corpus helper (corpus/unit/DSL.md "helper"). The holder class and the nested
  * class declaration `GetProcessor extends CompilerTestCase` are generated; the getProcessor
  * method is copied VERBATIM (re-indented only) from
- *   test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 100-148
- * (closure-compiler commit bb8c8e7). getProcessor reads no test-instance field, so the nested
+ *   test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java lines 99-147
+ * (closure-compiler commit 48f4107ca). getProcessor reads no test-instance field, so the nested
  * class is static. The descriptor calls getProcessor(compiler) on a fresh instance.
  * DSL name: Es6TranspilationIntegrationTest_Helpers.GetProcessor
  */
