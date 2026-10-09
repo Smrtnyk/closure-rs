@@ -2182,6 +2182,56 @@ fn test_create_jscomp_make_iterator_call_succeeds() {
     assert_eq!(result.get_last_child(&t.compiler), Some(iterable));
 }
 
+// port: AstFactoryTest#testCreateJscompIteratorCloseCall_throwsIfJscompIteratorCloseNotInjected
+#[test]
+fn test_create_jscomp_iterator_close_call_throws_if_jscomp_iterator_close_not_injected() {
+    // Given
+    let mut t = AstFactoryTest::set_up();
+    let ast_factory = t.create_test_ast_factory_without_types();
+    let iter = IR::name(&mut t.compiler, "iter");
+    let iter_result = IR::name(&mut t.compiler, "res");
+    let scope = MapBasedStaticScope(MapBasedScope::new(Vec::new()));
+
+    // When
+    let message = assert_throws_illegal_state(|| {
+        ast_factory.create_jscomp_iterator_close_call(&mut t.compiler, iter, iter_result, &scope);
+    });
+    assert_eq!(message, "Field $jscomp.iteratorClose is not injected");
+}
+
+// port: AstFactoryTest#testCreateJscompIteratorCloseCall_succeeds
+#[test]
+fn test_create_jscomp_iterator_close_call_succeeds() {
+    // Given
+    let mut t = AstFactoryTest::set_up();
+    let ast_factory = t.create_test_ast_factory_without_types();
+    let iter = IR::name(&mut t.compiler, "iter");
+    let iter_result = IR::name(&mut t.compiler, "res");
+    t.runtime_js_lib_manager
+        .lock()
+        .unwrap()
+        .inject_lib_for_field(&mut t.compiler, "$jscomp.iteratorClose");
+
+    // When
+    let result = ast_factory.create_jscomp_iterator_close_call(
+        &mut t.compiler,
+        iter,
+        iter_result,
+        &MapBasedStaticScope(MapBasedScope::empty_scope()),
+    );
+
+    // Then
+    assert!(result.is_call(&t.compiler));
+    assert!(
+        result
+            .get_first_child(&t.compiler)
+            .unwrap()
+            .matches_qualified_name(&t.compiler, "$jscomp.iteratorClose")
+    );
+    assert_eq!(result.get_second_child(&t.compiler), Some(iter));
+    assert_eq!(result.get_last_child(&t.compiler), Some(iter_result));
+}
+
 /// `classNode.getJSTypeRequired().assertFunctionType().getInstanceType()`
 fn instance_type_of(t: &mut AstFactoryTest, class_node: NodeId) -> closure_jstype::TypeId {
     use closure_jstype::{function_type::FunctionType, js_type::JSType};

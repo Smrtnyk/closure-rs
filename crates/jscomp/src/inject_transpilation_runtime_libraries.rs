@@ -167,6 +167,10 @@ impl CompilerPass for InjectTranspilationRuntimeLibraries {
             self.inject_lib_for_field(compiler, "$jscomp.makeIterator");
         }
 
+        if must_be_compiled_away.contains(Feature::FOR_OF) {
+            self.inject_lib_for_field(compiler, "$jscomp.iteratorClose");
+        }
+
         if must_be_compiled_away.contains(Feature::ARRAY_PATTERN_REST) {
             self.inject_lib_for_field(compiler, "$jscomp.arrayFromIterator");
         }
