@@ -149,15 +149,22 @@ jobs:
           echo "$out"
           test "$out" = 'function a(b){return"Hello, "+b}window.greet=a;console.log(a("world"));'
 
-      # Docker Hub sometimes times out; the docker run steps below then use the pulled image
+      # The official node:24-alpine image, from a mirror first: Docker Hub rate-limits the shared
+      # runner addresses. The docker run steps below use the image pulled here.
       - name: Pull node:24-alpine
         if: matrix.platform == 'linux'
         shell: bash
         run: |
-          for attempt in 1 2 3 4 5; do
-            docker pull -q node:24-alpine && exit 0
-            echo "::warning::docker pull failed (attempt $attempt)"
-            sleep $((attempt * 15))
+          for attempt in 1 2 3; do
+            for image in mirror.gcr.io/library/node:24-alpine \
+                public.ecr.aws/docker/library/node:24-alpine docker.io/library/node:24-alpine; do
+              if docker pull -q "$image"; then
+                docker tag "$image" node:24-alpine
+                exit 0
+              fi
+              echo "::warning::could not pull $image"
+            done
+            sleep $((attempt * 20))
           done
           exit 1
 
