@@ -32,17 +32,20 @@ concurrency:
 jobs:
   # The training compiles of the profile-guided build (scripts/pgo_build.sh): three benchmark
   # projects of bench/projects.json, fetched at their pinned commits, and their compiler flags.
+  # Never fails: without these inputs the binaries are built without a profile.
   pgo-training:
     name: PGO training inputs
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
       - name: Fetch the training projects and write their compiler flags
+        continue-on-error: true
         run: |
           scripts/fetch_bench.sh --project d3-12 --project lodash-es --project three
           python3 scripts/run_bench.py --job '^(d3-12/.*/ADVANCED|lodash-es/.*|three/.*)$' \
             --write-args pgo-training
       - uses: actions/upload-artifact@v7
+        continue-on-error: true
         with:
           name: pgo-training
           path: |
@@ -50,13 +53,11 @@ jobs:
             bench-cache/d3-12/
             bench-cache/lodash-es/
             bench-cache/three/
-          if-no-files-found: error
+          if-no-files-found: warn
 
   build:
     name: build (${{ matrix.platform }}-${{ matrix.arch }})
     needs: [pgo-training]
-    # without the training inputs the binary is built without a profile
-    if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
