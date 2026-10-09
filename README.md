@@ -44,7 +44,7 @@ switch with an npm alias in `package.json`, without changing its code:
 
 ```json
 "devDependencies": {
-  "google-closure-compiler": "npm:closure-rs@0.0.1-alpha.0"
+  "google-closure-compiler": "npm:closure-rs@alpha"
 }
 ```
 
