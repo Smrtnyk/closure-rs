@@ -394,6 +394,9 @@ here (one line each) to ease upstream syncs.
   every NAME in them resolves to a var declared in them, which a traversal of the externs finds
   out and the compiler keeps until a change is recorded inside the externs
   (`ChangeTracker::get_externs_change_count`).
+- `jscomp/basic_block.rs`: the basic blocks of references are `Rc`, not `Arc`.
+- `rhino/js_string.rs` `JsStrLike::is_prefix_of`/`is_suffix_of`: `startsWith`/`endsWith` compare
+  an ASCII literal with the code units byte by byte instead of converting it first.
 
 ## D-026 — Upstream syncs follow npm releases
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**

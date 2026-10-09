@@ -39,7 +39,7 @@ use closure_testing::{
     replay::replay_dsl::{CompilerHandle, Ctx, DslValue},
     throwable::Throwable,
 };
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc};
 use support::cross_chunk_fixture::{check, native_ctx, pass, srcs_strings};
 
 type Collector = Rc<RefCell<CrossChunkReferenceCollector<'static>>>;
@@ -170,7 +170,7 @@ impl Test {
 fn same_reference(a: &Reference, b: &Reference) -> bool {
     a.get_node() == b.get_node()
         && match (a.get_basic_block(), b.get_basic_block()) {
-            (Some(x), Some(y)) => Arc::ptr_eq(x, y),
+            (Some(x), Some(y)) => Rc::ptr_eq(x, y),
             (None, None) => true,
             _ => false,
         }

@@ -53,7 +53,7 @@ use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::{check_argument, check_not_null, check_state};
 use std::cell::RefCell;
-use std::sync::Arc;
+use std::rc::Rc;
 
 pub struct InlineVariables {
     mode: Mode,
@@ -854,9 +854,9 @@ impl VarKey {
 
 /// Java's `BasicBlock` identity comparison (`declaration.getBasicBlock() !=
 /// initialization.getBasicBlock()`).
-fn same_basic_block(a: Option<&Arc<BasicBlock>>, b: Option<&Arc<BasicBlock>>) -> bool {
+fn same_basic_block(a: Option<&Rc<BasicBlock>>, b: Option<&Rc<BasicBlock>>) -> bool {
     match (a, b) {
-        (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+        (Some(a), Some(b)) => Rc::ptr_eq(a, b),
         (None, None) => true,
         _ => false,
     }

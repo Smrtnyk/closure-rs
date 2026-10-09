@@ -863,7 +863,7 @@ impl AggressiveInlineAliases {
 
             let ref_block = alias_ref.get_basic_block();
             let same_block = match (ref_block, alias_block.as_ref()) {
-                (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
                 (None, None) => true,
                 _ => false,
             };

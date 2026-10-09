@@ -34,7 +34,7 @@ use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use std::collections::VecDeque;
-use std::sync::Arc;
+use std::rc::Rc;
 
 /// A helper class for passes that want to access all information about where a variable is
 /// referenced and declared at once and then make a decision as to how it should be handled,
@@ -59,7 +59,7 @@ pub struct CollectorCallback<'a> {
     reference_map: IndexMap<VarId, ReferenceCollection>,
 
     /// The stack of basic blocks and scopes the current traversal is in.
-    block_stack: VecDeque<Arc<BasicBlock>>,
+    block_stack: VecDeque<Rc<BasicBlock>>,
 
     /// Source of behavior at various points in the traversal.
     behavior: Box<dyn Behavior + 'a>,
