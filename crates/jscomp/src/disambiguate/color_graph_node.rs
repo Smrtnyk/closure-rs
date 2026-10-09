@@ -21,7 +21,7 @@
 
 use super::property_clustering::PropertyClustering;
 use crate::colors::{Color, standard_colors};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::java_util::bit_set::BitSet;
 use closure_rhino::{check_argument, check_not_null};
 use std::fmt;

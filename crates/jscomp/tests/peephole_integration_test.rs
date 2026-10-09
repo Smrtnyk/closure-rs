@@ -30,7 +30,7 @@ use closure_jscomp::{
     peephole_replace_known_methods::PeepholeReplaceKnownMethods,
     peephole_substitute_alternate_syntax::PeepholeSubstituteAlternateSyntax,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},

@@ -24,7 +24,7 @@ use closure_jscomp::{
     minimize_exit_points::MinimizeExitPoints,
     peephole_optimizations_pass::PeepholeOptimizationsPass,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
     replay::{

@@ -56,7 +56,7 @@ use closure_jscomp::{
     dead_property_assignment_elimination::DeadPropertyAssignmentElimination,
     node_traversal::NodeTraversal, normalize::Normalize,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc};
 

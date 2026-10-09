@@ -42,7 +42,7 @@ use closure_jstype::{
     static_typed_scope::StaticTypedScope,
     static_typed_slot::StaticTypedSlot,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_state,
     java_lang::JavaHashCode,

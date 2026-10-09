@@ -37,7 +37,7 @@ use closure_jscomp::{
     },
     source_information_annotator::SourceInformationAnnotator,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, MINIMAL_EXTERNS},

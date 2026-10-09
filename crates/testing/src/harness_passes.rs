@@ -74,7 +74,7 @@ use crate::{
     replay::replay_dsl::DslValue,
     throwable::Throwable,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::sync::Arc;
 

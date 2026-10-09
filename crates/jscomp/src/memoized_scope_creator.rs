@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/MemoizedScopeCreator.java.
 
 use crate::{abstract_compiler::AbstractCompiler, scope::ScopeId, scope_creator::ScopeCreator};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{check_state, node::NodeId};
 
 pub struct MemoizedScopeCreator<'a> {

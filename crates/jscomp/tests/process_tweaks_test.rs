@@ -24,7 +24,7 @@ use closure_jscomp::{
     compiler_pass::CompilerPass, diagnostic_type::DiagnosticType, process_tweaks,
     process_tweaks::ProcessTweaks,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::NodeId;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},

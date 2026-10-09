@@ -33,7 +33,7 @@ use crate::{
     transpilation_util::TranspilationUtil,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,

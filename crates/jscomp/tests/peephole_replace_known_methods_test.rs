@@ -25,7 +25,7 @@ use closure_jscomp::{
     peephole_optimizations_pass::PeepholeOptimizationsPass,
     peephole_replace_known_methods::PeepholeReplaceKnownMethods,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, MINIMAL_EXTERNS},

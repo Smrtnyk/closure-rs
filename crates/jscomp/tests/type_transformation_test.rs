@@ -31,7 +31,7 @@ use closure_jstype::{
 use closure_parsing::{
     parser::feature_set::Feature, type_transformation_parser::TypeTransformationParser,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     ir::IR, js_string::JsString, static_source_file::StaticSourceFile,
     testing::test_error_reporter::TestErrorReporter,

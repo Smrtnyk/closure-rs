@@ -100,7 +100,7 @@
 //   java.base/sun/nio/fs/UnixFileSystem.java.
 
 //! The Unix glob grammar and regular-expression subset emitted by the JDK.
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 
 #[derive(Clone, Debug)]
 enum Token {

@@ -20,7 +20,7 @@ use crate::{
     check_level::CheckLevel, diagnostic_group::DiagnosticGroup, js_error::JSError,
     warnings_guard::WarningsGuard,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{check_state, jscomp_base::Tri};
 use std::{
     any::Any,

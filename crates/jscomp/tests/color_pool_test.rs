@@ -25,7 +25,7 @@ use closure_jscomp::serialization::types_proto::{
     ObjectTypeProto, PrimitiveType, SubtypingEdge, TypePool, TypePoolDebugInfo,
     TypePoolDebugInfoMismatch, TypeProto, UnionTypeProto,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_colors::color::{Builder as ColorBuilder, Color};
 use closure_rhino::jscomp_colors::color_id::ColorId;

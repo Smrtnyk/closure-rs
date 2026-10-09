@@ -22,7 +22,7 @@ use crate::json::JsonValue;
 use crate::reader::{ModelResult, Obj, ObjOut, arr, as_string, int, list_of, map_of, st};
 use crate::record::Unrepresentable;
 use crate::value::{FieldDump, field_dump_from_json, field_dump_to_json};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 
 /// `options_defaults.json`: every instance field of `new CompilerOptions()`.
 #[derive(Clone, Debug, PartialEq, Eq)]

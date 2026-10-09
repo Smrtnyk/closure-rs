@@ -62,7 +62,7 @@ use crate::{
 };
 use closure_jstype::js_type_native::JSTypeNative;
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state,
     ir::IR,

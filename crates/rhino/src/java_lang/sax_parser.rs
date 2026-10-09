@@ -130,7 +130,7 @@
 
 use std::fmt;
 
-use crate::fx_hash::{IndexMap, IndexSet};
+use crate::fast_hash::{IndexMap, IndexSet};
 
 use super::xml_char;
 use crate::js_string::JsString;

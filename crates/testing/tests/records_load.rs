@@ -16,7 +16,7 @@
 
 //! Every record of corpus/unit/records loads with zero errors and round-trips losslessly.
 
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_testing::corpus::{file_stem, map_files_parallel, record_files, records};
 use closure_testing::record::{Api, RecordKind};
 

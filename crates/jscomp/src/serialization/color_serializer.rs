@@ -24,7 +24,7 @@ use super::types_proto::{
     TypeProto, UnionTypeProto,
 };
 use closure_rhino::check_not_null;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_colors::color::Color;
 use closure_rhino::jscomp_colors::color_id::ColorId;

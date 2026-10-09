@@ -30,7 +30,7 @@ use crate::scope::ScopeId;
 use crate::syntactic_scope_creator::{RedeclarationHandler, SyntacticScopeCreator};
 use crate::type_validator::TypeValidator;
 use closure_rhino::check_state;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId, Prop};

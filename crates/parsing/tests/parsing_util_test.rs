@@ -21,7 +21,7 @@ use closure_parsing::{
     parser_runner::ParserRunner,
     parsing_util::ParsingUtil,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     js_string::JsString,
     node::{Ast, NodeId},

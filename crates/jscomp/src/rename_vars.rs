@@ -30,7 +30,7 @@ use crate::{
     var::VarId,
     variable_map::VariableMap,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_state, js_string::JsString, node::NodeId};
 use std::{
     cmp::Ordering,

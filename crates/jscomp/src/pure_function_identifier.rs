@@ -47,7 +47,7 @@ use crate::optimize_calls::{CallGraphCompilerPass, OptimizeCalls, ReferenceMap};
 use crate::scope::ScopeId;
 use crate::var::VarId;
 use crate::warnings_guard::WarningsGuard;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::java_lang::hash_map as java_hash_map;
 use closure_rhino::js_string::JsString;

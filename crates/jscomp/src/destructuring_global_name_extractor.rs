@@ -23,7 +23,7 @@ use crate::{
     global_namespace::{AstChange, Ref, RefBasedAstChange},
     node_util::NodeUtil,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_state,
     ir::IR,

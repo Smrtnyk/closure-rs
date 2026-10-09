@@ -49,7 +49,7 @@ use closure_jscomp::{
     inject_transpilation_runtime_libraries::InjectTranspilationRuntimeLibraries,
     pass_factory::PassFactory, phase_optimizer::PhaseOptimizer,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 

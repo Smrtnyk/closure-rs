@@ -22,7 +22,7 @@
 use std::io::Read;
 use std::sync::{Arc, LazyLock};
 
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::java_lang::pattern::Pattern;
 use closure_rhino::java_lang::sax_parser::{self, Attributes, ContentHandler, SaxParseException};
 use closure_rhino::js_string::JsString;

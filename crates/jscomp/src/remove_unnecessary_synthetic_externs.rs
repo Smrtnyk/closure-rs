@@ -24,7 +24,7 @@ use crate::compiler_pass::CompilerPass;
 use crate::scope::ScopeId;
 use crate::syntactic_scope_creator::{RedeclarationHandler, SyntacticScopeCreator};
 use closure_rhino::check_argument;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
 use std::cell::RefCell;

@@ -19,7 +19,7 @@
 // markers, ordered maps, type ASTs and the parameterised getters in $parameters.
 use super::{js_string, load_node};
 use closure_jscomp::source_file::SourceFile;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     js_string::JsString,
     js_type_expression::JSTypeExpression,

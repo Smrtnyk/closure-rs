@@ -21,7 +21,7 @@
 //! (closure-jscomp cannot depend on closure-cli).
 use closure_cli::abstract_command_line_runner::AbstractCommandLineRunner;
 use closure_jscomp::compiler_options::CompilerOptions;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,

@@ -51,7 +51,7 @@ use crate::{
     throwable::{Throwable, assert_that, check_state},
     value::Value,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     js_string::JsString,
     node::{JsDocComparison, NodeId, RecursionMode, SideEffectComparison, TypeComparison},

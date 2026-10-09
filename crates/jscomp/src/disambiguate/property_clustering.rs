@@ -23,7 +23,7 @@ use super::{
     invalidation::Invalidation,
 };
 use crate::graph::{standard_union_find::StandardUnionFind, union_find::UnionFind};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{check_not_null, check_state, js_string::JsString, node::NodeId};
 
 /// The disambiguation clusters for a given property name.

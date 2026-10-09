@@ -63,7 +63,7 @@ use closure_jscomp::{
     forbid_dynamic_import_usage::ForbidDynamicImportUsage, modules::module_map::ModuleMap,
     modules::module_map_creator::ModuleMapCreator,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 const PASS_PROCESS: &str =

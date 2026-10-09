@@ -42,7 +42,7 @@ use closure_jscomp::{
         CANNOT_HAVE_MODULE_VAR_NAMED_GOOG, GOOG_JS_IMPORT_MUST_BE_GOOG_STAR, GOOG_JS_REEXPORTED,
     },
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
     replay::{

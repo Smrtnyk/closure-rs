@@ -54,7 +54,7 @@ use crate::node_traversal::{
 use crate::node_util::NodeUtil;
 use crate::scope::ScopeId;
 use crate::var::VarId;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;

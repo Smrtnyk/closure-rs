@@ -30,7 +30,7 @@ use closure_jscomp::{
     sorting_error_manager::SortingErrorManager,
     syntactic_scope_creator::SyntacticScopeCreator,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     ir::IR,
     js_string::JsString,

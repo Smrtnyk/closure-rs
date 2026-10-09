@@ -34,7 +34,7 @@ use crate::js_chunk::JSChunk;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::replace_messages_constants;
 use closure_rhino::check_state;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;

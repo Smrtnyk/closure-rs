@@ -41,7 +41,7 @@ use crate::node_traversal::Callback;
 use crate::node_traversal::NodeTraversal;
 use closure_rhino::check_not_null;
 use closure_rhino::check_state;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};

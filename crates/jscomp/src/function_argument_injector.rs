@@ -24,7 +24,7 @@ use crate::{
     abstract_compiler::AbstractCompiler, ast_analyzer::AstAnalyzer,
     coding_convention::CodingConvention, node_util::NodeUtil,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,

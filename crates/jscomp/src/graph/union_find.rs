@@ -16,7 +16,7 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   src/com/google/javascript/jscomp/graph/UnionFind.java.
 
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 pub trait UnionFind<E> {
     type Set;
     // port: UnionFind#add

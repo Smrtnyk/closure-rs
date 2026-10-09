@@ -73,7 +73,7 @@ use crate::{
     var::VarId,
 };
 use closure_resources::resources::resource_loader::ResourceLoader;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,

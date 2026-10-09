@@ -124,7 +124,7 @@
 //   java.base/java/util/regex/PatternSyntaxException.java.
 
 //! JDK 21 Pattern/Matcher subset used by jscomp.deps. No flags are enabled.
-use crate::fx_hash::IndexMap;
+use crate::fast_hash::IndexMap;
 use crate::js_string::JsString;
 use std::sync::Arc;
 #[path = "regex_categories.rs"]

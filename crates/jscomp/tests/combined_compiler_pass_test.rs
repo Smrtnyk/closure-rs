@@ -21,7 +21,7 @@ use closure_jscomp::combined_compiler_pass::CombinedCompilerPass;
 use closure_jscomp::compiler::Compiler;
 use closure_jscomp::compiler_options::CompilerOptions;
 use closure_jscomp::node_traversal::{Callback, NodeTraversal, ScopedCallback};
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 

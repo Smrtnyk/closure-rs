@@ -28,7 +28,7 @@ use crate::node_traversal::NodeTraversal;
 use crate::node_util::NodeUtil;
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use closure_jstype::JSTypeNative;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;

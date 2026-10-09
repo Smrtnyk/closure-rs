@@ -40,7 +40,7 @@ use crate::{
 };
 use closure_parsing::parser::feature_set::FeatureSet;
 use closure_resources::resources::resource_loader::ResourceLoader;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     ir::IR,
     js_string::JsString,

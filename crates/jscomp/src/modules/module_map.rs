@@ -18,7 +18,7 @@
 
 //! A map containing information about all modules in the compilation.
 use crate::{deps::module_loader::ModulePath, modules::module::Module};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use std::sync::Arc;
 

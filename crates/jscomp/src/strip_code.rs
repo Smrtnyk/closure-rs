@@ -38,7 +38,7 @@ use crate::diagnostic::log_file::LogFile;
 use crate::diagnostic_type::DiagnosticType;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::ir::IR;
 use closure_rhino::java_lang;
 use closure_rhino::js_string::JsString;

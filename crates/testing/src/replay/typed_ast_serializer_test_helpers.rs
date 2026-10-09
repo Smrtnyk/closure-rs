@@ -48,7 +48,7 @@ use closure_jscomp::serialization::{
     serialization_options::SerializationOptions, typed_ast_proto::TypedAst,
     typed_ast_serializer::TypedAstSerializer,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc};
 

@@ -40,7 +40,7 @@ use crate::{
     throwable::Throwable,
     unit_recorder,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 pub struct ReplayCompilerTest {
     pub harness: CompilerTestCase,
     pub hooks: Hooks,

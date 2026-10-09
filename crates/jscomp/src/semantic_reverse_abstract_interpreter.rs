@@ -38,7 +38,7 @@ use closure_jstype::{
     object_type,
     prelude::{FunctionType, JSType, UnionType},
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_state,
     js_string::JsString,

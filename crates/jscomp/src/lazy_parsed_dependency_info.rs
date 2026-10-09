@@ -26,7 +26,7 @@ use crate::{
     js_error::JSError,
 };
 use closure_parsing::parser::feature_set::Feature;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 
 /// A DependencyInfo class that determines load flags by parsing the AST just-in-time.
 ///

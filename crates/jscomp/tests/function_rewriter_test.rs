@@ -20,7 +20,7 @@
 
 //! Port of `FunctionRewriterTest.java`: tests for `FunctionRewriter`.
 use closure_jscomp::{compiler_pass::CompilerPass, function_rewriter::FunctionRewriter};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},
     replay::{

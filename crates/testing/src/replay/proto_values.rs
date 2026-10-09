@@ -31,7 +31,7 @@ use closure_jscomp::conformance_config::ConformanceConfig;
 use closure_jscomp::protobuf::text_format::{
     FieldKind, FieldValue, Message, ParseException, get_all_fields,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 
 fn bad(what: &str) -> Throwable {
     Throwable::HarnessError(format!("undecodable protobuf value: {what}"))

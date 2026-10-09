@@ -42,7 +42,7 @@ use closure_jscomp::{
     deps::module_loader::LOAD_WARNING,
     rewrite_goog_js_imports::{GOOG_JS_IMPORT_MUST_BE_GOOG_STAR, GOOG_JS_REEXPORTED},
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
     jscomp_api::SourceFile,

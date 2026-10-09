@@ -154,7 +154,7 @@ impl NestedCompilerRunner {
     fn initialize_compiler(
         &mut self,
         original: &mut AbstractCompiler,
-        extern_names: closure_rhino::fx_hash::IndexSet<closure_rhino::js_string::JsString>,
+        extern_names: closure_rhino::fast_hash::IndexSet<closure_rhino::js_string::JsString>,
     ) {
         // `externNames` is collected by `compile` while the main compiler still holds the arena.
         self.shadow_compiler

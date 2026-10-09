@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/testing/GeneratorSubject.java.
 
 //! Port of testing/GeneratorSubject.java: a Truth Subject for a lazy sequence of values.
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use std::{fmt::Display, hash::Hash};
 
 /// Create some result, optionally based on an index.

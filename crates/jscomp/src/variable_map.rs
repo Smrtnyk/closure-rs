@@ -36,7 +36,7 @@
 //   com/google/common/collect/JdkBackedImmutableBiMap.java,
 //   com/google/common/collect/JdkBackedImmutableMap.java.
 
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     java_lang::{parse_exception::ParseException, utf_8},
     js_string::JsString,

@@ -49,7 +49,7 @@ use crate::{
     reference_collector::ReferenceCollector,
     syntactic_scope_creator::SyntacticScopeCreator,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,

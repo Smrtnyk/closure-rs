@@ -49,7 +49,7 @@ use closure_jscomp::{
     compiler_pass::CompilerPass, manage_closure_unaware_code::ManageClosureUnawareCode,
     node_util::NodeUtil, pass_factory::PassFactory, phase_optimizer::PhaseOptimizer,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{ir::IR, node::Ast, node::NodeId};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 

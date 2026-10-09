@@ -30,7 +30,7 @@ use crate::node_traversal::{
 };
 use crate::node_util::NodeUtil;
 use closure_jstype::{TypeId, function_type::FunctionType, js_type::JSType};
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::jsdoc_info::JSDocInfo;

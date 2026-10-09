@@ -20,7 +20,7 @@ use crate::{
     abstract_compiler::AbstractCompiler, change_tracker::ChangeTracker, node_printing,
     node_util::NodeUtil,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::NodeId;
 
 pub struct ChangeVerifier {

@@ -31,7 +31,7 @@ use closure_jscomp::{
     source_file::SourceFile,
     source_map_input::SourceMapInput,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{input_id::InputId, static_source_file::SourceKind};
 use closure_sourcemap::{
     file_position::FilePosition,

@@ -21,7 +21,7 @@ use crate::{
     check_level::CheckLevel, compiler_options::CompilerOptions, diagnostic_group::DiagnosticGroup,
     diagnostic_type::DiagnosticType,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::sync::{Arc, LazyLock, Mutex};
 pub static UNUSED: DiagnosticType = DiagnosticType::warning("JSC_UNUSED", "{0}");
 pub const WILDCARD_EXCLUDED_GROUPS: &[&str] = &[

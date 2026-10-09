@@ -49,7 +49,7 @@ use closure_jstype::{
     testing::type_subject::TypeSubject,
 };
 use closure_parsing::js_doc_info_parser::BAD_TYPE_WIKI_LINK;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     input_id::InputId, ir::IR, js_string::JsString, node::Ast, node::NodeId, token::Token,
 };

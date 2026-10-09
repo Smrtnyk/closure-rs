@@ -19,7 +19,7 @@
 // Identity keys are immutable even though the associated Java objects are mutable.
 #![allow(clippy::mutable_key_type)]
 use crate::{compiler_input::CompilerInput, source_file::SourceFile};
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::{
     collections::VecDeque,
     fmt,

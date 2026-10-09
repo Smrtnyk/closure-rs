@@ -48,7 +48,7 @@ use crate::reference_map::ReferenceMap;
 use crate::scope::ScopeId;
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use crate::var::VarId;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::{check_argument, check_not_null, check_state};

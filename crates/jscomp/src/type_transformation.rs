@@ -29,7 +29,7 @@ use closure_jstype::{
     static_typed_scope::StaticTypedScope,
 };
 use closure_parsing::type_transformation_parser::{Keywords, OperationKind};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_argument, js_string::JsString, js_type_expression::JSTypeExpression, node::NodeId,
 };

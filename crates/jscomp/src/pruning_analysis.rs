@@ -24,7 +24,7 @@ use crate::{
         dominator_tree::DominatorTree, graph::Graph, linked_directed_graph::LinkedDirectedGraph,
     },
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::fmt;
 
 // Limit the size of the "bottleneck" report to the top N files.

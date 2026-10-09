@@ -62,7 +62,7 @@ use closure_jscomp::{
     replace_strings::ReplaceStrings,
     source_information_annotator::SourceInformationAnnotator,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
 use std::{cell::RefCell, rc::Rc};
 

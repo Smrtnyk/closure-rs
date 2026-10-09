@@ -26,7 +26,7 @@ use crate::{
     source_map_section::{SectionType, SourceMapSection},
     util::Util,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 const UNMAPPED: i32 = -1;
 use std::{

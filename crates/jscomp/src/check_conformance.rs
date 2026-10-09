@@ -55,7 +55,7 @@ use crate::{
     node_util::NodeUtil,
     protobuf::text_format,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state, node::NodeId, static_source_file::StaticSourceFile, token::Token,
 };

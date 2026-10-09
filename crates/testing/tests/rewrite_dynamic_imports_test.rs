@@ -29,7 +29,7 @@ use closure_jscomp::{
     modules::module_map_creator::ModuleMapCreator,
     source_file::SourceFile,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, GENERATED_EXTERNS_NAME, GENERATED_SRC_NAME},
     replay::{

@@ -35,7 +35,7 @@ use crate::{
     node_util::NodeUtil,
     renaming_map::RenamingMap,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, ir::IR, js_string::JsString, jsdoc_info::JSDocInfo, node::NodeId,
     qualified_name::QualifiedName, token::Token,

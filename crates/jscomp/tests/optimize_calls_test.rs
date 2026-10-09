@@ -48,7 +48,7 @@ use closure_jscomp::{
     abstract_compiler::AbstractCompiler,
     optimize_calls::{OptimizeCalls, ReferenceMap},
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId, token::Token};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},

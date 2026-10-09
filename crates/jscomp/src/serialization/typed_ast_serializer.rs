@@ -32,7 +32,7 @@ use crate::abstract_compiler::AbstractCompiler;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
 use crate::source_file::SourceFile;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_colors::color::Color;
 use closure_rhino::jscomp_colors::color_registry::ColorRegistry;

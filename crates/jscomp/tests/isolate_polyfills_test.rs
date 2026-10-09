@@ -21,7 +21,7 @@ use closure_jscomp::{
     compiler_options::PropertyCollapseLevel, compiler_pass::CompilerPass,
     isolate_polyfills::IsolatePolyfills, polyfill_usage_finder::Polyfills,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{ir::IR, js_string::JsString, node::NodeId};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},

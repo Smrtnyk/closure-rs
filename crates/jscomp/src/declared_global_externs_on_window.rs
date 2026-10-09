@@ -24,7 +24,7 @@ use crate::abstract_compiler::AbstractCompiler;
 use crate::compiler_pass::CompilerPass;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::jsdoc_info::{Builder, JSDocInfo};

@@ -36,7 +36,7 @@ use closure_jscomp::{
     abstract_compiler::AbstractCompiler, compiler_options::Reach, compiler_pass::CompilerPass,
     inline_functions::InlineFunctions,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{
     cell::RefCell,

@@ -20,7 +20,7 @@
 //! in a given file.
 
 use crate::ijs::potential_declaration::PotentialDeclaration;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null,
     js_string::JsString,

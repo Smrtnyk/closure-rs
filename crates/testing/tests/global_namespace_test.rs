@@ -38,7 +38,7 @@ use closure_jscomp::{
 use closure_jstype::{
     rhino::js_type_expression::JSTypeExpressionExt, testing::type_subject::TypeSubject,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{ir::IR, js_string::JsString, node::NodeId, token::Token};
 use closure_testing::testing::js_chunk_graph_builder::JSChunkGraphBuilder;
 use std::sync::Arc;

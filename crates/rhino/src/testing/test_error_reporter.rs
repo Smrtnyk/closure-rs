@@ -40,7 +40,7 @@
 //   src/com/google/javascript/rhino/testing/TestErrorReporter.java.
 
 use crate::error_reporter::ErrorReporter;
-use crate::fx_hash::IndexMap;
+use crate::fast_hash::IndexMap;
 use crate::js_string::JsString;
 #[derive(Default, Debug)]
 pub struct TestErrorReporter {

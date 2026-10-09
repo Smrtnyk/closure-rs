@@ -47,7 +47,7 @@ use crate::{
     throwable::Throwable,
 };
 use closure_jscomp::{check_reg_exp::CheckRegExp, compiler_pass::CompilerPass};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc};
 

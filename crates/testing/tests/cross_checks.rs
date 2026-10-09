@@ -21,7 +21,7 @@
 //!   by (file, index), with the record's class, method and call;
 //! - the 9 record lines with lone-surrogate escapes keep them through the reader and writer.
 
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_testing::corpus::{
     LoadedDescriptor, file_stem, jsonl_lines, load_descriptor_for, load_expected_pipeline,
     map_files_parallel, record_files, records,

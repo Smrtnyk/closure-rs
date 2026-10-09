@@ -27,7 +27,7 @@ use closure_parsing::{
     config::{Config, JsDocParsing, LanguageMode, RunMode, StrictMode},
     parser_runner::ParserRunner,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use serde_json::Value;
 

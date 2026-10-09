@@ -26,7 +26,7 @@ use crate::{
     js_error::JSError,
     warnings_guard::{Priority, WarningsGuard},
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     java_lang::{regex::Pattern, utf_8::BufferedReader},
     js_string::JsString,

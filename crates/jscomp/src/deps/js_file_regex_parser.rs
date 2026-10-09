@@ -26,7 +26,7 @@ use super::{
     simple_dependency_info::SimpleDependencyInfo,
 };
 use crate::{check_level::CheckLevel, js_error::JSError};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_state,
     java_lang::regex::{Matcher, Pattern},

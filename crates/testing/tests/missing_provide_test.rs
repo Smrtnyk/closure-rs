@@ -40,7 +40,7 @@
 use closure_jscomp::closure_primitive_errors::{
     MISSING_MODULE_OR_PROVIDE, MISSING_MODULE_OR_PROVIDE_FOR_FORWARD_DECLARE,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},

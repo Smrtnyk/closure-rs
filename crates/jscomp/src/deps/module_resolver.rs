@@ -25,7 +25,7 @@ use super::{
     module_names::ModuleNames,
 };
 use crate::{check_level::CheckLevel, js_error::JSError};
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::sync::Mutex;
 pub struct ModuleResolverBase {
     pub module_paths: IndexSet<String>,

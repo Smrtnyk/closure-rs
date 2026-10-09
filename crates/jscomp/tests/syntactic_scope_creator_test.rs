@@ -27,7 +27,7 @@ use closure_jscomp::{
     syntactic_scope_creator::{RedeclarationHandler, SyntacticScopeCreator},
     var::VarId,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     ir::IR, js_string::JsString, node::NodeId, static_source_file::SourceKind, token::Token,
 };

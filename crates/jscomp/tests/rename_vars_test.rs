@@ -36,7 +36,7 @@ use closure_jscomp::{
     source_file::SourceFile,
     variable_map::VariableMap,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId, testing::node_subject::assert_node};
 use std::sync::Arc;
 

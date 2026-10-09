@@ -20,7 +20,7 @@ use crate::{
     abstract_compiler::AbstractCompiler, abstract_var::AbstractVar, node_util::NodeUtil,
     scope::ScopeId, scoped_name::ScopedName, typed_scope::TypedScope,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     js_string::JsString,
@@ -34,8 +34,8 @@ use std::{
 /// Fields shared by syntactic and future typed scope handles.
 #[derive(Debug)]
 pub struct AbstractScopeData<V> {
-    // Java LinkedHashMap; the Fx hasher keeps the insertion order (D-025).
-    pub(crate) vars: closure_rhino::fx_hash::FxIndexMap<JsString, V>,
+    // Java LinkedHashMap (the fast hasher keeps the insertion order, D-025).
+    pub(crate) vars: closure_rhino::fast_hash::IndexMap<JsString, V>,
     pub(crate) implicit_vars: BTreeMap<ImplicitVar, V>,
     pub(crate) root_node: NodeId,
 }

@@ -27,7 +27,7 @@ use closure_jscomp::{
     deps::module_loader::{ModuleLoader, ResolutionMode},
     source_file::SourceFile,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::sync::Arc;
 
 // port: RewriteJsonToModuleTest#getOptions

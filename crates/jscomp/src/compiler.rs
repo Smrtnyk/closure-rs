@@ -36,7 +36,7 @@ use crate::{
     thread_safe_delegating_error_manager::ThreadSafeDelegatingErrorManager,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     input_id::InputId,
     ir::IR,
@@ -52,7 +52,7 @@ pub type AstSupplier = Arc<dyn Fn(&mut Compiler) -> NodeId + Send + Sync>;
 /// Java's LinkedHashSet and the anonymous AbstractSet selected by initOptions.
 #[derive(Default)]
 pub struct ForwardDeclaredTypes {
-    values: closure_rhino::fx_hash::IndexSet<String>,
+    values: closure_rhino::fast_hash::IndexSet<String>,
     all_types: bool,
 }
 impl ForwardDeclaredTypes {
@@ -101,18 +101,18 @@ pub struct Compiler {
     string_map: Option<Arc<crate::variable_map::VariableMap>>,
     instrumentation_mapping: Option<Arc<crate::variable_map::VariableMap>>,
     extern_exports: Option<String>,
-    css_names: Option<closure_rhino::fx_hash::IndexSet<String>>,
+    css_names: Option<closure_rhino::fast_hash::IndexSet<String>>,
     id_generator_map: Option<String>,
     transpiled_files: bool,
     /// Rust-only: classes of the unported pass factories that execution omitted
     /// (PassListBuilder#build filters them), in the order they were omitted.
     omitted_unported_passes: Vec<&'static str>,
     input_path_by_webpack_id: IndexMap<String, String>,
-    exported_names: closure_rhino::fx_hash::IndexSet<String>,
-    define_names: closure_rhino::fx_hash::IndexSet<String>,
+    exported_names: closure_rhino::fast_hash::IndexSet<String>,
+    define_names: closure_rhino::fast_hash::IndexSet<String>,
     has_reg_exp_global_references: bool,
     run_j2cl_passes: bool,
-    extern_properties: Option<closure_rhino::fx_hash::IndexSet<String>>,
+    extern_properties: Option<closure_rhino::fast_hash::IndexSet<String>>,
     /// Rust-only: `extern_properties` as JS strings, made once per value (RemoveUnusedCode reads
     /// them on every run).
     extern_properties_js: std::sync::OnceLock<Vec<closure_rhino::js_string::JsString>>,
@@ -168,8 +168,7 @@ pub struct Compiler {
     js_root: Option<NodeId>,
     extern_and_js_root: Option<NodeId>,
     allowable_features: Option<FeatureSet>,
-    // Fx hasher: same insertion order, cheaper lookups (D-025).
-    inputs_by_id: closure_rhino::fx_hash::FxIndexMap<InputId, CompilerInput>,
+    inputs_by_id: closure_rhino::fast_hash::IndexMap<InputId, CompilerInput>,
     source_map_original_sources: Arc<std::sync::Mutex<IndexMap<String, Arc<SourceFile>>>>,
     default_coding_convention: ClosureCodingConvention,
     pub change_tracker: ChangeTracker,
@@ -216,8 +215,8 @@ impl Compiler {
             transpiled_files: false,
             omitted_unported_passes: Vec::new(),
             input_path_by_webpack_id: IndexMap::<_, _>::default(),
-            exported_names: closure_rhino::fx_hash::IndexSet::<_>::default(),
-            define_names: closure_rhino::fx_hash::IndexSet::<_>::default(),
+            exported_names: closure_rhino::fast_hash::IndexSet::<_>::default(),
+            define_names: closure_rhino::fast_hash::IndexSet::<_>::default(),
             has_reg_exp_global_references: true,
             run_j2cl_passes: false,
             extern_properties: None,
@@ -377,7 +376,7 @@ impl Compiler {
             .assume_forward_declared_for_missing_types()
         {
             self.forward_declared_types = Arc::new(std::sync::Mutex::new(ForwardDeclaredTypes {
-                values: closure_rhino::fx_hash::IndexSet::<_>::default(),
+                values: closure_rhino::fast_hash::IndexSet::<_>::default(),
                 all_types: true,
             }));
         }
@@ -398,7 +397,7 @@ impl Compiler {
         if self.get_options().get_merged_precompiled_libraries()
             && !self.get_options().get_conformance_configs().is_empty()
         {
-            let mut conformance_config_files = closure_rhino::fx_hash::IndexSet::<_>::default();
+            let mut conformance_config_files = closure_rhino::fast_hash::IndexSet::<_>::default();
             for config in self.get_options().get_conformance_configs() {
                 for requirement in config.get_requirement_list() {
                     conformance_config_files
@@ -1387,7 +1386,7 @@ impl Compiler {
         self.chunk_graph.as_ref().unwrap().get_input_count()
     }
     // port: Compiler#getInputsById
-    pub fn get_inputs_by_id(&self) -> &closure_rhino::fx_hash::FxIndexMap<InputId, CompilerInput> {
+    pub fn get_inputs_by_id(&self) -> &closure_rhino::fast_hash::IndexMap<InputId, CompilerInput> {
         &self.inputs_by_id
     }
     // port: Compiler#getExternsInOrder
@@ -2713,7 +2712,7 @@ impl Compiler {
                 entry_points.push(input.clone());
             }
         }
-        let mut working_input_set: closure_rhino::fx_hash::IndexSet<CompilerInput> =
+        let mut working_input_set: closure_rhino::fast_hash::IndexSet<CompilerInput> =
             self.get_inputs_in_order().into_iter().collect();
         for entry_point in entry_points {
             self.find_modules_from_input(
@@ -2733,7 +2732,7 @@ impl Compiler {
         &mut self,
         input: &CompilerInput,
         was_imported_by_module: bool,
-        inputs: &mut closure_rhino::fx_hash::IndexSet<CompilerInput>,
+        inputs: &mut closure_rhino::fast_hash::IndexSet<CompilerInput>,
         inputs_by_identifier: &IndexMap<String, CompilerInput>,
         inputs_by_provide: &IndexMap<String, CompilerInput>,
         support_es6_modules: bool,
@@ -3184,7 +3183,7 @@ impl Compiler {
         self.instrumentation_mapping.as_ref()
     }
     // port: Compiler#setCssNames
-    pub fn set_css_names(&mut self, names: Option<closure_rhino::fx_hash::IndexSet<String>>) {
+    pub fn set_css_names(&mut self, names: Option<closure_rhino::fast_hash::IndexSet<String>>) {
         self.css_names = names;
     }
     // port: Compiler#setIdGeneratorMap
@@ -3211,7 +3210,7 @@ impl Compiler {
         self.exported_names.extend(names);
     }
     // port: Compiler#getExportedNames
-    pub fn get_exported_names(&self) -> &closure_rhino::fx_hash::IndexSet<String> {
+    pub fn get_exported_names(&self) -> &closure_rhino::fast_hash::IndexSet<String> {
         &self.exported_names
     }
     // port: Compiler#setDefineNames
@@ -3219,7 +3218,7 @@ impl Compiler {
         self.define_names = names.into_iter().collect();
     }
     // port: Compiler#getDefineNames
-    pub fn get_define_names(&self) -> &closure_rhino::fx_hash::IndexSet<String> {
+    pub fn get_define_names(&self) -> &closure_rhino::fast_hash::IndexSet<String> {
         &self.define_names
     }
     // port: Compiler#hasRegExpGlobalReferences
@@ -3239,12 +3238,15 @@ impl Compiler {
         self.run_j2cl_passes
     }
     // port: Compiler#setExternProperties
-    pub fn set_extern_properties(&mut self, properties: closure_rhino::fx_hash::IndexSet<String>) {
+    pub fn set_extern_properties(
+        &mut self,
+        properties: closure_rhino::fast_hash::IndexSet<String>,
+    ) {
         self.extern_properties = Some(properties);
         self.extern_properties_js = std::sync::OnceLock::new();
     }
     // port: Compiler#getExternProperties
-    pub fn get_extern_properties(&self) -> Option<&closure_rhino::fx_hash::IndexSet<String>> {
+    pub fn get_extern_properties(&self) -> Option<&closure_rhino::fast_hash::IndexSet<String>> {
         self.extern_properties.as_ref()
     }
     /// Rust-only: `get_extern_properties` as JS strings.
@@ -3656,7 +3658,7 @@ impl Compiler {
         let unique_name_id_supplier = self.get_unique_name_id_supplier();
         self.create_expression_decomposer(
             unique_name_id_supplier,
-            closure_rhino::fx_hash::IndexSet::<_>::default(),
+            closure_rhino::fast_hash::IndexSet::<_>::default(),
             scope,
         )
     }
@@ -3664,7 +3666,7 @@ impl Compiler {
     pub fn create_expression_decomposer(
         &mut self,
         unique_name_id_supplier: Arc<dyn Fn() -> String + Send + Sync>,
-        known_constant_functions: closure_rhino::fx_hash::IndexSet<
+        known_constant_functions: closure_rhino::fast_hash::IndexSet<
             closure_rhino::js_string::JsString,
         >,
         scope: crate::scope::Scope,
@@ -3673,11 +3675,11 @@ impl Compiler {
         // for one of its bugs.
         let enabled_workarounds =
             if FeatureSet::ES5.contains(self.get_options().get_output_feature_set()) {
-                closure_rhino::fx_hash::IndexSet::<_>::from_iter([
+                closure_rhino::fast_hash::IndexSet::<_>::from_iter([
                     crate::expression_decomposer::Workaround::BROKEN_IE11_LOCATION_ASSIGN,
                 ])
             } else {
-                closure_rhino::fx_hash::IndexSet::<_>::default()
+                closure_rhino::fast_hash::IndexSet::<_>::default()
             };
         crate::expression_decomposer::ExpressionDecomposer::new(
             self,
@@ -3891,7 +3893,7 @@ impl Compiler {
             .get_options()
             .get_chunks_to_print_after_each_pass_regex_list()
             .clone();
-        let qnames: closure_rhino::fx_hash::IndexSet<String> = self
+        let qnames: closure_rhino::fast_hash::IndexSet<String> = self
             .get_options()
             .get_qname_uses_to_print_after_each_pass_list()
             .iter()
@@ -3950,7 +3952,7 @@ impl Compiler {
         if !qnames.is_empty() {
             let mut original_to_new_qname_map: IndexMap<
                 String,
-                closure_rhino::fx_hash::IndexSet<String>,
+                closure_rhino::fast_hash::IndexSet<String>,
             > = IndexMap::<_, _>::default();
             builder.append("//\n// closure-compiler: Printing all of the top-level statements\n// that contain references to these qualified names.\n//\n");
             // Java's filtered Stream has not been consumed yet; the multimap is still empty here.
@@ -4474,8 +4476,8 @@ impl Compiler {
 
     // port: Compiler#fromProto(List<FeatureProto>)
     fn feature_set_from_proto(protos: &[FeatureProto]) -> FeatureSet {
-        let mut features: closure_rhino::fx_hash::IndexSet<Feature> =
-            closure_rhino::fx_hash::IndexSet::<_>::default();
+        let mut features: closure_rhino::fast_hash::IndexSet<Feature> =
+            closure_rhino::fast_hash::IndexSet::<_>::default();
         for p in protos {
             if *p != FeatureProto::FEATURE_UNKNOWN {
                 // Java's Feature#valueOf throws IllegalArgumentException for an unknown name.
@@ -4869,8 +4871,8 @@ impl Compiler {
             IndexMap::<_, _>::default();
         let mut code_files_builder: IndexMap<String, Arc<SourceFile>> = IndexMap::<_, _>::default();
         let mut all_input_files: Vec<Arc<SourceFile>> = Vec::new();
-        let mut all_input_file_keys: closure_rhino::fx_hash::IndexSet<usize> =
-            closure_rhino::fx_hash::IndexSet::<_>::default();
+        let mut all_input_file_keys: closure_rhino::fast_hash::IndexSet<usize> =
+            closure_rhino::fast_hash::IndexSet::<_>::default();
         for input in self.chunk_graph.as_ref().unwrap().get_all_inputs() {
             let file = input.get_source_file_arc();
             if all_input_file_keys.insert(Arc::as_ptr(&file) as usize) {

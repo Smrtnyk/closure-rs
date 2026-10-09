@@ -19,7 +19,7 @@
 #![allow(clippy::upper_case_acronyms)] // Preserve the Java test enum spelling.
 use closure_jscomp::graph::lowest_common_ancestor_finder::LowestCommonAncestorFinder;
 use closure_jscomp::graph::*;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use std::{
     any::Any,
     panic::{AssertUnwindSafe, catch_unwind},

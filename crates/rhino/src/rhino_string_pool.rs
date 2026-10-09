@@ -48,11 +48,11 @@ pub struct RhinoStringPool;
 // Java's weak interner. Rust-only (D-025): split into independently locked shards by hash, so
 // that inputs parsed on several threads (jscomp `parallel_parse`) rarely wait for each other;
 // which shard holds a string never matters, only that equal strings share one entry.
-type Interner = crate::fx_hash::IndexMap<Box<[u16]>, Weak<[u16]>>;
+type Interner = crate::fast_hash::IndexMap<Box<[u16]>, Weak<[u16]>>;
 const SHARD_BITS: u32 = 6;
 static INTERNER: OnceLock<Vec<Mutex<Interner>>> = OnceLock::new();
 thread_local! {
-    static THREAD_CACHE: std::cell::RefCell<Option<crate::fx_hash::IndexMap<Box<[u16]>, JsString>>> =
+    static THREAD_CACHE: std::cell::RefCell<Option<crate::fast_hash::IndexMap<Box<[u16]>, JsString>>> =
         const { std::cell::RefCell::new(None) };
 }
 fn shard(units: &[u16]) -> &'static Mutex<Interner> {
@@ -61,7 +61,7 @@ fn shard(units: &[u16]) -> &'static Mutex<Interner> {
             .map(|_| Mutex::new(Interner::default()))
             .collect()
     });
-    let mut hasher = crate::fx_hash::FxHasher::default();
+    let mut hasher = crate::fast_hash::FastHasher::default();
     units.hash(&mut hasher);
     &shards[(hasher.finish() >> (64 - SHARD_BITS)) as usize]
 }

@@ -390,12 +390,12 @@ fn test_ctors_specialized_on_template_types() {
     let mut string_replacer = TemplateTypeReplacer::for_inference(
         &mut f.reg,
         &f.ast,
-        &closure_rhino::fx_hash::IndexMap::<_, _>::from_iter([(key, Some(f.string_type))]),
+        &closure_rhino::fast_hash::IndexMap::<_, _>::from_iter([(key, Some(f.string_type))]),
     );
     let mut number_replacer = TemplateTypeReplacer::for_inference(
         &mut f.reg,
         &f.ast,
-        &closure_rhino::fx_hash::IndexMap::<_, _>::from_iter([(key, Some(f.number_type))]),
+        &closure_rhino::fast_hash::IndexMap::<_, _>::from_iter([(key, Some(f.number_type))]),
     );
     let foo_of_string = foo_ctor
         .visit(&mut f.reg, &f.ast, &mut string_replacer)

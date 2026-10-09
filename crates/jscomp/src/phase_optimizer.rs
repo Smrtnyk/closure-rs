@@ -22,7 +22,7 @@ use crate::{
     compiler_pass::CompilerPass, node_util::NodeUtil, pass_factory::PassFactory, pass_names,
     performance_tracker::PerformanceTracker, platform::Platform,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::NodeId;
 use std::sync::{
     Arc, Mutex,

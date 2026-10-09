@@ -29,7 +29,7 @@ use crate::{
     node_util::{MatchShallowStatement, NodeUtil},
     rename_labels::RenameLabels,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_state,
     ir::IR,

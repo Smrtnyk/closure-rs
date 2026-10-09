@@ -29,7 +29,7 @@ use crate::{
     scope_creator::ScopeCreator,
     var::VarId,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_state, java_util::bit_set::BitSet, js_string::JsString, node::NodeId, token::Token,
 };

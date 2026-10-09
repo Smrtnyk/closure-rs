@@ -55,7 +55,7 @@ use closure_jscomp::{
     var_check::VarCheck,
     variable_reference_check::VariableReferenceCheck,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     ir::IR,
     node::{NodeId, Prop},

@@ -42,7 +42,7 @@ use super::abstract_static_scope::AbstractStaticScope;
 use crate::TypeId;
 use crate::simple_slot::SimpleSlot;
 use crate::static_typed_slot::StaticTypedSlot;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 
 #[derive(Clone, Debug)]

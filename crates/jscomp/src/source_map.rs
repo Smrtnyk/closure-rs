@@ -18,7 +18,7 @@
 
 #![allow(clippy::collapsible_if, clippy::unnecessary_unwrap)] // Retain Java nested conditionals and null checks.
 use crate::{node_util::NodeUtil, source_file_mapping::SourceFileMapping};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     js_string::JsString,
     node::{Ast, NodeId},

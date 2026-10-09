@@ -31,7 +31,7 @@ use crate::reference_collection::ReferenceCollection;
 use crate::scope::ScopeId;
 use crate::scope_creator::ScopeCreator;
 use crate::var::VarId;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;

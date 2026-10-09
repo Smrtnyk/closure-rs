@@ -46,7 +46,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::java_util::bit_set::BitSet;
 use closure_rhino::{
     check_argument, check_not_null, check_state,

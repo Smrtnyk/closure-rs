@@ -44,7 +44,7 @@ use crate::{
 };
 use closure_jstype::{prelude::*, property::Property};
 use closure_parsing::js_doc_info_parser::JsDocInfoParser;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_state,
     java_lang::regex::Pattern,

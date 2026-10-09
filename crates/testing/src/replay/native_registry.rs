@@ -91,7 +91,7 @@ use crate::{
 use closure_jscomp::{
     compiler_input::CompilerInput, syntactic_scope_creator::SyntacticScopeCreator,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc};
 

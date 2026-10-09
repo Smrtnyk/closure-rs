@@ -22,7 +22,7 @@ use super::malformed_typed_ast_exception::MalformedTypedAstException;
 use super::optimization_jsdoc_proto::{JsdocTag, OptimizationJsdoc};
 use super::string_pool::{StringPool, StringPoolBuilder};
 use crate::source_file::SourceFile;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::js_type_expression::JSTypeExpression;

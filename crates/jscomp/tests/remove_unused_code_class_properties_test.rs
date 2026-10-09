@@ -23,7 +23,7 @@
 //! on the native CompilerTestCase port of crates/testing. 15 tests call `enableTypeCheck()` (real
 //! TypeCheck, type-check).
 use closure_jscomp::{compiler_pass::CompilerPass, remove_unused_code::RemoveUnusedCode};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks},

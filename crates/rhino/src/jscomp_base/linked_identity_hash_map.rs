@@ -16,7 +16,7 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   src/com/google/javascript/jscomp/base/LinkedIdentityHashMap.java.
 
-use crate::fx_hash::IndexMap;
+use crate::fast_hash::IndexMap;
 use crate::{js_string::JsString, node::NodeId};
 use std::hash::Hash;
 use std::sync::Arc;

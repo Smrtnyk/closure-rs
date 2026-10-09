@@ -59,7 +59,7 @@ use crate::node_util::NodeUtil;
 use crate::reference::Reference;
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use crate::var::VarId;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::node::NodeId;
 use closure_rhino::token::Token;

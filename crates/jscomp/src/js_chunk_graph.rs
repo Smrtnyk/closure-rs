@@ -25,7 +25,7 @@ use crate::{
     diagnostic_type::DiagnosticType,
     js_chunk::{JSChunk, WEAK_CHUNK_NAME},
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::static_source_file::StaticSourceFile;
 use std::{cmp::Ordering, fmt};
 

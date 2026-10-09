@@ -52,7 +52,7 @@ use crate::template_type_map::TemplateTypeMap;
 use crate::templatized_type::TemplatizedType;
 use crate::union_type::UnionType;
 use crate::visitor::Visitor;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_state, node::Ast};
 use std::sync::Arc;
 

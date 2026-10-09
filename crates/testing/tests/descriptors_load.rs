@@ -18,7 +18,7 @@
 //! descriptor stems are exactly the non-empty record files; options_defaults.json and
 //! derived/expected_pipeline.jsonl.gz load and round-trip.
 
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_testing::corpus::{
     descriptor_files, file_stem, load_descriptor, load_expected_pipeline, load_options_defaults,
     read_gz, record_files,

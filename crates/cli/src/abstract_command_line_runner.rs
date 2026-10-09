@@ -29,7 +29,7 @@ use closure_jscomp::{
     compiler_options::{DevMode, JsonStreamMode, TweakProcessing},
     dependency_options::DependencyOptions,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::java_lang::charset::Charset;
 use closure_rhino::static_source_file::StaticSourceFile;
 use std::io::{Read, Write};
@@ -1071,7 +1071,7 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
             (&self.config.output_manifests, "output_manifest"),
             (&self.config.output_bundles, "output_bundle"),
         ] {
-            let mut unique = closure_rhino::fx_hash::IndexSet::<_>::default();
+            let mut unique = closure_rhino::fast_hash::IndexSet::<_>::default();
             for filename in files {
                 if !unique.insert(filename) {
                     return Err(FlagUsageException(format!(

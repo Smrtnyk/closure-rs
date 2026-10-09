@@ -57,7 +57,7 @@ use closure_jscomp::{
     Compiler, alias_strings::AliasStrings, compiler_options::AliasStringsMode,
     compiler_pass::CompilerPass,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
 use std::{cell::RefCell, rc::Rc};
 

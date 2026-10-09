@@ -65,7 +65,7 @@ use crate::{
     js_error::JSError,
     node_traversal::NodeTraversal,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_argument, js_string::JsString, node::NodeId};
 use closure_sourcemap::gson::stream::json_writer::JsonWriter;
 use std::{cmp::Ordering, sync::Arc};

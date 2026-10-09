@@ -17,7 +17,7 @@
 //   test/com/google/javascript/jscomp/graph/StandardUnionFindTest.java.
 
 use closure_jscomp::graph::{standard_union_find::StandardUnionFind, union_find::UnionFind};
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 // port: StandardUnionFindTest#setUp
 fn set_up() -> StandardUnionFind<&'static str> {

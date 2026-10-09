@@ -29,7 +29,7 @@ use closure_jscomp::{
         transpiler::Transpiler,
     },
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{java_lang::uri::URI, js_string::JsString};
 use std::sync::{Arc, LazyLock};
 

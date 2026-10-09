@@ -34,7 +34,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{check_state, js_string::JsString, node::NodeId};
 
 pub struct GatherRawExports {

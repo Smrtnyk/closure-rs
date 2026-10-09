@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/colors/Color.java.
 
 use super::{ColorId, standard_colors};
-use crate::fx_hash::IndexSet;
+use crate::fast_hash::IndexSet;
 use crate::{check_state, js_string::JsString};
 use std::{
     fmt,

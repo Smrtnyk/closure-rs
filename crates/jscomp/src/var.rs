@@ -1,5 +1,6 @@
 /*
  * Copyright 2015 The Closure Compiler Authors.
+ * Copyright 2018 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  * limitations under the License.
  */
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
-//   src/com/google/javascript/jscomp/Var.java.
+//   src/com/google/javascript/jscomp/AbstractVar.java, src/com/google/javascript/jscomp/Var.java.
 
 use crate::{
     abstract_compiler::AbstractCompiler,

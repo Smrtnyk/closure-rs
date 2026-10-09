@@ -18,7 +18,7 @@ use closure_jscomp::{
     colors::{Color, ColorId, ColorRegistry, color_registry::REQUIRED_IDS, standard_colors as sc},
     testing::assert_that,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{js_string::JsString, node::Ast, token::Token};
 use std::panic::catch_unwind;
 

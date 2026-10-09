@@ -27,7 +27,7 @@ use crate::{
     node_util::NodeUtil,
     var::VarId,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state, hamt_pmap::HamtPMap, js_string::JsString, node::NodeId,
     token::Token,

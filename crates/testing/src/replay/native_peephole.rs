@@ -79,7 +79,7 @@ use closure_jscomp::{
     statement_fusion::StatementFusion,
 };
 use closure_parsing::parser::feature_set::Feature;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{node::NodeId, token::Token};
 use std::{cell::RefCell, rc::Rc};
 

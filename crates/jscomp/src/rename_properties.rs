@@ -52,7 +52,7 @@ use crate::{
     node_util::NodeUtil,
     variable_map::VariableMap,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state,
     ir::IR,

@@ -39,7 +39,7 @@
 //   src/com/google/javascript/rhino/TypeDeclarationsIR.java.
 
 //! Construction helpers for type declaration ASTs.
-use crate::fx_hash::IndexMap;
+use crate::fast_hash::IndexMap;
 use crate::{
     check_argument,
     ir::IR,

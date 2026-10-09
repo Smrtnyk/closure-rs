@@ -21,7 +21,7 @@
 use closure_jscomp::js_chunk::JSChunk;
 use closure_jscomp::source_file::SourceFile;
 use closure_rhino::check_state;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::jscomp_base::guava_format;
 
 // port: JSChunkGraphBuilder.GraphType

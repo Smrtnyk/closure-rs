@@ -37,7 +37,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_state, js_string::JsString, jscomp_base::guava_format, node::Ast,
     node::NodeId, token::Token,

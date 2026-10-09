@@ -73,7 +73,7 @@ use crate::typed_scope::TypedScope;
 use crate::var::VarId;
 use crate::xid::Xid;
 use closure_parsing::parser::feature_set::Feature;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::jsdoc_info::{Builder as JSDocInfoBuilder, JSDocInfo};

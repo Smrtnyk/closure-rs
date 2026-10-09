@@ -31,7 +31,7 @@ use super::types_proto::{
 use crate::invalidating_types::InvalidatingTypes;
 use closure_jstype::prelude::*;
 use closure_rhino::closure_primitive::ClosurePrimitive;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_colors::color::Color;
 use closure_rhino::jscomp_colors::color_id::ColorId;

@@ -21,7 +21,7 @@ use super::malformed_typed_ast_exception::{DebugParam, MalformedTypedAstExceptio
 use super::string_pool::StringPool;
 use super::type_pointers::{OFFSET_TO_AXIOMATIC_COLOR, TypePointers};
 use super::types_proto::{TypePool, TypeProto, TypeProtoKindCase};
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_base::tri::Tri;
 use closure_rhino::jscomp_colors::color::Color;

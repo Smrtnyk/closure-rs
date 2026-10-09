@@ -48,7 +48,7 @@ use closure_jscomp::{
     process_common_js_modules::{ProcessCommonJSModules, SUSPICIOUS_EXPORTS_ASSIGNMENT},
     source_file::SourceFile,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, Expected, TestPart},
     replay::{

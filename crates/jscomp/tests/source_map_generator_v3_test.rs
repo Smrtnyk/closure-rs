@@ -19,7 +19,7 @@
 #[path = "support/source_map_test_case.rs"]
 mod source_map_test_case;
 use closure_jscomp::source_map::{DetailLevel, Format};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_sourcemap::{
     file_position::FilePosition, source_map_consumer_v3::SourceMapConsumerV3,

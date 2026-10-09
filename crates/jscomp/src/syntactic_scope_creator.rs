@@ -20,7 +20,7 @@ use crate::{
     abstract_compiler::AbstractCompiler, compiler_input::CompilerInput, node_util::NodeUtil,
     scope::ScopeId, scope_creator::ScopeCreator,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_not_null, check_state, input_id::InputId, js_string::JsString, node::NodeId, token::Token,
 };

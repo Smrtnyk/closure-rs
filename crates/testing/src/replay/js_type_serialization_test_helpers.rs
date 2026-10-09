@@ -62,7 +62,7 @@ use closure_jscomp::{
     type_mismatch::TypeMismatch,
 };
 use closure_jstype::prelude::*;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{js_string::JsString, jscomp_colors::color_id::ColorId, node::NodeId};
 use std::{cell::RefCell, rc::Rc};
 

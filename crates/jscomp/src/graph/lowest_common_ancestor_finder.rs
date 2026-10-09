@@ -20,7 +20,7 @@ use super::{
     di_graph::{DiGraph, DiGraphNode},
     graph_node::GraphNode,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::{
     collections::VecDeque,
     hash::{Hash, Hasher},

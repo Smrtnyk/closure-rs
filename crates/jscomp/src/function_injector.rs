@@ -31,7 +31,7 @@ use crate::{
     node_util::{MatchDeclaration, MatchShallowStatement, NodeUtil},
     scope::Scope,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_state,
     js_string::JsString,

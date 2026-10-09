@@ -20,7 +20,7 @@
 
 use super::color_graph_node::{ColorGraphNode, ColorGraphNodeId, DisambiguateArena};
 use crate::colors::{Color, color_registry::ColorRegistry, standard_colors};
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::sync::Arc;
 
 /// The overridable instance methods of {@link ColorGraphNodeFactory} (Java virtual dispatch:

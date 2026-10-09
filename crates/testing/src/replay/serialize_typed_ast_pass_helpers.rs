@@ -60,7 +60,7 @@ use closure_jscomp::{
         typed_ast_proto::TypedAst,
     },
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc};
 

@@ -30,7 +30,7 @@ use crate::scope::ScopeId;
 use crate::scope_creator::ScopeCreator;
 use crate::var::VarId;
 use closure_rhino::check_state;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use std::collections::VecDeque;

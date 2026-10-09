@@ -16,7 +16,7 @@
 // Ported from Gson 2.9.1 (https://github.com/google/gson): com/google/gson/JsonObject.java.
 
 use super::JsonElement;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct JsonObject {

@@ -16,7 +16,7 @@
 
 #[path = "../tests/support/d2_replay.rs"]
 mod d2_replay;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use serde_json::Value;
 use std::{
     fs::File,

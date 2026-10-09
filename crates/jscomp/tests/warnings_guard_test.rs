@@ -28,7 +28,7 @@ use closure_jscomp::{
     strict_warnings_guard::StrictWarningsGuard,
     warnings_guard::WarningsGuard,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{jscomp_base::Tri, node::Ast, token::Token};
 use std::{
     any::Any,

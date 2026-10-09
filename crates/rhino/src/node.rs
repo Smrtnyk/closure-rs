@@ -387,9 +387,9 @@ struct PropRemapper<'m> {
     map: &'m PreparsedIdMap,
     placeholder: Arc<JSTypeExpression>,
     bound: Option<Arc<JSTypeExpression>>,
-    items: crate::fx_hash::IndexMap<usize, Arc<PropListItem>>,
-    infos: crate::fx_hash::IndexMap<usize, Arc<JSDocInfo>>,
-    exprs: crate::fx_hash::IndexMap<usize, Arc<JSTypeExpression>>,
+    items: crate::fast_hash::IndexMap<usize, Arc<PropListItem>>,
+    infos: crate::fast_hash::IndexMap<usize, Arc<JSDocInfo>>,
+    exprs: crate::fast_hash::IndexMap<usize, Arc<JSTypeExpression>>,
 }
 impl PropRemapper<'_> {
     /// The list `item` for the new ids: the same list when no item refers to a node.

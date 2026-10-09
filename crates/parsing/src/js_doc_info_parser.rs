@@ -30,7 +30,7 @@ use crate::{
     js_doc_token_stream::JsDocTokenStream,
     type_transformation_parser::TypeTransformationParser,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_argument, check_state};
 use closure_rhino::{
     error_reporter::{ErrorReporter, NullErrorReporter},

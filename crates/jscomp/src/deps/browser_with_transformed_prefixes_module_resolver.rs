@@ -25,7 +25,7 @@ use super::{
     module_resolver::{ModuleResolver, ModuleResolverBase},
 };
 use crate::{check_level::CheckLevel, diagnostic_type::DiagnosticType};
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::java_lang::string_compare_to;
 use std::sync::Arc;
 pub static INVALID_AMBIGUOUS_PATH: DiagnosticType = DiagnosticType::error(

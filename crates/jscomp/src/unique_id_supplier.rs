@@ -32,14 +32,14 @@ pub use crate::compiler_state_proto::UniqueIdProto;
 pub struct UniqueIdSupplier {
     /// Guava `HashMultiset<Integer>` (backed by `java.util.HashMap`): element -> count, in
     /// insertion order. `to_proto` reproduces the HashMap iteration order.
-    counter: closure_rhino::fx_hash::IndexMap<i32, i32>,
+    counter: closure_rhino::fast_hash::IndexMap<i32, i32>,
 }
 
 impl UniqueIdSupplier {
     // port: UniqueIdSupplier#UniqueIdSupplier
     pub fn new() -> Self {
         Self {
-            counter: closure_rhino::fx_hash::IndexMap::<_, _>::default(),
+            counter: closure_rhino::fast_hash::IndexMap::<_, _>::default(),
         }
     }
 
@@ -94,7 +94,7 @@ impl UniqueIdSupplier {
 /// without removals: buckets in index order (`HashMap.hash` spreads `h ^ (h >>> 16)`, the table
 /// starts at 16 slots and doubles once the size exceeds 0.75 of it), each bucket in insertion
 /// order (a resize splits buckets keeping their relative order).
-fn java_hash_map_order(map: &closure_rhino::fx_hash::IndexMap<i32, i32>) -> Vec<(i32, i32)> {
+fn java_hash_map_order(map: &closure_rhino::fast_hash::IndexMap<i32, i32>) -> Vec<(i32, i32)> {
     let mut capacity: usize = 16;
     let mut threshold: usize = 12;
     for size in 1..=map.len() {

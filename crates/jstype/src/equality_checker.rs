@@ -47,7 +47,7 @@ use crate::{
     proxy_object_type::ProxyObjectType,
     template_type_map::TemplateTypeMap,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{check_state, js_string::JsString, node::Ast};
 
 const POTENTIALLY_CYCLIC_RECURSION_DEPTH: usize = 20;

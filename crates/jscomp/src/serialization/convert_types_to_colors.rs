@@ -28,7 +28,7 @@ use crate::abstract_compiler::AbstractCompiler;
 use crate::compiler_pass::CompilerPass;
 use crate::node_traversal::{Callback, NodeTraversal};
 use closure_rhino::check_state;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::jstype::TypeId;
 use closure_rhino::node::{Ast, NodeId};
 use std::cell::RefCell;

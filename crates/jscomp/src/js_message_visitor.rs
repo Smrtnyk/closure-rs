@@ -32,7 +32,7 @@
 
 use std::sync::{Arc, LazyLock};
 
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::java_lang::regex::Pattern;
 use closure_rhino::js_string::JsString;
 use closure_rhino::jsdoc_info::JSDocInfo;

@@ -36,7 +36,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal, ScopedCallback},
     node_util::NodeUtil,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_state, js_string::JsString, node::NodeId, token::Token};
 use std::sync::{Arc, Mutex, RwLock};
 

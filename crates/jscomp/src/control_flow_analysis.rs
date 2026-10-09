@@ -28,7 +28,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::java_util::priority_queue::PriorityQueue;
 use closure_rhino::jscomp_base::linked_identity_hash_map::LinkedIdentityHashMap;
 use closure_rhino::{

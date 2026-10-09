@@ -59,7 +59,7 @@ use closure_jscomp::{
     phase_optimizer::PhaseOptimizer,
     validity_check::ValidityCheck,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{check_state, node::Ast, node::NodeId};
 use std::{
     cell::RefCell,

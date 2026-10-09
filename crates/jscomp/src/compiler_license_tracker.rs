@@ -18,7 +18,7 @@
 
 #![allow(clippy::mutable_key_type)]
 use crate::{code_printer::LicenseTracker, compiler::Compiler, js_chunk::JSChunk};
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     js_string::JsString,
     node::{Ast, NodeId},

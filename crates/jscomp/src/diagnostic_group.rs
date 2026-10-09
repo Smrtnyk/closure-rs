@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/DiagnosticGroup.java.
 
 use crate::{diagnostic_type::DiagnosticType, js_error::JSError};
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::{
     fmt,
     sync::{Arc, LazyLock, Mutex},

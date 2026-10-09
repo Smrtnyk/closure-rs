@@ -35,7 +35,7 @@ use crate::name_generator::NameGenerator;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::variable_map::VariableMap;
 use closure_rhino::check_state;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::java_lang::string::split;
 use closure_rhino::js_string::JsString;

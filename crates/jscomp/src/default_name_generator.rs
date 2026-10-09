@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/DefaultNameGenerator.java.
 
 use crate::name_generator::{NameGenerator, ReservedNames};
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, token_stream::TokenStream};
 use std::sync::{Arc, RwLock};
 

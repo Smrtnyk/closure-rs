@@ -22,7 +22,7 @@ use closure_jscomp::{
     compiler_options::CompilerOptions, source_file::SourceFile, source_map::Format,
     source_map_input::SourceMapInput,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_sourcemap::source_map_consumer_v3::SourceMapConsumerV3;
 use source_map_test_case::{SourceMapTest as _, SourceMapTestCase};
 use std::{path::PathBuf, sync::Arc};

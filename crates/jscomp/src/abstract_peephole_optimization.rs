@@ -34,7 +34,7 @@ use crate::{
     node_util::NodeUtil,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{check_not_null, check_state, jscomp_base::Tri, node::NodeId};
 use num_bigint::BigInt;
 

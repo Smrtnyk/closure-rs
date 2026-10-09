@@ -36,7 +36,7 @@ use closure_jscomp::{
     type_check::TypeCheck,
 };
 use closure_jstype::js_type::{JSType, Nullability};
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     ir::IR,
     js_string::JsString,

@@ -18,7 +18,7 @@
 
 //! Contains metadata around modules (or scripts) that is useful for checking imports / requires.
 use crate::deps::module_loader::ModulePath;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_state,
     js_string::JsString,

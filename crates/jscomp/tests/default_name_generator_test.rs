@@ -20,7 +20,7 @@ use closure_jscomp::{
     default_name_generator::DefaultNameGenerator,
     name_generator::{NameGenerator, ReservedNames},
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use std::sync::{Arc, RwLock};
 

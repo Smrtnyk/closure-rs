@@ -39,7 +39,7 @@ use crate::{
     typed_scope::TypedScope,
 };
 use closure_jstype::{JSTypeNative, TypeId, object_type::ObjectType};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     js_string::JsString,

@@ -416,7 +416,7 @@ impl PropertyValue {
         }
     }
 }
-use crate::fx_hash::{IndexMap, IndexSet};
+use crate::fast_hash::{IndexMap, IndexSet};
 use crate::{
     check_argument,
     js_string::JsString,

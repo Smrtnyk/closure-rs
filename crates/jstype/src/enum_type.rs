@@ -46,7 +46,7 @@ use crate::{
     prototype_object_type::{PrototypeObjectTypeBuilder, PrototypeObjectTypeData},
     type_string_builder::TypeStringBuilder,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     error_reporter::ErrorReporter,
     js_string::JsString,

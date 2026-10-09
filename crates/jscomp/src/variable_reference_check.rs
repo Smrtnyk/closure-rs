@@ -36,7 +36,7 @@ use crate::scope::ScopeId;
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use crate::var::VarId;
 use crate::var_check::{VAR_MULTIPLY_DECLARED_ERROR, VarCheck};
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::qualified_name::QualifiedName;

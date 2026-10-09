@@ -38,7 +38,7 @@ use closure_jscomp::{
     variable_renaming_policy::VariableRenamingPolicy,
 };
 
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum FormattingOption {
     PRETTY_PRINT,
@@ -2455,7 +2455,7 @@ use closure_jscomp::{
     coding_conventions::CodingConventions, compilation_level::CompilationLevel,
     dependency_options::DependencyOptions,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use std::sync::Arc;
 use std::{
     io::{Read, Write},

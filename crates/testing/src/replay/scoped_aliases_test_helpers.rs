@@ -41,7 +41,7 @@ use crate::{
     throwable::Throwable,
 };
 use closure_jscomp::node_traversal::{Callback, NodeTraversal};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{node::NodeId, testing::node_subject::assert_node};
 use std::{cell::RefCell, rc::Rc};
 

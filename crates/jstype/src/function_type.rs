@@ -1075,8 +1075,8 @@ pub fn get_slot(
 pub fn get_own_property_names(
     t: TypeId,
     reg: &JSTypeRegistry,
-) -> closure_rhino::fx_hash::IndexSet<JsString> {
-    let mut names = closure_rhino::fx_hash::IndexSet::<_>::default();
+) -> closure_rhino::fast_hash::IndexSet<JsString> {
+    let mut names = closure_rhino::fast_hash::IndexSet::<_>::default();
     if reg.function_data(t).prototype_slot.is_some() {
         names.insert("prototype".into());
     }
@@ -1584,8 +1584,8 @@ pub fn get_property_type_map(
     t: TypeId,
     reg: &mut JSTypeRegistry,
     ast: &Ast,
-) -> closure_rhino::fx_hash::IndexMap<JsString, TypeId> {
-    let mut map = closure_rhino::fx_hash::IndexMap::<_, _>::default();
+) -> closure_rhino::fast_hash::IndexMap<JsString, TypeId> {
+    let mut map = closure_rhino::fast_hash::IndexMap::<_, _>::default();
     update_property_type_map(t, reg, ast, &mut map, &mut Vec::new());
     map
 }
@@ -1594,7 +1594,7 @@ fn update_property_type_map(
     t: TypeId,
     reg: &mut JSTypeRegistry,
     ast: &Ast,
-    map: &mut closure_rhino::fx_hash::IndexMap<JsString, TypeId>,
+    map: &mut closure_rhino::fast_hash::IndexMap<JsString, TypeId>,
     cache: &mut Vec<(i32, TypeId)>,
 ) {
     let prototype = t.get_prototype(reg, ast);

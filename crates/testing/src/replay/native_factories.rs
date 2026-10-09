@@ -39,7 +39,7 @@ use crate::{
     replay::replay_dsl::{Ctx, DslValue, Lambda, invoke_lambda_with_compiler, process_in_compiler},
     throwable::Throwable,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{
     cell::RefCell,

@@ -17,7 +17,7 @@
 //   test/com/google/javascript/jscomp/colors/ColorIdTest.java.
 
 use closure_jscomp::colors::ColorId;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use std::{panic::catch_unwind, sync::LazyLock};
 
 static A: LazyLock<ColorId> = LazyLock::new(|| ColorId::from_ascii("a"));

@@ -24,7 +24,7 @@ use crate::{
     source_map_parse_exception::SourceMapParseException as Error,
     source_map_section::SourceMapSection,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 pub struct SourceMapObjectParser;
 // Java's shared, immutable Gson instance.

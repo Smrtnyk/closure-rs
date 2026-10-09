@@ -26,7 +26,7 @@ use super::{
     graphviz_graph::{GraphvizEdge, GraphvizGraph, GraphvizNode, GraphvizValue},
     sub_graph::SubGraph,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::{fmt::Display, hash::Hash};
 pub struct LinkedDirectedGraph<N, E> {
     pub nodes: IndexMap<N, DiGraphNode>,

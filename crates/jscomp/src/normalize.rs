@@ -52,7 +52,7 @@ use crate::{
     scope::ScopeId,
     syntactic_scope_creator::{RedeclarationHandler, SyntacticScopeCreator},
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_argument, check_state,
     ir::IR,

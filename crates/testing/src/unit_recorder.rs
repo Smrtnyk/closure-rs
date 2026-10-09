@@ -46,7 +46,7 @@ use crate::{
     },
     throwable::Throwable,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::rc::Rc;
 use std::sync::Arc;
 // port: UnitRecorder#refFields

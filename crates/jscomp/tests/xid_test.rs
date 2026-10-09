@@ -17,7 +17,7 @@
 //   test/com/google/javascript/jscomp/XidTest.java.
 
 use closure_jscomp::xid::Xid;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 
 // port: XidTest#helpTestUniqueness
 fn help_test_uniqueness(map: &mut IndexMap<String, i32>, lo: i32, hi: i32) {

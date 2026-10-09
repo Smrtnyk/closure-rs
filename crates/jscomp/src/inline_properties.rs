@@ -25,7 +25,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_state, ir::IR, js_string::JsString, node::Ast, node::NodeId};
 use std::sync::Arc;
 

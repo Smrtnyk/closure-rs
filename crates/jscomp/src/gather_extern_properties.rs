@@ -23,7 +23,7 @@ use crate::compiler_pass::CompilerPass;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
 use closure_rhino::check_state;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::jsdoc_info::JSDocInfo;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;

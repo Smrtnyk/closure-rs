@@ -24,7 +24,7 @@ use super::{
     module_resolver::{ModuleResolver, ModuleResolverBase},
     node_module_resolver::NodeModuleResolver,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::sync::Arc;
 pub struct Factory {
     lookup_map: IndexMap<String, String>,

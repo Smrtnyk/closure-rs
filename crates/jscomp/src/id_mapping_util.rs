@@ -18,7 +18,7 @@
 
 //! Port of `IdMappingUtil.java`.
 
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 
 /// A utility class for generating and parsing id mappings held by `ReplaceIdGenerators`.

@@ -36,7 +36,7 @@ use crate::{
     var::VarId,
 };
 use closure_parsing::parser::identifiers::Identifiers;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state, js_string::JsString, node::NodeId, qualified_name::QualifiedName,
     token::Token,

@@ -37,7 +37,7 @@ use crate::{
     node_traversal::{AbstractModuleCallback, ModuleCallback, NodeTraversal},
     node_util::NodeUtil,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_argument, check_state,
     ir::IR,

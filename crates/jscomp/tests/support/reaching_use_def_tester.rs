@@ -31,7 +31,7 @@ use closure_jscomp::{
     scope::ScopeId,
     syntactic_scope_creator::SyntacticScopeCreator,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::node::NodeId;
 use std::sync::Arc;
 pub struct ReachingUseDefTester {

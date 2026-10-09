@@ -28,7 +28,7 @@ use crate::node_traversal::{
     AbstractPostOrderCallback, AbstractPostOrderCallbackInterface, Callback, NodeTraversal,
 };
 use crate::process_closure_primitives::ProcessClosurePrimitives;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::java_lang::string::split_units;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};

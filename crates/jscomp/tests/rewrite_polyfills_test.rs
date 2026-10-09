@@ -25,7 +25,7 @@ use closure_jscomp::{
     polyfill_usage_finder::Polyfills,
     rewrite_polyfills::{INSUFFICIENT_OUTPUT_VERSION_ERROR, RewritePolyfills},
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},
     jscomp_api::{CheckLevel, Compiler, CompilerOptions},

@@ -50,7 +50,7 @@ use closure_jscomp::{
     compiler_options::ChunkOutputType, compiler_pass::CompilerPass,
     es6_rewrite_modules::Es6RewriteModules, rewrite_dynamic_imports::RewriteDynamicImports,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc};
 

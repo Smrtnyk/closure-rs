@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use closure_sourcemap::{
     base64::Base64,

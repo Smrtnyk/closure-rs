@@ -25,7 +25,7 @@ use closure_jscomp::{
     source_map::{Format, LocationMapping, PrefixLocationMapping},
     source_map_input::SourceMapInput,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_sourcemap::source_map_consumer_v3::SourceMapConsumerV3;
 use source_map_test_case::{SourceMapTest as _, SourceMapTestCase, get_source_map};

@@ -5055,7 +5055,7 @@ fn test_fileoverview_first_one_wins_suppressions_accumulate() {
             .get_suppressions(),
         [JsString::from("const"), JsString::from("checkTypes")]
             .into_iter()
-            .collect::<closure_rhino::fx_hash::IndexSet<_>>()
+            .collect::<closure_rhino::fast_hash::IndexSet<_>>()
     );
 }
 

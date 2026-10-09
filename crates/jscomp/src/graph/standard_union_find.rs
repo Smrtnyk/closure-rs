@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/graph/StandardUnionFind.java.
 
 use super::union_find::UnionFind;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::{cell::Cell, fmt::Display, hash::Hash};
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct NodeId(usize);

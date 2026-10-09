@@ -27,7 +27,7 @@ use closure_jscomp::{
     lazy_parsed_dependency_info::LazyParsedDependencyInfo,
     source_file::SourceFile,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 
 fn flags(entries: &[(&str, &str)]) -> IndexMap<String, String> {
     entries

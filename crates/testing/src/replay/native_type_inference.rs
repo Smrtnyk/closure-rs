@@ -54,7 +54,7 @@ use closure_jscomp::{
     reverse_abstract_interpreter::ReverseAbstractInterpreter,
     type_inference_pass::TypeInferencePass, typed_scope_creator::TypedScopeCreator,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 

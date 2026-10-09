@@ -29,7 +29,7 @@ use crate::{
     reverse_abstract_interpreter::ReverseAbstractInterpreter,
 };
 use closure_jstype::{JSTypeNative, JSTypeRegistry, TypeId};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     js_string::JsString,
     node::{Ast, NodeId},

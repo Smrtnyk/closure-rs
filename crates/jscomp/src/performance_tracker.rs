@@ -21,7 +21,7 @@ use crate::{
     code_change_handler::CodeChangeHandler, compiler_input::CompilerInput,
     compiler_options::TracerMode, node_util::NodeUtil, pass_names, platform::Platform,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,

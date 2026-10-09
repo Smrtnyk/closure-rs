@@ -24,7 +24,7 @@ use crate::{
     abstract_compiler::AbstractCompiler, compiler_pass::CompilerPass,
     js::runtime_js_lib_manager::RuntimeJsLibManager,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::node::NodeId;
 use std::sync::{Arc, Mutex};
 

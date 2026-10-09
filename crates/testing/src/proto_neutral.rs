@@ -42,7 +42,7 @@ use closure_jscomp::{
         source_file_proto, typed_ast_proto, types_proto,
     },
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 
 /// The descriptor tables of every generated file (all in package `jscomp`).
 fn message_descriptor_tables() -> [&'static [Descriptor]; 5] {

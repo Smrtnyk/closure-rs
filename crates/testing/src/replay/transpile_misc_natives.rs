@@ -88,7 +88,7 @@ use closure_jscomp::{
     },
     transpilation_passes::TranspilationPasses,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::{
     cell::RefCell,
     rc::Rc,

@@ -22,7 +22,7 @@ use crate::reader::{
     index, int, js, list_of, map_of, opt_js,
 };
 use crate::value::Value;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 
 /// `postCall.compiler` keys (FORMAT.md "Post-call snapshot" table) whose values are tagged
 /// [`Value`]s.

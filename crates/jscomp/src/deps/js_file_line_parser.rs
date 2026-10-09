@@ -35,7 +35,7 @@ use crate::{
     check_level::CheckLevel, diagnostic_type::DiagnosticType, error_manager::ErrorManager,
     js_error::JSError,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     java_lang::{
         charset::Charset,

@@ -47,7 +47,7 @@ use closure_jscomp::{
     compiler_pass::CompilerPass, renaming_map::RenamingMap, renaming_token::RenamingToken,
     replace_id_generators::ReplaceIdGenerators,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 

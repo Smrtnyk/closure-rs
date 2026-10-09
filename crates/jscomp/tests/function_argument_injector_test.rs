@@ -27,7 +27,7 @@ use closure_jscomp::{
     node_util::NodeUtil,
     source_info_check::SourceInfoCheck,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, js_string::JsString, node::NodeId, testing::node_subject::assert_node,
 };

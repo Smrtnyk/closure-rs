@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/deps/SortedDependencies.java.
 
 use super::{dependency_info::DependencyInfo, module_names::ModuleNames};
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::{collections::VecDeque, fmt, hash::Hash};
 pub struct SortedDependencies<InputT: DependencyInfo + Clone + Eq + Hash> {
     user_ordered_inputs: Vec<InputT>,

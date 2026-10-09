@@ -19,7 +19,7 @@
 #![allow(unused_mut)]
 use closure_jscomp::js_doc_info_printer::JSDocInfoPrinter;
 use closure_parsing::js_doc_info_parser::JsDocInfoParser;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     ir::IR, js_type_expression::JSTypeExpression, jsdoc_info::JSDocInfo, node::Ast, token::Token,
 };

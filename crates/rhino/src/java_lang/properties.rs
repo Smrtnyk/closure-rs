@@ -29,7 +29,7 @@
 //! the key/value split and the escape conversion. Values are returned in file order; a later
 //! duplicate key replaces the earlier value, as `Hashtable#put` does.
 
-use crate::fx_hash::IndexMap;
+use crate::fast_hash::IndexMap;
 use crate::js_string::JsString;
 
 /// `Properties.LineReader` over an in-memory character source.

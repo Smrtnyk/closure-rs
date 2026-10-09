@@ -24,7 +24,7 @@
 //! objects is map equality (key order ignored), as JSON object semantics and Gson's
 //! `JsonObject.equals` define it.
 
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::fmt;
 
 /// A JS (UTF-16) string: a sequence of UTF-16 code units, lone surrogates allowed (WTF-16).

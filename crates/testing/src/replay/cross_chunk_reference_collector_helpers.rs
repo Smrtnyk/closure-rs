@@ -60,7 +60,7 @@ use closure_jscomp::{
     cross_chunk_reference_collector::CrossChunkReferenceCollector, reference::Reference,
     syntactic_scope_creator::SyntacticScopeCreator, var::VarId,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc};
 

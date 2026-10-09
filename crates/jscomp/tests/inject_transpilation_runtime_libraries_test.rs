@@ -25,7 +25,7 @@ use closure_jscomp::{
     js::runtime_js_lib_manager::RuntimeLibraryMode,
     source_file::SourceFile,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use std::sync::Arc;
 
 struct InjectTranspilationRuntimeLibrariesTest {

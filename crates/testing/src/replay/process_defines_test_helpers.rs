@@ -52,7 +52,7 @@ use closure_jscomp::{
     j2cl_source_file_checker::J2clSourceFileChecker,
     process_defines::{Builder, Mode},
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc};
 

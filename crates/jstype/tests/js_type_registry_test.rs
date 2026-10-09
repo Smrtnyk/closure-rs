@@ -51,7 +51,7 @@ use closure_jstype::{
     static_typed_slot::StaticTypedSlot,
     testing::{map_based_scope::MapBasedScope, type_subject::TypeSubject},
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     error_reporter::NullErrorReporter,
     js_string::JsString,

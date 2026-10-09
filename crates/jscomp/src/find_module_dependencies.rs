@@ -40,7 +40,7 @@ use crate::{
     process_common_js_modules::ProcessCommonJSModules,
     scope::ScopeId,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{check_argument, node::NodeId, qualified_name::QualifiedName, token::Token};
 use std::sync::LazyLock;
 

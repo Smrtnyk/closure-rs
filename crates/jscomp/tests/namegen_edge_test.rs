@@ -19,7 +19,7 @@ use closure_jscomp::{
     name_generator::{NameGenerator, ReservedNames},
     variable_map::{FromStreamError, VariableMap},
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{java_lang::parse_exception::ParseException, js_string::JsString};
 use std::{
     io::{self, Read},

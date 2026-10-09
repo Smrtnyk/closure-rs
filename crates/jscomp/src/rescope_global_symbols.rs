@@ -32,7 +32,7 @@ use crate::{
         RescopeGlobalSymbolsRewriteCallback, SymbolInformation,
     },
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{ir::IR, js_string::JsString, node::NodeId};
 
 /// Finds all references to global symbols and rewrites them to be property accesses to a special

@@ -21,7 +21,7 @@ use crate::transpile::{
     base_transpiler::LATEST_TRANSPILER,
     transpiler::{NULL, Transpiler},
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     java_lang::{charset::Charset, uri::URI},
     js_string::JsString,

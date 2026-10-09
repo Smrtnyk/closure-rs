@@ -31,7 +31,7 @@ use closure_jscomp::{
     make_declared_names_unique::{InlineRenamer, MakeDeclaredNamesUnique},
     node_traversal::NodeTraversal,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 

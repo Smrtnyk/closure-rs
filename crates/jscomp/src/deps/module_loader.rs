@@ -24,7 +24,7 @@ use crate::{
     check_level::CheckLevel, diagnostic_type::DiagnosticType, error_handler::ErrorHandler,
     js_error::JSError,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state,
     java_lang::{string_compare_to, unix_path::UnixPath},

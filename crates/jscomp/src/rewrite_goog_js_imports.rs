@@ -57,7 +57,7 @@ use crate::modules::module_map::ModuleMap;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::scope::ScopeId;
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;

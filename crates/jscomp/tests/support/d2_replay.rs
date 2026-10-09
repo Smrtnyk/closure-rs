@@ -23,7 +23,7 @@ use closure_jscomp::{
     sorting_error_manager::SortingErrorManager, source_excerpt_provider::SourceExcerptProvider,
     source_file::SourceFile, sourcemap_mapping_placeholder::OriginalMapping,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{node::Ast, static_source_file::SourceKind, token::Token};
 use serde_json::Value;
 use std::{

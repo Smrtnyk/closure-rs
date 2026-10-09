@@ -18,7 +18,7 @@
 
 use closure_jscomp::graph::dominator_tree::DominatorTree;
 use closure_jscomp::graph::*;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 // port: DominatorTreeTest#testSimpleChain
 #[test]
 fn test_simple_chain() {

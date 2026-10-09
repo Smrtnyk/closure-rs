@@ -49,7 +49,7 @@ use closure_jscomp::{
     ast_validator::{AstValidator, TypeInfoValidation, ViolationHandler},
     compiler_pass::CompilerPass,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     js_string::JsString,
     node::{Ast, NodeId},

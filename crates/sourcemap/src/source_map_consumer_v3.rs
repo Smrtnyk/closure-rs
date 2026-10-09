@@ -30,7 +30,7 @@ use crate::{
     source_mapping::SourceMapping,
     source_mapping_reversable::SourceMappingReversable,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 const UNMAPPED: i32 = -1;
 type ReverseSourceMapping = IndexMap<Option<JsString>, IndexMap<i32, Vec<OriginalMapping>>>;

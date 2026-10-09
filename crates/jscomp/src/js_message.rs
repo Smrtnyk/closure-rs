@@ -41,7 +41,7 @@
 use std::fmt;
 use std::sync::LazyLock;
 
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::java_lang;
 use closure_rhino::java_lang::regex::Pattern;
 use closure_rhino::java_lang::utf_8;

@@ -16,7 +16,7 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   test/com/google/debugging/sourcemap/SourceMapConsumerGeneratorTest.java.
 
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_sourcemap::{
     file_position::FilePosition, source_map_consumer_v3::SourceMapConsumerV3,

@@ -21,7 +21,7 @@ use closure_jstype::{
     JSTypeRegistry, TypeId, simple_reference::SimpleReference, simple_slot::SimpleSlot,
     static_typed_scope::StaticTypedScope, static_typed_slot::StaticTypedSlot,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_not_null,
     js_string::JsString,

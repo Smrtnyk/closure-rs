@@ -18,7 +18,7 @@
 
 //! Port of `com.google.javascript.jscomp.parsing.Config` (an AutoValue class).
 
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use std::sync::Arc;
 

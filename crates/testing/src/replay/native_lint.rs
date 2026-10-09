@@ -69,7 +69,7 @@ use closure_jscomp::{
     },
     node_traversal::NodeTraversal,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc};
 

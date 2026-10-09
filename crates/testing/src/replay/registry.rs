@@ -40,7 +40,7 @@ use crate::{
     replay::replay_dsl::{Ctx, DslValue, Object, invoke_lambda},
     throwable::{Throwable, assert_that},
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::{cell::RefCell, path::Path, rc::Rc};
 pub type BorrowedEntry =
     fn(&mut Ctx, Vec<DslValue>, &mut crate::jscomp_api::Compiler) -> Result<DslValue, Throwable>;

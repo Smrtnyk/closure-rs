@@ -20,7 +20,7 @@
 
 use std::sync::OnceLock;
 
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 
 use crate::config::{Config, JsDocParsing, LanguageMode, RunMode, StrictMode};

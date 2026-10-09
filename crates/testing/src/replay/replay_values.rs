@@ -46,7 +46,7 @@ use crate::{
     throwable::Throwable,
     value::{DiagnosticGroupRef, Value},
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use std::{
     cell::RefCell,

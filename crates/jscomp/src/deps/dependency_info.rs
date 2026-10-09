@@ -19,7 +19,7 @@
 //   test/com/google/javascript/jscomp/deps/DependencyInfoTest.java.
 
 use closure_rhino::check_state;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::{fmt, sync::LazyLock};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

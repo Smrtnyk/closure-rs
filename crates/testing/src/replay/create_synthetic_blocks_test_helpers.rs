@@ -56,7 +56,7 @@ use closure_jscomp::{
     peephole_remove_dead_code::PeepholeRemoveDeadCode,
 };
 use closure_parsing::parser::feature_set::FeatureSet;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc};
 

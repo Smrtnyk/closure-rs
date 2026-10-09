@@ -30,7 +30,7 @@ use crate::source_map_input::SourceMapInput;
 use crate::source_map_resolver::SourceMapResolver;
 use closure_parsing::parser::feature_set::FeatureSet;
 use closure_rhino::check_argument;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_colors::color_registry::ColorRegistry;

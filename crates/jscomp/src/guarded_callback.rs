@@ -26,7 +26,7 @@ use crate::{
     abstract_compiler::AbstractCompiler, node_traversal::Callback, node_traversal::NodeTraversal,
     node_util::NodeUtil,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,

@@ -32,7 +32,7 @@ use closure_jscomp::{
     },
     graph::{di_graph::DiGraphNode, graph::Graph},
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{java_lang::JavaHashCode, js_string::JsString};
 use std::sync::{
     Arc,
@@ -906,7 +906,7 @@ mod escaped_locals_tests {
         live_variables_analysis::LiveVariablesAnalysis, node_util::NodeUtil, scope::ScopeId,
         syntactic_scope_creator::SyntacticScopeCreator, var::VarId,
     };
-    use closure_rhino::fx_hash::IndexSet;
+    use closure_rhino::fast_hash::IndexSet;
     use closure_rhino::{input_id::InputId, token::Token};
     use std::sync::Arc;
 

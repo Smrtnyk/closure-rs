@@ -49,7 +49,7 @@ use closure_jscomp::{
     compiler_pass::CompilerPass,
     gather_extern_properties::{GatherExternProperties, Mode},
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc};
 

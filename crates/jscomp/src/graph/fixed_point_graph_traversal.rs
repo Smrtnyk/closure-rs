@@ -21,7 +21,7 @@ use super::{
     graph::GraphEdge,
     graph_node::GraphNode,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use std::{collections::VecDeque, marker::PhantomData};
 
 /// Java's `LinkedHashSet` work set. Elements keep their first insertion position

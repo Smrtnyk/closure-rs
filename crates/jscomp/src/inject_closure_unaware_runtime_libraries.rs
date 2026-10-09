@@ -50,7 +50,7 @@ use crate::{
     abstract_compiler::AbstractCompiler, compiler_pass::CompilerPass,
     js::runtime_js_lib_manager::ExternedField, node_util::NodeUtil,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument,
     ir::IR,

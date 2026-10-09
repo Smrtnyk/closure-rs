@@ -38,7 +38,7 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   test/com/google/javascript/rhino/JSDocInfoTest.java.
 
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     js_string::JsString,
     js_type_expression::JSTypeExpression,

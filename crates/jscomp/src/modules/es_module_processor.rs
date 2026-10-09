@@ -42,7 +42,7 @@ use crate::{
     node_util::NodeUtil,
     transpilation_util,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_state, js_string::JsString, node::NodeId, token::Token};
 use std::{collections::BTreeSet, sync::Arc};
 

@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/testing/ColorSubject.java.
 
 use crate::colors::{Color, ColorId, ColorRegistry};
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use std::{fmt::Debug, hash::Hash, sync::LazyLock};
 

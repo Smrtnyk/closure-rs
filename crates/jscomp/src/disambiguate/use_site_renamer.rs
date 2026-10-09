@@ -20,7 +20,7 @@
 
 use super::color_graph_node::{ColorGraphNodeId, DisambiguateArena, PropertyClusteringId};
 use crate::{graph::union_find::UnionFind, node_util::AstContext};
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
 
 // port: UseSiteRenamer#INVALIDATED_NAME_VALUE

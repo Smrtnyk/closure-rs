@@ -34,7 +34,7 @@ use closure_parsing::{
     js_doc_token_stream::JsDocTokenStream,
     parser_runner::ParserRunner,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     ir::IR,
     js_string::JsString,

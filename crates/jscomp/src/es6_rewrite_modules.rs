@@ -54,7 +54,7 @@ use crate::{
 };
 use closure_jstype::{TypeId, js_type_native::JSTypeNative, static_typed_scope::StaticTypedScope};
 use closure_parsing::parser::feature_set::Feature;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     js_string::JsString,

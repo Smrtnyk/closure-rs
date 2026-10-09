@@ -41,7 +41,7 @@ use crate::{
     },
     parsing_util::ParsingUtil,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     error_reporter::ErrorReporter,

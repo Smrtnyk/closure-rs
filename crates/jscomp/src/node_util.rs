@@ -19,7 +19,7 @@
 #![allow(clippy::match_like_matches_macro)] // Retain Java switch bodies.
 use crate::{abstract_compiler::AbstractCompiler, scope::ScopeId};
 use closure_jstype::js_type::JSType as _;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     dtoa::d_to_a,

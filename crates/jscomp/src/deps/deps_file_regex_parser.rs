@@ -24,7 +24,7 @@ use super::{
     },
     simple_dependency_info::SimpleDependencyInfo,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     java_lang::regex::{Matcher, Pattern},
     js_string::JsString,

@@ -38,7 +38,7 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
 //   test/com/google/javascript/rhino/HamtPMapTest.java.
 
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{hamt_pmap::HamtPMap, java_lang::JavaHashCode, pmap::Reconciler};
 use std::{
     collections::BTreeSet,

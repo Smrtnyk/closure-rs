@@ -27,7 +27,7 @@ use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
 use crate::var::VarId;
 use closure_rhino::check_not_null;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
 use closure_rhino::token::Token;

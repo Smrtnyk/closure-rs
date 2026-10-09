@@ -40,7 +40,7 @@
 //   src/com/google/javascript/rhino/JSTypeExpression.java.
 
 //! Port of the JSDoc type AST wrapper.
-use crate::fx_hash::IndexSet;
+use crate::fast_hash::IndexSet;
 use crate::{
     js_string::JsString,
     node::{Ast, NodeId},

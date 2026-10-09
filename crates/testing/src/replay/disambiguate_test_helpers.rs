@@ -76,7 +76,7 @@ use closure_jscomp::{
     node_traversal::{AbstractPostOrderCallback, NodeTraversal},
     warnings_guard::{Priority, WarningsGuard},
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId, token::Token};
 use std::{any::Any, cell::RefCell, fmt, rc::Rc, sync::Arc};
 

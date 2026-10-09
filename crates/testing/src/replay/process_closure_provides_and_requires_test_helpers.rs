@@ -56,7 +56,7 @@ use closure_jscomp::{
     js_chunk::JSChunk,
     process_closure_provides_and_requires::{ProcessClosureProvidesAndRequires, ProvidedName},
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{node::NodeId, testing::node_subject::assert_node};
 use std::{cell::RefCell, rc::Rc};
 

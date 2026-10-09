@@ -30,7 +30,7 @@ use crate::{
     source_file::SourceFile,
 };
 use closure_parsing::{parser::feature_set::FeatureSet, parser_runner::ParserRunner};
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     input_id::InputId,
     ir::IR,

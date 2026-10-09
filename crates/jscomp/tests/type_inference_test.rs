@@ -56,7 +56,7 @@ use closure_jstype::{
     known_symbol_type::KnownSymbolType, object_type::ObjectType, property::PropertyKey,
     property::SymbolKey, testing::type_subject::TypeSubject,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     closure_primitive::ClosurePrimitive, ir::IR, js_string::JsString, node::NodeId, token::Token,
 };

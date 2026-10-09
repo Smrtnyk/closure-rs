@@ -29,7 +29,7 @@ use crate::{
     },
 };
 use closure_rhino::check_state;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use std::{collections::VecDeque, fmt, hash::Hash};
 
 pub const MAX_STEPS_PER_NODE: i32 = 20000;
@@ -387,7 +387,7 @@ pub fn compute_escaped(
     js_scope: crate::scope::ScopeId,
     escaped: &mut IndexSet<crate::var::VarId>,
     scope_creator: &mut dyn crate::scope_creator::ScopeCreator,
-    all_vars_in_fn: &closure_rhino::fx_hash::IndexMap<
+    all_vars_in_fn: &closure_rhino::fast_hash::IndexMap<
         closure_rhino::js_string::JsString,
         crate::var::VarId,
     >,

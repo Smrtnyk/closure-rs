@@ -25,7 +25,7 @@ use super::{
     module_resolver::{ModuleResolver, ModuleResolverBase},
 };
 use crate::check_level::CheckLevel;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::java_lang::string::split;
 use std::sync::Arc;
 pub struct NodeModuleResolver {

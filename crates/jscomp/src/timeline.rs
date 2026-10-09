@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/Timeline.java,
 //   test/com/google/javascript/jscomp/TimelineTest.java.
 
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use std::hash::{Hash, Hasher};
 

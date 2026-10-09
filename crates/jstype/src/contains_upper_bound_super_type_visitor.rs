@@ -47,7 +47,7 @@ use crate::template_type::TemplateType;
 use crate::templatized_type::TemplatizedType;
 use crate::union_type::UnionType;
 use crate::visitor::WithDefaultCase;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::node::Ast;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

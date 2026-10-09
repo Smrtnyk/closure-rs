@@ -15,7 +15,7 @@
  */
 
 use closure_jscomp::colors::{Color, ColorId, color_registry::REQUIRED_IDS, standard_colors as sc};
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 
 // oracle: corpus-cache/colors/vectors.txt (ColorVectors.java)

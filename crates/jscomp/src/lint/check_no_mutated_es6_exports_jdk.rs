@@ -27,7 +27,7 @@
 //! The `java.util.HashMap` behaviour of [`MutatedNames`]: its table size and key iteration order.
 
 use super::MutatedNames;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 
 impl MutatedNames {

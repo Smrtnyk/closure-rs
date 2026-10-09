@@ -51,7 +51,7 @@ use closure_parsing::{
     config::JsDocParsing,
     parser::feature_set::{Feature, FeatureSet},
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     ir::IR,
     java_lang::pattern::Pattern,

@@ -22,7 +22,7 @@ use closure_jscomp::{
     diagnostic_groups,
     lint::check_extra_requires::{CheckExtraRequires, EXTRA_REQUIRE_WARNING},
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 
 // port: CheckExtraRequiresWithRemoveListTest#getOptions
 // port: CheckExtraRequiresWithRemoveListTest#getProcessor

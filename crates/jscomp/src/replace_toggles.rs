@@ -27,7 +27,7 @@ use crate::node_traversal::{
     AbstractPostOrderCallback, AbstractPostOrderCallbackInterface, NodeTraversal,
 };
 use crate::node_util::NodeUtil;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
 use closure_rhino::qualified_name::QualifiedName;

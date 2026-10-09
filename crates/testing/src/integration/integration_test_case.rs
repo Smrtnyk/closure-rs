@@ -30,7 +30,7 @@ use crate::{
     },
     throwable::{Throwable, assert_that},
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 pub struct IntegrationTestCase {

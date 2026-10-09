@@ -25,7 +25,7 @@ use crate::{
     optimize_calls::{CallGraphCompilerPass, OptimizeCalls, ReferenceMap},
     scope::ScopeId,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     check_not_null, check_state,
     ir::IR,

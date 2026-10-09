@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/graph/DominatorTree.java.
 
 use super::{di_graph::DiGraph, graph_node::GraphNode};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::hash::Hash;
 pub struct DominatorTree<N> {
     idoms: IndexMap<N, N>,

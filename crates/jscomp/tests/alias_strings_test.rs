@@ -24,7 +24,7 @@ use closure_jscomp::{
     compiler_options::AliasStringsMode, compiler_pass::CompilerPass, js_chunk::JSChunk,
     replace_messages_constants,
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{js_string::JsString, node::NodeId};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, TestPart},

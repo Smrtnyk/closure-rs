@@ -31,7 +31,7 @@ use crate::{
         lowest_common_ancestor_finder::LowestCommonAncestorFinder,
     },
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{check_not_null, check_state};
 use std::{fmt, sync::Arc};
 

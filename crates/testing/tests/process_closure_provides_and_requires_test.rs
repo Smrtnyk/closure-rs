@@ -39,7 +39,7 @@
 //! source-position assertions of testSourcePositionPreservation
 //! (corpus/unit/rust_unit_tests/ProcessClosureProvidesAndRequiresTest.md).
 use closure_jscomp::process_closure_provides_and_requires::ProcessClosureProvidesAndRequires;
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     ir::IR, js_string::JsString, node::NodeId, testing::node_subject::assert_node,
 };

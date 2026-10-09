@@ -25,7 +25,7 @@ use closure_rhino::{node::NodeId, token::Token};
 use std::sync::Arc;
 static BAR_WARNING: DiagnosticType = DiagnosticType::warning("BAR", "Bar description");
 fn guard() -> SuppressDocWarningsGuard {
-    SuppressDocWarningsGuard::new(closure_rhino::fx_hash::IndexMap::<_, _>::from_iter([(
+    SuppressDocWarningsGuard::new(closure_rhino::fast_hash::IndexMap::<_, _>::from_iter([(
         "deprecated".into(),
         Arc::new(DiagnosticGroup::new(&[&BAR_WARNING])),
     )]))

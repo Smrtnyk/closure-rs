@@ -27,7 +27,7 @@ use crate::{
         resolve_export_result::ResolveExportResult, unresolved_module::UnresolvedModule,
     },
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
 use std::sync::Arc;
 

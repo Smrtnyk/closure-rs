@@ -22,7 +22,7 @@
 //!
 //! `exportClassWithoutTypeCheck` is `@Ignore`d in Java (b/141729691) and is not ported.
 use closure_jscomp::{compiler_options::CompilerOptions, extern_exports_pass::ExternExportsPass};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, CompilerTestCaseHooks, MINIMAL_EXTERNS, TestPart},

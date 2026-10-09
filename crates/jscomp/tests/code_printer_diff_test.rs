@@ -80,7 +80,7 @@ impl<'a> CodeGeneration<'a> for RenameGenerator<'a> {
 
 #[derive(Default)]
 struct ProbeLicenseTracker {
-    licenses: closure_rhino::fx_hash::IndexSet<JsString>,
+    licenses: closure_rhino::fast_hash::IndexSet<JsString>,
 }
 impl LicenseTracker for ProbeLicenseTracker {
     fn track_licenses_for_node(&mut self, ast: &Ast, node: NodeId) {
@@ -90,7 +90,7 @@ impl LicenseTracker for ProbeLicenseTracker {
             self.licenses.insert(license);
         }
     }
-    fn emit_licenses(&self) -> closure_rhino::fx_hash::IndexSet<JsString> {
+    fn emit_licenses(&self) -> closure_rhino::fast_hash::IndexSet<JsString> {
         self.licenses.clone()
     }
 }
@@ -179,8 +179,8 @@ fn options(config: &str) -> CompilerOptions {
 }
 fn check_file(
     path: &Path,
-    configurations: &mut closure_rhino::fx_hash::IndexMap<String, usize>,
-    source_maps: &mut closure_rhino::fx_hash::IndexMap<String, usize>,
+    configurations: &mut closure_rhino::fast_hash::IndexMap<String, usize>,
+    source_maps: &mut closure_rhino::fast_hash::IndexMap<String, usize>,
 ) -> (usize, usize) {
     let mut json = String::new();
     GzDecoder::new(std::fs::File::open(path).unwrap())
@@ -448,8 +448,8 @@ fn run_differential() {
     );
     let mut pairs = 0;
     let mut numbers = 0;
-    let mut configurations = closure_rhino::fx_hash::IndexMap::<_, _>::default();
-    let mut source_maps = closure_rhino::fx_hash::IndexMap::<_, _>::default();
+    let mut configurations = closure_rhino::fast_hash::IndexMap::<_, _>::default();
+    let mut source_maps = closure_rhino::fast_hash::IndexMap::<_, _>::default();
     for path in &paths {
         let (p, n) = check_file(path, &mut configurations, &mut source_maps);
         pairs += p;

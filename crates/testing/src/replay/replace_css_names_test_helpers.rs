@@ -52,7 +52,7 @@ use closure_jscomp::{
     renaming_map::RenamingMap,
     replace_css_names::ReplaceCssNames,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 

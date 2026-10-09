@@ -60,7 +60,7 @@ use closure_jstype::{
     js_type_native::JSTypeNative, object_type, object_type::ObjectType,
     template_type_replacer::TemplateTypeReplacer,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     ir::IR,

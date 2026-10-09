@@ -17,7 +17,7 @@
 //   src/com/google/debugging/sourcemap/SourceMapObject.java.
 
 use crate::{source_map_generator_v3::ExtensionValue, source_map_section::SourceMapSection};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 #[derive(Clone, Debug, Default)]
 pub struct SourceMapObject {

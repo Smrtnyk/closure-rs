@@ -20,7 +20,7 @@
 
 use std::sync::LazyLock;
 
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::java_lang::properties;
 
 /// The resource bundle `com.google.javascript.jscomp.parsing.ParserConfig` (the jar's copy is

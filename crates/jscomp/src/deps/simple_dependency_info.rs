@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/deps/SimpleDependencyInfo.java.
 
 use super::dependency_info::{DependencyInfo, Require};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::{
     fmt,
     hash::{Hash, Hasher},

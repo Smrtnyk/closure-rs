@@ -33,7 +33,7 @@ use closure_jstype::{
     function_type::{self, Parameter},
     prelude::{FunctionType, JSType, ObjectType, UnionType},
 };
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     jscomp_base::{
         linked_identity_hash_map::LinkedIdentityHashMap,

@@ -20,7 +20,7 @@ use closure_jscomp::{
     colors::{Color, ColorId, color::Builder, standard_colors as sc},
     testing::assert_that,
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use std::panic::catch_unwind;
 
 // port: ColorTest#numberOrString

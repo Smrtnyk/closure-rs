@@ -38,7 +38,7 @@ mod cluster_propagator_test {
         },
         graph::union_find::UnionFind,
     };
-    use closure_rhino::fx_hash::IndexSet;
+    use closure_rhino::fast_hash::IndexSet;
     use closure_rhino::js_string::JsString;
 
     fn test_color() -> Color {
@@ -217,7 +217,7 @@ mod color_graph_node_factory_test {
             color_graph_node_factory::ColorGraphNodeFactory,
         },
     };
-    use closure_rhino::fx_hash::IndexSet;
+    use closure_rhino::fast_hash::IndexSet;
     use std::sync::Arc;
 
     // port: ColorGraphNodeFactoryTest#initRegistry
@@ -445,7 +445,7 @@ mod use_site_renamer_test {
         },
         graph::union_find::UnionFind,
     };
-    use closure_rhino::fx_hash::IndexSet;
+    use closure_rhino::fast_hash::IndexSet;
     use closure_rhino::{
         ir::IR,
         js_string::JsString,
@@ -756,7 +756,7 @@ mod color_graph_builder_test {
             lowest_common_ancestor_finder::LowestCommonAncestorFinder,
         },
     };
-    use closure_rhino::fx_hash::IndexMap;
+    use closure_rhino::fast_hash::IndexMap;
     use std::sync::Arc;
 
     struct ColorGraphBuilderTest {

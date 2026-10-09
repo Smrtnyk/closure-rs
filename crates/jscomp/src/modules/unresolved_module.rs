@@ -27,7 +27,7 @@ use crate::{
         non_es_module_processor::NonEsModule, resolve_export_result::ResolveExportResult,
     },
 };
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::js_string::JsString;
 use std::sync::Arc;
 

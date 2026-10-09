@@ -71,7 +71,7 @@ use crate::{
     unknown_type::UnknownType,
     void_type::VoidType,
 };
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_state,
     error_reporter::ErrorReporter,

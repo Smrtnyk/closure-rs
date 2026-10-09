@@ -17,7 +17,7 @@
 //   src/com/google/javascript/jscomp/colors/ColorRegistry.java.
 
 use super::{Color, ColorId, standard_colors};
-use crate::fx_hash::{IndexMap, IndexSet};
+use crate::fast_hash::{IndexMap, IndexSet};
 use crate::{check_not_null, check_state};
 use std::sync::LazyLock;
 

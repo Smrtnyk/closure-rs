@@ -36,7 +36,7 @@ struct Harness {
     err_reader: Capture,
     exit_codes: Arc<Mutex<Vec<i32>>>,
     last_command_line_runner: Option<CommandLineRunner>,
-    filenames: closure_rhino::fx_hash::IndexMap<usize, String>,
+    filenames: closure_rhino::fast_hash::IndexMap<usize, String>,
     externs: Vec<closure_jscomp::source_file::SourceFile>,
 }
 impl Harness {
@@ -50,7 +50,7 @@ impl Harness {
             err_reader: Capture::default(),
             exit_codes: Arc::new(Mutex::new(vec![])),
             last_command_line_runner: None,
-            filenames: closure_rhino::fx_hash::IndexMap::<_, _>::default(),
+            filenames: closure_rhino::fast_hash::IndexMap::<_, _>::default(),
             externs: default_externs(),
         }
     }

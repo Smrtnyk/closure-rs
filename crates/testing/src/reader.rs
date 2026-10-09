@@ -21,7 +21,7 @@
 //! than silently dropped. Errors carry the JSON path (`$.harness.fields.compareAsTree`).
 
 use crate::json::{JsString, JsonNumber, JsonValue};
-use closure_rhino::fx_hash::IndexMap;
+use closure_rhino::fast_hash::IndexMap;
 use std::fmt;
 
 /// A model error: the JSON path and what is wrong there.

@@ -34,7 +34,7 @@ use closure_jscomp::js_message_visitor::{
 use closure_jscomp::node_traversal::{Callback, NodeTraversal};
 use closure_jscomp::source_file::SourceFile;
 use closure_jscomp::source_map_input::SourceMapInput;
-use closure_rhino::fx_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;

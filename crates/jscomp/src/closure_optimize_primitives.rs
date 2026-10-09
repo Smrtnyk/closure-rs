@@ -28,7 +28,7 @@ use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
 use closure_parsing::parser::feature_set::Feature;
 use closure_rhino::dtoa::d_to_a;
-use closure_rhino::fx_hash::IndexSet;
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{NodeId, Prop};
