@@ -69,7 +69,10 @@ fn replay(class: &str) -> Vec<RecordResult> {
         classes: Some(vec![class.to_string()]),
         sample: None,
     }
-    .run(
+    // The records on 4 threads (IntegrationTest alone takes tens of seconds on one); the sink
+    // still sees them in order.
+    .run_on(
+        4,
         |r| {
             records.push(r.clone());
             Ok(())

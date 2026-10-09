@@ -11,7 +11,7 @@ through `jscomp_api.rs`. Stand-ins carry no port markers and preserve the first 
 
 | File | Spec | Rust entry point |
 |---|---|---|
-| `records/<TestClass>.jsonl.gz`, one record per line | FORMAT.md | `corpus::record_files`, `corpus::load_records` -> `Vec<LoadedRecord>` (`record::Record`, the raw JSON, the 0-based line `index`) |
+| `records/<TestClass>.jsonl.gz`, one record per line | FORMAT.md | `corpus::record_files`, `corpus::records` (streamed, one line in memory at a time) or `corpus::load_records` -> `LoadedRecord`s (`record::Record`, the raw JSON, the 0-based line `index`) |
 | `descriptors/<TestClass>.json` | DSL.md "Descriptor file", "Case keys", "Expressions" | `corpus::load_descriptor_for(stem)` -> `descriptor::Descriptor` (cases, `dsl::Expr` trees) |
 | `options_defaults.json` | FORMAT.md "Options defaults and warnings-guard order" | `corpus::load_options_defaults` -> `derived::OptionsDefaults` |
 | `derived/expected_pipeline.jsonl.gz` | FORMAT.md "comparison", HARNESS.md step 8e | `corpus::load_expected_pipeline` -> `Vec<derived::ExpectedPipeline>` |
@@ -49,7 +49,7 @@ The corpus directory is `../../corpus/unit` relative to this crate, or `$CLOSURE
 
 Per record file (one Java test class):
 
-1. `load_records(path)` and `load_descriptor_for(stem)`. Every non-empty record file has exactly one
+1. `records(path)` (a record at a time) and `load_descriptor_for(stem)`. Every non-empty record file has exactly one
    descriptor; `tests/descriptors_load.rs` checks this.
 2. **Case selection** (DSL.md "Case selection"): `descriptor::select_case(Some(&d), &lr.raw)` for
    `compiler_test_case` records, where no match is a harness error, and `select_case_or_null` for

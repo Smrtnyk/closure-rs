@@ -22,7 +22,7 @@ use crate::json::{JsonValue, parse_json};
 use crate::record::Record;
 use flate2::read::GzDecoder;
 use std::fmt;
-use std::io::Read;
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 
 /// A load error: file, 1-based line (for JSONL files) and what failed.
@@ -69,6 +69,34 @@ fn sorted_files(dir: &Path, suffix: &str) -> Result<Vec<PathBuf>, LoadError> {
 /// `corpus/unit/records/*.jsonl.gz`, sorted by name.
 pub fn record_files() -> Result<Vec<PathBuf>, LoadError> {
     sorted_files(&corpus_unit_dir().join("records"), ".jsonl.gz")
+}
+
+/// `f(file)` for every file on `threads` threads, each taking the next file when it is done with
+/// one; the results are in the order of `files`.
+pub fn map_files_parallel<T: Send>(
+    files: &[PathBuf],
+    threads: usize,
+    f: impl Fn(&Path) -> T + Sync,
+) -> Vec<T> {
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let mut results: Vec<(usize, T)> = std::thread::scope(|s| {
+        let hs: Vec<_> = (0..threads)
+            .map(|_| {
+                s.spawn(|| {
+                    let mut out = Vec::new();
+                    loop {
+                        let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some(file) = files.get(i) else { break };
+                        out.push((i, f(file)));
+                    }
+                    out
+                })
+            })
+            .collect();
+        hs.into_iter().flat_map(|h| h.join().unwrap()).collect()
+    });
+    results.sort_by_key(|(i, _)| *i);
+    results.into_iter().map(|(_, r)| r).collect()
 }
 
 /// The file stem of a record or descriptor file (`AliasStringsTest`).
@@ -120,25 +148,133 @@ pub struct LoadedRecord {
     pub index: usize,
 }
 
+/// The non-empty lines of a gzip JSONL file, read one at a time so that only the current line
+/// is in memory.
+pub struct JsonlLines {
+    path: PathBuf,
+    reader: BufReader<GzDecoder<std::fs::File>>,
+    /// 1-based number of the last line read.
+    line: usize,
+    /// 0-based index of the next non-empty line.
+    index: usize,
+    done: bool,
+}
+
+/// One non-empty line of a JSONL file.
+pub struct JsonlLine {
+    /// 1-based line number in the file.
+    pub line: usize,
+    /// 0-based index among the non-empty lines (the record index).
+    pub index: usize,
+    pub text: String,
+}
+
+impl JsonlLine {
+    /// Parses the line into a JSON value.
+    pub fn parse(&self, path: &Path) -> Result<JsonValue, LoadError> {
+        parse_json(&self.text).map_err(|e| LoadError {
+            file: path.to_path_buf(),
+            line: Some(self.line),
+            message: e.to_string(),
+        })
+    }
+}
+
+impl Iterator for JsonlLines {
+    type Item = Result<JsonlLine, LoadError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while !self.done {
+            let mut text = String::new();
+            match self.reader.read_line(&mut text) {
+                Ok(0) => self.done = true,
+                Ok(_) => {
+                    self.line += 1;
+                    // As `str::lines`: strip "\n" or "\r\n".
+                    if text.ends_with('\n') {
+                        text.pop();
+                        if text.ends_with('\r') {
+                            text.pop();
+                        }
+                    }
+                    if text.is_empty() {
+                        continue;
+                    }
+                    let index = self.index;
+                    self.index += 1;
+                    return Some(Ok(JsonlLine {
+                        line: self.line,
+                        index,
+                        text,
+                    }));
+                }
+                Err(e) => {
+                    self.done = true;
+                    return Some(Err(LoadError {
+                        file: self.path.clone(),
+                        line: None,
+                        message: format!("gzip/UTF-8: {e}"),
+                    }));
+                }
+            }
+        }
+        None
+    }
+}
+
+/// Streams the non-empty lines of a gzip JSONL file.
+pub fn jsonl_lines(path: &Path) -> Result<JsonlLines, LoadError> {
+    let f = std::fs::File::open(path).map_err(|e| LoadError {
+        file: path.to_path_buf(),
+        line: None,
+        message: e.to_string(),
+    })?;
+    Ok(JsonlLines {
+        path: path.to_path_buf(),
+        reader: BufReader::new(GzDecoder::new(f)),
+        line: 0,
+        index: 0,
+        done: false,
+    })
+}
+
+/// Streams the JSON values of the non-empty lines of a gzip JSONL file.
+pub fn jsonl_values(
+    path: &Path,
+) -> Result<impl Iterator<Item = Result<JsonValue, LoadError>> + use<>, LoadError> {
+    let lines = jsonl_lines(path)?;
+    let path = path.to_path_buf();
+    Ok(lines.map(move |l| l?.parse(&path)))
+}
+
+/// Reads one record line into a [`LoadedRecord`].
+pub fn load_record(path: &Path, line: &JsonlLine) -> Result<LoadedRecord, LoadError> {
+    let raw = line.parse(path)?;
+    let record = Record::from_json(&raw).map_err(|e| LoadError {
+        file: path.to_path_buf(),
+        line: Some(line.line),
+        message: e.to_string(),
+    })?;
+    Ok(LoadedRecord {
+        record,
+        raw,
+        index: line.index,
+    })
+}
+
+/// Streams the records of one `.jsonl.gz` file, one line at a time (a large class such as
+/// TypedScopeCreatorTest is over 150 MB of JSON; materialised, it takes several times that).
+pub fn records(
+    path: &Path,
+) -> Result<impl Iterator<Item = Result<LoadedRecord, LoadError>> + use<>, LoadError> {
+    let lines = jsonl_lines(path)?;
+    let path = path.to_path_buf();
+    Ok(lines.map(move |l| load_record(&path, &l?)))
+}
+
 /// Loads every record of one `.jsonl.gz` file.
 pub fn load_records(path: &Path) -> Result<Vec<LoadedRecord>, LoadError> {
-    let text = read_gz(path)?;
-    let raws = parse_jsonl(path, &text)?;
-    raws.into_iter()
-        .enumerate()
-        .map(|(i, raw)| {
-            let record = Record::from_json(&raw).map_err(|e| LoadError {
-                file: path.to_path_buf(),
-                line: Some(i + 1),
-                message: e.to_string(),
-            })?;
-            Ok(LoadedRecord {
-                record,
-                raw,
-                index: i,
-            })
-        })
-        .collect()
+    records(path)?.collect()
 }
 
 fn model_err(path: &Path, line: Option<usize>, e: impl fmt::Display) -> LoadError {
@@ -212,13 +348,12 @@ pub fn expected_pipeline_path() -> PathBuf {
 /// Loads every line of `derived/expected_pipeline.jsonl.gz` (with its raw JSON).
 pub fn load_expected_pipeline() -> Result<Vec<(ExpectedPipeline, JsonValue)>, LoadError> {
     let p = expected_pipeline_path();
-    let text = read_gz(&p)?;
-    let raws = parse_jsonl(&p, &text)?;
-    raws.into_iter()
-        .enumerate()
-        .map(|(i, raw)| {
+    jsonl_lines(&p)?
+        .map(|l| {
+            let l = l?;
+            let raw = l.parse(&p)?;
             let e = ExpectedPipeline::from_json(&raw, "$")
-                .map_err(|e| model_err(&p, Some(i + 1), e))?;
+                .map_err(|e| model_err(&p, Some(l.line), e))?;
             Ok((e, raw))
         })
         .collect()
