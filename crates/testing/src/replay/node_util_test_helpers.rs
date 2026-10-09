@@ -1,5 +1,6 @@
 /*
  * Copyright 2004 The Closure Compiler Authors.
+ * Copyright 2006 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +30,7 @@
  * limitations under the License.
  */
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+//   src/com/google/javascript/jscomp/CompilerPass.java,
 //   test/com/google/javascript/jscomp/NodeUtilTest.java.
 // Ported from closure-rs' own Java oracle tooling:
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
