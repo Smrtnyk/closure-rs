@@ -25,6 +25,7 @@
 //! Scopes are handles into the compiler-owned `TypedScopeArena` (DESIGN "Scopes and
 //! NodeTraversal"): handle equality is Java object identity, and the common AbstractScope bodies run
 //! through the `AbstractScope` trait exactly as for syntactic scopes.
+use crate::scope::NameArg;
 use crate::{
     abstract_compiler::AbstractCompiler,
     abstract_scope::{AbstractScope, AbstractScopeData, ImplicitVar, abstract_scope_get_var},
@@ -511,13 +512,14 @@ impl TypedScope {
     }
 
     // port: TypedScope#getVar
-    pub fn get_var(
-        self,
-        compiler: &mut AbstractCompiler,
-        name: impl Into<JsString>,
-    ) -> Option<TypedVar> {
-        let name = name.into();
-        let own_slot = self.get_own_slot(compiler, name.clone());
+    pub fn get_var(self, compiler: &mut AbstractCompiler, name: impl NameArg) -> Option<TypedVar> {
+        // Rust-only: the name is read by reference (D-025).
+        name.with_name(|name| self.get_var_by_ref(compiler, name))
+    }
+
+    // port: TypedScope#getVar
+    fn get_var_by_ref(self, compiler: &mut AbstractCompiler, name: &JsString) -> Option<TypedVar> {
+        let own_slot = self.get_own_slot(compiler, name);
         if own_slot.is_some() {
             // Micro-optimization: variables declared directly in this scope cannot have been
             // shadowed.
@@ -527,15 +529,14 @@ impl TypedScope {
         }
         // Find the root name and its slot.
         let dot = name.index_of_char(u16::from(b'.'));
-        let root_name = if dot < 0 {
-            name.clone()
-        } else {
-            name.substring(0, dot as usize)
-        };
+        if dot < 0 {
+            // Use the superclass method to skip string checks.
+            return self.abstract_get_var(compiler, name);
+        }
+        let root_name = name.substring(0, dot as usize);
         // Use the superclass method to skip string checks.
-        let root_var = abstract_scope_get_var(self, compiler, &root_name);
+        let root_var = self.abstract_get_var(compiler, &root_name);
         match root_var {
-            _ if dot < 0 => root_var,
             None => {
                 // Default to the global scope because externs may have qualified names with
                 // undeclared roots.
@@ -550,6 +551,28 @@ impl TypedScope {
                 root_var.get_scope(compiler).get_own_slot(compiler, name)
             }
         }
+    }
+
+    // port: AbstractScope#getVar
+    /// Rust-only fast path (D-025): for a name no implicit slot can match, getOwnSlot only reads
+    /// each scope's declared vars, so the chain is walked under one read lock.
+    fn abstract_get_var(
+        self,
+        compiler: &mut AbstractCompiler,
+        name: &JsString,
+    ) -> Option<TypedVar> {
+        if ImplicitVar::of(name).is_some() {
+            return abstract_scope_get_var(self, compiler, name);
+        }
+        let arena = TypedScopeArena::read(compiler);
+        let mut scope = Some(self);
+        while let Some(current) = scope {
+            if let Some(var) = arena.scopes[current.index()].abstract_scope.vars.get(name) {
+                return Some(*var);
+            }
+            scope = compiler.typed_scope_mirror[current.index()].parent;
+        }
+        None
     }
 
     // port: TypedScope#getTypeThroughNamespace
@@ -584,7 +607,7 @@ impl TypedScope {
         name: impl Into<JsString>,
     ) -> Option<TypedScope> {
         let name = name.into();
-        if self.get_own_slot(compiler, name.clone()).is_some()
+        if self.get_own_slot(compiler, &name).is_some()
             || self.data(compiler).reserved_names.contains(&name)
         {
             Some(self)
@@ -652,7 +675,7 @@ impl AbstractScope for TypedScope {
         TypedScope::has_own_implicit_slot(self, compiler, name)
     }
     fn get_var(self, compiler: &mut AbstractCompiler, name: &JsString) -> Option<TypedVar> {
-        TypedScope::get_var(self, compiler, name.clone())
+        TypedScope::get_var(self, compiler, name)
     }
     fn get_topmost_scope_of_eventual_declaration(
         self,
@@ -674,15 +697,15 @@ macro_rules! scope_reader {
 }
 macro_rules! scope_name_reader {
     ($name:ident, $result:ty) => {
-        pub fn $name(self, compiler: &AbstractCompiler, name: impl Into<JsString>) -> $result {
-            <Self as AbstractScope>::$name(self, compiler, &name.into())
+        pub fn $name(self, compiler: &AbstractCompiler, name: impl NameArg) -> $result {
+            name.with_name(|name| <Self as AbstractScope>::$name(self, compiler, name))
         }
     };
 }
 macro_rules! scope_name_mutator {
     ($name:ident, $result:ty) => {
-        pub fn $name(self, compiler: &mut AbstractCompiler, name: impl Into<JsString>) -> $result {
-            <Self as AbstractScope>::$name(self, compiler, &name.into())
+        pub fn $name(self, compiler: &mut AbstractCompiler, name: impl NameArg) -> $result {
+            name.with_name(|name| <Self as AbstractScope>::$name(self, compiler, name))
         }
     };
 }

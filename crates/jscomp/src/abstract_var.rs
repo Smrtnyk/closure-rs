@@ -94,6 +94,11 @@ pub trait AbstractVar: Copy + Eq + ScopedName {
         self.var_data(compiler).name.clone()
     }
 
+    /// Rust-only: `getName().equals(name)` without copying the name (D-025).
+    fn name_equals(self, compiler: &AbstractCompiler, name: &str) -> bool {
+        self.var_data(compiler).name == name
+    }
+
     // port: AbstractVar#getScopeRoot
     fn get_scope_root(self, compiler: &AbstractCompiler) -> NodeId {
         check_not_null!(self.get_scope(compiler)).get_root_node(compiler)
@@ -241,20 +246,20 @@ pub trait AbstractVar: Copy + Eq + ScopedName {
 
     // port: AbstractVar#isArguments
     fn is_arguments(self, compiler: &AbstractCompiler) -> bool {
-        self.get_name(compiler) == "arguments"
+        self.name_equals(compiler, "arguments")
             && check_not_null!(self.get_scope(compiler)).is_function_scope(compiler)
     }
 
     // port: AbstractVar#isGoogModuleExports
     fn is_goog_module_exports(self, compiler: &AbstractCompiler) -> bool {
         check_not_null!(self.get_scope(compiler)).is_module_scope(compiler)
-            && self.get_name(compiler) == "exports"
+            && self.name_equals(compiler, "exports")
             && self.is_implicit(compiler)
     }
 
     // port: AbstractVar#isThis
     fn is_this(self, compiler: &AbstractCompiler) -> bool {
-        self.get_name(compiler) == "this"
+        self.name_equals(compiler, "this")
             && check_not_null!(self.get_scope(compiler)).is_function_scope(compiler)
     }
 

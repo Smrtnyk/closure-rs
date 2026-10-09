@@ -5172,7 +5172,7 @@ impl NodeUtil {
         name: impl Into<JsString>,
         scope: ScopeId,
     ) -> Option<GoogRequire> {
-        let var = scope.get_var(compiler, name)?;
+        let var = scope.get_var(compiler, name.into())?;
         Self::get_goog_require_info_var(compiler, var)
     }
     // port: NodeUtil#getGoogRequireInfo(Var)

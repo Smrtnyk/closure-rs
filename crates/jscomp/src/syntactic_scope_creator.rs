@@ -158,8 +158,9 @@ impl<'a> ScopeScanner<'a> {
                 let args = check_not_null!(fn_name_node.get_next(compiler));
                 check_state!(args.is_param_list(compiler));
                 self.declare_lhs(compiler, self.scope, args);
-                let fn_name = fn_name_node.get_string(compiler);
-                if !fn_name.is_empty() && NodeUtil::is_function_expression(compiler, n) {
+                if !fn_name_node.get_string_ref(compiler).is_empty()
+                    && NodeUtil::is_function_expression(compiler, n)
+                {
                     self.declare_var(compiler, self.scope, fn_name_node);
                 }
             }

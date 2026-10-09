@@ -67,9 +67,11 @@ impl PartialEq for Definition {
     }
 }
 impl Eq for Definition {}
+/// Rust-only (D-025): the map is shared copy-on-write (`Arc::make_mut` before a change), so the
+/// lattice elements DataFlowAnalysis copies (Java shares references to them) cost no map copy.
 #[derive(Clone, Default)]
 pub struct MustDef {
-    pub reaching_def: IndexMap<VarId, Option<Arc<Definition>>>,
+    pub reaching_def: Arc<IndexMap<VarId, Option<Arc<Definition>>>>,
 }
 impl MustDef {
     // port: MustBeReachingVariableDef.MustDef#MustDef()
@@ -82,8 +84,9 @@ impl MustDef {
         vars: impl IntoIterator<Item = VarId>,
     ) -> Self {
         let mut result = Self::new();
+        let reaching_def = Arc::make_mut(&mut result.reaching_def);
         for var in vars {
-            result.reaching_def.insert(
+            reaching_def.insert(
                 var,
                 Some(Arc::new(Definition::new(
                     var.get_scope(compiler).get_root_node(compiler),
@@ -108,11 +111,12 @@ impl MustDef {
 impl PartialEq for MustDef {
     // port: MustBeReachingVariableDef.MustDef#equals
     fn eq(&self, other: &Self) -> bool {
-        self.reaching_def.len() == other.reaching_def.len()
-            && self
-                .reaching_def
-                .iter()
-                .all(|(k, v)| other.reaching_def.get(k) == Some(v))
+        Arc::ptr_eq(&self.reaching_def, &other.reaching_def)
+            || self.reaching_def.len() == other.reaching_def.len()
+                && self
+                    .reaching_def
+                    .iter()
+                    .all(|(k, v)| other.reaching_def.get(k) == Some(v))
     }
 }
 impl LatticeEquals for MustDef {
@@ -136,14 +140,20 @@ impl MustDefJoin {
         } else {
             None
         };
-        self.result.reaching_def.insert(var, result_def);
+        Arc::make_mut(&mut self.result.reaching_def).insert(var, result_def);
     }
 }
 impl FlowJoiner<MustDef> for MustDefJoin {
     // port: MustBeReachingVariableDef.MustDefJoin#joinFlow
     fn join_flow(&mut self, _compiler: &mut AbstractCompiler, input: MustDef) {
-        for (var, def) in input.reaching_def {
-            self.merge_var_def(var, def);
+        // Rust-only shortcut: merging into an empty result inserts every entry of the input in
+        // order, which gives the input itself.
+        if self.result.reaching_def.is_empty() {
+            self.result = input;
+            return;
+        }
+        for (var, def) in input.reaching_def.iter() {
+            self.merge_var_def(*var, def.clone());
         }
     }
     // port: MustBeReachingVariableDef.MustDefJoin#finish
@@ -418,9 +428,14 @@ impl MustBeReachingVariableDef {
         let Some(&var) = self.all_vars_in_fn.get(name) else {
             return;
         };
-        for other in def.reaching_def.values_mut() {
-            if other.as_ref().is_some_and(|d| d.depends.contains(&var)) {
-                *other = None;
+        let depends_on_var = |other: &Option<Arc<Definition>>| {
+            other.as_ref().is_some_and(|d| d.depends.contains(&var))
+        };
+        if def.reaching_def.values().any(depends_on_var) {
+            for other in Arc::make_mut(&mut def.reaching_def).values_mut() {
+                if depends_on_var(other) {
+                    *other = None;
+                }
             }
         }
         // Java Set<Var>.contains uses inherited ScopedName equality across recreated scopes.
@@ -434,9 +449,9 @@ impl MustBeReachingVariableDef {
                 if let Some(r_value) = r_value {
                     self.compute_dependence(compiler, &mut definition, r_value);
                 }
-                def.reaching_def.insert(var, Some(Arc::new(definition)));
+                Arc::make_mut(&mut def.reaching_def).insert(var, Some(Arc::new(definition)));
             } else {
-                def.reaching_def.insert(var, None);
+                Arc::make_mut(&mut def.reaching_def).insert(var, None);
             }
         }
     }
@@ -444,16 +459,21 @@ impl MustBeReachingVariableDef {
     fn escape_parameters(&self, compiler: &AbstractCompiler, output: &mut MustDef) {
         for &v in self.all_vars_in_fn.values() {
             if Self::is_parameter(compiler, v) {
-                output.reaching_def.insert(v, None);
+                Arc::make_mut(&mut output.reaching_def).insert(v, None);
             }
         }
-        for value in output.reaching_def.values_mut() {
-            if value.as_ref().is_some_and(|d| {
+        let depends_on_parameter = |value: &Option<Arc<Definition>>| {
+            value.as_ref().is_some_and(|d| {
                 d.depends
                     .iter()
                     .any(|&dep| Self::is_parameter(compiler, dep))
-            }) {
-                *value = None;
+            })
+        };
+        if output.reaching_def.values().any(depends_on_parameter) {
+            for value in Arc::make_mut(&mut output.reaching_def).values_mut() {
+                if depends_on_parameter(value) {
+                    *value = None;
+                }
             }
         }
     }
@@ -559,7 +579,8 @@ impl DataFlowAnalysis<NodeId, MustDef> for MustBeReachingVariableDef {
         n: NodeId,
         input: MustDef,
     ) -> MustDef {
-        let mut output = MustDef::copy(&input);
+        // Java copies the shared input; here the input is owned (D-025).
+        let mut output = input;
         self.compute_must_def(compiler, n, n, &mut output, false);
         output
     }

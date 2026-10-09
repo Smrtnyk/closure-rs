@@ -356,14 +356,43 @@ pub struct NodeLinks {
 /// Rust-only: indexes `Ast` for a node's `NodeLinks` (`ast[L(n)].next`).
 #[derive(Clone, Copy)]
 struct L(NodeId);
+/// The fields of a node that most passes read: its payload (string, number) and property list.
+/// Rust-only (D-025): Java's other node fields live in `NodeCold` and `NodeType`, in arrays of
+/// their own (`Ast::cold`, `Ast::types`), so that the hot array stays dense.
 #[derive(Debug)]
 pub struct NodeData {
-    lineno_charno: i32,
-    length: i32,
-    jstype_or_color: Option<JSTypeOrColor>,
-    original_name: Option<JsString>,
     prop_list_head: Option<Arc<PropListItem>>,
     kind: NodeKind,
+}
+/// Rust-only: the source position and original name of a node (see `NodeData`).
+#[derive(Debug)]
+struct NodeCold {
+    lineno_charno: i32,
+    length: i32,
+    original_name: Option<JsString>,
+}
+/// Rust-only: the type or color of a node (see `NodeData`).
+#[derive(Debug)]
+struct NodeType {
+    jstype_or_color: Option<JSTypeOrColor>,
+}
+/// Rust-only: indexes `Ast` for a node's `NodeCold` (`ast[C(n)].length`).
+#[derive(Clone, Copy)]
+struct C(NodeId);
+/// Rust-only: indexes `Ast` for a node's `NodeType` (`ast[T(n)].jstype_or_color`).
+#[derive(Clone, Copy)]
+struct T(NodeId);
+// `Ast::prop_masks` has one bit per property type.
+const _: () = assert!(Prop::VALUES.len() <= 64);
+/// Rust-only: the `Ast::prop_masks` entry of a property list.
+fn prop_list_mask(head: Option<&Arc<PropListItem>>) -> u64 {
+    let mut mask = 0u64;
+    let mut x = head.map(|h| &**h);
+    while let Some(item) = x {
+        mask |= 1u64 << item.prop_type;
+        x = item.next.as_deref();
+    }
+    mask
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(NonZeroU32);
@@ -465,6 +494,12 @@ impl PropRemapper<'_> {
 #[derive(Default, Debug)]
 pub struct Ast {
     nodes: Vec<NodeData>,
+    cold: Vec<NodeCold>,
+    types: Vec<NodeType>,
+    /// Rust-only (D-025): per node, bit `p` is set when its property list holds an item of type
+    /// `p`, so that looking up an absent property (the common case) reads this dense array only,
+    /// neither the node nor its list. Kept in step with `prop_list_head` by `Ast::set_props`.
+    prop_masks: Vec<u64>,
     links: Vec<NodeLinks>,
     pub(crate) implicit_template_bound: Option<Arc<JSTypeExpression>>,
     /// port: JSDocSerializer#placeholderType (a Java static holding nodes, so one per arena; the
@@ -488,6 +523,32 @@ impl IndexMut<NodeId> for Ast {
         &mut self.nodes[n.0.get() as usize - 1]
     }
 }
+impl Index<C> for Ast {
+    type Output = NodeCold;
+    #[inline]
+    fn index(&self, n: C) -> &NodeCold {
+        &self.cold[n.0.0.get() as usize - 1]
+    }
+}
+impl IndexMut<C> for Ast {
+    #[inline]
+    fn index_mut(&mut self, n: C) -> &mut NodeCold {
+        &mut self.cold[n.0.0.get() as usize - 1]
+    }
+}
+impl Index<T> for Ast {
+    type Output = NodeType;
+    #[inline]
+    fn index(&self, n: T) -> &NodeType {
+        &self.types[n.0.0.get() as usize - 1]
+    }
+}
+impl IndexMut<T> for Ast {
+    #[inline]
+    fn index_mut(&mut self, n: T) -> &mut NodeType {
+        &mut self.types[n.0.0.get() as usize - 1]
+    }
+}
 impl Index<L> for Ast {
     type Output = NodeLinks;
     #[inline]
@@ -504,6 +565,16 @@ impl IndexMut<L> for Ast {
 impl Ast {
     pub fn new() -> Self {
         Self::default()
+    }
+    /// Rust-only: replaces the property list of `n` and recomputes its `prop_masks` entry.
+    fn set_props(&mut self, n: NodeId, head: Option<Arc<PropListItem>>) {
+        self.prop_masks[n.0.get() as usize - 1] = prop_list_mask(head.as_ref());
+        self[n].prop_list_head = head;
+    }
+    /// Rust-only: takes the property list of `n`, leaving none.
+    fn take_props(&mut self, n: NodeId) -> Option<Arc<PropListItem>> {
+        self.prop_masks[n.0.get() as usize - 1] = 0;
+        self[n].prop_list_head.take()
     }
     /// Rust-only, not in Java (D-025): an arena in which a worker thread parses one input
     /// (Java parses into the one shared object graph). `append_preparsed` then moves the result
@@ -540,13 +611,26 @@ impl Ast {
                 .preparse_bound_first_use
                 .filter(|_| self.implicit_template_bound.is_none()),
         };
-        let Ast { nodes, links, .. } = other;
+        let Ast {
+            nodes,
+            links,
+            cold,
+            types,
+            ..
+        } = other;
         let mut heads = Vec::with_capacity(nodes.len());
-        for (i, (mut data, link)) in nodes.into_iter().zip(links).enumerate() {
+        for (i, (((mut data, link), cold), ty)) in nodes
+            .into_iter()
+            .zip(links)
+            .zip(cold)
+            .zip(types)
+            .enumerate()
+        {
             if map.bound_at == Some(u32::try_from(i).unwrap()) {
                 crate::js_type_expression::JSTypeExpression::implicit_template_bound(self);
             }
             heads.push(data.prop_list_head.take());
+            self.prop_masks.push(0);
             self.links.push(NodeLinks {
                 token: link.token,
                 parent: link.parent.map(|n| map.map(n)),
@@ -555,6 +639,8 @@ impl Ast {
                 previous: link.previous.map(|n| map.map(n)),
             });
             self.nodes.push(data);
+            self.cold.push(cold);
+            self.types.push(ty);
         }
         if map.bound_at == Some(u32::try_from(heads.len()).unwrap()) {
             crate::js_type_expression::JSTypeExpression::implicit_template_bound(self);
@@ -573,7 +659,7 @@ impl Ast {
             if let Some(head) = head {
                 let local = NodeId(NonZeroU32::new(u32::try_from(i + 1).unwrap()).unwrap());
                 let id = map.map(local);
-                self[id].prop_list_head = Some(remapper.list(head));
+                self.set_props(id, Some(remapper.list(head)));
             }
         }
         map
@@ -594,13 +680,18 @@ impl Ast {
             previous: None,
         });
         self.nodes.push(NodeData {
-            lineno_charno: -1,
-            length: 0,
-            jstype_or_color: None,
-            original_name: None,
             prop_list_head: None,
             kind: NodeKind::Node,
         });
+        self.cold.push(NodeCold {
+            lineno_charno: -1,
+            length: 0,
+            original_name: None,
+        });
+        self.types.push(NodeType {
+            jstype_or_color: None,
+        });
+        self.prop_masks.push(0);
         id
     }
     // port: Node#Node(Token, Node)
@@ -1187,6 +1278,9 @@ impl NodeId {
     // operations) per list item.
     fn lookup_property_ref(self, ast: &Ast, prop: Prop) -> Option<&Arc<PropListItem>> {
         let prop_type = prop as u8;
+        if ast.prop_masks[self.0.get() as usize - 1] & (1u64 << prop_type) == 0 {
+            return None;
+        }
         let mut x = ast[self].prop_list_head.as_ref();
         while let Some(item) = x {
             if item.prop_type == prop_type {
@@ -1202,7 +1296,8 @@ impl NodeId {
             ast[self].prop_list_head.is_none(),
             "Node has existing properties."
         );
-        ast[self].prop_list_head = ast[other].prop_list_head.clone();
+        let head = ast[other].prop_list_head.clone();
+        ast.set_props(self, head);
         self
     }
     // port: Node#validateProperties
@@ -1318,8 +1413,8 @@ impl NodeId {
     pub fn put_prop(self, ast: &mut Ast, prop: Prop, value: Option<ObjectProp>) {
         self.remove_prop(ast, prop);
         if let Some(value) = value {
-            let head = ast[self].prop_list_head.take();
-            ast[self].prop_list_head = Some(PropListItem::object(prop as u8, value, head));
+            let head = ast.take_props(self);
+            ast.set_props(self, Some(PropListItem::object(prop as u8, value, head)));
         }
     }
     // port: Node#putBooleanProp
@@ -1330,8 +1425,8 @@ impl NodeId {
     pub fn put_int_prop(self, ast: &mut Ast, prop: Prop, value: i32) {
         self.remove_prop(ast, prop);
         if value != 0 {
-            let head = ast[self].prop_list_head.take();
-            ast[self].prop_list_head = Some(PropListItem::int(prop as u8, value, head));
+            let head = ast.take_props(self);
+            ast.set_props(self, Some(PropListItem::int(prop as u8, value, head)));
         }
     }
     // port: Node#removeProp
@@ -1341,8 +1436,8 @@ impl NodeId {
         if self.lookup_property_ref(ast, prop).is_none() {
             return;
         }
-        let head = ast[self].prop_list_head.take();
-        ast[self].prop_list_head = Self::rebuild_list_without_prop(head, prop);
+        let head = ast.take_props(self);
+        ast.set_props(self, Self::rebuild_list_without_prop(head, prop));
     }
     // port: Node#nodePropertyToBit
     pub fn node_property_to_bit(prop: NodeProperty) -> i64 {
@@ -1479,27 +1574,32 @@ impl NodeId {
                 _ => {
                     let prop = PropTranslator::deserialize(node_property)
                         .unwrap_or_else(|| panic!("Can not translate {node_property} to AST Prop"));
-                    ast[self].prop_list_head = Some(PropListItem::int(
-                        prop as u8,
-                        1,
-                        ast[self].prop_list_head.clone(),
-                    ));
+                    let head = ast[self].prop_list_head.clone();
+                    ast.set_props(self, Some(PropListItem::int(prop as u8, 1, head)));
                 }
             }
         }
         if constant_var_flags != 0 {
-            ast[self].prop_list_head = Some(PropListItem::int(
-                Prop::CONSTANT_VAR_FLAGS as u8,
-                constant_var_flags,
-                ast[self].prop_list_head.clone(),
-            ));
+            let head = ast[self].prop_list_head.clone();
+            ast.set_props(
+                self,
+                Some(PropListItem::int(
+                    Prop::CONSTANT_VAR_FLAGS as u8,
+                    constant_var_flags,
+                    head,
+                )),
+            );
         }
         if side_effect_flags != 0 {
-            ast[self].prop_list_head = Some(PropListItem::int(
-                Prop::SIDE_EFFECT_FLAGS as u8,
-                side_effect_flags,
-                ast[self].prop_list_head.clone(),
-            ));
+            let head = ast[self].prop_list_head.clone();
+            ast.set_props(
+                self,
+                Some(PropListItem::int(
+                    Prop::SIDE_EFFECT_FLAGS as u8,
+                    side_effect_flags,
+                    head,
+                )),
+            );
         }
         self.validate_properties(ast, |error_message| {
             panic!(
@@ -1728,8 +1828,8 @@ impl NodeId {
             if lineno != -1 {
                 write!(sb, " {lineno}:{} ", self.get_charno(ast)).unwrap();
             }
-            if ast[self].length != 0 {
-                write!(sb, " [length: {}]", ast[self].length).unwrap();
+            if ast[C(self)].length != 0 {
+                write!(sb, " [length: {}]", ast[C(self)].length).unwrap();
             }
         }
         if print_annotations {
@@ -1744,13 +1844,13 @@ impl NodeId {
                 sb.append(&x.to_string_with_types_utf16(ast, type_printer));
                 sb.write_char(']').unwrap();
             }
-            if let Some(original_name) = &ast[self].original_name {
+            if let Some(original_name) = &ast[C(self)].original_name {
                 sb.write_str(" [original_name: ").unwrap();
                 sb.append(original_name);
                 sb.write_char(']').unwrap();
             }
         }
-        if print_type && let Some(ty) = &ast[self].jstype_or_color {
+        if print_type && let Some(ty) = &ast[T(self)].jstype_or_color {
             match ty {
                 JSTypeOrColor::Color(color) => write!(sb, " : {color}").unwrap(),
                 JSTypeOrColor::JSType(t) => {
@@ -1817,16 +1917,16 @@ impl NodeId {
                 "col",
                 &self.get_charno(ast).to_string(),
             ))?;
-            if ast[self].length != 0 {
+            if ast[C(self)].length != 0 {
                 sb.write_char(',')?;
                 sb.write_str(&Self::create_json_pair_raw_value(
                     "length",
-                    &ast[self].length.to_string(),
+                    &ast[C(self)].length.to_string(),
                 ))?;
             }
             sb.write_char('}')?;
         }
-        if let Some(name) = &ast[self].original_name {
+        if let Some(name) = &ast[C(self)].original_name {
             sb.write_char(',')?;
             sb.append(&Self::create_json_pair("original_name", name));
         }
@@ -1848,7 +1948,7 @@ impl NodeId {
             }
             sb.write_char('}')?;
         }
-        if let Some(ty) = &ast[self].jstype_or_color {
+        if let Some(ty) = &ast[T(self)].jstype_or_color {
             match ty {
                 JSTypeOrColor::Color(color) => {
                     sb.write_char(',')?;
@@ -1990,7 +2090,7 @@ impl NodeId {
                 tail = next.clone();
             }
             if tail.prop_type == Prop::SOURCE_FILE as u8 {
-                ast[self].prop_list_head = Some(tail);
+                ast.set_props(self, Some(tail));
                 return;
             }
         }
@@ -2044,11 +2144,11 @@ impl NodeId {
     }
     // port: Node#getOriginalName
     pub fn get_original_name(self, ast: &Ast) -> Option<JsString> {
-        ast[self].original_name.clone()
+        ast[C(self)].original_name.clone()
     }
     // port: Node#setOriginalName
     pub fn set_original_name(self, ast: &mut Ast, s: Option<JsString>) {
-        ast[self].original_name = s.map(RhinoStringPool::add_or_get);
+        ast[C(self)].original_name = s.map(RhinoStringPool::add_or_get);
     }
     // port: Node#setOriginalNameFromStringPool
     pub fn set_original_name_from_string_pool(
@@ -2057,11 +2157,11 @@ impl NodeId {
         pool: &LazyInternedStringList,
         offset: i32,
     ) {
-        ast[self].original_name = Some(pool.get(offset));
+        ast[C(self)].original_name = Some(pool.get(offset));
     }
     // port: Node#setOriginalNameFromName
     pub fn set_original_name_from_name(self, ast: &mut Ast, name: NodeId) {
-        ast[self].original_name = Some(name.get_string(ast));
+        ast[C(self)].original_name = Some(name.get_string(ast));
     }
     // port: Node#isIndexable
     pub fn is_indexable(self, ast: &Ast) -> bool {
@@ -2092,26 +2192,26 @@ impl NodeId {
     }
     // port: Node#getLength
     pub fn get_length(self, ast: &Ast) -> i32 {
-        ast[self].length
+        ast[C(self)].length
     }
     // port: Node#setLength
     pub fn set_length(self, ast: &mut Ast, length: i32) {
-        ast[self].length = length;
+        ast[C(self)].length = length;
     }
     // port: Node#getLineno
     pub fn get_lineno(self, ast: &Ast) -> i32 {
-        if ast[self].lineno_charno == -1 {
+        if ast[C(self)].lineno_charno == -1 {
             -1
         } else {
-            (ast[self].lineno_charno as u32 >> Self::CHARNO_BITS) as i32
+            (ast[C(self)].lineno_charno as u32 >> Self::CHARNO_BITS) as i32
         }
     }
     // port: Node#getCharno
     pub fn get_charno(self, ast: &Ast) -> i32 {
-        if ast[self].lineno_charno == -1 {
+        if ast[C(self)].lineno_charno == -1 {
             -1
         } else {
-            ast[self].lineno_charno & Self::MAX_COLUMN_NUMBER
+            ast[C(self)].lineno_charno & Self::MAX_COLUMN_NUMBER
         }
     }
     // port: Node#getLocation
@@ -2138,18 +2238,18 @@ impl NodeId {
     }
     // port: Node#getSourcePosition
     pub fn get_source_position(self, ast: &Ast) -> i32 {
-        ast[self].lineno_charno
+        ast[C(self)].lineno_charno
     }
     // port: Node#setLinenoCharno
     pub fn set_lineno_charno(self, ast: &mut Ast, lineno: i32, mut charno: i32) -> Self {
         if lineno < 0 || charno < 0 {
-            ast[self].lineno_charno = -1;
+            ast[C(self)].lineno_charno = -1;
             return self;
         }
         if charno > Self::MAX_COLUMN_NUMBER {
             charno = Self::MAX_COLUMN_NUMBER;
         }
-        ast[self].lineno_charno = lineno.wrapping_shl(Self::CHARNO_BITS) | charno;
+        ast[C(self)].lineno_charno = lineno.wrapping_shl(Self::CHARNO_BITS) | charno;
         self
     }
     // port: Node#children
@@ -2165,7 +2265,7 @@ impl NodeId {
     }
     // port: Node#setPropListHead
     pub fn set_prop_list_head(self, ast: &mut Ast, head: Option<Arc<PropListItem>>) {
-        ast[self].prop_list_head = head;
+        ast.set_props(self, head);
     }
     // port: Node#getParent
     pub fn get_parent(self, ast: &Ast) -> Option<NodeId> {
@@ -2517,7 +2617,7 @@ impl NodeId {
             return false;
         }
         if type_config == TypeComparison::COMPARE
-            && ast[self].jstype_or_color != ast_b[node].jstype_or_color
+            && ast[T(self)].jstype_or_color != ast_b[T(node)].jstype_or_color
         {
             return false;
         }
@@ -2871,11 +2971,12 @@ impl NodeId {
     }
     // port: Node#copyBaseNodeFields
     fn copy_base_node_fields(ast: &mut Ast, source: NodeId, dest: NodeId, clone_type_exprs: bool) {
-        ast[dest].lineno_charno = ast[source].lineno_charno;
-        ast[dest].length = ast[source].length;
-        ast[dest].jstype_or_color = ast[source].jstype_or_color.clone();
-        ast[dest].original_name = ast[source].original_name.clone();
+        ast[C(dest)].lineno_charno = ast[C(source)].lineno_charno;
+        ast[C(dest)].length = ast[C(source)].length;
+        ast[T(dest)].jstype_or_color = ast[T(source)].jstype_or_color.clone();
+        ast[C(dest)].original_name = ast[C(source)].original_name.clone();
         ast[dest].prop_list_head = ast[source].prop_list_head.clone();
+        ast.prop_masks[dest.0.get() as usize - 1] = ast.prop_masks[source.0.get() as usize - 1];
         if clone_type_exprs {
             if let Some(info) = source.get_jsdoc_info(ast) {
                 let cloned = info.clone_with_type_nodes(ast, true);
@@ -2921,9 +3022,9 @@ impl NodeId {
     // port: Node#srcref
     pub fn srcref(self, ast: &mut Ast, other: NodeId) -> Self {
         self.set_static_source_file_from(ast, other);
-        ast[self].original_name = ast[other].original_name.clone();
-        ast[self].lineno_charno = ast[other].lineno_charno;
-        ast[self].length = ast[other].length;
+        ast[C(self)].original_name = ast[C(other)].original_name.clone();
+        ast[C(self)].lineno_charno = ast[C(other)].lineno_charno;
+        ast[C(self)].length = ast[C(other)].length;
         self
     }
     // port: Node#srcrefTree
@@ -2940,11 +3041,11 @@ impl NodeId {
     pub fn srcref_if_missing(self, ast: &mut Ast, other: NodeId) -> Self {
         if self.get_static_source_file(ast).is_none() {
             self.set_static_source_file_from(ast, other);
-            ast[self].lineno_charno = ast[other].lineno_charno;
-            ast[self].length = ast[other].length;
+            ast[C(self)].lineno_charno = ast[C(other)].lineno_charno;
+            ast[C(self)].length = ast[C(other)].length;
         }
-        if ast[self].original_name.is_none() {
-            ast[self].original_name = ast[other].original_name.clone();
+        if ast[C(self)].original_name.is_none() {
+            ast[C(self)].original_name = ast[C(other)].original_name.clone();
         }
         self
     }
@@ -2960,7 +3061,7 @@ impl NodeId {
     }
     // port: Node#getJSType
     pub fn get_jstype(self, ast: &Ast) -> Option<TypeId> {
-        match &ast[self].jstype_or_color {
+        match &ast[T(self)].jstype_or_color {
             Some(JSTypeOrColor::JSType(t)) => Some(*t),
             _ => None,
         }
@@ -2976,17 +3077,17 @@ impl NodeId {
     // port: Node#setJSType
     pub fn set_jstype(self, ast: &mut Ast, x: Option<TypeId>) -> Self {
         check_state!(
-            ast[self].jstype_or_color.is_none()
-                || matches!(ast[self].jstype_or_color, Some(JSTypeOrColor::JSType(_))),
+            ast[T(self)].jstype_or_color.is_none()
+                || matches!(ast[T(self)].jstype_or_color, Some(JSTypeOrColor::JSType(_))),
             "%s",
             self.to_string(ast)
         );
-        ast[self].jstype_or_color = x.map(JSTypeOrColor::JSType);
+        ast[T(self)].jstype_or_color = x.map(JSTypeOrColor::JSType);
         self
     }
     // port: Node#getColor
     pub fn get_color(self, ast: &Ast) -> Option<Color> {
-        match &ast[self].jstype_or_color {
+        match &ast[T(self)].jstype_or_color {
             Some(JSTypeOrColor::Color(c)) => Some(c.clone()),
             _ => None,
         }
@@ -2994,17 +3095,17 @@ impl NodeId {
     // port: Node#setColor
     pub fn set_color(self, ast: &mut Ast, x: Option<Color>) -> Self {
         check_state!(
-            ast[self].jstype_or_color.is_none()
-                || matches!(ast[self].jstype_or_color, Some(JSTypeOrColor::Color(_))),
+            ast[T(self)].jstype_or_color.is_none()
+                || matches!(ast[T(self)].jstype_or_color, Some(JSTypeOrColor::Color(_))),
             "%s",
             self.to_string(ast)
         );
-        ast[self].jstype_or_color = x.map(JSTypeOrColor::Color);
+        ast[T(self)].jstype_or_color = x.map(JSTypeOrColor::Color);
         self
     }
     // port: Node#copyTypeFrom
     pub fn copy_type_from(self, ast: &mut Ast, other: NodeId) -> Self {
-        ast[self].jstype_or_color = ast[other].jstype_or_color.clone();
+        ast[T(self)].jstype_or_color = ast[T(other)].jstype_or_color.clone();
         self
     }
     // port: Node#getJSDocInfo

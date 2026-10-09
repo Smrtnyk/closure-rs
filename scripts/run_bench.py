@@ -13,9 +13,9 @@ expanded here, sorted, into one --js flag per file, so both compilers see the sa
 and run with cwd = the repository root, a fixed minimal environment and stdin /dev/null. Each
 repetition runs Java, then Rust, under /usr/bin/time (a small process, so its child's ru_maxrss
 is the compiler's own peak RSS); wall time is measured around it. The medians of the
-repetitions are reported. Every run's exit code, stdout, stderr and output file are compared
-byte for byte with Java's first run; a difference is a porting defect to report, not a
-benchmark failure.
+repetitions are reported. Every run's exit code, stdout, stderr, output file and the other
+files it writes next to it (a source map) are compared byte for byte with Java's first run;
+a difference is a porting defect to report, not a benchmark failure.
 
 Writes bench/results/<UTC date>-<commit>.json (unless --no-save) and prints a Markdown table.
 With --keep-failing, the outputs of mismatching jobs go to build/bench/failing/<job id>/.
@@ -147,7 +147,16 @@ def run_once(cmd: list[str], out_rel: str, timeout: float) -> dict:
             r["output"] = f.read()
     except OSError:
         r["output"] = None
-    extra = sorted(set(os.listdir(os.path.dirname(out_abs))) - {os.path.basename(out_abs)})
+    # other files the compile wrote next to the output (a --create_source_map=%outname%.map
+    # source map): name -> contents, compared like the output
+    extra = {}
+    for name in sorted(set(os.listdir(os.path.dirname(out_abs))) - {os.path.basename(out_abs)}):
+        path = os.path.join(os.path.dirname(out_abs), name)
+        if os.path.isfile(path):
+            with open(path, "rb") as f:
+                extra[name] = f.read()
+        else:
+            extra[name] = None
     r["extra_files"] = extra
     shutil.rmtree(os.path.dirname(out_abs), ignore_errors=True)
     return r
@@ -174,8 +183,13 @@ def compare(ref: dict, r: dict) -> dict:
         fd = first_diff(ref[k], r[k])
         if fd:
             d[k] = fd
-    if ref["extra_files"] != r["extra_files"]:
-        d["extra_files"] = {"java": ref["extra_files"], "rust": r["extra_files"]}
+    if sorted(ref["extra_files"]) != sorted(r["extra_files"]):
+        d["extra_files"] = {"java": sorted(ref["extra_files"]), "rust": sorted(r["extra_files"])}
+    else:
+        for name in ref["extra_files"]:
+            fd = first_diff(ref["extra_files"][name], r["extra_files"][name])
+            if fd:
+                d["file:" + name] = fd
     return d
 
 
@@ -311,6 +325,10 @@ def main() -> int:
                         if r[k] is not None:
                             with open(os.path.join(d, k if k != "output" else "out.js"), "wb") as f:
                                 f.write(r[k])
+                    for name, data in r["extra_files"].items():
+                        if data is not None:
+                            with open(os.path.join(d, name), "wb") as f:
+                                f.write(data)
                 with open(os.path.join(keep, "argv.json"), "w") as f:
                     json.dump({"cwd": ROOT, "java": cmds["java"] + args,
                                "rust": cmds["rust"] + args}, f, indent=1)

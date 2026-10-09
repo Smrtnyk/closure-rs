@@ -26,36 +26,53 @@ use crate::{
     js_error::JSError,
 };
 use closure_rhino::node::Ast;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 pub struct ThreadSafeDelegatingErrorManager {
     delegated: Mutex<Box<dyn ErrorManager>>,
+    /// Rust-only (D-025): set (under the `delegated` lock) when `hasHaltingErrors` found none,
+    /// cleared (under the lock) by every call that may change the delegate. The compiler shares
+    /// it, so its frequent `hasHaltingErrors` (CombinedCompilerPass asks at every node) needs no
+    /// lock while nothing was reported since.
+    no_halting_errors: Arc<AtomicBool>,
 }
 impl ThreadSafeDelegatingErrorManager {
     // port: ThreadSafeDelegatingErrorManager#ThreadSafeDelegatingErrorManager
     pub fn new(delegated: Box<dyn ErrorManager>) -> Self {
         Self {
             delegated: Mutex::new(delegated),
+            no_halting_errors: Arc::new(AtomicBool::new(false)),
         }
+    }
+    /// Rust-only: the shared "no halting errors" flag, see `no_halting_errors`.
+    pub(crate) fn no_halting_errors_flag(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.no_halting_errors)
+    }
+    /// Rust-only: locks the delegate for a call that may change it.
+    fn delegate_for_change(&self) -> std::sync::MutexGuard<'_, Box<dyn ErrorManager>> {
+        let guard = self.delegated.lock().unwrap();
+        self.no_halting_errors.store(false, Ordering::Relaxed);
+        guard
     }
     // port: ThreadSafeDelegatingErrorManager#report
     pub fn report(&self, level: CheckLevel, error: JSError) {
-        self.delegated.lock().unwrap().report(level, error);
+        self.delegate_for_change().report(level, error);
     }
     // port: ThreadSafeDelegatingErrorManager#generateReport
     pub fn generate_report(&self, ast: &Ast) {
-        self.delegated.lock().unwrap().generate_report(ast);
+        self.delegate_for_change().generate_report(ast);
     }
 }
 impl ErrorHandler for ThreadSafeDelegatingErrorManager {
     // port: ThreadSafeDelegatingErrorManager#report
     fn report(&mut self, level: CheckLevel, error: JSError) {
-        self.delegated.lock().unwrap().report(level, error);
+        self.delegate_for_change().report(level, error);
     }
 }
 impl ErrorManager for ThreadSafeDelegatingErrorManager {
     // port: ThreadSafeDelegatingErrorManager#generateReport
     fn generate_report(&mut self, ast: &Ast) {
-        self.delegated.lock().unwrap().generate_report(ast)
+        self.delegate_for_change().generate_report(ast)
     }
     // port: ThreadSafeDelegatingErrorManager#getErrorCount
     fn get_error_count(&self) -> i32 {
@@ -75,7 +92,7 @@ impl ErrorManager for ThreadSafeDelegatingErrorManager {
     }
     // port: ThreadSafeDelegatingErrorManager#setTypedPercent
     fn set_typed_percent(&mut self, value: f64) {
-        self.delegated.lock().unwrap().set_typed_percent(value)
+        self.delegate_for_change().set_typed_percent(value)
     }
     // port: ThreadSafeDelegatingErrorManager#getTypedPercent
     fn get_typed_percent(&self) -> f64 {
@@ -83,7 +100,12 @@ impl ErrorManager for ThreadSafeDelegatingErrorManager {
     }
     // port: ThreadSafeDelegatingErrorManager#hasHaltingErrors
     fn has_halting_errors(&self) -> bool {
-        self.delegated.lock().unwrap().has_halting_errors()
+        let delegated = self.delegated.lock().unwrap();
+        let halting = delegated.has_halting_errors();
+        if !halting {
+            self.no_halting_errors.store(true, Ordering::Relaxed);
+        }
+        halting
     }
     // port: ThreadSafeDelegatingErrorManager#shouldReportConformanceViolation
     fn should_report_conformance_violation(
@@ -94,9 +116,7 @@ impl ErrorManager for ThreadSafeDelegatingErrorManager {
         behavior: LibraryLevelNonAllowlistedConformanceViolationsBehavior,
         is_allowlisted: bool,
     ) -> bool {
-        self.delegated
-            .lock()
-            .unwrap()
+        self.delegate_for_change()
             .should_report_conformance_violation(
                 requirement,
                 allowlist_entry,

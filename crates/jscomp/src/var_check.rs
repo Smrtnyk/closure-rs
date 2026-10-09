@@ -197,10 +197,9 @@ impl VarCheck {
     /// Validates that a NAME node does not refer to an undefined name.
     // port: VarCheck#checkName
     fn check_name(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        let var_name = n.get_string(t);
-
+        // Rust-only: the name is read in place (D-025).
         // Only a function can have an empty name.
-        if var_name.is_empty() {
+        if n.get_string_ref(t).is_empty() {
             // Name is optional for function expressions
             // x = function() {...}
             // Arrow functions are also expressions and cannot have a name
@@ -218,7 +217,7 @@ impl VarCheck {
         }
 
         let scope = t.get_scope();
-        let var = scope.get_var(t.get_compiler(), var_name.clone());
+        let var = scope.get_var_of_node(t.get_compiler(), n);
 
         // Check that the var has been declared.
         let Some(var) = var else {
@@ -242,7 +241,7 @@ impl VarCheck {
             let compiler = t.get_compiler();
             let global_scope = scope.get_global_scope(compiler);
             let input = compiler.get_synthesized_externs_input().clone();
-            global_scope.declare(compiler, var_name, n, Some(input));
+            global_scope.declare(compiler, n.get_string(compiler), n, Some(input));
 
             return;
         };
@@ -286,7 +285,7 @@ impl VarCheck {
             if curr_depends_on_var {
                 // The chunk dependency was properly declared.
             } else {
-                let var_name = var_name.to_string_lossy();
+                let var_name = n.get_string_ref(t).to_string_lossy();
                 let args = [
                     curr_chunk.get_name(),
                     var_chunk.get_name(),

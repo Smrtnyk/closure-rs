@@ -54,6 +54,9 @@ pub struct SourceFile {
     loader: CodeLoader,
     state: Mutex<State>,
     load_lock: Mutex<()>,
+    /// Rust-only (D-025): `kind` (also in `state`) as an atomic, so that the frequent
+    /// `getKind`/`isExtern` reads take no lock.
+    kind_code: std::sync::atomic::AtomicU8,
 }
 impl SourceFile {
     // port: SourceFile#SourceFile
@@ -77,6 +80,7 @@ impl SourceFile {
                 is_stub_source_file_for_already_provided_input: false,
             }),
             load_lock: Mutex::new(()),
+            kind_code: std::sync::atomic::AtomicU8::new(kind as u8),
         }
     }
     // port: SourceFile#isStubSourceFileForAlreadyProvidedInput
@@ -207,7 +211,10 @@ impl SourceFile {
     }
     // port: SourceFile#setKind
     pub fn set_kind(&self, kind: SourceKind) {
-        self.state.lock().unwrap().kind = kind;
+        let mut state = self.state.lock().unwrap();
+        state.kind = kind;
+        self.kind_code
+            .store(kind as u8, std::sync::atomic::Ordering::Relaxed);
     }
     // port: SourceFile#markAsClosureUnawareCode
     pub fn mark_as_closure_unaware_code(&self) {
@@ -542,7 +549,12 @@ impl StaticSourceFile for SourceFile {
     }
     // port: SourceFile#getKind
     fn get_kind(&self) -> SourceKind {
-        self.state.lock().unwrap().kind
+        match self.kind_code.load(std::sync::atomic::Ordering::Relaxed) {
+            0 => SourceKind::STRONG,
+            1 => SourceKind::WEAK,
+            2 => SourceKind::EXTERN,
+            _ => SourceKind::NON_CODE,
+        }
     }
     // port: SourceFile#isClosureUnawareCode
     fn is_closure_unaware_code(&self) -> bool {

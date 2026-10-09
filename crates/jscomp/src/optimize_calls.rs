@@ -140,6 +140,7 @@ impl OptimizeCalls {
     }
 
     // port: OptimizeCalls#safeSet
+    #[allow(dead_code)] // ReferenceMapBuildingCallback builds a set of JS strings instead.
     fn safe_set(set: Option<&IndexSet<String>>) -> IndexSet<String> {
         match set {
             Some(set) => set.clone(),
@@ -592,7 +593,9 @@ impl ReferenceMap {
 }
 
 struct ReferenceMapBuildingCallback<'a> {
-    extern_props: IndexSet<String>,
+    /// Rust-only: Java's set of extern property names, as JS strings (compared without
+    /// converting each property name, D-025).
+    extern_props: IndexSet<JsString>,
     references: &'a mut ReferenceMap,
     global_scope: Option<ScopeId>,
     // The enclosing OptimizeCalls instance's `considerExterns` field (Java inner class).
@@ -607,7 +610,10 @@ impl<'a> ReferenceMapBuildingCallback<'a> {
         consider_externs: bool,
     ) -> Self {
         Self {
-            extern_props: OptimizeCalls::safe_set(compiler.get_extern_properties()),
+            extern_props: compiler
+                .get_extern_properties_js()
+                .map(|props| props.iter().cloned().collect())
+                .unwrap_or_default(),
             references,
             global_scope: None,
             consider_externs,
@@ -627,41 +633,41 @@ impl<'a> ReferenceMapBuildingCallback<'a> {
                 "super call appears in class without extends clause"
             );
             if extends_node.is_name(compiler) {
-                let name = extends_node.get_string(compiler);
-                self.maybe_add_name_reference(compiler, name, super_node);
+                self.maybe_add_name_reference(compiler, extends_node, super_node);
             } else if extends_node.is_get_prop(compiler) {
                 // NOTE: Theoretically we could also include an optional chain getprop here, but
                 // A) it's a runtime error if the value ends up being undefined, so that's bad code
                 // B) the author is indicating uncertainty, so we should be cautious.
-                let name = extends_node.get_string(compiler);
-                self.maybe_add_prop_reference(name, super_node);
+                self.maybe_add_prop_reference(extends_node.get_string_ref(compiler), super_node);
             } // else we cannot tell what super() is referencing (e.g. `class extends getMixin() {`)
         }
     }
 
     // port: OptimizeCalls.ReferenceMapBuildingCallback#maybeAddNameReference
+    /// Rust-only: takes the NAME node whose string Java passes, and reads it in place.
     fn maybe_add_name_reference(
         &mut self,
         compiler: &mut AbstractCompiler,
-        name: JsString,
+        name_node: NodeId,
         n: NodeId,
     ) {
         // TODO(b/129503101): Why are we limiting ourselves to global names?
-        let var = check_not_null!(self.global_scope).get_slot(compiler, name.clone());
+        let var = check_not_null!(self.global_scope).get_var_of_node(compiler, name_node);
         if let Some(var) = var
             && (self.consider_externs || !var.is_extern(compiler))
         {
             // As every name declaration is unique due to normalizations, it is only necessary to
             // build the global scope and ask it if it knows about a name as it can never be
             // shadowed.
-            self.references.add_name_reference(name, n);
+            self.references
+                .add_name_reference(name_node.get_string(compiler), n);
         }
     }
 
     // port: OptimizeCalls.ReferenceMapBuildingCallback#maybeAddPropReference
-    fn maybe_add_prop_reference(&mut self, name: JsString, n: NodeId) {
-        if self.consider_externs || !self.extern_props.contains(&name.to_string_lossy()) {
-            self.references.add_prop_reference(name, n);
+    fn maybe_add_prop_reference(&mut self, name: &JsString, n: NodeId) {
+        if self.consider_externs || !self.extern_props.contains(name) {
+            self.references.add_prop_reference(name.clone(), n);
         }
     }
 }
@@ -672,12 +678,10 @@ impl Callback for ReferenceMapBuildingCallback<'_> {
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _unused: Option<NodeId>) {
         match n.get_token(t) {
             Token::NAME => {
-                let name = n.get_string(t);
-                self.maybe_add_name_reference(t.get_compiler(), name, n);
+                self.maybe_add_name_reference(t.get_compiler(), n, n);
             }
             Token::OPTCHAIN_GETPROP | Token::GETPROP => {
-                let name = n.get_string(t);
-                self.maybe_add_prop_reference(name, n);
+                self.maybe_add_prop_reference(n.get_string_ref(t), n);
             }
             Token::CALL => {
                 // If we are using goog.reflect.objectProperty on this symbol, we will assume that
@@ -690,8 +694,7 @@ impl Callback for ReferenceMapBuildingCallback<'_> {
                 {
                     let prop_name = NodeUtil::get_argument_for_call_or_new(compiler, n, 0);
                     if let Some(prop_name) = prop_name {
-                        let name = prop_name.get_string(compiler);
-                        self.maybe_add_prop_reference(name, n);
+                        self.maybe_add_prop_reference(prop_name.get_string_ref(compiler), n);
                     }
                 }
             }
@@ -703,8 +706,7 @@ impl Callback for ReferenceMapBuildingCallback<'_> {
             | Token::MEMBER_FIELD_DEF => {
                 // ignore quoted keys.
                 if !n.is_quoted_string_key(t) {
-                    let name = n.get_string(t);
-                    self.maybe_add_prop_reference(name, n);
+                    self.maybe_add_prop_reference(n.get_string_ref(t), n);
                 }
             }
 
