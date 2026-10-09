@@ -2,6 +2,15 @@
   "name": "closure-rs",
   "version": "0.0.1-alpha.1",
   "description": "Rust port of the Closure Compiler CLI. Not affiliated with or published by Google.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Smrtnyk/closure-rs.git",
+    "directory": "npm/closure-rs"
+  },
+  "homepage": "https://github.com/Smrtnyk/closure-rs#readme",
+  "bugs": {
+    "url": "https://github.com/Smrtnyk/closure-rs#bugs-and-issues"
+  },
   "license": "Apache-2.0",
   "type": "module",
   "main": "index.js",
