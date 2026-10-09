@@ -237,16 +237,41 @@ in `DefaultPassConfig` order. `crates/DESIGN.md` gives the detailed Java-to-Rust
 ## 9. Syncing with upstream
 
 closure-rs follows upstream Closure Compiler: upstream changes are ported, and the pin (§1) moves
-forward. A sync:
+forward.
 
-1. Moves the pin in `scripts/fetch_reference.sh` (and the version notes in `README.md`,
-   `oracle/REFERENCE.md` and the license headers' upstream version) and fetches the new
-   reference.
-2. Rebuilds the reference jar and the oracle (`oracle/REFERENCE.md`, `oracle/build.sh`), and
-   re-runs `gates/gate_0_1.sh`.
+**The reference registry.** `scripts/references.tsv` lists every pinned reference: per tag its
+commit, the uberjar's sha256 (`-` until the jar is built and pinned), and its paths relative to
+the main checkout: the checkout (`src`), the recording workspace (`recording_ws`), the uberjar
+(`jar`) and the oracle jar (`oracle_jar`). Its `default` row names the reference everything uses.
+`scripts/paths.sh`, `paths.py` and `paths.mjs` read the registry of their own checkout (so a
+branch decides its default) and resolve `$CLOSURE_RS_REF=<tag>` (default: the `default` row) to
+`REF_TAG`, `REF_COMMIT`, `REF_JAR_SHA256`, `REF_GOLDEN_TAG` (`ref-<sha8>`), `REF_SRC`,
+`REF_RECORDING_WS`, `REF_JAR` and `ORACLE_JAR`; `bash scripts/paths.sh`, `python3 scripts/paths.py`
+and `node scripts/paths.mjs` print them. Every script that fetches, builds, records or runs the
+reference takes these values, and the fuzz crates read the same registry (`fuzz/references.rs`).
+
+References live **alongside** each other: a new reference gets its own row and its own paths
+(`reference/closure-compiler-<tag>`, `reference/closure-compiler-<tag>-recording`,
+`build/reference-<tag>/`, `build/oracle-<tag>/`; the D2 golden results are keyed by the jar's
+sha256 anyway), so the old reference's checkout, jars, recording workspace and golden results stay
+usable until the sync is finished. `scripts/fetch_reference.sh` refuses to move an existing
+checkout to another commit, `scripts/unit_make_recording_ws.sh` only deletes the registry's
+recording workspace of the selected tag, and `oracle/build.sh` refuses a reference whose jar
+sha256 is not pinned. `gates/d2_rust.py check --rebase` and `scripts/unit_ratchet_rebase.py`
+compare a ratchet across the reference change, pair by pair and record by record.
+
+A sync:
+
+1. Adds the new reference to `scripts/references.tsv` (the version notes in `README.md`,
+   `oracle/REFERENCE.md` and the license headers' upstream version follow when it becomes the
+   default) and fetches it (`CLOSURE_RS_REF=<tag> scripts/fetch_reference.sh`).
+2. Builds the new reference jar (`oracle/REFERENCE.md`), pins its sha256 in the registry, builds
+   the oracle (`oracle/build.sh`), and re-runs `gates/gate_0_1.sh`.
 3. Regenerates what is derived from the reference: `scope/flags.txt` (`scope/gen_flags.py`), the
    npm types (`scripts/gen_npm_types.mjs`), the unit corpus (`corpus/unit/RECORDING.md`,
    `scripts/unit_record_all.sh`) and the D2 golden results (`gates/lib/golden_all.py`).
 4. Ports the Java diff between the old and the new pin (§7), and refreshes the license headers
    (`scripts/license_headers.py --apply`).
-5. Verifies the result as in §4: every unit record and D2 pair that matched before still matches.
+5. Verifies the result as in §4: every unit record and D2 pair that matched before still matches
+   (`scripts/unit_ratchet_rebase.py`, `gates/d2_rust.py check --rebase`), then moves the
+   registry's `default` row to the new tag.
