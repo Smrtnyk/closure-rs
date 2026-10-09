@@ -1271,6 +1271,15 @@ impl<'a> NodeTraversal<'a> {
             .and_then(|input_id| self.compiler.get_input(input_id))
     }
 
+    /// Not in Java: `getInput().getInputId()` as the shared `Arc` (the cached input is looked up
+    /// by exactly this id), without hashing the id for an input lookup on every call.
+    pub fn get_input_id_of_input(&mut self) -> Option<Arc<InputId>> {
+        if self.compiler_input.is_none() {
+            self.get_input()?;
+        }
+        self.compiler_input.clone()
+    }
+
     // port: NodeTraversal#getChunk
     pub fn get_chunk(&mut self) -> Option<JSChunk> {
         self.get_input().and_then(|input| input.get_chunk())

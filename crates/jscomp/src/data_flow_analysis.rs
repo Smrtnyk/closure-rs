@@ -357,19 +357,18 @@ impl UniqueQueue {
     // port: DataFlowAnalysis.UniqueQueue#removeFirst
     pub fn remove_first(&mut self) -> DiGraphNode {
         let t = self.queue.pop_front().unwrap();
-        self.seen_set.shift_remove(&t);
+        // The set is only a membership test (Java: HashSet), so the O(1) swap_remove is safe.
+        self.seen_set.swap_remove(&t);
         t
     }
     // port: DataFlowAnalysis.UniqueQueue#add
     pub fn add(&mut self, t: DiGraphNode) {
         if self.seen_set.insert(t) {
             if let Some(compare) = &self.priority {
-                // Priorities are unique per CFG node (CFA assigns ++priorityCounter).
-                let position = self
-                    .queue
-                    .iter()
-                    .position(|&x| compare(t, x).is_lt())
-                    .unwrap_or(self.queue.len());
+                // Priorities are unique per CFG node (CFA assigns ++priorityCounter). Java uses
+                // a PriorityQueue; the queue here is kept sorted, so the first element greater
+                // than `t` is found by binary search (same position as a linear scan).
+                let position = self.queue.partition_point(|&x| !compare(t, x).is_lt());
                 self.queue.insert(position, t);
             } else {
                 self.queue.push_back(t);

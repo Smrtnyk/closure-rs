@@ -1758,7 +1758,7 @@ impl Parser {
         let end = self.get_tree_end_location();
         let next = self.get_tree_start_location();
         let mut exception = EmptyStatementTree::new(SourceRange::new(end, next));
-        if self.peek_token().type_ == TokenType::OPEN_PAREN {
+        if self.scanner.peek_token_ref_at(0).type_ == TokenType::OPEN_PAREN {
             self.eat(TokenType::OPEN_PAREN);
             exception = if self.peek_pattern_start() {
                 self.parse_pattern(PatternKind::INITIALIZER)?
@@ -2283,7 +2283,8 @@ impl Parser {
     }
     // port: Parser#peekPredefinedString
     fn peek_predefined_string_at(&mut self, index: usize, string: &JsString) -> bool {
-        self.peek_at(index, TokenType::IDENTIFIER) && self.peek_token_at(index).value_equals(string)
+        self.peek_at(index, TokenType::IDENTIFIER)
+            && self.scanner.peek_token_ref_at(index).value_equals(string)
     }
     // port: Parser#parseObjectLiteralGetAccessor
     fn parse_object_literal_get_accessor(&mut self) -> P<Tree> {
@@ -3908,8 +3909,8 @@ impl Parser {
         let line_advanced = if index == 0 {
             self.get_next_line() > self.get_last_line()
         } else {
-            self.peek_token_at(index).location.start.line
-                > self.peek_token_at(index - 1).location.end.line
+            self.scanner.peek_token_ref_at(index).location.start.line
+                > self.scanner.peek_token_ref_at(index - 1).location.end.line
         };
         line_advanced
             || self.peek_at(index, TokenType::SEMI_COLON)
@@ -3924,7 +3925,7 @@ impl Parser {
     // Returns the line number of the next token.
     // port: Parser#getNextLine
     fn get_next_line(&mut self) -> i32 {
-        self.peek_token().location.start.line
+        self.scanner.peek_token_ref_at(0).location.start.line
     }
     // Consumes the next token if it is of the expected type. Otherwise returns null. Never reports
     // errors.
@@ -4106,7 +4107,7 @@ impl Parser {
     // Returns the TokenType of the index-th next token. Does not consume any tokens.
     // port: Parser#peekType
     fn peek_type_at(&mut self, index: usize) -> TokenType {
-        self.peek_token_at(index).type_
+        self.scanner.peek_token_ref_at(index).type_
     }
     // Returns the next token. Does not consume any tokens.
     // port: Parser#peekToken
