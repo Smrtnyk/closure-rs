@@ -145,7 +145,7 @@ License: MPL-1.1 OR GPL-2.0-or-later. 136 files.
 
 ## OpenJDK 21
 
-License: GPL-2.0-only WITH Classpath-exception-2.0; the files ported from the Apache Xerces code in java.xml are Apache-2.0 with the Xerces NOTICE. 43 files.
+License: GPL-2.0-only WITH Classpath-exception-2.0; the files ported from the Apache Xerces code in java.xml are Apache-2.0 with the Xerces NOTICE. 44 files.
 
 - `crates/cli/src/abstract_command_line_runner_jdk.rs`: java.base/java/lang/Throwable.java
 - `crates/cli/src/jdk_globs.rs`: java.base/java/util/regex/Pattern.java, java.base/java/util/regex/PatternSyntaxException.java, java.base/sun/nio/fs/UnixFileSystem.java, java.base/java/util/regex/Matcher.java, java.base/sun/nio/fs/Globs.java
@@ -163,6 +163,7 @@ License: GPL-2.0-only WITH Classpath-exception-2.0; the files ported from the Ap
 - `crates/rhino/src/java_lang/character_case_data.rs`: java.base/java/lang/Character.java
 - `crates/rhino/src/java_lang/character_data.rs`: java.base/java/lang/Character.java
 - `crates/rhino/src/java_lang/charset.rs`: java.base/java/nio/charset/Charset.java, java.base/java/nio/charset/CharsetDecoder.java, java.base/sun/nio/cs/UTF_8.java, java.base/sun/nio/cs/UnicodeDecoder.java, java.base/java/nio/charset/CharsetEncoder.java
+- `crates/rhino/src/java_lang/concurrent_hash_map.rs`: java.base/java/util/concurrent/ConcurrentHashMap.java
 - `crates/rhino/src/java_lang/double.rs`: java.base/java/lang/Double.java, java.base/jdk/internal/math/FloatingDecimal.java
 - `crates/rhino/src/java_lang/formatter.rs`: java.base/java/util/Formatter.java, java.base/jdk/internal/math/FormattedFPDecimal.java
 - `crates/rhino/src/java_lang/hash_map.rs`: java.base/java/util/HashMap.java

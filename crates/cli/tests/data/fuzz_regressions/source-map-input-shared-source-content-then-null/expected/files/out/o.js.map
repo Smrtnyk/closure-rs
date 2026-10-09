@@ -1,0 +1,9 @@
+{
+"version":3,
+"file":"out/o.js",
+"lineCount":1,
+"mappings":"AAAA,IAAAA,EAAA,CACAC,QAAAC,CAAAA,GAAA,CAAAF,CAAA,C,CADA,IAAAG,EAAA,CACAF,QAAAC,CAAAA,GAAA,CAAAC,CAAA;",
+"sources":["a.ts"],
+"sourcesContent":["THE CONTENT"],
+"names":["x","console","log","y"]
+}

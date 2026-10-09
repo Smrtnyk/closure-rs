@@ -1,0 +1,25 @@
+{
+ "argv": [
+  "--source_map_include_content",
+  "--create_source_map",
+  "out/o.map",
+  "--source_map_input",
+  "a.js|a.map",
+  "--source_map_input",
+  "b.js|b.map",
+  "--source_map_input",
+  "c.js|missing.map",
+  "--js",
+  "a.js",
+  "--js",
+  "b.js",
+  "--js_output_file",
+  "out/o.js"
+ ],
+ "origin": "SOURCEMAP_PARSE_FAILED carries the SourceMapParseException message (getMessage), not its toString",
+ "exit_code": 0,
+ "outputs": [
+  "out/o.js",
+  "out/o.map"
+ ]
+}

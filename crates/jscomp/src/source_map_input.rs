@@ -82,7 +82,7 @@ impl SourceMapInput {
                             };
                         }
                         Err(e) => {
-                            let message = e.to_string();
+                            let message = e.get_message().to_string();
                             let error = JSError::make_without_location(
                                 &SOURCEMAP_PARSE_FAILED,
                                 &[source_map_path, &message],
