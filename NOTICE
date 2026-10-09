@@ -216,7 +216,9 @@ Binary distributions
 
   The closure-rs executable also contains Rust crates from crates.io (Cargo.lock) and the Rust
   standard library, each under its own license (MIT, Apache-2.0, Unlicense, Zlib), which the
-  binary distribution reproduces with the files above: LICENSES/THIRD_PARTY_RUST.md
-  (THIRD_PARTY_RUST.md in the npm platform packages) lists every linked crate with its version,
+  binary distribution reproduces with the files above: LICENSES/THIRD_PARTY_RUST.md (also in
+  the npm package) lists every linked crate with its version,
   license and full license texts, including zlib's for the copy libz-sys builds from source when
-  no system zlib is used. scripts/third_party_licenses.py writes it from Cargo.lock.
+  no system zlib is used, and the MIT notice of Microsoft's mimalloc allocator, whose C sources
+  libmimalloc-sys compiles into the binary. scripts/third_party_licenses.py writes it from
+  Cargo.lock.

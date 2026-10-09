@@ -36,6 +36,9 @@ VENDORED = {
     # zlib's C sources, compiled in when libz-sys builds zlib itself (no system zlib found, or a
     # static build) instead of linking the system's libz.
     'libz-sys': [('src/zlib/LICENSE', 'zlib (bundled C sources, built in when no system zlib is used)')],
+    # Microsoft's mimalloc C sources, always compiled in (the v2 sources; v3 only with the `v3`
+    # feature, which closure-rs does not enable).
+    'libmimalloc-sys': [('c_src/mimalloc/v2/LICENSE', 'mimalloc (bundled C sources, Microsoft Corporation)')],
 }
 
 
