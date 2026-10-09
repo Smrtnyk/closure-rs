@@ -2,7 +2,7 @@
   "schema": "closure-rs/unit-ratchet/1",
   "record_id": "Class[index]: Class = record file stem under corpus/unit/records/, index = 0-based line in Class.jsonl.gz (crates/testing/README.md, the runner's stable record id)",
   "corpus_records_sha256": "6952a5cac158f2f7955102e731db0751fd3105d0b54b2c2ee9ee87564f295934",
-  "totals": {"records": 24782, "pass": 24380, "fail": 3, "unported": 399},
+  "totals": {"records": 24782, "pass": 24381, "fail": 3, "unported": 398},
   "passing": [
     "AdvancedOptimizationsIntegrationTest[0]",
     "AdvancedOptimizationsIntegrationTest[1]",
@@ -11228,6 +11228,7 @@
     "MultiPassTest[16]",
     "MultiPassTest[17]",
     "MultiPassTest[18]",
+    "NodeUtilTest[0]",
     "NormalizeTest[0]",
     "NormalizeTest[1]",
     "NormalizeTest[2]",
