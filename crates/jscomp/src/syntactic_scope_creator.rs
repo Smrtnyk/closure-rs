@@ -1,4 +1,5 @@
 /*
+ * Copyright 2009 The Closure Compiler Authors.
  * Copyright 2014 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +15,7 @@
  * limitations under the License.
  */
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit bb8c8e7:
+//   src/com/google/javascript/jscomp/AbstractCompiler.java,
 //   src/com/google/javascript/jscomp/SyntacticScopeCreator.java.
 
 use crate::{
