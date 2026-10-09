@@ -925,9 +925,13 @@ impl CompilerOptions {
         let conformance_configs = Vec::new();
         let conformance_reporting_mode =
             ConformanceReportingMode::IGNORE_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG;
-        let conformance_remove_regex_from_path = Some(Pattern::compile(
-            "^((.*/)?google3/)?(/?(blaze|bazel)-out/[^/]+/(bin|genfiles)/)?",
-        ));
+        // Rust-only (D-025): the pattern is compiled once per process, not per options object
+        // (CodePrinter.Builder makes default options for every toSource call).
+        static CONFORMANCE_REMOVE_REGEX_FROM_PATH: std::sync::LazyLock<Pattern> =
+            std::sync::LazyLock::new(|| {
+                Pattern::compile("^((.*/)?google3/)?(/?(blaze|bazel)-out/[^/]+/(bin|genfiles)/)?")
+            });
+        let conformance_remove_regex_from_path = Some(CONFORMANCE_REMOVE_REGEX_FROM_PATH.clone());
         let wrap_goog_modules_for_whitespace_only = true;
         let print_config = false;
         let is_strict_mode_input = None;

@@ -37,6 +37,43 @@ use std::{
     sync::{Arc, OnceLock, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak},
 };
 
+/// Rust-only (D-025): a variable-name argument that scope lookups read by reference. A
+/// `&JsString` is passed through without the clone (two atomic reference-count operations) that
+/// `impl Into<JsString>` costs; `&str` and `String` are converted as before.
+pub trait NameArg {
+    fn with_name<R>(self, f: impl FnOnce(&JsString) -> R) -> R;
+}
+impl NameArg for &JsString {
+    fn with_name<R>(self, f: impl FnOnce(&JsString) -> R) -> R {
+        f(self)
+    }
+}
+impl NameArg for &&JsString {
+    fn with_name<R>(self, f: impl FnOnce(&JsString) -> R) -> R {
+        f(self)
+    }
+}
+impl NameArg for JsString {
+    fn with_name<R>(self, f: impl FnOnce(&JsString) -> R) -> R {
+        f(&self)
+    }
+}
+impl NameArg for &str {
+    fn with_name<R>(self, f: impl FnOnce(&JsString) -> R) -> R {
+        f(&JsString::from(self))
+    }
+}
+impl NameArg for String {
+    fn with_name<R>(self, f: impl FnOnce(&JsString) -> R) -> R {
+        f(&JsString::from(self))
+    }
+}
+impl NameArg for &String {
+    fn with_name<R>(self, f: impl FnOnce(&JsString) -> R) -> R {
+        f(&JsString::from(self.as_str()))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ScopeId(pub(crate) NonZeroU32);
 
@@ -174,6 +211,32 @@ impl ScopeId {
         data.depth = 0;
         drop(arena);
         scope
+    }
+
+    /// Rust-only: `getVar` for a name no implicit slot can match: getOwnSlot only reads each
+    /// scope's declared vars, so walk the chain under one read lock instead of one lock per
+    /// scope (D-025).
+    fn get_declared_var(self, compiler: &AbstractCompiler, name: &JsString) -> Option<VarId> {
+        let arena = ScopeArena::read(compiler);
+        let mut scope = Some(self);
+        while let Some(current) = scope {
+            if let Some(var) = arena.scopes[current.index()].abstract_scope.vars.get(name) {
+                return Some(*var);
+            }
+            scope = compiler.scope_mirror.scopes[current.index()].parent;
+        }
+        None
+    }
+
+    /// Rust-only: `getVar(n.getString())` for a NAME (or IMPORT_STAR) node `n`, reading the
+    /// name in place instead of cloning it (D-025).
+    pub fn get_var_of_node(self, compiler: &mut AbstractCompiler, n: NodeId) -> Option<VarId> {
+        let name = n.get_string_ref(compiler);
+        if ImplicitVar::of(name).is_none() {
+            return self.get_declared_var(compiler, name);
+        }
+        let name = name.clone();
+        <Self as AbstractScope>::get_var(self, compiler, &name)
     }
 
     // port: Scope#untyped
@@ -326,17 +389,7 @@ impl AbstractScope for ScopeId {
         if ImplicitVar::of(name).is_some() {
             return crate::abstract_scope::abstract_scope_get_var(self, compiler, name);
         }
-        // No implicit slot can match `name`, so getOwnSlot only reads each scope's declared
-        // vars: walk the chain under one read lock instead of one lock per scope (D-025).
-        let arena = ScopeArena::read(compiler);
-        let mut scope = Some(self);
-        while let Some(current) = scope {
-            if let Some(var) = arena.scopes[current.index()].abstract_scope.vars.get(name) {
-                return Some(*var);
-            }
-            scope = compiler.scope_mirror.scopes[current.index()].parent;
-        }
-        None
+        self.get_declared_var(compiler, name)
     }
 
     fn get_depth(self, compiler: &AbstractCompiler) -> i32 {
@@ -364,15 +417,15 @@ macro_rules! scope_reader {
 }
 macro_rules! scope_name_reader {
     ($name:ident, $result:ty) => {
-        pub fn $name(self, compiler: &AbstractCompiler, name: impl Into<JsString>) -> $result {
-            <Self as AbstractScope>::$name(self, compiler, &name.into())
+        pub fn $name(self, compiler: &AbstractCompiler, name: impl NameArg) -> $result {
+            name.with_name(|name| <Self as AbstractScope>::$name(self, compiler, name))
         }
     };
 }
 macro_rules! scope_name_mutator {
     ($name:ident, $result:ty) => {
-        pub fn $name(self, compiler: &mut AbstractCompiler, name: impl Into<JsString>) -> $result {
-            <Self as AbstractScope>::$name(self, compiler, &name.into())
+        pub fn $name(self, compiler: &mut AbstractCompiler, name: impl NameArg) -> $result {
+            name.with_name(|name| <Self as AbstractScope>::$name(self, compiler, name))
         }
     };
 }

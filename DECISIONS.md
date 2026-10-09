@@ -400,6 +400,31 @@ here (one line each) to ease upstream syncs.
 - `jscomp/node_traversal.rs` `get_input`, `syntactic_scope_creator.rs` `ScopeScanner`: the
   CompilerInput found for the current input id is kept (Java keeps the object) instead of being
   looked up by id again; `ImplicitVar::js_name` makes the implicit var names once.
+- `rhino/java_lang/charset.rs` `decode`: one output buffer and a fast path for ASCII runs of
+  UTF-8 (Java's decoder loop gives the same text).
+- `rhino/js_string.rs`: `indexOf` scans for the needle's first unit, then compares the rest;
+  `==` with an ASCII `str` compares unit by byte; `""` conversions share one empty string
+  (Java's `""` literal is one interned object).
+- `jscomp/compiler_options.rs`: the conformance path regex is compiled once per process, not
+  per options object (CodePrinter.Builder makes default options per `toSource`).
+- `jscomp/scope.rs` `NameArg`, `get_var_of_node`, `typed_scope.rs` `get_var`,
+  `abstract_var.rs` `name_equals`: variable names are read by reference instead of copied, and
+  `TypedScope#getVar` walks the scope chain under one lock for non-implicit names;
+  `ImplicitVar::of` checks the name's length first.
+- `jscomp/data_flow_analysis.rs` `flow`: the stored lattice element is compared with the new one
+  before it is replaced instead of being copied first (Java keeps references); the
+  `flowThrough` of MustBeReachingVariableDef, MaybeReachingVariableUse and
+  LiveVariablesAnalysis use the owned input instead of copying it; `MustDef`'s map is shared
+  copy-on-write.
+- `jscomp/node_traversal.rs`: `getInput` returns the cached input without recomputing its id;
+  `getChunk` is read once per script.
+- `jscomp/source_file.rs`: the source kind is mirrored in an atomic, so `getKind`/`isExtern`
+  take no lock.
+- `jscomp/thread_safe_delegating_error_manager.rs`, `compiler.rs` `hasHaltingErrors`: a flag
+  set when the manager found no halting errors and cleared by every change to it lets the
+  per-node check of CombinedCompilerPass skip the locks.
+- `rhino/node.rs` `NodeData::prop_mask`: one bit per property type present in the node's
+  property list, so a lookup of an absent property does not walk the list.
 
 ## D-026 — Upstream syncs follow npm releases; first sync to 20261006.0.0 (2026-10-09)
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**

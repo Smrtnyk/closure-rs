@@ -78,10 +78,7 @@ impl JsString {
             if needle.len() > self.length() - b {
                 return -1;
             }
-            self.0[b..]
-                .windows(needle.len())
-                .position(|v| v == needle)
-                .map_or(-1, |i| (b + i) as i32)
+            find_units(&self.0[b..], needle).map_or(-1, |i| (b + i) as i32)
         })
     }
     // port: String#indexOf(int)
@@ -178,6 +175,27 @@ impl JsString {
         String::from_utf16_lossy(&self.0)
     }
 }
+/// Rust-only (D-025): the first index of `needle` (non-empty) in `hay`, as `String#indexOf`
+/// finds it: scans for the first unit, then compares the rest (Java's loop does the same; a
+/// window-by-window slice compare costs a call per position).
+fn find_units(hay: &[u16], needle: &[u16]) -> Option<usize> {
+    let (&first, rest) = needle.split_first()?;
+    let last_start = hay.len().checked_sub(needle.len())?;
+    let mut i = 0;
+    while i <= last_start {
+        match hay[i..=last_start].iter().position(|u| *u == first) {
+            None => return None,
+            Some(off) => {
+                let at = i + off;
+                if hay[at + 1..at + needle.len()] == *rest {
+                    return Some(at);
+                }
+                i = at + 1;
+            }
+        }
+    }
+    None
+}
 /// Rust-only: a string argument compared against JS strings without allocating a `JsString`
 /// (Java passes `String`s, which need no conversion).
 pub trait JsStrLike {
@@ -217,6 +235,13 @@ impl<T: JsStrLike + ?Sized> JsStrLike for &T {
 }
 impl From<&str> for JsString {
     fn from(s: &str) -> Self {
+        // Rust-only (D-025): Java's "" literal is one interned object; share one empty string
+        // instead of allocating one per conversion.
+        static EMPTY: std::sync::LazyLock<JsString> =
+            std::sync::LazyLock::new(|| JsString::from_units(Vec::new()));
+        if s.is_empty() {
+            return EMPTY.clone();
+        }
         Self::from_units(s.encode_utf16().collect::<Vec<_>>())
     }
 }
@@ -254,7 +279,18 @@ impl PartialOrd for JsString {
 impl PartialEq<str> for JsString {
     fn eq(&self, s: &str) -> bool {
         // A str of n bytes has at most n UTF-16 code units (cheap early exit).
-        self.0.len() <= s.len() && self.0.iter().copied().eq(s.encode_utf16())
+        if self.0.len() > s.len() {
+            return false;
+        }
+        // Rust-only fast path: an ASCII str has one code unit per byte.
+        if self.0.len() == s.len() && s.is_ascii() {
+            return self
+                .0
+                .iter()
+                .zip(s.bytes())
+                .all(|(a, b)| *a == u16::from(b));
+        }
+        self.0.iter().copied().eq(s.encode_utf16())
     }
 }
 impl PartialEq<&str> for JsString {

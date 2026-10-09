@@ -1404,7 +1404,7 @@ impl<'a> TypeInference<'a> {
             Some(t) => t,
             None => self.get_native_type(compiler, JSTypeNative::UNKNOWN_TYPE),
         };
-        let declared = Self::get_declared_var(compiler, &scope, var_name.clone());
+        let declared = Self::get_declared_var(compiler, &scope, &var_name);
         if self.is_unflowable_opt(compiler, declared) {
             return scope;
         }
@@ -1450,7 +1450,7 @@ impl<'a> TypeInference<'a> {
     fn get_declared_var(
         compiler: &mut AbstractCompiler,
         scope: &FS,
-        name: impl Into<JsString>,
+        name: impl crate::scope::NameArg,
     ) -> Option<TypedVar> {
         scope
             .get_declaration_scope(compiler)
@@ -2324,7 +2324,7 @@ impl TypeInference<'_> {
                 // function f() { var x = 3; function g() { x = null } (x); }
                 let is_inferred = var.is_type_inferred(compiler);
                 let unflowable = is_inferred && {
-                    let declared = Self::get_declared_var(compiler, &scope, var_name.clone());
+                    let declared = Self::get_declared_var(compiler, &scope, &var_name);
                     self.is_unflowable_opt(compiler, declared)
                 };
 
@@ -2710,7 +2710,7 @@ impl TypeInference<'_> {
                     && k.is_string_key(compiler)
                 {
                     let q_key_name = q_obj_name.concat(&JsString::from(".")).concat(&member_name);
-                    let var = Self::get_declared_var(compiler, &scope, q_key_name.clone());
+                    let var = Self::get_declared_var(compiler, &scope, &q_key_name);
                     let old_type = var.and_then(|var| var.get_type(compiler));
                     if let Some(var) = var
                         && var.is_type_inferred(compiler)

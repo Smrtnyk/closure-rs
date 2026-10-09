@@ -191,19 +191,26 @@ pub trait DataFlowAnalysis<
     }
     // port: DataFlowAnalysis#flow
     fn flow(&mut self, compiler: &mut AbstractCompiler, node: DiGraphNode) -> bool {
+        // Rust-only (D-025): Java keeps references to the lattice elements; here the stored
+        // element is compared with the new one before it is replaced, instead of being cloned
+        // first ("before"), and the new element is moved into place. The order of the
+        // flowThrough, branchFlow and equals calls is Java's.
         let state = node
             .get_annotation_as::<LinearFlowState<L>>(self.get_cfg())
             .unwrap();
         let value = node.get_value(self.get_cfg()).clone().unwrap();
         if self.is_forward() {
-            let before = state.get_out().clone();
             let input = state.get_in().clone();
             let out = self.flow_through(compiler, value.clone(), input);
-            node.get_annotation_as_mut::<LinearFlowState<L>>(self.get_cfg_mut())
+            let mut changed = !node
+                .get_annotation_as::<LinearFlowState<L>>(self.get_cfg())
                 .unwrap()
-                .set_out(out.clone());
-            let mut changed = !before.lattice_equals(compiler, &out);
+                .get_out()
+                .lattice_equals(compiler, &out);
             if self.is_branched() {
+                node.get_annotation_as_mut::<LinearFlowState<L>>(self.get_cfg_mut())
+                    .unwrap()
+                    .set_out(out.clone());
                 let edges: Vec<_> = node
                     .get_out_edges(self.get_cfg())
                     .iter()
@@ -211,21 +218,29 @@ pub trait DataFlowAnalysis<
                     .collect();
                 let mut brancher = self.create_flow_brancher(compiler, value, out);
                 for (edge, branch) in edges {
-                    let before = edge.get_annotation_as::<L>(self.get_cfg()).unwrap().clone();
                     let result = brancher.branch_flow(self, compiler, branch);
-                    edge.set_annotation(self.get_cfg_mut(), Some(Box::new(result)));
                     if !changed {
-                        let after = edge.get_annotation_as::<L>(self.get_cfg()).unwrap().clone();
-                        changed = !before.lattice_equals(compiler, &after);
+                        changed = !edge
+                            .get_annotation_as::<L>(self.get_cfg())
+                            .unwrap()
+                            .lattice_equals(compiler, &result);
                     }
+                    edge.set_annotation(self.get_cfg_mut(), Some(Box::new(result)));
                 }
+            } else {
+                node.get_annotation_as_mut::<LinearFlowState<L>>(self.get_cfg_mut())
+                    .unwrap()
+                    .set_out(out);
             }
             changed
         } else {
-            let before = state.get_in().clone();
             let input = state.get_out().clone();
             let result = self.flow_through(compiler, value, input);
-            let changed = !before.lattice_equals(compiler, &result);
+            let changed = !node
+                .get_annotation_as::<LinearFlowState<L>>(self.get_cfg())
+                .unwrap()
+                .get_in()
+                .lattice_equals(compiler, &result);
             node.get_annotation_as_mut::<LinearFlowState<L>>(self.get_cfg_mut())
                 .unwrap()
                 .set_in(result);

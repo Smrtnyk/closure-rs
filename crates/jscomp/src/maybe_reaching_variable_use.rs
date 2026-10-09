@@ -455,7 +455,8 @@ impl DataFlowAnalysis<NodeId, ReachingUses> for MaybeReachingVariableUse {
         n: NodeId,
         input: ReachingUses,
     ) -> ReachingUses {
-        let mut output = ReachingUses::copy(&input);
+        // Java copies the shared input; here the input is owned (D-025).
+        let mut output = input;
         let conditional = self.has_exception_handler(n);
         self.compute_may_use(compiler, n, n, &mut output, conditional);
         output

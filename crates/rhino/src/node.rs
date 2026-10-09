@@ -363,7 +363,31 @@ pub struct NodeData {
     jstype_or_color: Option<JSTypeOrColor>,
     original_name: Option<JsString>,
     prop_list_head: Option<Arc<PropListItem>>,
+    /// Rust-only (D-025): bit `p` is set when the property list holds an item of type `p`, so
+    /// that looking up an absent property (the common case) needs no walk of the list. Kept in
+    /// step with `prop_list_head` by `NodeData::set_prop_list`.
+    prop_mask: u64,
     kind: NodeKind,
+}
+// `prop_mask` has one bit per property type.
+const _: () = assert!(Prop::VALUES.len() <= 64);
+impl NodeData {
+    /// Rust-only: replaces the property list and recomputes `prop_mask`.
+    fn set_prop_list(&mut self, head: Option<Arc<PropListItem>>) {
+        let mut mask = 0u64;
+        let mut x = head.as_deref();
+        while let Some(item) = x {
+            mask |= 1u64 << item.prop_type;
+            x = item.next.as_deref();
+        }
+        self.prop_mask = mask;
+        self.prop_list_head = head;
+    }
+    /// Rust-only: takes the property list, leaving none.
+    fn take_prop_list(&mut self) -> Option<Arc<PropListItem>> {
+        self.prop_mask = 0;
+        self.prop_list_head.take()
+    }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(NonZeroU32);
@@ -546,7 +570,7 @@ impl Ast {
             if map.bound_at == Some(u32::try_from(i).unwrap()) {
                 crate::js_type_expression::JSTypeExpression::implicit_template_bound(self);
             }
-            heads.push(data.prop_list_head.take());
+            heads.push(data.take_prop_list());
             self.links.push(NodeLinks {
                 token: link.token,
                 parent: link.parent.map(|n| map.map(n)),
@@ -573,7 +597,7 @@ impl Ast {
             if let Some(head) = head {
                 let local = NodeId(NonZeroU32::new(u32::try_from(i + 1).unwrap()).unwrap());
                 let id = map.map(local);
-                self[id].prop_list_head = Some(remapper.list(head));
+                self[id].set_prop_list(Some(remapper.list(head)));
             }
         }
         map
@@ -599,6 +623,7 @@ impl Ast {
             jstype_or_color: None,
             original_name: None,
             prop_list_head: None,
+            prop_mask: 0,
             kind: NodeKind::Node,
         });
         id
@@ -1187,7 +1212,11 @@ impl NodeId {
     // operations) per list item.
     fn lookup_property_ref(self, ast: &Ast, prop: Prop) -> Option<&Arc<PropListItem>> {
         let prop_type = prop as u8;
-        let mut x = ast[self].prop_list_head.as_ref();
+        let data = &ast[self];
+        if data.prop_mask & (1u64 << prop_type) == 0 {
+            return None;
+        }
+        let mut x = data.prop_list_head.as_ref();
         while let Some(item) = x {
             if item.prop_type == prop_type {
                 return Some(item);
@@ -1202,7 +1231,8 @@ impl NodeId {
             ast[self].prop_list_head.is_none(),
             "Node has existing properties."
         );
-        ast[self].prop_list_head = ast[other].prop_list_head.clone();
+        let head = ast[other].prop_list_head.clone();
+        ast[self].set_prop_list(head);
         self
     }
     // port: Node#validateProperties
@@ -1318,8 +1348,8 @@ impl NodeId {
     pub fn put_prop(self, ast: &mut Ast, prop: Prop, value: Option<ObjectProp>) {
         self.remove_prop(ast, prop);
         if let Some(value) = value {
-            let head = ast[self].prop_list_head.take();
-            ast[self].prop_list_head = Some(PropListItem::object(prop as u8, value, head));
+            let head = ast[self].take_prop_list();
+            ast[self].set_prop_list(Some(PropListItem::object(prop as u8, value, head)));
         }
     }
     // port: Node#putBooleanProp
@@ -1330,8 +1360,8 @@ impl NodeId {
     pub fn put_int_prop(self, ast: &mut Ast, prop: Prop, value: i32) {
         self.remove_prop(ast, prop);
         if value != 0 {
-            let head = ast[self].prop_list_head.take();
-            ast[self].prop_list_head = Some(PropListItem::int(prop as u8, value, head));
+            let head = ast[self].take_prop_list();
+            ast[self].set_prop_list(Some(PropListItem::int(prop as u8, value, head)));
         }
     }
     // port: Node#removeProp
@@ -1341,8 +1371,8 @@ impl NodeId {
         if self.lookup_property_ref(ast, prop).is_none() {
             return;
         }
-        let head = ast[self].prop_list_head.take();
-        ast[self].prop_list_head = Self::rebuild_list_without_prop(head, prop);
+        let head = ast[self].take_prop_list();
+        ast[self].set_prop_list(Self::rebuild_list_without_prop(head, prop));
     }
     // port: Node#nodePropertyToBit
     pub fn node_property_to_bit(prop: NodeProperty) -> i64 {
@@ -1479,27 +1509,26 @@ impl NodeId {
                 _ => {
                     let prop = PropTranslator::deserialize(node_property)
                         .unwrap_or_else(|| panic!("Can not translate {node_property} to AST Prop"));
-                    ast[self].prop_list_head = Some(PropListItem::int(
-                        prop as u8,
-                        1,
-                        ast[self].prop_list_head.clone(),
-                    ));
+                    let head = ast[self].prop_list_head.clone();
+                    ast[self].set_prop_list(Some(PropListItem::int(prop as u8, 1, head)));
                 }
             }
         }
         if constant_var_flags != 0 {
-            ast[self].prop_list_head = Some(PropListItem::int(
+            let head = ast[self].prop_list_head.clone();
+            ast[self].set_prop_list(Some(PropListItem::int(
                 Prop::CONSTANT_VAR_FLAGS as u8,
                 constant_var_flags,
-                ast[self].prop_list_head.clone(),
-            ));
+                head,
+            )));
         }
         if side_effect_flags != 0 {
-            ast[self].prop_list_head = Some(PropListItem::int(
+            let head = ast[self].prop_list_head.clone();
+            ast[self].set_prop_list(Some(PropListItem::int(
                 Prop::SIDE_EFFECT_FLAGS as u8,
                 side_effect_flags,
-                ast[self].prop_list_head.clone(),
-            ));
+                head,
+            )));
         }
         self.validate_properties(ast, |error_message| {
             panic!(
@@ -1990,7 +2019,7 @@ impl NodeId {
                 tail = next.clone();
             }
             if tail.prop_type == Prop::SOURCE_FILE as u8 {
-                ast[self].prop_list_head = Some(tail);
+                ast[self].set_prop_list(Some(tail));
                 return;
             }
         }
@@ -2165,7 +2194,7 @@ impl NodeId {
     }
     // port: Node#setPropListHead
     pub fn set_prop_list_head(self, ast: &mut Ast, head: Option<Arc<PropListItem>>) {
-        ast[self].prop_list_head = head;
+        ast[self].set_prop_list(head);
     }
     // port: Node#getParent
     pub fn get_parent(self, ast: &Ast) -> Option<NodeId> {
@@ -2876,6 +2905,7 @@ impl NodeId {
         ast[dest].jstype_or_color = ast[source].jstype_or_color.clone();
         ast[dest].original_name = ast[source].original_name.clone();
         ast[dest].prop_list_head = ast[source].prop_list_head.clone();
+        ast[dest].prop_mask = ast[source].prop_mask;
         if clone_type_exprs {
             if let Some(info) = source.get_jsdoc_info(ast) {
                 let cloned = info.clone_with_type_nodes(ast, true);

@@ -171,6 +171,9 @@ pub struct Compiler {
     current_pass_index: i32,
     last_pass_name: Option<String>,
     error_manager: Option<Arc<std::sync::Mutex<ThreadSafeDelegatingErrorManager>>>,
+    /// Rust-only (D-025): the error manager's "no halting errors since last asked" flag
+    /// (`ThreadSafeDelegatingErrorManager::no_halting_errors_flag`).
+    no_halting_errors: Option<Arc<std::sync::atomic::AtomicBool>>,
     warnings_guard: Option<crate::compiler_warnings_guard::CompilerWarningsGuard>,
     externs_root: Option<NodeId>,
     js_root: Option<NodeId>,
@@ -277,6 +280,7 @@ impl Compiler {
             current_pass_index: -1,
             last_pass_name: None,
             error_manager: None,
+            no_halting_errors: None,
             warnings_guard: None,
             externs_root: None,
             js_root: None,
@@ -304,9 +308,9 @@ impl Compiler {
 
     // port: Compiler#setErrorManager
     pub fn set_error_manager(&mut self, error_manager: Box<dyn ErrorManager>) {
-        self.error_manager = Some(Arc::new(std::sync::Mutex::new(
-            ThreadSafeDelegatingErrorManager::new(error_manager),
-        )));
+        let manager = ThreadSafeDelegatingErrorManager::new(error_manager);
+        self.no_halting_errors = Some(manager.no_halting_errors_flag());
+        self.error_manager = Some(Arc::new(std::sync::Mutex::new(manager)));
     }
 
     /// Rust-only: `getErrorManager()` as the shared handle, so another compiler can take it with
@@ -324,6 +328,7 @@ impl Compiler {
         &mut self,
         error_manager: Arc<std::sync::Mutex<ThreadSafeDelegatingErrorManager>>,
     ) {
+        self.no_halting_errors = Some(error_manager.lock().unwrap().no_halting_errors_flag());
         self.error_manager = Some(error_manager);
     }
 
@@ -765,14 +770,22 @@ impl Compiler {
     // port: Compiler#hasHaltingErrors
     pub fn has_halting_errors(&self) -> bool {
         self.report_queued_type_registry_errors_to_manager();
-        !self.get_options().can_continue_after_errors()
-            && self
-                .error_manager
-                .as_ref()
-                .unwrap()
-                .lock()
-                .unwrap()
-                .has_halting_errors()
+        if self.get_options().can_continue_after_errors() {
+            return false;
+        }
+        if self
+            .no_halting_errors
+            .as_ref()
+            .is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Relaxed))
+        {
+            return false;
+        }
+        self.error_manager
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .has_halting_errors()
     }
     // port: Compiler#hasErrors
     pub fn has_errors(&self) -> bool {

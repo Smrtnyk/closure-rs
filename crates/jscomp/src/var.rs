@@ -152,6 +152,13 @@ impl AbstractVar for VarId {
         }
     }
 
+    fn name_equals(self, compiler: &AbstractCompiler, name: &str) -> bool {
+        match self.meta(compiler) {
+            Some(meta) => meta.name == name,
+            None => self.var_data(compiler).name == name,
+        }
+    }
+
     // port: AbstractVar#getNode
     fn get_node(self, compiler: &AbstractCompiler) -> Option<NodeId> {
         match self.meta(compiler) {

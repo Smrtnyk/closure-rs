@@ -563,6 +563,10 @@ impl ImplicitVar {
 
     // port: AbstractScope.ImplicitVar#of
     pub fn of(name: &JsString) -> Option<Self> {
+        // Rust-only fast path (D-025): the four names have distinct lengths.
+        if !matches!(name.length(), 4 | 5 | 7 | 9) {
+            return None;
+        }
         if name == "arguments" {
             Some(Self::ARGUMENTS)
         } else if name == "super" {
