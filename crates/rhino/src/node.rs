@@ -511,6 +511,11 @@ pub struct Ast {
     /// Rust-only: in a preparse arena, the node count when the parse first asked for the
     /// implicit template bound.
     pub(crate) preparse_bound_first_use: Option<u32>,
+    /// Rust-only (D-025): whether `changed_nodes` is kept (see `track_changes`).
+    tracking_changes: bool,
+    /// Rust-only (D-025): the nodes whose children, token or string changed since the last
+    /// `take_changed_nodes`, in order, without immediate repeats.
+    changed_nodes: Vec<NodeId>,
 }
 impl Index<NodeId> for Ast {
     type Output = NodeData;
@@ -565,6 +570,24 @@ impl IndexMut<L> for Ast {
 impl Ast {
     pub fn new() -> Self {
         Self::default()
+    }
+    /// Rust-only, not in Java (D-025): from now on, records every node whose list of children,
+    /// token or string changes (`take_changed_nodes`), so that what was computed from a part of
+    /// the tree (the compiler's reused syntactic scopes) is known to be stale whether or not the
+    /// change was reported to the compiler.
+    pub fn track_changes(&mut self) {
+        self.tracking_changes = true;
+    }
+    /// Rust-only (D-025): moves the nodes recorded since the last call to the end of `into`.
+    pub fn take_changed_nodes(&mut self, into: &mut Vec<NodeId>) {
+        into.append(&mut self.changed_nodes);
+    }
+    /// Rust-only (D-025): records that the children, token or string of `n` changed.
+    #[inline]
+    fn note_changed(&mut self, n: NodeId) {
+        if self.tracking_changes && self.changed_nodes.last() != Some(&n) {
+            self.changed_nodes.push(n);
+        }
     }
     /// Rust-only: replaces the property list of `n` and recomputes its `prop_masks` entry.
     fn set_props(&mut self, n: NodeId, head: Option<Arc<PropListItem>>) {
@@ -823,6 +846,11 @@ impl Ast {
     }
 }
 impl NodeId {
+    /// Rust-only: the node's slot in its arena (0 for the first node), for side tables indexed
+    /// by node.
+    pub fn arena_index(self) -> usize {
+        self.0.get() as usize - 1
+    }
     // port: Object#getClass (the runtime classes represented by NodeKind)
     pub fn get_class(self, ast: &Ast) -> &'static str {
         match &ast[self].kind {
@@ -933,6 +961,10 @@ impl NodeId {
     // port: Node#setToken
     pub fn set_token(self, ast: &mut Ast, token: Token) {
         ast[L(self)].token = token;
+        ast.note_changed(self);
+        if let Some(parent) = ast[L(self)].parent {
+            ast.note_changed(parent);
+        }
     }
     // port: Node#hasChildren
     pub fn has_children(self, ast: &Ast) -> bool {
@@ -1039,6 +1071,7 @@ impl NodeId {
     }
     // port: Node#addChildToFront
     pub fn add_child_to_front(self, ast: &mut Ast, child: NodeId) {
+        ast.note_changed(self);
         check_argument!(ast[L(child)].parent.is_none());
         check_argument!(ast[L(child)].next.is_none());
         check_argument!(ast[L(child)].previous.is_none());
@@ -1067,6 +1100,7 @@ impl NodeId {
         );
         check_argument!(ast[L(child)].next.is_none());
         check_argument!(ast[L(child)].previous.is_none());
+        ast.note_changed(self);
         if let Some(first) = ast[L(self)].first {
             let last = ast[L(first)].previous.unwrap();
             ast[L(last)].next = Some(child);
@@ -1084,6 +1118,7 @@ impl NodeId {
             return;
         };
         check_not_null!(ast[L(children)].previous, "%s", children.to_string(ast));
+        ast.note_changed(self);
         let mut child = Some(children);
         while let Some(c) = child {
             check_argument!(ast[L(c)].parent.is_none());
@@ -1108,6 +1143,7 @@ impl NodeId {
         existing.check_attached(ast);
         self.check_detached(ast);
         let existing_parent = ast[L(existing)].parent.unwrap();
+        ast.note_changed(existing_parent);
         let existing_next = ast[L(existing)].next;
         ast[L(self)].parent = Some(existing_parent);
         ast[L(existing)].next = Some(self);
@@ -1125,6 +1161,7 @@ impl NodeId {
         existing.check_attached(ast);
         self.check_detached(ast);
         let existing_parent = ast[L(existing)].parent.unwrap();
+        ast.note_changed(existing_parent);
         let existing_previous = ast[L(existing)].previous.unwrap();
         ast[L(self)].parent = Some(existing_parent);
         ast[L(self)].next = Some(existing);
@@ -1147,6 +1184,7 @@ impl NodeId {
             self.add_children_to_front(ast, Some(children));
             return;
         };
+        ast.note_changed(self);
         let mut child = Some(children);
         while let Some(c) = child {
             check_argument!(ast[L(c)].parent.is_none());
@@ -1170,6 +1208,7 @@ impl NodeId {
         self.check_attached(ast);
         replacement.check_detached(ast);
         let existing_parent = ast[L(self)].parent.unwrap();
+        ast.note_changed(existing_parent);
         let existing_next = ast[L(self)].next;
         let existing_previous = ast[L(self)].previous.unwrap();
         replacement.srcref_if_missing(ast, self);
@@ -1195,6 +1234,7 @@ impl NodeId {
     pub fn detach(self, ast: &mut Ast) -> Self {
         self.check_attached(ast);
         let existing_parent = ast[L(self)].parent.unwrap();
+        ast.note_changed(existing_parent);
         let existing_next = ast[L(self)].next;
         let existing_previous = ast[L(self)].previous.unwrap();
         ast[L(self)].parent = None;
@@ -1249,6 +1289,7 @@ impl NodeId {
     }
     // port: Node#removeChildren
     pub fn remove_children(self, ast: &mut Ast) -> Option<NodeId> {
+        ast.note_changed(self);
         let children = ast[L(self)].first;
         let mut child = children;
         while let Some(c) = child {
@@ -1260,6 +1301,7 @@ impl NodeId {
     }
     // port: Node#detachChildren
     pub fn detach_children(self, ast: &mut Ast) {
+        ast.note_changed(self);
         let mut child = ast[L(self)].first;
         while let Some(c) = child {
             let next_child = ast[L(c)].next;
@@ -1705,6 +1747,7 @@ impl NodeId {
     }
     // port: Node#setString
     pub fn set_string(self, ast: &mut Ast, s: impl Into<JsString>) {
+        ast.note_changed(self);
         match &mut ast[self].kind {
             NodeKind::String { str } => *str = RhinoStringPool::add_or_get(s),
             _ => panic!("ClassCastException"),
@@ -1717,6 +1760,7 @@ impl NodeId {
         pool: &LazyInternedStringList,
         offset: i32,
     ) {
+        ast.note_changed(self);
         match &mut ast[self].kind {
             NodeKind::String { str } => *str = pool.get(offset),
             _ => panic!("ClassCastException"),

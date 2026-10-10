@@ -401,6 +401,16 @@ here (one line each) to ease upstream syncs.
 - `jscomp/basic_block.rs`: the basic blocks of references are `Rc`, not `Arc`.
 - `rhino/js_string.rs` `JsStrLike::is_prefix_of`/`is_suffix_of`: `startsWith`/`endsWith` compare
   an ASCII literal with the code units byte by byte instead of converting it first.
+- `jscomp/syntactic_scope_cache.rs` (hooks in `syntactic_scope_creator.rs`, `scope.rs`,
+  `abstract_scope.rs`, `abstract_var.rs`): a scope made by a `SyntacticScopeCreator` with the
+  default redeclaration handler is kept by root node and handed out again by a later pass while
+  its code is unchanged and no pass declared or undeclared a name in it (Java scans anew for every
+  request); a pass never receives one scope twice. About 75% fewer scans and a third less peak
+  memory on large bundles; `CLOSURE_RS_SCOPE_CACHE=off` disables it, `=verify` checks every
+  reuse against a new scan.
+- `rhino/node.rs` `Ast::track_changes`: the arena records every node whose children, token or
+  string change (independently of the compiler's change reports, which some passes omit), so
+  that the scope cache sees every change.
 
 ## D-026 — Upstream syncs follow npm releases
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**

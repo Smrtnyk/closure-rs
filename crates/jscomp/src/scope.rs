@@ -117,6 +117,8 @@ pub(crate) struct ScopeMeta {
     pub(crate) root_node: NodeId,
     pub(crate) parent: Option<ScopeId>,
     pub(crate) depth: i32,
+    /// Rust-only: kept for reuse by the `SyntacticScopeCache`.
+    pub(crate) kept: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -253,6 +255,7 @@ impl ScopeId {
     ) -> VarId {
         let name = name.into();
         check_argument!(!name.is_empty());
+        self.note_mutation(compiler);
         if ImplicitVar::of(&name).is_none() {
             // Rust-only fast path (D-025): with no implicit slot for `name`, getOwnSlot,
             // hasOwnSlot and canDeclare only read declared vars, so the checks, the new Var and
@@ -318,6 +321,7 @@ impl ScopeId {
     ) -> VarId {
         let name = name.into();
         check_argument!(!name.is_empty());
+        self.note_mutation(compiler);
         check_state!(
             self.is_global(compiler),
             "Cannot declare implicit goog namespace in local scope %s",
@@ -362,12 +366,59 @@ impl ScopeId {
             root_node,
             parent,
             depth,
+            kept: false,
         });
         scope
     }
 
     pub(crate) fn index(self) -> usize {
         self.0.get() as usize - 1
+    }
+
+    /// Rust-only (D-025): moves a scope that the `SyntacticScopeCache` hands out again under a
+    /// new parent at the same depth (the parent's scope was scanned anew).
+    pub(crate) fn set_parent(self, compiler: &mut AbstractCompiler, parent: ScopeId) {
+        ScopeArena::write(compiler).scopes[self.index()].parent = Some(parent);
+        compiler.scope_mirror.scopes[self.index()].parent = Some(parent);
+    }
+
+    /// Rust-only (D-025): whether every name declared here is still the name of its declaring
+    /// NAME node, and that node is still in the tree. The name of a function belongs to the
+    /// function's change scope, not to the scope that declares it, so the `SyntacticScopeCache`
+    /// checks it before handing out again a scope that declares a function.
+    pub(crate) fn declared_names_unchanged(self, compiler: &AbstractCompiler) -> bool {
+        let arena = ScopeArena::read(compiler);
+        arena.scopes[self.index()]
+            .abstract_scope
+            .vars
+            .iter()
+            .all(|(name, var)| match arena.vars[var.index()].name_node {
+                Some(node) if node.is_name(compiler) || node.is_import_star(compiler) => {
+                    node.get_parent(compiler).is_some() && node.get_string_ref(compiler) == name
+                }
+                _ => true,
+            })
+    }
+
+    /// Rust-only (D-025): whether a var of this scope is the name of a function (see
+    /// `declared_names_unchanged`).
+    pub(crate) fn declares_functions(self, compiler: &AbstractCompiler) -> bool {
+        let arena = ScopeArena::read(compiler);
+        arena.scopes[self.index()]
+            .abstract_scope
+            .vars
+            .values()
+            .any(|var| {
+                arena.vars[var.index()]
+                    .name_node
+                    .and_then(|node| node.get_parent(compiler))
+                    .is_some_and(|parent| parent.is_function(compiler))
+            })
+    }
+
+    /// Rust-only (D-025): marks whether the `SyntacticScopeCache` keeps this scope.
+    pub(crate) fn set_kept(self, compiler: &mut AbstractCompiler, kept: bool) {
+        compiler.scope_mirror.scopes[self.index()].kept = kept;
     }
 }
 
@@ -416,6 +467,19 @@ impl AbstractScope for ScopeId {
     }
     fn make_implicit_var(self, compiler: &mut AbstractCompiler, var: ImplicitVar) -> Option<VarId> {
         Some(ScopeId::make_implicit_var(self, compiler, var))
+    }
+
+    /// Rust-only (D-025): a pass declaring or undeclaring a name in a scope that the
+    /// `SyntacticScopeCache` keeps makes it unfit for reuse.
+    fn note_mutation(self, compiler: &mut AbstractCompiler) {
+        let meta = compiler.scope_mirror.scopes[self.index()];
+        if meta.kept {
+            crate::syntactic_scope_cache::SyntacticScopeCache::evict(
+                compiler,
+                meta.root_node,
+                self,
+            );
+        }
     }
 }
 

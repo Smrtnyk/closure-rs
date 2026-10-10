@@ -196,6 +196,8 @@ pub struct Compiler {
         std::sync::Arc<std::sync::RwLock<crate::typed_scope::TypedScopeArena>>,
     /// Rust-only: lock-free copies of immutable `typed_scope_arena` fields.
     pub(crate) typed_scope_mirror: Vec<crate::typed_scope::TypedScopeMeta>,
+    /// Rust-only (D-025): syntactic scopes kept for reuse by later passes.
+    pub(crate) syntactic_scope_cache: crate::syntactic_scope_cache::SyntacticScopeCache,
 }
 
 impl Compiler {
@@ -301,6 +303,7 @@ impl Compiler {
             scope_mirror: crate::scope::ScopeMirror::default(),
             typed_scope_arena: crate::typed_scope::TypedScopeArena::shared(),
             typed_scope_mirror: Vec::new(),
+            syntactic_scope_cache: Default::default(),
         }
     }
 
@@ -799,6 +802,10 @@ impl Compiler {
     // port: Compiler#beforePass
     pub fn before_pass(&mut self, _pass_name: &str) {
         self.current_pass_index = self.current_pass_index.wrapping_add(1);
+    }
+    /// Rust-only: the number of the running pass (see `SyntacticScopeCache`).
+    pub(crate) fn current_pass_index(&self) -> i32 {
+        self.current_pass_index
     }
     // port: Compiler#afterPass
     pub fn after_pass(&mut self, pass_name: &str) {

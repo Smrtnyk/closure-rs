@@ -19,8 +19,12 @@
 //   src/com/google/javascript/jscomp/SyntacticScopeCreator.java.
 
 use crate::{
-    abstract_compiler::AbstractCompiler, compiler_input::CompilerInput, node_util::NodeUtil,
-    scope::ScopeId, scope_creator::ScopeCreator,
+    abstract_compiler::AbstractCompiler,
+    compiler_input::CompilerInput,
+    node_util::NodeUtil,
+    scope::ScopeId,
+    scope_creator::ScopeCreator,
+    syntactic_scope_cache::{ScopeContext, SyntacticScopeCache},
 };
 use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
@@ -31,6 +35,9 @@ use std::sync::Arc;
 pub struct SyntacticScopeCreator<'a> {
     redeclaration_handler: Box<dyn RedeclarationHandler + 'a>,
     treat_provides_as_redeclarations: bool,
+    /// Rust-only (D-025): whether this creator's scopes are reused across passes, true for the
+    /// default redeclaration handler (which has no effects); see `SyntacticScopeCache`.
+    reusable: bool,
 }
 
 const ARGUMENTS: &str = "arguments";
@@ -46,7 +53,10 @@ impl Default for SyntacticScopeCreator<'_> {
 impl<'a> SyntacticScopeCreator<'a> {
     // port: SyntacticScopeCreator#SyntacticScopeCreator(AbstractCompiler)
     pub fn new() -> Self {
-        Self::new_with_redeclaration_handler(Box::new(DEFAULT_REDECLARATION_HANDLER))
+        let mut creator =
+            Self::new_with_redeclaration_handler(Box::new(DEFAULT_REDECLARATION_HANDLER));
+        creator.reusable = true;
+        creator
     }
 
     // port: SyntacticScopeCreator#SyntacticScopeCreator(AbstractCompiler, RedeclarationHandler)
@@ -64,6 +74,7 @@ impl<'a> SyntacticScopeCreator<'a> {
         Self {
             redeclaration_handler,
             treat_provides_as_redeclarations,
+            reusable: false,
         }
     }
 }
@@ -83,6 +94,42 @@ impl ScopeCreator for SyntacticScopeCreator<'_> {
 impl SyntacticScopeCreator<'_> {
     // port: SyntacticScopeCreator#createScope(Node, Scope)
     pub fn create_scope(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        parent: Option<ScopeId>,
+    ) -> ScopeId {
+        // Rust-only (D-025): a scope that an earlier pass scanned from code nobody has changed
+        // since is handed out again instead of being scanned anew (see SyntacticScopeCache).
+        let context = if self.reusable {
+            ScopeContext::of(compiler, n)
+        } else {
+            None
+        };
+        if let Some(context) = &context
+            && let Some(scope) = SyntacticScopeCache::reuse(compiler, n, parent, context)
+        {
+            if SyntacticScopeCache::verifying() {
+                let fresh = self.scan(compiler, n, parent);
+                SyntacticScopeCache::verify(compiler, scope, fresh);
+            }
+            return scope;
+        }
+        let scanned_at = if context.is_some() {
+            SyntacticScopeCache::scan_round(compiler)
+        } else {
+            0
+        };
+        let scope = self.scan(compiler, n, parent);
+        if let Some(context) = context {
+            SyntacticScopeCache::keep(compiler, n, scope, scanned_at, context);
+        }
+        scope
+    }
+
+    // port: SyntacticScopeCreator#createScope(Node, Scope)
+    /// The Java method's body: a new scope scanned from `n`.
+    fn scan(
         &mut self,
         compiler: &mut AbstractCompiler,
         n: NodeId,
