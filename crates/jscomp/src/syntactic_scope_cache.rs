@@ -45,7 +45,10 @@
 
 use crate::{abstract_compiler::AbstractCompiler, node_util::NodeUtil, scope::ScopeId};
 use closure_rhino::{fast_hash::IndexMap, node::NodeId};
-use std::{num::NonZeroU32, sync::LazyLock};
+use std::{
+    num::NonZeroU32,
+    sync::{Arc, LazyLock},
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
@@ -79,6 +82,11 @@ pub(crate) struct ScopeContext {
 }
 
 impl ScopeContext {
+    /// Whether the scope is a global scope rooted at a ROOT node.
+    pub(crate) fn is_global_root(&self) -> bool {
+        self.scripts.is_some()
+    }
+
     /// The context of a scope rooted at `root`, or None when scopes of `root` are not kept (the
     /// cache is off, or the root is not in a script).
     pub(crate) fn of(compiler: &AbstractCompiler, root: NodeId) -> Option<Self> {
@@ -153,9 +161,24 @@ struct Entry {
     declares_functions: bool,
 }
 
+/// A declaration that a scan of the top level of a script makes in a global scope (see
+/// `ScopeScanner::scan_script`).
+pub(crate) enum ScriptDeclaration {
+    /// `declareVar(scope, name)`; `parent` is the name node's parent when scanned.
+    Name {
+        name: NodeId,
+        parent: Option<NodeId>,
+    },
+    /// `declareImplicitGoogNamespaceFromCall(scope, exprCall)`.
+    GoogNamespace(NodeId),
+}
+
 /// The scopes kept for reuse.
 #[derive(Default)]
 pub(crate) struct SyntacticScopeCache {
+    /// The declarations of the top level of each script that a global scope was scanned from,
+    /// with the `scan_round` of that scan.
+    script_declarations: IndexMap<NodeId, (u32, Arc<[ScriptDeclaration]>)>,
     /// Per node: the last round of `record_changes` that walked through it, or for a FUNCTION or
     /// SCRIPT, that found a change in its change scope.
     stamps: Vec<u32>,
@@ -315,6 +338,42 @@ impl SyntacticScopeCache {
         }
         cache.global_scripts.swap_remove(&scope);
         scope.set_kept(compiler, false);
+    }
+
+    /// The declarations recorded for the top level of `script`, while nothing in it changed and
+    /// every declared name node is still in place with a name.
+    pub(crate) fn script_declarations(
+        compiler: &mut AbstractCompiler,
+        script: NodeId,
+    ) -> Option<Arc<[ScriptDeclaration]>> {
+        Self::record_changes(compiler);
+        let cache = &compiler.syntactic_scope_cache;
+        let (scanned_at, declarations) = cache.script_declarations.get(&script)?;
+        if cache.changed_since(script, *scanned_at) {
+            return None;
+        }
+        // A function declaration's name node lies in the function's change scope.
+        let in_place = declarations.iter().all(|declaration| match *declaration {
+            ScriptDeclaration::Name { name, parent } => {
+                name.get_parent(compiler) == parent
+                    && (!name.is_name(compiler) || !name.get_string_ref(compiler).is_empty())
+            }
+            ScriptDeclaration::GoogNamespace(_) => true,
+        });
+        in_place.then(|| Arc::clone(declarations))
+    }
+
+    /// Keeps the declarations of the top level of `script`, scanned in `scan_round` `scanned_at`.
+    pub(crate) fn keep_script_declarations(
+        compiler: &mut AbstractCompiler,
+        script: NodeId,
+        scanned_at: u32,
+        declarations: Vec<ScriptDeclaration>,
+    ) {
+        compiler
+            .syntactic_scope_cache
+            .script_declarations
+            .insert(script, (scanned_at, declarations.into()));
     }
 
     /// Whether reused scopes are checked against a new scan.

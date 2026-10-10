@@ -413,6 +413,9 @@ here (one line each) to ease upstream syncs.
   that the scope cache sees every change.
 - `jscomp/scope.rs` `ScopeMeta::may_have_vars`: a name lookup passes the scopes in which nothing
   was ever declared without reading the arena.
+- `jscomp/syntactic_scope_creator.rs` `ScopeScanner::scan_script`: a new global scope takes the
+  top-level declarations of each unchanged script (the externs, mostly) from the scope cache and
+  makes them again through `declareVar`, instead of walking the script's statements.
 
 ## D-026 — Upstream syncs follow npm releases
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**
