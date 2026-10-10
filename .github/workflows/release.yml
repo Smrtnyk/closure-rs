@@ -25,8 +25,10 @@ on:
         options: [latest, exp]
         default: latest
 
+# A newer push or pull-request run cancels an older one on the same ref. A release run (Run
+# workflow) has a group of its own, so nothing cancels it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'ci' }}
   cancel-in-progress: true
 
 jobs:
