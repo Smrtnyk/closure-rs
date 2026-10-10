@@ -94,6 +94,7 @@ pub mod testing;
 pub mod thread_safe_delegating_error_manager;
 pub mod transpile;
 pub mod typed_code_generator;
+pub(crate) mod var_map;
 pub mod variable_map;
 pub mod verbose_message_formatter;
 pub mod warnings_guard;

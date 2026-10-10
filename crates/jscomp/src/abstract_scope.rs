@@ -34,8 +34,8 @@ use std::{
 /// Fields shared by syntactic and future typed scope handles.
 #[derive(Debug)]
 pub struct AbstractScopeData<V> {
-    // Java LinkedHashMap (the fast hasher keeps the insertion order, D-025).
-    pub(crate) vars: closure_rhino::fast_hash::IndexMap<JsString, V>,
+    // Java LinkedHashMap (small ones kept inline, D-025).
+    pub(crate) vars: crate::var_map::VarMap<V>,
     pub(crate) implicit_vars: BTreeMap<ImplicitVar, V>,
     pub(crate) root_node: NodeId,
 }
