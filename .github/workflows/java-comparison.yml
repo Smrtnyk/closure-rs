@@ -13,7 +13,6 @@
 name: java-comparison
 
 on:
-  pull_request:
   workflow_dispatch:
   workflow_call:
 
