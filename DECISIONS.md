@@ -460,7 +460,7 @@ here (one line each) to ease upstream syncs.
   runs on one thread of the compiler's stack size, on which `runInCompilerThread` runs its
   callable in place with the same bookkeeping (Java's executor starts a thread per call, six
   per compile); the thread is parked, not joined, when the exit code is known. One allocator
-  heap serves the whole compile instead of one per stage: less memory (9-25% less peak RSS)
+  heap serves the whole compile instead of one per stage: less memory (6-25% less peak RSS)
   and no heap collection at each thread's exit.
 - `jscomp/source_map.rs` `addMapping`, `source_file_mapping.rs` `get_source_mapping_cached`,
   `compiler_source_excerpt_provider.rs`: the output source map keeps the parsed input map of
