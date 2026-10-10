@@ -1371,7 +1371,8 @@ impl NodeId {
         if ast[L(self)].token == Token::ROOT {
             consumer("ROOT has properties".into());
         }
-        let mut item = ast[self].prop_list_head.clone();
+        // Rust-only (D-025): the list is walked by reference, without reference counting.
+        let mut item = ast[self].prop_list_head.as_deref();
         while let Some(p) = item {
             let prop = Prop::VALUES[p.prop_type as usize];
             check_state!(
@@ -1436,7 +1437,7 @@ impl NodeId {
                 }
                 _ => {}
             }
-            item = p.next.clone();
+            item = p.next.as_deref();
         }
     }
     // port: Node#rebuildListWithoutProp
@@ -1525,7 +1526,7 @@ impl NodeId {
     // port: Node#serializeProperties
     pub fn serialize_properties(self, ast: &Ast) -> i64 {
         let mut prop_set = 0;
-        let mut item = ast[self].prop_list_head.clone();
+        let mut item = ast[self].prop_list_head.as_deref();
         while let Some(p) = item {
             let prop = Prop::VALUES[p.prop_type as usize];
             match prop {
@@ -1562,7 +1563,7 @@ impl NodeId {
                     }
                 }
             }
-            item = p.next.clone();
+            item = p.next.as_deref();
         }
         prop_set
     }
@@ -1584,11 +1585,11 @@ impl NodeId {
     }
     // port: Node#getPropListDebugString
     pub fn get_prop_list_debug_string(self, ast: &Ast) -> String {
-        let mut item = ast[self].prop_list_head.clone();
+        let mut item = ast[self].prop_list_head.as_deref();
         let mut repr = Vec::new();
         while let Some(p) = item {
             repr.push(format!("{:?}", Prop::VALUES[p.prop_type as usize]));
-            item = p.next.clone();
+            item = p.next.as_deref();
         }
         repr.join("->")
     }
@@ -1712,11 +1713,11 @@ impl NodeId {
     }
     // port: Node#getSortedPropTypes
     fn get_sorted_prop_types(self, ast: &Ast) -> Vec<u8> {
-        let mut item = ast[self].prop_list_head.clone();
+        let mut item = ast[self].prop_list_head.as_deref();
         let mut keys = Vec::new();
         while let Some(p) = item {
             keys.push(p.prop_type);
-            item = p.next.clone();
+            item = p.next.as_deref();
         }
         keys.sort_unstable();
         keys
@@ -2723,10 +2724,10 @@ impl NodeId {
         }
         let mut prop_set = [false; Prop::VALUES.len()];
         for (arena, n) in [(ast, self), (ast_b, node)] {
-            let mut item = arena[n].prop_list_head.clone();
+            let mut item = arena[n].prop_list_head.as_deref();
             while let Some(p) = item {
                 prop_set[p.prop_type as usize] = true;
-                item = p.next.clone();
+                item = p.next.as_deref();
             }
         }
         for prop in Prop::VALUES {

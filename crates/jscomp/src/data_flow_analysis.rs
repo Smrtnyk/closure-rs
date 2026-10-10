@@ -150,13 +150,22 @@ pub trait DataFlowAnalysis<
             }
             self.join_inputs(compiler, cur_node);
             if self.flow(compiler, cur_node) {
-                let next_nodes = if self.is_forward() {
-                    self.get_cfg().get_directed_succ_nodes_of(cur_node)
+                // Rust-only (D-025): the successors (predecessors) are read from the graph one
+                // by one, in getDirectedSuccNodes order, instead of being copied into a new list.
+                let forward = self.is_forward();
+                let count = if forward {
+                    self.get_cfg().node_out_edges(cur_node).len()
                 } else {
-                    self.get_cfg().get_directed_pred_nodes_of(cur_node)
+                    self.get_cfg().node_in_edges(cur_node).len()
                 };
-                for next_node in next_nodes {
-                    if next_node != self.get_cfg().get_implicit_return() {
+                for i in 0..count {
+                    let cfg = self.get_cfg();
+                    let next_node = if forward {
+                        cfg.edge_node_b(cfg.node_out_edges(cur_node)[i])
+                    } else {
+                        cfg.edge_node_a(cfg.node_in_edges(cur_node)[i])
+                    };
+                    if next_node != cfg.get_implicit_return() {
                         self.state_mut().work_queue.add(next_node);
                     }
                 }

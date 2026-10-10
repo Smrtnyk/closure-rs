@@ -60,13 +60,15 @@ enum ScopeObject {
 }
 enum ScopeCreatorHolder<'a> {
     Borrowed(&'a mut dyn ScopeCreator),
-    Owned(Box<dyn ScopeCreator + 'a>),
+    /// Rust-only (D-025): the default creator is kept in the traversal itself rather than boxed,
+    /// so that making a traversal allocates nothing for it.
+    Default(SyntacticScopeCreator<'a>),
 }
 impl ScopeCreatorHolder<'_> {
     fn get_mut(&mut self) -> &mut dyn ScopeCreator {
         match self {
             Self::Borrowed(value) => &mut **value,
-            Self::Owned(value) => &mut **value,
+            Self::Default(value) => value,
         }
     }
 }
@@ -632,7 +634,11 @@ impl<C: ModuleCallback> Callback for AbstractModuleCallback<'_, C> {
             }
             _ => {}
         }
-        self.should_traverse_module(t, n, self.current_module.clone(), self.scope_root)
+        // Rust-only (D-025): the module is lent to the call instead of copied for every node.
+        let current_module = self.current_module.take();
+        let result = self.should_traverse_module(t, n, current_module.as_ref(), self.scope_root);
+        self.current_module = current_module;
+        result
     }
 
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
@@ -645,11 +651,11 @@ impl<C: ModuleCallback> AbstractModuleCallback<'_, C> {
         &mut self,
         t: &mut NodeTraversal<'_>,
         n: NodeId,
-        current_module: Option<Arc<ModuleMetadata>>,
+        current_module: Option<&Arc<ModuleMetadata>>,
         module_scope_root: Option<NodeId>,
     ) -> bool {
         self.callback
-            .should_traverse(t, n, current_module.as_ref(), module_scope_root)
+            .should_traverse(t, n, current_module, module_scope_root)
     }
 
     // port: NodeTraversal.AbstractModuleCallback#visit(NodeTraversal, Node, Node)
@@ -681,7 +687,10 @@ impl<C: ModuleCallback> AbstractModuleCallback<'_, C> {
             }
             _ => {}
         }
-        self.visit_module(t, n, self.current_module.clone(), self.scope_root);
+        // Rust-only (D-025): the module is lent to the call instead of copied for every node.
+        let current_module = self.current_module.take();
+        self.visit_module(t, n, current_module.as_ref(), self.scope_root);
+        self.current_module = current_module;
     }
 
     // port: NodeTraversal.AbstractModuleCallback#visit(NodeTraversal, Node, ModuleMetadata, Node)
@@ -689,11 +698,10 @@ impl<C: ModuleCallback> AbstractModuleCallback<'_, C> {
         &mut self,
         t: &mut NodeTraversal<'_>,
         n: NodeId,
-        current_module: Option<Arc<ModuleMetadata>>,
+        current_module: Option<&Arc<ModuleMetadata>>,
         module_scope_root: Option<NodeId>,
     ) {
-        self.callback
-            .visit(t, n, current_module.as_ref(), module_scope_root);
+        self.callback.visit(t, n, current_module, module_scope_root);
     }
 }
 
@@ -872,7 +880,7 @@ impl<'a> NodeTraversal<'a> {
     ) -> Self {
         let scope_callback = callback.as_scoped_callback().is_some();
         let scope_creator = scope_creator.map_or_else(
-            || ScopeCreatorHolder::Owned(Box::new(SyntacticScopeCreator::new())),
+            || ScopeCreatorHolder::Default(SyntacticScopeCreator::new()),
             ScopeCreatorHolder::Borrowed,
         );
         let may_contain_synthetic_blocks = compiler

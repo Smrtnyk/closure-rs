@@ -205,14 +205,14 @@ impl ControlFlowAnalysis {
             self.priority_counter += 1;
             current.set_priority(&mut self.cfg, self.priority_counter);
 
-            let successors = self.cfg.get_directed_succ_nodes_of(current);
+            // Rust-only (D-025): the successors are read from the graph in place instead of
+            // being copied into a new list.
+            let cfg = &self.cfg;
             worklist.add_all(
-                successors,
-                &mut Self::priority_comparator(
-                    compiler,
-                    &self.cfg,
-                    self.ast_position.as_ref().unwrap(),
-                ),
+                cfg.node_out_edges(current)
+                    .iter()
+                    .map(|edge| cfg.edge_node_b(*edge)),
+                &mut Self::priority_comparator(compiler, cfg, self.ast_position.as_ref().unwrap()),
             );
         }
     }
