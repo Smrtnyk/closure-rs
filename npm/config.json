@@ -5,6 +5,9 @@
   "license": "Apache-2.0 AND (MPL-1.1 OR GPL-2.0-or-later) AND GPL-2.0-only WITH Classpath-exception-2.0 AND BSD-3-Clause AND MIT AND Unicode-DFS-2016 AND dtoa",
   "description": "Rust port of the Closure Compiler CLI. Not affiliated with or published by Google.",
   "platforms": [
+    "darwin-arm64",
+    "darwin-x64",
+    "linux-arm64",
     "linux-x64",
     "win32-x64"
   ]

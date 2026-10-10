@@ -15,15 +15,44 @@ const require = createRequire(import.meta.url);
 const packageName = JSON.parse(
   fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).name;
 
-/** Executable file name inside a platform package (scripts/npm_pack_platform.mjs puts it in bin/). */
+/** Executable file name, under bin/<platform>-<arch>/ here and under bin/ in a platform package. */
 const exeName = process.platform === 'win32' ? 'closure-rs.exe' : 'closure-rs';
 
 /** Name of the optional platform package for this OS and CPU, e.g. closure-rs-linux-x64. */
 export const platformPackageName = `${packageName}-${process.platform}-${process.arch}`;
 
-/** Binary bundled in this package: bin/<platform>-<arch>/closure-rs[.exe] (scripts/npm_pack_main.mjs --binaries). */
-export const bundledBinaryPath = path.join(
-    path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', `${process.platform}-${process.arch}`, exeName);
+/** Folder of the bundled binaries: bin/<platform>-<arch>/closure-rs[.exe] (scripts/npm_pack_main.mjs --binaries). */
+const binDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin');
+
+/**
+ * Platforms whose binary also runs on this one, after its own: Windows on Arm runs x64 programs
+ * (emulated) when the package has no win32-arm64 binary.
+ */
+const RUNS_ALSO = {'win32-arm64': ['win32-x64']};
+
+/** This machine as <platform>-<arch>, the name of its folder under bin/. */
+export const thisPlatform = `${process.platform}-${process.arch}`;
+
+/**
+ * Binary bundled in this package for this machine: bin/<platform>-<arch>/closure-rs[.exe], or the
+ * binary of a platform in RUNS_ALSO when only that one exists.
+ */
+export const bundledBinaryPath = [thisPlatform, ...(RUNS_ALSO[thisPlatform] || [])]
+    .map((p) => path.join(binDir, p, exeName))
+    .find((p) => fs.existsSync(p)) || path.join(binDir, thisPlatform, exeName);
+
+/**
+ * The <platform>-<arch> folders under bin/: the systems this package has a binary for.
+ * @return {!Array<string>}
+ */
+export const bundledPlatforms = () => {
+  try {
+    return fs.readdirSync(binDir).filter((p) => fs.existsSync(
+        path.join(binDir, p, p.startsWith('win32-') ? 'closure-rs.exe' : 'closure-rs'))).sort();
+  } catch {
+    return [];
+  }
+};
 
 /**
  * Absolute path of the closure-rs binary, or undefined when none is installed.

@@ -181,6 +181,7 @@ test('missing executable: callback once with exit code 1', async () => {
   assert.equal(calls, 1);
   assert.equal(result.code, 1);
   assert.match(result.stderr, /Process spawn error/);
+  assert.match(result.stderr, /CLOSURE_RS_BINARY can point at/);
 });
 
 test('terminated by a signal: exit code 128 + signal number, stderr names the signal',

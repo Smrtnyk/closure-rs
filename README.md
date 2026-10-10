@@ -39,9 +39,10 @@ closure-rs --compilation_level=ADVANCED --js=src/app.js --js_output_file=dist/ap
 ```
 
 The npm package `closure-rs` has the programmatic API of the official `google-closure-compiler`
-package, TypeScript types included, and carries native binaries for **Linux x64** (statically
-linked: runs on glibc and musl distributions such as Alpine) and **Windows x64**, so no Java is
-needed. An existing project switches with an alias in `package.json`, without code changes:
+package, TypeScript types included, and carries native binaries for **Linux x64 and arm64**
+(statically linked: run on glibc and musl distributions such as Alpine), **macOS arm64 and x64**
+and **Windows x64**, so no Java is needed. An existing project switches with an alias in
+`package.json`, without code changes:
 
 ```json
 "devDependencies": {

@@ -50,13 +50,15 @@ OUT_SUBDIR="release"
 [ -z "$TARGET" ] || OUT_SUBDIR="$TARGET/release"
 TARGET_FLAG=()
 [ -z "$TARGET" ] || TARGET_FLAG=(--target "$TARGET")
+# (expanded as ${TARGET_FLAG[@]+"${TARGET_FLAG[@]}"}: bash 3.2, macOS' /bin/bash, takes an empty array
+# for an unset variable under set -u)
 BASE_RUSTFLAGS="${RUSTFLAGS:-}"
 
 echo "== pgo_build: instrumented build"
 # Build scripts of a native build are instrumented too; their profiles go elsewhere.
 RUSTFLAGS="$BASE_RUSTFLAGS -Cprofile-generate=$(native "$PGO/build-scripts")" \
   CARGO_TARGET_DIR="$INSTRUMENTED_DIR" \
-  cargo build --release --locked --bin closure-rs "${TARGET_FLAG[@]}"
+  cargo build --release --locked --bin closure-rs ${TARGET_FLAG[@]+"${TARGET_FLAG[@]}"}
 INSTRUMENTED="$INSTRUMENTED_DIR/$OUT_SUBDIR/closure-rs$EXE"
 
 echo "== pgo_build: training (${#ARGS_FILES[@]} compiles)"
@@ -76,5 +78,5 @@ echo "== pgo_build: merging the profiles"
 
 echo "== pgo_build: profile-guided build"
 RUSTFLAGS="$BASE_RUSTFLAGS -Cprofile-use=$(native "$PGO/closure-rs.profdata")" \
-  cargo build --release --locked --bin closure-rs "${TARGET_FLAG[@]}"
+  cargo build --release --locked --bin closure-rs ${TARGET_FLAG[@]+"${TARGET_FLAG[@]}"}
 echo "== pgo_build: done ($TARGET_ROOT/$OUT_SUBDIR/closure-rs$EXE)"
