@@ -22,12 +22,29 @@ Google**; for the original compiler, its documentation and support, see:
 - Documentation: <https://developers.google.com/closure/compiler>
 - The official npm package: [`google-closure-compiler`](https://www.npmjs.com/package/google-closure-compiler)
 
-## Status: alpha
+## Status
 
-The port is in progress and checked continuously against the Java compiler: Closure Compiler's own
-test suites are replayed against it, and a large corpus of real-world code is compiled by both
-compilers and compared byte for byte (see [How the port is checked](#how-the-port-is-checked)).
-Until it is complete, compare its output with the Java compiler before relying on it.
+closure-rs is stable for the pinned upstream release. For the same input files and flags it
+produces the same output, diagnostics, exit code and source maps as that Java compiler, and the
+same bytes on every run. This is checked against the Java compiler itself (see
+[How the port is checked](#how-the-port-is-checked)):
+
+- every replayable record of Closure Compiler's own test suites that applies to the port passes;
+- every input and option profile of the real-world differential corpus matches the Java compiler
+  byte for byte, source maps included;
+- a differential fuzzer and real-world bundles outside the corpus compare the two compilers on
+  inputs the port was never tuned on.
+
+A few flags configure parts of Closure Compiler that are outside the port: coverage
+instrumentation (`--instrument_for_coverage_option`, `--instrument_mapping_report`,
+`--production_instrumentation_array_name`), the Polymer, Chrome and J2CL passes
+(`--polymer_version`, `--chrome_pass`, `--j2cl_pass`, `--remove_j2cl_asserts`) and
+`--typed_ast_output_file`, which upstream marks "DO NOT USE". With these flags the output is not
+guaranteed to match. [`scope/flags.txt`](scope/flags.txt) lists every flag with its scope.
+
+**Platforms:** the npm package ships native binaries for Linux x64 (statically linked; runs on
+glibc and musl distributions such as Alpine) and Windows x64. On other systems, build from source
+([Building](#building)); those builds are not tested by the project.
 
 ## Usage
 
@@ -41,10 +58,9 @@ closure-rs --compilation_level=ADVANCED --js=src/app.js --js_output_file=dist/ap
 
 The npm package `closure-rs` (source in [`npm/closure-rs/`](npm/closure-rs/README.md)) wraps the
 native binary in the programmatic API of the official `google-closure-compiler` package, with
-TypeScript types. The package carries the native binaries (Linux x64 and Windows x64 for now) and
-uses the one for your system, so no Java is needed. The Linux binary is statically linked: it runs
-on any x86-64 Linux, glibc or musl (Alpine), with no C library version requirement. An existing
-project can switch with an npm alias in `package.json`, without changing its code:
+TypeScript types. The package carries the native binaries of the supported platforms (see
+[Status](#status)) and uses the one for your system, so no Java is needed. An existing project can
+switch with an npm alias in `package.json`, without changing its code:
 
 ```json
 "devDependencies": {
@@ -54,8 +70,26 @@ project can switch with an npm alias in `package.json`, without changing its cod
 
 `import ClosureCompiler from 'google-closure-compiler'` and `npx google-closure-compiler ...` then
 run closure-rs. The gulp and grunt plugins of the official package are not implemented; see the
-package's README for the API and its differences. The packages are built and tested by
-`.github/workflows/release.yml`; publishing is a separate manual step.
+package's README for the API and its differences. The package is built and tested by
+`.github/workflows/release.yml`; publishing is a separate, manually approved run of that workflow,
+with npm provenance.
+
+## Versioning
+
+Releases are numbered `<upstream>.<minor>.<patch>`:
+
+- The **major** version is the upstream Closure Compiler release whose output closure-rs matches:
+  `20261006` is `google-closure-compiler@20261006.0.0`, Closure Compiler `v20261006`.
+- The **minor** version counts closure-rs releases on that upstream release that leave the output
+  unchanged: speed, the npm wrapper, new platforms. A minor release resets the patch version to 0.
+- The **patch** version counts fixes: output that differed from the Java compiler and now matches
+  it, a crash, a bug in the npm wrapper.
+- A sync to a newer upstream release starts a new major version at `.0.0`.
+
+Within one major version the output only changes where it did not match the Java compiler, so a
+range such as `^20261006.0.0` stays on one upstream release. Experimental builds are published as
+prereleases (for example `20261006.1.0-exp.1`) under the npm dist-tag `exp`; `latest` is the
+stable release.
 
 ## Bugs and issues
 
@@ -78,11 +112,22 @@ Requires Rust (the toolchain is pinned in `rust-toolchain.toml`).
 cargo build --release --bin closure-rs
 ```
 
-The binary is `target/release/closure-rs`. `gates/ci.sh` runs formatting, clippy, the license-header check and the tests.
-The released binaries are built profile-guided by `scripts/pgo_build.sh` (trained on benchmark
-projects; same output, less CPU time).
-Comparing against the Java compiler needs the pinned Java reference (`scripts/fetch_reference.sh`)
-and the corpus inputs, which are fetched by scripts, not stored in this repository.
+The binary is `target/release/closure-rs`. `gates/ci.sh` runs formatting, clippy, the
+license-header check and the tests.
+
+The released binaries are built profile-guided by `scripts/pgo_build.sh`, trained on compiles of
+benchmark projects. The profile changes only the speed, never the output:
+
+```bash
+scripts/fetch_bench.sh --project d3-12 --project lodash-es --project three
+python3 scripts/run_bench.py --job '^(d3-12/.*/ADVANCED|lodash-es/.*|three/.*)$' --write-args pgo-training
+scripts/pgo_build.sh --training pgo-training   # needs the rustup component llvm-tools
+```
+
+Comparing against the Java compiler needs the pinned Java reference (`scripts/setup_tools.sh`,
+`scripts/fetch_reference.sh`, [`oracle/REFERENCE.md`](oracle/REFERENCE.md)) and the corpus and
+benchmark inputs (`scripts/fetch_d2.sh`, `scripts/fetch_bench.sh`), which are fetched by these
+scripts, not stored in this repository.
 
 ## How the port is checked
 
