@@ -1,0 +1,15 @@
+# Sections of the generated GitHub Release notes, by pull-request label.
+changelog:
+  exclude:
+    labels: [internal]
+  categories:
+    - title: Upstream
+      labels: [upstream]
+    - title: Fixes
+      labels: [fix]
+    - title: Performance
+      labels: [performance]
+    - title: npm package and platforms
+      labels: [package]
+    - title: Other
+      labels: ["*"]
