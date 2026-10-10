@@ -3,55 +3,61 @@
 [![npm](https://img.shields.io/npm/v/closure-rs)](https://www.npmjs.com/package/closure-rs)
 
 closure-rs is a Rust port of [Google Closure Compiler](https://github.com/google/closure-compiler),
-the JavaScript optimizer, checker and transpiler. Its goal is **byte-identical behaviour**: for the
-same input files and flags, `closure-rs` produces exactly the same output, diagnostics, exit code and
-source maps as the Java compiler, without needing a JVM.
+the JavaScript optimizer, checker and transpiler. For the same input files and flags it produces
+**byte-identical** output, diagnostics, exit code and source maps as the Java compiler, with no JVM.
 
-**Upstream version:** closure-rs matches the npm package
-[`google-closure-compiler@20261006.0.0`](https://www.npmjs.com/package/google-closure-compiler/v/20261006.0.0),
-that is [Closure Compiler](https://github.com/google/closure-compiler) release
-[`v20261006`](https://github.com/google/closure-compiler/tree/v20261006) (commit
-[`48f4107ca2aac52149546ccc42894522fcfdb17d`](https://github.com/google/closure-compiler/tree/48f4107ca2aac52149546ccc42894522fcfdb17d)),
-and is meant to stay byte-identical to it. closure-rs follows upstream *releases*, the versions
-published on npm, not upstream master commits: each sync moves it to a newer npm release.
-
-It is a translation of Closure Compiler's Java sources at that release. Every Rust function names
-the Java method it ports, and the Java test suites are replayed against the port. This is an
-independent project, **not affiliated with or endorsed by
-Google**; for the original compiler, its documentation and support, see:
-
-- Closure Compiler: <https://github.com/google/closure-compiler>
-- Documentation: <https://developers.google.com/closure/compiler>
-- The official npm package: [`google-closure-compiler`](https://www.npmjs.com/package/google-closure-compiler)
+It is an independent project, **not affiliated with or endorsed by Google**. For the original
+compiler, its documentation and support, see [Closure Compiler](https://github.com/google/closure-compiler),
+its [documentation](https://developers.google.com/closure/compiler) and the official npm package
+[`google-closure-compiler`](https://www.npmjs.com/package/google-closure-compiler).
 
 ## Status
 
-closure-rs is stable for the pinned upstream release. For the same input files and flags it
-produces the same output, diagnostics, exit code and source maps as that Java compiler, and the
-same bytes on every run. This is checked against the Java compiler itself (see
-[How the port is checked](#how-the-port-is-checked)):
+closure-rs is stable and matches Closure Compiler release
+[`v20261006`](https://github.com/google/closure-compiler/tree/v20261006) (commit
+[`48f4107`](https://github.com/google/closure-compiler/tree/48f4107ca2aac52149546ccc42894522fcfdb17d)),
+published on npm as
+[`google-closure-compiler@20261006.0.0`](https://www.npmjs.com/package/google-closure-compiler/v/20261006.0.0).
+It follows upstream *releases*, not master commits: each sync moves it to a newer npm release
+([Versioning](#versioning)). Its output is deterministic, and it is compared with the Java compiler
+continuously ([How the port is checked](#how-the-port-is-checked)).
 
-- every replayable record of Closure Compiler's own test suites that applies to the port passes;
-- every input and option profile of the real-world differential corpus matches the Java compiler
-  byte for byte, source maps included;
-- a differential fuzzer and real-world bundles outside the corpus compare the two compilers on
-  inputs the port was never tuned on.
+A few flags configure parts of Closure Compiler that are outside the port, and with them the output
+is not guaranteed to match: coverage instrumentation (`--instrument_for_coverage_option`,
+`--instrument_mapping_report`, `--production_instrumentation_array_name`), the Polymer, Chrome and
+J2CL passes (`--polymer_version`, `--chrome_pass`, `--j2cl_pass`, `--remove_j2cl_asserts`) and
+`--typed_ast_output_file`, which upstream marks "DO NOT USE". [`scope/flags.txt`](scope/flags.txt)
+lists every flag with its scope.
 
-A few flags configure parts of Closure Compiler that are outside the port: coverage
-instrumentation (`--instrument_for_coverage_option`, `--instrument_mapping_report`,
-`--production_instrumentation_array_name`), the Polymer, Chrome and J2CL passes
-(`--polymer_version`, `--chrome_pass`, `--j2cl_pass`, `--remove_j2cl_asserts`) and
-`--typed_ast_output_file`, which upstream marks "DO NOT USE". With these flags the output is not
-guaranteed to match. [`scope/flags.txt`](scope/flags.txt) lists every flag with its scope.
+## Usage
 
-**Platforms:** the npm package ships native binaries for Linux x64 (statically linked; runs on
-glibc and musl distributions such as Alpine) and Windows x64. On other systems, build from source
-([Building](#building)); those builds are not tested by the project.
+`closure-rs` takes the same command-line flags as the Java compiler:
+
+```bash
+closure-rs --compilation_level=ADVANCED --js=src/app.js --js_output_file=dist/app.min.js
+```
+
+The npm package `closure-rs` has the programmatic API of the official `google-closure-compiler`
+package, TypeScript types included, and carries native binaries for **Linux x64** (statically
+linked: runs on glibc and musl distributions such as Alpine) and **Windows x64**, so no Java is
+needed. An existing project switches with an alias in `package.json`, without code changes:
+
+```json
+"devDependencies": {
+  "google-closure-compiler": "npm:closure-rs@latest"
+}
+```
+
+`import ClosureCompiler from 'google-closure-compiler'` and `npx google-closure-compiler ...` then
+run closure-rs. The gulp and grunt plugins are not implemented; the
+[package README](npm/closure-rs/README.md) describes the API and its differences. Packages are
+published from `.github/workflows/release.yml` in a manually approved run, with npm provenance. On
+other systems, [build from source](#building); those builds are not tested by the project.
 
 ## Performance
 
-Wall-clock time and peak memory of one compile, against the Java compiler. Output and source maps
-of both compilers were byte-identical in every run.
+Wall-clock time and peak memory of one compile. Both compilers produced byte-identical output and
+source maps in every run.
 
 | Bundle | Level | Java | closure-rs | Speedup | Java memory | closure-rs memory |
 |---|---|---:|---:|---:|---:|---:|
@@ -64,91 +70,52 @@ of both compilers were byte-identical in every run.
 | lodash 4.17.21 (0.2 MB) | ADVANCED | 3.65 s | 0.64 s | 5.7× | 568 MB | 243 MB |
 | | SIMPLE | 2.22 s | 0.33 s | 6.7× | 522 MB | 227 MB |
 
-Conditions:
-
-- **Inputs:** the bundle files (for three.js `three.core.js` and `three.module.js`) with their
-  input source maps (`--source_map_input`), `--create_source_map`, `--source_map_include_content`,
+- **Inputs:** the bundle files (for three.js `three.core.js` and `three.module.js`) with their input
+  source maps (`--source_map_input`), `--create_source_map`, `--source_map_include_content`,
   `--language_out=ECMASCRIPT_2015`.
-- **Java:** the `google-closure-compiler` 20261006.0.0 jar on OpenJDK 21, `java -jar` with default
-  JVM settings and a new JVM per compile, as the npm package's API runs it.
+- **Java:** the `google-closure-compiler` 20261006.0.0 jar on OpenJDK 21: `java -jar`, default JVM
+  settings, a new JVM per compile, as the npm package's API runs it.
 - **closure-rs:** 20261006.0.0, the profile-guided Linux x64 release binary.
 - **Machine:** AMD Ryzen 9 9950X (16 cores, 32 threads), 62 GB, Fedora Linux 44; other processes
-  used about a quarter of the threads during the runs.
-- **Values:** medians of 5 runs; memory is the peak resident set size.
+  used about a quarter of the threads during the runs. Medians of 5 runs; memory is peak RSS.
 
-`scripts/run_bench.py` runs these benchmarks (see [bench/README.md](bench/README.md)).
-
-## Usage
-
-`closure-rs` accepts the same command-line flags as the Java compiler's `CommandLineRunner`:
-
-```bash
-closure-rs --compilation_level=ADVANCED --js=src/app.js --js_output_file=dist/app.min.js
-```
-
-### npm
-
-The npm package `closure-rs` (source in [`npm/closure-rs/`](npm/closure-rs/README.md)) wraps the
-native binary in the programmatic API of the official `google-closure-compiler` package, with
-TypeScript types. The package carries the native binaries of the supported platforms (see
-[Status](#status)) and uses the one for your system, so no Java is needed. An existing project can
-switch with an npm alias in `package.json`, without changing its code:
-
-```json
-"devDependencies": {
-  "google-closure-compiler": "npm:closure-rs@latest"
-}
-```
-
-`import ClosureCompiler from 'google-closure-compiler'` and `npx google-closure-compiler ...` then
-run closure-rs. The gulp and grunt plugins of the official package are not implemented; see the
-package's README for the API and its differences. The package is built and tested by
-`.github/workflows/release.yml`; publishing is a separate, manually approved run of that workflow,
-with npm provenance.
+`scripts/run_bench.py` runs these benchmarks ([bench/README.md](bench/README.md)).
 
 ## Versioning
 
-Releases are numbered `<upstream>.<minor>.<patch>`:
+Versions are `<upstream>.<minor>.<patch>`:
 
-- The **major** version is the upstream Closure Compiler release whose output closure-rs matches:
-  `20261006` is `google-closure-compiler@20261006.0.0`, Closure Compiler `v20261006`.
-- The **minor** version counts closure-rs releases on that upstream release that leave the output
-  unchanged: speed, the npm wrapper, new platforms. A minor release resets the patch version to 0.
-- The **patch** version counts fixes: output that differed from the Java compiler and now matches
-  it, a crash, a bug in the npm wrapper.
-- A sync to a newer upstream release starts a new major version at `.0.0`.
+- **major:** the upstream release whose output closure-rs matches (`20261006` is
+  `google-closure-compiler@20261006.0.0`). A sync to a newer upstream release starts a new major
+  version at `.0.0`.
+- **minor:** releases that leave the output unchanged: speed, the npm wrapper, new platforms. It
+  resets the patch version to 0.
+- **patch:** fixes: a difference from the Java compiler, a crash, a bug in the npm wrapper.
 
-Within one major version the output only changes where it did not match the Java compiler, so a
-range such as `^20261006.0.0` stays on one upstream release. Experimental builds are published as
-prereleases (for example `20261006.1.0-exp.1`) under the npm dist-tag `exp`; `latest` is the
-stable release.
+So a range such as `^20261006.0.0` stays on one upstream release. `latest` is the stable release;
+experimental builds are prereleases (for example `20261006.1.0-exp.1`) under the dist-tag `exp`.
 
 ## Bugs and issues
 
-This repository does not take bug reports and does not fix bugs in the compiler's behaviour.
-closure-rs exists to behave exactly like upstream Closure Compiler, so a bug in what the compiler
-does is a bug in Closure Compiler: report it upstream at
-<https://github.com/google/closure-compiler/issues>. The repository syncs with upstream
-releases: the changes of a newer npm release are ported, and the pinned release above moves
-forward to it.
-
-A difference between closure-rs and the Java compiler at the pinned release is a porting defect,
-not a compiler bug. The project finds those with its own differential testing (see
-[How the port is checked](#how-the-port-is-checked)), so there is no need to report them either.
+- **closure-rs differs from the Java compiler.** Output, diagnostics, exit code or source map that
+  differ from `google-closure-compiler` at the version named by closure-rs' major version are a bug
+  in closure-rs: [report it](https://github.com/Smrtnyk/closure-rs/issues/new/choose) with the
+  closure-rs version, the flags, a small input and what differs. It is fixed in a patch release.
+  Crashes and bugs in the npm wrapper are reported the same way.
+- **The Java compiler does the same.** Then it is Closure Compiler's behaviour, and closure-rs keeps
+  it: report it upstream at <https://github.com/google/closure-compiler/issues>. closure-rs takes the
+  fix with the sync to the upstream release that contains it.
 
 ## Building
 
-Requires Rust (the toolchain is pinned in `rust-toolchain.toml`).
+Requires Rust (the toolchain is pinned in `rust-toolchain.toml`):
 
 ```bash
-cargo build --release --bin closure-rs
+cargo build --release --bin closure-rs   # target/release/closure-rs
 ```
 
-The binary is `target/release/closure-rs`. `gates/ci.sh` runs formatting, clippy, the
-license-header check and the tests.
-
-The released binaries are built profile-guided by `scripts/pgo_build.sh`, trained on compiles of
-benchmark projects. The profile changes only the speed, never the output:
+`gates/ci.sh` runs formatting, clippy, the license-header check and the tests. Released binaries are
+built profile-guided by `scripts/pgo_build.sh`; the profile changes only the speed, never the output:
 
 ```bash
 scripts/fetch_bench.sh --project d3-12 --project lodash-es --project three
@@ -158,19 +125,22 @@ scripts/pgo_build.sh --training pgo-training   # needs the rustup component llvm
 
 Comparing against the Java compiler needs the pinned Java reference (`scripts/setup_tools.sh`,
 `scripts/fetch_reference.sh`, [`oracle/REFERENCE.md`](oracle/REFERENCE.md)) and the corpus and
-benchmark inputs (`scripts/fetch_d2.sh`, `scripts/fetch_bench.sh`), which are fetched by these
-scripts, not stored in this repository.
+benchmark inputs (`scripts/fetch_d2.sh`, `scripts/fetch_bench.sh`); the scripts fetch them, the
+repository does not store them.
 
 ## How the port is checked
 
-- **Unit corpus:** Closure Compiler's Java tests were run once against an instrumented Java build
-  and recorded (inputs, options, expected output and diagnostics); the Rust test harness replays
-  every record (`corpus/unit/`, `crates/testing`).
+closure-rs is a translation of Closure Compiler's Java sources at the pinned release: every Rust
+function names the Java method it ports. It is checked against the Java compiler itself:
+
+- **Unit corpus:** Closure Compiler's own Java tests were recorded once from an instrumented Java
+  build (inputs, options, expected output and diagnostics). The Rust harness replays every record,
+  and every record that applies to the port passes (`corpus/unit/`, `crates/testing`).
 - **Differential corpus:** real-world inputs are compiled by both compilers in 11 option profiles
-  and compared byte for byte (`corpus/d2/`, `gates/d2_rust.py`). A ratchet keeps every pair that
-  matches once matching forever.
+  and compared byte for byte, source maps included. Every pair matches, and a ratchet keeps every
+  matching pair matching (`corpus/d2/`, `gates/d2_rust.py`).
 - **Unseen inputs:** a differential fuzzer and large real-world bundles outside the corpus
-  (`fuzz/`, `bench/`) guard against fitting the port to the corpus cases.
+  (`fuzz/`, `bench/`) compare the two compilers on inputs the port was never tuned on.
 
 [`docs/PORTING.md`](docs/PORTING.md) describes the scope, what byte-identical means, how the port
 mirrors the Java code, how fidelity is verified and how the port follows upstream.

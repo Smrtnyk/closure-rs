@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Report compiler bugs to upstream Closure Compiler
+  - name: Compiler behaviour that the Java compiler shares
     url: https://github.com/google/closure-compiler/issues
-    about: closure-rs behaves exactly like Closure Compiler at its pinned commit; bugs in the compiler's behaviour belong upstream.
+    about: closure-rs keeps Closure Compiler's behaviour; if google-closure-compiler at the matching version does the same, report it upstream.
