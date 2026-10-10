@@ -19,8 +19,9 @@ closure-rs is stable and matches Closure Compiler release
 published on npm as
 [`google-closure-compiler@20261006.0.0`](https://www.npmjs.com/package/google-closure-compiler/v/20261006.0.0).
 It follows upstream *releases*, not master commits: each sync moves it to a newer npm release
-([Versioning](#versioning)). Its output is deterministic, and it is compared with the Java compiler
-continuously ([How the port is checked](#how-the-port-is-checked)).
+([Versioning](#versioning)). Its output is deterministic;
+[How the port is checked](#how-the-port-is-checked) describes how it is compared with the Java
+compiler.
 
 A few flags configure parts of Closure Compiler that are outside the port, and with them the output
 is not guaranteed to match: coverage instrumentation (`--instrument_for_coverage_option`,
@@ -50,9 +51,8 @@ needed. An existing project switches with an alias in `package.json`, without co
 
 `import ClosureCompiler from 'google-closure-compiler'` and `npx google-closure-compiler ...` then
 run closure-rs. The gulp and grunt plugins are not implemented; the
-[package README](npm/closure-rs/README.md) describes the API and its differences. Packages are
-published from `.github/workflows/release.yml` in a manually approved run, with npm provenance. On
-other systems, [build from source](#building); those builds are not tested by the project.
+[package README](npm/closure-rs/README.md) describes the API and its differences. On other
+systems, [build from source](#building); those builds are not tested by the project.
 
 ## Performance
 
@@ -88,8 +88,7 @@ Versions are `<upstream>.<minor>.<patch>`:
 - **major:** the upstream release whose output closure-rs matches (`20261006` is
   `google-closure-compiler@20261006.0.0`). A sync to a newer upstream release starts a new major
   version at `.0.0`.
-- **minor:** releases that leave the output unchanged: speed, the npm wrapper, new platforms. It
-  resets the patch version to 0.
+- **minor:** releases that leave the output unchanged: speed, the npm wrapper, new platforms.
 - **patch:** fixes: a difference from the Java compiler, a crash, a bug in the npm wrapper.
 
 So a range such as `^20261006.0.0` stays on one upstream release. `latest` is the stable release;
@@ -137,20 +136,15 @@ function names the Java method it ports. It is checked against the Java compiler
   build (inputs, options, expected output and diagnostics). The Rust harness replays every record,
   and every record that applies to the port passes (`corpus/unit/`, `crates/testing`).
 - **Differential corpus:** real-world inputs are compiled by both compilers in 11 option profiles
-  and compared byte for byte, source maps included. Every pair matches, and a ratchet keeps every
-  matching pair matching (`corpus/d2/`, `gates/d2_rust.py`).
+  and compared byte for byte, source maps included; every pair matches (`corpus/d2/`,
+  `gates/d2_rust.py`).
 - **Unseen inputs:** a differential fuzzer and large real-world bundles outside the corpus
   (`fuzz/`, `bench/`) compare the two compilers on inputs the port was never tuned on.
 
 [`docs/PORTING.md`](docs/PORTING.md) describes the scope, what byte-identical means, how the port
 mirrors the Java code, how fidelity is verified and how the port follows upstream.
-[`DECISIONS.md`](DECISIONS.md) records the interpretations made along the way, and
+[`DECISIONS.md`](DECISIONS.md) records the interpretations and design decisions, and
 [`crates/DESIGN.md`](crates/DESIGN.md) the Java-to-Rust conventions.
-
-## How this port was built
-
-closure-rs was written by AI agents, porting under the checks above; humans set the direction and
-did no implementation work.
 
 ## License
 
