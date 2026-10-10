@@ -260,7 +260,8 @@ impl CodeConsumer for MappedCodePrinter<'_> {
     // port: CodePrinter.MappedCodePrinter#startSourceMapping
     fn start_source_mapping(&mut self, ast: &Ast, node: NodeId) {
         if self.create_src_map
-            && node.get_source_file_name(ast).is_some()
+            // getSourceFileName() != null, without copying the name.
+            && node.get_static_source_file_ref(ast).is_some()
             && node.get_lineno(ast) > 0
             && self.source_map_detail_level.apply(ast, node)
         {

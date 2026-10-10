@@ -432,6 +432,9 @@ here (one line each) to ease upstream syncs.
 - `jscomp/var_map.rs` (`AbstractScope#vars`): a scope keeps up to two declared names in itself,
   compared by cached hash, and moves to an insertion-ordered hash map beyond that (Java:
   `LinkedHashMap`), so a lookup through the scope chain reads no hash table for small scopes.
+- `jscomp/code_printer.rs` `startSourceMapping`, `compiler_license_tracker.rs`,
+  `node_util.rs` `isInSyntheticScript`: the source file name is read in place instead of being
+  copied for every printed node.
 
 ## D-026 — Upstream syncs follow npm releases
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**
