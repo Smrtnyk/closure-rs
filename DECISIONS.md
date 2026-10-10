@@ -415,6 +415,12 @@ here (one line each) to ease upstream syncs.
 - `jscomp/syntactic_scope_creator.rs` `ScopeScanner::scan_script`: a new global scope takes the
   top-level declarations of each unchanged script (the externs, mostly) from the scope cache and
   makes them again through `declareVar`, instead of walking the script's statements.
+- `rhino/node.rs` `Ast::jsdocs`: a dense per-node copy of the JSDOC_INFO item of the property
+  list, kept by `Ast::set_props`, so that `getJSDocInfo` reads one array instead of the node and
+  its list; `getStaticSourceFile`, `isFromExterns` read the SOURCE_FILE item by reference.
+- `rhino/js_string.rs`: an ASCII `&str` becomes a JS string in one exact-size allocation, the
+  empty string is shared by `Default` too, and `hashCode` is summed four code units per step
+  (the same value as Java's loop).
 
 ## D-026 — Upstream syncs follow npm releases
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**

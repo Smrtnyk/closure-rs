@@ -39,8 +39,15 @@ enum Repr {
 }
 impl Default for JsString {
     fn default() -> Self {
-        Self::from_slice(&[])
+        // Rust-only (D-025): one shared empty string (see `From<&str>`).
+        empty()
     }
+}
+/// Rust-only: the shared empty string (Java's `""` literal is one interned object).
+fn empty() -> JsString {
+    static EMPTY: std::sync::LazyLock<JsString> =
+        std::sync::LazyLock::new(|| JsString::from_units(Vec::new()));
+    EMPTY.clone()
 }
 impl JsString {
     pub fn from_units(units: impl Into<Vec<u16>>) -> Self {
@@ -51,11 +58,27 @@ impl JsString {
     pub fn from_slice(units: &[u16]) -> Self {
         Self(Repr::Shared(Self::java_hash(units), units.into()))
     }
-    /// Rust-only: `String#hashCode` of `units`.
+    /// Rust-only: `String#hashCode` of `units`, `Σ units[i]·31^(n-1-i)` (mod 2^32).
     fn java_hash(units: &[u16]) -> u32 {
-        units
+        // Four units per step (`h·31^4 + u0·31^3 + u1·31^2 + u2·31 + u3`, the same sum) make
+        // the chain of dependent multiplications four times shorter than Java's loop.
+        const P2: i32 = 31 * 31;
+        const P3: i32 = P2 * 31;
+        const P4: i32 = P3 * 31;
+        let mut chunks = units.chunks_exact(4);
+        let mut h = 0i32;
+        for c in &mut chunks {
+            h = h
+                .wrapping_mul(P4)
+                .wrapping_add(i32::from(c[0]).wrapping_mul(P3))
+                .wrapping_add(i32::from(c[1]).wrapping_mul(P2))
+                .wrapping_add(i32::from(c[2]).wrapping_mul(31))
+                .wrapping_add(i32::from(c[3]));
+        }
+        chunks
+            .remainder()
             .iter()
-            .fold(0i32, |h, c| h.wrapping_mul(31).wrapping_add(i32::from(*c))) as u32
+            .fold(h, |h, c| h.wrapping_mul(31).wrapping_add(i32::from(*c))) as u32
     }
     /// Rust-only: whether the string pool made this string.
     pub(crate) fn is_interned(&self) -> bool {
@@ -336,12 +359,18 @@ impl From<&str> for JsString {
     fn from(s: &str) -> Self {
         // Rust-only (D-025): Java's "" literal is one interned object; share one empty string
         // instead of allocating one per conversion.
-        static EMPTY: std::sync::LazyLock<JsString> =
-            std::sync::LazyLock::new(|| JsString::from_units(Vec::new()));
         if s.is_empty() {
-            return EMPTY.clone();
+            return empty();
         }
-        Self::from_units(s.encode_utf16().collect::<Vec<_>>())
+        // Rust-only (D-025): ASCII text (nearly all) has one code unit per byte, so the code
+        // units go straight into an array of the exact size (one allocation, no re-growth).
+        if s.is_ascii() {
+            let units: Arc<[u16]> = s.bytes().map(u16::from).collect();
+            return Self(Repr::Shared(Self::java_hash(&units), units));
+        }
+        let mut units = Vec::with_capacity(s.len());
+        units.extend(s.encode_utf16());
+        Self::from_units(units)
     }
 }
 impl From<String> for JsString {

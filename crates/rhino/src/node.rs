@@ -384,15 +384,25 @@ struct C(NodeId);
 struct T(NodeId);
 // `Ast::prop_masks` has one bit per property type.
 const _: () = assert!(Prop::VALUES.len() <= 64);
-/// Rust-only: the `Ast::prop_masks` entry of a property list.
-fn prop_list_mask(head: Option<&Arc<PropListItem>>) -> u64 {
+/// Rust-only: the `Ast::prop_masks` and `Ast::jsdocs` entries of a property list: the mask of
+/// its property types and the value of its first JSDOC_INFO item (the one `lookupProperty`
+/// finds).
+fn prop_list_summary(head: Option<&Arc<PropListItem>>) -> (u64, Option<Arc<JSDocInfo>>) {
     let mut mask = 0u64;
+    let mut jsdoc = None;
     let mut x = head.map(|h| &**h);
     while let Some(item) = x {
+        if item.prop_type == Prop::JSDOC_INFO as u8 && mask & (1u64 << item.prop_type) == 0 {
+            jsdoc = Some(match &item.value {
+                PropValue::Object(ObjectProp::JSDocInfo(info)) => info.clone(),
+                PropValue::Object(_) => panic!("ClassCastException"),
+                PropValue::Int(_) => panic!("UnsupportedOperationException"),
+            });
+        }
         mask |= 1u64 << item.prop_type;
         x = item.next.as_deref();
     }
-    mask
+    (mask, jsdoc)
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(NonZeroU32);
@@ -500,6 +510,11 @@ pub struct Ast {
     /// `p`, so that looking up an absent property (the common case) reads this dense array only,
     /// neither the node nor its list. Kept in step with `prop_list_head` by `Ast::set_props`.
     prop_masks: Vec<u64>,
+    /// Rust-only (D-025): per node, the JSDocInfo of its property list (a second reference to
+    /// it), so that `getJSDocInfo`, which most passes call on most nodes, reads this dense array
+    /// instead of the node and its list. Kept in step with `prop_list_head` by `Ast::set_props`
+    /// (a JSDOC_INFO item that holds no JSDocInfo fails there instead of in `getJSDocInfo`).
+    jsdocs: Vec<Option<Arc<JSDocInfo>>>,
     links: Vec<NodeLinks>,
     pub(crate) implicit_template_bound: Option<Arc<JSTypeExpression>>,
     /// port: JSDocSerializer#placeholderType (a Java static holding nodes, so one per arena; the
@@ -589,14 +604,18 @@ impl Ast {
             self.changed_nodes.push(n);
         }
     }
-    /// Rust-only: replaces the property list of `n` and recomputes its `prop_masks` entry.
+    /// Rust-only: replaces the property list of `n` and recomputes its `prop_masks` and `jsdocs`
+    /// entries.
     fn set_props(&mut self, n: NodeId, head: Option<Arc<PropListItem>>) {
-        self.prop_masks[n.0.get() as usize - 1] = prop_list_mask(head.as_ref());
+        let (mask, jsdoc) = prop_list_summary(head.as_ref());
+        self.prop_masks[n.0.get() as usize - 1] = mask;
+        self.jsdocs[n.0.get() as usize - 1] = jsdoc;
         self[n].prop_list_head = head;
     }
     /// Rust-only: takes the property list of `n`, leaving none.
     fn take_props(&mut self, n: NodeId) -> Option<Arc<PropListItem>> {
         self.prop_masks[n.0.get() as usize - 1] = 0;
+        self.jsdocs[n.0.get() as usize - 1] = None;
         self[n].prop_list_head.take()
     }
     /// Rust-only, not in Java (D-025): an arena in which a worker thread parses one input
@@ -654,6 +673,7 @@ impl Ast {
             }
             heads.push(data.prop_list_head.take());
             self.prop_masks.push(0);
+            self.jsdocs.push(None);
             self.links.push(NodeLinks {
                 token: link.token,
                 parent: link.parent.map(|n| map.map(n)),
@@ -715,6 +735,7 @@ impl Ast {
             jstype_or_color: None,
         });
         self.prop_masks.push(0);
+        self.jsdocs.push(None);
         id
     }
     // port: Node#Node(Token, Node)
@@ -2165,15 +2186,22 @@ impl NodeId {
     }
     // port: Node#getSourceFileName
     pub fn get_source_file_name(self, ast: &Ast) -> Option<String> {
-        self.get_static_source_file(ast)
+        self.get_static_source_file_ref(ast)
             .map(|f| f.get_name().into())
     }
     // port: Node#getStaticSourceFile
     pub fn get_static_source_file(self, ast: &Ast) -> Option<Arc<dyn StaticSourceFile>> {
-        self.get_prop(ast, Prop::SOURCE_FILE).map(|v| match v {
-            ObjectProp::StaticSourceFile(f) => f,
-            _ => panic!("ClassCastException"),
-        })
+        self.get_static_source_file_ref(ast).cloned()
+    }
+    // port: Node#getStaticSourceFile
+    /// Rust-only: `get_static_source_file` by reference (no reference-count traffic).
+    pub fn get_static_source_file_ref(self, ast: &Ast) -> Option<&Arc<dyn StaticSourceFile>> {
+        self.lookup_property_ref(ast, Prop::SOURCE_FILE)
+            .map(|item| match &item.value {
+                PropValue::Object(ObjectProp::StaticSourceFile(f)) => f,
+                PropValue::Object(_) => panic!("ClassCastException"),
+                PropValue::Int(_) => panic!("UnsupportedOperationException"),
+            })
     }
     // port: Node#setInputId
     pub fn set_input_id(self, ast: &mut Ast, input_id: Option<Arc<InputId>>) {
@@ -2226,12 +2254,12 @@ impl NodeId {
     }
     // port: Node#isFromExterns
     pub fn is_from_externs(self, ast: &Ast) -> bool {
-        self.get_static_source_file(ast)
+        self.get_static_source_file_ref(ast)
             .is_some_and(|f| f.is_extern())
     }
     // port: Node#isClosureUnawareCode
     pub fn is_closure_unaware_code(self, ast: &Ast) -> bool {
-        self.get_static_source_file(ast)
+        self.get_static_source_file_ref(ast)
             .is_some_and(|f| f.is_closure_unaware_code())
     }
     // port: Node#getLength
@@ -3021,6 +3049,7 @@ impl NodeId {
         ast[C(dest)].original_name = ast[C(source)].original_name.clone();
         ast[dest].prop_list_head = ast[source].prop_list_head.clone();
         ast.prop_masks[dest.0.get() as usize - 1] = ast.prop_masks[source.0.get() as usize - 1];
+        ast.jsdocs[dest.0.get() as usize - 1] = ast.jsdocs[source.0.get() as usize - 1].clone();
         if clone_type_exprs {
             if let Some(info) = source.get_jsdoc_info(ast) {
                 let cloned = info.clone_with_type_nodes(ast, true);
@@ -3159,12 +3188,9 @@ impl NodeId {
     // port: Node#getJSDocInfo
     /// Rust-only: `get_jsdoc_info` by reference (no reference-count traffic).
     pub fn get_jsdoc_info_ref(self, ast: &Ast) -> Option<&Arc<JSDocInfo>> {
-        self.lookup_property_ref(ast, Prop::JSDOC_INFO)
-            .map(|item| match &item.value {
-                PropValue::Object(ObjectProp::JSDocInfo(info)) => info,
-                PropValue::Object(_) => panic!("ClassCastException"),
-                PropValue::Int(_) => panic!("UnsupportedOperationException"),
-            })
+        // Rust-only (D-025): read from the arena's dense mirror of the JSDOC_INFO items
+        // (`Ast::jsdocs`) instead of walking the property list.
+        ast.jsdocs[self.0.get() as usize - 1].as_ref()
     }
     // port: Node#setJSDocInfo
     pub fn set_jsdoc_info(self, ast: &mut Ast, info: Option<Arc<JSDocInfo>>) -> Self {
