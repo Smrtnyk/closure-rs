@@ -172,12 +172,11 @@ fn work(shared: &Shared) {
                 }
                 *slot = Slot::Parsing;
             }
-            let parsed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                parse(job, &mut configs)
-            }))
-            .ok()
-            .flatten()
-            .map(Box::new);
+            let parsed =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(job, &mut configs)))
+                    .ok()
+                    .flatten()
+                    .map(Box::new);
             *slot.lock().unwrap() = Slot::Parsed(parsed);
             ready.notify_all();
         }

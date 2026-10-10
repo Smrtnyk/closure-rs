@@ -40,7 +40,13 @@ fn hash_code_is_java_string_hash_code() {
         }
         units.push(i.wrapping_mul(7919) ^ if i % 3 == 0 { 0xd800 } else { 0x41 });
     }
-    for text in ["ascii only", "café", "日本語のテキスト", "a\u{1F600}b", "x".repeat(1000).as_str()] {
+    for text in [
+        "ascii only",
+        "café",
+        "日本語のテキスト",
+        "a\u{1F600}b",
+        "x".repeat(1000).as_str(),
+    ] {
         let units: Vec<u16> = text.encode_utf16().collect();
         let s = JsString::from(text);
         assert_eq!(s.as_units(), units.as_slice());

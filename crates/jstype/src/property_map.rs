@@ -125,7 +125,11 @@ impl PropertyMap {
     pub fn immutable_empty_map() -> &'static Self {
         static EMPTY: std::sync::OnceLock<PropertyMap> = std::sync::OnceLock::new();
         EMPTY.get_or_init(|| {
-            Self::from_maps(Arc::new(IndexMap::default()), Some(Arc::new(Vec::new())), true)
+            Self::from_maps(
+                Arc::new(IndexMap::default()),
+                Some(Arc::new(Vec::new())),
+                true,
+            )
         })
     }
     // port: PropertyMap#setParentSource
