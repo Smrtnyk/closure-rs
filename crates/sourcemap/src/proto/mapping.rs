@@ -147,4 +147,8 @@ impl Builder {
     pub fn build(&self) -> OriginalMapping {
         self.mapping.clone()
     }
+    /// Rust-only (D-025): `build` for a builder that is not used again, without the copy.
+    pub fn finish(self) -> OriginalMapping {
+        self.mapping
+    }
 }
