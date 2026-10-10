@@ -88,14 +88,17 @@ struct Preparsed {
 }
 
 /// Starts parsing `inputs` that have no AST yet on worker threads, unless there is too little
-/// to do.
+/// to do or the machine is busy.
 pub(crate) fn start(compiler: &mut AbstractCompiler, inputs: &[CompilerInput]) {
     finish(compiler);
-    let threads = std::thread::available_parallelism()
-        .map_or(1, std::num::NonZeroUsize::get)
-        .min(MAX_THREADS);
+    let cpus = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+    let threads = cpus.min(MAX_THREADS);
     // ASTs that come from a TypedAST filesystem are not parsed.
-    if threads < 2 || inputs.len() < 2 || compiler.has_typed_ast_filesystem() {
+    if threads < 2
+        || inputs.len() < 2
+        || compiler.has_typed_ast_filesystem()
+        || machine_is_busy(cpus)
+    {
         return;
     }
     let mut jobs = Vec::with_capacity(inputs.len());
@@ -152,6 +155,22 @@ pub(crate) fn start(compiler: &mut AbstractCompiler, inputs: &[CompilerInput]) {
         jobs: job_of,
         workers,
     });
+}
+
+/// Rust-only: whether other threads already keep the CPUs busy, so that parse workers would only
+/// compete with them (and with each other) for CPUs and caches: at least half as many runnable
+/// threads as the CPUs available to this process, not counting this one (Linux `/proc/loadavg`;
+/// elsewhere never). Parsing on the compiler thread gives the same output.
+fn machine_is_busy(cpus: usize) -> bool {
+    let Ok(loadavg) = std::fs::read_to_string("/proc/loadavg") else {
+        return false;
+    };
+    let running = loadavg
+        .split_whitespace()
+        .nth(3)
+        .and_then(|field| field.split('/').next())
+        .and_then(|n| n.parse::<usize>().ok());
+    running.is_some_and(|running| running.saturating_sub(1) * 2 >= cpus)
 }
 
 fn work(shared: &Shared) {

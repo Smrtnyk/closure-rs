@@ -313,6 +313,9 @@ here (one line each) to ease upstream syncs.
   own (`Ast::new_for_preparse`) while the compiler runs; `CompilerInput#parse` moves a finished
   parse into the compiler's arena (`Ast::append_preparsed`) with the node ids, object sharing
   and error order that parsing in place gives, or parses itself (Java: on the compiler thread).
+  No workers start while the machine is busy (on Linux, at least half as many other runnable
+  threads as available CPUs, from `/proc/loadavg`): concurrent compiles then parse on their
+  compiler threads instead of oversubscribing the CPUs.
 - `rhino/rhino_string_pool.rs`: the intern pool is 64 independently locked shards, with a
   per-thread cache for the parser threads (Java: one weak interner). Interned strings are never
   freed, so copying one needs no reference count (`CLOSURE_RS_REFCOUNTED_NAMES` restores
