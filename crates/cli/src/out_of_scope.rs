@@ -25,7 +25,21 @@ fn unsupported(what: &str, reason: &str) -> String {
     format!("closure-rs does not support {what}: {reason} not part of the port.")
 }
 
-/// The flags given with a value that turns on an out-of-scope feature, one message line each.
+/// `--polymer_version` with any value. Checked before the options are created: the Java compiler
+/// rejects a version other than 1 and 2 there with an uncaught exception
+/// (`CompilerOptions#setPolymerVersion`), which the port would mirror as a panic.
+pub fn refuse_polymer(flags: &Flags) -> Result<(), FlagUsageException> {
+    if flags.polymer_version.is_some() {
+        return Err(FlagUsageException(unsupported(
+            "--polymer_version",
+            "the Polymer passes are",
+        )));
+    }
+    Ok(())
+}
+
+/// The other flags given with a value that turns on an out-of-scope feature, one message line
+/// each.
 /// Checked once the options are created, before the inputs are read, so the Java compiler's own
 /// flag errors (for example `--instrument_for_coverage_option=PRODUCTION` without
 /// `--instrument_mapping_report`) come first and stay as they are. The other out-of-scope flags
@@ -42,9 +56,6 @@ pub fn refuse_flags(flags: &Flags) -> Result<(), FlagUsageException> {
             ),
             "code coverage instrumentation is",
         ));
-    }
-    if flags.polymer_version.is_some() {
-        messages.push(unsupported("--polymer_version", "the Polymer passes are"));
     }
     if flags.chrome_pass {
         messages.push(unsupported(

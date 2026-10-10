@@ -444,13 +444,17 @@ stops instead. The refusal is reported like the Java compiler's own flag errors 
 output files, exit code 255.
 
 **What is refused:**
-- `--instrument_for_coverage_option` other than NONE (any case), `--polymer_version` with any
-  value, `--chrome_pass` (also with `--third_party`) and `--typed_ast_output_file` with any value
-  (Java serializes for the empty name too). These are checked after the options are created,
-  so the Java compiler's own flag errors (`--instrument_mapping_report` without PRODUCTION,
-  PRODUCTION without `--instrument_mapping_report`, an unknown `--j2cl_pass` value) come first
-  and stay identical. They are refused in every compilation
-  level, including the ones where Java would not use them (WHITESPACE_ONLY, `--checks_only`).
+- `--instrument_for_coverage_option` other than NONE (any case), `--chrome_pass` (also with
+  `--third_party`) and `--typed_ast_output_file` with any value (Java serializes for the empty
+  name too). These are checked after the options are created, so the Java compiler's own flag
+  errors (`--instrument_mapping_report` without PRODUCTION, PRODUCTION without
+  `--instrument_mapping_report`, an unknown `--j2cl_pass` value) come first and stay identical.
+- `--polymer_version` with any value. It is checked before the options are created (so before
+  the Java compiler's own errors there), because Java rejects a version other than 1 and 2 while
+  creating them with an uncaught exception (`CompilerOptions#setPolymerVersion`), which the port
+  would mirror as a panic.
+- All of these are refused in every compilation level, including the ones where Java would not
+  use them (WHITESPACE_ONLY, `--checks_only`).
 - The J2CL passes. `--j2cl_pass` is AUTO by default (an empty value keeps AUTO). With AUTO the
   checks run `J2clSourceFileChecker`, which turns the J2CL passes on when an input's name ends in
   `.java.js` (`J2clSourceUtils.isJ2clSource`); every J2CL pass returns at once otherwise. The

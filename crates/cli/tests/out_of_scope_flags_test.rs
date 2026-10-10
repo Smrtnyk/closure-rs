@@ -109,6 +109,15 @@ fn activating_flags_are_refused() {
         ),
         (vec!["--polymer_version=1"], polymer.clone()),
         (vec!["--polymer_version=2"], polymer.clone()),
+        // Invalid versions, which the Java compiler rejects with an uncaught exception.
+        (vec!["--polymer_version=3"], polymer.clone()),
+        (vec!["--polymer_version=0"], polymer.clone()),
+        (vec!["--polymer_version=-1"], polymer.clone()),
+        // Refused before the options are created, so before the other flags.
+        (
+            vec!["--polymer_version=3", "--compilation_level=BUNDLE"],
+            polymer.clone(),
+        ),
         (vec!["--chrome_pass"], chrome.clone()),
         (vec!["--chrome_pass=true"], chrome.clone()),
         (vec!["--chrome_pass", "--third_party"], chrome.clone()),
@@ -120,11 +129,19 @@ fn activating_flags_are_refused() {
         (vec!["--typed_ast_output_file="], typed_ast.clone()),
         (
             vec![
+                "--instrument_for_coverage_option=LINE",
+                "--chrome_pass",
+                "--typed_ast_output_file=x",
+            ],
+            format!("{}{chrome}{typed_ast}", instrumentation("LINE")),
+        ),
+        (
+            vec![
                 "--polymer_version=1",
                 "--chrome_pass",
                 "--typed_ast_output_file=x",
             ],
-            format!("{polymer}{chrome}{typed_ast}"),
+            polymer.clone(),
         ),
     ];
     for (flags, stderr) in cases {

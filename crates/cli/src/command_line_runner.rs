@@ -3517,6 +3517,8 @@ impl CommandLineRunner {
             );
             compiler.set_error_manager(Box::new(manager));
         }
+        // Not in Java: Polymer is outside the port (D-028).
+        crate::out_of_scope::refuse_polymer(&self.flags)?;
         let mut options = self
             .create_options()
             .map_err(|e| e.at_cli("AbstractCommandLineRunner", "doRun", 1164))?;
