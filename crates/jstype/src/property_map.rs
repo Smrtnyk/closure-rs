@@ -40,7 +40,6 @@
 //   src/com/google/javascript/rhino/jstype/PropertyMap.java.
 
 use std::{
-    collections::BTreeMap,
     collections::BTreeSet,
     sync::{Arc, Mutex},
 };
@@ -53,7 +52,7 @@ use crate::{
     object_type::ObjectType,
     property::{OwnedProperty, Property, PropertyId, PropertyKey},
 };
-use closure_rhino::{check_state, js_string::JsString, node::Ast};
+use closure_rhino::{check_state, fast_hash::IndexMap, js_string::JsString, node::Ast};
 
 #[derive(Debug, Default)]
 struct KeyCache {
@@ -67,8 +66,11 @@ pub struct PropertyMap {
     pub(crate) parent_source: Option<TypeId>,
     // Java's PropertyMap is a reference type; callers here clone it to release the registry
     // borrow. The maps are shared copy-on-write (Arc::make_mut in put_property_raw) so a clone
-    // is O(1) instead of a deep BTreeMap copy; the snapshot semantics are unchanged.
-    pub(crate) properties: Arc<BTreeMap<JsString, PropertyId>>,
+    // is O(1) instead of a deep copy; the snapshot semantics are unchanged.
+    // Rust-only (D-025): Java's TreeMap is a hash map here, since lookups by name (by the
+    // string's cached hash) are far more frequent than walks in key order; `values` sorts by key
+    // and `getOwnPropertyNames` returns a sorted set, so every walk keeps Java's order.
+    pub(crate) properties: Arc<IndexMap<JsString, PropertyId>>,
     pub(crate) known_symbols: Option<Arc<Vec<(TypeId, PropertyId)>>>,
     cache: Arc<Mutex<KeyCache>>,
     immutable_empty: bool,
@@ -103,11 +105,11 @@ impl AllKeys {
 impl PropertyMap {
     // port: PropertyMap#PropertyMap
     pub fn new() -> Self {
-        Self::from_maps(Arc::new(BTreeMap::new()), None, false)
+        Self::from_maps(Arc::new(IndexMap::default()), None, false)
     }
     // port: PropertyMap#PropertyMap
     fn from_maps(
-        properties: Arc<BTreeMap<JsString, PropertyId>>,
+        properties: Arc<IndexMap<JsString, PropertyId>>,
         known_symbols: Option<Arc<Vec<(TypeId, PropertyId)>>>,
         immutable_empty: bool,
     ) -> Self {
@@ -123,7 +125,7 @@ impl PropertyMap {
     pub fn immutable_empty_map() -> &'static Self {
         static EMPTY: std::sync::OnceLock<PropertyMap> = std::sync::OnceLock::new();
         EMPTY.get_or_init(|| {
-            Self::from_maps(Arc::new(BTreeMap::new()), Some(Arc::new(Vec::new())), true)
+            Self::from_maps(Arc::new(IndexMap::default()), Some(Arc::new(Vec::new())), true)
         })
     }
     // port: PropertyMap#setParentSource
@@ -398,7 +400,11 @@ impl PropertyMap {
     }
     // port: PropertyMap#values
     pub fn values(&self) -> Vec<PropertyId> {
-        self.properties.values().copied().collect()
+        // In key order, as Java's TreeMap gives them (see `properties`).
+        let mut entries: Vec<(&JsString, PropertyId)> =
+            self.properties.iter().map(|(k, v)| (k, *v)).collect();
+        entries.sort_unstable_by(|a, b| a.0.cmp(b.0));
+        entries.into_iter().map(|(_, v)| v).collect()
     }
     // port: PropertyMap#hashCode
     pub fn hash_code(&self, reg: &JSTypeRegistry) -> i32 {
