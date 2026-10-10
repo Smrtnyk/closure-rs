@@ -1,0 +1,45 @@
+name: Difference from the Java compiler
+description: closure-rs output, diagnostics, exit code or source map differ from google-closure-compiler at the matching version.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Compare with `google-closure-compiler` at the version that closure-rs' major version names (closure-rs `20261006.x.y` matches `google-closure-compiler@20261006.0.0`), with the same input files and flags. If the Java compiler does the same, the behaviour is Closure Compiler's: report it upstream instead.
+  - type: input
+    id: version
+    attributes:
+      label: closure-rs version
+      placeholder: "20261006.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [Linux x64, Windows x64, Other (built from source)]
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Flags
+      description: The command line or the options passed to the npm API.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Input
+      description: The smallest input that shows the difference, or a link to it.
+      render: javascript
+    validations:
+      required: true
+  - type: textarea
+    id: difference
+    attributes:
+      label: What differs
+      description: The Java compiler's output and closure-rs' output (or the part that differs), including diagnostics and the exit code where they differ.
+    validations:
+      required: true
