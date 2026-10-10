@@ -462,6 +462,11 @@ here (one line each) to ease upstream syncs.
   per compile); the thread is parked, not joined, when the exit code is known. One allocator
   heap serves the whole compile instead of one per stage: less memory (9-25% less peak RSS)
   and no heap collection at each thread's exit.
+- `jscomp/source_map.rs` `addMapping`, `source_file_mapping.rs` `get_source_mapping_cached`,
+  `compiler_source_excerpt_provider.rs`: the output source map keeps the parsed input map of
+  the file it is mapping and the original path it last resolved, so that mapping a printed
+  node through the input map takes none of the compiler's locks (Java looks the map up by file
+  name for every node).
 
 ## D-026 — Upstream syncs follow npm releases
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**

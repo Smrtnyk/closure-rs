@@ -173,7 +173,8 @@ impl SourceExcerptProvider for CompilerSourceExcerptProvider {
         )
     }
 }
-impl crate::source_file_mapping::SourceFileMapping for Arc<CompilerSourceExcerptProvider> {
+use crate::source_file_mapping::SourceFileMapping;
+impl SourceFileMapping for Arc<CompilerSourceExcerptProvider> {
     fn get_source_mapping(
         &self,
         name: &closure_rhino::js_string::JsString,
@@ -187,5 +188,66 @@ impl crate::source_file_mapping::SourceFileMapping for Arc<CompilerSourceExcerpt
         }
         let name = &last.as_ref().unwrap().1;
         SourceExcerptProvider::get_source_mapping(self.as_ref(), Some(name), line, column)
+    }
+    fn get_source_mapping_cached(
+        &self,
+        cache: &mut crate::source_file_mapping::SourceMappingCache,
+        name: &closure_rhino::js_string::JsString,
+        line: i32,
+        column: i32,
+    ) -> Option<OriginalMapping> {
+        let consumer = match &cache.file {
+            Some((cached_name, consumer)) if cached_name == name => consumer.as_ref(),
+            _ => {
+                // The first node of a file: the lookup above, which parses the input map and
+                // reports its errors, then what it parsed for the next nodes.
+                let mapping = SourceFileMapping::get_source_mapping(self, name, line, column);
+                let consumer = self
+                    .input_source_maps
+                    .lock()
+                    .unwrap()
+                    .get(&name.to_string_lossy())
+                    .and_then(|map| map.get_cached_source_map().flatten());
+                cache.file = Some((name.clone(), consumer));
+                cache.resolved = None;
+                return mapping;
+            }
+        };
+        let consumer = consumer?;
+        let Some(result) = consumer.get_mapping_for_line(line, column.wrapping_add(1)) else {
+            return Some(OriginalMapping::get_default_instance().clone());
+        };
+        let original_file = result.get_original_file();
+        let relative_path = match &cache.resolved {
+            Some((resolved_file, relative_path)) if *resolved_file == original_file => {
+                relative_path.clone()
+            }
+            _ => {
+                // The first node mapped to this original file: the lookup above resolves the
+                // path (and registers the original source), then what it resolved.
+                let mapping = SourceFileMapping::get_source_mapping(self, name, line, column);
+                let resolved = self.resolved_source_map.lock().unwrap();
+                cache.resolved = Some((
+                    resolved.source_map_path_js.clone(),
+                    resolved.relative_path_js.clone(),
+                ));
+                return mapping;
+            }
+        };
+        // The mapping `get_source_mapping` builds from `result`, made once (D-025).
+        let mut mapping = OriginalMapping::new_builder();
+        mapping
+            .set_original_file(relative_path)
+            .set_column_position(result.get_column_position().wrapping_sub(1));
+        if result.has_line_number() {
+            mapping.set_line_number(result.get_line_number());
+        }
+        if result.has_identifier() {
+            mapping.set_identifier(result.get_identifier());
+        }
+        if result.has_precision() {
+            mapping.set_precision(result.get_precision());
+        }
+        Some(mapping.finish())
     }
 }

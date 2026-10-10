@@ -193,6 +193,8 @@ pub struct SourceMap {
     mapping: Option<Box<dyn SourceFileMapping + Send>>,
     /// Rust-only: the last source file name seen by `add_mapping_for_node`, and as a JS string.
     last_source_file_name: Option<(String, JsString)>,
+    /// Rust-only (D-025): what `mapping` found for the previous node.
+    mapping_cache: crate::source_file_mapping::SourceMappingCache,
 }
 impl SourceMap {
     // port: SourceMap#SourceMap
@@ -203,6 +205,7 @@ impl SourceMap {
             source_location_fixup_cache: IndexMap::<_, _>::default(),
             last_source_file_name: None,
             mapping: None,
+            mapping_cache: Default::default(),
         }
     }
     // port: SourceMap#addMapping(Mapping)
@@ -241,7 +244,12 @@ impl SourceMap {
         let mut char_no = node.get_charno(ast);
         let mut original_name = Self::get_original_name(ast, node);
         if let Some(mapping) = &self.mapping {
-            let source_mapping = mapping.get_source_mapping(&source_file_name, line_no, char_no);
+            let source_mapping = mapping.get_source_mapping_cached(
+                &mut self.mapping_cache,
+                &source_file_name,
+                line_no,
+                char_no,
+            );
             if source_mapping.is_none() {
                 // The source file does not have a input map. We consider this to be an
                 // original source range and include it in the output map.
@@ -254,12 +262,12 @@ impl SourceMap {
             } else {
                 // The source file mapped our code range to its original source location.
                 let source_mapping = source_mapping.unwrap();
-                source_file_name = source_mapping.get_original_file().to_owned();
+                source_file_name = source_mapping.get_original_file();
                 line_no = source_mapping.get_line_number();
                 char_no = source_mapping.get_column_position();
                 let identifier = source_mapping.get_identifier();
                 if source_mapping.has_identifier() && !identifier.is_empty() {
-                    original_name = Some(identifier.clone());
+                    original_name = Some(identifier);
                 }
             }
         }
@@ -367,5 +375,6 @@ impl SourceMap {
     // port: SourceMap#setSourceFileMapping
     pub fn set_source_file_mapping(&mut self, mapping: Option<Box<dyn SourceFileMapping + Send>>) {
         self.mapping = mapping;
+        self.mapping_cache = Default::default();
     }
 }
