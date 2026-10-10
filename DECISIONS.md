@@ -411,6 +411,8 @@ here (one line each) to ease upstream syncs.
 - `rhino/node.rs` `Ast::track_changes`: the arena records every node whose children, token or
   string change (independently of the compiler's change reports, which some passes omit), so
   that the scope cache sees every change.
+- `jscomp/scope.rs` `ScopeMeta::may_have_vars`: a name lookup passes the scopes in which nothing
+  was ever declared without reading the arena.
 
 ## D-026 — Upstream syncs follow npm releases
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**

@@ -119,6 +119,9 @@ pub(crate) struct ScopeMeta {
     pub(crate) depth: i32,
     /// Rust-only: kept for reuse by the `SyntacticScopeCache`.
     pub(crate) kept: bool,
+    /// Rust-only: false while no var was ever declared in the scope, so that a name lookup
+    /// passes it without reading the arena.
+    pub(crate) may_have_vars: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -211,10 +214,13 @@ impl ScopeId {
         let arena = ScopeArena::read(compiler);
         let mut scope = Some(self);
         while let Some(current) = scope {
-            if let Some(var) = arena.scopes[current.index()].abstract_scope.vars.get(name) {
+            let meta = &compiler.scope_mirror.scopes[current.index()];
+            if meta.may_have_vars
+                && let Some(var) = arena.scopes[current.index()].abstract_scope.vars.get(name)
+            {
                 return Some(*var);
             }
-            scope = compiler.scope_mirror.scopes[current.index()].parent;
+            scope = meta.parent;
         }
         None
     }
@@ -367,6 +373,7 @@ impl ScopeId {
             parent,
             depth,
             kept: false,
+            may_have_vars: false,
         });
         scope
     }
@@ -470,9 +477,12 @@ impl AbstractScope for ScopeId {
     }
 
     /// Rust-only (D-025): a pass declaring or undeclaring a name in a scope that the
-    /// `SyntacticScopeCache` keeps makes it unfit for reuse.
+    /// `SyntacticScopeCache` keeps makes it unfit for reuse. Also notes that the scope may now
+    /// have vars (`ScopeMeta::may_have_vars`).
     fn note_mutation(self, compiler: &mut AbstractCompiler) {
-        let meta = compiler.scope_mirror.scopes[self.index()];
+        let meta = &mut compiler.scope_mirror.scopes[self.index()];
+        meta.may_have_vars = true;
+        let meta = *meta;
         if meta.kept {
             crate::syntactic_scope_cache::SyntacticScopeCache::evict(
                 compiler,
