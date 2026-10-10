@@ -155,32 +155,31 @@ pub(crate) fn start(compiler: &mut AbstractCompiler, inputs: &[CompilerInput]) {
 }
 
 fn work(shared: &Shared) {
-    // One string cache and one unshared copy of each parser configuration per worker, for all
-    // the inputs it parses.
-    closure_rhino::rhino_string_pool::RhinoStringPool::with_thread_cache(|| {
-        let mut configs: Vec<(Config, Config)> = Vec::new();
-        while !shared.stop.load(Ordering::Relaxed) {
-            let i = shared.next.fetch_add(1, Ordering::Relaxed);
-            let Some(job) = shared.jobs.get(i) else {
-                break;
-            };
-            let (slot, ready) = &shared.slots[i];
-            {
-                let mut slot = slot.lock().unwrap();
-                if !matches!(*slot, Slot::Waiting) {
-                    continue; // The compiler parses it itself.
-                }
-                *slot = Slot::Parsing;
+    let mut configs: Vec<(Config, Config)> = Vec::new();
+    while !shared.stop.load(Ordering::Relaxed) {
+        let i = shared.next.fetch_add(1, Ordering::Relaxed);
+        let Some(job) = shared.jobs.get(i) else {
+            break;
+        };
+        let (slot, ready) = &shared.slots[i];
+        {
+            let mut slot = slot.lock().unwrap();
+            if !matches!(*slot, Slot::Waiting) {
+                continue; // The compiler parses it itself.
             }
-            let parsed =
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(job, &mut configs)))
-                    .ok()
-                    .flatten()
-                    .map(Box::new);
-            *slot.lock().unwrap() = Slot::Parsed(parsed);
-            ready.notify_all();
+            *slot = Slot::Parsing;
         }
-    });
+        let parsed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            closure_rhino::rhino_string_pool::RhinoStringPool::with_thread_cache(|| {
+                parse(job, &mut configs)
+            })
+        }))
+        .ok()
+        .flatten()
+        .map(Box::new);
+        *slot.lock().unwrap() = Slot::Parsed(parsed);
+        ready.notify_all();
+    }
 }
 
 /// Stops the workers and drops what they parsed and the compiler did not take.

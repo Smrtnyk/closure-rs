@@ -425,8 +425,8 @@ here (one line each) to ease upstream syncs.
 - `rhino/node.rs` `getQualifiedName`: a GETPROP name is assembled in a per-thread buffer and
   copied into its string once; `jstype/equality_checker.rs` `areEqualInternal` copies the template
   type maps only when the left one has keys (`js_type::template_type_map_ref`).
-- `jscomp/parallel_parse.rs`: a parse worker keeps one string cache and one unshared parser
-  configuration for all the inputs it parses (instead of one per input).
+- `jscomp/parallel_parse.rs`: a parse worker keeps one unshared parser configuration for all
+  the inputs it parses (instead of one per input).
 - `jstype/property_map.rs` `properties`: a hash map (Java: `TreeMap`) for lookups by name;
   `values` sorts by key and `getOwnPropertyNames` returns a sorted set, so walks keep Java's
   order.
