@@ -1,7 +1,7 @@
 {
   "about": "Name and version of the npm package built by .github/workflows/release.yml (scripts/npm_pack_main.mjs --binaries: one package `closure-rs` with the native binary of every platform in 'platforms' under bin/<platform>-<arch>/). Nothing here is published automatically.",
   "name": "closure-rs",
-  "version": "0.0.1-exp.1",
+  "version": "0.0.1-exp.2",
   "license": "Apache-2.0 AND (MPL-1.1 OR GPL-2.0-or-later) AND GPL-2.0-only WITH Classpath-exception-2.0 AND BSD-3-Clause AND MIT AND Unicode-DFS-2016 AND dtoa",
   "description": "Rust port of the Closure Compiler CLI. Not affiliated with or published by Google.",
   "platforms": [
