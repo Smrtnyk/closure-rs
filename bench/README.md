@@ -29,7 +29,7 @@ are part of the output that must match.
 
 | Project | What | Why |
 |---|---|---|
-| `d3-12` | 12 d3 packages (d3-array, d3-color, d3-format, d3-interpolate, d3-path, d3-shape, d3-time, d3-time-format, d3-scale, d3-selection, d3-hierarchy, d3-geo), **each compiled separately** from its `src/index.js` into one standalone ES2015 file: 12 compiles per level. | Mirrors the primary real workload: a project of 12 independent module directories, each with an `index.js` entry point, of varying sizes, built into 12 standalone ES2015 files by 12 separate compiles. Its total (the 12 compiles summed) is the headline number. The packages are laid out as `bench-cache/d3-12/node_modules/<package>/`; a package's job passes its own sources and those of the d3 packages it imports (and `internmap`, d3-array's dependency), with their `package.json` files, and NODE resolution finds them. |
+| `d3-12` | 12 d3 packages (d3-array, d3-color, d3-format, d3-interpolate, d3-path, d3-shape, d3-time, d3-time-format, d3-scale, d3-selection, d3-hierarchy, d3-geo), **each compiled separately** from its `src/index.js` into one standalone ES2015 file: 12 compiles per level. | Mirrors the primary real workload: a project of 12 independent module directories, each with an `index.js` entry point, of varying sizes, built into 12 standalone ES2015 files by 12 separate compiles. Its result is the total of the 12 compiles. The packages are laid out as `bench-cache/d3-12/node_modules/<package>/`; a package's job passes its own sources and those of the d3 packages it imports (and `internmap`, d3-array's dependency), with their `package.json` files, and NODE resolution finds them. |
 | `three` | three.js r186, entry `src/Three.js` (about 750 ES modules, 4.6 MB). | One large ES-module graph with heavy JSDoc. |
 | `lodash-es` | lodash 4.17.21-es, entry `lodash.js` (about 640 tiny ES modules). | Many small modules: per-file overheads, module rewriting. |
 | `fabric` | fabric.js 7.4.0, `dist/index.mjs` (one bundled ES module, about 790 KB). | One large single file. The repository's sources are TypeScript and its `dist/` is not committed, so the release tarball's ES-module build (from registry.npmjs.org, the build of tag `v740`, commit `ce64f450`) is used; only `dist/index.mjs`, `package.json` and `LICENSE` are extracted, nothing is installed or run. |
@@ -75,7 +75,7 @@ python3 scripts/run_bench.py                # all jobs, 3 repetitions, medians
 python3 scripts/run_bench.py --project d3-12 --level ADVANCED --reps 5
 python3 scripts/run_bench.py --job '^three/' --impl java    # only Java
 python3 scripts/run_bench.py --job '^fabric/SIMPLE$' --reps 1 --keep-failing --no-save
-python3 scripts/run_bench.py --job '^fabric/SIMPLE$' --print-args > /tmp/args  # the argv
+python3 scripts/run_bench.py --job '^fabric/SIMPLE$' --print-args  # the argv, one argument per line
 ```
 
 `fetch_bench.sh` makes shallow, blobless, sparse git fetches of exactly the pinned commits (and
@@ -86,11 +86,15 @@ trees are left alone, wrong or partial ones are fetched again; `--check` only ve
 `run_bench.py` derives the repository root from its own location, runs every compile with
 cwd = that root (the argv holds repo-relative paths, which appear in warnings), a fixed minimal
 environment and stdin `/dev/null`, under `/usr/bin/time` for the peak RSS. Java and the jar are
-taken from the data root (this checkout if it has the reference jar, else
-`$CLOSURE_RS_DATA_ROOT`, else the main checkout of a worktree); `--java`, `--jar` and `--bin`
+taken from the data root (`--data-root`, else `$CLOSURE_RS_DATA_ROOT`, else this checkout if it
+has the reference jar, else the main checkout of a worktree); `--java`, `--jar` and `--bin`
 override them. Each repetition runs Java then Rust; the medians are reported, per job and as
 totals per project and level (time summed, RSS maximum). Run it on an otherwise idle machine,
 or at least note the load: the result file records the load average at start and end.
+
+`--print-args` prints each selected job's argv, one argument per line, and exits; `--write-args
+DIR` writes it to `DIR/<job id>.args` instead (`/` in the id becomes `-`). The profile-guided
+release build (`scripts/pgo_build.sh --training DIR`) runs those files as its training compiles.
 
 ## Adding a benchmark
 

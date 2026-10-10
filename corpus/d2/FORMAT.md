@@ -33,8 +33,9 @@ against the sha256 recorded in `sources.lock.json`.
 ## Final corpus (`cases.jsonl`)
 
 `cases.jsonl` is the validated corpus, sorted by `id`, written by `corpus/d2/validate/finalize.py`
-(pipeline: `gates/lib/golden_all.py`, then `corpus/d2/validate/scan_golden.py`, `wp_test.py`, `finalize.py`; work files stay in `build/validate/`)
-from the candidates and the golden results. Compared with a candidate line:
+from the candidates and the golden results (pipeline: `gates/lib/golden_all.py`, then
+`corpus/d2/validate/scan_golden.py`, `wp_test.py` and `finalize.py`; work files stay in
+`build/validate/`). Compared with a candidate line:
 
 - **`profiles`** is the final, explicit list: the candidate's profiles plus auto-applied ones
   (every other profile that applies, i.e. the full matrix of docs/PORTING.md §4.4 including both chunk
@@ -43,11 +44,11 @@ from the candidates and the golden results. Compared with a candidate line:
   uncaught exception, exit 254) or timed out, and minus ADVANCED/ADVANCED-strict runs with empty
   output and zero diagnostics. Also minus every pair of a case that references a
   file missing from the repository or cache (`case_files_missing`; such a golden result, e.g.
-  `JSC_READ_ERROR` on a deleted shim, is not reference behaviour). Pairs that end in compile errors are kept (diagnostic parity).
-  Dropped pairs are listed in `JAVA_FAILURES.md`. A case with no profile left is dropped.
-  `case_args.case_profiles()` returns a final case's `profiles` unchanged (it recognises final
-  cases by their `tags`/`test_profiles` keys); it auto-appends the missing profiles only to
-  candidate cases. Pairs dropped for a Java crash are listed in `JAVA_FAILURES.md`.
+  `JSC_READ_ERROR` on a deleted shim, is not reference behaviour). Pairs that end in compile
+  errors are kept (diagnostic parity). Dropped pairs are listed in `JAVA_FAILURES.md`. A case
+  with no profile left is dropped. `case_profiles()` in `gates/lib/case_args.py` returns a final
+  case's `profiles` unchanged (it recognises final cases by their `tags`/`test_profiles` keys);
+  it auto-appends the missing profiles only to candidate cases.
 - **`tags`** (list of strings): `test262:java-parser-rejects-valid`,
   `test262:java-errors-on-valid`, `test262:java-accepts-invalid`, `test262:negative-<phase>`,
   `java-crash-profiles-dropped`. Tags never change how a case is run:

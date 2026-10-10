@@ -11,17 +11,17 @@ text blocks, concatenated strings and MessageFormat quotes.
 Run from the checkout:
 
 ```sh
-source scripts/paths.sh   # ROOT: the main checkout, which holds build/ and corpus-cache/
+source scripts/paths.sh   # ROOT: the main checkout (build/, corpus-cache/); REF_JAR: the pinned reference jar
 source "$ROOT/tools/env.sh"
-javac -J-Xmx2g -cp $ROOT/build/reference/closure-compiler.jar \
+javac -J-Xmx2g -cp $REF_JAR \
   -d $ROOT/build/compiler-java \
   crates/jscomp/tests/java/CompilerDiagnosticGroups.java
-java -Xmx2g -cp $ROOT/build/compiler-java:$ROOT/build/reference/closure-compiler.jar \
+java -Xmx2g -cp $ROOT/build/compiler-java:$REF_JAR \
   com.google.javascript.jscomp.CompilerDiagnosticGroups \
   $ROOT/corpus-cache/compiler/diagnostic-groups.json
 cp $ROOT/corpus-cache/compiler/diagnostic-groups.json \
   crates/jscomp/tests/data/compiler_diagnostic_groups.json
-CARGO_BUILD_JOBS=2 cargo test -p closure-jscomp --test diagnostic_groups_test
+cargo test -p closure-jscomp --test diagnostic_groups_test
 ```
 
 Ordinary tests read the committed fixture and need no JVM. The optional second

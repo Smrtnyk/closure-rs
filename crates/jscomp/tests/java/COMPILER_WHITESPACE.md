@@ -37,25 +37,25 @@ argument to resume after a known number of complete JSONL rows, after truncating
 any partial final row. Full regeneration:
 
 ```sh
-source scripts/paths.sh   # ROOT: the main checkout, which holds build/ and corpus-cache/
+source scripts/paths.sh   # ROOT: the main checkout (build/, corpus-cache/); REF_JAR: the pinned reference jar
 source "$ROOT/tools/env.sh"
 python3 crates/jscomp/tests/java/compiler_whitespace_fixture.py prepare \
   $ROOT "$PWD"
-javac -J-Xmx2g -cp $ROOT/build/reference/closure-compiler.jar \
+javac -J-Xmx2g -cp $REF_JAR \
   -d $ROOT/build/compiler-java \
   crates/jscomp/tests/java/CompilerWhitespace.java
-java -Xmx2g -cp $ROOT/build/compiler-java:$ROOT/build/reference/closure-compiler.jar \
+java -Xmx2g -cp $ROOT/build/compiler-java:$REF_JAR \
   com.google.javascript.jscomp.CompilerWhitespace \
   $ROOT/corpus-cache/compiler/whitespace-requests.jsonl \
   $ROOT/corpus-cache/compiler/whitespace-reference.jsonl
 python3 crates/jscomp/tests/java/compiler_whitespace_fixture.py fixture \
   $ROOT "$PWD"
-CARGO_BUILD_JOBS=2 cargo run --release -p closure-jscomp --example compiler_whitespace_check -- \
+cargo run --release -p closure-jscomp --example compiler_whitespace_check -- \
   $ROOT/corpus-cache/compiler/whitespace-requests.jsonl \
   $ROOT/corpus-cache/compiler/whitespace-rust.jsonl
 python3 crates/jscomp/tests/java/compiler_whitespace_report.py \
   $ROOT/corpus-cache/compiler
-CARGO_BUILD_JOBS=2 cargo test -p closure-jscomp --test compiler_whitespace_test
+cargo test -p closure-jscomp --test compiler_whitespace_test
 ```
 
 The report records every mismatch, both raw Java diagnostic strings and the Java

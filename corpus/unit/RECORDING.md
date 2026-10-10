@@ -5,7 +5,7 @@
   (`$REF_SRC`, `reference/closure-compiler-v20261006` at `48f4107ca` for the default reference
   `v20261006`; docs/PORTING.md §9) into `$REF_RECORDING_WS`,
   copies the untracked `MODULE.bazel.lock`, and applies `oracle/patches/*.patch`. The script
-  refuses any patch that touches `src/`.
+  refuses a patch that touches anything but `test/`, `BUILD.bazel` and `oracle_recording/`.
 - **Jars:** `scripts/unit_bazel_build.sh` builds `build/unit/jars/unit_support_deploy.jar`
   (`//:unit_support`: the compiler, its runtime deps and compiler_tests_lib, with no closure
   `*Test` class) and `unit_all_tests.jar` (all 432 `*Test.java` files).

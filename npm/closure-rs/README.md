@@ -2,13 +2,25 @@
 
 A Rust port of the [Closure Compiler](https://github.com/google/closure-compiler) command line
 (`CommandLineRunner`), with an npm wrapper that has the programmatic API of the official
-[`google-closure-compiler`](https://www.npmjs.com/package/google-closure-compiler) package
-(matched against version 20261006.0.0). Not affiliated with or published by Google.
+[`google-closure-compiler`](https://www.npmjs.com/package/google-closure-compiler) package. For the
+same inputs and flags it produces the same output, diagnostics, exit code and source maps as the
+Java compiler of the Closure Compiler release that its major version names (see below). Not
+affiliated with or published by Google. The
+[repository README](https://github.com/Smrtnyk/closure-rs#readme) describes the guarantees, the
+flags outside the port and how the port is checked.
 
 The compiler is a native binary. The package carries one per supported system (Linux x64 and
-Windows x64 for now, under `bin/<platform>-<arch>/`) and runs the one for yours; no Java is needed.
+Windows x64, under `bin/<platform>-<arch>/`) and runs the one for yours; no Java is needed.
 The Linux binary is statically linked: it runs on any x86-64 Linux, glibc or musl (Alpine, without
 gcompat), with no C library version requirement.
+
+## Versions
+
+The major version is the upstream release the output matches: `20261006.x.y` matches
+`google-closure-compiler@20261006.0.0`. Minor releases leave the output unchanged (speed, the
+wrapper, platforms); patch releases fix differences from the Java compiler, crashes and wrapper
+bugs. `latest` is the stable release; experimental builds are prereleases under the dist-tag
+`exp`. See [Versioning](https://github.com/Smrtnyk/closure-rs#versioning).
 
 ## Switching from google-closure-compiler
 
@@ -20,7 +32,9 @@ Change only `package.json`:
 }
 ```
 
-Code that imports `google-closure-compiler` keeps working, TypeScript types included:
+To stay on one upstream release, use a range instead of `latest`, for example
+`"npm:closure-rs@^20261006.0.0"`. Code that imports `google-closure-compiler` keeps working,
+TypeScript types included:
 
 ```ts
 import ClosureCompiler from 'google-closure-compiler'; // or: import {compiler} from ...
@@ -47,8 +61,8 @@ The same exports as the official package's `index.js`:
 | `gulp`, `grunt` | Present, but **not implemented**: calling either throws an error (see below). |
 | `COMPILER_PATH` | Added: the path of the closure-rs binary. |
 
-`compiler.JAR_PATH`, `compiler.COMPILER_PATH` and `compiler.CONTRIB_PATH` exist as statics too,
-because `@types/google-closure-compiler` declares them.
+`compiler.JAR_PATH`, `compiler.COMPILER_PATH`, `compiler.CONTRIB_PATH` and `compiler.EXTERNS_PATH`
+exist as statics too; `@types/google-closure-compiler` declares the first three.
 
 The package is ESM like the official one (`"type": "module"`). `require('google-closure-compiler')`
 works where Node supports `require()` of ES modules (Node 20.19+, 22.12+), as for the official
@@ -73,8 +87,8 @@ No shell is involved, so values need no quoting. The flags are the Java compiler
 stderr)` once the process has closed; for a non-zero exit code `stderr` starts with the full
 command line. If the process is ended by a signal (for example killed by the out-of-memory
 killer), `exitCode` is 128 + the signal number, as a shell reports it (137 for `SIGKILL`), and
-`stderr` names the signal. The official package passes `null` in that case. Without `--js` the compiler reads the input from stdin: write it to the returned
-process's `stdin` and end it.
+`stderr` names the signal. The official package passes `null` in that case. Without `--js` the
+compiler reads the input from stdin: write it to the returned process's `stdin` and end it.
 
 ### Types
 

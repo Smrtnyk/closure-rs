@@ -1,13 +1,14 @@
+# Java generators of the rhino goldens
+
 The generators call the pinned Closure jar and project JDK 21. Runnable copies and compiled
 classes go to `corpus-cache/dtoa/` (not tracked). Run one JVM at a time with `-Xmx1g`; Rust CI needs no Java.
 
 ```bash
-export CARGO_BUILD_JOBS=6
-source scripts/paths.sh   # ROOT: the main checkout, which holds build/ and corpus-cache/
+source scripts/paths.sh   # ROOT: the main checkout (build/, corpus-cache/); REF_JAR: the pinned reference jar
 source "$ROOT/tools/env.sh"
 export CLOSURE_RS_ROOT="$ROOT"   # DToAHarness writes under $CLOSURE_RS_ROOT/corpus-cache/dtoa
 cache=$ROOT/corpus-cache/dtoa
-reference_jar=$ROOT/build/reference/closure-compiler.jar
+reference_jar=$REF_JAR
 mkdir -p "$cache/harness"
 cp crates/rhino/tests/java/*.java "$cache/harness/"
 javac -J-Xmx1g -cp "$reference_jar" -d "$cache/harness" "$cache/harness/"*.java

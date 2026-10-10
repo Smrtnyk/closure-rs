@@ -3,8 +3,9 @@
 | Item | Value |
 |---|---|
 | Reference | google/closure-compiler release `v20261006` @ `48f4107ca2aac52149546ccc42894522fcfdb17d` = npm `google-closure-compiler@20261006.0.0` (registry tag `v20261006` in `scripts/references.tsv`, the default; fetched with `scripts/fetch_reference.sh` into `reference/closure-compiler-v20261006`) |
-| Bazel | 8.0.0 (from the reference's `.bazelversion`), via bazelisk v1.29.0 |
+| Bazel | 8.0.0 (from the reference's `.bazelversion`), via bazelisk v1.29.0 (`tools/bin/bazelisk`) |
 | JDK | Temurin jdk-21.0.12.1+1 (`tools/jdk-21`); Bazel builds with its hermetic remote JDK |
+| Tools | `scripts/setup_tools.sh` installs bazelisk, the JDK and `tools/env.sh` under `tools/`, pinned by version and sha256 (DECISIONS.md D-003) |
 | Uberjar | `build/reference-v20261006/closure-compiler.jar`, sha256 `cfa8886f9bcb9c05d29006dab5cd7012221a7ab2337d14c6fbd8d685b31f2264` |
 | Oracle | `build/oracle-v20261006/oracle.jar` |
 | Bazel output_base | `~/.cache/bazel/_bazel_<user>/<hash>` (Bazel's default for the reference workspace; one per checkout) |

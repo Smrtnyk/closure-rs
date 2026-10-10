@@ -22,8 +22,8 @@ on:
       dist_tag:
         description: 'npm dist-tag to publish under (latest: what a plain `npm install closure-rs` gets; exp: experimental builds)'
         type: choice
-        options: [alpha, latest, exp]
-        default: alpha
+        options: [latest, exp]
+        default: latest
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

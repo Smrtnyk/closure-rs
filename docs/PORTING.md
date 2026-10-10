@@ -198,7 +198,7 @@ in `DefaultPassConfig` order. `crates/DESIGN.md` gives the detailed Java-to-Rust
 
 `gates/ci.sh` enforces:
 
-1. `#![forbid(unsafe_code)]` in every crate.
+1. `unsafe_code` is forbidden in every crate (`#![forbid(unsafe_code)]` or the workspace lint).
 2. `cargo fmt --check` and `cargo clippy -D warnings`.
 3. `std::collections::HashMap` and `HashSet` are banned in `crates/` through
    `clippy::disallowed_types`. Use `IndexMap`/`IndexSet`, or a Java-order map where output
@@ -251,8 +251,9 @@ forward.
 **Syncs target npm releases only.** The pin moves from one upstream release to a later one, and
 only to a release that is published on npm as a `google-closure-compiler` version (upstream tag
 `vYYYYMMDD` = npm `YYYYMMDD.0.0`), never to an unreleased master commit, so closure-rs always
-matches a compiler users can install (DECISIONS.md D-026). A new registry tag is the upstream
-release tag (`bb8c8e7`, the first pin, is release `v20261005` = npm `20261005.0.0`).
+matches a compiler users can install (DECISIONS.md D-026). A registry tag is the upstream release
+tag; the one older row, `bb8c8e7` (release `v20261005`), is named by its commit and stays because
+the closure-self D2 inputs are read from its checkout (D-026).
 
 **The reference registry.** `scripts/references.tsv` lists every pinned reference: per tag its
 commit, the uberjar's sha256 (`-` until the jar is built and pinned), and its paths relative to
@@ -278,8 +279,9 @@ compare a ratchet across the reference change, pair by pair and record by record
 A sync:
 
 1. Adds the new reference to `scripts/references.tsv` (the version notes in `README.md`,
-   `oracle/REFERENCE.md` and the license headers' upstream version follow when it becomes the
-   default) and fetches it (`CLOSURE_RS_REF=<tag> scripts/fetch_reference.sh`).
+   `npm/closure-rs/README.md`, `oracle/REFERENCE.md` and the license headers' upstream version
+   follow when it becomes the default) and fetches it
+   (`CLOSURE_RS_REF=<tag> scripts/fetch_reference.sh`).
 2. Builds the new reference jar (`oracle/REFERENCE.md`), pins its sha256 in the registry, builds
    the oracle (`oracle/build.sh`), and re-runs `gates/gate_0_1.sh`.
 3. Regenerates what is derived from the reference: `scope/flags.txt` (`scope/gen_flags.py`), the
@@ -292,4 +294,5 @@ A sync:
    (`scripts/license_headers.py --apply`).
 5. Verifies the result as in §4: every unit record and D2 pair that matched before still matches
    (`scripts/unit_ratchet_rebase.py`, `gates/d2_rust.py check --rebase`), then moves the
-   registry's `default` row to the new tag.
+   registry's `default` row to the new tag. The first npm release after the sync starts a new
+   major version, `<YYYYMMDD>.0.0` ([README: Versioning](../README.md#versioning)).

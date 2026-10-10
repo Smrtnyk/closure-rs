@@ -25,7 +25,7 @@ Flags for which `setRunOptions` needs a `Compiler` (`--json_warnings_file`,
 **Threads.** The parse runs inside `Compiler.runInCompilerThread` (CompilerExecutor's
 `jscompiler` thread, 64 MB stack), as in a real compile, so `JSC_PARSE_TREE_TOO_DEEP` appears
 at the same depths. The dump and its JSON serialization run on a thread with a 1 GB stack;
-there is no AST depth limit (5000-level ASTs are in `smoke.sh`). The JSON nests 2 levels per
+there is no AST depth limit (`oracle/test/smoke.sh` dumps a 5000-level AST). The JSON nests 2 levels per
 AST level; Python's `json` handles about 20000 levels.
 
 **The compiler.** The oracle runs `Compiler.init([], [], options)`, so
@@ -130,7 +130,7 @@ parser's own values and are always present.
 
 The set of properties is exhaustive:
 - `OracleNodeAccess` iterates `Node.Prop.values()`, which covers all 55 constants at the
-  pinned commit, from `IS_PARENTHESIZED` to `TRAILING_COMMA`.
+  pinned reference, from `IS_PARENTHESIZED` to `IS_IN_CLOSURE_UNAWARE_SUBTREE`.
 - For each constant it calls the package-private `Node.lookupProperty(prop)`.
 - It emits every property that is present, whether it is an `IntPropListItem` or an
   `ObjectPropListItem`.

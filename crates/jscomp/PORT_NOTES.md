@@ -2,14 +2,15 @@
 
 These notes record where the Rust shape of `closure-jscomp` differs from the Java it ports, and
 why. The general conventions (arena, handles, borrowing, strings, collections) are in
-[crates/DESIGN.md](../DESIGN.md); this file covers the class-specific cases. Java tests that are
-`@Ignore`d in Java (JUnit never runs them) are not ported. Tests of `CompilerTestCase`,
-`IntegrationTestCase` and `CompilerTypeTestCase` subclasses run as unit-corpus records
-(`crates/testing`). A few Java tests cannot be expressed in Rust: for example
+[crates/DESIGN.md](../DESIGN.md); this file covers the class-specific cases. Divergences made for
+speed that keep the output identical are listed in [DECISIONS.md](../../DECISIONS.md) D-025.
+
+Java tests that are `@Ignore`d in Java (JUnit never runs them) are not ported. Tests of
+`CompilerTestCase`, `IntegrationTestCase` and `CompilerTypeTestCase` subclasses run as
+unit-corpus records (`crates/testing`). A few Java tests cannot be expressed in Rust: for example
 `VariableMapTest#testReverseLookupOfNullFindsNoName` passes `null` where the Rust API takes a
 `&JsString`, and `NodeTraversalTest#testNodeTraversalInterruptable` needs a JVM thread interrupt
-(see `Platform` below). The only deliberately unported
-pass factories in `DefaultPassConfig` are the out-of-scope ones (PolymerPass, ChromePass,
+(see `Platform` below). The only deliberately unported pass factories in `DefaultPassConfig` are the out-of-scope ones (PolymerPass, ChromePass,
 ReplaceMessagesForChrome, CoverageInstrumentationPass; each marked `// unported:`).
 
 ## Diagnostics and error reporting

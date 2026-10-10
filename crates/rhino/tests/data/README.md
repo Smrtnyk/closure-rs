@@ -1,5 +1,10 @@
-These 20,000 deterministic TSV records come from the pinned Java reference and project JDK;
-Rust output was never used to create expectations. Rust CI runs them without Java.
+# rhino test data
+
+## DToA samples
+
+`standard.tsv`, `modes.tsv`, `jdk.tsv` and `raw.tsv` hold 20,000 deterministic records from the
+pinned Java reference and the project JDK; Rust output was never used to create expectations.
+`tests/dtoa_golden.rs` runs them without Java.
 
 | File | Lines | Java source |
 | --- | ---: | --- |
@@ -29,7 +34,8 @@ from the full gzip corpora and category-head/stride samples. It preserves each
 exceptional/non-ASCII/surrogate outcome kind explicitly and selects the rest deterministically.
 It does not touch `jdk.tsv`.
 Java classes and full corpora live under `corpus-cache/dtoa/` of the main checkout (not tracked).
-Reference jar: `build/reference/closure-compiler.jar` of the main checkout.
+Reference jar: the pinned one (`$REF_JAR` from `scripts/paths.sh`; DToA is the same in every
+pinned reference).
 JDK: tools/jdk-21 (21.0.12.1+1-LTS). The modes/raw generator disables HotSpot fast-throw optimization
 so repeated array-bounds exceptions retain exact messages. Neither DToA nor BigInteger is patched.
 
@@ -41,3 +47,11 @@ SHA-256:
 20c3182d6fb740c59bd77e4b822d4af32f29bd428f97a579312d72b5136436ff  jdk.tsv
 af2b303c48a4483a090b508f0d96fac0fae15421daa2c6c662eacdf3ca30d48f  raw.tsv
 ```
+
+## Other JDK goldens
+
+| File | Read by | Produced by |
+| --- | --- | --- |
+| `jdk_numeric_parse.tsv` | `tests/java_lang_numeric_parse_test.rs` | `Double.parseDouble` and `BigInteger(String, int)` of the project JDK (see the file's header) |
+| `java_hash_map_order.tsv` | `tests/java_hash_map_test.rs` | `HashMap` iteration order of String keys (see the test's header) |
+| `java_concurrent_hash_map_order.tsv` | `tests/java_concurrent_hash_map_test.rs` | `tests/java/ConcurrentHashMapOrder.java` (../java/README.md) |

@@ -1,7 +1,7 @@
 # closure-testing
 
-Test-support crate (package `closure-testing`). It preserves the existing typed corpus reader and
-executes the JSON replay through Rust ports of `CompilerTestCase`, `IntegrationTestCase`,
+Test-support crate (package `closure-testing`). It holds the typed reader of the unit corpus
+(`corpus/unit/`) and runs the JSON replay through Rust ports of `CompilerTestCase`, `IntegrationTestCase`,
 `CompilerTypeTestCase` and the `TypeCheckTestCase` builder/direct paths. It is never linked into the
 compiler. Compiler-owned operations use `jscomp_api.rs`; working adapters stay in
 `harness_passes.rs`, while missing implementations live in explicit `stand_in/` files re-exported
@@ -17,6 +17,8 @@ through `jscomp_api.rs`. Stand-ins carry no port markers and preserve the first 
 | `derived/expected_pipeline.jsonl.gz` | FORMAT.md "comparison", HARNESS.md step 8e | `corpus::load_expected_pipeline` -> `Vec<derived::ExpectedPipeline>` |
 
 The corpus directory is `../../corpus/unit` relative to this crate, or `$CLOSURE_RS_CORPUS_UNIT`.
+FORMAT.md, DSL.md and HARNESS.md, cited throughout this file, are the specifications in that
+directory.
 
 ### Fidelity rules the reader keeps
 
@@ -97,7 +99,7 @@ that need them.
 
 ## Tests
 
-`CARGO_BUILD_JOBS=2 cargo test -p closure-testing` (the crate and its gzip decoder are built with
+`cargo test -p closure-testing` (the crate and its gzip decoder are built with
 `opt-level = 3` in the dev profile; the structural runner test also replays the full corpus):
 
 - `tests/records_load.rs`: all 24,782 records in 432 files (255 non-empty) load with 0 errors and
@@ -121,7 +123,7 @@ From the checkout (`gates/unit_rust.sh` runs it this way and compares the result
 `gates/unit_ratchet.json`):
 
 ```sh
-CARGO_BUILD_JOBS=2 cargo run --release -p closure-testing --bin unit_replay -- --all --report build/unit-replay/report.json --records-out build/unit-replay/records.jsonl
+cargo run --release -p closure-testing --bin unit_replay -- --all --report build/unit-replay/report.json --records-out build/unit-replay/records.jsonl
 ```
 
 The binary accepts `--all` or `--classes A,B,...`, plus `--report FILE.json`,

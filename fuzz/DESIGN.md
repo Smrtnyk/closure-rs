@@ -1,7 +1,9 @@
 # Fuzzer design (docs/PORTING.md §4.6)
 
-The fuzzer lives in the Cargo workspace rooted at `/Cargo.toml`, together with `crates/*`. Every crate opts into the workspace lints, which include
-`unsafe_code = "forbid"` (§6.1). The toolchain is pinned in `rust-toolchain.toml` (1.95.0).
+The fuzzer's crates are members of the repository's Cargo workspace (the root `Cargo.toml`),
+together with `crates/*`. Every crate opts into the workspace lints, which include
+`unsafe_code = "forbid"` (docs/PORTING.md §6, item 1). The toolchain is pinned in
+`rust-toolchain.toml`.
 
 ## Crates
 
@@ -137,10 +139,11 @@ Production { name, weight, leaf, when: fn(&Ctx) -> bool, emit: fn(&mut Gen) }
    `parse_dump` (`source_offset` and `length` in UTF-16 units, converted to bytes). The
    predicate is "still parses, and A and B still differ in the same way". Then line-level
    ddmin runs, all under a predicate-call budget (`--budget`).
-7. **File.** The result is written to `fuzz/findings/<fz-hash>.md`. The file holds the
-   profile, argv, the difference, the minimized repro, both outcomes and the original
-   program with its origin (seed and index, or the mutated D2 file). Each such file is one
-   porting defect to fix (docs/PORTING.md §7).
+7. **File.** The result is written to `<findings>/fz-<hash>.md` (`--findings`, default
+   `fuzz/findings/`; the hash is the first 12 hex digits of the SHA-256 of the profile and the
+   minimized repro). The file holds the engines, the profile, argv, the difference, the
+   minimized repro, both outcomes and the original program with its origin (seed and index, or
+   the mutated D2 file). Each such file is one porting defect to fix (docs/PORTING.md §7).
 
 **Arguments and exit status.** `--work` must lie inside the repository: `case_args.py`
 refuses an absolute `out_dir` ("out_dir must be repo-relative"), and the driver passes the
@@ -162,7 +165,8 @@ Java crashes (D-009 drops) and compared programs end an oracle-error streak and 
 rejections do not count either way, so a normal run with a few percent Java crashes or the
 odd oracle error is unaffected.
 
-Heap: each driver worker owns 2 oracle JVMs at `-Xmx1536m`. All JVMs start through
+Heap: each driver worker owns two oracle JVMs at `-Xmx1536m` (engines A and B), or one when
+engine B is `rust`. All JVMs start through
 `fuzz_oracle::Server::start`, which clears the environment, sets `golden_env()`, and refuses
 to use a server whose ready-line `env` differs from `GOLDEN_JVM_ENV`.
 
@@ -212,7 +216,7 @@ from the ones the results were measured with.
 ## Commands
 
 ```bash
-cargo build -j 8 --release
+cargo build --release
 target/release/jsgen --seed 1 --index 0
 target/release/fuzz-driver parse-rate --seed 20261006 --count 1000 --servers 3
 target/release/fuzz-driver run --seed 1 --count 200 --servers 3 --engine-b java --source mixed

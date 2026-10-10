@@ -120,7 +120,7 @@ does not provide.)
 ## Helpers
 `oracle/replay/helpers/<package path>/<Holder>.java` holds code copied **verbatim** from a test
 class, inside a generated holder class. The header names the source file, the line ranges and the
-commit (bb8c8e7). Helpers are part of the corpus that Rust ports.
+upstream commit the code was copied from. Helpers are part of the corpus that Rust ports.
 - `"package"` (optional, default `com.google.javascript.jscomp`) is the holder's package, for
   helpers that need package-private access elsewhere, e.g.
   `{"helper":"JSTypeColorIdHasherTest_Helpers","package":"com.google.javascript.jscomp.serialization"}`.
