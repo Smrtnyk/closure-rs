@@ -427,9 +427,9 @@ here (one line each) to ease upstream syncs.
   type maps only when the left one has keys (`js_type::template_type_map_ref`).
 - `jscomp/parallel_parse.rs`: a parse worker keeps one unshared parser configuration for all
   the inputs it parses (instead of one per input).
-- `jstype/property_map.rs` `properties`: a hash map (Java: `TreeMap`) for lookups by name;
-  `values` sorts by key and `getOwnPropertyNames` returns a sorted set, so walks keep Java's
-  order.
+- `jstype/property_map.rs` `PropertyTable`: the properties are a hash map (Java: `TreeMap`) for
+  lookups by name, whose only walks are in key order (`values` sorts, `getOwnPropertyNames`
+  returns a sorted set), as Java's.
 - `jscomp/var_map.rs` (`AbstractScope#vars`): a scope keeps up to two declared names in itself,
   compared by cached hash, and moves to an insertion-ordered hash map beyond that (Java:
   `LinkedHashMap`), so a lookup through the scope chain reads no hash table for small scopes.
