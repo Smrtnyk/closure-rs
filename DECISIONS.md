@@ -435,6 +435,8 @@ here (one line each) to ease upstream syncs.
 - `jscomp/code_printer.rs` `startSourceMapping`, `compiler_license_tracker.rs`,
   `node_util.rs` `isInSyntheticScript`: the source file name is read in place instead of being
   copied for every printed node.
+- `jscomp/infer_js_doc_info.rs` `inferJSDocForProperty`: the qualified name is computed only when
+  the JSDoc is attached to the property's type, its only use (Java computes it first).
 
 ## D-026 — Upstream syncs follow npm releases
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**
