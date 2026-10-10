@@ -23,12 +23,16 @@ It follows upstream *releases*, not master commits: each sync moves it to a newe
 [How the port is checked](#how-the-port-is-checked) describes how it is compared with the Java
 compiler.
 
-A few flags configure parts of Closure Compiler that are outside the port, and with them the output
-is not guaranteed to match: coverage instrumentation (`--instrument_for_coverage_option`,
-`--instrument_mapping_report`, `--production_instrumentation_array_name`), the Polymer, Chrome and
-J2CL passes (`--polymer_version`, `--chrome_pass`, `--j2cl_pass`, `--remove_j2cl_asserts`) and
-`--typed_ast_output_file`, which upstream marks "DO NOT USE". [`scope/flags.txt`](scope/flags.txt)
-lists every flag with its scope.
+A few flags configure parts of Closure Compiler that are outside the port: coverage instrumentation
+(`--instrument_for_coverage_option`, `--instrument_mapping_report`,
+`--production_instrumentation_array_name`), the Polymer, Chrome and J2CL passes
+(`--polymer_version`, `--chrome_pass`, `--j2cl_pass`, `--remove_j2cl_asserts`) and
+`--typed_ast_output_file`, which upstream marks "DO NOT USE". closure-rs refuses to compile when
+one of them would take effect: it prints that it does not support the feature and exits with code
+255, as for a flag error. This includes J2CL input (files named `*.java.js`), for which the Java
+compiler runs the J2CL passes by default; `--j2cl_pass=OFF` compiles it without them. With their
+default values these flags work as in the Java compiler. [`scope/flags.txt`](scope/flags.txt) lists
+every flag with its scope, and [DECISIONS.md D-028](DECISIONS.md) the exact rules.
 
 ## Usage
 

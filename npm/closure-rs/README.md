@@ -81,7 +81,9 @@ object whose keys are flag names without `--`:
   not set out of the object.
 
 No shell is involved, so values need no quoting. The flags are the Java compiler's
-(`CommandLineRunner`), with the same meaning and output.
+(`CommandLineRunner`), with the same meaning and output. The few that configure parts outside the
+port (coverage instrumentation, Polymer, Chrome, J2CL, TypedAST output) make the compiler exit with
+code 255 and a message saying so when they would take effect; the repository README lists them.
 
 `run(callback)` starts the process and returns it. The callback receives `(exitCode, stdout,
 stderr)` once the process has closed; for a non-zero exit code `stderr` starts with the full

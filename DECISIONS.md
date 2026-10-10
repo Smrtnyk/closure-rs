@@ -433,3 +433,34 @@ The closure-self D2 cases keep their inputs at `bb8c8e7`: their case ids (`@bb8c
 input paths under `reference/closure-compiler/` stay as they are, so `reference/closure-compiler`
 is kept as a permanent input checkout and is not removed when a later reference becomes the
 default. Only the compiler that processes those inputs changes with the reference.
+
+## D-028 — Out-of-scope features are refused
+The flags of §2's excluded areas (the `out` rows of `scope/flags.txt`) configure code that is not
+ported: the instrumentation pass, the Polymer, Chrome and J2CL passes, `ChromeCodingConvention`
+and the TypedAST output. Compiling with them would crash or silently differ from Java, so closure-rs
+stops instead. The refusal is reported like the Java compiler's own flag errors (a
+`FlagUsageException`): one line per refused feature on stderr, saying
+`closure-rs does not support <flag>: <feature> is not part of the port.`, nothing on stdout, no
+output files, exit code 255.
+
+**What is refused:**
+- `--instrument_for_coverage_option` other than NONE (any case), `--polymer_version` with any
+  value, `--chrome_pass` (also with `--third_party`) and `--typed_ast_output_file` with any value
+  (Java serializes for the empty name too). These are checked after the options are created,
+  so the Java compiler's own flag errors (`--instrument_mapping_report` without PRODUCTION,
+  PRODUCTION without `--instrument_mapping_report`, an unknown `--j2cl_pass` value) come first
+  and stay identical. They are refused in every compilation
+  level, including the ones where Java would not use them (WHITESPACE_ONLY, `--checks_only`).
+- The J2CL passes. `--j2cl_pass` is AUTO by default (an empty value keeps AUTO). With AUTO the
+  checks run `J2clSourceFileChecker`, which turns the J2CL passes on when an input's name ends in
+  `.java.js` (`J2clSourceUtils.isJ2clSource`); every J2CL pass returns at once otherwise. The
+  checks' J2CL passes (`J2clSourceFileChecker`, `J2clChecksPass`) are ported; the unported ones
+  are all optimizations. So the refusal comes after the checks and before the optimizations, when
+  the J2CL passes are on and the compilation optimizes: a J2CL input still compiles with
+  `--j2cl_pass=OFF`, `--checks_only` and WHITESPACE_ONLY, and checks that halt the compilation
+  are reported as in Java. The message names the first such input and suggests
+  `--j2cl_pass=OFF`.
+
+`--instrument_mapping_report`, `--production_instrumentation_array_name` and
+`--remove_j2cl_asserts` are not refused on their own: only PRODUCTION instrumentation and the J2CL
+passes read them, and those are refused.

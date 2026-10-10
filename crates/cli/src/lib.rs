@@ -25,5 +25,6 @@ pub mod java_io;
 pub mod java_util_logging_level;
 pub mod jdk_globs;
 pub mod option_setup;
+pub mod out_of_scope;
 pub mod stand_in;
 pub mod verifying_error_manager;
