@@ -1,5 +1,7 @@
 # closure-rs
 
+[![npm](https://img.shields.io/npm/v/closure-rs)](https://www.npmjs.com/package/closure-rs)
+
 closure-rs is a Rust port of [Google Closure Compiler](https://github.com/google/closure-compiler),
 the JavaScript optimizer, checker and transpiler. Its goal is **byte-identical behaviour**: for the
 same input files and flags, `closure-rs` produces exactly the same output, diagnostics, exit code and
@@ -45,6 +47,36 @@ guaranteed to match. [`scope/flags.txt`](scope/flags.txt) lists every flag with 
 **Platforms:** the npm package ships native binaries for Linux x64 (statically linked; runs on
 glibc and musl distributions such as Alpine) and Windows x64. On other systems, build from source
 ([Building](#building)); those builds are not tested by the project.
+
+## Performance
+
+Wall-clock time and peak memory of one compile, against the Java compiler. Output and source maps
+of both compilers were byte-identical in every run.
+
+| Bundle | Level | Java | closure-rs | Speedup | Java memory | closure-rs memory |
+|---|---|---:|---:|---:|---:|---:|
+| three.js r186 (1.3 MB) | ADVANCED | 6.98 s | 1.82 s | 3.8× | 697 MB | 346 MB |
+| | SIMPLE | 4.47 s | 1.11 s | 4.0× | 627 MB | 312 MB |
+| fabric.js 7.4.0 (0.8 MB) | ADVANCED | 5.77 s | 1.36 s | 4.2× | 665 MB | 288 MB |
+| | SIMPLE | 3.28 s | 0.67 s | 4.9× | 566 MB | 253 MB |
+| d3 7.9.0 (0.6 MB) | ADVANCED | 5.64 s | 1.40 s | 4.0× | 782 MB | 292 MB |
+| | SIMPLE | 3.82 s | 0.86 s | 4.4× | 849 MB | 273 MB |
+| lodash 4.17.21 (0.2 MB) | ADVANCED | 3.65 s | 0.64 s | 5.7× | 568 MB | 243 MB |
+| | SIMPLE | 2.22 s | 0.33 s | 6.7× | 522 MB | 227 MB |
+
+Conditions:
+
+- **Inputs:** the bundle files (for three.js `three.core.js` and `three.module.js`) with their
+  input source maps (`--source_map_input`), `--create_source_map`, `--source_map_include_content`,
+  `--language_out=ECMASCRIPT_2015`.
+- **Java:** the `google-closure-compiler` 20261006.0.0 jar on OpenJDK 21, `java -jar` with default
+  JVM settings and a new JVM per compile, as the npm package's API runs it.
+- **closure-rs:** 20261006.0.0, the profile-guided Linux x64 release binary.
+- **Machine:** AMD Ryzen 9 9950X (16 cores, 32 threads), 62 GB, Fedora Linux 44; other processes
+  used about a quarter of the threads during the runs.
+- **Values:** medians of 5 runs; memory is the peak resident set size.
+
+`scripts/run_bench.py` runs these benchmarks (see [bench/README.md](bench/README.md)).
 
 ## Usage
 
