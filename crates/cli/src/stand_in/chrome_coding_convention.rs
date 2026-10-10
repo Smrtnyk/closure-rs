@@ -16,7 +16,8 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
 //   src/com/google/javascript/jscomp/ChromeCodingConvention.java.
 
-// STAND-IN: ChromeCodingConvention is Chrome-specific (out of scope, docs/PORTING.md §2); not ported
+// STAND-IN: ChromeCodingConvention is Chrome-specific (out of scope, docs/PORTING.md §2); not ported.
+// The CLI refuses --chrome_pass before compiling (DECISIONS.md D-028), so these methods never run.
 use closure_jscomp::coding_convention::*;
 use closure_jstype::{prelude::*, rhino::nominal_type_builder::NominalTypeBuilder};
 use closure_rhino::{

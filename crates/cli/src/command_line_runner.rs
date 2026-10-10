@@ -3517,12 +3517,16 @@ impl CommandLineRunner {
             );
             compiler.set_error_manager(Box::new(manager));
         }
+        // Not in Java: Polymer is outside the port (D-028).
+        crate::out_of_scope::refuse_polymer(&self.flags)?;
         let mut options = self
             .create_options()
             .map_err(|e| e.at_cli("AbstractCommandLineRunner", "doRun", 1164))?;
         self.base
             .set_run_options(&mut options)
             .map_err(|e| e.at_cli("AbstractCommandLineRunner", "doRun", 1165))?;
+        // Not in Java: flags that turn on a part of the compiler outside the port (D-028).
+        crate::out_of_scope::refuse_flags(&self.flags)?;
         let externs = self.create_externs(&options)?;
         self.base.root_relative_paths_map = Some(self.base.construct_root_relative_paths_map());
         let mut output_file_names = Vec::new();
@@ -3693,8 +3697,12 @@ impl CommandLineRunner {
             self.base.compiler.as_mut().unwrap().generate_report();
             Some(self.base.compiler.as_ref().unwrap().get_result())
         } else {
+            let mut refused = None;
             let compilation = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                self.base.perform_compilation(metrics_recorder.as_mut());
+                if let Err(error) = self.base.perform_compilation(metrics_recorder.as_mut()) {
+                    refused = Some(error);
+                    return;
+                }
                 if chunks.is_some()
                     && self.base.config.restored_compilation_stage != -1
                     && self.base.config.save_after_compilation_stage == -1
@@ -3702,6 +3710,10 @@ impl CommandLineRunner {
                     chunks = Some(self.base.compiler.as_ref().unwrap().get_chunks().unwrap());
                 }
             }));
+            // Not in Java: the J2CL passes were refused (D-028); nothing else is reported.
+            if let Some(error) = refused {
+                return Err(error.into());
+            }
             self.base.compiler.as_mut().unwrap().generate_report();
             if let Err(error) = compilation {
                 std::panic::resume_unwind(error);
