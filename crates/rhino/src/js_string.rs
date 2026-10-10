@@ -43,10 +43,13 @@ impl Default for JsString {
         empty()
     }
 }
-/// Rust-only: the shared empty string (Java's `""` literal is one interned object).
+/// Rust-only: the shared empty string (Java's `""` literal is one interned object): the string
+/// pool's entry, which is copied without a reference count, so that threads making empty
+/// strings do not contend for one count.
 fn empty() -> JsString {
-    static EMPTY: std::sync::LazyLock<JsString> =
-        std::sync::LazyLock::new(|| JsString::from_units(Vec::new()));
+    static EMPTY: std::sync::LazyLock<JsString> = std::sync::LazyLock::new(|| {
+        crate::rhino_string_pool::RhinoStringPool::add_or_get(JsString::from_slice(&[]))
+    });
     EMPTY.clone()
 }
 impl JsString {

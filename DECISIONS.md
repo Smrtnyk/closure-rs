@@ -419,7 +419,8 @@ here (one line each) to ease upstream syncs.
   list, kept by `Ast::set_props`, so that `getJSDocInfo` reads one array instead of the node and
   its list; `getStaticSourceFile`, `isFromExterns` read the SOURCE_FILE item by reference.
 - `rhino/js_string.rs`: an ASCII `&str` becomes a JS string in one exact-size allocation, the
-  empty string is shared by `Default` too, and `hashCode` is summed four code units per step
+  empty string (`""`, `Default`) is the string pool's entry (copied without a reference count,
+  so parser threads do not contend for it), and `hashCode` is summed four code units per step
   (the same value as Java's loop).
 - `rhino/node.rs` `getQualifiedName`: a GETPROP name is assembled in a per-thread buffer and
   copied into its string once; `jstype/equality_checker.rs` `areEqualInternal` copies the template
