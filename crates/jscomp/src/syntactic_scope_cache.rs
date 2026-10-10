@@ -71,7 +71,7 @@ static MODE: LazyLock<Mode> =
 pub(crate) struct ScopeContext {
     /// The script holding the root (the root itself for a script); None for a ROOT node.
     script: Option<NodeId>,
-    /// The function or script whose change time covers the code scanned for the scope; None for
+    /// The function or script whose change scope holds the code scanned for the scope; None for
     /// a ROOT node, whose scope covers the top level of every script below it.
     change_root: Option<NodeId>,
     /// FUNCTION: a function expression; CLASS: a class expression; BLOCK: a function body or
