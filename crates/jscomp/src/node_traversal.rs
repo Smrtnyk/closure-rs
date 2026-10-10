@@ -849,6 +849,13 @@ impl<'a> Builder<'a> {
         self.build().traverse_roots_tree(externs, root);
     }
 
+    /// Rust-only (DECISIONS.md D-025): `traverseRoots(externs, root)` without visiting `externs`;
+    /// the global scope is still the one of both roots.
+    pub fn traverse_roots_skipping_externs(&mut self, externs: NodeId, root: NodeId) {
+        self.build()
+            .traverse_roots_tree_skipping_externs(externs, root);
+    }
+
     // port: NodeTraversal.Builder#traverseWithScope
     pub fn traverse_with_scope(&mut self, root: NodeId, s: impl Into<AbstractScopeHandle>) {
         self.build().traverse_with_scope(root, s);
@@ -966,6 +973,24 @@ impl<'a> NodeTraversal<'a> {
             self.current_node = Some(scope_root);
             self.push_scope(scope_root, callback);
             self.traverse_branch(externs, Some(scope_root), callback);
+            check_state!(root.get_parent(self) == Some(scope_root));
+            self.traverse_branch(root, Some(scope_root), callback);
+            self.pop_scope(callback);
+        }));
+        self.callback = Some(callback);
+        if let Err(unexpected_exception) = result {
+            self.throw_unexpected_exception(unexpected_exception);
+        }
+    }
+
+    /// Rust-only (DECISIONS.md D-025): `traverse_roots_tree` without visiting `externs`.
+    pub fn traverse_roots_tree_skipping_externs(&mut self, externs: NodeId, root: NodeId) {
+        let callback = check_not_null!(self.callback.take());
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            let scope_root = check_not_null!(externs.get_parent(self));
+            self.init_traversal(scope_root);
+            self.current_node = Some(scope_root);
+            self.push_scope(scope_root, callback);
             check_state!(root.get_parent(self) == Some(scope_root));
             self.traverse_branch(root, Some(scope_root), callback);
             self.pop_scope(callback);

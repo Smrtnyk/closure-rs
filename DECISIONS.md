@@ -305,6 +305,9 @@ here (one line each) to ease upstream syncs.
 - `cli/src/main.rs`: the binary uses mimalloc as its global allocator (Java: the JVM's heap);
   about 9% faster compiles for about 100 MB more peak memory.
 - `Cargo.toml` `[profile.release]`: fat LTO and one codegen unit, about 5% faster.
+- `scripts/pgo_build.sh`, `.github/workflows/release.yml`: the released binaries are built with a
+  profile (PGO) from training compiles of the d3-12, lodash-es and three benchmark projects
+  (`scripts/run_bench.py --write-args`); about 8% less CPU time.
 - `jscomp/parallel_parse.rs`: inputs are parsed on up to 8 worker threads into arenas of their
   own (`Ast::new_for_preparse`) while the compiler runs; `CompilerInput#parse` moves a finished
   parse into the compiler's arena (`Ast::append_preparsed`) with the node ids, object sharing
@@ -339,7 +342,8 @@ here (one line each) to ease upstream syncs.
 - `jscomp/rhino_error_reporter.rs` `JSErrorQueue`: the registry error queue's empty check is a
   flag load, not a lock.
 - `jscomp/compiler.rs` `get_extern_properties_js`: the extern property names are converted to JS
-  strings once per value, not on every RemoveUnusedCode run.
+  strings once per value, not on every RemoveUnusedCode run, and interned (copied without a
+  reference count).
 - `jscomp/node_traversal.rs` `get_input`, `syntactic_scope_creator.rs` `ScopeScanner`: the
   CompilerInput found for the current input id is kept (Java keeps the object) instead of being
   looked up by id again; `ImplicitVar::js_name` makes the implicit var names once.
@@ -389,6 +393,29 @@ here (one line each) to ease upstream syncs.
   file name conversions of the previous mapping and the parsed input map
   (`SourceMapInput::get_cached_source_map`); `cli/java_io.rs` `EncodedWriter` writes UTF-8
   text to a UTF-8 stream without the UTF-16 round trip.
+- `jscomp/reference_collector.rs` `skip_externs_when_unread` (InlineVariables,
+  InlineObjectLiterals): a run leaves out the externs (Java traverses them on every run) while
+  every NAME in them resolves to a var declared in them, which a traversal of the externs finds
+  out and the compiler keeps until a change is recorded inside the externs
+  (`ChangeTracker::get_externs_change_count`).
+- `jscomp/basic_block.rs`: the basic blocks of references are `Rc`, not `Arc`.
+- `rhino/js_string.rs` `JsStrLike::is_prefix_of`/`is_suffix_of`: `startsWith`/`endsWith` compare
+  an ASCII literal with the code units byte by byte instead of converting it first.
+- `jscomp/syntactic_scope_cache.rs` (hooks in `syntactic_scope_creator.rs`, `scope.rs`,
+  `abstract_scope.rs`, `abstract_var.rs`): a scope made by a `SyntacticScopeCreator` with the
+  default redeclaration handler is kept by root node and handed out again by a later pass while
+  its code is unchanged and no pass declared or undeclared a name in it (Java scans anew for every
+  request); a pass never receives one scope twice. About 75% fewer scans and a third less peak
+  memory on large bundles; `CLOSURE_RS_SCOPE_CACHE=off` disables it, `=verify` checks every
+  reuse against a new scan.
+- `rhino/node.rs` `Ast::track_changes`: the arena records every node whose children, token or
+  string change (independently of the compiler's change reports, which some passes omit), so
+  that the scope cache sees every change.
+- `jscomp/scope.rs` `ScopeMeta::may_have_vars`: a name lookup passes the scopes in which nothing
+  was ever declared without reading the arena.
+- `jscomp/syntactic_scope_creator.rs` `ScopeScanner::scan_script`: a new global scope takes the
+  top-level declarations of each unchanged script (the externs, mostly) from the scope cache and
+  makes them again through `declareVar`, instead of walking the script's statements.
 
 ## D-026 — Upstream syncs follow npm releases
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**

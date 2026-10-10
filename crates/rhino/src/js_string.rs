@@ -173,11 +173,11 @@ impl JsString {
     // port: String#startsWith
     pub fn starts_with(&self, s: impl JsStrLike) -> bool {
         // (Any string form: callers need not allocate a JsString for a literal.)
-        s.with_units(|s| self.as_units().starts_with(s))
+        s.is_prefix_of(self.as_units())
     }
     // port: String#endsWith
     pub fn ends_with(&self, s: impl JsStrLike) -> bool {
-        s.with_units(|s| self.as_units().ends_with(s))
+        s.is_suffix_of(self.as_units())
     }
     // port: String#isEmpty
     pub fn is_empty(&self) -> bool {
@@ -262,8 +262,34 @@ fn find_units(hay: &[u16], needle: &[u16]) -> Option<usize> {
 pub trait JsStrLike {
     /// Calls `f` with the UTF-16 code units of the string.
     fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R;
+    /// Whether `units` begin with the code units of the string.
+    fn is_prefix_of(&self, units: &[u16]) -> bool {
+        self.with_units(|s| units.starts_with(s))
+    }
+    /// Whether `units` end with the code units of the string.
+    fn is_suffix_of(&self, units: &[u16]) -> bool {
+        self.with_units(|s| units.ends_with(s))
+    }
+}
+/// Rust-only fast path (D-025): an ASCII str has one code unit per byte, so it is compared with
+/// code units without converting it.
+fn ascii_units_eq(units: &[u16], s: &str) -> bool {
+    units.len() == s.len() && units.iter().zip(s.bytes()).all(|(a, b)| *a == u16::from(b))
 }
 impl JsStrLike for str {
+    fn is_prefix_of(&self, units: &[u16]) -> bool {
+        if self.is_ascii() {
+            return units.len() >= self.len() && ascii_units_eq(&units[..self.len()], self);
+        }
+        self.with_units(|s| units.starts_with(s))
+    }
+    fn is_suffix_of(&self, units: &[u16]) -> bool {
+        if self.is_ascii() {
+            return units.len() >= self.len()
+                && ascii_units_eq(&units[units.len() - self.len()..], self);
+        }
+        self.with_units(|s| units.ends_with(s))
+    }
     fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R {
         // A str of n bytes has at most n UTF-16 code units.
         let mut buf = [0u16; 128];
@@ -283,6 +309,12 @@ impl JsStrLike for String {
     fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R {
         self.as_str().with_units(f)
     }
+    fn is_prefix_of(&self, units: &[u16]) -> bool {
+        self.as_str().is_prefix_of(units)
+    }
+    fn is_suffix_of(&self, units: &[u16]) -> bool {
+        self.as_str().is_suffix_of(units)
+    }
 }
 impl JsStrLike for JsString {
     fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R {
@@ -292,6 +324,12 @@ impl JsStrLike for JsString {
 impl<T: JsStrLike + ?Sized> JsStrLike for &T {
     fn with_units<R>(&self, f: impl FnOnce(&[u16]) -> R) -> R {
         (**self).with_units(f)
+    }
+    fn is_prefix_of(&self, units: &[u16]) -> bool {
+        (**self).is_prefix_of(units)
+    }
+    fn is_suffix_of(&self, units: &[u16]) -> bool {
+        (**self).is_suffix_of(units)
     }
 }
 impl From<&str> for JsString {
@@ -356,11 +394,7 @@ impl PartialEq<str> for JsString {
         }
         // Rust-only fast path: an ASCII str has one code unit per byte.
         if self.as_units().len() == s.len() && s.is_ascii() {
-            return self
-                .as_units()
-                .iter()
-                .zip(s.bytes())
-                .all(|(a, b)| *a == u16::from(b));
+            return ascii_units_eq(self.as_units(), s);
         }
         self.as_units().iter().copied().eq(s.encode_utf16())
     }

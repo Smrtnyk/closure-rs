@@ -60,6 +60,8 @@ use std::{cell::RefCell, rc::Rc};
 struct InlineVariablesTest {
     ctx: Ctx,
     inline_locals_only: bool,
+    /// Rust-only: how often the pass runs on one compiler (Java's tests run it once).
+    num_repetitions: i32,
 }
 
 impl CompilerTestCaseHooks for InlineVariablesTest {
@@ -75,6 +77,11 @@ impl CompilerTestCaseHooks for InlineVariablesTest {
     // port: ReplayDsl.Ctx#Ctx (native test context)
     fn ctx(&mut self) -> &mut Ctx {
         &mut self.ctx
+    }
+
+    // Rust-only: the tests of the skipped externs run the pass twice.
+    fn get_num_repetitions(&self) -> i32 {
+        self.num_repetitions
     }
 }
 
@@ -99,6 +106,7 @@ impl InlineVariablesTest {
             hooks: InlineVariablesTest {
                 ctx: ctx("InlineVariablesTest"),
                 inline_locals_only: false,
+                num_repetitions: 1,
             },
         }
     }
@@ -2996,4 +3004,28 @@ doSomething();
 use(C);
 "#,
     );
+}
+
+// Rust-only (DECISIONS.md D-025): the second run of the pass on a compiler skips the externs when
+// their NAMEs resolve only to vars declared in the externs, and traverses them otherwise.
+#[test]
+fn test_rerun_skips_externs_that_refer_only_to_externs() {
+    let mut t = InlineVariablesTest::set_up();
+    t.hooks.num_repetitions = 2;
+    t.test_parts(vec![
+        externs("var z; function f(a) { return a; } f.prototype.g = function(b) {};"),
+        srcs("var x = f(); z = x;"),
+        expected("z = f();"),
+    ]);
+}
+
+#[test]
+fn test_rerun_traverses_externs_that_refer_to_code() {
+    let mut t = InlineVariablesTest::set_up();
+    t.hooks.num_repetitions = 2;
+    // The reference to x in the externs keeps x from being inlined on every run.
+    t.test_same_parts(vec![
+        externs("var z; function f() {} function g() { return x; }"),
+        srcs("var x = f(); z = x;"),
+    ]);
 }

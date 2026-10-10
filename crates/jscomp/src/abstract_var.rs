@@ -340,6 +340,9 @@ pub trait AbstractVar: Copy + Eq + ScopedName {
                 .unwrap(),
             strength_of(compiler, definition),
         );
+        if let Some(scope) = self.get_scope(compiler) {
+            scope.note_mutation(compiler);
+        }
         self.var_data_mut(compiler).implicit_goog_namespace_strength = Some(strength);
     }
 

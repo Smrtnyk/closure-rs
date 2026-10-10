@@ -526,6 +526,7 @@ crates/jscomp/src/strip_code.rs	9cb76a7b1a9c2e96	Apache-2.0	closure:src/com/goog
 crates/jscomp/src/substitute_es6_syntax.rs	662a0ba04d15e99c	Apache-2.0	closure:src/com/google/javascript/jscomp/SubstituteEs6Syntax.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
 crates/jscomp/src/suppress_doc_warnings_guard.rs	1968a35c7a0e1456	Apache-2.0	closure:src/com/google/javascript/jscomp/SuppressDocWarningsGuard.java
 crates/jscomp/src/symbol_table.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/jscomp/src/syntactic_scope_cache.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/syntactic_scope_creator.rs	de35678c6a9cee05	Apache-2.0	closure:src/com/google/javascript/jscomp/SyntacticScopeCreator.java; closure:src/com/google/javascript/jscomp/AbstractCompiler.java
 crates/jscomp/src/synthesize_explicit_constructors.rs	66bf3ab048938416	Apache-2.0	closure:src/com/google/javascript/jscomp/SynthesizeExplicitConstructors.java
 crates/jscomp/src/template_ast_matcher.rs	b9bd87c21f756482	Apache-2.0	closure:src/com/google/javascript/jscomp/TemplateAstMatcher.java

@@ -30,8 +30,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The training compiles of the profile-guided build (scripts/pgo_build.sh): three benchmark
+  # projects of bench/projects.json, fetched at their pinned commits, and their compiler flags.
+  # Only release runs (Run workflow) build profile-guided; on pushes and pull requests the steps
+  # are skipped (the job itself always runs: a skipped job would skip the jobs after build).
+  # Never fails itself: without these inputs a publish run stops at the profile-guided build and
+  # any other run builds without a profile.
+  pgo-training:
+    name: PGO training inputs
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+        if: github.event_name == 'workflow_dispatch'
+      - name: Fetch the training projects and write their compiler flags
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        run: |
+          scripts/fetch_bench.sh --project d3-12 --project lodash-es --project three
+          python3 scripts/run_bench.py --job '^(d3-12/.*/ADVANCED|lodash-es/.*|three/.*)$' \
+            --write-args pgo-training
+      - uses: actions/upload-artifact@v7
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        with:
+          name: pgo-training
+          path: |
+            pgo-training/
+            bench-cache/d3-12/
+            bench-cache/lodash-es/
+            bench-cache/three/
+          if-no-files-found: warn
+
   build:
     name: build (${{ matrix.platform }}-${{ matrix.arch }})
+    needs: [pgo-training]
     strategy:
       fail-fast: false
       matrix:
@@ -71,11 +103,39 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build the CLI (release)
+      # llvm-profdata for the profile-guided build
+      - name: llvm-tools
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: rustup component add llvm-tools || echo "::warning::rustup could not add llvm-tools"
+
+      - uses: actions/download-artifact@v8
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        with:
+          name: pgo-training
+          path: .
+
+      # Profile-guided in release runs (about 8% less CPU time; the output is the same). Should any
+      # step of it fail, a publish run stops; any other run builds without a profile and shows a
+      # warning. Pushes and pull requests build without a profile (it doubles the build time).
+      - name: Build the CLI (release; profile-guided in release runs)
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
-        run: cargo build --release --locked --bin closure-rs ${TARGET:+--target "$TARGET"}
+          PGO: ${{ github.event_name == 'workflow_dispatch' }}
+          PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+        run: |
+          if [ "$PGO" != true ]; then
+            cargo build --release --locked --bin closure-rs ${TARGET:+--target "$TARGET"}
+          elif ! bash scripts/pgo_build.sh --training pgo-training ${TARGET:+--target "$TARGET"}; then
+            if [ "$PUBLISH" = true ]; then
+              echo "::error::the profile-guided build failed; a publish run ships only profile-guided binaries"
+              exit 1
+            fi
+            echo "::warning::the profile-guided build failed; building without a profile"
+            cargo build --release --locked --bin closure-rs ${TARGET:+--target "$TARGET"}
+          fi
 
       # the release profile keeps debug info for the D2 runs; the shipped binary is stripped
       - name: Stage the binary (bins/<platform>-<arch>/)

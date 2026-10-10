@@ -145,8 +145,13 @@ pub trait AbstractScope: Copy + Eq {
         self.undeclare_interal(compiler, var);
     }
 
+    /// Rust-only (D-025): called before a declaration is added to or removed from this scope
+    /// (see `SyntacticScopeCache`).
+    fn note_mutation(self, _compiler: &mut AbstractCompiler) {}
+
     // port: AbstractScope#undeclareInteral
     fn undeclare_interal(self, compiler: &mut AbstractCompiler, var: Self::Var) {
+        self.note_mutation(compiler);
         let name = var.get_name(compiler);
         self.scope_data_mut(compiler).vars.shift_remove(&name);
     }
@@ -159,11 +164,13 @@ pub trait AbstractScope: Copy + Eq {
             var.get_node(compiler)
                 .map_or_else(|| "null".to_owned(), |n| n.to_string(compiler))
         );
+        self.note_mutation(compiler);
         self.scope_data_mut(compiler).vars.insert(name, var);
     }
 
     // port: AbstractScope#clearVarsInternal
     fn clear_vars_internal(self, compiler: &mut AbstractCompiler) {
+        self.note_mutation(compiler);
         if !self.scope_data(compiler).vars.is_empty() {
             self.scope_data_mut(compiler).vars.clear();
         }

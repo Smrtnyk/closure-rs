@@ -29,6 +29,7 @@ use closure_rhino::input_id::InputId;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::static_source_file::StaticSourceFile;
 use closure_rhino::token::Token;
+use std::rc::Rc;
 use std::sync::Arc;
 
 /// Represents a single declaration or reference to a variable. Note that references can only be
@@ -39,7 +40,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct Reference {
     name_node: NodeId,
-    basic_block: Option<Arc<BasicBlock>>,
+    basic_block: Option<Rc<BasicBlock>>,
     scope: Option<ScopeId>,
     input_id: Arc<InputId>,
 }
@@ -57,7 +58,7 @@ const DECLARATION_PARENTS: [Token; 7] = [
 
 impl Reference {
     // port: Reference#Reference(Node,NodeTraversal,BasicBlock)
-    pub fn new(name_node: NodeId, t: &mut NodeTraversal<'_>, basic_block: Arc<BasicBlock>) -> Self {
+    pub fn new(name_node: NodeId, t: &mut NodeTraversal<'_>, basic_block: Rc<BasicBlock>) -> Self {
         let scope = t.get_scope();
         // Java: t.getInput().getInputId(); the id is shared instead of copied per reference.
         let input_id = t.get_input_id_of_input().expect("NodeTraversal#getInput");
@@ -67,7 +68,7 @@ impl Reference {
     // port: Reference#Reference(Node,BasicBlock,Scope,InputId)
     fn new_private(
         name_node: NodeId,
-        basic_block: Option<Arc<BasicBlock>>,
+        basic_block: Option<Rc<BasicBlock>>,
         scope: Option<ScopeId>,
         input_id: Arc<InputId>,
     ) -> Self {
@@ -238,7 +239,7 @@ impl Reference {
     }
 
     // port: Reference#getBasicBlock
-    pub fn get_basic_block(&self) -> Option<&Arc<BasicBlock>> {
+    pub fn get_basic_block(&self) -> Option<&Rc<BasicBlock>> {
         self.basic_block.as_ref()
     }
 

@@ -123,6 +123,10 @@ pub struct Compiler {
     /// Rust-only: `extern_properties` as JS strings, made once per value (RemoveUnusedCode reads
     /// them on every run).
     extern_properties_js: std::sync::OnceLock<Vec<closure_rhino::js_string::JsString>>,
+    /// Rust-only (DECISIONS.md D-025): whether the reference collection of the externs can be
+    /// skipped, while the externs are unchanged.
+    pub(crate) externs_reference_summary:
+        Option<crate::reference_collector::ExternsReferenceSummary>,
     accessor_summary: Option<Arc<crate::accessor_summary::AccessorSummary>>,
     unique_name_id: Arc<std::sync::atomic::AtomicI32>,
     unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier,
@@ -192,6 +196,8 @@ pub struct Compiler {
         std::sync::Arc<std::sync::RwLock<crate::typed_scope::TypedScopeArena>>,
     /// Rust-only: lock-free copies of immutable `typed_scope_arena` fields.
     pub(crate) typed_scope_mirror: Vec<crate::typed_scope::TypedScopeMeta>,
+    /// Rust-only (D-025): syntactic scopes kept for reuse by later passes.
+    pub(crate) syntactic_scope_cache: crate::syntactic_scope_cache::SyntacticScopeCache,
 }
 
 impl Compiler {
@@ -232,6 +238,7 @@ impl Compiler {
             run_j2cl_passes: false,
             extern_properties: None,
             extern_properties_js: std::sync::OnceLock::new(),
+            externs_reference_summary: None,
             accessor_summary: None,
             unique_name_id: Arc::new(std::sync::atomic::AtomicI32::new(0)),
             unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier::default(),
@@ -296,6 +303,7 @@ impl Compiler {
             scope_mirror: crate::scope::ScopeMirror::default(),
             typed_scope_arena: crate::typed_scope::TypedScopeArena::shared(),
             typed_scope_mirror: Vec::new(),
+            syntactic_scope_cache: Default::default(),
         }
     }
 
@@ -794,6 +802,10 @@ impl Compiler {
     // port: Compiler#beforePass
     pub fn before_pass(&mut self, _pass_name: &str) {
         self.current_pass_index = self.current_pass_index.wrapping_add(1);
+    }
+    /// Rust-only: the number of the running pass (see `SyntacticScopeCache`).
+    pub(crate) fn current_pass_index(&self) -> i32 {
+        self.current_pass_index
     }
     // port: Compiler#afterPass
     pub fn after_pass(&mut self, pass_name: &str) {
@@ -1384,6 +1396,8 @@ impl Compiler {
         let externs = IR::root(self, &[]);
         self.js_root = Some(js);
         self.externs_root = Some(externs);
+        self.change_tracker.set_externs_root(externs);
+        self.externs_reference_summary = None;
         self.extern_and_js_root = Some(IR::root(self, &[externs, js]));
     }
     // port: Compiler#getChunkGraph
@@ -3269,13 +3283,14 @@ impl Compiler {
     pub fn get_extern_properties(&self) -> Option<&closure_rhino::fast_hash::IndexSet<String>> {
         self.extern_properties.as_ref()
     }
-    /// Rust-only: `get_extern_properties` as JS strings.
+    /// Rust-only: `get_extern_properties` as JS strings, interned so that copying one needs no
+    /// reference count (RemoveUnusedCode and OptimizeCalls copy them all on every run).
     pub fn get_extern_properties_js(&self) -> Option<&[closure_rhino::js_string::JsString]> {
         let properties = self.extern_properties.as_ref()?;
         Some(self.extern_properties_js.get_or_init(|| {
             properties
                 .iter()
-                .map(|s| closure_rhino::js_string::JsString::from(s.as_str()))
+                .map(|s| closure_rhino::rhino_string_pool::RhinoStringPool::add_or_get(s.as_str()))
                 .collect()
         }))
     }
@@ -4963,6 +4978,8 @@ impl Compiler {
         let js_root = IR::root(self, &[]);
         self.extern_and_js_root = Some(IR::root(self, &[externs_root, js_root]));
         self.externs_root = Some(externs_root);
+        self.change_tracker.set_externs_root(externs_root);
+        self.externs_reference_summary = None;
         self.js_root = Some(js_root);
         self.inputs_by_id.clear();
         self.externs.clear();

@@ -36,7 +36,7 @@ use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use closure_rhino::{check_not_null, check_state};
-use std::sync::Arc;
+use std::rc::Rc;
 
 /// Collects global variable references for use by CrossChunkCodeMotion.
 pub struct CrossChunkReferenceCollector<'a> {
@@ -48,7 +48,7 @@ pub struct CrossChunkReferenceCollector<'a> {
     reference_map: IndexMap<VarId, ReferenceCollection>,
 
     /// The stack of basic blocks and scopes the current traversal is in.
-    block_stack: Vec<Arc<BasicBlock>>,
+    block_stack: Vec<Rc<BasicBlock>>,
 
     /// List of all top-level statements in the order they appear in the AST.
     top_level_statements: Vec<TopLevelStatement>,
@@ -292,7 +292,7 @@ impl<'a> CrossChunkReferenceCollector<'a> {
 
     /// Rust-only read of the private `blockStack` field (the unit replay dumps the test's
     /// `testedCollector` field by field, as Java reflection does).
-    pub fn get_block_stack(&self) -> &[Arc<BasicBlock>] {
+    pub fn get_block_stack(&self) -> &[Rc<BasicBlock>] {
         &self.block_stack
     }
 

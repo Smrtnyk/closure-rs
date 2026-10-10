@@ -158,6 +158,7 @@ pub mod recent_change;
 pub mod reference_collector;
 pub mod remove_cast_nodes;
 pub mod scoped_name;
+pub(crate) mod syntactic_scope_cache;
 pub mod syntactic_scope_creator;
 pub mod timeline;
 pub mod tracer;
