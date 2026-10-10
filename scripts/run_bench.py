@@ -4,23 +4,31 @@
   python3 scripts/run_bench.py [--reps N] [--project P]... [--job REGEX] [--level L]...
                                [--bin PATH] [--java PATH] [--jar PATH] [--impl both|java|rust]
                                [--timeout S] [--out FILE] [--keep-failing] [--no-save] [--print-args]
-                               [--write-args DIR]
+                               [--write-args DIR] [--fail-on-mismatch] [--variants]
 
 docs/PORTING.md §3, D7: on every benchmark, the Rust CLI's wall-clock time <= Java's (a cold
 `java -jar closure-compiler.jar`, as users run it) and its peak RSS <= Java's. See bench/README.md.
 
 For every job x compilation level the compiler argv is built from bench/projects.json (globs are
 expanded here, sorted, into one --js flag per file, so both compilers see the same input list)
-and run with cwd = the repository root, a fixed minimal environment and stdin /dev/null. Each
+and run with cwd = the repository root, a fixed minimal environment and stdin /dev/null (the
+--json_streams variant gets its JSON input). Each
 repetition runs Java, then Rust, under /usr/bin/time (a small process, so its child's ru_maxrss
 is the compiler's own peak RSS); wall time is measured around it. The medians of the
 repetitions are reported. Every run's exit code, stdout, stderr, output file and the other
 files it writes next to it (a source map) are compared byte for byte with Java's first run;
 a difference is a porting defect to report, not a benchmark failure.
 
+--variants adds the flag variants of scripts/platform_outputs.py (VARIANTS: ES5 output, pretty
+print with the sources in the source map, an IIFE wrapper) on the jobs they name, each also
+writing a source map, and its --json_streams=BOTH compile (input on stdin, output and source map
+as JSON on stdout). They are reported at the level VARIANT.
+
 Writes bench/results/<UTC date>-<commit>.json (unless --no-save) and prints a Markdown table.
 With --keep-failing, the outputs of mismatching jobs go to build/bench/failing/<job id>/.
-Exit code: 0 = all runs completed (mismatches or not), 2 = setup error (missing input/binary).
+Exit code: 0 = all runs completed (mismatches or not), 1 = with --fail-on-mismatch, a job's
+results differ between the compilers (or a compiler gave different results across repetitions),
+2 = setup error (missing input/binary).
 """
 
 from __future__ import annotations
@@ -115,11 +123,38 @@ def load_jobs(spec: dict, selected=lambda job: True) -> list[dict]:
     return jobs
 
 
+def variant_jobs(jobs: list[dict]) -> list[dict]:
+    """The extra compiles of scripts/platform_outputs.py: its VARIANTS of the jobs among `jobs`
+    they name (an .args file name is the job id with "-" for "/"), and its --json_streams
+    compile of the smoke input."""
+    import platform_outputs  # noqa: E402  (scripts/, on sys.path)
+    by_name = {j["id"].replace("/", "-"): j for j in jobs}
+    out = []
+    for base, suffix, extra in platform_outputs.VARIANTS:
+        if base in by_name:
+            j = by_name[base]
+            out.append({**j, "job": f"{j['job']}-{suffix}", "level": "VARIANT",
+                        "id": f"{j['id']}/{suffix}", "extra": extra, "source_map": True})
+    smoke = "build/platform-outputs/in/smoke.js"  # the name platform_outputs.py gives it
+    out.append({"project": "smoke", "job": "json-streams", "level": "VARIANT",
+                "id": "smoke/json-streams", "entry_point": None, "js": [],
+                "flags": ["--compilation_level=ADVANCED", "--json_streams=BOTH",
+                          "--create_source_map=%outname%.map"],
+                "stdin": json.dumps([{"path": smoke, "src": platform_outputs.SMOKE}]).encode()})
+    return out
+
+
 def compiler_args(job: dict, out_file: str) -> list[str]:
-    return [*job["flags"], *(f"--js={f}" for f in job["js"]), f"--js_output_file={out_file}"]
+    if "stdin" in job:  # --json_streams: the inputs come on stdin, the output goes to stdout
+        return list(job["flags"])
+    args = [*job["flags"], *(f"--js={f}" for f in job["js"]), *job.get("extra", []),
+            f"--js_output_file={out_file}"]
+    if job.get("source_map"):
+        args.append(f"--create_source_map={out_file}.map")
+    return args
 
 
-def run_once(cmd: list[str], out_rel: str, timeout: float) -> dict:
+def run_once(cmd: list[str], out_rel: str, timeout: float, stdin: bytes | None = None) -> dict:
     """One measured run. Returns wall_s, rss_kb, user_s, sys_s, exit, stdout, stderr, output."""
     out_abs = os.path.join(ROOT, out_rel)
     shutil.rmtree(os.path.dirname(out_abs), ignore_errors=True)
@@ -127,10 +162,11 @@ def run_once(cmd: list[str], out_rel: str, timeout: float) -> dict:
     tfile = os.path.join(os.path.dirname(out_abs), "..", os.path.basename(out_abs) + ".time")
     argv = [TIME, "-q", "-o", tfile, "-f", "%x %M %U %S", *cmd]
     t0 = time.perf_counter()
-    p = subprocess.Popen(argv, cwd=ROOT, env=child_env(), stdin=subprocess.DEVNULL,
+    p = subprocess.Popen(argv, cwd=ROOT, env=child_env(),
+                         stdin=subprocess.DEVNULL if stdin is None else subprocess.PIPE,
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
     try:
-        stdout, stderr = p.communicate(timeout=timeout)
+        stdout, stderr = p.communicate(input=stdin, timeout=timeout)
         timed_out = False
     except subprocess.TimeoutExpired:
         os.killpg(p.pid, signal.SIGKILL)  # the compiler too, not only /usr/bin/time
@@ -243,6 +279,11 @@ def main() -> int:
     ap.add_argument("--write-args", metavar="DIR",
                     help="write each selected job's compiler argv (one per line) to "
                          "DIR/<job id>.args and exit (the training runs of scripts/pgo_build.sh)")
+    ap.add_argument("--variants", action="store_true",
+                    help="also run the flag variants of scripts/platform_outputs.py")
+    ap.add_argument("--fail-on-mismatch", action="store_true",
+                    help="exit 1 if any job's results differ between Java and Rust, or between "
+                         "repetitions of one compiler")
     a = ap.parse_args()
 
     with open(os.path.join(ROOT, "bench/projects.json"), encoding="utf-8") as f:
@@ -253,6 +294,8 @@ def main() -> int:
     if not jobs:
         print("no job selected", file=sys.stderr)
         return 2
+    if a.variants:
+        jobs += variant_jobs(jobs)
     if a.print_args:
         for job in jobs:
             print("\n".join(compiler_args(job, f"build/bench/{job['id'].replace('/', '-')}.js")))
@@ -303,10 +346,12 @@ def main() -> int:
         runs = {i: [] for i in impls}
         for rep in range(a.reps):
             for impl in impls:
-                runs[impl].append(run_once(cmds[impl] + args, out_rel, a.timeout))
+                runs[impl].append(run_once(cmds[impl] + args, out_rel, a.timeout,
+                                           job.get("stdin")))
         res = {"id": job["id"], "project": job["project"], "job": job["job"],
                "level": job["level"], "inputs": len(job["js"]),
-               "input_bytes": sum(os.path.getsize(os.path.join(ROOT, f)) for f in job["js"]),
+               "input_bytes": len(job["stdin"]) if "stdin" in job
+               else sum(os.path.getsize(os.path.join(ROOT, f)) for f in job["js"]),
                "args": args}
         for impl in impls:
             rs = runs[impl]
@@ -414,6 +459,12 @@ def main() -> int:
         for r in mism:
             print(f"- {r['id']}: {', '.join(r['diff'])}; repro: python3 scripts/run_bench.py "
                   f"--job '^{re.escape(r['id'])}$' --reps 1 --keep-failing --no-save")
+    nondet = [f"{r['id']} ({impl})" for r in results for impl in impls
+              if r[impl].get("nondeterministic_reps")]
+    if nondet:
+        print(f"\nNondeterministic across repetitions ({len(nondet)}): {', '.join(nondet)}")
+    if a.fail_on_mismatch and (mism or nondet):
+        return 1
     return 0
 
 

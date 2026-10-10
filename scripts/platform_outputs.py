@@ -31,6 +31,8 @@ SMOKE = ('function greet(name){var unused=1;return "Hello, "+name}\n'
          'window["greet"]=greet;\nconsole.log(greet("world"));\n')
 
 # Extra compiles: (name of an .args file without extension, suffix, extra flags).
+# scripts/run_bench.py --variants also compiles these (and the --json_streams compile below) with
+# Java and compares the results (.github/workflows/java-comparison.yml).
 VARIANTS = [
     ('lodash-es-ADVANCED', 'es5', ['--language_out=ECMASCRIPT5']),
     ('lodash-es-SIMPLE', 'pretty', ['--formatting=PRETTY_PRINT', '--source_map_include_content']),

@@ -29,6 +29,7 @@ crates/cli/src/jdk_globs.rs	8956086764e6f64c	GPL-2.0-only WITH Classpath-excepti
 crates/cli/src/lib.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/src/main.rs	2b1f60a2d72bebb3	Apache-2.0	closure:src/com/google/javascript/jscomp/CommandLineRunner.java
 crates/cli/src/option_setup.rs	128a65535ba95a44	Apache-2.0	own:crates/cli/tools/CliOptionSetup.java
+crates/cli/src/out_of_scope.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/src/stand_in/chrome_coding_convention.rs	98cfa396f9d85373	Apache-2.0	closure:src/com/google/javascript/jscomp/ChromeCodingConvention.java
 crates/cli/src/stand_in/mod.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/src/verifying_error_manager.rs	b5a8124e1141845d	Apache-2.0	closure:src/com/google/javascript/jscomp/VerifyingErrorManager.java; closure:src/com/google/javascript/jscomp/ThreadSafeDelegatingErrorManager.java
@@ -42,6 +43,7 @@ crates/cli/tests/glob_golden_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/tests/java_io_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/tests/json_golden_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/tests/option_setup_test.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/cli/tests/out_of_scope_flags_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/tests/utf16_output_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/examples/compiler_whitespace_check.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/examples/d2_stderr_check.rs	322fc2ba37b98b96	Apache-2.0	-

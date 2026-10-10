@@ -46,7 +46,8 @@ libraries are data, reused verbatim (`crates/resources`).
 - J2CL-, Polymer- and Chrome-specific passes
 
 A new exclusion needs a decision in `DECISIONS.md`, and only code reachable from fewer than 0.5%
-of the D2 corpus runs (§4.4) may be excluded.
+of the D2 corpus runs (§4.4) may be excluded. The CLI refuses the flags and inputs that would run
+excluded code (DECISIONS.md D-028).
 
 ## 3. Fidelity criteria
 

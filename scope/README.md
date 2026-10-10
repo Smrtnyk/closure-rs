@@ -69,6 +69,9 @@ At the pinned reference: 102 flags, 94 in scope and 8 out:
 - `--chrome_pass`: Chrome.
 - `--j2cl_pass` and `--remove_j2cl_asserts`: J2CL.
 
+closure-rs refuses to compile when one of these would take effect, and with the J2CL passes'
+default (`--j2cl_pass=AUTO`) when an input is J2CL output (DECISIONS.md D-028).
+
 ## Who uses it
 
 - **The fuzz driver** (`fuzz/driver/src/main.rs`):

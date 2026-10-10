@@ -2000,12 +2000,14 @@ impl
     >
 {
     // port: AbstractCommandLineRunner#performCompilation
+    /// Not in Java: returns the refusal of the J2CL passes (DECISIONS.md D-028), which stops the
+    /// compilation.
     pub fn perform_compilation(
         &mut self,
         metrics_recorder: &mut dyn closure_jscomp::compile_metrics_recorder_interface::CompileMetricsRecorderInterface,
-    ) {
+    ) -> Result<(), FlagUsageException> {
         self.initialize_state_before_compilation();
-        self.run_compiler_passes(metrics_recorder);
+        self.run_compiler_passes(metrics_recorder)?;
         if !self.compiler.as_ref().unwrap().has_errors() {
             self.save_state();
         }
@@ -2013,12 +2015,13 @@ impl
             .as_mut()
             .unwrap()
             .perform_post_compilation_tasks();
+        Ok(())
     }
     // port: AbstractCommandLineRunner#runCompilerPasses
     pub fn run_compiler_passes(
         &mut self,
         metrics_recorder: &mut dyn closure_jscomp::compile_metrics_recorder_interface::CompileMetricsRecorderInterface,
-    ) {
+    ) -> Result<(), FlagUsageException> {
         use closure_jscomp::compiler_options::SegmentOfCompilationToRun;
         let mut run_stage1 = false;
         let mut run_stage2 = false;
@@ -2076,30 +2079,36 @@ impl
         metrics_recorder.record_action_name(action_metrics_name);
         let compiler = self.compiler.as_mut().unwrap();
         if compiler.has_errors() {
-            return;
+            return Ok(());
         }
         metrics_recorder.record_start_state(compiler);
         if run_stage1 {
             compiler.stage1_passes();
             if compiler.has_errors() {
-                return;
+                return Ok(());
             }
+        }
+        // Not in Java: the J2CL passes, which the checks turn on for J2CL input, are refused
+        // before the optimizations that hold them (DECISIONS.md D-028).
+        if run_stage2 || run_stage3 {
+            crate::out_of_scope::refuse_j2cl_passes(compiler)?;
         }
         if run_stage2 {
             compiler.stage2_passes(SegmentOfCompilationToRun::OPTIMIZATIONS);
             if compiler.has_errors() {
-                return;
+                return Ok(());
             }
         }
         if run_stage3 {
             compiler.stage3_passes();
             if compiler.has_errors() {
-                return;
+                return Ok(());
             }
         }
         if instrument_for_coverage {
             compiler.instrument_for_coverage();
         }
+        Ok(())
     }
     // port: AbstractCommandLineRunner#initializeStateBeforeCompilation
     pub fn initialize_state_before_compilation(&mut self) {

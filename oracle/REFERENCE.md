@@ -23,6 +23,16 @@ their `build-data.properties` holds `build.time=Thu Jan 01 00\:00\:00 1970 (0)` 
 `build.timestamp.as.int=0`, and a rebuild after `bazelisk clean` gives the same sha256. They are
 installed read-only (mode 0555) next to a `closure-compiler.jar.sha256`.
 
+The jar's bytes also depend on the host's zlib: the classes compiled in the build are deflated by
+the JDK Bazel builds with, whose `libzip.so` loads the system `libz.so.1` (the jars taken from
+Maven are copied unchanged). The pinned jars were built on a host whose `libz.so.1` is zlib-ng
+2.3.3 in zlib-compatible mode as Fedora's `zlib-ng-compat` package builds it
+(`-DZLIB_COMPAT=ON -DWITH_NEW_STRATEGIES=OFF -DWITH_CRC32_CHORBA=OFF`). With classic zlib, or
+zlib-ng's default strategies, the build gives a jar with the same entries, byte for byte, but
+other compressed bytes and so another sha256. `.github/workflows/java-comparison.yml` therefore
+builds zlib-ng 2.3.3 with those options and installs it ahead of the system zlib before it
+builds the jar.
+
 ## Commands
 
 Every reference has its own checkout and jar paths in `scripts/references.tsv`, next to the
