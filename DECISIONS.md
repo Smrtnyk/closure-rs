@@ -421,6 +421,11 @@ here (one line each) to ease upstream syncs.
 - `rhino/js_string.rs`: an ASCII `&str` becomes a JS string in one exact-size allocation, the
   empty string is shared by `Default` too, and `hashCode` is summed four code units per step
   (the same value as Java's loop).
+- `rhino/node.rs` `getQualifiedName`: a GETPROP name is assembled in a per-thread buffer and
+  copied into its string once; `jstype/equality_checker.rs` `areEqualInternal` copies the template
+  type maps only when the left one has keys (`js_type::template_type_map_ref`).
+- `jscomp/parallel_parse.rs`: a parse worker keeps one string cache and one unshared parser
+  configuration for all the inputs it parses (instead of one per input).
 
 ## D-026 — Upstream syncs follow npm releases
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**

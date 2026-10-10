@@ -155,28 +155,33 @@ pub(crate) fn start(compiler: &mut AbstractCompiler, inputs: &[CompilerInput]) {
 }
 
 fn work(shared: &Shared) {
-    while !shared.stop.load(Ordering::Relaxed) {
-        let i = shared.next.fetch_add(1, Ordering::Relaxed);
-        let Some(job) = shared.jobs.get(i) else {
-            break;
-        };
-        let (slot, ready) = &shared.slots[i];
-        {
-            let mut slot = slot.lock().unwrap();
-            if !matches!(*slot, Slot::Waiting) {
-                continue; // The compiler parses it itself.
+    // One string cache and one unshared copy of each parser configuration per worker, for all
+    // the inputs it parses.
+    closure_rhino::rhino_string_pool::RhinoStringPool::with_thread_cache(|| {
+        let mut configs: Vec<(Config, Config)> = Vec::new();
+        while !shared.stop.load(Ordering::Relaxed) {
+            let i = shared.next.fetch_add(1, Ordering::Relaxed);
+            let Some(job) = shared.jobs.get(i) else {
+                break;
+            };
+            let (slot, ready) = &shared.slots[i];
+            {
+                let mut slot = slot.lock().unwrap();
+                if !matches!(*slot, Slot::Waiting) {
+                    continue; // The compiler parses it itself.
+                }
+                *slot = Slot::Parsing;
             }
-            *slot = Slot::Parsing;
+            let parsed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                parse(job, &mut configs)
+            }))
+            .ok()
+            .flatten()
+            .map(Box::new);
+            *slot.lock().unwrap() = Slot::Parsed(parsed);
+            ready.notify_all();
         }
-        let parsed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            closure_rhino::rhino_string_pool::RhinoStringPool::with_thread_cache(|| parse(job))
-        }))
-        .ok()
-        .flatten()
-        .map(Box::new);
-        *slot.lock().unwrap() = Slot::Parsed(parsed);
-        ready.notify_all();
-    }
+    });
 }
 
 /// Stops the workers and drops what they parsed and the compiler did not take.
@@ -190,16 +195,23 @@ pub(crate) fn finish(compiler: &mut AbstractCompiler) {
 }
 
 // port: CompilerInput.JsAst#parse (the ParserRunner call, into an arena of its own)
-fn parse(job: &Job) -> Option<Preparsed> {
+fn parse(job: &Job, configs: &mut Vec<(Config, Config)>) -> Option<Preparsed> {
     let mut ast = Ast::new_for_preparse();
-    let unshared_config = job.config.unshared_copy();
+    let index = configs
+        .iter()
+        .position(|(config, _)| *config == job.config)
+        .unwrap_or_else(|| {
+            configs.push((job.config.clone(), job.config.unshared_copy()));
+            configs.len() - 1
+        });
+    let unshared_config = &configs[index].1;
     let mut errors = crate::rhino_error_reporter::RecordingErrorHandler::default();
     let mut reporter = crate::rhino_error_reporter::RhinoErrorReporter::for_old_rhino(&mut errors);
     let result = ParserRunner::try_parse(
         &mut ast,
         job.input.get_source_file_arc(),
         job.code.clone(),
-        &unshared_config,
+        unshared_config,
         &mut reporter,
     )
     .ok()?;

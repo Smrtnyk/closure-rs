@@ -209,10 +209,17 @@ impl EqualityChecker {
         {
             return self.are_arrow_equal(reg, ast, left, right);
         }
-        let lm = left.get_template_type_map(reg);
-        let rm = right.get_template_type_map(reg);
-        if !self.are_type_map_equal(reg, ast, &lm, &rm) {
-            return false;
+        // Rust-only (D-025): `areTypeMapEqual` holds when the left map has no keys, so the maps
+        // are only copied (releasing the registry) when there are keys to compare.
+        if !crate::js_type::template_type_map_ref(left, reg)
+            .get_template_keys()
+            .is_empty()
+        {
+            let lm = left.get_template_type_map(reg);
+            let rm = right.get_template_type_map(reg);
+            if !self.are_type_map_equal(reg, ast, &lm, &rm) {
+                return false;
+            }
         }
         if let (Some(l), Some(r)) = (
             left.to_maybe_record_type(reg),

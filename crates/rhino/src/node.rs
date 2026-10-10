@@ -2837,9 +2837,19 @@ impl NodeId {
                     Some(name.clone())
                 }
             }
-            Token::GETPROP => self
-                .get_qualified_name_for_get_prop(ast, 0)
-                .map(JsString::from_units),
+            Token::GETPROP => {
+                // Rust-only (D-025): the name is assembled in a buffer kept per thread and copied
+                // into the string once (one allocation per name).
+                thread_local! {
+                    static BUFFER: std::cell::RefCell<Vec<u16>> =
+                        const { std::cell::RefCell::new(Vec::new()) };
+                }
+                BUFFER.with_borrow_mut(|buffer| {
+                    buffer.clear();
+                    self.get_qualified_name_for_get_prop(ast, buffer)
+                        .then(|| JsString::from_slice(buffer))
+                })
+            }
             Token::THIS => Some("this".into()),
             Token::SUPER => Some("super".into()),
             _ => None,
@@ -2854,37 +2864,33 @@ impl NodeId {
         }
     }
     // port: Node#getQualifiedNameForGetProp
-    fn get_qualified_name_for_get_prop(self, ast: &Ast, mut reserve: i32) -> Option<Vec<u16>> {
+    /// Appends the qualified name to `builder`; false if there is none.
+    fn get_qualified_name_for_get_prop(self, ast: &Ast, builder: &mut Vec<u16>) -> bool {
         let prop_name = self.get_string_ref(ast);
-        reserve = reserve
-            .wrapping_add(1)
-            .wrapping_add(prop_name.length() as i32);
         let first = ast[L(self)].first.unwrap();
-        let mut builder;
         if first.is_get_prop(ast) {
-            builder = first.get_qualified_name_for_get_prop(ast, reserve)?;
+            if !first.get_qualified_name_for_get_prop(ast, builder) {
+                return false;
+            }
         } else {
             // getQualifiedName on the left side, read in place (no JsString copy).
             let left: &[u16] = match ast[L(first)].token {
                 Token::NAME => {
                     let name = first.get_string_ref(ast);
                     if name.is_empty() {
-                        return None;
+                        return false;
                     }
                     name.as_units()
                 }
                 Token::THIS => &[116, 104, 105, 115],
                 Token::SUPER => &[115, 117, 112, 101, 114],
-                _ => return None,
+                _ => return false,
             };
-            builder = Vec::with_capacity(
-                usize::try_from((left.len() as i32).wrapping_add(reserve)).unwrap(),
-            );
             builder.extend_from_slice(left);
         }
         builder.push(b'.' as u16);
         builder.extend_from_slice(prop_name.as_units());
-        Some(builder)
+        true
     }
     // port: Node#getOriginalQualifiedName
     pub fn get_original_qualified_name(self, ast: &Ast) -> Option<JsString> {
