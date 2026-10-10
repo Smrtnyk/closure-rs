@@ -1,0 +1,203 @@
+# Compares closure-rs with the real Java compiler, byte for byte, on real projects: every job of
+# bench/projects.json (scripts/run_bench.py --reps 1: d3-12, three, lodash-es, fabric, the bundles
+# and the bundles with input source maps) and the flag variants of scripts/platform_outputs.py on
+# those inputs (ES5 output, pretty print, an IIFE wrapper, --json_streams), each compiled by the
+# pinned Java reference and by the release binary; every compile must give the same exit code,
+# stdout, stderr, output and source map. Run by hand (Run workflow) or from another workflow
+# (workflow_call), such as a release run before it publishes.
+# Java is the pinned reference uberjar (scripts/references.tsv), built from the pinned upstream
+# commit with Bazel when the cache does not hold it and accepted only with the pinned sha256,
+# run on the pinned JDK (scripts/setup_tools.sh) in the fixed environment of the golden runs
+# (DECISIONS.md D-010). The inputs are fetched at their pinned versions and hash-checked
+# (scripts/fetch_bench.sh); nothing fetched is committed.
+name: java-comparison
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  # The pinned reference uberjar: from the cache, else built with Bazel from the pinned upstream
+  # commit (unstamped, so the build is reproducible; oracle/REFERENCE.md). Either way its sha256
+  # must be the pinned one; only a verified jar is cached and passed on.
+  reference-jar:
+    name: Java reference jar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    outputs:
+      jar_dir: ${{ steps.ref.outputs.jar_dir }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Pinned reference
+        id: ref
+        run: |
+          . scripts/paths.sh
+          jar=${REF_JAR#"$ROOT"/}
+          echo "jar=$jar" >> "$GITHUB_OUTPUT"
+          echo "jar_dir=$(dirname "$jar")" >> "$GITHUB_OUTPUT"
+          echo "sha256=$REF_JAR_SHA256" >> "$GITHUB_OUTPUT"
+          echo "reference $REF_TAG at $REF_COMMIT, jar sha256 $REF_JAR_SHA256"
+
+      - uses: actions/cache/restore@v6
+        id: jar-cache
+        with:
+          path: ${{ steps.ref.outputs.jar }}
+          key: reference-jar-${{ steps.ref.outputs.sha256 }}
+
+      - uses: actions/cache@v6
+        if: steps.jar-cache.outputs.cache-hit != 'true'
+        with:
+          path: tools/downloads
+          key: tools-${{ hashFiles('scripts/setup_tools.sh') }}
+
+      # The jar's compressed entries come from the host's zlib: the JDK that Bazel compiles with
+      # loads libz.so.1. The pinned jar was built with zlib-ng 2.3.3 in zlib-compatible mode, as
+      # Fedora builds it (its zlib-ng-compat package: WITH_NEW_STRATEGIES and WITH_CRC32_CHORBA
+      # off; oracle/REFERENCE.md), so that library goes first on the loader path here.
+      - name: zlib-ng 2.3.3 as libz.so.1 (cache miss only)
+        if: steps.jar-cache.outputs.cache-hit != 'true'
+        run: |
+          git init -q build/zlib-ng
+          git -C build/zlib-ng fetch -q --depth 1 https://github.com/zlib-ng/zlib-ng.git "$ZLIB_NG_COMMIT"
+          git -C build/zlib-ng checkout -q FETCH_HEAD
+          test "$(git -C build/zlib-ng rev-parse HEAD)" = "$ZLIB_NG_COMMIT"
+          cmake -S build/zlib-ng -B build/zlib-ng/out -DZLIB_COMPAT=ON -DWITH_NEW_STRATEGIES=OFF \
+            -DWITH_CRC32_CHORBA=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DBUILD_TESTING=OFF
+          cmake --build build/zlib-ng/out -j "$(nproc)"
+          sudo cmake --install build/zlib-ng/out
+          sudo ldconfig
+          python3 -c 'import zlib; print("libz.so.1:", zlib.ZLIB_RUNTIME_VERSION)'
+          python3 -c 'import zlib, sys; sys.exit("zlib-ng" not in zlib.ZLIB_RUNTIME_VERSION)'
+        env:
+          ZLIB_NG_COMMIT: 12731092979c6d07f42da27da673a9f6c7b13586   # tag 2.3.3
+
+      - name: Build the jar with Bazel (cache miss only)
+        if: steps.jar-cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/setup_tools.sh
+          . scripts/paths.sh
+          . tools/env.sh
+          scripts/fetch_reference.sh
+          (cd "$REF_SRC" && bazelisk build //:compiler_uberjar_deploy.jar)
+          mkdir -p "$(dirname "$REF_JAR")"
+          cp "$REF_SRC/bazel-bin/compiler_uberjar_deploy.jar" "$REF_JAR"
+
+      - name: Verify the jar's sha256
+        env:
+          JAR: ${{ steps.ref.outputs.jar }}
+          WANT: ${{ steps.ref.outputs.sha256 }}
+        run: |
+          got=$(sha256sum "$JAR" | cut -d' ' -f1)
+          if [ "$got" != "$WANT" ]; then
+            echo "::error::$JAR has sha256 $got, the pinned reference jar has $WANT"
+            exit 1
+          fi
+          echo "$JAR: sha256 $got (pinned)"
+
+      # a jar with another sha256 is kept for inspection (unzip -l / diff against the pinned one)
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: java-comparison-unpinned-jar
+          path: |
+            ${{ steps.ref.outputs.jar }}
+            reference/*/MODULE.bazel.lock
+          if-no-files-found: ignore
+
+      - uses: actions/cache/save@v6
+        if: steps.jar-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ steps.ref.outputs.jar }}
+          key: reference-jar-${{ steps.ref.outputs.sha256 }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: java-comparison-reference-jar
+          path: ${{ steps.ref.outputs.jar }}
+          if-no-files-found: error
+
+  # The release profile for the runner's own target, without a profile-guided build (the profile
+  # changes speed, not output). Unstripped: a panic in the comparison shows a backtrace.
+  rust-binary:
+    name: closure-rs (release)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - name: Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo build --release
+        run: cargo build --release --locked --bin closure-rs
+      - uses: actions/upload-artifact@v7
+        with:
+          name: java-comparison-closure-rs
+          path: target/release/closure-rs
+          if-no-files-found: error
+
+  compare:
+    name: real projects (Java vs closure-rs)
+    needs: [reference-jar, rust-binary]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/cache@v6
+        with:
+          path: tools/downloads
+          key: tools-${{ hashFiles('scripts/setup_tools.sh') }}
+      - name: JDK (pinned)
+        run: scripts/setup_tools.sh
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: java-comparison-reference-jar
+          path: ${{ needs.reference-jar.outputs.jar_dir }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: java-comparison-closure-rs
+          path: bin
+      - name: GNU time (peak RSS)
+        run: |
+          chmod +x bin/closure-rs
+          [ -x /usr/bin/time ] || { sudo apt-get update -q && sudo apt-get install -y -q time; }
+
+      # bench-cache/ is what scripts/fetch_bench.sh fetches (and generates with the reference jar);
+      # it verifies every tree against its pinned hash, cached or not
+      - uses: actions/cache@v6
+        with:
+          path: bench-cache
+          key: bench-inputs-${{ hashFiles('bench/projects.json', 'scripts/references.tsv') }}
+      - name: Fetch the benchmark inputs (pinned, hash-checked)
+        run: scripts/fetch_bench.sh
+
+      - name: Compile every job and variant with Java and closure-rs, compare byte for byte
+        run: |
+          set -o pipefail
+          mkdir -p build/bench
+          python3 scripts/run_bench.py --reps 1 --variants --bin bin/closure-rs --fail-on-mismatch \
+            --keep-failing --out build/bench/result.json | tee build/bench/table.md
+
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "## Java vs closure-rs (one run each; times are not benchmark conditions)"
+            echo
+            cat build/bench/table.md 2>/dev/null || echo "no results"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: java-comparison-failing
+          path: |
+            build/bench/result.json
+            build/bench/failing/
+          if-no-files-found: ignore

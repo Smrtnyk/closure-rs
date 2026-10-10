@@ -76,6 +76,7 @@ python3 scripts/run_bench.py --project d3-12 --level ADVANCED --reps 5
 python3 scripts/run_bench.py --job '^three/' --impl java    # only Java
 python3 scripts/run_bench.py --job '^fabric/SIMPLE$' --reps 1 --keep-failing --no-save
 python3 scripts/run_bench.py --job '^fabric/SIMPLE$' --print-args  # the argv, one argument per line
+python3 scripts/run_bench.py --reps 1 --variants --fail-on-mismatch  # identity check, as CI runs it
 ```
 
 `fetch_bench.sh` makes shallow, blobless, sparse git fetches of exactly the pinned commits (and
@@ -91,6 +92,16 @@ has the reference jar, else the main checkout of a worktree); `--java`, `--jar` 
 override them. Each repetition runs Java then Rust; the medians are reported, per job and as
 totals per project and level (time summed, RSS maximum). Run it on an otherwise idle machine,
 or at least note the load: the result file records the load average at start and end.
+
+`--variants` adds the extra compiles of `scripts/platform_outputs.py` (its `VARIANTS` on the jobs
+they name: ES5 output, pretty print with the sources in the source map, an IIFE wrapper, each
+with a source map; and its `--json_streams=BOTH` compile), reported at the level `VARIANT`.
+`--fail-on-mismatch` makes a difference between the compilers (or between repetitions) exit 1.
+`.github/workflows/java-comparison.yml` runs both on a GitHub runner, by hand or from another
+workflow such as a release run: it builds the release binary, takes the reference jar from the
+Actions cache or builds it (accepted only with its pinned sha256, oracle/REFERENCE.md), fetches
+`bench-cache/` with `fetch_bench.sh` and fails on any difference, with the table in the run
+summary and the outputs of a differing job (`--keep-failing`) as an artifact.
 
 `--print-args` prints each selected job's argv, one argument per line, and exits; `--write-args
 DIR` writes it to `DIR/<job id>.args` instead (`/` in the id becomes `-`). The profile-guided
