@@ -400,10 +400,17 @@ jobs:
       - name: gates/ci.sh --test
         run: bash gates/ci.sh --test
 
+  # Release runs compare closure-rs with the Java compiler on real projects before publishing
+  # (java-comparison.yml); pushes and pull requests skip it.
+  java-comparison:
+    name: compare with the Java compiler
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/java-comparison.yml
+
   publish:
     name: publish to npm (manual)
     if: github.event_name == 'workflow_dispatch' && inputs.publish
-    needs: [build, platform-outputs, lint, test, npm-main]
+    needs: [build, platform-outputs, java-comparison, lint, test, npm-main]
     runs-on: ubuntu-22.04
     environment: npm
     permissions:
