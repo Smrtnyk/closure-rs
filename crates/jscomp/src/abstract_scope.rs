@@ -318,7 +318,8 @@ pub trait AbstractScope: Copy + Eq {
 
     // port: AbstractScope#isBlockScope
     fn is_block_scope(self, compiler: &AbstractCompiler) -> bool {
-        NodeUtil::creates_block_scope(compiler, self.scope_data(compiler).root_node)
+        // Rust-only (D-025): the root node is read from the lock-free mirror (getRootNode).
+        NodeUtil::creates_block_scope(compiler, self.get_root_node(compiler))
     }
 
     // port: AbstractScope#isStaticBlockScope
@@ -361,7 +362,8 @@ pub trait AbstractScope: Copy + Eq {
 
     // port: AbstractScope#isCfgRootScope
     fn is_cfg_root_scope(self, compiler: &AbstractCompiler) -> bool {
-        NodeUtil::is_valid_cfg_root(compiler, self.scope_data(compiler).root_node)
+        // Rust-only (D-025): the root node is read from the lock-free mirror (getRootNode).
+        NodeUtil::is_valid_cfg_root(compiler, self.get_root_node(compiler))
     }
 
     // port: AbstractScope#isHoistScope

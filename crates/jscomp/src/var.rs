@@ -196,6 +196,17 @@ impl AbstractVar for VarId {
         }
     }
 
+    // port: AbstractVar#isImplicitGoogNamespace
+    fn is_implicit_goog_namespace(self, compiler: &AbstractCompiler) -> bool {
+        match self.meta(compiler) {
+            Some(meta) => meta.implicit_goog_namespace,
+            None => self
+                .var_data(compiler)
+                .implicit_goog_namespace_strength
+                .is_some(),
+        }
+    }
+
     // port: AbstractVar#isExtern
     fn is_extern(self, compiler: &AbstractCompiler) -> bool {
         match self.meta(compiler) {

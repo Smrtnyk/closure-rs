@@ -438,6 +438,21 @@ here (one line each) to ease upstream syncs.
   copied for every printed node.
 - `jscomp/infer_js_doc_info.rs` `inferJSDocForProperty`: the qualified name is computed only when
   the JSDoc is attached to the property's type, its only use (Java computes it first).
+- `parsing/parser/parser.rs` `peekId`, `getTreeStartLocation`, `parseClassElements`,
+  `eatStaticIfNotElementName`, `eatObjectLiteralPropertyName`: the next token's type or start
+  position is read in place instead of copying the token (`isClassElementStart` takes the type).
+- `rhino/node.rs` `validateProperties`, `serializeProperties`, `getPropListDebugString`,
+  `getSortedPropTypes`, `isEquivalentTo`: property lists are walked by reference, without
+  reference counting.
+- `jscomp/node_traversal.rs`: `AbstractModuleCallback` lends the current module to the callback
+  for each node instead of copying it; the default `SyntacticScopeCreator` of a traversal is kept
+  in the traversal, not boxed.
+- `jscomp/abstract_scope.rs` `isBlockScope`, `isCfgRootScope`, `var.rs` `isImplicitGoogNamespace`:
+  the scope root and whether a var is an implicit goog namespace (fixed when the var is made) are
+  read from the lock-free mirrors.
+- `jscomp/data_flow_analysis.rs` `analyze`, `control_flow_analysis.rs` `prioritizeFromEntryNode`:
+  the successors (predecessors) of a node are read from the graph in place instead of being
+  copied into a new list; `source_map.rs` `addMapping` reads the node's source file in place.
 
 ## D-026 — Upstream syncs follow npm releases
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**

@@ -221,7 +221,8 @@ impl SourceMap {
         // If the node does not have an associated source file or
         // its line number is -1, then the node does not have sufficient
         // information for a mapping to be useful.
-        let source_file = node.get_static_source_file(ast);
+        // Rust-only (D-025): the source file is read in place instead of copied.
+        let source_file = node.get_static_source_file_ref(ast);
         if source_file.is_none() || node.get_lineno(ast) < 0 {
             return;
         }

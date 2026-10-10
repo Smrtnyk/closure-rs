@@ -131,6 +131,9 @@ pub(crate) struct VarMeta {
     pub(crate) input: Option<CompilerInput>,
     pub(crate) index: i32,
     pub(crate) scope: Option<ScopeId>,
+    /// Whether the var is an implicit goog namespace (fixed when it is made; only its strength
+    /// changes later).
+    pub(crate) implicit_goog_namespace: bool,
 }
 
 impl VarMeta {
@@ -141,6 +144,7 @@ impl VarMeta {
             input: data.input.clone(),
             index: data.index,
             scope: data.scope,
+            implicit_goog_namespace: data.implicit_goog_namespace_strength.is_some(),
         }
     }
 }
