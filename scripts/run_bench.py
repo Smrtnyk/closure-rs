@@ -4,6 +4,7 @@
   python3 scripts/run_bench.py [--reps N] [--project P]... [--job REGEX] [--level L]...
                                [--bin PATH] [--java PATH] [--jar PATH] [--impl both|java|rust]
                                [--timeout S] [--out FILE] [--keep-failing] [--no-save] [--print-args]
+                               [--write-args DIR]
 
 docs/PORTING.md §3, D7: on every benchmark, the Rust CLI's wall-clock time <= Java's (a cold
 `java -jar closure-compiler.jar`, as users run it) and its peak RSS <= Java's. See bench/README.md.
@@ -92,20 +93,23 @@ def expand(patterns: list[str]) -> list[str]:
     return files
 
 
-def load_jobs(spec: dict) -> list[dict]:
+def load_jobs(spec: dict, selected=lambda job: True) -> list[dict]:
+    """The jobs of bench/projects.json for which `selected` holds; only their inputs must exist."""
     jobs = []
     for proj in spec["projects"]:
         for job in proj["jobs"]:
             for level in spec["levels"]:
-                entry = job["entry_point"]
-                js = expand(job["js"])
-                if level == "ADVANCED" and job.get("advanced_entry_point"):
-                    entry = job["advanced_entry_point"]
-                    js = [entry] + js
-                jobs.append({"project": proj["name"], "job": job["name"], "level": level,
+                advanced_entry = level == "ADVANCED" and job.get("advanced_entry_point")
+                entry = job["advanced_entry_point"] if advanced_entry else job["entry_point"]
+                meta = {"project": proj["name"], "job": job["name"], "level": level,
                              "id": f"{proj['name']}/{job['name']}/{level}"
-                                   if proj["name"] != job["name"] else f"{job['name']}/{level}",
-                             "entry_point": entry, "js": js,
+                                   if proj["name"] != job["name"] else f"{job['name']}/{level}"}
+                if not selected(meta):
+                    continue
+                js = expand(job["js"])
+                if advanced_entry:
+                    js = [entry] + js
+                jobs.append({**meta, "entry_point": entry, "js": js,
                              "flags": [f"--compilation_level={level}", *proj["flags"],
                                        f"--entry_point={entry}"]})
     return jobs
@@ -236,20 +240,29 @@ def main() -> int:
     ap.add_argument("--keep-failing", action="store_true")
     ap.add_argument("--print-args", action="store_true",
                     help="print each selected job's compiler argv (one per line) and exit")
+    ap.add_argument("--write-args", metavar="DIR",
+                    help="write each selected job's compiler argv (one per line) to "
+                         "DIR/<job id>.args and exit (the training runs of scripts/pgo_build.sh)")
     a = ap.parse_args()
 
     with open(os.path.join(ROOT, "bench/projects.json"), encoding="utf-8") as f:
         spec = json.load(f)
-    jobs = [j for j in load_jobs(spec)
-            if (not a.project or j["project"] in a.project)
-            and (not a.level or j["level"] in a.level)
-            and (not a.job or re.search(a.job, j["id"]))]
+    jobs = load_jobs(spec, lambda j: (not a.project or j["project"] in a.project)
+                     and (not a.level or j["level"] in a.level)
+                     and (not a.job or re.search(a.job, j["id"])))
     if not jobs:
         print("no job selected", file=sys.stderr)
         return 2
     if a.print_args:
         for job in jobs:
             print("\n".join(compiler_args(job, f"build/bench/{job['id'].replace('/', '-')}.js")))
+        return 0
+    if a.write_args:
+        os.makedirs(a.write_args, exist_ok=True)
+        for job in jobs:
+            name = job["id"].replace("/", "-")
+            with open(os.path.join(a.write_args, f"{name}.args"), "w", encoding="utf-8") as f:
+                f.write("\n".join(compiler_args(job, f"build/bench/{name}.js")) + "\n")
         return 0
     if not os.access(TIME, os.X_OK):
         print(f"{TIME} (GNU time) is required to measure peak RSS", file=sys.stderr)

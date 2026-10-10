@@ -19,8 +19,12 @@
 //   src/com/google/javascript/jscomp/SyntacticScopeCreator.java.
 
 use crate::{
-    abstract_compiler::AbstractCompiler, compiler_input::CompilerInput, node_util::NodeUtil,
-    scope::ScopeId, scope_creator::ScopeCreator,
+    abstract_compiler::AbstractCompiler,
+    compiler_input::CompilerInput,
+    node_util::NodeUtil,
+    scope::ScopeId,
+    scope_creator::ScopeCreator,
+    syntactic_scope_cache::{ScopeContext, ScriptDeclaration, SyntacticScopeCache},
 };
 use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
@@ -31,6 +35,9 @@ use std::sync::Arc;
 pub struct SyntacticScopeCreator<'a> {
     redeclaration_handler: Box<dyn RedeclarationHandler + 'a>,
     treat_provides_as_redeclarations: bool,
+    /// Rust-only (D-025): whether this creator's scopes are reused across passes, true for the
+    /// default redeclaration handler (which has no effects); see `SyntacticScopeCache`.
+    reusable: bool,
 }
 
 const ARGUMENTS: &str = "arguments";
@@ -46,7 +53,10 @@ impl Default for SyntacticScopeCreator<'_> {
 impl<'a> SyntacticScopeCreator<'a> {
     // port: SyntacticScopeCreator#SyntacticScopeCreator(AbstractCompiler)
     pub fn new() -> Self {
-        Self::new_with_redeclaration_handler(Box::new(DEFAULT_REDECLARATION_HANDLER))
+        let mut creator =
+            Self::new_with_redeclaration_handler(Box::new(DEFAULT_REDECLARATION_HANDLER));
+        creator.reusable = true;
+        creator
     }
 
     // port: SyntacticScopeCreator#SyntacticScopeCreator(AbstractCompiler, RedeclarationHandler)
@@ -64,6 +74,7 @@ impl<'a> SyntacticScopeCreator<'a> {
         Self {
             redeclaration_handler,
             treat_provides_as_redeclarations,
+            reusable: false,
         }
     }
 }
@@ -88,18 +99,63 @@ impl SyntacticScopeCreator<'_> {
         n: NodeId,
         parent: Option<ScopeId>,
     ) -> ScopeId {
+        // Rust-only (D-025): a scope that an earlier pass scanned from code nobody has changed
+        // since is handed out again instead of being scanned anew (see SyntacticScopeCache).
+        let context = if self.reusable {
+            ScopeContext::of(compiler, n)
+        } else {
+            None
+        };
+        if let Some(context) = &context
+            && let Some(scope) = SyntacticScopeCache::reuse(compiler, n, parent, context)
+        {
+            if SyntacticScopeCache::verifying() {
+                let fresh = self.scan(compiler, n, parent, false);
+                SyntacticScopeCache::verify(compiler, scope, fresh);
+            }
+            return scope;
+        }
+        let scanned_at = if context.is_some() {
+            SyntacticScopeCache::scan_round(compiler)
+        } else {
+            0
+        };
+        // A global scope takes the declarations of unchanged scripts from the cache too.
+        let replay_scripts = context.as_ref().is_some_and(ScopeContext::is_global_root);
+        let scope = self.scan(compiler, n, parent, replay_scripts);
+        if replay_scripts && SyntacticScopeCache::verifying() {
+            let fresh = self.scan(compiler, n, parent, false);
+            SyntacticScopeCache::verify(compiler, scope, fresh);
+        }
+        if let Some(context) = context {
+            SyntacticScopeCache::keep(compiler, n, scope, scanned_at, context);
+        }
+        scope
+    }
+
+    // port: SyntacticScopeCreator#createScope(Node, Scope)
+    /// The Java method's body: a new scope scanned from `n` (Rust-only: `replay_scripts`, see
+    /// `ScopeScanner::scan_script`).
+    fn scan(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        parent: Option<ScopeId>,
+        replay_scripts: bool,
+    ) -> ScopeId {
         let scope = match parent {
             None => ScopeId::create_global_scope(compiler, n),
             Some(parent) => ScopeId::create_child_scope(compiler, parent, n),
         };
-        ScopeScanner::new(
+        let mut scanner = ScopeScanner::new(
             compiler,
             &mut *self.redeclaration_handler,
             scope,
             None,
             self.treat_provides_as_redeclarations,
-        )
-        .populate(compiler);
+        );
+        scanner.replay_scripts = replay_scripts;
+        scanner.populate(compiler);
         scope
     }
 }
@@ -113,6 +169,12 @@ struct ScopeScanner<'a> {
     /// Rust-only: `compiler.getInput(inputId)` for the `input_id` it was looked up with, so that
     /// each declaration needs no lookup by id (D-025).
     input_cache: Option<(Arc<InputId>, Option<CompilerInput>)>,
+    /// Rust-only (D-025): whether the top-level declarations of each script of this global scope
+    /// are replayed from, or recorded for, the `SyntacticScopeCache` (see `scan_script`).
+    replay_scripts: bool,
+    /// Rust-only (D-025): the declarations of the script being scanned, while recorded; None
+    /// once a declaration went to another scope (the record is then not kept).
+    recording: Option<Option<Vec<ScriptDeclaration>>>,
 }
 
 impl<'a> ScopeScanner<'a> {
@@ -132,6 +194,8 @@ impl<'a> ScopeScanner<'a> {
             input_id: None,
             change_root_set,
             input_cache: None,
+            replay_scripts: false,
+            recording: None,
         }
     }
 
@@ -287,6 +351,14 @@ impl<'a> ScopeScanner<'a> {
                     return;
                 }
                 self.input_id = n.get_input_id(compiler);
+                if self.replay_scripts
+                    && self.recording.is_none()
+                    && hoist_scope == Some(self.scope)
+                    && block_scope == Some(self.scope)
+                {
+                    self.scan_script(compiler, n);
+                    return;
+                }
             }
             Token::MODULE_BODY => {
                 let hoist_scope = check_not_null!(hoist_scope);
@@ -335,6 +407,19 @@ impl<'a> ScopeScanner<'a> {
             _ => {}
         }
 
+        self.scan_vars_of_children(compiler, n, hoist_scope, block_scope);
+    }
+
+    // port: SyntacticScopeCreator.ScopeScanner#scanVars
+    /// The end of the Java method (Rust-only split, so that `scan_script` can run it): the
+    /// children of `n`.
+    fn scan_vars_of_children(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        hoist_scope: Option<ScopeId>,
+        block_scope: Option<ScopeId>,
+    ) {
         let is_block_start = block_scope.is_some_and(|scope| n == scope.get_root_node(compiler));
         let entering_new_block = !is_block_start && NodeUtil::creates_block_scope(compiler, n);
         if entering_new_block && hoist_scope.is_none() {
@@ -359,8 +444,59 @@ impl<'a> ScopeScanner<'a> {
         }
     }
 
+    /// Rust-only (D-025): the top level of `script` in a global scope. The declarations an earlier
+    /// scan found in it are made again, in their order, while the script is unchanged (the
+    /// externs and the unchanged scripts of a program need no walk of their statements); else
+    /// the script is scanned and its declarations are recorded. The declarations go through
+    /// `declare_var` as in a scan, so redeclarations across scripts are found the same way.
+    fn scan_script(&mut self, compiler: &mut AbstractCompiler, script: NodeId) {
+        if let Some(declarations) = SyntacticScopeCache::script_declarations(compiler, script) {
+            for declaration in declarations.iter() {
+                match *declaration {
+                    ScriptDeclaration::Name { name, .. } => {
+                        self.declare_var(compiler, self.scope, name);
+                    }
+                    ScriptDeclaration::GoogNamespace(expr_call) => {
+                        self.declare_implicit_goog_namespace_from_call(
+                            compiler, self.scope, expr_call,
+                        );
+                    }
+                }
+            }
+            return;
+        }
+        let scanned_at = SyntacticScopeCache::scan_round(compiler);
+        self.recording = Some(Some(Vec::new()));
+        self.scan_vars_of_children(compiler, script, Some(self.scope), Some(self.scope));
+        if let Some(Some(declarations)) = self.recording.take() {
+            SyntacticScopeCache::keep_script_declarations(
+                compiler,
+                script,
+                scanned_at,
+                declarations,
+            );
+        }
+    }
+
+    /// Rust-only (D-025): records a declaration for `scan_script`.
+    fn record(&mut self, s: ScopeId, declaration: ScriptDeclaration) {
+        if let Some(recording) = &mut self.recording {
+            if s == self.scope {
+                if let Some(declarations) = recording {
+                    declarations.push(declaration);
+                }
+            } else {
+                *recording = None;
+            }
+        }
+    }
+
     // port: SyntacticScopeCreator.ScopeScanner#declareVar
     fn declare_var(&mut self, compiler: &mut AbstractCompiler, s: ScopeId, n: NodeId) {
+        if self.recording.is_some() {
+            let parent = n.get_parent(compiler);
+            self.record(s, ScriptDeclaration::Name { name: n, parent });
+        }
         check_state!(
             n.is_name(compiler) || n.is_import_star(compiler),
             "Invalid node for declareVar: %s",
@@ -398,6 +534,7 @@ impl<'a> ScopeScanner<'a> {
         s: ScopeId,
         expr_call: NodeId,
     ) {
+        self.record(s, ScriptDeclaration::GoogNamespace(expr_call));
         let namespace_node =
             check_not_null!(expr_call.get_first_child(compiler)).get_second_child(compiler);
         let Some(namespace_node) = namespace_node else {

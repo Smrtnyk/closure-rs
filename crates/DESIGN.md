@@ -232,6 +232,14 @@ reuse these bodies. Scope.java's parent/depth fields and bodies stay in `scope.r
 constructor validation and formatting stay in `var.rs`. Rust-only inherent forwarders make the
 same methods available on handles without a trait import.
 
+A `SyntacticScopeCreator` with the default redeclaration handler hands a scope out again in a
+later pass while the code it was scanned from is unchanged (`syntactic_scope_cache.rs`, D-025).
+Within one pass every request still makes a new scope, so handle identity inside a pass is Java's
+object identity; across passes a handle may be the same. Code that adds or removes declarations
+of an existing scope goes through `declare`, `undeclare`, `declare_internal` or
+`clear_vars_internal`, which call `AbstractScope::note_mutation` so that such a scope is not
+handed out again.
+
 Metadata readers receive `&AbstractCompiler` and mutators receive `&mut AbstractCompiler`, after
 the receiver. Java's `getOwnImplicitSlot` calls `computeIfAbsent`, so `get_own_slot`, `get_var`,
 `get_slot`, `get_arguments_var`, and the checks that invoke those methods also receive a mutable

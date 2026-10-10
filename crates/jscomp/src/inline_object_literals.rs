@@ -65,6 +65,8 @@ impl CompilerPass for InlineObjectLiterals {
         };
         let mut scope_creator = SyntacticScopeCreator::new();
         let mut callback = ReferenceCollector::new(compiler, &mut behavior, &mut scope_creator);
+        // Rust-only (D-025): vars declared in the externs are never inlined.
+        callback.skip_externs_when_unread();
         CompilerPass::process(&mut callback, compiler, externs, root);
     }
 }

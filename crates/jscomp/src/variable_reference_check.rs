@@ -41,7 +41,8 @@ use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::qualified_name::QualifiedName;
 use closure_rhino::token::Token;
-use std::sync::{Arc, LazyLock};
+use std::rc::Rc;
+use std::sync::LazyLock;
 
 // port: VariableReferenceCheck#EARLY_REFERENCE
 pub static EARLY_REFERENCE: DiagnosticType = DiagnosticType::warning(
@@ -121,7 +122,7 @@ pub struct VariableReferenceCheck {
     // NOTE(nicksantos): It's a lot faster to use a shared Set that
     // we clear after each method call, because the Set never gets too big.
     // (A LinkedHashSet of BasicBlock, which has identity equality.)
-    blocks_with_declarations: Vec<Arc<BasicBlock>>,
+    blocks_with_declarations: Vec<Rc<BasicBlock>>,
 }
 
 impl VariableReferenceCheck {
@@ -137,11 +138,11 @@ impl VariableReferenceCheck {
     }
 
     /// `blocksWithDeclarations.add(block)`: LinkedHashSet insertion by identity.
-    fn add_block_with_declaration(&mut self, block: &Arc<BasicBlock>) {
+    fn add_block_with_declaration(&mut self, block: &Rc<BasicBlock>) {
         if !self
             .blocks_with_declarations
             .iter()
-            .any(|b| Arc::ptr_eq(b, block))
+            .any(|b| Rc::ptr_eq(b, block))
         {
             self.blocks_with_declarations.push(block.clone());
         }

@@ -25,7 +25,7 @@ use crate::reference::Reference;
 use crate::scope::ScopeId;
 use closure_rhino::check_state;
 use closure_rhino::node::Ast;
-use std::sync::Arc;
+use std::rc::Rc;
 
 /// A collection of references. Can be subclassed to apply checks or store additional state when
 /// adding.
@@ -217,7 +217,7 @@ impl ReferenceCollection {
             if b.is_loop() {
                 return false;
             }
-            block = b.get_parent().map(Arc::clone);
+            block = b.get_parent().map(Rc::clone);
         }
 
         true

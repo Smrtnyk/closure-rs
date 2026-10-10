@@ -20,16 +20,17 @@
 
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
-use std::sync::Arc;
+use std::rc::Rc;
 
 /// Represents a section of code that is uninterrupted by control structures (conditional or
 /// iterative logic).
 ///
-/// Java compares blocks by identity; blocks are shared as `Arc<BasicBlock>` and compared with
-/// `Arc::ptr_eq`.
+/// Java compares blocks by identity; blocks are shared as `Rc<BasicBlock>` and compared with
+/// `Rc::ptr_eq`. A reference collection stays on the thread that makes it, so its blocks are
+/// counted without atomic operations (DECISIONS.md D-025).
 #[derive(Debug)]
 pub struct BasicBlock {
-    parent: Option<Arc<BasicBlock>>,
+    parent: Option<Rc<BasicBlock>>,
 
     root: NodeId,
 
@@ -45,7 +46,7 @@ impl BasicBlock {
     ///
     /// `parent`: The containing block. `root`: The root node of the block.
     // port: BasicBlock#BasicBlock
-    pub fn new(ast: &Ast, parent: Option<Arc<BasicBlock>>, root: NodeId) -> Arc<BasicBlock> {
+    pub fn new(ast: &Ast, parent: Option<Rc<BasicBlock>>, root: NodeId) -> Rc<BasicBlock> {
         let is_function = root.is_function(ast);
 
         let is_loop = if root.has_parent(ast) {
@@ -59,7 +60,7 @@ impl BasicBlock {
         } else {
             false
         };
-        Arc::new(BasicBlock {
+        Rc::new(BasicBlock {
             parent,
             root,
             is_function,
@@ -68,7 +69,7 @@ impl BasicBlock {
     }
 
     // port: BasicBlock#getParent
-    pub fn get_parent(&self) -> Option<&Arc<BasicBlock>> {
+    pub fn get_parent(&self) -> Option<&Rc<BasicBlock>> {
         self.parent.as_ref()
     }
 
