@@ -565,6 +565,7 @@ crates/jscomp/src/validity_check.rs	14e38e658e177bfa	Apache-2.0	closure:src/com/
 crates/jscomp/src/var.rs	2fb20aa0c6316475	Apache-2.0	closure:src/com/google/javascript/jscomp/Var.java; closure:src/com/google/javascript/jscomp/AbstractVar.java
 crates/jscomp/src/var_cfg_hash.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/var_check.rs	f7a10caeee83568b	Apache-2.0	closure:src/com/google/javascript/jscomp/VarCheck.java
+crates/jscomp/src/var_map.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/variable_map.rs	1604ae32c4e97fbc	Apache-2.0	closure:src/com/google/javascript/jscomp/VariableMap.java; guava:com/google/common/collect/JdkBackedImmutableBiMap.java; guava:com/google/common/collect/ImmutableMap.java; guava:com/google/common/collect/JdkBackedImmutableMap.java; guava:com/google/common/collect/Hashing.java
 crates/jscomp/src/variable_reference_check.rs	85757ea22ef23e21	Apache-2.0	closure:src/com/google/javascript/jscomp/VariableReferenceCheck.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
 crates/jscomp/src/variable_renaming_policy.rs	54cbf4b6aa60d496	Apache-2.0	closure:src/com/google/javascript/jscomp/VariableRenamingPolicy.java
@@ -1139,6 +1140,7 @@ crates/rhino/tests/java_lang_numeric_parse_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/tests/java_lang_parser_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/tests/java_lang_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/tests/js_comp_doubles_test.rs	d39a44f685249b17	Apache-2.0	closure:test/com/google/javascript/jscomp/base/JSCompDoublesTest.java
+crates/rhino/tests/js_string_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/tests/js_type_expression_test.rs	a19e67ef97ae1744	(MPL-1.1 OR GPL-2.0-or-later)	closure:test/com/google/javascript/rhino/JSTypeExpressionTest.java
 crates/rhino/tests/jsdoc_info_test.rs	d8d4cceef3ccdaf0	(MPL-1.1 OR GPL-2.0-or-later)	closure:test/com/google/javascript/rhino/JSDocInfoTest.java
 crates/rhino/tests/linked_identity_hash_map_test.rs	eae683a212559260	Apache-2.0	closure:test/com/google/javascript/jscomp/base/LinkedIdentityHashMapTest.java
