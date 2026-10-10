@@ -144,7 +144,8 @@ function names the Java method it ports. It is checked against the Java compiler
   and compared byte for byte, source maps included; every pair matches (`corpus/d2/`,
   `gates/d2_rust.py`).
 - **Unseen inputs:** a differential fuzzer and large real-world bundles outside the corpus
-  (`fuzz/`, `bench/`) compare the two compilers on inputs the port was never tuned on.
+  (`fuzz/`, `bench/`) compare the two compilers on inputs the port was never tuned on; CI compiles
+  those real-world projects with both compilers again before a release.
 
 [`docs/PORTING.md`](docs/PORTING.md) describes the scope, what byte-identical means, how the port
 mirrors the Java code, how fidelity is verified and how the port follows upstream.
