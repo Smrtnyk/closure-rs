@@ -219,13 +219,14 @@ Binary distributions
   standard library, each under its own license (MIT, Apache-2.0, Unlicense, Zlib), which the
   binary distribution reproduces with the files above: LICENSES/THIRD_PARTY_RUST.md (also in
   the npm package) lists every linked crate with its version,
-  license and full license texts, including zlib's for the copy libz-sys builds from source when
-  no system zlib is used, and the MIT notice of Microsoft's mimalloc allocator, whose C sources
+  license and full license texts, including zlib's, whose C sources libz-sys compiles into every
+  released binary, and the MIT notice of Microsoft's mimalloc allocator, whose C sources
   libmimalloc-sys compiles into the binary. scripts/third_party_licenses.py writes it from
   Cargo.lock.
 
-  The linux-x64 executable is statically linked (Rust target x86_64-unknown-linux-musl) and also
-  contains the C runtime that the Rust toolchain ships for that target:
+  The linux-x64 and linux-arm64 executables are statically linked (Rust targets
+  x86_64-unknown-linux-musl and aarch64-unknown-linux-musl) and also contain the C runtime that the
+  Rust toolchain ships for those targets, the same components and versions for both:
     musl 1.2.5 (the C library libc.a and the startup objects rcrt1.o, crti.o, crtn.o):
       Copyright (c) 2005-2020 Rich Felker, et al. Licensed under the MIT License; musl's COPYRIGHT
       file, which also names its contributors and the code under other permissive terms, is

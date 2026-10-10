@@ -14,7 +14,7 @@ not linked), for every target platform, so that one file covers every npm platfo
 metadata comes from `cargo metadata`. Both run with --locked --offline: the script reads Cargo.lock
 and the registry and changes neither (fetch missing crates with `cargo fetch` first). The Rust
 standard library is linked as well; its license is stated after the crates. Last comes the C runtime
-that the Rust target of the linux-x64 binary links statically (STATIC_RUNTIME below), with the
+that the Rust targets of the Linux binaries link statically (STATIC_RUNTIME below), with the
 license texts kept verbatim in LICENSES/.
 
 --check exits 1 when FILE differs from what the script would write.
@@ -35,26 +35,29 @@ BINARY = 'closure-rs'
 LICENSE_FILE = re.compile(r'^(licen[cs]e|copying|unlicense|notice|copyright)([-._].*)?$', re.I)
 # License files of code vendored inside a crate and compiled into the binary.
 VENDORED = {
-    # zlib's C sources, compiled in when libz-sys builds zlib itself (no system zlib found, or a
-    # static build) instead of linking the system's libz.
-    'libz-sys': [('src/zlib/LICENSE', 'zlib (bundled C sources, built in when no system zlib is used)')],
+    # zlib's C sources, compiled in when libz-sys builds zlib itself instead of linking the
+    # system's libz: always in the release binaries, which are built with LIBZ_SYS_STATIC=1.
+    'libz-sys': [('src/zlib/LICENSE', 'zlib (bundled C sources, compiled into the released binaries)')],
     # Microsoft's mimalloc C sources, always compiled in (the v2 sources; v3 only with the `v3`
     # feature, which closure-rs does not enable).
     'libmimalloc-sys': [('c_src/mimalloc/v2/LICENSE', 'mimalloc (bundled C sources, Microsoft Corporation)')],
 }
 
 
-# The linux-x64 binary is built for the Rust target x86_64-unknown-linux-musl, which links it
-# statically and self-contained: rustc links the objects of the target's rust-std component
-# (lib/rustlib/x86_64-unknown-linux-musl/lib/self-contained), not the system's. For a static-pie
-# executable these are rcrt1.o, crti.o, crtbeginS.o, crtendS.o and crtn.o, libc.a (`-lc`, from the
-# libc crate) and libunwind.a (`-lunwind`, from std's unwind crate). Rust's CI builds them in
-# src/ci/docker/host-x86_64/dist-x86_64-musl: musl with scripts/musl-toolchain.sh, crtbegin/crtend
-# and libunwind from the src/llvm-project submodule (bootstrap's llvm::CrtBeginEnd and
-# llvm::Libunwind). The versions below are those of Rust STATIC_RUNTIME_TOOLCHAIN; --check fails when
-# rust-toolchain.toml names another toolchain, so that they are confirmed again on an update.
+# The linux-x64 and linux-arm64 binaries are built for the Rust targets x86_64-unknown-linux-musl
+# and aarch64-unknown-linux-musl, which link them statically and self-contained: rustc links the
+# objects of the target's rust-std component (lib/rustlib/<target>/lib/self-contained), not the
+# system's. For a static-pie executable these are rcrt1.o, crti.o, crtbeginS.o, crtendS.o and
+# crtn.o, libc.a (`-lc`, from the libc crate) and libunwind.a (`-lunwind`, from std's unwind
+# crate). Rust's CI builds them in src/ci/docker/host-x86_64/dist-x86_64-musl and
+# dist-arm-linux-musl, both with the same scripts/musl-toolchain.sh and musl patches, and
+# crtbegin/crtend and libunwind from the src/llvm-project submodule (bootstrap's llvm::CrtBeginEnd
+# and llvm::Libunwind); so both targets carry the same components and versions. The versions below
+# are those of Rust STATIC_RUNTIME_TOOLCHAIN; --check fails when rust-toolchain.toml names another
+# toolchain, so that they are confirmed again on an update. The macOS and Windows binaries link the
+# operating system's C libraries dynamically and contain none of these.
 STATIC_RUNTIME_TOOLCHAIN = '1.95.0'
-STATIC_RUNTIME_TARGET = 'x86_64-unknown-linux-musl'
+STATIC_RUNTIME_TARGETS = ['x86_64-unknown-linux-musl', 'aarch64-unknown-linux-musl']
 LLVM_VERSION = ('LLVM 22.1.2 (rust-lang/llvm-project commit 1cb4e3833c1919c2e6fb579a23ac0e2b22587b7e, '
                 'the src/llvm-project submodule of Rust 1.95.0)')
 STATIC_RUNTIME = [
@@ -196,8 +199,8 @@ def render():
             sections += [title, '', f + 'text', text.rstrip('\n'), f, '']
     lines += ['', 'The binary also links the Rust standard library (`std`, `core`, `alloc` and their '
               f'dependencies) of the pinned toolchain (`rust-toolchain.toml`), which is licensed MIT '
-              'OR Apache-2.0 (<https://www.rust-lang.org/policies/licenses>), and the linux-x64 '
-              'binary, which is statically linked, also contains the C library musl (MIT) and '
+              'OR Apache-2.0 (<https://www.rust-lang.org/policies/licenses>), and the Linux '
+              'binaries, which are statically linked, also contain the C library musl (MIT) and '
               'runtime code of LLVM (Apache-2.0 WITH LLVM-exception); see the last two sections of '
               'this file.', '']
     lines += sections
@@ -211,13 +214,15 @@ def render():
               'closure-rs\' `LICENSE`. The MIT terms (rust-lang/rust `LICENSE-MIT`):', '']
     f = fence(RUST_MIT)
     lines += [f + 'text', RUST_MIT.rstrip('\n'), f, '']
-    lines += ['## C runtime statically linked into the linux-x64 binary', '',
-              f'The linux-x64 binary is built for the Rust target `{STATIC_RUNTIME_TARGET}` and is '
-              'statically linked: besides the crates above it contains the C library and runtime '
-              f'objects that the target\'s `rust-std` component of Rust {STATIC_RUNTIME_TOOLCHAIN} '
-              'ships (self-contained linking), each under its own license. The Windows binary '
-              'contains none of them. The license texts below are verbatim copies of the files '
-              'named, kept in `LICENSES/`.', '',
+    targets = ' and '.join(f'`{t}`' for t in STATIC_RUNTIME_TARGETS)
+    lines += ['## C runtime statically linked into the Linux binaries', '',
+              f'The linux-x64 and linux-arm64 binaries are built for the Rust targets {targets} and '
+              'are statically linked: besides the crates above each contains the C library and '
+              'runtime objects that its target\'s `rust-std` component of Rust '
+              f'{STATIC_RUNTIME_TOOLCHAIN} ships (self-contained linking), each under its own '
+              'license; both targets ship the same components and versions. The macOS and Windows '
+              'binaries contain none of them. The license texts below are verbatim copies of the '
+              'files named, kept in `LICENSES/`.', '',
               '| Component | License | In the binary | License file |', '| --- | --- | --- | --- |']
     for name, _, spdx, contents, fname, _ in STATIC_RUNTIME:
         lines.append(f'| {name} | {spdx} | {contents} | `LICENSES/{fname}` |')
@@ -243,8 +248,8 @@ def main():
     if channel != STATIC_RUNTIME_TOOLCHAIN:
         sys.exit(f'rust-toolchain.toml names Rust {channel}, STATIC_RUNTIME was confirmed for '
                  f'{STATIC_RUNTIME_TOOLCHAIN}: check the musl and LLVM versions (and license texts) '
-                 f'that the new toolchain\'s {STATIC_RUNTIME_TARGET} target links, then update '
-                 'STATIC_RUNTIME and STATIC_RUNTIME_TOOLCHAIN')
+                 f'that the new toolchain\'s {" and ".join(STATIC_RUNTIME_TARGETS)} targets link, '
+                 'then update STATIC_RUNTIME and STATIC_RUNTIME_TOOLCHAIN')
     text = render()
     if args.check:
         try:

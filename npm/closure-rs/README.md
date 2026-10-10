@@ -10,9 +10,11 @@ affiliated with or published by Google. The
 flags outside the port and how the port is checked.
 
 The compiler is a native binary. The package carries one per supported system (Linux x64 and
-Windows x64, under `bin/<platform>-<arch>/`) and runs the one for yours; no Java is needed.
-The Linux binary is statically linked: it runs on any x86-64 Linux, glibc or musl (Alpine, without
-gcompat), with no C library version requirement.
+arm64, macOS arm64 and x64, Windows x64, under `bin/<platform>-<arch>/`) and runs the one for
+yours; no Java is needed. Every binary writes the same output for the same input. The Linux
+binaries are statically linked: they run on any x64 or arm64 Linux, glibc or musl (Alpine, without
+gcompat), with no C library version requirement. The macOS binaries need macOS 11 or later.
+Windows on Arm runs the x64 binary.
 
 ## Versions
 
@@ -107,7 +109,8 @@ The wrapper runs, in this order:
 
 1. the file named by the environment variable `CLOSURE_RS_BINARY`, if set (for testing a local
    build);
-2. the binary bundled in this package, `bin/<platform>-<arch>/closure-rs[.exe]`;
+2. the binary bundled in this package, `bin/<platform>-<arch>/closure-rs[.exe]` (on Windows on
+   Arm, `bin/win32-x64/closure-rs.exe`);
 3. `bin/closure-rs` from a separate package `closure-rs-<platform>-<arch>`, if installed;
 4. `closure-rs` on `PATH`.
 
@@ -137,5 +140,5 @@ all arguments to the binary, except `--platform`, which is removed.
 
 Apache-2.0. The bundled `externs/` and `contrib/` folders are from the Closure Compiler repository
 (Apache-2.0). The binaries contain code under other licenses (translated Java libraries, Rust
-crates, and in the Linux binary the musl C library and LLVM runtime code); `NOTICE` and
+crates, and in the Linux binaries the musl C library and LLVM runtime code); `NOTICE` and
 `LICENSES/` in the package list them with their license texts.

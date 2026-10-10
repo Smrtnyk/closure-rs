@@ -46,10 +46,10 @@ identifier and, where it is a particular project's copy, that project:
 | `BSD-3-Clause-protobuf.txt` | BSD-3-Clause | Protocol Buffers for Java runtime code. Verbatim `LICENSE` of protobuf v30.2 |
 | `MIT-args4j.txt` | MIT | args4j. The args4j license as Closure Compiler's `THIRD_PARTY_NOTICES` reproduces it |
 | `dtoa.txt` | dtoa | David M. Gay's notice, kept by Closure's `DToA.java` (`crates/rhino/src/dtoa/d_to_a.rs`) |
-| `THIRD_PARTY_RUST.md` | MIT, Apache-2.0, Unlicense, Zlib, Apache-2.0 WITH LLVM-exception | The crates.io crates and the Rust standard library linked into the `closure-rs` binary, and the C runtime statically linked into the linux-x64 binary: component, version, license and full texts. Written by `scripts/third_party_licenses.py` from `Cargo.lock` and the files below; the npm package ships it with `LICENSE` and `NOTICE` |
-| `MIT-musl.txt` | MIT | The musl C library and startup objects, statically linked into the linux-x64 binary. Verbatim `COPYRIGHT` of musl 1.2.5 |
-| `Apache-2.0-WITH-LLVM-exception-libunwind.txt` | Apache-2.0 WITH LLVM-exception | LLVM's libunwind, statically linked into the linux-x64 binary. Verbatim `libunwind/LICENSE.TXT` of the LLVM that Rust's toolchain bundles |
-| `Apache-2.0-WITH-LLVM-exception-compiler-rt.txt` | Apache-2.0 WITH LLVM-exception | LLVM compiler-rt's `crtbegin`/`crtend` objects, statically linked into the linux-x64 binary, and the compiler-rt builtins of the Rust standard library. Verbatim `compiler-rt/LICENSE.TXT` of the same LLVM |
+| `THIRD_PARTY_RUST.md` | MIT, Apache-2.0, Unlicense, Zlib, Apache-2.0 WITH LLVM-exception | The crates.io crates and the Rust standard library linked into the `closure-rs` binary, and the C runtime statically linked into the Linux binaries (linux-x64, linux-arm64): component, version, license and full texts. Written by `scripts/third_party_licenses.py` from `Cargo.lock` and the files below; the npm package ships it with `LICENSE` and `NOTICE` |
+| `MIT-musl.txt` | MIT | The musl C library and startup objects, statically linked into the Linux binaries (linux-x64, linux-arm64). Verbatim `COPYRIGHT` of musl 1.2.5 |
+| `Apache-2.0-WITH-LLVM-exception-libunwind.txt` | Apache-2.0 WITH LLVM-exception | LLVM's libunwind, statically linked into the Linux binaries (linux-x64, linux-arm64). Verbatim `libunwind/LICENSE.TXT` of the LLVM that Rust's toolchain bundles |
+| `Apache-2.0-WITH-LLVM-exception-compiler-rt.txt` | Apache-2.0 WITH LLVM-exception | LLVM compiler-rt's `crtbegin`/`crtend` objects, statically linked into the Linux binaries (linux-x64, linux-arm64), and the compiler-rt builtins of the Rust standard library. Verbatim `compiler-rt/LICENSE.TXT` of the same LLVM |
 
 The SPDX expression of the whole (`Cargo.toml`, `npm/config.json`) is
 `Apache-2.0 AND (MPL-1.1 OR GPL-2.0-or-later) AND GPL-2.0-only WITH Classpath-exception-2.0 AND

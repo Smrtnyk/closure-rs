@@ -15,7 +15,7 @@ import {spawn} from 'node:child_process';
 import {constants as osConstants} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {getNativeImagePath} from '../utils.js';
+import {bundledPlatforms, getNativeImagePath, thisPlatform} from '../utils.js';
 
 const resolved = getNativeImagePath();
 
@@ -29,6 +29,18 @@ const SIGNAL_HINTS = {
   SIGABRT: ' (an abort)',
   SIGSYS: ' (a system call blocked by a seccomp profile, for example in a container)',
 };
+/** Where the binary for this machine comes from, for the message of a failed spawn. */
+const binaryHint = () => {
+  const platforms = bundledPlatforms();
+  if (platforms.includes(thisPlatform)) {
+    return `It ships in this package under bin/${thisPlatform}/; CLOSURE_RS_BINARY can point at ` +
+        'a binary instead.';
+  }
+  return `This package has no binary for ${thisPlatform} (it has ` +
+      `${platforms.length ? 'binaries for ' + platforms.join(', ') : 'none'}); CLOSURE_RS_BINARY ` +
+      'can point at a closure-rs binary built from source.';
+};
+
 /**
  * The executable `run()` spawns: the closure-rs binary from the platform package (or
  * CLOSURE_RS_BINARY). When neither exists, 'closure-rs' is looked up on PATH, just as the official
@@ -136,8 +148,7 @@ export default class Compiler {
       });
       child.on('error', (e) => {
         finish(1, this.prependFullCommand(
-            'Process spawn error. Is the closure-rs binary installed? It ships in this package under ' +
-            `bin/${process.platform}-${process.arch}/; CLOSURE_RS_BINARY can point at a binary instead.\n` +
+            'Process spawn error. Is the closure-rs binary installed? ' + binaryHint() + '\n' +
             e.message));
       });
     }

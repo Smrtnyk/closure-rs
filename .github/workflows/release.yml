@@ -1,8 +1,9 @@
-# Builds the closure-rs CLI for Linux and Windows, checks it, tests the npm wrapper (npm/closure-rs/)
-# against each binary, and packs ONE npm package `closure-rs` with both binaries bundled
-# (bin/<platform>-<arch>/; the wrapper picks the one for the running machine).
-# The Linux binary is static (target x86_64-unknown-linux-musl): it runs on any x86-64 Linux, glibc
-# or musl (Alpine), with no C library version requirement.
+# Builds the closure-rs CLI for Linux (x64, arm64), macOS (arm64, x64) and Windows (x64), checks
+# it, tests the npm wrapper (npm/closure-rs/) against each binary, checks that every binary writes
+# the same bytes for the same compiles, and packs ONE npm package `closure-rs` with all binaries
+# bundled (bin/<platform>-<arch>/; the wrapper picks the one for the running machine).
+# The Linux binaries are static (targets x86_64- and aarch64-unknown-linux-musl): they run on any
+# Linux of their CPU, glibc or musl (Alpine), with no C library version requirement.
 # Publishing is a separate, manual job: run the workflow by hand with "publish" checked. It uses npm
 # trusted publishing (GitHub OIDC, no stored token): the package's npm settings must name this
 # repository, this workflow file and the environment `npm`. Nothing is published otherwise.
@@ -32,40 +33,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The training compiles of the profile-guided build (scripts/pgo_build.sh): three benchmark
-  # projects of bench/projects.json, fetched at their pinned commits, and their compiler flags.
-  # Only release runs (Run workflow) build profile-guided; on pushes and pull requests the steps
-  # are skipped (the job itself always runs: a skipped job would skip the jobs after build).
-  # Never fails itself: without these inputs a publish run stops at the profile-guided build and
-  # any other run builds without a profile.
-  pgo-training:
-    name: PGO training inputs
+  # Inputs of the build jobs: three benchmark projects of bench/projects.json, fetched at their
+  # pinned commits (about 11 MB), and compiler flags for them: pgo-training/, the training
+  # compiles of the profile-guided build (scripts/pgo_build.sh), and platform-outputs/, the
+  # compiles that every platform's binary must turn into the same bytes
+  # (scripts/platform_outputs.py).
+  inputs:
+    name: benchmark inputs
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
-        if: github.event_name == 'workflow_dispatch'
-      - name: Fetch the training projects and write their compiler flags
-        if: github.event_name == 'workflow_dispatch'
-        continue-on-error: true
+      - name: Fetch the projects and write their compiler flags
         run: |
-          scripts/fetch_bench.sh --project d3-12 --project lodash-es --project three
+          for attempt in 1 2 3; do
+            scripts/fetch_bench.sh --project d3-12 --project lodash-es --project three && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 20))
+          done
           python3 scripts/run_bench.py --job '^(d3-12/.*/ADVANCED|lodash-es/.*|three/.*)$' \
             --write-args pgo-training
+          python3 scripts/run_bench.py --job '^(d3-12/.*|lodash-es/.*|three/.*)$' \
+            --write-args platform-outputs
       - uses: actions/upload-artifact@v7
-        if: github.event_name == 'workflow_dispatch'
-        continue-on-error: true
         with:
-          name: pgo-training
+          name: inputs
           path: |
             pgo-training/
+            platform-outputs/
             bench-cache/d3-12/
             bench-cache/lodash-es/
             bench-cache/three/
-          if-no-files-found: warn
+          if-no-files-found: error
 
   build:
     name: build (${{ matrix.platform }}-${{ matrix.arch }})
-    needs: [pgo-training]
+    needs: [inputs]
     strategy:
       fail-fast: false
       matrix:
@@ -77,6 +79,22 @@ jobs:
             exe: closure-rs
             target: x86_64-unknown-linux-musl
             out: target/x86_64-unknown-linux-musl/release
+          - os: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+            exe: closure-rs
+            target: aarch64-unknown-linux-musl
+            out: target/aarch64-unknown-linux-musl/release
+          - os: macos-15
+            platform: darwin
+            arch: arm64
+            exe: closure-rs
+            out: target/release
+          - os: macos-15-intel
+            platform: darwin
+            arch: x64
+            exe: closure-rs
+            out: target/release
           - os: windows-latest
             platform: win32
             arch: x64
@@ -86,22 +104,45 @@ jobs:
     env:
       # the shipped binary, tested by every step below
       BIN: bins/${{ matrix.platform }}-${{ matrix.arch }}/${{ matrix.exe }}
+      # macOS 11 (the first with Apple silicon) and later; Node.js 24 itself needs macOS 13.5
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
+      # zlib is compiled in from libz-sys' bundled sources on every platform (the Linux and Windows
+      # builds do so anyway), never the system's libz: the same zlib everywhere
+      LIBZ_SYS_STATIC: '1'
     steps:
+      # The files as committed (LF), also on Windows: the cross-platform comparison compiles some of
+      # them (bench/entries/) and needs the same input bytes everywhere
+      - name: No line-ending conversion
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v7
 
-      # rust-toolchain.toml pins the toolchain; rustup installs it on first use
+      # rust-toolchain.toml pins the toolchain; rustup installs it on first use (and rustup itself
+      # is installed where the runner image has none)
       - name: Rust toolchain
         shell: bash
-        run: rustup show active-toolchain || rustup toolchain install
+        run: |
+          if ! command -v rustup >/dev/null; then
+            curl -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none --profile minimal
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustup show active-toolchain || rustup toolchain install
 
       # musl-tools: musl-gcc, which the cc crate uses for the C code of the -sys crates (mimalloc,
-      # zlib); rustc links with the musl libc.a and crt objects of the Rust target itself
+      # zlib); rustc links with the musl libc.a and crt objects of the Rust target itself. The cc
+      # crate looks for aarch64-linux-musl-gcc on arm64, which Ubuntu does not have: CC_<target>
+      # names musl-gcc.
       - name: musl target
-        if: matrix.target == 'x86_64-unknown-linux-musl'
+        if: endsWith(matrix.target, '-linux-musl')
         shell: bash
         run: |
-          rustup target add x86_64-unknown-linux-musl
+          rustup target add ${{ matrix.target }}
           sudo apt-get update -q && sudo apt-get install -y -q musl-tools
+          t=${{ matrix.target }}
+          echo "CC_${t//-/_}=musl-gcc" >> "$GITHUB_ENV"
+          echo "AR_${t//-/_}=ar" >> "$GITHUB_ENV"
 
       - uses: Swatinem/rust-cache@v2
 
@@ -112,10 +153,8 @@ jobs:
         run: rustup component add llvm-tools || echo "::warning::rustup could not add llvm-tools"
 
       - uses: actions/download-artifact@v8
-        if: github.event_name == 'workflow_dispatch'
-        continue-on-error: true
         with:
-          name: pgo-training
+          name: inputs
           path: .
 
       # Profile-guided in release runs (about 8% less CPU time; the output is the same). Should any
@@ -139,13 +178,21 @@ jobs:
             cargo build --release --locked --bin closure-rs ${TARGET:+--target "$TARGET"}
           fi
 
-      # the release profile keeps debug info for the D2 runs; the shipped binary is stripped
+      # The release profile keeps debug info for the D2 runs; the shipped binary is stripped. On
+      # macOS stripping invalidates the linker's ad-hoc code signature, which Apple silicon
+      # requires to run a binary: it is signed again (ad hoc, as the linker does).
       - name: Stage the binary (bins/<platform>-<arch>/)
         shell: bash
         run: |
           mkdir -p bins/${{ matrix.platform }}-${{ matrix.arch }}
           cp ${{ matrix.out }}/${{ matrix.exe }} "$BIN"
-          if [ "${{ matrix.platform }}" = linux ]; then strip "$BIN"; fi
+          case "${{ matrix.platform }}" in
+            linux) strip "$BIN" ;;
+            darwin)
+              strip "$BIN"
+              codesign --force --sign - "$BIN"
+              codesign --verify --verbose "$BIN" ;;
+          esac
 
       - name: Static binary (no dynamic loader, no shared libraries)
         if: matrix.platform == 'linux'
@@ -153,6 +200,23 @@ jobs:
         run: |
           file "$BIN"
           file "$BIN" | grep -Eq 'statically linked|static-pie linked'
+          file "$BIN" | grep -q '${{ matrix.arch == 'arm64' && 'ARM aarch64' || 'x86-64' }}'
+
+      # Only libraries of macOS itself (/usr/lib, /System), and the deployment target set above
+      - name: macOS binary (system libraries, minimum macOS version)
+        if: matrix.platform == 'darwin'
+        shell: bash
+        run: |
+          file "$BIN"
+          file "$BIN" | grep -q '${{ matrix.arch == 'arm64' && 'arm64' || 'x86_64' }}'
+          otool -L "$BIN"
+          if otool -L "$BIN" | tail -n +2 | grep -Ev '^[[:space:]]+(/usr/lib/|/System/)'; then
+            echo "::error::the binary links a library outside macOS"; exit 1
+          fi
+          otool -L "$BIN" | grep -q libz && { echo "::error::the binary links the system zlib"; exit 1; }
+          minos=$(otool -l "$BIN" | awk '/LC_BUILD_VERSION/{f=1} f && $1=="minos"{print $2; exit}')
+          echo "minos $minos"
+          test "$minos" = "$MACOSX_DEPLOYMENT_TARGET"
 
       - name: Smoke test (ADVANCED compile)
         shell: bash
@@ -189,8 +253,21 @@ jobs:
           echo "$out"
           test "$out" = 'function a(b){return"Hello, "+b}window.greet=a;console.log(a("world"));'
 
+      # Every platform's binary must write the same bytes; the platform-outputs job compares them.
+      - name: Compiles for the cross-platform comparison
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then PY=python; else PY=python3; fi
+          "$PY" scripts/platform_outputs.py run --bin "$BIN" --args platform-outputs
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: outputs-${{ matrix.platform }}-${{ matrix.arch }}
+          path: build/platform-outputs/out/
+          if-no-files-found: error
+
       - name: Third-party crate licenses match Cargo.lock
-        if: matrix.platform == 'linux'
+        if: matrix.platform == 'linux' && matrix.arch == 'x64'
         shell: bash
         run: |
           cargo fetch --locked
@@ -218,8 +295,27 @@ jobs:
           path: bins/
           if-no-files-found: error
 
+  # The outputs of every platform's binary for the same compiles must be identical, byte for byte.
+  platform-outputs:
+    name: same output on every platform
+    needs: [build]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: outputs-*
+          path: outputs
+      - name: Compare
+        run: |
+          ls outputs
+          test "$(ls outputs | wc -l)" -eq 5
+          python3 scripts/platform_outputs.py compare outputs/outputs-linux-x64 \
+            outputs/outputs-linux-arm64 outputs/outputs-darwin-arm64 outputs/outputs-darwin-x64 \
+            outputs/outputs-win32-x64
+
   npm-main:
-    name: pack the npm package (both binaries)
+    name: pack the npm package (all binaries)
     needs: [build]
     runs-on: ubuntu-22.04
     steps:
@@ -307,7 +403,7 @@ jobs:
   publish:
     name: publish to npm (manual)
     if: github.event_name == 'workflow_dispatch' && inputs.publish
-    needs: [build, lint, test, npm-main]
+    needs: [build, platform-outputs, lint, test, npm-main]
     runs-on: ubuntu-22.04
     environment: npm
     permissions:
