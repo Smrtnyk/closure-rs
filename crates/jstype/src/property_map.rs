@@ -40,7 +40,6 @@
 //   src/com/google/javascript/rhino/jstype/PropertyMap.java.
 
 use std::{
-    collections::BTreeMap,
     collections::BTreeSet,
     sync::{Arc, Mutex},
 };
@@ -53,7 +52,7 @@ use crate::{
     object_type::ObjectType,
     property::{OwnedProperty, Property, PropertyId, PropertyKey},
 };
-use closure_rhino::{check_state, js_string::JsString, node::Ast};
+use closure_rhino::{check_state, fast_hash::IndexMap, js_string::JsString, node::Ast};
 
 #[derive(Debug, Default)]
 struct KeyCache {
@@ -62,13 +61,54 @@ struct KeyCache {
     symbol_keys: Option<Arc<Vec<TypeId>>>,
 }
 
+/// Rust-only (D-025): Java's `TreeMap<String, Property>` of a property map, kept as a hash map
+/// since lookups by name (by the string's cached hash) are far more frequent than walks in key
+/// order. It offers no walk in any other order: `sorted_values` and `key_set` give Java's.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PropertyTable(IndexMap<JsString, PropertyId>);
+
+impl PropertyTable {
+    pub(crate) fn get(&self, name: &JsString) -> Option<PropertyId> {
+        self.0.get(name).copied()
+    }
+    pub(crate) fn contains_key(&self, name: &JsString) -> bool {
+        self.0.contains_key(name)
+    }
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+    fn insert(&mut self, name: JsString, prop: PropertyId) {
+        self.0.insert(name, prop);
+    }
+    /// The values in key order.
+    fn sorted_values(&self) -> Vec<PropertyId> {
+        let mut entries: Vec<(&JsString, PropertyId)> =
+            self.0.iter().map(|(k, v)| (k, *v)).collect();
+        entries.sort_unstable_by(|a, b| a.0.cmp(b.0));
+        entries.into_iter().map(|(_, v)| v).collect()
+    }
+    /// The keys, sorted.
+    fn key_set(&self) -> BTreeSet<JsString> {
+        self.0.keys().cloned().collect()
+    }
+    /// The sum of the keys' hash codes (Java `AbstractSet#hashCode`, order-free).
+    fn key_hash_sum(&self) -> i32 {
+        self.0
+            .keys()
+            .fold(0_i32, |hash, key| hash.wrapping_add(key.hash_code()))
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct PropertyMap {
     pub(crate) parent_source: Option<TypeId>,
     // Java's PropertyMap is a reference type; callers here clone it to release the registry
     // borrow. The maps are shared copy-on-write (Arc::make_mut in put_property_raw) so a clone
-    // is O(1) instead of a deep BTreeMap copy; the snapshot semantics are unchanged.
-    pub(crate) properties: Arc<BTreeMap<JsString, PropertyId>>,
+    // is O(1) instead of a deep copy; the snapshot semantics are unchanged.
+    pub(crate) properties: Arc<PropertyTable>,
     pub(crate) known_symbols: Option<Arc<Vec<(TypeId, PropertyId)>>>,
     cache: Arc<Mutex<KeyCache>>,
     immutable_empty: bool,
@@ -103,11 +143,11 @@ impl AllKeys {
 impl PropertyMap {
     // port: PropertyMap#PropertyMap
     pub fn new() -> Self {
-        Self::from_maps(Arc::new(BTreeMap::new()), None, false)
+        Self::from_maps(Arc::new(PropertyTable::default()), None, false)
     }
     // port: PropertyMap#PropertyMap
     fn from_maps(
-        properties: Arc<BTreeMap<JsString, PropertyId>>,
+        properties: Arc<PropertyTable>,
         known_symbols: Option<Arc<Vec<(TypeId, PropertyId)>>>,
         immutable_empty: bool,
     ) -> Self {
@@ -123,7 +163,11 @@ impl PropertyMap {
     pub fn immutable_empty_map() -> &'static Self {
         static EMPTY: std::sync::OnceLock<PropertyMap> = std::sync::OnceLock::new();
         EMPTY.get_or_init(|| {
-            Self::from_maps(Arc::new(BTreeMap::new()), Some(Arc::new(Vec::new())), true)
+            Self::from_maps(
+                Arc::new(PropertyTable::default()),
+                Some(Arc::new(Vec::new())),
+                true,
+            )
         })
     }
     // port: PropertyMap#setParentSource
@@ -237,7 +281,7 @@ impl PropertyMap {
         let map = t.get_property_map(reg);
         let parent_source = map.parent_source;
         match name {
-            PropertyKey::String(n) => (map.properties.get(n).copied(), parent_source),
+            PropertyKey::String(n) => (map.properties.get(n), parent_source),
             PropertyKey::Symbol(_) => {
                 let map = map.clone();
                 (map.get_own_property(reg, ast, name), parent_source)
@@ -252,7 +296,7 @@ impl PropertyMap {
         name: &PropertyKey,
     ) -> Option<PropertyId> {
         match name {
-            PropertyKey::String(n) => self.properties.get(n).copied(),
+            PropertyKey::String(n) => self.properties.get(n),
             PropertyKey::Symbol(s) => self.known_symbols.as_ref().and_then(|items| {
                 items
                     .iter()
@@ -273,7 +317,7 @@ impl PropertyMap {
     }
     // port: PropertyMap#getOwnPropertyNames
     pub fn get_own_property_names(&self) -> BTreeSet<JsString> {
-        self.properties.keys().cloned().collect()
+        self.properties.key_set()
     }
     // port: PropertyMap#getOwnKnownSymbols
     pub fn get_own_known_symbols(&self) -> Vec<TypeId> {
@@ -398,14 +442,11 @@ impl PropertyMap {
     }
     // port: PropertyMap#values
     pub fn values(&self) -> Vec<PropertyId> {
-        self.properties.values().copied().collect()
+        self.properties.sorted_values()
     }
     // port: PropertyMap#hashCode
     pub fn hash_code(&self, reg: &JSTypeRegistry) -> i32 {
-        let strings = self
-            .properties
-            .keys()
-            .fold(0_i32, |hash, key| hash.wrapping_add(key.hash_code()));
+        let strings = self.properties.key_hash_sum();
         match &self.known_symbols {
             None => strings,
             Some(symbols) => {

@@ -226,7 +226,6 @@ impl InferJSDocInfo {
 
         let lhs_jstype = n.get_first_child(compiler).unwrap().get_jstype(compiler);
         let prop_name = n.get_string(compiler);
-        let q_name = n.get_qualified_name(compiler);
         let (reg, ast) = compiler.get_type_registry_and_ast();
         let Some(lhs_type) = Self::dereferenced(reg, ast, lhs_jstype) else {
             return;
@@ -249,6 +248,8 @@ impl InferJSDocInfo {
         let prop_jstype = lhs_type.get_property_type(reg, ast, prop_name);
         let prop_type = Self::dereferenced(reg, ast, Some(prop_jstype));
         if Self::should_attach_jsdoc_to_nominal_type_or_shape(reg, ast, prop_type, aliased_type) {
+            // Rust-only: Java computes the qualified name up front; it is only used here.
+            let q_name = n.get_qualified_name(ast);
             Self::attach_jsdoc_info_to_nominal_type_or_shape(
                 reg,
                 prop_type.unwrap(),

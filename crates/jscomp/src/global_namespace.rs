@@ -1519,11 +1519,10 @@ impl<'g> BuildGlobalNamespace<'g> {
             }
             prefix = name.substring(0, i as usize);
             num_levels_to_remove = 2;
-            let dot = JsString::from(".");
-            i = name.index_of_from(&dot, i + 11);
+            i = name.index_of_from(".", i + 11);
             while i >= 0 {
                 num_levels_to_remove += 1;
-                i = name.index_of_from(&dot, i + 1);
+                i = name.index_of_from(".", i + 1);
             }
         }
 

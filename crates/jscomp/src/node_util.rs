@@ -1926,7 +1926,8 @@ impl NodeUtil {
     }
     // port: NodeUtil#isInSyntheticScript
     pub fn is_in_synthetic_script(ast: &Ast, n: NodeId) -> bool {
-        n.get_source_file_name(ast).is_some_and(|source_file_name| {
+        n.get_static_source_file_ref(ast).is_some_and(|file| {
+            let source_file_name = file.get_name();
             source_file_name.starts_with(" [synthetic:")
                 || source_file_name.starts_with(AbstractCompiler::RUNTIME_LIB_DIR)
         })

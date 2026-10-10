@@ -415,6 +415,29 @@ here (one line each) to ease upstream syncs.
 - `jscomp/syntactic_scope_creator.rs` `ScopeScanner::scan_script`: a new global scope takes the
   top-level declarations of each unchanged script (the externs, mostly) from the scope cache and
   makes them again through `declareVar`, instead of walking the script's statements.
+- `rhino/node.rs` `Ast::jsdocs`: a dense per-node copy of the JSDOC_INFO item of the property
+  list, kept by `Ast::set_props`, so that `getJSDocInfo` reads one array instead of the node and
+  its list; `getStaticSourceFile`, `isFromExterns` read the SOURCE_FILE item by reference.
+- `rhino/js_string.rs`: an ASCII `&str` becomes a JS string in one exact-size allocation, the
+  empty string (`""`, `Default`) is the string pool's entry (copied without a reference count,
+  so parser threads do not contend for it), and `hashCode` is summed four code units per step
+  (the same value as Java's loop).
+- `rhino/node.rs` `getQualifiedName`: a GETPROP name is assembled in a per-thread buffer and
+  copied into its string once; `jstype/equality_checker.rs` `areEqualInternal` copies the template
+  type maps only when the left one has keys (`js_type::template_type_map_ref`).
+- `jscomp/parallel_parse.rs`: a parse worker keeps one unshared parser configuration for all
+  the inputs it parses (instead of one per input).
+- `jstype/property_map.rs` `PropertyTable`: the properties are a hash map (Java: `TreeMap`) for
+  lookups by name, whose only walks are in key order (`values` sorts, `getOwnPropertyNames`
+  returns a sorted set), as Java's.
+- `jscomp/var_map.rs` (`AbstractScope#vars`): a scope keeps up to two declared names in itself,
+  compared by cached hash, and moves to an insertion-ordered hash map beyond that (Java:
+  `LinkedHashMap`), so a lookup through the scope chain reads no hash table for small scopes.
+- `jscomp/code_printer.rs` `startSourceMapping`, `compiler_license_tracker.rs`,
+  `node_util.rs` `isInSyntheticScript`: the source file name is read in place instead of being
+  copied for every printed node.
+- `jscomp/infer_js_doc_info.rs` `inferJSDocForProperty`: the qualified name is computed only when
+  the JSDoc is attached to the property's type, its only use (Java computes it first).
 
 ## D-026 — Upstream syncs follow npm releases
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**

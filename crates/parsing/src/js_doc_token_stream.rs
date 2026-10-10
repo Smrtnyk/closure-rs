@@ -290,7 +290,7 @@ impl JsDocTokenStream {
 
     // port: JsDocTokenStream#getStringFromBuffer
     fn get_string_from_buffer(&self) -> JsString {
-        JsString::from_units(self.string_buffer[0..self.string_buffer_top].to_vec())
+        JsString::from_slice(&self.string_buffer[0..self.string_buffer_top])
     }
 
     // port: JsDocTokenStream#addToString

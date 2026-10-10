@@ -63,13 +63,15 @@ impl LicenseTracker for SeenSetLicenseTracker {
         if !self.should_use_license_info(ast, node) {
             return;
         }
-        let Some(file) = node.get_source_file_name(ast) else {
+        let Some(file) = node.get_static_source_file_ref(ast) else {
             return;
         };
         let mut state = self.state.lock().unwrap();
-        if file == state.last_seen_file {
+        // The name is copied only when it changes (most nodes are in the last seen file).
+        if file.get_name() == state.last_seen_file {
             return;
         }
+        let file: String = file.get_name().into();
         state.last_seen_file = file.clone();
         let Some(license) = license_for_file(ast, &self.scripts, &file) else {
             return;
@@ -193,13 +195,15 @@ impl LicenseTracker for ChunkGraphAwareLicenseTracker {
         if node.is_root(ast) || node.is_script(ast) {
             return;
         }
-        let Some(source_file) = node.get_source_file_name(ast) else {
+        let Some(source_file) = node.get_static_source_file_ref(ast) else {
             return;
         };
         let mut state = self.state.lock().unwrap();
-        if state.last_seen_file == source_file {
+        // The name is copied only when it changes (most nodes are in the last seen file).
+        if state.last_seen_file == source_file.get_name() {
             return;
         }
+        let source_file: String = source_file.get_name().into();
         state.last_seen_file = source_file.clone();
         if !state.have_initialized_current_chunk_licenses {
             for dep in state.current_chunk.as_ref().unwrap().get_all_dependencies() {

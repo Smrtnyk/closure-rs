@@ -2810,3 +2810,19 @@ impl JSType for TypeId {
         self.to_object_type(reg)
     }
 }
+
+// port: JSType#getTemplateTypeMap
+/// Rust-only: `getTemplateTypeMap` by reference, for reads that need no copy of the map (no
+/// reference-count traffic).
+pub(crate) fn template_type_map_ref(t: TypeId, reg: &JSTypeRegistry) -> &TemplateTypeMap {
+    use crate::proxy_object_type::ProxyObjectType;
+    let mut t = t;
+    loop {
+        match &reg.data(t).kind {
+            JSTypeKind::Named(_) | JSTypeKind::ProxyObject(_) | JSTypeKind::Template(_) => {
+                t = t.get_referenced_type_internal(reg);
+            }
+            _ => return &reg.data(t).template_type_map,
+        }
+    }
+}
