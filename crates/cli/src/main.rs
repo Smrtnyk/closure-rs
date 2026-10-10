@@ -32,13 +32,24 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 // profile of an instrumented build (scripts/pgo_build.sh) is written by one of them.
 fn main() -> std::process::ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let mut runner = match CommandLineRunner::new_system(&args) {
+    // Rust-only (D-025): the whole run happens on one thread of the compiler's stack size, so
+    // that the compiler's stages run in place instead of each on a thread of its own.
+    let code = closure_jscomp::compiler_executor::CompilerExecutor::run_process_on_compiler_thread(
+        move || run(&args),
+    );
+    // SystemExitCodeReceiver::apply gives 0..=255
+    std::process::ExitCode::from(SystemExitCodeReceiver::apply(code) as u8)
+}
+
+/// The body of `CommandLineRunner#main` up to `System.exit`: the exit code.
+fn run(args: &[String]) -> i32 {
+    let mut runner = match CommandLineRunner::new_system(args) {
         Ok(runner) => runner,
         Err(error) => {
             eprintln!(
                 "Exception in thread \"main\" com.google.javascript.jscomp.FlagUsageException: {error}\n\tat com.google.javascript.jscomp.CommandLineRunner.initConfigFromFlags(CommandLineRunner.java:1657)\n\tat com.google.javascript.jscomp.CommandLineRunner.<init>(CommandLineRunner.java:1479)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2254)"
             );
-            return std::process::ExitCode::from(1);
+            return 1;
         }
     };
     let mut code = 0;
@@ -53,6 +64,5 @@ fn main() -> std::process::ExitCode {
     let _ = runner.base.err.flush();
     // Like process::exit, skip freeing the compiler's whole state just before the process ends.
     std::mem::forget(runner);
-    // SystemExitCodeReceiver::apply gives 0..=255
-    std::process::ExitCode::from(SystemExitCodeReceiver::apply(code) as u8)
+    code
 }
