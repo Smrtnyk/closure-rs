@@ -34,12 +34,12 @@ fixture replay.
 
 The Java tests of this package are ported in `tests/`; the 19 compiler-dependent
 SourceMapGeneratorV3Test methods are in `crates/jscomp/tests/source_map_generator_v3_test.rs`.
-A further ordinary Rust test replays the committed JVM fixtures.
+`tests/sourcemap_diff_test.rs` replays the committed JVM fixtures (`tests/fixtures/`) without a JVM.
 
-The Java driver that produced the reference outputs (`SourcemapDiffDriver.java`) is not in the
-repository; it lived in the untracked `build/` directory of the checkout it ran in, next to its
-deterministic input requests (cached as `.ndjson`); random scripts use seed 20261007. Its JSONL outputs are under
-`corpus-cache/sourcemap/` of the main checkout.
+The Java driver that produced the reference outputs (`SourcemapDiffDriver.java`) and its
+deterministic input requests (`.ndjson`; random scripts use seed 20261007) are not in the
+repository. Its JSONL outputs are cached under `corpus-cache/sourcemap/` of the main checkout
+(not tracked).
 
 The driver runs against the pinned reference jar with `-Xmx768m` and
 `-XX:-OmitStackTraceInFastThrow`. The latter keeps runtime exception messages
@@ -50,7 +50,7 @@ Replay all reference outputs:
 
 ```sh
 source scripts/paths.sh   # ROOT: the main checkout
-CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=2 cargo run -p closure-sourcemap \
+cargo run -p closure-sourcemap \
   --example sourcemap_diff -- \
   "$ROOT"/corpus-cache/sourcemap/*.jsonl
 ```

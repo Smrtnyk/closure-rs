@@ -10,14 +10,13 @@ Each record is self-contained (no cross-record references).
 **Strings.** JSON strings hold UTF-16 strings (JS and Java semantics). A paired surrogate is
 written as its 4-byte UTF-8 character. A lone surrogate, which UTF-8 cannot encode, is written as a
 `\uXXXX` escape (lowercase hex). Readers must decode JSON strings into WTF-16 (for example a
-`Vec<u16>`), not into UTF-8 strings, or lone surrogates are lost (§8). Format v1 files replaced
-lone surrogates by `?`; v2 fixed that by re-recording.
+`Vec<u16>`), not into UTF-8 strings, or lone surrogates are lost (docs/PORTING.md §8).
 
 **Determinism.** Records are written in test execution order. `harness.overrides` is sorted by
 `method` then `declaredIn`, and lambda class names drop their run-dependent address
 (`Foo$$Lambda/0x…` is written `Foo$$Lambda`). Known residue: generic `object` dumps of hash-based
 internals (for example a `LinkedHashMultimap` in `options.customPasses`, or JSType maps in
-`testFields`) can still differ between runs (30 of 24,768 records in the v2 re-record check).
+`testFields`) can differ between runs of the recording.
 
 ## Top-level fields
 
@@ -327,7 +326,9 @@ A counted record with status `classDiffers` and nothing compared is unverified u
 its descriptor carries a non-blank `processorIdentityNote` (top level or in a case) that justifies the
 substitution (for example "the recorded processor is the test's anonymous wrapper $1 with no fields;
 the replayed PeepholeOptimizationsPass is the pass its process() builds"). Unjustified ones fail (a);
-the report lists every status count and the unjustified records per class.
+the report lists every status count and the unjustified records per class. This leaf comparison is
+an additional check: processor identity itself is verified by the pass trace ("passTrace",
+D-017 item 8).
 
 ## Post-call state: neutral equality
 Java replay compares the post-call dumps by exact JSON equality, which includes Java/Guava container
@@ -462,13 +463,12 @@ Node positions in these two producers are strings `"<Token> <source file name>:<
 number is `String.valueOf(Node.getDouble())`. Both are computed by `UnitRecorder.postCallSnapshot` on
 the recording and the replay side alike.
 
-The set was chosen by mining the 1,095 methods the static post-call audit flagged (the assertion
-arguments after the first hooked call) together with the `testFieldsAfter` keys of the v4 corpus;
-the most frequent remaining targets are `TypedScope`s (already in `testFieldsAfter` as
-`typedScope`), test-field collections (`cssNames`, `noSideEffectCalls`,
-`lastCheckViolationMessages`, already in `testFieldsAfter`) and Java objects of the output AST
-(`JSType`, `JSDocInfo`, `Color`, `Node` lookups), which are Rust-unit-test material. The
-named-anonymous-function map has no producer in this Closure revision (no
+The keys cover the state that the methods flagged by the static post-call audit assert on (the
+assertion arguments after the first hooked call). Post-call targets outside this set are
+`TypedScope`s (already in `testFieldsAfter` as `typedScope`), test-field collections (`cssNames`,
+`noSideEffectCalls`, `lastCheckViolationMessages`, already in `testFieldsAfter`) and Java objects
+of the output AST (`JSType`, `JSDocInfo`, `Color`, `Node` lookups), which are Rust-unit-test
+material. The named-anonymous-function map has no producer at the reference release (no
 `NameAnonymousFunctionsMapped`); define values are not exposed by `ProcessDefines` through an
 accessor (ProcessDefinesTest asserts through `GlobalNamespace`, a Java-internal graph).
 
@@ -668,6 +668,6 @@ lies inside the argument list of a hooked call (or hooked helper call), after a 
 in that argument list, in a method whose recorded calls ran postconditions
 (`expected.postconditions > 0`) or in a non-@Test helper of a class that has such methods. Such an
 assertion runs inside the call as (or from) a Postcondition; the postcondition-count rule and
-gate (e) govern it. The rule takes 75 methods out of post-call classification
-(ExternExportsPassTest 65, PureFunctionIdentifierTest 9, PolymerPassTest 1). In-call lambdas that are not postconditions (ReferenceCollectorTest's
+gate (e) govern it. The rule takes methods of ExternExportsPassTest, PureFunctionIdentifierTest
+and PolymerPassTest out of post-call classification. In-call lambdas that are not postconditions (ReferenceCollectorTest's
 Behavior callbacks, no postconditions recorded) stay under post-call classification.

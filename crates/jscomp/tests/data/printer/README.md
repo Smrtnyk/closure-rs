@@ -5,7 +5,7 @@ loader rebuilds the same AST, metadata, comments and JSDocInfo; the test compare
 units, source-map JSON and collected licenses exactly. Every dumped NumberNode is also checked
 against Java's `double_closure` result. Java rejection is checked by exception class and message.
 
-There are 120 fixtures (1,134,443 compressed bytes): 95 corpus inputs and 25 supplemental probes.
+There are 120 fixtures: 95 corpus inputs and 25 supplemental probes.
 They run 4,680 configuration comparisons, including 833 source-map JSON comparisons and 375
 individual number checks. The UNDEFINED_TYPE probe accounts for 39 expected rejection results:
 the reference CodeGenerator has no printing arm for this token.
@@ -33,9 +33,9 @@ line-cut/map-disabled behavior, UTF-16 source-map filenames/contents/wrapper pre
 generator virtual dispatch.
 Hand-built ASTs add declared types, generic parameters, optional parameters, interface members,
 index/call/construct signatures, class implements/extends, enum, namespace, declare, type aliases,
-CAST and closure-unaware shadows. ACCESS_MODIFIER fixtures remain blocked because rhino Visibility
-has no Display implementation required by OpaqueProp. Node subclass preconditions remain blocked
-because rhino has no plain-node/NodeKind accessor.
+CAST and closure-unaware shadows. Not covered: ACCESS_MODIFIER nodes (rhino's Visibility has no
+Display implementation, which the dump's OpaqueProp needs) and Node subclass preconditions (rhino
+has no plain-node/NodeKind accessor).
 
 Non-JSDoc comments retain UTF-16 text, source positions and inline/line-comment flags. The JSDoc
 loader reconstructs all public bean fields through JSDocInfo.Builder and checks every dumped
@@ -50,7 +50,6 @@ gitignored `build/` directory). The larger golden cache is under `corpus-cache/p
 main checkout. Run the full sweep with:
 
 ```sh
-export CARGO_BUILD_JOBS=2 CARGO_NET_OFFLINE=true
 source scripts/paths.sh   # ROOT: the main checkout
 CLOSURE_RS_PRINTER_DIFF_DIR="$ROOT/corpus-cache/printer/sweep" \
   cargo test -p closure-jscomp --test code_printer_diff_test -- --nocapture

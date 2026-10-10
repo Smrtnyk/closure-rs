@@ -1,9 +1,9 @@
 # D2 differential runner and ratchet (`gates/d2_rust.py`, `gates/full.sh`)
 
 A change is checked for two things (docs/PORTING.md §7): CI passes, and no previously passing D2
-pair regresses. `gates/d2_rust.py` runs a Rust CLI on the D2 corpus, compares it with the
-golden Java results byte for byte, and writes a report and `ratchet.json`. `gates/full.sh`
-runs CI, then the D2 runner, then the unit-record runner hook.
+pair or unit record regresses. `gates/d2_rust.py` runs a Rust CLI on the D2 corpus, compares it
+with the golden Java results byte for byte, and writes a report and `ratchet.json`.
+`gates/full.sh` runs CI, then the D2 runner and the unit-record ratchet.
 
 ## Running
 
@@ -13,6 +13,7 @@ python3 gates/d2_rust.py run --bin BIN --profile ws --profile pretty          # 
 python3 gates/d2_rust.py run --bin BIN --source test262 --case-regex 'arrow' --keep-failing
 python3 gates/d2_rust.py run --bin BIN --sample 200 --seed 3                  # stratified sample
 python3 gates/d2_rust.py run --bin BIN --baseline gates/d2_ratchet.json       # + ratchet check
+python3 gates/d2_rust.py run --bin BIN --only-passing gates/d2_ratchet.json  # only the baseline's passing pairs
 python3 gates/d2_rust.py check --baseline OLD/ratchet.json --current NEW/ratchet.json
 python3 gates/d2_rust.py selftest
 ```
@@ -23,8 +24,9 @@ checkout; `build/` is gitignored), `--data-root DIR` (default below), `--keep-fa
 output files, stdout, stderr and argv of failing pairs in `<out>/failing/<case>/<profile>/`).
 Filters: `--profile` and `--source` (repeatable), `--case-regex`, `--sample N --seed K`
 (deterministic, stratified by profile x source x "has --module_resolution /
---process_common_js_modules", at least one pair per stratum), `--limit N`. A run without a
-filter is *complete*.
+--process_common_js_modules", at least one pair per stratum), `--limit N`,
+`--only-passing RATCHET` (only the pairs that ratchet lists as passing; such a run's
+`ratchet.json` must not become a baseline). A run without a filter is *complete*.
 
 Exit codes: 0 = the run completed (any pass rate) and, with `--baseline`, no regression;
 1 = ratchet regression; 2 = harness error (golden file missing, argv differs from the golden
@@ -32,14 +34,14 @@ Exit codes: 0 = the run completed (any pass rate) and, with `--baseline`, no reg
 
 ## What is compared
 
-Pairs: every case of `corpus/d2/cases.jsonl` (the final corpus, 2,085 cases) x
-`case_args.case_profiles(case)` = 21,155 pairs. For each pair:
+Pairs: every case of `corpus/d2/cases.jsonl` (the final corpus) x
+`case_args.case_profiles(case)` (`gates/lib/case_args.py`). For each pair:
 
 - argv = `case_args.compiler_args(case, profile)` with the default out_dir
   `build/golden-tmp/<case>/<profile>`, exactly the golden argv (checked against the golden
   file's `compiler_args`); the binary is run as `BIN <argv...>`;
-- env = `run_reference.child_env()` (fixed), stdin `/dev/null`, own session; on timeout the
-  whole process group is killed;
+- env = `child_env()` of `gates/lib/run_reference.py` (fixed), stdin `/dev/null`, own session;
+  on timeout the whole process group is killed;
 - the out_dir is created empty before the run and removed afterwards;
 - compared with `corpus-cache/d2/_golden/$REF_GOLDEN_TAG/<case>/<profile>.json` (`ref-<first 8
   hex digits of the reference jar's sha256>`: `ref-cfa8886f` for `v20261006`; the store of
@@ -98,24 +100,26 @@ count went down **or** any pair that passed in OLD does not pass in NEW (listed)
 one place cannot hide a loss in another. A pair that passed in OLD but is no longer in the
 corpus is reported, not counted as a regression. Ratchets with a different golden tag or a
 different filter (e.g. a sample vs a complete run) are not comparable (exit 2). The deltas per
-profile are printed in every case.
+profile are printed in every case. After a reference change (a new golden tag),
+`check --rebase` compares the two ratchets pair by pair and fails on any previously passing pair
+that no longer passes.
 
 ## `gates/full.sh [checkout] [--bin PATH] [--baseline PATH] [-- extra run args]`
 
 1. `gates/ci.sh <checkout>`.
 2. D2 runner on the complete corpus. Binary: `--bin`, else `$CLOSURE_RS_BIN`, else the bin
-   target of a package under `crates/` (`closure-rs`, the CLI's binary, if there are several,
-   else `closure-compiler`; built with `cargo build --release` into `$CARGO_TARGET_DIR` or
-   `target/`). With no binary it prints
-   `D2: SKIP (no Rust CLI binary yet)`, which fails only if the baseline has passing pairs.
+   target `closure-rs`, built with `cargo build --release` into `$CARGO_TARGET_DIR` or
+   `target/`. Without a binary it prints `D2: SKIP`, which fails if the baseline has passing
+   pairs.
    Baseline: `--baseline`, else `$D2_BASELINE`, else `<checkout>/gates/d2_ratchet.json` if
    that file exists (the committed baseline, see "Ratchet baselines" below). A ratchet
    regression fails the gate.
    With `D2_GATE_MODE=passing` it runs only the pairs the baseline lists as passing
    (`run --only-passing BASELINE`): a quicker regression check whose `ratchet.json` must not be
    used as a new baseline.
-3. Unit-record runner hook: `<checkout>/gates/unit_rust.sh <checkout>` if it exists and is
-   executable, else `UNIT: SKIP (unit-record runner not added yet)`. See "Unit-record ratchet".
+3. Unit-record ratchet: `<checkout>/gates/unit_rust.sh <checkout>` (see "Unit-record ratchet").
+   It runs concurrently with the D2 runner and its output is printed afterwards;
+   `FULL_SERIAL=1` runs it after the D2 runner instead.
 
 Prints `FULL PASS` or `FULL FAIL`; exit 0 only if every step passed.
 
@@ -159,9 +163,10 @@ run's `ratchet.json` to `gates/d2_ratchet.json` and run `gates/unit_rust.sh <che
 - `gates/lib/d2_rust_fake_java.py`, a "CLI" that execs the pinned Java reference jar with the
   golden JVM flags, on a stratified sample (at least 2 pairs per (profile, source), including
   module-resolution cases, chunk and source-map profiles), run with `--jobs 1` (one -Xmx3g JVM
-  at a time): must pass 100%. The complete corpus would take ~15 JVM-hours.
+  at a time): must pass 100%. `--java-sample` sets the sample size (default 110); the complete
+  corpus would take many JVM-hours.
 - `gates/lib/d2_rust_fake_empty.py` (prints nothing, exits 0) on the complete corpus: must
-  pass 0 of 21,155.
+  pass no pair.
 - Ratchet checks on those results: itself = OK, empty -> java = OK, java -> empty =
   regression, sample vs complete = not comparable.
 

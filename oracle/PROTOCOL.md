@@ -1,14 +1,15 @@
 # Oracle protocol (docs/PORTING.md §4.1)
 
-The oracle is a Java program that uses the pinned reference uberjar
-`build/reference/closure-compiler.jar` **as a library**. The reference `src/` is never
-modified.
+The oracle is a Java program that uses the pinned reference uberjar `$REF_JAR`
+(`build/reference-v20261006/closure-compiler.jar` for the default reference; `scripts/paths.sh`,
+`oracle/REFERENCE.md`) **as a library**. The reference `src/` is never modified.
 
 ## Building and running
 
 ```bash
-oracle/build.sh        # javac (JDK 21, --release 21) against the reference jar -> build/oracle/oracle.jar
-CP=build/oracle/oracle.jar:build/reference/closure-compiler.jar
+. scripts/paths.sh     # REF_JAR, ORACLE_JAR of the reference ($CLOSURE_RS_REF, default v20261006)
+oracle/build.sh        # javac (JDK 21, --release 21) against $REF_JAR -> $ORACLE_JAR
+CP=$ORACLE_JAR:$REF_JAR
 GENV=(env -i PATH=/usr/bin:/bin HOME="$HOME" LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC)   # golden environment, required (see "Environment")
 "${GENV[@]}" tools/jdk-21/bin/java -cp $CP closurers.oracle.Main compile ARGV...    # behaves like: java -jar closure-compiler.jar ARGV...
 "${GENV[@]}" tools/jdk-21/bin/java -cp $CP closurers.oracle.Main request < req.json  # one JSON request -> one JSON response line
@@ -31,13 +32,13 @@ ground truth **only** when it runs in the same environment as the golden runs:
 - Closure formats the summary line with `String.format` and the JVM default (FORMAT) locale:
   `"%d error(s), %d warning(s), %.1f%% typed%n"` (PrintStreamErrorManager.java:72,
   PrintStreamErrorReportGenerator.java:64). Under `LANG=de_DE.UTF-8` the line reads
-  `86,7% typed`; under `C.UTF-8` it reads `86.7% typed`. Thousands of D2 golden results
-  contain such a line, all with `.`.
+  `86,7% typed`; under `C.UTF-8` it reads `86.7% typed`. Many D2 golden results contain such a
+  line, all with `.`.
 - `stdout.encoding` and `stderr.encoding` (and `sun.jnu.encoding` for file names) come from
   `LANG`/`LC_ALL`; they decide how non-ASCII diagnostics are written.
 
-**The golden environment** is `gates/lib/run_reference.child_env()` (identical to
-`oracle_client.golden_env()`): nothing inherited, `PATH=/usr/bin:/bin`, `HOME`,
+**The golden environment** is `child_env()` in `gates/lib/run_reference.py` (identical to
+`golden_env()` in `oracle/oracle_client.py`): nothing inherited, `PATH=/usr/bin:/bin`, `HOME`,
 `LANG=C.UTF-8`, `LC_ALL=C.UTF-8`, `TZ=UTC`. Every golden result records it in `env`.
 
 **The rule.** Start every oracle JVM (`server`, `request`, `compile`) with exactly that
@@ -162,10 +163,10 @@ synthetic `$strong$`/`$weak$` chunks and fill files (`<chunk>$fillFile`). Both a
 compiler was created. The seam needs them: see `optimize_from_typedast` and "Seam caveats".
 
 **Inline files.** `{"files":{"relpath":"content",...}}` writes each file to
-`build/oracle/tmp/inline-<pid>-<n>/relpath` (`tmp/` next to the oracle jar). The request then
-runs in a child JVM (`Main request`) whose cwd is that directory, so relative paths in `args`
-and in the output mean the same as for `java -jar` run in that directory. The response adds
-`"inline_dir"`.
+`tmp/inline-<pid>-<n>/relpath` next to the oracle jar (`build/oracle-v20261006/tmp/` for the
+default reference). The request then runs in a child JVM (`Main request`) whose cwd is that
+directory, so relative paths in `args` and in the output mean the same as for `java -jar` run in
+that directory. The response adds `"inline_dir"`.
 This costs one fresh JVM per request.
 
 ### `compile_with_pass_dumps`
@@ -216,8 +217,8 @@ is part of the argv that runs, so stdout and exit code are those of that argv.
 ```
 
 The oracle runs `args + ["--checks_only", "--typed_ast_output_file=build/oracle/tmp/reqNNN.typedast.gz"]`
-and returns the file's bytes: a gzipped `TypedAst.List` holding one `TypedAst`. Then it deletes
-the file.
+(the path is relative to the server's cwd, the repository root) and returns the file's bytes: a
+gzipped `TypedAst.List` holding one `TypedAst`. Then it deletes the file.
 
 Why these flags:
 - `DefaultPassConfig.getChecks()` (DefaultPassConfig.java:473) adds `serializeTypedAst`

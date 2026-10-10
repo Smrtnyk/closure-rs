@@ -56,7 +56,7 @@ disagree, fix the code.
 
 ```rust
 pub struct NodeId(NonZeroU32);   // Copy, Eq, Hash, Ord. Java `Node n` -> `n: NodeId`
-pub struct Ast { /* Vec<NodeData>, never shrinks */ }   // owns every node of one compilation
+pub struct Ast { /* dense per-node arrays, never shrink */ }   // owns every node of one compilation
 ```
 
 - Java object identity is `NodeId` equality: `n == m` means the same node. `@Nullable Node` is
@@ -75,13 +75,14 @@ pub struct Ast { /* Vec<NodeData>, never shrinks */ }   // owns every node of on
 - `IR` is a unit struct with associated functions taking the arena: `IR.name("x")` ->
   `IR::name(ast, "x")`, `IR.call(target, args...)` -> `IR::call(ast, target, &[args])`
   (Java varargs become slices).
-- Node storage mirrors Java's fields: token, parent, first, next, previous (circular: the first
-  child's `previous` is the last child, the last child's `next` is `None`, exactly as Java),
+- A node has Java's fields: token, parent, first, next, previous (circular: the first child's
+  `previous` is the last child, the last child's `next` is `None`, exactly as Java),
   `lineno_charno`, `length`, `jstype_or_color`, `original_name`, `prop_list_head`, and the
   subclass payload (`NumberNode.number: f64`, `BigIntNode.bigint: Arc<BigInt>`,
-  `StringNode.str: JsString`, `TemplateLiteralSubstringNode.{cooked, raw}`). The Java
-  subclass is a `NodeKind` enum inside the node data; `getDouble()` on a non-number node panics
-  like Java's `ClassCastException`.
+  `StringNode.str: JsString`, `TemplateLiteralSubstringNode.{cooked, raw}`). They are stored in
+  parallel dense arrays indexed by `NodeId` (`NodeLinks`, `NodeData`, `NodeCold`, `NodeType`;
+  D-025), not in one object. The Java subclass is a `NodeKind` enum inside the node data;
+  `getDouble()` on a non-number node panics like Java's `ClassCastException`.
 - BigInteger is immutable; its node payload uses `Arc<BigInt>` so `cloneNode()` preserves Java's
   BigInteger object identity (`NodeTest#testCloneValues`).
 - Nodes are never freed. A detached node keeps its slot and may be re-attached, as in Java.
@@ -146,7 +147,8 @@ pub struct Ast { /* Vec<NodeData>, never shrinks */ }   // owns every node of on
   string by `charAt`, the Rust value must be a `JsString` (or a local `Vec<u16>`).
 - **Interning (`RhinoStringPool`)**: node strings are interned. `RhinoStringPool::add_or_get`
   returns a `JsString` that is pointer-identical for equal contents (Java's `==` on interned
-  strings is `JsString::ptr_eq`). The pool is a process-wide `Mutex`-guarded set. `JsString`
+  strings is `JsString::ptr_eq`). The pool is process-wide, split into independently locked
+  shards (D-025), and keeps its strings for the rest of the process. `JsString`
   equality compares contents (pointer fast path), so code never depends on interning for
   correctness, only Java's identity checks do.
 - `n.get_string(ast)` returns an owned `JsString` clone (no borrow of the arena is held);
@@ -226,9 +228,9 @@ Scopes and vars use `ScopeId` and `VarId` (`Copy + Eq + Hash + Ord`) handles, al
 `Scope` and `Var`. Handle equality preserves Java identity within a compiler. The compiler owns
 `ScopeArena`, whose scope and var vectors never shrink. `AbstractScopeData<V>` and
 `AbstractVarData<S>` contain the common Java fields, while the reusable `AbstractScope` and
-`AbstractVar` traits contain each common Java method body exactly once. A later typed handle can
-implement the data access and abstract methods, with its own associated scope or var type, to
-reuse these bodies. Scope.java's parent/depth fields and bodies stay in `scope.rs`; Var.java's
+`AbstractVar` traits contain each common Java method body exactly once. `TypedScope` and
+`TypedVar` (`typed_scope.rs`, `typed_var.rs`) implement the same traits with their own associated
+scope and var types and reuse these bodies. Scope.java's parent/depth fields and bodies stay in `scope.rs`; Var.java's
 constructor validation and formatting stay in `var.rs`. Rust-only inherent forwarders make the
 same methods available on handles without a trait import.
 
@@ -249,9 +251,9 @@ for Java `LinkedHashMap` insertion order, and implicit-variable maps use `BTreeM
 ordinal order for Java `EnumMap`. Iterable methods return ordered vectors of handles.
 
 Rhino's `StaticScope`, `StaticSlot`, and `StaticRef` traits return references to trait objects,
-which arena handles cannot provide. Scope/Var do not implement those traits yet; the equivalent
-methods exist on the handles with the same names. `ScopeId::typed` retains AbstractScope's exact
-failure until typed scopes are ported; `ScopeId::untyped` returns the same handle.
+which arena handles cannot provide. The scope and var handles do not implement those traits; the
+equivalent methods exist on the handles with the same names. `typed()` on a syntactic scope
+fails with AbstractScope's message, as in Java; `ScopeId::untyped` returns the same handle.
 
 `ScopeCreator::create_scope` takes a mutable compiler, the root node, and an optional parent
 handle. Syntactic scope creators and scanners do not store the compiler, following DESIGN §6.

@@ -4,12 +4,13 @@ A `compiler_test_case` record passes when replaying it through the same harness 
 the same `outcome` and `observed` (FORMAT.md "Replay"). `outcome.status = normal` therefore
 stands for **every** assertion the harness makes inside the hooked call, not only the output
 comparison. This file states that pipeline as a function of the recorded harness fields, with
-line numbers in the pinned reference (commit bb8c8e7):
-`CTC` = `reference/closure-compiler/test/com/google/javascript/jscomp/CompilerTestCase.java`,
+line numbers in the reference checkout the corpus was recorded from (`$REF_SRC`,
+`reference/closure-compiler-v20261006` for the default reference; docs/PORTING.md §9):
+`CTC` = `test/com/google/javascript/jscomp/CompilerTestCase.java`,
 `ITC` = `.../jscomp/integration/IntegrationTestCase.java`, `TCTC` = `.../jscomp/TypeCheckTestCase.java`,
-`NS` = `reference/closure-compiler/src/com/google/javascript/rhino/testing/NodeSubject.java`,
+`NS` = `src/com/google/javascript/rhino/testing/NodeSubject.java`,
 `Node` = `.../src/com/google/javascript/rhino/Node.java`. A non-Java harness that skips a step is
-weaker than the corpus and must not be used as D1 ground truth.
+weaker than the corpus and must not be used as ground truth for criterion D1 (docs/PORTING.md §3).
 
 Every hooked API is specified.
 Related: options defaults and warnings-guard order (FORMAT.md), the derived expected-side flags
@@ -32,8 +33,8 @@ themselves, run with the arguments given; the printer is the ported CodePrinter.
 - A **DiagnosticGroup** matches a JSError when the group contains the error's type (by key).
 
 ## Harness field index
-Every key of `harness.fields` (21,308/21,308 `compiler_test_case` records carry all of them),
-with the step where it acts. Values are taken after `harness.fieldsAfterGetOptions` is applied.
+Every key of `harness.fields` (every `compiler_test_case` record carries all of them), with the
+step where it acts. Values are taken after `harness.fieldsAfterGetOptions` is applied.
 `__currentRec`, `__recCompiler`, `lastCompiler` and `setUpRan` are bookkeeping, never inputs.
 
 | Field | Where it acts |

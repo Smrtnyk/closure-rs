@@ -27,12 +27,12 @@ of scope (docs/PORTING.md §2).
 - Rust identifiers spell Java's `Allowlist` as `allow_list` (`add_allow_list_warnings_guard`,
   `set_warnings_allow_list_file`); the flag strings and messages keep Java's text, and the
   historical alias `--warnings_whitelist_file` stays registered.
-- The flag tables, `CommandLineConfig`, the option setup and the compilation-level bodies were
-  first transcribed mechanically from the pinned sources by the generators in `tools/`
-  (`generate_flags.py`, `generate_config.py`, `port_levels.py`, ...); the Java helpers there
-  (`CliMetadata.java`, `CliOptionSetup.java`, `CliJson.java`, `CliGlob.java`) dump the reference
-  behaviour. The generators read their inputs from the gitignored `corpus-cache/` and `build/`
-  directories of the checkout they ran in and are kept as provenance.
+- The flag tables, `CommandLineConfig` and the option setup were transcribed from the pinned
+  sources by the generators in `tools/` (`generate_flags.py`, `generate_config.py`, ...); the
+  Java helpers there (`CliMetadata.java`, `CliOptionSetup.java`, `CliJson.java`, `CliGlob.java`)
+  dump the reference behaviour. The generators read their inputs from the gitignored
+  `corpus-cache/` and `build/` directories of the main checkout; they are not part of the build
+  and are kept to show where the transcribed code came from.
 
 ## Runner structure
 
@@ -105,3 +105,9 @@ code, stdout and stderr bytes, including help, markdown help and version), optio
 (`option_setup.json`), Gson (`json_golden.json`), globs (`glob_golden.json`) and runtime exception
 boundaries (`exception_golden.json`). They were produced by the matching `tools/generate_*.py`
 scripts; Rust tests read them without a JVM.
+
+`tests/data/fuzz_regressions/<case>/` holds the regression cases of differences found by
+differential fuzzing and benchmarks (fuzz/findings/): the inputs, the argv and origin
+(`case.json`) and the reference jar's exit code, stdout, stderr and output files (`expected/`),
+captured by `tools/generate_fuzz_regressions.py`. `tests/fuzz_regression_test.rs` runs the binary
+on each case and compares every byte.

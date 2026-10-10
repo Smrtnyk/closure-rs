@@ -43,7 +43,7 @@ verified by sha256 rather than downloaded.
 **Whole-program cases:**
 - They run their own zero-dependency test suites with
   `node corpus/d2/shims/<id>/run.mjs {output}`.
-- All 21 libraries' test suites pass on the original sources.
+- Every library's test suite passes on its original sources.
 
 ## D-009 — D2 profile matrix and drop rules
 **Profiles:**
@@ -73,12 +73,12 @@ acorn's tests.
 
 ## D-010 — Reference environment contract
 Every Java reference run (golden runs, oracle servers, every Java-vs-Rust comparison) uses
-`run_reference.child_env()`:
+`child_env()` of `gates/lib/run_reference.py`:
 - `LANG=LC_ALL=C.UTF-8`, `TZ=UTC`, a minimal `PATH`, and nothing inherited from the caller;
-- the pinned JVM flags from `run_reference.py`.
+- the pinned JVM flags from the same file.
 
 Clients refuse a server whose ready-line environment differs from
-`oracle_client.GOLDEN_JVM_ENV`. The reason: under the `de_DE` locale, Java prints
+`GOLDEN_JVM_ENV` (`oracle/oracle_client.py`). The reason: under the `de_DE` locale, Java prints
 `98,2% typed` instead of `98.2% typed`.
 
 **Rules for gates:**
@@ -303,11 +303,12 @@ here (one line each) to ease upstream syncs.
 - `jscomp/reference.rs`, `node_traversal.rs` `get_input_id_of_input`: references share the
   traversal's `InputId` `Arc` instead of copying it after an input lookup.
 - `cli/src/main.rs`: the binary uses mimalloc as its global allocator (Java: the JVM's heap);
-  about 9% faster compiles for about 100 MB more peak memory.
-- `Cargo.toml` `[profile.release]`: fat LTO and one codegen unit, about 5% faster.
+  faster compiles at the cost of a higher peak memory.
+- `Cargo.toml` `[profile.release]`: fat LTO and one codegen unit.
 - `scripts/pgo_build.sh`, `.github/workflows/release.yml`: the released binaries are built with a
   profile (PGO) from training compiles of the d3-12, lodash-es and three benchmark projects
-  (`scripts/run_bench.py --write-args`); about 8% less CPU time.
+  (`scripts/run_bench.py --write-args`), for less CPU time. Pushes and pull requests build without
+  a profile; the output is the same either way.
 - `jscomp/parallel_parse.rs`: inputs are parsed on up to 8 worker threads into arenas of their
   own (`Ast::new_for_preparse`) while the compiler runs; `CompilerInput#parse` moves a finished
   parse into the compiler's arena (`Ast::append_preparsed`) with the node ids, object sharing
@@ -318,7 +319,8 @@ here (one line each) to ease upstream syncs.
   reference-counted entries, to compare the two).
 - `rhino/js_string.rs`: a `JsString` carries its cached `hashCode` beside the reference to its
   code units (Java: a field of the String object), so hashing and comparing unequal strings
-  read no code units; two interned strings are equal exactly when they are the same entry.
+  read no code units (`Hash` writes the cached value); two interned strings are equal exactly
+  when they are the same entry, and `Ord` short-cuts on identity.
 - `rhino/fast_hash.rs`: every `IndexMap`/`IndexSet` uses a multiplicative word hasher instead
   of SipHash (insertion order, so iteration and output, are unaffected).
 - `rhino/node.rs`: token and tree links of all nodes live in one dense array (`NodeLinks`) apart
@@ -384,9 +386,6 @@ here (one line each) to ease upstream syncs.
 - `jscomp/scope.rs` `declare`, `allocate`: a new var or scope takes the arena lock once.
 - `jscomp/chunked_vec.rs`: the syntactic scope arena and its mirror grow in fixed-size chunks
   instead of one `Vec`, so growing never copies the scopes and vars already made.
-- `rhino/js_string.rs`: a string caches its `hashCode()` in front of its code units (Java's
-  String caches it too); `Hash` writes the cached value, `equals` and `compareTo` short-cut on
-  identity.
 - Source maps: `sourcemap/source_map_generator_v3.rs` `JavaAppendable` appends code units
   without making a JS string per write; `util.rs` `escapeString` copies unescaped runs and
   escapes directly; `jscomp/source_map.rs`, `compiler_source_excerpt_provider.rs` reuse the
@@ -405,9 +404,9 @@ here (one line each) to ease upstream syncs.
   `abstract_scope.rs`, `abstract_var.rs`): a scope made by a `SyntacticScopeCreator` with the
   default redeclaration handler is kept by root node and handed out again by a later pass while
   its code is unchanged and no pass declared or undeclared a name in it (Java scans anew for every
-  request); a pass never receives one scope twice. About 75% fewer scans and a third less peak
-  memory on large bundles; `CLOSURE_RS_SCOPE_CACHE=off` disables it, `=verify` checks every
-  reuse against a new scan.
+  request); a pass never receives one scope twice. This saves most scans, and much peak memory on
+  large bundles. `CLOSURE_RS_SCOPE_CACHE=off` disables it, `=verify` checks every reuse against
+  a new scan.
 - `rhino/node.rs` `Ast::track_changes`: the arena records every node whose children, token or
   string change (independently of the compiler's change reports, which some passes omit), so
   that the scope cache sees every change.
@@ -421,8 +420,8 @@ here (one line each) to ease upstream syncs.
 closure-rs moves its Closure Compiler pin only to upstream **releases that are published on npm**
 (`google-closure-compiler@YYYYMMDD.0.0` = upstream tag `vYYYYMMDD`), never to unreleased master
 commits, so it always matches a compiler that users can install. The registry tag of a reference
-is its upstream release tag; the first pin, `bb8c8e7`, is release `v20261005` (npm
-`20261005.0.0`).
+is its upstream release tag (`v20261006`). The one exception is the row `bb8c8e7`, named by its
+commit: release `v20261005` (npm `20261005.0.0`), kept for the closure-self D2 inputs below.
 
 References live alongside each other through `scripts/references.tsv` (docs/PORTING.md §9): each
 has its own checkout (`reference/closure-compiler-<tag>`), recording workspace, uberjar

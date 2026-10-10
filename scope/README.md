@@ -9,7 +9,7 @@ port (D-016 item 4).
 | File | What it is |
 |---|---|
 | `flags.txt` | Generated. One row per `@Option` in `CommandLineRunner.Flags`, with the scope verdict and its reason. Do not edit it by hand. |
-| `gen_flags.py` | The generator. It reads the pinned `reference/closure-compiler/src/com/google/javascript/jscomp/CommandLineRunner.java` and nothing else. |
+| `gen_flags.py` | The generator. It reads `src/com/google/javascript/jscomp/CommandLineRunner.java` of the selected reference checkout (`REF_SRC`, docs/PORTING.md §9) and nothing else; the header names the file by its path under `reference/closure-compiler/` and records its sha256. |
 
 ## Commands
 
@@ -53,8 +53,8 @@ The rules are applied in order, and the first match decides:
    The areas are refactoring, lint, instrumentation, ant, debugger, J2CL, Polymer and Chrome,
    and each rule carries its evidence (the package or pass the flag configures). The header
    shows how many flags each rule matched, so a rule that matches nothing is visible. At the
-   pinned reference, refactoring, lint, ant and debugger match no `CommandLineRunner` flag. `--debug` is not the
-   `debugger/` package: it turns on debug renaming.
+   pinned reference, refactoring, lint, ant and debugger match no `CommandLineRunner` flag.
+   `--debug` is not the `debugger/` package: it turns on debug renaming.
 4. Otherwise: **in**.
 
 The generator adds no exclusion that docs/PORTING.md §2 does not name. Adding one needs a
