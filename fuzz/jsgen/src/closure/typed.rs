@@ -61,9 +61,14 @@ pub fn pick_scalar(g: &mut Gen) -> Ty {
 pub fn literal(g: &mut Gen, ty: Ty) {
     match ty {
         Ty::Num => {
-            let v = *g
+            let mut v = *g
                 .rng
                 .pick(&["0", "1", "2", "3", "7", "10", "42", "0.5", "-1", "255"]);
+            if v == "0.5" && super::strict::active() {
+                // A fractional value that reaches `|` or `<<` after inlining is
+                // JSC_FRACTIONAL_BITWISE_OPERAND.
+                v = "5";
+            }
             g.w(v);
         }
         Ty::Str => {
@@ -107,7 +112,9 @@ pub fn literal(g: &mut Gen, ty: Ty) {
             literal(g, Ty::Num);
         }
         Ty::NullableNum => {
-            if g.rng.chance(1, 3) {
+            // Strict: a constant initialized to `null` is inferred as null, and its uses
+            // through `x === null ? 0 : x` are then JSC_INVALID_OPERAND_TYPE.
+            if g.rng.chance(1, 3) && !super::strict::active() {
                 g.w("null");
             } else {
                 literal(g, Ty::Num);
@@ -137,7 +144,13 @@ pub fn value(g: &mut Gen, ty: Ty, env: &[(String, Ty)]) {
             let a = (*g.rng.pick(&nums)).clone();
             let op = *g.rng.pick(&["+", "*", "-", "%", "|", "<<"]);
             g.w(&format!("({a} {op} "));
-            literal(g, Ty::Num);
+            if matches!(op, "|" | "<<") && super::strict::active() {
+                // JSC_FRACTIONAL_BITWISE_OPERAND on a literal such as 0.5.
+                let v = *g.rng.pick(&["0", "1", "3", "7"]);
+                g.w(v);
+            } else {
+                literal(g, Ty::Num);
+            }
             g.w(")");
         }
         1 if ty == Ty::Str && !nums.is_empty() => {
@@ -168,6 +181,9 @@ pub fn use_as_number(g: &mut Gen, v: &str, ty: Ty) {
             literal(g, Ty::Num);
             g.w(")");
         }
+        // Strict: the checker does not refine a property access such as `m0.K1` in the
+        // conditional (JSC_INVALID_OPERAND_TYPE).
+        Ty::NullableNum if super::strict::active() => g.w(&format!("({v} ?? 0)")),
         Ty::NullableNum => g.w(&format!("({v} === null ? 0 : {v})")),
     }
 }

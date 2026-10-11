@@ -10,6 +10,7 @@
 //! then share property names, which is what disambiguateProperties, ambiguateProperties,
 //! devirtualizeMethods and inlineSimpleMethods act on.
 
+use super::strict;
 use super::typed::{self, Ty};
 use crate::engine::Gen;
 use std::cell::RefCell;
@@ -76,7 +77,8 @@ pub fn renamed(item: &Item, new: &str) -> Option<Item> {
 /// The declaration keyword for a mutable-looking binding: `const`, or in ES modules sometimes
 /// `let` / `var` (`export let`, `export var`).
 fn var_kw(g: &mut Gen, style: &Style) -> &'static str {
-    if matches!(style, Style::EsModule) && g.rng.chance(1, 4) {
+    // Strict: `var` is JSC_VAR (lint).
+    if matches!(style, Style::EsModule) && g.rng.chance(1, 4) && !strict::active() {
         if g.rng.chance(1, 4) { "var" } else { "let" }
     } else {
         "const"
@@ -384,19 +386,23 @@ pub fn func(g: &mut Gen, style: &Style) -> Item {
         .filter(|_| g.rng.chance(3, 4))
         .cloned()
         .collect();
+    let mut t_local = None;
     if g.rng.chance(1, 3) {
         let t = g.fresh("t");
         g.w(&format!(" const {t} = "));
         typed::value(g, Ty::Num, &env);
         g.w(";");
-        env.push((t, Ty::Num));
+        env.push((t.clone(), Ty::Num));
+        t_local = Some(t);
     }
     let acc = if g.rng.chance(3, 4) {
-        Some(typed_stmts(g, &mut env, None))
+        // Strict: the accumulator starts from the local, so it is read (JSC_UNUSED_LOCAL_ASSIGNMENT).
+        let init = t_local.as_deref().filter(|_| strict::active());
+        Some(typed_stmts(g, &mut env, init))
     } else {
         None
     };
-    if g.rng.chance(1, 4) {
+    if g.rng.chance(1, 4) && !strict::active() {
         // Dead branch for removeUnreachableCode / peephole folding.
         g.w(" if (false) { return ");
         typed::literal(g, ret);
@@ -404,7 +410,18 @@ pub fn func(g: &mut Gen, style: &Style) -> Item {
     }
     g.w(" return ");
     match (&acc, ret) {
-        (Some(a), Ty::Num) if g.rng.chance(2, 3) => g.w(a),
+        (Some(a), Ty::Num) if g.rng.chance(2, 3) || strict::active() => g.w(a),
+        // Strict: the result depends on every local (JSC_UNUSED_LOCAL_ASSIGNMENT).
+        (Some(a), Ty::Str) if strict::active() => g.w(&format!("('s' + {a})")),
+        (Some(a), Ty::Bool) if strict::active() => g.w(&format!("({a} > 0)")),
+        (None, _) if strict::active() && t_local.is_some() => {
+            let t = t_local.clone().unwrap_or_default();
+            match ret {
+                Ty::Str => g.w(&format!("('s' + {t})")),
+                Ty::Bool => g.w(&format!("({t} > 0)")),
+                _ => g.w(&t),
+            }
+        }
         _ => typed::value(g, ret, &env),
     }
     g.w(if matches!(style, Style::Provide(_)) {
@@ -509,8 +526,12 @@ fn es5_class(g: &mut Gen, style: &Style) -> Item {
         format!("{lhs}(v) {{")
     };
     g.w(&open);
+    // Strict: `p_` is never written after the constructor, so it is `@const` and every method
+    // reads it (JSC_MISSING_CONST_PROPERTY, JSC_UNUSED_PRIVATE_PROPERTY).
+    let st = strict::active();
+    let pdoc = if st { "@private @const" } else { "@private" };
     g.w(&format!(
-        "\n  /** @type {{number}} */\n  this.{f1} = v;\n  /** @private {{number}} */\n  this.p_ = v + 1;\n}}"
+        "\n  /** @type {{number}} */\n  this.{f1} = v;\n  /** {pdoc} {{number}} */\n  this.p_ = v + 1;\n}}"
     ));
     if matches!(style, Style::Provide(_)) {
         g.w(";");
@@ -528,10 +549,15 @@ fn es5_class(g: &mut Gen, style: &Style) -> Item {
         if g.rng.chance(1, 2) {
             let mut env = vec![];
             let a = typed_stmts(g, &mut env, Some(&format!("this.{f1}")));
-            g.w(&format!(" this.p_ = {a}; return {a};"));
+            if st {
+                g.w(&format!(" return {a} + this.p_;"));
+            } else {
+                g.w(&format!(" this.p_ = {a}; return {a};"));
+            }
         } else {
             g.w(" return ");
             match g.rng.below(3) {
+                _ if st => g.w(&format!("this.{f1} + this.p_")),
                 0 => g.w(&format!("this.{f1}")),
                 1 => g.w(&format!("this.{f1} + this.p_")),
                 _ => g.w(&format!("this.{f1} * 2")),
@@ -587,8 +613,13 @@ fn es5_class(g: &mut Gen, style: &Style) -> Item {
     } else {
         format!("{slocal}.superClass_.{m}.call(this)")
     };
+    let ov = if strict::active() {
+        "@override @return {number}"
+    } else {
+        "@override"
+    };
     g.w(&format!(
-        "/** @override */\n{slocal}.prototype.{m} = function() {{ return {super_call} + "
+        "/** {ov} */\n{slocal}.prototype.{m} = function() {{ return {super_call} + "
     ));
     typed::literal(g, Ty::Num);
     g.w("; };");
@@ -629,7 +660,10 @@ fn es6_class(g: &mut Gen, style: &Style) -> Item {
         "{lhs} {{\n  /** @param {{number}} v */\n  constructor(v) {{\n    /** @const {{number}} */\n    this.{f1} = v;\n  }}"
     ));
     for m in &methods {
-        let ann = if iface.is_some() {
+        let ann = if iface.is_some() && strict::active() {
+            // Lint: a method that returns a value needs @return even with @override.
+            "/** @override @return {number} */"
+        } else if iface.is_some() {
             "/** @override */"
         } else {
             "/** @return {number} */"
@@ -719,6 +753,22 @@ pub fn observe(g: &mut Gen, prefix_of: &dyn Fn(&Item) -> String, items: &[Item])
         let it = g.rng.pick(items).clone();
         let p = prefix_of(&it);
         use_number(g, &p, &it);
+    }
+    g.w(");");
+}
+
+/// `console.log(use, ...);` with one use of every item in `items` (strict mode: no imported
+/// name stays unused).
+pub fn observe_all(g: &mut Gen, prefix: &str, items: &[Item]) {
+    if items.is_empty() {
+        return;
+    }
+    g.w("console.log(");
+    for (i, it) in items.iter().enumerate() {
+        if i > 0 {
+            g.w(", ");
+        }
+        use_number(g, prefix, it);
     }
     g.w(");");
 }

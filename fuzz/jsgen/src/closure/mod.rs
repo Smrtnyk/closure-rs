@@ -12,6 +12,7 @@
 //! - `passes.rs`: inputs for passes the fuzzer never reached before:
 //!   extractPrototypeMemberDeclarations, crossChunkMethodMotion, deadPropertyAssignmentElimination,
 //!   optimizeConstructors, `@nosideeffects`, `@dict`.
+//! - `strict.rs`: the strict-aware mode for `advanced_strict` (type- and lint-clean programs).
 //! - `program.rs`: multi-file programs whose imports are legal under one output file,
 //!   `chunks2` and `chunks3` at once ([`program::generate_closure_nth`]).
 
@@ -23,6 +24,7 @@ pub mod jsdoc;
 pub mod passes;
 pub mod program;
 pub mod script;
+pub mod strict;
 pub mod typed;
 
 #[cfg(test)]

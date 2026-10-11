@@ -54,6 +54,9 @@
 //!           25% mutate (mutator over a visible single-input D2 file, whole pool as donors).
 //!   gen:    the four jsgen categories in the same 30:25:15:5 ratio.
 //!   mutate: mutate only.
+//! A jsgen program drawn under advanced_strict is generated in jsgen's strict-aware mode three
+//! times in four (`STRICT_SHARE`): single-file draws become category `strict`
+//! (`jsgen::generate_strict_nth`), multi-file draws keep their category with the mode on.
 //!
 //! JVM heap: each worker owns two servers at -Xmx1536m (engine A and B), or one with engine
 //! B `rust` (which runs the binary as a child process).
@@ -80,6 +83,19 @@ const PROFILE_SALT: u64 = 0x7072_6f66;
 const MUTATE_SALT: u64 = 0x6d75_7461_7465;
 const OPTION_SALT: u64 = 0x6f70_7469_6f6e;
 const WIDE_SALT: u64 = 0x7769_6465;
+const STRICT_SALT: u64 = 0x7374_7269_6374;
+
+/// Share of the jsgen programs drawn under `advanced_strict` that are generated in the
+/// strict-aware mode (`jsgen::closure::strict`): numerator, denominator. The rest keep the
+/// ordinary generators, whose runs under that profile compare diagnostics and exit codes.
+const STRICT_SHARE: (u64, u64) = (3, 4);
+
+/// Whether jsgen program `i`, compiled under `profile`, is generated in the strict-aware mode
+/// (deterministic; depends only on seed, index and profile).
+fn strict_mode(seed: u64, i: u64, profile: &str) -> bool {
+    profile == "advanced_strict"
+        && Rng::fork(seed ^ STRICT_SALT, i).chance(STRICT_SHARE.0, STRICT_SHARE.1)
+}
 
 /// `--wide`: type checking forced off or on, one program in four (never under ws).
 const WIDE_TYPECHECK: &[&str] = &["--jscomp_off=checkTypes", "--jscomp_warning=checkTypes"];
@@ -223,6 +239,9 @@ const OPTION_POOL: &[(&[&str], When)] = &[
     (&["--dependency_mode=SORT_ONLY"], When::Multi),
 ];
 
+/// Added to every chunk-profile program with a dynamic import ([`program`]).
+const CHUNK_ES_MODULES: &str = "--chunk_output_type=ES_MODULES";
+
 /// Pairs that CommandLineRunner rejects together (FlagUsageException): never drawn together.
 const OPTION_CONFLICTS: &[(&str, &str)] = &[
     (
@@ -319,7 +338,7 @@ const NOT_DRAWN: &[(&str, &str)] = &[
     ),
     (
         "--entry_point",
-        "names an input file or namespace of the program",
+        "set by jsgen for its weak-layout goog programs (extra_flags, with --dependency_mode=PRUNE or PRUNE_LEGACY)",
     ),
     // Extra output files: their paths must follow the run's out_dir, and case_args expands
     // {out_dir} only in profile flags (not drawn yet).
@@ -616,7 +635,26 @@ fn option_flags(seed: u64, i: u64, profile: &str, prog: &Prog) -> Vec<String> {
         }
         out.push(f.to_string());
     }
+    // Dropped after the draw (so the draws of other programs do not move).
+    out.retain(|f| fits_program(f, prog));
     out
+}
+
+/// Drawn flags that cannot compile a program with these constructs: Java reports an error or
+/// crashes on every such run, so its output would never be compared.
+/// - `--process_closure_primitives=false` with `goog.define(..)` (JSC_INVALID_DEFINE_LOCATION)
+///   or `goog.forwardDeclare(..)` calls (Java crashes, exit 254);
+/// - `--third_party` with `@export` (JSC_MISSING_EXPORT_CONVENTION) or `goog.forwardDeclare(..)`
+///   (JSC_INVALID_FORWARD_DECLARE).
+fn fits_program(flag: &str, prog: &Prog) -> bool {
+    let has = |s: &str| prog.files.iter().any(|(_, c)| c.contains(s));
+    match flag {
+        "--process_closure_primitives=false" => {
+            !has("goog.define(") && !has("goog.forwardDeclare(")
+        }
+        "--third_party" => !has("@export") && !has("goog.forwardDeclare("),
+        _ => true,
+    }
 }
 
 /// D2 drop rule (docs/PORTING.md §4.4): an internal compiler error or an uncaught exception
@@ -1242,6 +1280,7 @@ fn program(o: &Opts, d2: &D2Inputs, i: u64, lists: &(Vec<String>, Vec<String>)) 
     let mut p = program_base(o, d2, i, lists);
     let profile = pick_profile_n(o.seed, i, p.files.len(), lists);
     let mut extra = option_flags(o.seed, i, &profile, &p);
+    chunk_dynamic_import_flags(&profile, &p, &mut extra);
     if o.wide {
         let has = |k: &str| extra.iter().chain(&p.extra_flags).any(|f| flag_key(f) == k);
         let mut w = vec![];
@@ -1263,12 +1302,32 @@ fn program(o: &Opts, d2: &D2Inputs, i: u64, lists: &(Vec<String>, Vec<String>)) 
     p
 }
 
+/// Java crashes on a dynamic import under the chunk profiles' default
+/// `--chunk_output_type=GLOBAL_NAMESPACE` (AstValidator: "AST should not contain Dynamic module
+/// import", exit 254, dropped from the comparison). ES_MODULES chunk output compiles them, so a
+/// chunk-profile program with a dynamic import gets [`CHUNK_ES_MODULES`]; the drawn flags it
+/// conflicts with, and `--dynamic_import_alias` (which fails there too), give way.
+fn chunk_dynamic_import_flags(profile: &str, prog: &Prog, extra: &mut Vec<String>) {
+    if !profile.starts_with("chunks") || !prog.files.iter().any(|(_, c)| c.contains("import('")) {
+        return;
+    }
+    extra.retain(|f| {
+        !conflicts(f, CHUNK_ES_MODULES)
+            && !matches!(
+                flag_key(f),
+                "--chunk_output_type" | "--dynamic_import_alias"
+            )
+    });
+    extra.push(CHUNK_ES_MODULES.to_string());
+}
+
 fn program_base(o: &Opts, d2: &D2Inputs, i: u64, lists: &(Vec<String>, Vec<String>)) -> Prog {
     let seed = o.seed;
     // Single-file jsgen programs: generate for the profile they will be compiled under.
     let p1 = pick_profile_n(seed, i, 1, lists);
     let low =
         low_target_profiles().contains(&p1) || (o.wide && wide_lang_out(seed, i, &p1).is_some());
+    let lowsfx = if low { ":low_target" } else { "" };
     let lowt = |f: &dyn Fn() -> String| dialect::with_low_target(low, f);
     let lang_cfg = jsgen::Config {
         closure: false,
@@ -1281,7 +1340,17 @@ fn program_base(o: &Opts, d2: &D2Inputs, i: u64, lists: &(Vec<String>, Vec<Strin
         origin,
         category,
     };
-    match category(o, i) {
+    let cat = category(o, i);
+    if matches!(cat, "lang" | "closure" | "sloppy") && strict_mode(seed, i, &p1) {
+        // Strict-aware single-file program for advanced_strict (replaces the drawn category).
+        return single(
+            lowt(&|| jsgen::generate_strict_nth(seed, i, &jsgen::Config::default())),
+            format!("jsgen:strict:seed={seed}:index={i}{lowsfx}"),
+            "strict",
+            vec![],
+        );
+    }
+    match cat {
         "mutate" if !d2.files.is_empty() => {
             let mut r = Rng::fork(seed ^ MUTATE_SALT, i);
             let adv = advanced_profiles().contains(&pick_profile_n(seed, i, 1, lists));
@@ -1312,12 +1381,24 @@ fn program_base(o: &Opts, d2: &D2Inputs, i: u64, lists: &(Vec<String>, Vec<Strin
             vec![],
         ),
         "multi" => {
-            let p = jsgen::generate_closure_nth(seed, i, &jsgen::Config::default());
+            // Multi-file programs always get a multi-file profile (two or more files), so it is
+            // known before generation: low_target and strict mode follow it.
+            let pm = pick_profile_n(seed, i, 2, lists);
+            let strict = strict_mode(seed, i, &pm);
+            let p = dialect::with_low_target(low_target_profiles().contains(&pm), || {
+                jsgen::closure::strict::with_strict(strict, || {
+                    jsgen::generate_closure_nth(seed, i, &jsgen::Config::default())
+                })
+            });
             Prog {
                 files: p.files,
                 extra_flags: p.extra_flags,
                 parse_args: vec![],
-                origin: format!("jsgen:multi:{:?}:seed={seed}:index={i}", p.kind),
+                origin: format!(
+                    "jsgen:multi:{:?}{}:seed={seed}:index={i}",
+                    p.kind,
+                    if strict { ":strict" } else { "" }
+                ),
                 category: "multi",
             }
         }
@@ -2586,5 +2667,83 @@ exit 3"#,
             }
             assert!(option_flags(7, i, "ws", &single).is_empty());
         }
+    }
+
+    #[test]
+    fn strict_mode_follows_advanced_strict() {
+        let mut on = 0;
+        for i in 0..4000 {
+            for prof in ["advanced", "simple", "chunks2", "ws"] {
+                assert!(!strict_mode(5, i, prof), "{prof}");
+            }
+            let s = strict_mode(5, i, "advanced_strict");
+            assert_eq!(s, strict_mode(5, i, "advanced_strict"));
+            on += usize::from(s);
+        }
+        assert!((2850..3150).contains(&on), "{on}");
+    }
+
+    #[test]
+    fn dynamic_imports_get_es_module_chunks() {
+        let prog = |src: &str| Prog {
+            files: vec![
+                ("m0.js".into(), "export const a = 1;".into()),
+                ("m1.js".into(), src.into()),
+            ],
+            extra_flags: vec![],
+            parse_args: vec![],
+            origin: String::new(),
+            category: "multi",
+        };
+        let dynamic = prog("import('./m0.js').then((ns) => { console.log(ns.a); });");
+        let mut f = vec![
+            "--rename_prefix_namespace=_g".to_string(),
+            "--dynamic_import_alias=__imp".to_string(),
+            "--isolate_polyfills".to_string(),
+        ];
+        chunk_dynamic_import_flags("chunks3", &dynamic, &mut f);
+        assert_eq!(f, vec!["--isolate_polyfills", CHUNK_ES_MODULES]);
+        let mut f = vec![CHUNK_ES_MODULES.to_string()];
+        chunk_dynamic_import_flags("chunks2", &dynamic, &mut f);
+        assert_eq!(f, vec![CHUNK_ES_MODULES]);
+        let mut f = vec![];
+        chunk_dynamic_import_flags("advanced", &dynamic, &mut f);
+        assert!(f.is_empty());
+        chunk_dynamic_import_flags("chunks2", &prog("import {a} from './m0.js';"), &mut f);
+        assert!(f.is_empty());
+    }
+
+    #[test]
+    fn flags_that_cannot_compile_the_program_are_dropped() {
+        let prog = |src: &str| Prog {
+            files: vec![
+                (
+                    "base.js".into(),
+                    "/** @provideGoog */ var goog = {};".into(),
+                ),
+                ("m1.js".into(), src.into()),
+            ],
+            extra_flags: vec![],
+            parse_args: vec![],
+            origin: String::new(),
+            category: "multi",
+        };
+        let define = prog("goog.module('gen.m1');\nconst D = goog.define('gen.m1.D', 1);");
+        let fwd = prog("goog.module('gen.m1');\ngoog.forwardDeclare('gen.fwd.X');");
+        let export = prog("goog.provide('gen.m1');\n/** @export */ gen.m1.f = function() {};");
+        let plain = prog("goog.module('gen.m1');\nexports.x = 1;");
+        let pcp = "--process_closure_primitives=false";
+        assert!(!fits_program(pcp, &define) && !fits_program(pcp, &fwd));
+        assert!(fits_program(pcp, &export) && fits_program(pcp, &plain));
+        assert!(!fits_program("--third_party", &export) && !fits_program("--third_party", &fwd));
+        assert!(fits_program("--third_party", &plain) && fits_program("--isolate_polyfills", &fwd));
+        let mut seen = 0;
+        for i in 0..3000 {
+            for f in option_flags(3, i, "advanced", &define) {
+                assert_ne!(f, pcp);
+                seen += 1;
+            }
+        }
+        assert!(seen > 0);
     }
 }
