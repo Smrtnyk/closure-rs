@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   src/com/google/javascript/jscomp/FunctionInjector.java.
 
 //! Port of `com.google.javascript.jscomp.FunctionInjector`.
@@ -372,8 +372,8 @@ impl FunctionInjector {
     ///
     /// `need_aliases` is a set of function parameter names that can not be used without
     /// aliasing (returned by getUnsafeParameterNames()), `references_this` whether fnNode
-    /// contains references to its this object and `contains_functions` whether fnNode contains
-    /// inner functions.
+    /// contains references to its this object and `contains_closures` whether fnNode contains
+    /// inner functions or non-static class field initializers.
     // port: FunctionInjector#canInlineReferenceToFunction
     pub fn can_inline_reference_to_function(
         &mut self,
@@ -382,7 +382,7 @@ impl FunctionInjector {
         fn_node: NodeId,
         need_aliases: &IndexSet<JsString>,
         references_this: bool,
-        contains_functions: bool,
+        contains_closures: bool,
     ) -> CanInlineResult {
         // TODO(johnlenz): This function takes too many parameter, without
         // context.  Modify the API to take a structure describing the function.
@@ -401,7 +401,7 @@ impl FunctionInjector {
         // an inner function into another function can capture a variable and cause
         // a memory leak.  This isn't a problem in the global scope as those values
         // last until explicitly cleared.
-        if contains_functions {
+        if contains_closures {
             if !self.assume_minimum_capture && !r#ref.scope.is_global(compiler) {
                 // TODO(johnlenz): Allow inlining into any scope without local names or inner
                 // functions.
@@ -866,7 +866,10 @@ impl FunctionInjector {
         result
     }
 
-    /// Returns any inner function of `container_fn`.
+    /// Returns any inner function or non-static class field initializer of `container_fn`.
+    ///
+    /// Non-static class field initializers are treated like inner functions because they are
+    /// evaluated later, once per instantiation, and may capture locals.
     ///
     /// If there are no inner functions, or multilple inner functions, the sentinel values
     /// NO_FUNCTIONS, MULTIPLE_FUNCTIONS are returned respectively.
@@ -885,7 +888,7 @@ impl FunctionInjector {
                 return;
             }
 
-            if n.is_function(ast) {
+            if NodeUtil::is_function_or_non_static_class_field_initializer(ast, n) {
                 inner_fns.push(n);
             }
         });

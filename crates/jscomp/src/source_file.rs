@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   src/com/google/javascript/jscomp/SourceFile.java.
 
 // Keep Java nested conditionals and nested loader class names.
@@ -113,6 +113,16 @@ impl SourceFile {
         }
         self.state.lock().unwrap().num_bytes
     }
+    // port: SourceFile#isLineTerminator
+    pub(crate) fn is_line_terminator(ch: u16) -> bool {
+        matches!(
+            ch,
+            0x0A // Line Feed
+                | 0x0D // Carriage Return
+                | 0x2028 // Line Separator
+                | 0x2029 // Paragraph Separator
+        )
+    }
     // port: SourceFile#findLineOffsets
     fn find_line_offsets(&self) -> Arc<[i32]> {
         if let Some(offsets) = &self.state.lock().unwrap().line_offsets {
@@ -127,10 +137,17 @@ impl SourceFile {
             }
         };
         let mut offsets = vec![0];
-        for (index, &c) in local_code.as_units().iter().enumerate() {
-            if c == 10 {
-                offsets.push((index + 1) as i32);
+        let units = local_code.as_units();
+        let mut i = 0;
+        while i < units.len() {
+            let ch = units[i];
+            if Self::is_line_terminator(ch) {
+                if ch == 0x0D && i + 1 < units.len() && units[i + 1] == 0x0A {
+                    i += 1;
+                }
+                offsets.push((i + 1) as i32);
             }
+            i += 1;
         }
         check_state!(offsets.len() as i32 == self.state.lock().unwrap().num_lines);
         let offsets: Arc<[i32]> = offsets.into();
@@ -192,8 +209,20 @@ impl SourceFile {
                 source_code = source_code.substring_from(1);
             }
             state.num_bytes = source_code.length() as i32;
-            state.num_lines =
-                1 + source_code.as_units().iter().filter(|&&c| c == 10).count() as i32;
+            let units = source_code.as_units();
+            let mut num_lines = 1; // there is always at least one line
+            let mut i = 0;
+            while i < units.len() {
+                let ch = units[i];
+                if Self::is_line_terminator(ch) {
+                    if ch == 0x0D && i + 1 < units.len() && units[i + 1] == 0x0A {
+                        i += 1;
+                    }
+                    num_lines += 1;
+                }
+                i += 1;
+            }
+            state.num_lines = num_lines;
             state.code = Some(source_code);
         }
     }
@@ -231,10 +260,20 @@ impl SourceFile {
             line_number = 1;
         }
         let pos = offsets[(line_number - 1) as usize] as usize;
-        match js.as_units()[pos..].iter().position(|&c| c == 10) {
-            None if pos >= js.length() => None,
-            None => Some(utf8_encoded_text(js.substring_from(pos).as_units())),
-            Some(end) => Some(utf8_encoded_text(js.substring(pos, pos + end).as_units())),
+        if (line_number as usize) < offsets.len() {
+            let next_pos = offsets[line_number as usize] as usize;
+            let mut end_pos = next_pos - 1;
+            if js.char_at(end_pos) == 0x0A && end_pos > pos && js.char_at(end_pos - 1) == 0x0D {
+                end_pos -= 1;
+            }
+            Some(utf8_encoded_text(js.substring(pos, end_pos).as_units()))
+        } else if pos >= js.length() {
+            // If next new line cannot be found, there are two cases
+            // 1. pos already reaches the end of file, then null should be returned
+            // 2. otherwise, return the contents between pos and the end of file.
+            None
+        } else {
+            Some(utf8_encoded_text(js.substring_from(pos).as_units()))
         }
     }
     // port: SourceFile#getLines
@@ -264,8 +303,17 @@ impl SourceFile {
             };
             end_line += 1;
         }
-        if js.char_at((end_char - 1) as usize) == 10 {
-            end_char -= 1;
+        if end_char > pos {
+            let last = js.char_at((end_char - 1) as usize);
+            if last == 0x0A {
+                if end_char - 1 > pos && js.char_at((end_char - 2) as usize) == 0x0D {
+                    end_char -= 2;
+                } else {
+                    end_char -= 1;
+                }
+            } else if Self::is_line_terminator(last) {
+                end_char -= 1;
+            }
         }
         Some(SimpleRegion::new(
             line_number,

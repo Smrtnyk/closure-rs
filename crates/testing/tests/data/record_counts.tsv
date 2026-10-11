@@ -75,7 +75,7 @@ ClosureIntegrationTest	90	0	90	0
 ClosureOptimizePrimitivesTest	42	42	0	0
 ClosurePrimitivesIntegrationTest	4	0	4	0
 ClosureReverseAbstractInterpreterTest	0	0	0	0
-ClosureRewriteModuleTest	210	210	0	0
+ClosureRewriteModuleTest	215	215	0	0
 ClosureUnawareCodeIntegrationTest	24	0	24	0
 ClosureUnawarePhaseOptimizerTest	2	2	0	0
 ClusterPropagatorTest	0	0	0	0
@@ -352,7 +352,7 @@ RewriteNewDotTargetTest	6	6	0	0
 RewriteNullishCoalesceOperatorTest	4	4	0	0
 RewriteObjectSpreadTest	9	9	0	0
 RewriteOptionalChainingOperatorTest	28	28	0	0
-RewritePolyfillsTest	117	117	0	0
+RewritePolyfillsTest	118	118	0	0
 RhinoErrorReporterTest	0	0	0	0
 RhinoStringPoolTest	0	0	0	0
 RuntimeJsLibManagerTest	0	0	0	0

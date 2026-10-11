@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   src/com/google/javascript/jscomp/PureFunctionIdentifier.java.
 
 //! Port of `PureFunctionIdentifier.java`: computes function purity and annotates invocation nodes
@@ -363,21 +363,15 @@ impl PureFunctionIdentifier {
                 {
                     let mut member = members.get_first_child(cx.get_ast());
                     while let Some(m) = member {
-                        let ast = cx.get_ast();
-                        if !m.is_static_member(ast) {
-                            let mut initializer = None;
-                            if m.is_member_field_def(ast) && m.has_children(ast) {
-                                initializer = m.get_first_child(ast);
-                            } else if m.is_computed_field_def(ast)
-                                && m.get_second_child(ast).is_some()
-                            {
-                                initializer = m.get_second_child(ast);
-                            }
-                            if let Some(initializer) = initializer
-                                && ast_analyzer.may_have_side_effects(cx, initializer)
-                            {
-                                return false;
-                            }
+                        let initializer = m.get_last_child(cx.get_ast());
+                        if let Some(initializer) = initializer
+                            && NodeUtil::is_non_static_class_field_initializer(
+                                cx.get_ast(),
+                                initializer,
+                            )
+                            && ast_analyzer.may_have_side_effects(cx, initializer)
+                        {
+                            return false;
                         }
                         member = m.get_next(cx.get_ast());
                     }

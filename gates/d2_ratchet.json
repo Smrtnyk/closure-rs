@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "golden": "ref-cfa8886f",
- "corpus_sha256": "f1a130f0467cbe27afa326145ea03ca4a160d09142bbe7964a2e2f14e10a2afe",
+ "golden": "ref-7792e7a3",
+ "corpus_sha256": "83241746d06f9719eca0e070da251aadce5041d79b8e11d432129b7b81dc81bf",
  "complete": true,
  "filter": {},
- "binary_sha256": "3d23cc92e5ca285e0eb80f520999e9182c1c588c960bd70dd84960ac803d12bb",
+ "binary_sha256": "ec6887bf133c906bfaed9a214e40f3b0fa0bb5b4954562176c9739666e27bc01",
  "counts": {
   "ws": {
    "pass": 2085,
@@ -19,8 +19,8 @@
    "total": 1978
   },
   "advanced_strict": {
-   "pass": 2026,
-   "total": 2026
+   "pass": 2030,
+   "total": 2030
   },
   "lang_es5": {
    "pass": 2042,
@@ -52,8 +52,8 @@
   }
  },
  "total": {
-  "pass": 21155,
-  "total": 21155
+  "pass": 21159,
+  "total": 21159
  },
  "passing": {
   "ws": [
@@ -7734,6 +7734,7 @@
    "test262-language--expressions--less-than--S11.8.1_A3.1_T2.1",
    "test262-language--expressions--less-than-or-equal--S11.8.3_A4.1",
    "test262-language--expressions--logical-and--S11.11.1_A1",
+   "test262-language--expressions--logical-assignment--lgcl-and-whitespace",
    "test262-language--expressions--logical-not--S11.4.9_A2.1_T1",
    "test262-language--expressions--logical-or--S11.11.2_A4_T3",
    "test262-language--expressions--multiplication--S11.5.1_A3_T2.5",
@@ -7782,6 +7783,7 @@
    "test262-language--expressions--super--prop-dot-obj-null-proto",
    "test262-language--expressions--super--prop-expr-uninitialized-this-putvalue-compound-assign",
    "test262-language--expressions--tagged-template--template-object",
+   "test262-language--expressions--template-literal--tv-line-continuation",
    "test262-language--expressions--unary-minus--11.4.7-4-1",
    "test262-language--expressions--unsigned-right-shift--S11.7.3_A2.1_T1",
    "test262-language--expressions--unsigned-right-shift--S9.6_A3.1_T1",
@@ -7836,6 +7838,8 @@
    "test262-language--identifiers--vals-rus-alpha-lower",
    "test262-language--line-terminators--7.3-6",
    "test262-language--line-terminators--S7.3_A7_T4",
+   "test262-language--line-terminators--between-tokens-cr",
+   "test262-language--line-terminators--comment-multi-cr",
    "test262-language--line-terminators--comment-single-lf",
    "test262-language--literals--bigint--numeric-separators--numeric-separator-literal-dd-nsl-dd-one-of",
    "test262-language--literals--bigint--numeric-separators--numeric-separator-literal-oil-od-nsl-od-one-of",

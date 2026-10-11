@@ -3,8 +3,8 @@
 D7 requires that **on every benchmark in this directory** the Rust CLI's wall-clock time is
 at most Java's and its peak RSS is at most Java's. Java is measured as users run it: a cold
 `java -jar closure-compiler.jar ...` per compile (the reference uberjar of the D2 golden
-pipeline: `$REF_JAR`, for the default reference `build/reference-v20261006/closure-compiler.jar`,
-sha256 `cfa8886f...`, see docs/PORTING.md §9; run with the project's JDK 21 at `tools/jdk-21`,
+pipeline: `$REF_JAR`, for the default reference `build/reference-v20261007/closure-compiler.jar`,
+sha256 `7792e7a3...`, see docs/PORTING.md §9; run with the project's JDK 21 at `tools/jdk-21`,
 with no extra JVM flags). Each compile is a separate process for both compilers, so JVM start-up
 and warm-up count, as they do for users.
 

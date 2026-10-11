@@ -40,6 +40,7 @@ asyncExecutePromiseGeneratorFunction	es6/execute_async_generator
 asyncExecutePromiseGeneratorProgram	es6/execute_async_generator
 atMethod	es6/util/atmethod
 checkEs6ConformanceViaProxy	es6/conformance
+checkIsObject	util/checkisobject
 checkIsSetInstance	es6/set_extensions
 checkIsSetLike	es6/set_extensions
 checkIsValidIterator	es6/set_extensions

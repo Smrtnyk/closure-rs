@@ -3,18 +3,18 @@
  "doc": "corpus/d2/FORMAT.md; fetched and verified by scripts/fetch_d2.sh",
  "generated_by": "corpus/d2/validate/finalize.py (D2 corpus validation)",
  "reference": {
-  "commit": "48f4107ca2aac52149546ccc42894522fcfdb17d",
-  "jar": "build/reference-v20261006/closure-compiler.jar",
-  "jar_sha256": "cfa8886f9bcb9c05d29006dab5cd7012221a7ab2337d14c6fbd8d685b31f2264"
+  "commit": "21768cdbfa949bcce3f80d4285feb66475c4758c",
+  "jar": "build/reference-v20261007/closure-compiler.jar",
+  "jar_sha256": "7792e7a3c1b1459ec5c80d8a3ce617eab2eb3a0f0aa078a292e91a42abc65ca2"
  },
  "golden": {
-  "root": "corpus-cache/d2/_golden/ref-cfa8886f",
-  "jar_sha256": "cfa8886f9bcb9c05d29006dab5cd7012221a7ab2337d14c6fbd8d685b31f2264"
+  "root": "corpus-cache/d2/_golden/ref-7792e7a3",
+  "jar_sha256": "7792e7a3c1b1459ec5c80d8a3ce617eab2eb3a0f0aa078a292e91a42abc65ca2"
  },
  "cases": {
   "path": "corpus/d2/cases.jsonl",
   "count": 2085,
-  "sha256": "f1a130f0467cbe27afa326145ea03ca4a160d09142bbe7964a2e2f14e10a2afe"
+  "sha256": "83241746d06f9719eca0e070da251aadce5041d79b8e11d432129b7b81dc81bf"
  },
  "allowed_hosts": [
   "registry.npmjs.org",

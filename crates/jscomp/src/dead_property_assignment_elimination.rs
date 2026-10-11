@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   src/com/google/javascript/jscomp/DeadPropertyAssignmentElimination.java.
 
 //! Port of `DeadPropertyAssignmentElimination.java`.
@@ -23,7 +23,7 @@
 //!
 //! This pass does not currently use the control-flow graph. It makes the following assumptions:
 //!
-//! - Functions with inner functions are not processed.
+//! - Functions with inner functions or non-static class field initializers are not processed.
 //! - All properties are read whenever entering a block node. Dead assignments within a block are
 //!   processed.
 //! - Hook nodes are not processed (it's assumed they read everything)
@@ -113,7 +113,12 @@ impl FunctionVisitor {
 
         let body = NodeUtil::get_function_body(compiler, root);
         if !body.has_children(compiler)
-            || NodeUtil::has(compiler, body, &|ast, n| n.is_function(ast), &|_, _| true)
+            || NodeUtil::has(
+                compiler,
+                body,
+                &NodeUtil::is_function_or_non_static_class_field_initializer,
+                &|_, _| true,
+            )
         {
             return;
         }

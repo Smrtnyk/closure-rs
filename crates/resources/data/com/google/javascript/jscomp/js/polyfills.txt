@@ -81,6 +81,7 @@ Int8Array.prototype.toReversed es_next es5 es6/typedarray/toreversed
 Int8Array.prototype.toSorted es_next es5 es6/typedarray/tosorted
 Int8Array.prototype.with es_next es5 es6/typedarray/with
 Iterator es_next es3 es6/iterator
+Iterator.from es_next es3 es6/iterator/from
 Map es6 es3 es6/map
 Map.groupBy es_next es3 es6/map
 Math.acosh es6 es3 es6/math/acosh

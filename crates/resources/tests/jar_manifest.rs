@@ -60,7 +60,7 @@ fn externs_zip_entries_match_reference_jar() {
     check_archive("externs.zip", EXTERNS_ZIP_ENTRIES);
 }
 
-// port: closure-compiler.jar resource counts (126 externs, 164 runtime libraries)
+// port: closure-compiler.jar resource counts (126 externs, 167 runtime libraries)
 #[test]
 fn resource_counts() {
     let count = |entries: &[ArchiveEntry], pred: &dyn Fn(&ArchiveEntry) -> bool| {
@@ -80,7 +80,7 @@ fn resource_counts() {
                 && e.name.ends_with(".js")
                 && is_file(e)
         }),
-        164
+        167
     );
     for name in [
         "com/google/javascript/jscomp/js/polyfills.txt",

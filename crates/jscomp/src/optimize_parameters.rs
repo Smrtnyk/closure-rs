@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   src/com/google/javascript/jscomp/OptimizeParameters.java.
 
 use crate::{
@@ -792,18 +792,18 @@ impl OptimizeParameters {
         class_node: NodeId,
     ) -> bool {
         let class_members_node = NodeUtil::get_class_members(compiler, class_node);
-        let mut child = class_members_node.get_first_child(compiler);
-        while let Some(c) = child {
-            if c.is_member_field_def(compiler)
-                && !c.is_static_member(compiler)
-                && c.has_children(compiler)
+        let mut member = class_members_node.get_first_child(compiler);
+        while let Some(m) = member {
+            let initializer = m.get_last_child(compiler);
+            if let Some(initializer) = initializer
+                && NodeUtil::is_non_static_class_field_initializer(compiler, initializer)
                 && self
                     .ast_analyzer
-                    .may_have_side_effects(compiler, c.get_first_child(compiler).unwrap())
+                    .may_have_side_effects(compiler, initializer)
             {
                 return true;
             }
-            child = c.get_next(compiler);
+            member = m.get_next(compiler);
         }
         false
     }

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   test/com/google/javascript/jscomp/FunctionArgumentInjectorTest.java.
 
 //! Port of `FunctionArgumentInjectorTest.java`: tests for the static methods in
@@ -557,6 +557,29 @@ fn test_find_modified_parameters20() {
         .function_argument_injector
         .find_modified_parameters(&t.compiler, f);
     assert_contains_exactly(&modified, &["p"]);
+}
+
+// port: FunctionArgumentInjectorTest#testFindModifiedParameters_classFields
+#[test]
+fn test_find_modified_parameters_class_fields() {
+    let mut t = FunctionArgumentInjectorTest::set_up();
+    let f = t.parse_function(
+        "function f(a, b, c, d, e, g) {
+  return class {
+    x = a;
+    [b] = c;
+    static y = d;
+    static [d] = e;
+    uninitialized;
+    [g];
+  };
+}
+",
+    );
+    let modified = t
+        .function_argument_injector
+        .find_modified_parameters(&t.compiler, f);
+    assert_contains_exactly(&modified, &["a", "c"]);
 }
 
 // port: FunctionArgumentInjectorTest#testGatherCallArgumentsNeedingTemps1
