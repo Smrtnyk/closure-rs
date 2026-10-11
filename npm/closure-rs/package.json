@@ -1,6 +1,6 @@
 {
   "name": "closure-rs",
-  "version": "20261006.2.1",
+  "version": "20261007.0.0",
   "description": "Rust port of the Closure Compiler CLI. Not affiliated with or published by Google.",
   "repository": {
     "type": "git",
