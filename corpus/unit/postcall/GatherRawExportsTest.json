@@ -1,7 +1,7 @@
 {
   "v": 1,
   "class": "com.google.javascript.jscomp.GatherRawExportsTest",
-  "note": "classify batch 7 (D-015 a). Every entry: assertExported (test lines 234-238) asserts last.getExportedVariableNames() equals the expected names after testSame(js); `last` is the GatherRawExports the processor ran, and postCall.pass.exportedVariableNames is that producer's getExportedVariableNames(), compared by replay (Java: exact JSON, insertion-ordered LinkedHashSet, stricter than the test's set equality).",
+  "note": "classify batch 7 (FORMAT.md \"corpus/unit/postcall/<Class>.json\"). Every entry: assertExported (test lines 234-238) asserts last.getExportedVariableNames() equals the expected names after testSame(js); `last` is the GatherRawExports the processor ran, and postCall.pass.exportedVariableNames is that producer's getExportedVariableNames(), compared by replay (Java: exact JSON, insertion-ordered LinkedHashSet, stricter than the test's set equality).",
   "methods": [
     {"method": "testExportOnGlobalThis1", "status": "captured", "via": ["postCall.pass.exportedVariableNames"]},
     {"method": "testExportOnGlobalThis2", "status": "captured", "via": ["postCall.pass.exportedVariableNames"]},

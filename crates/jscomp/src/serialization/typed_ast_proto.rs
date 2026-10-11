@@ -16,7 +16,7 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   src/com/google/javascript/rhino/typed_ast/typed_ast.proto.
 
-// Generated from src/com/google/javascript/rhino/typed_ast/typed_ast.proto (protoc's Java API shape; D-003, no
+// Generated from src/com/google/javascript/rhino/typed_ast/typed_ast.proto (protoc's Java API shape; no
 // protoc on the host). Wire format and defaults follow proto3; see protobuf.rs.
 #![allow(clippy::all, unused_imports, unused_variables, dead_code)]
 use super::optimization_jsdoc_proto::*;

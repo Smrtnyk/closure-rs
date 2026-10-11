@@ -150,8 +150,9 @@ pub trait DataFlowAnalysis<
             }
             self.join_inputs(compiler, cur_node);
             if self.flow(compiler, cur_node) {
-                // Rust-only (D-025): the successors (predecessors) are read from the graph one
-                // by one, in getDirectedSuccNodes order, instead of being copied into a new list.
+                // Rust-only (performance divergence): the successors (predecessors) are read from
+                // the graph one by one, in getDirectedSuccNodes order, instead of being copied into
+                // a new list.
                 let forward = self.is_forward();
                 let count = if forward {
                     self.get_cfg().node_out_edges(cur_node).len()
@@ -200,9 +201,9 @@ pub trait DataFlowAnalysis<
     }
     // port: DataFlowAnalysis#flow
     fn flow(&mut self, compiler: &mut AbstractCompiler, node: DiGraphNode) -> bool {
-        // Rust-only (D-025): Java keeps references to the lattice elements; here the stored
-        // element is compared with the new one before it is replaced, instead of being cloned
-        // first ("before"), and the new element is moved into place. The order of the
+        // Rust-only (performance divergence): Java keeps references to the lattice elements; here
+        // the stored element is compared with the new one before it is replaced, instead of being
+        // cloned first ("before"), and the new element is moved into place. The order of the
         // flowThrough, branchFlow and equals calls is Java's.
         let state = node
             .get_annotation_as::<LinearFlowState<L>>(self.get_cfg())

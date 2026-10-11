@@ -15,7 +15,7 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   src/com/google/javascript/jscomp/compiler_state/compiler_state.proto.
 
-// Generated from src/com/google/javascript/jscomp/compiler_state/compiler_state.proto (protoc's Java API shape; D-003, no
+// Generated from src/com/google/javascript/jscomp/compiler_state/compiler_state.proto (protoc's Java API shape; no
 // protoc on the host). Wire format and defaults follow proto3; see protobuf.rs.
 #![allow(clippy::all, unused_imports, unused_variables, dead_code)]
 use crate::conformance_config::{Requirement, RequirementScopeEntry};

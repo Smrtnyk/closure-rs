@@ -30,7 +30,7 @@ index 087d277..88b4eee 100644
 +  // ---- closure-rs recording hook (oracle/patches/0002-recording-hooks.patch) ----
 +  private UnitRecorder.Rec __currentRec;
 +  private Compiler __recCompiler;
-+  /** The compiler the outermost testInternal call's postconditions verify (D-017 item 1). */
++  /** The compiler the outermost testInternal call's postconditions verify (FORMAT.md "Postcondition data"). */
 +  private Compiler __recPostCompiler;
 +  /** testInternal nesting depth on this instance (1 = the outermost, recorded call). */
 +  private int __recDepth;
@@ -90,7 +90,7 @@ index 087d277..88b4eee 100644
 +      com.google.gson.JsonArray captured = new com.google.gson.JsonArray();
 +      for (int i = 0; i < postconditions.size(); i++) {
 +        if (UnitRecorder.postconditionDataLambda(postconditions.get(i))) {
-+          // D-017 item 1 (FORMAT.md "Postcondition data"): what this lambda asserts is captured as
++          // FORMAT.md "Postcondition data": what this lambda asserts is captured as
 +          // replay-compared postCall data (postCall.postcondition, postCall.compiler.externExport,
 +          // postCall.compiler.externProperties), so the lambda is not unrepresentable. Its value
 +          // (class name and captures, which descriptors decode) is kept as recorded; the index is
@@ -174,7 +174,7 @@ index 087d277..88b4eee 100644
 +    if (pass != null) {
 +      // Depth 2 (fixer round 1): wrapped passes (e.g. a test-inner wrapper's wrappedPass) dump their
 +      // own configuration; every value the dump cannot represent is listed in `unrepresentable`.
-+      // D-015(e): referenceable dump; values it cannot represent are class-name references.
++      // Referenceable dump (FORMAT.md "Referenceable values"); values it cannot represent are class-name references.
 +      p.add("fields", UnitRecorder.refFields(pass, pass.getClass(), Object.class, "processor", 2));
 +      rec.processorObj = pass;
 +    }
@@ -228,7 +228,7 @@ index 087d277..88b4eee 100644
 +    rec.o.add("testFieldsAfter", diff);
 +  }
 +
-+  /** expected.postconditions of the record (D-017 item 1: postcondition data only then). */
++  /** expected.postconditions of the record (postcondition data only then, FORMAT.md "Postcondition data"). */
 +  private static int __recPostconditions(UnitRecorder.Rec rec) {
 +    com.google.gson.JsonObject ex = rec.o.getAsJsonObject("expected");
 +    com.google.gson.JsonElement n = ex == null ? null : ex.get("postconditions");
@@ -276,7 +276,7 @@ index 087d277..88b4eee 100644
            .that(compiler.getErrors())
            .comparingElementsUsing(DIAGNOSTIC_CORRESPONDENCE)
            .containsExactlyElementsIn(expectedErrors);
-+      __notePostconditionCompiler(compiler); // closure-rs recording hook (D-017 item 1)
++      __notePostconditionCompiler(compiler); // closure-rs recording hook (FORMAT.md "Postcondition data")
        for (Postcondition postcondition : postconditions) {
          postcondition.verify(compiler);
        }
@@ -295,7 +295,7 @@ index 087d277..88b4eee 100644
              .doesNotContainMatch("\\{\\d\\}");
        }
      }
-+    __notePostconditionCompiler(compiler); // closure-rs recording hook (D-017 item 1)
++    __notePostconditionCompiler(compiler); // closure-rs recording hook (FORMAT.md "Postcondition data")
      for (Postcondition postcondition : postconditions) {
        postcondition.verify(compiler);
      }
@@ -688,7 +688,7 @@ index 0000000..71df20b
 +    return r;
 +  }
 +
-+  // ---- pass trace (D-017 item 8, FORMAT.md "passTrace") ----
++  // ---- pass trace (FORMAT.md "passTrace") ----
 +  // The NoopAgent in TRACE mode (-javaagent:noop-agent.jar=trace=<scope>) is on the system class
 +  // path; it is reached by reflection so the recorder also runs without it (then no passTrace).
 +  private static final java.lang.reflect.Method[] TRACE = traceMethods();
@@ -957,7 +957,7 @@ index 0000000..71df20b
 +  }
 +
 +  /**
-+   * Referenceable dump mode (D-015 e, FORMAT.md "Referenceable values"): used for test-instance
++   * Referenceable dump mode (FORMAT.md "Referenceable values"): used for test-instance
 +   * fields (entry and after the call) and the processor dump. A value the dump cannot represent
 +   * (a lambda, a cycle, an object nested deeper than the dump depth, a field reflection cannot
 +   * read) is written as a class-name reference {"ref": FQCN} (a lambda keeps its "captures") and
@@ -1242,7 +1242,7 @@ index 0000000..71df20b
 +        o.addProperty("impl", c.getName());
 +        return o;
 +      }
-+      // D-017 item 2 (FORMAT.md "Neutral encodings"): a Guava Table as its cells, each
++      // FORMAT.md "Neutral encodings": a Guava Table as its cells, each
 +      // [row, column, value], in cellSet() order, plus the implementation class.
 +      if (v instanceof com.google.common.collect.Table<?, ?, ?> t) {
 +        JsonObject o = new JsonObject();
@@ -1260,7 +1260,7 @@ index 0000000..71df20b
 +        o.addProperty("impl", c.getName());
 +        return o;
 +      }
-+      // D-017 item 2 (FORMAT.md "Neutral encodings"): a protobuf message or builder by its
++      // FORMAT.md "Neutral encodings": a protobuf message or builder by its
 +      // descriptor: every set field by name, nested messages in full (no depth limit).
 +      if (v instanceof com.google.protobuf.MessageOrBuilder msg) {
 +        return protoValue(msg);
@@ -1289,7 +1289,7 @@ index 0000000..71df20b
 +  }
 +
 +  /**
-+   * D-017 item 2 (FORMAT.md "Neutral encodings"): {"proto": descriptor full name, "fields": {name:
++   * FORMAT.md "Neutral encodings": {"proto": descriptor full name, "fields": {name:
 +   * value}} with the fields getAllFields() returns (the set fields, in field-number order); never the
 +   * Java-only memoizedIsInitialized / memoizedSize / memoizedHashCode / unknownFields. Repeated fields
 +   * (map fields included, as their entry messages) are arrays; enums are value names; 64-bit integers
@@ -1510,7 +1510,7 @@ index 0000000..71df20b
 +   * roots (the test instance's own fields, or replay's helper objects).
 +   */
 +  /**
-+   * D-017 item 1 (FORMAT.md "Postcondition data"): test classes whose postcondition lambdas assert
++   * FORMAT.md "Postcondition data": test classes whose postcondition lambdas assert
 +   * state that the snapshot captures as replay-compared data. Their lambdas are recorded as
 +   * class-name references ({@code postconditionLambda}), not as unrepresentable placeholders:
 +   * PureFunctionIdentifierTest (side-effect flags of CALL/NEW/TAGGED_TEMPLATELIT nodes, {@code
@@ -1543,7 +1543,7 @@ index 0000000..71df20b
 +  /**
 +   * As above; with a non-null {@code postconditionCompiler} (the compiler the hooked call's
 +   * postconditions verify; given only when it ran at least one) the snapshot also holds {@code
-+   * postcondition}: the state postcondition lambdas assert, read from that compiler (D-017 item 1,
++   * postcondition}: the state postcondition lambdas assert, read from that compiler (FORMAT.md "Postcondition data",
 +   * FORMAT.md "Postcondition data"). It is the outermost call's compiler even when a nested hooked
 +   * call replaced the test's lastCompiler.
 +   */
@@ -1618,7 +1618,7 @@ index 0000000..71df20b
 +      if (compiler.runJ2clPasses()) {
 +        comp.addProperty("runJ2clPasses", true);
 +      }
-+      // D-017 item 2 (FORMAT.md "Post-call snapshot"): neutral compiler keys.
++      // FORMAT.md "Post-call snapshot": neutral compiler keys.
 +      // injectedLibraries: RuntimeJsLibManager.getInjectedLibraries() in injection order; present
 +      // only when non-empty.
 +      try {
@@ -1844,7 +1844,7 @@ index 0000000..71df20b
 +    return false;
 +  }
 +
-+  /** D-017 item 1: output-AST state asserted by postcondition lambdas (FORMAT.md "Postcondition data"):
++  /** Output-AST state asserted by postcondition lambdas (FORMAT.md "Postcondition data"):
 +   * sideEffectFlags = [node, callee qualified name or null, Node.getSideEffectFlags()] of every
 +   * CALL/NEW/TAGGED_TEMPLATELIT/OPTCHAIN_CALL node of externs and JS (pre-order); jsdocTypes = [node,
 +   * [toStringTree of each JSDoc type node]] of every JS-root node whose JSDoc has type nodes. */
@@ -1973,7 +1973,7 @@ index 0000000..71df20b
 +    o.add("weaklyRequiredGoogNamespaces", refValue(m.weaklyRequiredGoogNamespaces(), "post.m", 1));
 +    o.add("es6ImportSpecifiers", refValue(m.es6ImportSpecifiers(), "post.m", 1));
 +    o.add("readToggles", refValue(m.readToggles(), "post.m", 1));
-+    // D-017 item 2: the nested goog.loadModule modules' metadata in full (recursively), in
++    // The nested goog.loadModule modules' metadata in full (recursively), in
 +    // nestedModules() order (was a count before; the list size is that count).
 +    JsonArray nested = new JsonArray();
 +    for (com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata n : m.nestedModules()) {

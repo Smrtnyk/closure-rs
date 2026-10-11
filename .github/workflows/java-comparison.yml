@@ -8,7 +8,7 @@
 # Java is the pinned reference uberjar (scripts/references.tsv), built from the pinned upstream
 # commit with Bazel when the cache does not hold it and accepted only with the pinned sha256,
 # run on the pinned JDK (scripts/setup_tools.sh) in the fixed environment of the golden runs
-# (DECISIONS.md D-010). The inputs are fetched at their pinned versions and hash-checked
+# (docs/PORTING.md §4.1). The inputs are fetched at their pinned versions and hash-checked
 # (scripts/fetch_bench.sh); nothing fetched is committed.
 name: java-comparison
 

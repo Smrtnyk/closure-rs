@@ -67,8 +67,9 @@ impl PartialEq for Definition {
     }
 }
 impl Eq for Definition {}
-/// Rust-only (D-025): the map is shared copy-on-write (`Arc::make_mut` before a change), so the
-/// lattice elements DataFlowAnalysis copies (Java shares references to them) cost no map copy.
+/// Rust-only (performance divergence): the map is shared copy-on-write (`Arc::make_mut` before a
+/// change), so the lattice elements DataFlowAnalysis copies (Java shares references to them) cost
+/// no map copy.
 #[derive(Clone, Default)]
 pub struct MustDef {
     pub reaching_def: Arc<IndexMap<VarId, Option<Arc<Definition>>>>,
@@ -579,7 +580,7 @@ impl DataFlowAnalysis<NodeId, MustDef> for MustBeReachingVariableDef {
         n: NodeId,
         input: MustDef,
     ) -> MustDef {
-        // Java copies the shared input; here the input is owned (D-025).
+        // Java copies the shared input; here the input is owned (performance divergence).
         let mut output = input;
         self.compute_must_def(compiler, n, n, &mut output, false);
         output

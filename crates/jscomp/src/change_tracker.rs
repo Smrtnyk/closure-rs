@@ -34,8 +34,8 @@ pub struct ChangeTracker {
     change_timeline: Timeline<NodeId>,
     recent_change: Arc<Mutex<RecentChange>>,
     code_change_handlers: Vec<Arc<Mutex<dyn CodeChangeHandler>>>,
-    /// Rust-only (DECISIONS.md D-025): the externs root and the number of changes recorded to
-    /// change scopes inside it, so that what is cached about the externs
+    /// Rust-only (crates/DESIGN.md, "Performance divergences"): the externs root and the number of
+    /// changes recorded to change scopes inside it, so that what is cached about the externs
     /// (`ReferenceCollector`'s `ExternsReferenceSummary`) is known to be still valid.
     externs_root: Option<NodeId>,
     externs_changes: u64,

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the class-level no-op mutation agent (oracle/replay/agent, HARNESS.md "Class-level no-op
-# mutation", D-015 d) into a jar:  scripts/unit_noop_agent_build.sh [OUT_JAR]
+# mutation") into a jar:  scripts/unit_noop_agent_build.sh [OUT_JAR]
 # Default OUT_JAR: build/unit/noop-agent/noop-agent.jar. Uses the JDK's internal ASM copy
 # (jdk.internal.org.objectweb.asm, java.base of JDK 21); the manifest exports it to the agent.
 set -euo pipefail

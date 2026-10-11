@@ -30,7 +30,7 @@ the whole is
   AND BSD-3-Clause AND MIT AND Unicode-DFS-2016 AND dtoa
 
 Changes relative to the originals are the translation into Rust and the adjustments documented in
-DECISIONS.md.
+docs/PORTING.md and crates/DESIGN.md.
 
 1. Closure Compiler
 -------------------

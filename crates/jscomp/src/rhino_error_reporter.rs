@@ -384,7 +384,7 @@ impl QueueingOldRhinoErrorReporter {
 }
 /// Rust-only: the queue behind `QueueingOldRhinoErrorReporter`. The Compiler drains it before
 /// every report and error read, which is very often while it is nearly always empty; the
-/// `pending` flag makes the empty check a plain load instead of a lock (D-025).
+/// `pending` flag makes the empty check a plain load instead of a lock (performance divergence).
 #[derive(Default)]
 pub struct JSErrorQueue {
     pending: std::sync::atomic::AtomicBool,

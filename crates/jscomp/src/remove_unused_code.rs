@@ -852,7 +852,8 @@ impl RemoveUnusedCode {
         n: NodeId,
         scope: ScopeId,
     ) -> VarInfoId {
-        // Rust-only: the name is read in place, copied only for a polyfill (D-025).
+        // Rust-only: the name is read in place, copied only for a polyfill
+        // (performance divergence).
         if self.polyfills.contains_key(n.get_string_ref(compiler)) {
             let name = n.get_string(compiler);
             for info in self.polyfills.get(&name) {

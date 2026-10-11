@@ -3517,7 +3517,7 @@ impl CommandLineRunner {
             );
             compiler.set_error_manager(Box::new(manager));
         }
-        // Not in Java: Polymer is outside the port (D-028).
+        // Not in Java: Polymer is outside the port (docs/PORTING.md §2.1).
         crate::out_of_scope::refuse_polymer(&self.flags)?;
         let mut options = self
             .create_options()
@@ -3525,7 +3525,8 @@ impl CommandLineRunner {
         self.base
             .set_run_options(&mut options)
             .map_err(|e| e.at_cli("AbstractCommandLineRunner", "doRun", 1165))?;
-        // Not in Java: flags that turn on a part of the compiler outside the port (D-028).
+        // Not in Java: flags that turn on a part of the compiler outside the port
+        // (docs/PORTING.md §2.1).
         crate::out_of_scope::refuse_flags(&self.flags)?;
         let externs = self.create_externs(&options)?;
         self.base.root_relative_paths_map = Some(self.base.construct_root_relative_paths_map());
@@ -3565,7 +3566,8 @@ impl CommandLineRunner {
             let mut found_json_input_source_map = false;
             for file in files {
                 let file = file.as_ref().ok_or_else(|| RunnerException::java_exception("java.lang.NullPointerException", "Cannot invoke \"com.google.javascript.jscomp.AbstractCommandLineRunner$JsonFileSpec.getSourceMap()\" because \"jsonFile\" is null".into(), vec![]).at_cli("AbstractCommandLineRunner", "doRun", 1202))?;
-                // The source name `createInputs` gives this file (DECISIONS.md D-029).
+                // The source name `createInputs` gives this file (crates/DESIGN.md, "Source names
+                // that hold unpaired surrogates").
                 let path = file.get_path().expect("null path").to_string();
                 if let Some(map) = file.get_source_map()
                     && !map.is_empty()
@@ -3711,7 +3713,8 @@ impl CommandLineRunner {
                     chunks = Some(self.base.compiler.as_ref().unwrap().get_chunks().unwrap());
                 }
             }));
-            // Not in Java: the J2CL passes were refused (D-028); nothing else is reported.
+            // Not in Java: the J2CL passes were refused (docs/PORTING.md §2.1); nothing else is
+            // reported.
             if let Some(error) = refused {
                 return Err(error.into());
             }

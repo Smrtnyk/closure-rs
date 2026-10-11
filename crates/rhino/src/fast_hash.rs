@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-//! Rust-only, not in Java (DECISIONS.md D-025): a fast non-cryptographic hasher for hash tables
-//! on the compiler's hot paths. The std default (SipHash with a random key) resists hash
-//! flooding, which a compiler reading its own inputs does not need, and costs several times
-//! more per key. Insertion-ordered maps (`IndexMap`, `IndexSet`) iterate in insertion order
+//! Rust-only, not in Java (crates/DESIGN.md, "Performance divergences"): a fast non-cryptographic
+//! hasher for hash tables on the compiler's hot paths. The std default (SipHash with a random key)
+//! resists hash flooding, which a compiler reading its own inputs does not need, and costs several
+//! times more per key. Insertion-ordered maps (`IndexMap`, `IndexSet`) iterate in insertion order
 //! whatever the hasher, so switching their hasher never changes output.
 //!
 //! Each word is mixed in by rotate, xor and a multiply by the 64-bit golden-ratio constant

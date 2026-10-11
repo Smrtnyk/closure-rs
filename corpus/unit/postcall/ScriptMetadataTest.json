@@ -1,7 +1,7 @@
 {
  "v": 1,
  "class": "com.google.javascript.refactoring.ScriptMetadataTest",
- "note": "classify round 1 batch 8 (D-017 item 6). Read from test/com/google/javascript/refactoring/ScriptMetadataTest.java (bb8c8e7).",
+ "note": "classify round 1 batch 8 (FORMAT.md \"corpus/unit/postcall/<Class>.json\"). Read from test/com/google/javascript/refactoring/ScriptMetadataTest.java (bb8c8e7).",
  "methods": [
   {
    "method": "testParsesAliases",

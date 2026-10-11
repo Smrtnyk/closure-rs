@@ -54,7 +54,8 @@ all = { level = "warn", priority = -1 }
 [profile.release]
 debug = 1
 # Whole-program optimisation for the shipped binary: about 5% faster compiles than the default
-# (thin, per-crate) LTO with 16 codegen units, for a slower release build (DECISIONS.md D-025).
+# (thin, per-crate) LTO with 16 codegen units, for a slower release build (crates/DESIGN.md,
+# "Performance divergences").
 lto = "fat"
 codegen-units = 1
 

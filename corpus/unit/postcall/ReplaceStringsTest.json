@@ -1,7 +1,7 @@
 {
   "v": 1,
   "class": "com.google.javascript.jscomp.ReplaceStringsTest",
-  "note": "classify batch 7 (D-015 a). Every entry: testDebugStrings (test lines 525-542) asserts pass.getResult() after test(js, expected): its size and each Result's original and replacement, in order. testFieldsAfter.pass (descriptor opt-in: the once-shared GetProcessorPass holds the same ReplaceStrings in its field `pass`) compares the pass's `results` LinkedHashMap of Result(original, replacement, didReplacement) in insertion order, from which getResult() is the didReplacement filter; postCall.pass.stringMap (replacement -> original of the used results) is compared as well.",
+  "note": "classify batch 7 (FORMAT.md \"corpus/unit/postcall/<Class>.json\"). Every entry: testDebugStrings (test lines 525-542) asserts pass.getResult() after test(js, expected): its size and each Result's original and replacement, in order. testFieldsAfter.pass (descriptor opt-in: the once-shared GetProcessorPass holds the same ReplaceStrings in its field `pass`) compares the pass's `results` LinkedHashMap of Result(original, replacement, didReplacement) in insertion order, from which getResult() is the didReplacement filter; postCall.pass.stringMap (replacement -> original of the used results) is compared as well.",
   "methods": [
     {"method": "testExcludedFile", "status": "captured", "via": ["testFieldsAfter.pass", "postCall.pass.stringMap"]},
     {"method": "testLoggerInitialization", "status": "captured", "via": ["testFieldsAfter.pass", "postCall.pass.stringMap"]},

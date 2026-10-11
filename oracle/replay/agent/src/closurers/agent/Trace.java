@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Pass trace of NoopAgent TRACE mode (D-017 item 8, HARNESS.md "Pass trace"). Instrumented entry
+ * Pass trace of NoopAgent TRACE mode (HARNESS.md "Pass trace"). Instrumented entry
  * points call {@link #hit(int)}; the recorder (recording run) and ReplayMain (replay) call {@link
  * #begin()} before and {@link #end()} after one hooked call, by reflection, so neither depends on
  * the agent being present. The trace is global (not per thread): the compiler may run passes on its

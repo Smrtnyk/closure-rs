@@ -148,7 +148,8 @@ impl AbstractVar for VarId {
         VarId::to_string(self, compiler)
     }
 
-    // The readers of immutable fields below use the lock-free `ScopeMirror` (D-025).
+    // The readers of immutable fields below use the lock-free `ScopeMirror`
+    // (performance divergence).
     // port: AbstractVar#getName
     fn get_name(self, compiler: &AbstractCompiler) -> JsString {
         match self.meta(compiler) {

@@ -22,7 +22,7 @@ use std::io::{self, Write};
 pub fn encode(value: &JsString, charset: Charset, emit_bom: bool) -> Vec<u8> {
     encode_units(value.as_units(), charset, emit_bom)
 }
-/// Rust-only: `encode` of code units, with a fast path for ASCII in UTF-8 (D-025).
+/// Rust-only: `encode` of code units, with a fast path for ASCII in UTF-8 (performance divergence).
 fn encode_units(units: &[u16], charset: Charset, emit_bom: bool) -> Vec<u8> {
     let mut out = Vec::with_capacity(units.len());
     if charset == Charset::UTF_16 && emit_bom && !units.is_empty() {
@@ -191,8 +191,8 @@ impl Write for EncodedWriter<'_> {
         if self.closed {
             return Err(io::Error::other("Stream closed"));
         }
-        // Rust-only fast path (D-025): bytes written as UTF-8 reach a UTF-8 stream unchanged
-        // (after the replacement of malformed input that the UTF-16 round trip makes).
+        // Rust-only fast path (performance divergence): bytes written as UTF-8 reach a UTF-8 stream
+        // unchanged (after the replacement of malformed input that the UTF-16 round trip makes).
         if self.charset == Charset::UTF_8 && self.pending_chars.is_empty() {
             if !self.pending.is_empty() {
                 let text = String::from_utf8_lossy(&self.pending);

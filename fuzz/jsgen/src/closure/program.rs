@@ -762,7 +762,7 @@ pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
                 default = true;
             }
             // Rare: under the chunk profiles Java crashes on a dynamic import (AstValidator
-            // "AST should not contain Dynamic module import", exit 254, dropped by D-009), so a
+            // "AST should not contain Dynamic module import", exit 254, dropped as in D2), so a
             // high rate would waste the chunk budget (3 of 23 chunk runs in a 165-program
             // sample at 1 in 6).
             if let Some(&j) = my_deps.last()

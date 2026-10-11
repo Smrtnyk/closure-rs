@@ -161,9 +161,9 @@ pub fn replay_one(
     registry: Registry,
     pipeline: Option<&ExpectedPipeline>,
 ) -> Result<ReplayResult, Throwable> {
-    // FORMAT.md outcome contract and D-010: `java.lang.StackOverflowError` records are
-    // depth-sensitive and reported separately. Java catches the overflow; a native run cannot (the
-    // whole process aborts), so the record is not run.
+    // FORMAT.md "Outcome contract" and docs/PORTING.md §4.1: `java.lang.StackOverflowError` records
+    // are depth-sensitive and reported separately. Java catches the overflow; a native run cannot
+    // (the whole process aborts), so the record is not run.
     if let Some(JsonValue::String(class)) = record
         .raw
         .get("outcome")
@@ -171,7 +171,7 @@ pub fn replay_one(
         && class.eq_str(STACK_OVERFLOW_ERROR)
     {
         return Err(Throwable::Unported(format!(
-            "{STACK_OVERFLOW_ERROR} (depth-sensitive, D-010)"
+            "{STACK_OVERFLOW_ERROR} (depth-sensitive)"
         )));
     }
     let class_map = descriptor

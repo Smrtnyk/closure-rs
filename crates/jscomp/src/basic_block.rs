@@ -27,7 +27,7 @@ use std::rc::Rc;
 ///
 /// Java compares blocks by identity; blocks are shared as `Rc<BasicBlock>` and compared with
 /// `Rc::ptr_eq`. A reference collection stays on the thread that makes it, so its blocks are
-/// counted without atomic operations (DECISIONS.md D-025).
+/// counted without atomic operations (crates/DESIGN.md, "Performance divergences").
 #[derive(Debug)]
 pub struct BasicBlock {
     parent: Option<Rc<BasicBlock>>,

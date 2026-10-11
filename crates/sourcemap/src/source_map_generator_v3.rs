@@ -896,7 +896,8 @@ impl<'a> JavaAppendable<'a> {
 }
 impl Write for JavaAppendable<'_> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        // Rust-only: the code units are appended directly, not through a JS string (D-025).
+        // Rust-only: the code units are appended directly, not through a JS string
+        // (performance divergence).
         self.units.extend(s.encode_utf16());
         self.out.write_str(s)
     }

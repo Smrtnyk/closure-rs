@@ -15,7 +15,7 @@
  */
 
 //! Not in Java: closure-rs stops, instead of compiling, when a flag or the input turns on a part of
-//! Closure Compiler that is outside the port (DECISIONS.md D-028; the flags are the `out` rows of
+//! Closure Compiler that is outside the port (docs/PORTING.md §2.1; the flags are the `out` rows of
 //! `scope/flags.txt`). The refusal is a `FlagUsageException`, so it is reported like the Java
 //! compiler's own flag errors: the message alone on stderr, exit code 255.
 use crate::{abstract_command_line_runner::FlagUsageException, command_line_runner::Flags};

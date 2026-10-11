@@ -19,7 +19,7 @@
 //! TypedAST and compiler-state messages and the serialization classes use: `CodedInputStream`,
 //! `CodedOutputStream`, `WireFormat`, `InvalidProtocolBufferException` and the `Message` API
 //! (`parseFrom`, `parseDelimitedFrom`, `writeTo`, `writeDelimitedTo`, `toByteArray`,
-//! `getSerializedSize`). No protoc on the host (D-003), so the messages are generated once into
+//! `getSerializedSize`). No protoc on the host, so the messages are generated once into
 //! `*_proto.rs` and use these primitives; the wire format is protobuf's, so Java-written files
 //! (`runtime_libs.typedast`) read back unchanged and Rust-written files read in Java.
 

@@ -511,7 +511,8 @@ impl<'a, 'c> Traverser<'a, 'c> {
 
     // port: PolyfillUsageFinder.Traverser#visitName
     fn visit_name(&mut self, traversal: &mut NodeTraversal<'_>, name_node: NodeId) {
-        // Rust-only: the name is looked up in place and copied only for a polyfill (D-025).
+        // Rust-only: the name is looked up in place and copied only for a polyfill
+        // (performance divergence).
         let Some(polyfill) = self
             .outer
             .polyfills

@@ -43,5 +43,5 @@
    }
   }
  ],
- "note": "testRewritePrototypeMethodsWithCorrectColors (lines 57-104) makes follow-up color assertions on getLastCompiler() after test() (checkColorOfRewrittenMethods, lines 106-121); those assertions inspect Color objects of the output AST, which no record holds. They are classified rust_unit_test in corpus/unit/postcall/DevirtualizeMethodsTest.json (D-015 a), replacing the former postCallAssertions entry."
+ "note": "testRewritePrototypeMethodsWithCorrectColors (lines 57-104) makes follow-up color assertions on getLastCompiler() after test() (checkColorOfRewrittenMethods, lines 106-121); those assertions inspect Color objects of the output AST, which no record holds. They are classified rust_unit_test in corpus/unit/postcall/DevirtualizeMethodsTest.json (FORMAT.md \"corpus/unit/postcall/<Class>.json\"), replacing the former postCallAssertions entry."
 }

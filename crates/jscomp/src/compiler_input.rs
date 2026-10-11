@@ -48,7 +48,7 @@ use std::{
 
 /// Shared Java object identity; the source and InputId are immutable.
 /// Java's CompilerInput object; clones share it (Java reference semantics). One `Arc` around all
-/// fields, so a clone costs one reference-count update instead of three (D-025).
+/// fields, so a clone costs one reference-count update instead of three (performance divergence).
 #[derive(Clone)]
 pub struct CompilerInput(Arc<CompilerInputFields>);
 pub struct CompilerInputFields {
@@ -172,7 +172,8 @@ impl CompilerInput {
                     ConfigContext::DEFAULT
                 });
                 // Split the compiler's arena borrow from reporting, retaining diagnostic order.
-                // Rust-only (D-025): an input parsed ahead on a worker thread is moved in instead.
+                // Rust-only (performance divergence): an input parsed ahead on a worker thread is
+                // moved in instead.
                 let (result, errors) =
                     match crate::parallel_parse::take(compiler, self, &config, &code) {
                         Some(preparsed) => preparsed,

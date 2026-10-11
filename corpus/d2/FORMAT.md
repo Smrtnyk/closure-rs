@@ -30,6 +30,25 @@ against the sha256 recorded in `sources.lock.json`.
 - **`test_command`:** only for whole-program cases. It is a command that runs the program's
   own tests against the compiled output.
 
+## Sources
+
+- **Group keys.** `group` collects the cases of one origin. The key `npm:<name>@<version>` is
+  shared by the npm and whole-program collectors, so all cases of one package version form one
+  group. test262 groups are directories: 3 path levels under `language/`, 2 under `built-ins/`.
+- **Pins.** The Closure Library is pinned to its final release tag, v20230802 (`ccf3f1dc`);
+  test262 to `5992dc3b`.
+- **npm package cases** compile from a committed shim entry, with `--module_resolution=NODE`,
+  `--dependency_mode=PRUNE` and `--entry_point`. The shim writes the package exports to
+  `globalThis`, so that ADVANCED output is non-trivial.
+- **Whole-program cases** run their own zero-dependency test suites with
+  `node corpus/d2/shims/<id>/run.mjs {output}`. Every library's test suite passes on its original
+  sources.
+- **closure-self cases** read their inputs straight from a reference checkout, verified by
+  sha256 rather than downloaded. The inputs stay at reference `bb8c8e7` (release `v20261005`):
+  their group keys (`@bb8c8e7`) and input paths under `reference/closure-compiler/` do not change
+  when the default reference moves, so that checkout is kept as a permanent input checkout
+  (docs/PORTING.md §9). Only the compiler that processes those inputs changes with the reference.
+
 ## Final corpus (`cases.jsonl`)
 
 `cases.jsonl` is the validated corpus, sorted by `id`, written by `corpus/d2/validate/finalize.py`

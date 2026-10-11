@@ -7,19 +7,19 @@ Subcommands
          (target/release/fuzz-driver export), under the profile the driver picks for it, with
          argv from case_args.compiler_args (multi-file programs: all files as --js, chunk
          profiles apply; sloppy programs carry --strict_mode_input=false as extra_flags).
-         Resumable (fuzz_reach.pool_run); golden env + ready-line check (D-010).
+         Resumable (fuzz_reach.pool_run); golden env + ready-line check (docs/PORTING.md §4.1).
   entry  --manifest M [--results E] [--servers 3]
          the Gate 0.3 definition: pass-entry counters. The same argv as `reach` plus
          --tracer_mode=TIMING_ONLY (oracle `compile`); records the DefaultPassConfig names with
-         runs > 0. Resumable; golden env + ready-line check (D-010).
+         runs > 0. Resumable; golden env + ready-line check (docs/PORTING.md §4.1).
   report --export-dir D --reach R --entry E --run-report J --run-exit F [--d2 ...]
          writes gates/reports/gate_0_3.json and gates/reports/gate_0_3.md.
 
 Verdict: (b) is decided only on the metric the Gate 0.3 definition
 states, the average per program of pass-entry counters over all 138 DefaultPassConfig names.
-D-016 adds (b2), an extra criterion and not a substitute for (b): the union over the fuzz programs
+(b2) is an extra criterion and not a substitute for (b): the union over the fuzz programs
 of the passes they make effective (printed source changed after the pass) must cover at least 85% of
-the D2-effective set. (b2) counts only runs where Java did not crash (exit 254, D-009 drops those
+the D2-effective set. (b2) counts only runs where Java did not crash (exit 254; docs/PORTING.md §4.4 drops those
 pairs from every comparison); the union with crash runs is reported next to it. The overall gate is
 (a) and (b) and (b2) and (c). The other effect-measure aggregates stay diagnostics.
 
@@ -56,9 +56,9 @@ import fuzz_reach  # noqa: E402
 GATE = "build/fuzz/gate"
 THRESH_PARSE = 0.95
 THRESH_REACH = 0.60
-THRESH_EFFECT_UNION = 0.85  # (b2), D-016 item 3
+THRESH_EFFECT_UNION = 0.85  # (b2), fuzz/DESIGN.md "Reach measurement"
 MIN_RUN_S = 3600
-# D-016 item 1: the driver's documented profile weights (fuzz/driver/src/main.rs PROFILE_WEIGHTS_PCT).
+# The driver's documented profile weights (fuzz/DESIGN.md, Driver flow, step 3; fuzz/driver/src/main.rs PROFILE_WEIGHTS_PCT).
 D016_WEIGHTS = {"advanced_family": 0.65, "ws": 0.03, "other": 0.32}
 
 
@@ -159,7 +159,7 @@ def _rerun_crash(d: str, origin: str, prof: str, extra: list[str], profiles: dic
 
 
 def classify_java_crashes(run: dict, since: float | None = None) -> dict:
-    """Reproduce every Java crash the run dropped (D-009) with the reference CLI, so a harness
+    """Reproduce every Java crash the run dropped (docs/PORTING.md §4.4) with the reference CLI, so a harness
     fault cannot hide among them. Cached in CRASH_CLASSES, keyed on (origin, profile, content hash
     of the kept program); at most 4 JVMs at -Xmx1g, run only after the driver's oracle servers are
     gone. `since` (epoch s): only kept-program directories written at or after it belong to this
@@ -448,8 +448,9 @@ def report(a) -> dict:
         by_prof_union.setdefault(r["profile"], set()).update(eff & d2_eff)
     union_d2 = set(union) & d2_eff
     n_ok = len(ok)
-    # Runs where Java itself crashed (exit 254, D-009) still count the passes that changed the
-    # source before the crash; the union without them is reported too, as a robustness check.
+    # Runs where Java itself crashed (exit 254, docs/PORTING.md §4.4) still count the passes that
+    # changed the source before the crash; the union without them is reported too, as a robustness
+    # check.
     crash_runs = [r for r in ok if r.get("exit_code") == 254]
     union_no_crash = set()
     for r in ok:
@@ -467,7 +468,7 @@ def report(a) -> dict:
                       "each accepted program compiled once under the profile the driver picks for it",
         "gated_metric": "(b) is gated on spec_literal (pass-entry counters, average per program, all "
                         "DefaultPassConfig names); the effect-measure union without Java-crash runs is gated "
-                        "separately as (b2) (D-016); the other effect aggregates are diagnostics",
+                        "separately as (b2); the other effect aggregates are diagnostics",
         "denominator_used": {"name": "D2-effective set", "size": len(d2_eff),
                              "source": ", ".join(d2_files) + f" ({d2['ok_runs']} ok runs of {d2['runs']} seeded D2 pairs in "
                                        f"{len(d2_files)} disjoint samples, all profiles)",
@@ -543,7 +544,7 @@ def report(a) -> dict:
     # exit code are compared. Failing runs that reached the end of their profile's pipeline ran the
     # optimization passes (the promoted-error case); the others halted early (an error of default
     # level ERROR). The end marker is per profile: latePeepholeOptimizations when any exit-0 run of
-    # the profile entered it (every exit-0 non-ws run of the D-016 gate data did, including runs with
+    # the profile entered it (every exit-0 non-ws run of the gate data did, including runs with
     # --renaming=false, which skip renameVars, an alternative marker; on that data both
     # markers give the same 1326 runs); otherwise (ws, whose pipeline has no optimization passes)
     # the names every exit-0 run of that profile entered. A profile with no exit-0 run falls back to
@@ -691,7 +692,7 @@ def report(a) -> dict:
     # The gate verdict: (b) is decided on the measure the Gate 0.3 definition states and
     # nothing else: pass-entry counters in the oracle, averaged per program, over
     # all DefaultPassConfig names. The effect measure is a diagnostic of what the
-    # generated inputs do once a pass is entered; it does not decide (b) (D-016 adds (b2) on its union,
+    # generated inputs do once a pass is entered; it does not decide (b) ((b2) is gated on its union,
     # as an extra criterion), and no relaxed reading
     # (union, reduced denominator) is proposed.
     gate_b["pass"] = gate_b["pass_as_written"]
@@ -718,8 +719,8 @@ def report(a) -> dict:
                          f"program, all {len(all_names)} DefaultPassConfig names)")
     gate_b["verdict_basis"] = (
         "(b) is gated only on the measure the Gate 0.3 definition states. The effect measure is "
-        "reported next to it (what the inputs make the entered passes do) and does not decide (b); D-016 adds "
-        "(b2), a separate criterion on its union, which the gate needs in addition to (b); no "
+        "reported next to it (what the inputs make the entered passes do) and does not decide (b); (b2) is "
+        "a separate criterion on its union, which the gate needs in addition to (b); no "
         "relaxed reading (union over programs, D2-effective denominator) is proposed. The as-written "
         "threshold is attainable: entry depends mainly on the fuzzer's profile distribution, and "
         f"ADVANCED-family runs alone average {pct(a_mean / len(all_names))} of the names"
@@ -727,12 +728,12 @@ def report(a) -> dict:
            if p_need is not None and 0 <= p_need <= 1 else "")
         + ". Changing the distribution is a fuzzer design decision, not a change to the gate definition.")
 
-    # (b2), D-016 item 3: the effect-measure union over the fuzz programs (runs where Java did not
+    # (b2): the effect-measure union over the fuzz programs (runs where Java did not
     # crash) must cover >= 85% of the D2-effective set. Added to (b), never a substitute for it.
     b2_rate = len(union_no_crash) / len(d2_eff) if d2_eff else 0.0
     b2_cover = n_ok >= 0.95 * gate_a["accepted"] if gate_a["accepted"] else False
     gate_b2 = {
-        "decision": "D-016 item 3",
+        "doc": "fuzz/DESIGN.md, Reach measurement",
         "metric": "|union over the fuzz programs (runs with exit != 254) of the passes effective on the run "
                   "(printed source changed after the pass; oracle compile_with_pass_dumps) & D2-effective set| "
                   "/ |D2-effective set|",
@@ -744,7 +745,7 @@ def report(a) -> dict:
         "ok_runs": n_ok, "accepted_programs": gate_a["accepted"], "coverage_ok": b2_cover,
         "pass": bool(d2_eff) and b2_cover and b2_rate >= THRESH_EFFECT_UNION,
     }
-    # D-016 item 1: realised profile distribution of the measured programs vs the documented weights.
+    # Realised profile distribution of the measured programs vs the documented weights.
     prof_n: dict[str, int] = {}
     for m in manifest:
         prof_n[m["profile"]] = prof_n.get(m["profile"], 0) + 1
@@ -819,7 +820,7 @@ def report(a) -> dict:
 
 
 def scope_flags_check() -> dict:
-    """D-016 item 4: scope/flags.txt must be what scope/gen_flags.py generates from the pinned
+    """scope/README.md: scope/flags.txt must be what scope/gen_flags.py generates from the pinned
     CommandLineRunner (the driver checks its option pool against that file at start-up)."""
     import subprocess
     r = subprocess.run([sys.executable, rp("scope/gen_flags.py"), "--check"], capture_output=True, text=True)
@@ -945,7 +946,7 @@ def write_md(r: dict, path: str):
         f"| (b) reported, not gated (the definition says \"on average\"): pass-entry counters, union over the {b['spec_literal']['measured_runs']} programs, vs all {b['all_names_denominator']} names | {b['spec_literal'].get('union_entered', 'n/a')}/{b['all_names_denominator']} ({pct(b['spec_literal'].get('union_rate', 0.0))}) | n/a | n/a |",
         f"| (b) diagnostic, not gated: effect measure, average per program, vs the D2-effective set ({b['denominator_used']['size']} names) / all names | {b['mean_effective_passes_per_program']:.2f} passes = {pct(b['mean_per_program_vs_d2_effective'])} / {pct(b['mean_per_program_vs_all_names'])} | n/a | n/a |",
         f"| (b) diagnostic, not gated: effect measure, union over the {b['ok_runs']} programs (Java-crash runs included; see (b2)), vs the D2-effective set / all names | {b['union_d2_effective_reached']}/{b['denominator_used']['size']} ({pct(b['union_rate_vs_d2_effective'])}) / {b['union_all_names_reached']}/{b['all_names_denominator']} ({pct(b['union_rate_vs_all_names'])}) | n/a | n/a |",
-        f"| **(b2) gated (D-016):** effect measure, union over the programs (runs where Java did not crash), vs the D2-effective set | {r['b2_effect_union']['reached']}/{r['b2_effect_union']['denominator']['size']} ({pct(r['b2_effect_union']['rate'])}) | ≥ 85% | {ok(r['b2_effect_union']['pass'])} |",
+        f"| **(b2) gated:** effect measure, union over the programs (runs where Java did not crash), vs the D2-effective set | {r['b2_effect_union']['reached']}/{r['b2_effect_union']['denominator']['size']} ({pct(r['b2_effect_union']['rate'])}) | ≥ 85% | {ok(r['b2_effect_union']['pass'])} |",
         f"| (c) Driver against the Java oracle for 1 hour | {c.get('wall_s') and round(c['wall_s'])} s, {c.get('harness_crashes')} harness crashes, exit {c.get('exit_code')} | ≥ 3,600 s, 0 crashes | {ok(c['pass'])} |",
         "",
     ]
@@ -1009,7 +1010,7 @@ def write_md(r: dict, path: str):
                  + ", ".join(f"`{n}`" for n in b['spec_literal']['never_entered']) + "."]
                 if 'union_entered' in b['spec_literal'] else []),
               f"- Failed runs, left out of the average: {b['spec_literal'].get('failed_java_crash_exit_254', 0)} where Java crashed "
-              f"(exit 254, D-009; Java prints no tracer summary when it crashes) and {b['spec_literal'].get('failed_other', 0)} other.",
+              f"(exit 254, docs/PORTING.md §4.4; Java prints no tracer summary when it crashes) and {b['spec_literal'].get('failed_other', 0)} other.",
               "- Which passes are entered is set mainly by the options (the profile plus any drawn option flags). "
               "The input moves the count mostly through errors, in two different ways. An error whose diagnostic type "
               "is ERROR by default halts the pass loop early and lowers the count. A warning promoted to an error "
@@ -1057,7 +1058,7 @@ def write_md(r: dict, path: str):
         lines += ["", "### (b) Diagnostic: runs without comparable output (does not change (b))", "",
                   "A run that exits non-zero writes no output, so the differential comparison sees only its "
                   "diagnostics and exit code, never its optimized code. (b) counts every measured run, as "
-                  "the Gate 0.3 definition and D-016 define it; the figures below show how much of the (b) result rests on "
+                  "the Gate 0.3 definition defines it; the figures below show how much of the (b) result rests on "
                   "runs whose output is never compared.", "",
                   f"- Runs with a non-zero exit: {oc['nonzero_runs']} of {b['spec_literal']['measured_runs']} measured "
                   f"({pct(oc['nonzero_share_of_measured'])}), mean entered {f1(oc['nonzero_mean_entered'])} names. "
@@ -1092,7 +1093,7 @@ def write_md(r: dict, path: str):
               "proposed as a substitute for the as-written metric.", "",
               f"- Measured: {b['ok_runs']} of {b['programs_measured']} runs ok (failed: {len(b['failed_runs'])}).",
               f"- Union of D2-effective passes reached (diagnostic): {b['union_d2_effective_reached']}/{b['denominator_used']['size']} = {pct(b['union_rate_vs_d2_effective'])}.",
-              f"- Runs where Java crashed (exit 254, D-009): {b['java_crash_runs']}. They still count the passes that changed the source before the crash; without them the union is {b['union_d2_effective_reached_excluding_java_crash_runs']}/{b['denominator_used']['size']} = {pct(b['union_rate_vs_d2_effective_excluding_java_crash_runs'])}.",
+              f"- Runs where Java crashed (exit 254, docs/PORTING.md §4.4): {b['java_crash_runs']}. They still count the passes that changed the source before the crash; without them the union is {b['union_d2_effective_reached_excluding_java_crash_runs']}/{b['denominator_used']['size']} = {pct(b['union_rate_vs_d2_effective_excluding_java_crash_runs'])}.",
               f"- Denominator: {b['denominator_used']['name']} ({b['denominator_used']['size']} names), from {b['denominator_used']['source']}. Why: {b['denominator_used']['why']}.",
               f"- Union against all {b['all_names_denominator']} DefaultPassConfig names ({b['factories']} factories): {b['union_all_names_reached']}/{b['all_names_denominator']} = {pct(b['union_rate_vs_all_names'])}.",
               f"- Average per program (diagnostic): {b['mean_effective_passes_per_program']:.2f} effective passes per program, {pct(b['mean_per_program_vs_d2_effective'])} of the D2-effective set, {pct(b['mean_per_program_vs_all_names'])} of all names.",
@@ -1109,7 +1110,7 @@ def write_md(r: dict, path: str):
     lines.append(", ".join(f"`{k}` {v}" for k, v in b["pass_hit_counts"].items()))
     b2 = r["b2_effect_union"]
     pdist = b2.get("profile_distribution") or {}
-    lines += ["", "## (b2) Effect-measure union (D-016, gated in addition to (b))", "",
+    lines += ["", "## (b2) Effect-measure union (gated in addition to (b))", "",
               f"- Metric: {b2['metric']}.",
               f"- Reached: {b2['reached']}/{b2['denominator']['size']} = {pct(b2['rate'])} (threshold 85%): {ok(b2['pass'])}. "
               f"With Java-crash runs counted: {b2['reached_including_java_crash_runs']}/{b2['denominator']['size']} = "
@@ -1120,22 +1121,22 @@ def write_md(r: dict, path: str):
               "- (b) above is unchanged (the Gate 0.3 definition); (b2) is an added criterion, so the gate needs both.",
               ""]
     if pdist:
-        lines += ["Profile distribution of the measured programs (D-016 item 1; driver weights: ADVANCED family "
+        lines += ["Profile distribution of the measured programs (driver weights, fuzz/DESIGN.md: ADVANCED family "
                   "65%, ws 3%, other 32%, uniform within a group over the applicable profiles):", "",
-                  "| Group | D-016 weight | Realised share |", "|---|---:|---:|"]
+                  "| Group | Driver weight | Realised share |", "|---|---:|---:|"]
         for g, w in pdist["weights"].items():
             lines.append(f"| {g} | {pct(w)} | {pct(pdist['group_share'].get(g, 0.0))} |")
         lines += ["", "By profile: " + ", ".join(f"{k} {v}" for k, v in pdist["by_profile"].items()) + ".", ""]
     sf = r.get("scope_flags") or {}
     if sf:
-        lines += [f"scope/flags.txt (D-016 item 4): {sf.get('flags')} CommandLineRunner flags, {sf.get('in_scope')} in scope; "
+        lines += [f"scope/flags.txt (scope/README.md): {sf.get('flags')} CommandLineRunner flags, {sf.get('in_scope')} in scope; "
                   f"generator check: {'up to date' if sf.get('up_to_date') else 'OUT OF DATE'}. Out of scope: "
                   + "; ".join(sf.get("out_of_scope") or []) + ".", ""]
     lines += ["", "## (c) One-hour driver run", "",
               f"`fuzz-driver run --duration 3600 --source {c.get('source')} --engine-b {c.get('engine_b')} --seed {c.get('seed')} --servers {c.get('servers')}`: "
-              f"engine A = Java oracle, engine B = a second independent Java oracle JVM, all servers in the golden environment with the ready line checked (D-010).", "",
+              f"engine A = Java oracle, engine B = a second independent Java oracle JVM, all servers in the golden environment with the ready line checked (docs/PORTING.md §4.1).", "",
               f"- Wall time: {c.get('wall_s')} s; exit code {c.get('exit_code')}; harness crashes (panicked worker threads): {c.get('harness_crashes')}.",
-              f"- Programs: {c.get('programs')}; parse-rejected: {c.get('parse_rejected')}; compared: {c.get('compared')}; mismatches: {c.get('mismatches')}; oracle errors: {c.get('oracle_errors')}; Java crashes dropped (D-009): {len(c.get('java_crashes_dropped') or [])}.",
+              f"- Programs: {c.get('programs')}; parse-rejected: {c.get('parse_rejected')}; compared: {c.get('compared')}; mismatches: {c.get('mismatches')}; oracle errors: {c.get('oracle_errors')}; Java crashes dropped (docs/PORTING.md §4.4): {len(c.get('java_crashes_dropped') or [])}.",
               f"- By profile: {', '.join(f'{k} {v}' for k, v in (c.get('by_profile') or {}).items()) or 'n/a'}.",
               f"- Findings filed: {c.get('filed')}.",
               ""]

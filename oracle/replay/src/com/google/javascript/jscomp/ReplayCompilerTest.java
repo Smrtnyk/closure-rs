@@ -246,7 +246,7 @@ public final class ReplayCompilerTest extends CompilerTestCase {
       roots.addAll(ctx.once.values());
       roots.addAll(ctx.vars.values());
       try {
-        // D-017 item 1: postcondition data exactly when the original call ran postconditions.
+        // Postcondition data (FORMAT.md) exactly when the original call ran postconditions.
         JsonObject pcEx = record.getAsJsonObject("expected");
         JsonElement pcs = pcEx == null ? null : pcEx.get("postconditions");
         boolean pcData = pcs != null && !pcs.isJsonNull() && pcs.getAsInt() > 0;

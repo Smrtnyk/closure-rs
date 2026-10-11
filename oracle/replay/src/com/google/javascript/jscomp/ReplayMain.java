@@ -112,7 +112,7 @@ public final class ReplayMain {
             res = null;
             why = "harness error: " + t;
           }
-          // D-017 item 8 (FORMAT.md "passTrace", HARNESS.md "Pass trace"): with the agent in TRACE
+          // FORMAT.md "passTrace" (HARNESS.md "Pass trace"): with the agent in TRACE
           // mode the set of in-scope pass classes whose entry points ran during the replayed call
           // must equal the recorded passTrace; a difference fails the record. A record without a
           // recorded passTrace is unverified (gate (a) counts it as excluded).
@@ -218,8 +218,8 @@ public final class ReplayMain {
     System.exit(totalFail == 0 ? 0 : 1);
   }
 
-  // ---- pass trace (D-017 item 8): closurers.agent.Trace of the NoopAgent in TRACE mode, by
-  // reflection (the agent jar is on the system class path only when -javaagent is given). ----
+  // ---- pass trace (FORMAT.md "passTrace"): closurers.agent.Trace of the NoopAgent in TRACE mode,
+  // by reflection (the agent jar is on the system class path only when -javaagent is given). ----
   private static final java.lang.reflect.Method[] TRACE = traceMethods();
 
   private static java.lang.reflect.Method[] traceMethods() {

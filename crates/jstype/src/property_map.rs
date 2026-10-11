@@ -61,9 +61,10 @@ struct KeyCache {
     symbol_keys: Option<Arc<Vec<TypeId>>>,
 }
 
-/// Rust-only (D-025): Java's `TreeMap<String, Property>` of a property map, kept as a hash map
-/// since lookups by name (by the string's cached hash) are far more frequent than walks in key
-/// order. It offers no walk in any other order: `sorted_values` and `key_set` give Java's.
+/// Rust-only (performance divergence): Java's `TreeMap<String, Property>` of a property map, kept
+/// as a hash map since lookups by name (by the string's cached hash) are far more frequent than
+/// walks in key order. It offers no walk in any other order: `sorted_values` and `key_set` give
+/// Java's.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct PropertyTable(IndexMap<JsString, PropertyId>);
 
@@ -242,7 +243,7 @@ impl PropertyMap {
     /// Rust-only: the rest of `findClosest` once the start map (whose parent source is
     /// `parent_source`) lacks the property. Java walks PropertyMap objects; the walk only needs
     /// each map's parent source and own lookup, so it reads the maps in place instead of copying
-    /// each one (same calls in the same order, D-025).
+    /// each one (same calls in the same order, performance divergence).
     fn find_closest_after_own(
         parent_source: Option<TypeId>,
         reg: &mut JSTypeRegistry,

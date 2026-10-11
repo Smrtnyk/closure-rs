@@ -14,7 +14,7 @@
 //!               [--source gen|mutate|mixed]
 //!               [--findings DIR] [--budget B] [--work DIR] [--report FILE] [--wide]
 //!       Generate/mutate programs, drop those the Java parser rejects, compile each under a
-//!       random applicable D2 profile drawn with the D-016 weights (ADVANCED family 65%, ws 3%,
+//!       random applicable D2 profile drawn with the profile weights (ADVANCED family 65%, ws 3%,
 //!       other 32%; `PROFILE_WEIGHTS_PCT`), plus random in-scope option flags for one program in
 //!       three (`OPTION_POOL`, checked against scope/flags.txt at start-up), with argv from
 //!       gates/lib/case_args.py via fuzz_args.py, on
@@ -29,7 +29,7 @@
 //!       in the golden environment with stdin /dev/null (as gates/d2_rust.py does); its outcome
 //!       is its exit status, stdout, stderr and every file under the run's out_dir.
 //!       With --duration, workers stop drawing programs after SECS seconds. --wide adds two
-//!       draws on top of the D-016 ones: `--jscomp_off|--jscomp_warning=checkTypes` (one program
+//!       draws on top of the profile draw: `--jscomp_off|--jscomp_warning=checkTypes` (one program
 //!       in four, never ws) and, for single-file programs under simple/advanced/advanced_strict/
 //!       pretty/sourcemap, `--language_out=ECMASCRIPT5|ECMASCRIPT_2015` (one in three; the
 //!       program is generated in low_target mode).
@@ -145,7 +145,7 @@ enum When {
 }
 
 /// In-scope CommandLineRunner flags drawn on top of the D2 profile (docs/PORTING.md §4.6 "random
-/// option profile"; D-016 item 4: the pool comes from `scope/flags.txt`). Each entry is a group
+/// option profile"; the pool comes from `scope/flags.txt`, scope/README.md). Each entry is a group
 /// of mutually exclusive alternatives with the condition under which it may be drawn. Every key
 /// here must be `in` in `scope/flags.txt`, and every in-scope flag is either here or in
 /// [`NOT_DRAWN`] with the reason the driver does not draw it ([`check_option_pool`]; checked at
@@ -528,7 +528,7 @@ fn check_option_pool(flags_txt: &str) -> Vec<String> {
     errs
 }
 
-/// Die unless the option pool agrees with `scope/flags.txt` (D-016 item 4).
+/// Die unless the option pool agrees with `scope/flags.txt` (scope/README.md).
 fn require_option_pool() {
     let p = repo_root().join("scope/flags.txt");
     let text = std::fs::read_to_string(&p).unwrap_or_else(|e| {
@@ -619,7 +619,8 @@ fn option_flags(seed: u64, i: u64, profile: &str, prog: &Prog) -> Vec<String> {
     out
 }
 
-/// D-009 drop rule: an internal compiler error or an uncaught exception (exit 254).
+/// D2 drop rule (docs/PORTING.md §4.4): an internal compiler error or an uncaught exception
+/// (exit 254).
 fn is_java_crash(o: &Outcome) -> bool {
     o.exit_code == 254 || String::from_utf8_lossy(&o.stderr).contains("INTERNAL COMPILER ERROR")
 }
@@ -642,7 +643,7 @@ struct Opts {
     /// Engine B `rust`: the closure-rs CLI binary (default [`default_rust_bin`]).
     rust_bin: Option<PathBuf>,
     /// `--wide`: also draw [`WIDE_TYPECHECK`] and [`WIDE_LANG_OUT`] (off by default, so the
-    /// D-016 draws are unchanged without it).
+    /// profile draws are unchanged without it).
     wide: bool,
 }
 
@@ -1030,7 +1031,7 @@ fn pick_profile(seed: u64, i: u64, prog: &Prog, lists: &(Vec<String>, Vec<String
     pick_profile_n(seed, i, prog.files.len(), lists)
 }
 
-/// D-016 profile weights: the ADVANCED family gets 65% of all draws, ws 3%, and the remaining
+/// Profile weights (fuzz/DESIGN.md): the ADVANCED family gets 65% of draws, ws 3%, the remaining
 /// profiles 32%. Within a group the applicable profiles are equally likely (single-file programs:
 /// advanced and advanced_strict share the family's 65%; multi-file programs: the four family
 /// profiles do). The draw is `Rng::fork(seed ^ PROFILE_SALT, i)`: group first, then member.
@@ -1050,7 +1051,7 @@ fn profile_group(p: &str) -> &'static str {
 /// The documented weights, for reports (`export` summary, `run` report).
 fn profile_weights_json() -> Value {
     json!({
-        "decision": "D-016",
+        "doc": "fuzz/DESIGN.md, Driver flow, step 3",
         "groups_pct": PROFILE_WEIGHTS_PCT.iter().map(|(g, w)| (g.to_string(), json!(w))).collect::<serde_json::Map<_, _>>(),
         "advanced_family": ADVANCED_FAMILY,
         "within_group": "uniform over the profiles that apply to the program",
@@ -1472,7 +1473,7 @@ impl Engines {
         let _ = std::fs::remove_dir_all(out_dir);
         let mut a = self.engine_a(&args)?;
         if is_java_crash(&a) {
-            // D-009: a Java crash is not reference behaviour; such pairs are dropped, not compared.
+            // A Java crash is not reference behaviour; such pairs are dropped, not compared.
             return Err(format!("{JAVA_CRASH}exit {}", a.exit_code));
         }
         let _ = std::fs::remove_dir_all(out_dir);
@@ -1722,7 +1723,7 @@ impl Counts {
 
 /// Fail fast: when this many consecutive programs that passed the parse filter (or failed in
 /// it with an oracle error) all end as oracle errors, the oracle side is systematically broken
-/// (e.g. case_args refuses every argv) and the run stops with exit 4. Java crashes (D-009 drops)
+/// (e.g. case_args refuses every argv) and the run stops with exit 4. Java crashes (D2 drops)
 /// and compared programs break the streak; parse rejections do not count either way.
 const ORACLE_FAIL_WINDOW: u64 = 50;
 
@@ -1909,7 +1910,7 @@ fn run(o: &Opts) {
                 let res = eng.borrow_mut().compare(&prog, &in_dir, &profile, &out_dir);
                 match res {
                     Err(e) if e.starts_with(JAVA_CRASH) => {
-                        // Keep the program for inspection (a Java crash, not a port defect: D-009).
+                        // Keep the program for inspection (a Java crash, not a port defect).
                         let keep = repo_root()
                             .join("build/fuzz/java-crashes")
                             .join(format!("{}-{i}-{profile}", opts.seed));
@@ -2306,7 +2307,7 @@ mod tests {
     }
 
     #[test]
-    fn profile_weights_are_d016_and_deterministic() {
+    fn profile_weights_and_determinism() {
         let l = lists();
         for nfiles in [1usize, 3] {
             let n = 60_000u64;

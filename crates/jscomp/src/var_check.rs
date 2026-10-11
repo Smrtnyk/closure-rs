@@ -197,7 +197,7 @@ impl VarCheck {
     /// Validates that a NAME node does not refer to an undefined name.
     // port: VarCheck#checkName
     fn check_name(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        // Rust-only: the name is read in place (D-025).
+        // Rust-only: the name is read in place (performance divergence).
         // Only a function can have an empty name.
         if n.get_string_ref(t).is_empty() {
             // Name is optional for function expressions

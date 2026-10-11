@@ -34,7 +34,7 @@ use std::{
 /// Fields shared by syntactic and future typed scope handles.
 #[derive(Debug)]
 pub struct AbstractScopeData<V> {
-    // Java LinkedHashMap (small ones kept inline, D-025).
+    // Java LinkedHashMap (small ones kept inline, performance divergence).
     pub(crate) vars: crate::var_map::VarMap<V>,
     pub(crate) implicit_vars: BTreeMap<ImplicitVar, V>,
     pub(crate) root_node: NodeId,
@@ -145,8 +145,8 @@ pub trait AbstractScope: Copy + Eq {
         self.undeclare_interal(compiler, var);
     }
 
-    /// Rust-only (D-025): called before a declaration is added to or removed from this scope
-    /// (see `SyntacticScopeCache`).
+    /// Rust-only (performance divergence): called before a declaration is added to or removed from
+    /// this scope (see `SyntacticScopeCache`).
     fn note_mutation(self, _compiler: &mut AbstractCompiler) {}
 
     // port: AbstractScope#undeclareInteral
@@ -318,7 +318,8 @@ pub trait AbstractScope: Copy + Eq {
 
     // port: AbstractScope#isBlockScope
     fn is_block_scope(self, compiler: &AbstractCompiler) -> bool {
-        // Rust-only (D-025): the root node is read from the lock-free mirror (getRootNode).
+        // Rust-only (performance divergence): the root node is read from the lock-free mirror
+        // (getRootNode).
         NodeUtil::creates_block_scope(compiler, self.get_root_node(compiler))
     }
 
@@ -362,7 +363,8 @@ pub trait AbstractScope: Copy + Eq {
 
     // port: AbstractScope#isCfgRootScope
     fn is_cfg_root_scope(self, compiler: &AbstractCompiler) -> bool {
-        // Rust-only (D-025): the root node is read from the lock-free mirror (getRootNode).
+        // Rust-only (performance divergence): the root node is read from the lock-free mirror
+        // (getRootNode).
         NodeUtil::is_valid_cfg_root(compiler, self.get_root_node(compiler))
     }
 
@@ -572,7 +574,7 @@ impl ImplicitVar {
 
     // port: AbstractScope.ImplicitVar#of
     pub fn of(name: &JsString) -> Option<Self> {
-        // Rust-only fast path (D-025): the four names have distinct lengths.
+        // Rust-only fast path (performance divergence): the four names have distinct lengths.
         if !matches!(name.length(), 4 | 5 | 7 | 9) {
             return None;
         }

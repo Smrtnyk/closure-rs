@@ -2,7 +2,7 @@
 
 `flags.txt` is the flag list of [docs/PORTING.md §2](../docs/PORTING.md) ("Scope"): everything
 reachable from `CommandLineRunner` with the flags listed there as in scope is in scope for the
-port (D-016 item 4).
+port.
 
 ## Files
 
@@ -57,9 +57,8 @@ The rules are applied in order, and the first match decides:
    `--debug` is not the `debugger/` package: it turns on debug renaming.
 4. Otherwise: **in**.
 
-The generator adds no exclusion that docs/PORTING.md §2 does not name. Adding one needs a
-decision in `DECISIONS.md` (§2: the excluded code must be reachable from fewer than 0.5% of D2
-runs).
+The generator adds no exclusion that docs/PORTING.md §2 does not name. An exclusion is added there
+first (§2: the excluded code must be reachable from fewer than 0.5% of D2 runs).
 
 At the pinned reference: 102 flags, 94 in scope and 8 out:
 - `--typed_ast_output_file`: DO NOT USE.
@@ -70,7 +69,7 @@ At the pinned reference: 102 flags, 94 in scope and 8 out:
 - `--j2cl_pass` and `--remove_j2cl_asserts`: J2CL.
 
 closure-rs refuses to compile when one of these would take effect, and with the J2CL passes'
-default (`--j2cl_pass=AUTO`) when an input is J2CL output (DECISIONS.md D-028).
+default (`--j2cl_pass=AUTO`) when an input is J2CL output (docs/PORTING.md §2.1).
 
 ## Who uses it
 

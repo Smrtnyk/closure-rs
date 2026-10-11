@@ -16,7 +16,7 @@ STAT="$ROOT/build/unit/recording/stats"
 LOGD="$ROOT/build/unit/recording/logs"
 mkdir -p "$REC" "$STAT" "$LOGD"
 CLASSES="${1:-$ROOT/build/unit/all_test_classes.txt}"
-# D-017 item 8 (RECORDING.md "Pass trace"): the NoopAgent runs in TRACE mode in every recording JVM,
+# RECORDING.md "Pass trace": the NoopAgent runs in TRACE mode in every recording JVM,
 # so each record stores passTrace (the in-scope src pass classes whose entry points ran during the
 # hooked call). Agent jar and scope file are rebuilt here (deterministic) before any class runs.
 AGENT_JAR="$ROOT/build/unit/noop-agent/noop-agent.jar"

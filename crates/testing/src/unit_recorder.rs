@@ -318,8 +318,8 @@ fn native_module_metadata(
         ),
         ("es6ImportSpecifiers", multiset(m.es6_import_specifiers())),
         ("readToggles", multiset(m.read_toggles())),
-        // D-017 item 2: the nested goog.loadModule modules' metadata in full (recursively), in
-        // nestedModules() order.
+        // FORMAT.md "Post-call snapshot": the nested goog.loadModule modules' metadata in full
+        // (recursively), in nestedModules() order.
         (
             "nestedModules",
             JsonValue::Array(

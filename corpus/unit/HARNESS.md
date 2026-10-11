@@ -285,13 +285,13 @@ call's result is used by the test's own assertions, which are not recorded: comp
    message/line predicates are not checked here). Errors are not checked after step 4.
 No postconditions run and there are no repetitions.
 
-## Post-call snapshot step (D-015 a)
+## Post-call snapshot step
 After the hooked call returns or throws (after the outcome and `observed` are taken), a harness
 takes the post-call snapshot defined in FORMAT.md "Post-call snapshot" and compares it with the
 record's `postCall` (neutral equality, FORMAT.md "Post-call state: neutral equality"):
 1. `compiler`: read each listed accessor on the compiler whose diagnostics fill `observed`; emit a
    key only when the value is non-null (and, for the keys FORMAT.md marks so, non-empty / non-zero /
-   true). The keys include (D-017 item 2) `injectedLibraries` (injection order),
+   true). The keys include `injectedLibraries` (injection order),
    `allowableFeatures` (Feature names in enum order), `packageJsonMainEntries`, `typedPercent` and
    `moduleMapBoundNames`, and `moduleMetadataByPath.*.nestedModules` holds the nested modules'
    metadata (recursively). A Rust harness emits them from its own compiler
@@ -329,7 +329,7 @@ in a `RuntimeException`. So an assertion raised inside a helper or a DSL-built p
 `assertion`) compares like the original, and the gate's assertion-type rule sees it in the no-op
 checks. A non-Java harness propagates its own assertion failures unchanged likewise.
 
-## Class-level no-op mutation (D-015 d)
+## Class-level no-op mutation
 Gate 0.2(d) turns one pass class into a no-op **wherever it is constructed** (by the harness, a
 descriptor, a helper or a wrapper such as `PhaseOptimizer` or `PeepholeOptimizationsPass`), without
 modifying `src/`. The Java implementation is the JVM agent `oracle/replay/agent` (`NoopAgent`, built
@@ -396,14 +396,14 @@ classes as `agentLoadedPassClassesCoveredByInheritedRewrite`, and for every unit
 that have no REWROTE line in any class (`membersWithoutRewroteLine`, reported, not a verdict input). `TypeCheck.processForTesting` is not an entry
 point: it runs TypeInferencePass (a different pass class) and then `this.process`, which is rewritten.
 
-## Pass trace and group no-op (D-017 items 8 and 11)
+## Pass trace and group no-op
 `oracle/replay/agent` (NoopAgent + Trace) has three modes:
 - `-javaagent:noop-agent.jar=<FQCN>[,report=<file>]`: class-level no-op of one pass.
   Inherited entry points: a concrete entry point that P or P$... inherits from a superclass outside
   P (e.g. `ReplaceMessages$FullReplacementPass` from `JsMessageVisitor`) is overridden by a
-  synthesized no-op and reported as `REWROTE ... (synthesized, inherited from ...)` (D-017 item 4).
+  synthesized no-op and reported as `REWROTE ... (synthesized, inherited from ...)`.
 - `-javaagent:noop-agent.jar=<FQCN>;<FQCN>;...[,report=<file>]`: group no-op; every listed class
-  and its nested classes are no-op'd jointly in one JVM (D-017 item 11 groups).
+  and its nested classes are no-op'd jointly in one JVM (the groups of gate 0.2 (d)).
 - `-javaagent:noop-agent.jar=trace=<scope file>[,report=<file>]`: TRACE mode; nothing is no-op'd;
   each declared concrete entry point of a class whose top-level class is in the scope file starts
   with `closurers.agent.Trace.hit(id)`. `Trace.begin()`/`Trace.end()` bracket one hooked call

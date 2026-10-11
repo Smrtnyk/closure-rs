@@ -43,7 +43,7 @@ struct ResolvedSourceMap {
     source_map_path: String,
     relative_path: String,
     /// Rust-only: `source_map_path` and `relative_path` as JS strings, so that a mapping in the
-    /// file last resolved needs no string conversion (D-025).
+    /// file last resolved needs no string conversion (performance divergence).
     source_map_path_js: closure_rhino::js_string::JsString,
     relative_path_js: closure_rhino::js_string::JsString,
 }
@@ -58,7 +58,7 @@ impl CompilerSourceExcerptProvider {
             .or_else(|| self.original_sources.lock().unwrap().get(name).cloned())
     }
     pub fn get_consumer(&self, map: &SourceMapInput) -> Option<Arc<SourceMapConsumerV3>> {
-        // Rust-only fast path: a map parsed before reports nothing more (D-025).
+        // Rust-only fast path: a map parsed before reports nothing more (performance divergence).
         if let Some(consumer) = map.get_cached_source_map() {
             return consumer;
         }
@@ -137,7 +137,7 @@ impl SourceExcerptProvider for CompilerSourceExcerptProvider {
         let source_map_original_path = map.get_original_path();
         let mut cache = self.resolved_source_map.lock().unwrap();
         // Rust-only: compares the result's file as a JS string, so the common case (the file
-        // last resolved) converts no string (D-025).
+        // last resolved) converts no string (performance divergence).
         let relative_path = if source_map_original_path == cache.original_path
             && result.get_original_file() == cache.source_map_path_js
         {
@@ -181,7 +181,7 @@ impl SourceFileMapping for Arc<CompilerSourceExcerptProvider> {
         line: i32,
         column: i32,
     ) -> Option<OriginalMapping> {
-        // Rust-only: the name converted for the previous call is reused (D-025).
+        // Rust-only: the name converted for the previous call is reused (performance divergence).
         let mut last = self.last_mapping_name.lock().unwrap();
         if last.as_ref().is_none_or(|(js, _)| js != name) {
             *last = Some((name.clone(), name.to_string_lossy()));
@@ -234,7 +234,8 @@ impl SourceFileMapping for Arc<CompilerSourceExcerptProvider> {
                 return mapping;
             }
         };
-        // The mapping `get_source_mapping` builds from `result`, made once (D-025).
+        // The mapping `get_source_mapping` builds from `result`, made once
+        // (performance divergence).
         let mut mapping = OriginalMapping::new_builder();
         mapping
             .set_original_file(relative_path)

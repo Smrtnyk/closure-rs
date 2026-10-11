@@ -123,8 +123,8 @@ pub struct Compiler {
     /// Rust-only: `extern_properties` as JS strings, made once per value (RemoveUnusedCode reads
     /// them on every run).
     extern_properties_js: std::sync::OnceLock<Vec<closure_rhino::js_string::JsString>>,
-    /// Rust-only (DECISIONS.md D-025): whether the reference collection of the externs can be
-    /// skipped, while the externs are unchanged.
+    /// Rust-only (crates/DESIGN.md, "Performance divergences"): whether the reference collection of
+    /// the externs can be skipped, while the externs are unchanged.
     pub(crate) externs_reference_summary:
         Option<crate::reference_collector::ExternsReferenceSummary>,
     accessor_summary: Option<Arc<crate::accessor_summary::AccessorSummary>>,
@@ -175,8 +175,8 @@ pub struct Compiler {
     current_pass_index: i32,
     last_pass_name: Option<String>,
     error_manager: Option<Arc<std::sync::Mutex<ThreadSafeDelegatingErrorManager>>>,
-    /// Rust-only (D-025): the error manager's "no halting errors since last asked" flag
-    /// (`ThreadSafeDelegatingErrorManager::no_halting_errors_flag`).
+    /// Rust-only (performance divergence): the error manager's "no halting errors since last asked"
+    /// flag (`ThreadSafeDelegatingErrorManager::no_halting_errors_flag`).
     no_halting_errors: Option<Arc<std::sync::atomic::AtomicBool>>,
     warnings_guard: Option<crate::compiler_warnings_guard::CompilerWarningsGuard>,
     externs_root: Option<NodeId>,
@@ -196,7 +196,7 @@ pub struct Compiler {
         std::sync::Arc<std::sync::RwLock<crate::typed_scope::TypedScopeArena>>,
     /// Rust-only: lock-free copies of immutable `typed_scope_arena` fields.
     pub(crate) typed_scope_mirror: Vec<crate::typed_scope::TypedScopeMeta>,
-    /// Rust-only (D-025): syntactic scopes kept for reuse by later passes.
+    /// Rust-only (performance divergence): syntactic scopes kept for reuse by later passes.
     pub(crate) syntactic_scope_cache: crate::syntactic_scope_cache::SyntacticScopeCache,
 }
 
@@ -2472,7 +2472,7 @@ impl Compiler {
         let tracer = self.new_tracer(crate::pass_names::PARSE_INPUTS);
         self.before_pass(crate::pass_names::PARSE_INPUTS);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // Rust-only (D-025): parse the inputs ahead on worker threads.
+            // Rust-only (performance divergence): parse the inputs ahead on worker threads.
             let all_inputs: Vec<CompilerInput> = self
                 .externs
                 .iter()

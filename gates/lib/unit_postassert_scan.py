@@ -145,7 +145,8 @@ def self_test(flagged):
 def scan(records_dir):
     """Returns {class FQCN: {method: number of direct post-call assertion statements (or -1 via helper)}}."""
     recmeth = collections.defaultdict(collections.Counter)
-    # D-017 item 7: methods whose recorded calls ran at least one postcondition (expected.postconditions).
+    # Methods whose recorded calls ran at least one postcondition (expected.postconditions; FORMAT.md
+    # "Postcondition-lambda assertions are in-call").
     postcond = collections.defaultdict(set)
     for fn in sorted(os.listdir(records_dir)):
         if not fn.endswith('.jsonl.gz'):
@@ -210,14 +211,14 @@ def scan(records_dir):
                 continue
             hook_end = _call_end(s, hooks[0], e)
             excl = _spans(s, b, e, 'postcondition') + _spans(s, b, e, 'assertThrows')
-            # D-017 item 7: an assertion inside a lambda passed to a hooked call (a Postcondition
-            # handed to the harness, e.g. `(Postcondition) compiler -> {...}` as an argument of a
-            # second test(...) call) runs inside that call: it is an in-call assertion, governed by
-            # the postcondition-count rule and gate (e), not by post-call classification. Such an
-            # assertion lies inside the hooked call's argument list, after a `->` that starts there;
-            # the rule applies only to methods whose recorded calls ran postconditions
-            # (expected.postconditions > 0), so other in-call lambdas (e.g. ReferenceCollectorTest's
-            # Behavior callbacks) stay under post-call classification.
+            # FORMAT.md "Postcondition-lambda assertions are in-call": an assertion inside a lambda
+            # passed to a hooked call (a Postcondition handed to the harness, e.g. `(Postcondition)
+            # compiler -> {...}` as an argument of a second test(...) call) runs inside that call:
+            # it is an in-call assertion, governed by the postcondition-count rule and gate (e), not
+            # by post-call classification. Such an assertion lies inside the hooked call's argument
+            # list, after a `->` that starts there; the rule applies only to methods whose recorded
+            # calls ran postconditions (expected.postconditions > 0), so other in-call lambdas (e.g.
+            # ReferenceCollectorTest's Behavior callbacks) stay under post-call classification.
             lam = []
             # (a non-@Test helper qualifies when its class has such methods: it is where the
             # Postcondition lambda is built, e.g. ExternExportsPassTest.compileAndCheck)

@@ -97,7 +97,7 @@
    "testArrayValuesIsPolyfilledForEs2015Out",
    "testBug123583793"
   ],
-  "key": "compiler.injectedLibraries (D-017 item 2) for integration records",
+  "key": "compiler.injectedLibraries (FORMAT.md \"Post-call snapshot\") for integration records",
   "note": "both assert lastCompiler.getRuntimeJsLibManager().getInjectedLibraries() (a list of strings: containsExactly es6/array/values in testArrayValuesIsPolyfilledForEs2015Out) after the call; neutral, so never a Rust unit test. compiler.injectedLibraries exists since v7 for compiler_test_case records only; these records are kind=integration and carry no postCall, so the methods stay unclassified (harness request: post-call snapshot for integration records). Not read by the gate."
  }
 }

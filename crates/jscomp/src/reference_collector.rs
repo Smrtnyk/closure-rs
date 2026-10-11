@@ -71,7 +71,7 @@ pub struct CollectorCallback<'a> {
 
     narrow_scope: Option<ScopeId>,
 
-    /// Rust-only (D-025): `process(externs, root)` may skip the externs (see
+    /// Rust-only (performance divergence): `process(externs, root)` may skip the externs (see
     /// `skip_externs_when_unread`).
     may_skip_externs: bool,
     /// Rust-only: the externs the current traversal skips.
@@ -81,10 +81,10 @@ pub struct CollectorCallback<'a> {
     externs_refer_only_to_externs: Option<bool>,
 }
 
-/// Rust-only (DECISIONS.md D-025): whether the NAMEs of the externs resolve only to vars declared
-/// in the externs, for the externs as they were when it was made. The externs are the same while
-/// no change is recorded inside them (`ChangeTracker::get_externs_change_count`) and they keep
-/// their scripts.
+/// Rust-only (crates/DESIGN.md, "Performance divergences"): whether the NAMEs of the externs
+/// resolve only to vars declared in the externs, for the externs as they were when it was made. The
+/// externs are the same while no change is recorded inside them
+/// (`ChangeTracker::get_externs_change_count`) and they keep their scripts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExternsReferenceSummary {
     externs_version: (NodeId, u64, i32),
@@ -174,10 +174,10 @@ impl<'a> ReferenceCollector<'a> {
         self.callback.narrow_scope = None;
     }
 
-    /// Rust-only (DECISIONS.md D-025): lets `process(externs, root)` leave out the externs when
-    /// that cannot change what the behavior sees, for a behavior that reads neither the
-    /// references nor the scopes of vars declared in the externs (Java traverses them on every
-    /// run). That holds while every NAME in the externs resolves to a var declared in the
+    /// Rust-only (crates/DESIGN.md, "Performance divergences"): lets `process(externs, root)` leave
+    /// out the externs when that cannot change what the behavior sees, for a behavior that reads
+    /// neither the references nor the scopes of vars declared in the externs (Java traverses them
+    /// on every run). That holds while every NAME in the externs resolves to a var declared in the
     /// externs: no reference collection of another var then has a reference in the externs, and
     /// the externs jump to no hoisted function outside them, so the root is traversed in the
     /// same order. This is found out on a traversal of the externs and kept in the compiler
@@ -213,7 +213,7 @@ impl CompilerPass for ReferenceCollector<'_> {
             scope_creator,
         } = self;
         if callback.may_skip_externs && compiler.get_externs_root() == Some(externs) {
-            // Rust-only (D-025): see `skip_externs_when_unread`.
+            // Rust-only (performance divergence): see `skip_externs_when_unread`.
             let version = ExternsReferenceSummary::externs_version(compiler, externs);
             match compiler.externs_reference_summary {
                 Some(summary) if summary.externs_version == version => {
@@ -283,7 +283,8 @@ impl CollectorCallback<'_> {
         {
             return;
         }
-        // Rust-only (D-025): the traversal of skipped externs would have collected this function.
+        // Rust-only (performance divergence): the traversal of skipped externs would have collected
+        // this function.
         if let Some(externs) = self.skipped_externs
             && is_inside(t.get_compiler(), fn_node, externs)
         {
@@ -453,8 +454,9 @@ impl Callback for CollectorCallback<'_> {
             let scope = t.get_scope();
             let v = scope.get_var_of_node(t.get_compiler(), n);
 
-            // Rust-only (D-025): the summary of the externs (see `skip_externs_when_unread`). The
-            // empty NAME of a function expression resolves to no var.
+            // Rust-only (performance divergence): the summary of the externs (see
+            // `skip_externs_when_unread`). The empty NAME of a function expression resolves to no
+            // var.
             if self.externs_refer_only_to_externs == Some(true)
                 && !v.is_some_and(|v| v.get_input(t.get_compiler()).is_some_and(|i| i.is_extern()))
                 && t.get_input().is_none_or(|input| input.is_extern())

@@ -1,4 +1,4 @@
-## AdvancedOptimizationsIntegrationTest: post-call assertions ported as Rust tests (gate 0.2 (a), D-015)
+## AdvancedOptimizationsIntegrationTest: post-call assertions ported as Rust tests (gate 0.2 (a))
 
 Test class com.google.javascript.jscomp.integration.AdvancedOptimizationsIntegrationTest (reference commit bb8c8e7). These methods assert after a hooked IntegrationTestCase call. Integration records carry no post-call snapshot (`postCall`), integration `compile` records are always notCaptured, and corpus/unit/postcall/ accepts no `observed.*` or `outcome` claim. So each method is ported as a Rust integration test that runs the same compile and makes the same assertions. Each line names what that test checks. The reasons, including which parts the replay's `observed`/`outcome` comparison already covers, are in corpus/unit/postcall/AdvancedOptimizationsIntegrationTest.json.
 

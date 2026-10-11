@@ -7,7 +7,7 @@
 //! filter, at most 32 KB) and a mutation count `n` in 1..=3, then `mutate_with` applies `n`
 //! operators with the whole D2 pool as donors. Every mutant and every base file goes
 //! through the oracle's `parse_dump` with CLI default options (the driver's parse filter);
-//! accepted means `errors == []`. Servers run in the golden environment (D-010).
+//! accepted means `errors == []`. Servers run in the golden environment (docs/PORTING.md §4.1).
 
 use fuzz_oracle::{Server, repo_root};
 use jsgen::rng::Rng;

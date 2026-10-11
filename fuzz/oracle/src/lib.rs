@@ -1,7 +1,7 @@
 //! Rust client for the Java oracle server (oracle/PROTOCOL.md).
 //!
-//! Every server runs in the golden environment (D-010): the environment is cleared and set to
-//! exactly `oracle_client.golden_env()`, and the ready line's `env` is checked against
+//! Every server runs in the golden environment (docs/PORTING.md §4.1): the environment is cleared
+//! and set to exactly `oracle_client.golden_env()`, and the ready line's `env` is checked against
 //! `GOLDEN_JVM_ENV`; a mismatch refuses the server.
 
 #![forbid(unsafe_code)]

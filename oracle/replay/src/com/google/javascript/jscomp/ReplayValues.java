@@ -44,7 +44,7 @@ public final class ReplayValues {
   };
 
   /**
-   * FORMAT.md "Neutral encodings" (D-017 item 2): rebuilds a protobuf message from {"proto": full
+   * FORMAT.md "Neutral encodings": rebuilds a protobuf message from {"proto": full
    * name, "fields": {...}}. The message class is the target class when it is a generated message,
    * else the generated class of that full name in one of PROTO_JAVA_PACKAGES (checked against its
    * descriptor's full name).

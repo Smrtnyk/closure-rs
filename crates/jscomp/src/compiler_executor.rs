@@ -30,8 +30,9 @@ pub struct CompilerExecutor {
 }
 pub const COMPILER_STACK_SIZE: usize = 1 << 26;
 thread_local! {
-    /// Rust-only (D-025): whether this thread is the one `run_process_on_compiler_thread` made,
-    /// on which `run_in_compiler_thread` runs its callable in place.
+    /// Rust-only (performance divergence): whether this thread is the one
+    /// `run_process_on_compiler_thread` made, on which `run_in_compiler_thread` runs its callable
+    /// in place.
     static PROCESS_COMPILER_THREAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 impl Default for CompilerExecutor {
@@ -68,8 +69,8 @@ impl CompilerExecutor {
     pub fn set_debug_message(&mut self, message: String) {
         self.debug_message = Some(message);
     }
-    /// Rust-only, not in Java (D-025): runs `f` on a thread with the compiler's stack size and
-    /// returns what it returns (a panic in `f` resumes here). While `f` runs, every
+    /// Rust-only, not in Java (performance divergence): runs `f` on a thread with the compiler's
+    /// stack size and returns what it returns (a panic in `f` resumes here). While `f` runs, every
     /// `run_in_compiler_thread` on that thread runs its callable in place, with the same
     /// bookkeeping (the compiler thread id, the tracer's thread trace), instead of starting a
     /// thread of its own as Java's single-thread executor does for every call. With one heap
@@ -134,7 +135,7 @@ impl CompilerExecutor {
             && compiler_thread.is_none()
             && PROCESS_COMPILER_THREAD.with(|flag| flag.get())
         {
-            // Rust-only (D-025): already on a thread of the compiler's stack size.
+            // Rust-only (performance divergence): already on a thread of the compiler's stack size.
             Self::run_as_compiler_thread(&self.compiler_thread, callable, dump_trace_report)
         } else if self.use_threads && compiler_thread.is_none() {
             thread::scope(|scope| {

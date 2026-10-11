@@ -133,7 +133,7 @@ upstream commit the code was copied from. Helpers are part of the corpus that Ru
   the test's own name and type) that is set from `{"field":name}` first.
 
 ## No-op mutation (gate 0.2(d))
-**Gate 0.2(d) uses (D-015 d) the class-level mutation of HARNESS.md
+**Gate 0.2(d) uses the class-level mutation of HARNESS.md
 "Class-level no-op mutation" (a JVM agent; `scripts/unit_replay.sh --mutate-noop` uses it too).
 The descriptor-level stand-in below remains available as `ReplayMain --mutate-noop` for
 debugging; `mutationPoint` is not needed to reach passes built inside helpers.**

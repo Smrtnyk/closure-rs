@@ -1,4 +1,4 @@
-//! Inputs for the D2-effective passes that no fuzz run reached before (D-016 item 5):
+//! Inputs for the D2-effective passes that no fuzz run reached before:
 //!
 //! - `extractPrototypeMemberDeclarations` needs a run of consecutive `X.prototype.m = ...`
 //!   statements that survives to the end of the optimization loop. Under USE_GLOBAL_TEMP an

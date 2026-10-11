@@ -193,7 +193,7 @@ pub struct SourceMap {
     mapping: Option<Box<dyn SourceFileMapping + Send>>,
     /// Rust-only: the last source file name seen by `add_mapping_for_node`, and as a JS string.
     last_source_file_name: Option<(String, JsString)>,
-    /// Rust-only (D-025): what `mapping` found for the previous node.
+    /// Rust-only (performance divergence): what `mapping` found for the previous node.
     mapping_cache: crate::source_file_mapping::SourceMappingCache,
 }
 impl SourceMap {
@@ -224,12 +224,13 @@ impl SourceMap {
         // If the node does not have an associated source file or
         // its line number is -1, then the node does not have sufficient
         // information for a mapping to be useful.
-        // Rust-only (D-025): the source file is read in place instead of copied.
+        // Rust-only (performance divergence): the source file is read in place instead of copied.
         let source_file = node.get_static_source_file_ref(ast);
         if source_file.is_none() || node.get_lineno(ast) < 0 {
             return;
         }
-        // Rust-only: the file name converted for the previous node is reused (D-025).
+        // Rust-only: the file name converted for the previous node is reused
+        // (performance divergence).
         let source_file = source_file.unwrap();
         if self
             .last_source_file_name

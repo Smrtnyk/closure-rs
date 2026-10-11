@@ -16,7 +16,7 @@
    "via": [
     "postCallAbsent.compiler.typeMismatches"
    ],
-   "note": "Classify round 1 batch 5 (D-017 item 3): the method asserts getLastCompiler().getTypeMismatches() isEmpty() after testWarning. The recorder writes postCall.compiler.typeMismatches only when the list is non-empty (FORMAT.md post-call snapshot), and no typeMismatchesError key is present, so the empty list is the absence of the key; ReplayMain compares postCall key sets exactly. Type checking ran (enableTypeCheck in setUp; the record's expected TYPE_MISMATCH_WARNING comes from TypeValidator)."
+   "note": "Classify round 1 batch 5 (FORMAT.md \"postCall key-set equality\"): the method asserts getLastCompiler().getTypeMismatches() isEmpty() after testWarning. The recorder writes postCall.compiler.typeMismatches only when the list is non-empty (FORMAT.md post-call snapshot), and no typeMismatchesError key is present, so the empty list is the absence of the key; ReplayMain compares postCall key sets exactly. Type checking ran (enableTypeCheck in setUp; the record's expected TYPE_MISMATCH_WARNING comes from TypeValidator)."
   },
   {
    "method": "testBasicMismatch",
@@ -48,7 +48,7 @@
    "via": [
     "postCallAbsent.compiler.typeMismatches"
    ],
-   "note": "Classify round 1 batch 5 (D-017 item 3): the method asserts getLastCompiler().getTypeMismatches() isEmpty() after testWarning. The recorder writes postCall.compiler.typeMismatches only when the list is non-empty (FORMAT.md post-call snapshot), and no typeMismatchesError key is present, so the empty list is the absence of the key; ReplayMain compares postCall key sets exactly. Type checking ran (enableTypeCheck in setUp; the record's expected TYPE_MISMATCH_WARNING comes from TypeValidator)."
+   "note": "Classify round 1 batch 5 (FORMAT.md \"postCall key-set equality\"): the method asserts getLastCompiler().getTypeMismatches() isEmpty() after testWarning. The recorder writes postCall.compiler.typeMismatches only when the list is non-empty (FORMAT.md post-call snapshot), and no typeMismatchesError key is present, so the empty list is the absence of the key; ReplayMain compares postCall key sets exactly. Type checking ran (enableTypeCheck in setUp; the record's expected TYPE_MISMATCH_WARNING comes from TypeValidator)."
   },
   {
    "method": "testSubclass",
@@ -56,7 +56,7 @@
    "via": [
     "postCallAbsent.compiler.typeMismatches"
    ],
-   "note": "Classify round 1 batch 5 (D-017 item 3): the method asserts getLastCompiler().getTypeMismatches() isEmpty() after testWarning. The recorder writes postCall.compiler.typeMismatches only when the list is non-empty (FORMAT.md post-call snapshot), and no typeMismatchesError key is present, so the empty list is the absence of the key; ReplayMain compares postCall key sets exactly. Type checking ran (enableTypeCheck in setUp; the record's expected TYPE_MISMATCH_WARNING comes from TypeValidator)."
+   "note": "Classify round 1 batch 5 (FORMAT.md \"postCall key-set equality\"): the method asserts getLastCompiler().getTypeMismatches() isEmpty() after testWarning. The recorder writes postCall.compiler.typeMismatches only when the list is non-empty (FORMAT.md post-call snapshot), and no typeMismatchesError key is present, so the empty list is the absence of the key; ReplayMain compares postCall key sets exactly. Type checking ran (enableTypeCheck in setUp; the record's expected TYPE_MISMATCH_WARNING comes from TypeValidator)."
   },
   {
    "method": "testUnionsMismatch",
@@ -64,7 +64,7 @@
    "via": [
     "postCallAbsent.compiler.typeMismatches"
    ],
-   "note": "Classify round 1 batch 5 (D-017 item 3): the method asserts getLastCompiler().getTypeMismatches() isEmpty() after testWarning. The recorder writes postCall.compiler.typeMismatches only when the list is non-empty (FORMAT.md post-call snapshot), and no typeMismatchesError key is present, so the empty list is the absence of the key; ReplayMain compares postCall key sets exactly. Type checking ran (enableTypeCheck in setUp; the record's expected TYPE_MISMATCH_WARNING comes from TypeValidator)."
+   "note": "Classify round 1 batch 5 (FORMAT.md \"postCall key-set equality\"): the method asserts getLastCompiler().getTypeMismatches() isEmpty() after testWarning. The recorder writes postCall.compiler.typeMismatches only when the list is non-empty (FORMAT.md post-call snapshot), and no typeMismatchesError key is present, so the empty list is the absence of the key; ReplayMain compares postCall key sets exactly. Type checking ran (enableTypeCheck in setUp; the record's expected TYPE_MISMATCH_WARNING comes from TypeValidator)."
   }
  ]
 }

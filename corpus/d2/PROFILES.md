@@ -69,7 +69,8 @@ tools/jdk-21/bin/java <JVM flags> -jar build/reference-v20261007/closure-compile
   a pure function of (case, profile).
   - The output path is observable: it is the `"file"` field of a source map, and it is the
     chunk file prefix. Any comparison (oracle, Rust) must therefore run the identical argv
-    from the repository root. Do not substitute another directory.
+    from the repository root. Do not substitute another directory, and do not run a comparison
+    concurrently with `golden_all.py` on overlapping pairs.
 - **Output flag:**
   - Single-output profiles end with `--js_output_file={out_dir}/out.js`.
   - `sourcemap` also writes `{out_dir}/out.js.map`.

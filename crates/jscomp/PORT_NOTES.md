@@ -3,7 +3,8 @@
 These notes record where the Rust shape of `closure-jscomp` differs from the Java it ports, and
 why. The general conventions (arena, handles, borrowing, strings, collections) are in
 [crates/DESIGN.md](../DESIGN.md); this file covers the class-specific cases. Divergences made for
-speed that keep the output identical are listed in [DECISIONS.md](../../DECISIONS.md) D-025.
+speed that keep the output identical are listed in
+[crates/DESIGN.md, "Performance divergences"](../DESIGN.md#performance-divergences).
 
 Java tests that are `@Ignore`d in Java (JUnit never runs them) are not ported. Tests of
 `CompilerTestCase`, `IntegrationTestCase` and `CompilerTypeTestCase` subclasses run as

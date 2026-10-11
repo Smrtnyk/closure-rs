@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Gate 0.2 (docs/PORTING.md §4.2; criteria (a)-(e) as defined by D-015 and D-017): unit corpus validity.
+# Gate 0.2 (docs/PORTING.md §4.2; criteria (a)-(e) below, record rules in corpus/unit/FORMAT.md):
+# unit corpus validity.
 #   (a) every counted record replays green (rule 6 proven on the replay classpath); every flagged
 #       post-call-assertion method classified (captured / rust_unit_test) from corpus/unit/postcall/<Class>.json;
 #       exclusions (descriptor-marked + post-call not captured) <= 3% of all records; phase noop replays every
@@ -13,11 +14,12 @@
 #       dropped) from the replay >= 98% of the original suite's harness-based (record-bearing)
 #       classes; whole-suite ratio reported; every in-scope non-harness class listed in RUST_UNIT_TESTS.md
 #   (d) class-level no-op mutation (oracle/replay/agent NoopAgent) of the 30 in-scope passes with the most
-#       change-expecting records fails >= 90% of those records (assertion-type failures only); D-017 item 10:
-#       change-expecting = input and expected output not isEquivalentTo (parsed in the record's language mode), a
-#       diagnostic, or a postcondition whose expected value differs from the whole-processor no-op value; D-017
-#       item 11: records go to the ranked passes their passTrace shows (named test class -> that pass only), two or
-#       more -> a group no-op'd jointly (agent form A;B;C) that must also reach 90%; TypeCheck is the unit
+#       change-expecting records fails >= 90% of those records (assertion-type failures only);
+#       change-expecting (corpus/unit/FORMAT.md) = input and expected output not isEquivalentTo (parsed
+#       in the record's language mode), a diagnostic, or a postcondition whose expected value differs
+#       from the whole-processor no-op value; attribution (corpus/unit/HARNESS.md "Pass trace and group
+#       no-op"): records go to the ranked passes their passTrace shows (named test class -> that pass
+#       only), two or more -> a group no-op'd jointly (agent form A;B;C) that must also reach 90%; TypeCheck is the unit
 #       {TypedScopeCreator, TypeInferencePass, TypeCheck}; TypeCheck alone is reported for information
 #   (e) records with any unrepresentable value (listed, placeholder in any section, descriptor-marked,
 #       or post-call assertions not captured) <= 3%

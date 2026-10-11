@@ -1,7 +1,7 @@
 ## TypedScopeCreatorTest (com.google.javascript.jscomp.TypedScopeCreatorTest)
 
 Post-call assertion classified `rust_unit_test` in `corpus/unit/postcall/TypedScopeCreatorTest.json`
-(D-015 (a); reference commit bb8c8e7). The method makes two hooked
+(reference commit bb8c8e7). The method makes two hooked
 `testSame` calls (records 481 and 482). After each call it reads the class's type from `globalScope`,
 follows the type's property node into the class-field initializer's object literal and asserts the
 JSType that TypedScopeCreator attached to an AST node there. The `testFieldsAfter` scope summary

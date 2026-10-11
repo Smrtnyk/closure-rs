@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-//! Rust-only, not in Java (DECISIONS.md D-025): syntactic scopes are reused across passes.
+//! Rust-only, not in Java (crates/DESIGN.md, "Performance divergences"): syntactic scopes are
+//! reused across passes.
 //!
 //! Java's `SyntacticScopeCreator` scans a scope root anew every time a pass asks for its scope,
 //! and the garbage collector frees the scopes after the pass; a compilation of a large bundle

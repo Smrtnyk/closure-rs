@@ -309,7 +309,7 @@ impl ObjectType for TypeId {
         let name = name.into();
         let map = self.get_property_map(reg);
         if let PropertyKey::String(n) = &name {
-            // getOwnProperty of a string key only reads the map: no copy (D-025).
+            // getOwnProperty of a string key only reads the map: no copy (performance divergence).
             return map.properties.get(n);
         }
         let map = map.clone();

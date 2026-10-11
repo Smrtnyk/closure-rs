@@ -1,8 +1,8 @@
 # Porting closure-rs
 
 This document describes what closure-rs ports, what "byte-identical" means, how the port mirrors
-the Java code, how fidelity is verified, and how the port follows upstream. Interpretations and
-deviations are recorded in [`DECISIONS.md`](../DECISIONS.md); the Rust conventions are in
+the Java code, how fidelity is verified, and how the port follows upstream. The Rust conventions,
+including where performance work may leave the Java structure, are in
 [`crates/DESIGN.md`](../crates/DESIGN.md).
 
 ## 1. Goal and upstream reference
@@ -15,8 +15,9 @@ closure-rs is a Rust implementation of Closure Compiler whose observable behavio
 - the same source maps;
 - the same exit codes.
 
-It is a faithful port, not a redesign: it does not "improve" the optimizer or its output. A
-difference from the Java compiler at the pinned commit is a porting defect.
+It is a faithful port, not a redesign: the Java code is ported as it is, the outputs must be
+identical, and the port does not "improve" the optimizer or its output. A difference from the Java
+compiler at the pinned commit is a porting defect.
 
 **Reference:** `github.com/google/closure-compiler` release `v20261007`, commit
 `21768cdbfa949bcce3f80d4285feb66475c4758c` (2026-10-07), the release published on npm as
@@ -45,9 +46,43 @@ libraries are data, reused verbatim (`crates/resources`).
 - flags whose usage text says "DO NOT USE" or "experimental"
 - J2CL-, Polymer- and Chrome-specific passes
 
-A new exclusion needs a decision in `DECISIONS.md`, and only code reachable from fewer than 0.5%
-of the D2 corpus runs (§4.4) may be excluded. The CLI refuses the flags and inputs that would run
-excluded code (DECISIONS.md D-028).
+A new exclusion is added to this list (and to `scope/gen_flags.py`), and only code reachable from
+fewer than 0.5% of the D2 corpus runs (§4.4) may be excluded. The CLI refuses the flags and inputs
+that would run excluded code (§2.1).
+
+### 2.1 Out-of-scope features are refused
+
+The `out` rows of `scope/flags.txt` configure code that is not ported: the instrumentation pass,
+the Polymer, Chrome and J2CL passes, `ChromeCodingConvention` and the TypedAST output. Compiling
+with them would crash or silently differ from Java, so closure-rs stops instead. The refusal is
+reported like the Java compiler's own flag errors (a `FlagUsageException`): one line per refused
+feature on stderr, `closure-rs does not support <flag>: <feature> is not part of the port.`,
+nothing on stdout, no output files, exit code 255.
+
+- `--instrument_for_coverage_option` other than NONE, `--chrome_pass` (also with
+  `--third_party`) and `--typed_ast_output_file` with any value (Java serializes for the empty
+  name too) are refused after the options are created, so the Java compiler's own flag errors
+  (`--instrument_mapping_report` without PRODUCTION, PRODUCTION without
+  `--instrument_mapping_report`, an unknown `--j2cl_pass` value) come first and stay identical.
+- `--polymer_version` with any value is refused before the options are created (so before the
+  Java compiler's own errors there): Java rejects a version other than 1 and 2 while creating
+  them with an uncaught exception (`CompilerOptions#setPolymerVersion`), which the port would
+  mirror as a panic.
+- These flags are refused in every compilation level, including the ones where Java would not
+  use them (WHITESPACE_ONLY, `--checks_only`).
+- The J2CL passes. `--j2cl_pass` is AUTO by default (an empty value keeps AUTO). With AUTO the
+  checks run `J2clSourceFileChecker`, which turns the J2CL passes on when an input's name ends in
+  `.java.js` (`J2clSourceUtils.isJ2clSource`); every J2CL pass returns at once otherwise. The
+  checks' J2CL passes (`J2clSourceFileChecker`, `J2clChecksPass`) are ported; the unported ones
+  are all optimizations. So the refusal comes after the checks and before the optimizations, when
+  the J2CL passes are on and the compilation optimizes: a J2CL input still compiles with
+  `--j2cl_pass=OFF`, `--checks_only` and WHITESPACE_ONLY, and checks that halt the compilation
+  are reported as in Java. The message names the first such input and suggests
+  `--j2cl_pass=OFF`.
+
+`--instrument_mapping_report`, `--production_instrumentation_array_name` and
+`--remove_j2cl_asserts` are not refused on their own: only PRODUCTION instrumentation and the J2CL
+passes read them, and those are refused.
 
 ## 3. Fidelity criteria
 
@@ -83,6 +118,20 @@ costs) and provides:
 Its `compile` output is byte-identical to the reference uberjar's across the D2 corpus
 (`gates/gate_0_1.sh`). The protocol is in `oracle/PROTOCOL.md`, the `parse_dump` schema in
 `oracle/PARSE_DUMP.md`.
+
+**Reference environment.** Java's output depends on the JVM's environment (under a `de_DE`
+locale it prints `98,2% typed` instead of `98.2% typed`), so every Java reference run (golden
+runs, oracle servers, every Java-vs-Rust comparison) uses `child_env()` of
+`gates/lib/run_reference.py`: `LANG=LC_ALL=C.UTF-8`, `TZ=UTC`, a minimal `PATH`, nothing inherited
+from the caller, and the pinned JVM flags of the same file. Clients refuse a server whose
+ready-line environment differs from `GOLDEN_JVM_ENV` (`oracle/oracle_client.py`;
+`oracle/PROTOCOL.md`, "Environment"). Further rules for every comparison with Java:
+
+- Oracle servers run with `-Xmx1536m`. A request that runs out of memory is retried once on a
+  fresh server with `-Xmx3g`, and every retry is listed.
+- Results that involve `StackOverflowError` or "too deep recursion" depend on the JIT state.
+  They are depth-sensitive and reported separately, and the fuzzer caps nesting depth.
+- A rebuilt oracle jar is ground truth again only after `gates/gate_0_1.sh` passes with it.
 
 ### 4.2 Unit corpus
 
@@ -135,7 +184,23 @@ Each input runs under every option profile that applies to it (`corpus/d2/profil
 
 `gates/d2_rust.py` runs the Rust CLI on every (case, profile) pair and compares exit code, stdout,
 stderr and every output file with the golden Java results, byte for byte and without
-normalization (`gates/README_d2_rust.md`). `scripts/fetch_d2.sh` reproduces the inputs from
+normalization (`gates/README_d2_rust.md`). The argv of a pair is built only by
+`gates/lib/case_args.py`: profile flags, then case flags, then `--externs`, then `--js`, then
+`--chunk`, then the output flag (`corpus/d2/PROFILES.md`).
+
+**Dropped pairs.** A pair leaves the corpus only if Java:
+
+- crashes (an internal compiler error, or exit 254 from an uncaught exception);
+- times out after 180 s;
+- produces trivial ADVANCED output (empty output and zero diagnostics); or
+- references a missing file.
+
+A Java crash is not reference behaviour, so a fuzz program on which Java crashes is not compared
+either. Pairs that end in compile errors (including the exit 127 error cap) stay, as
+diagnostics-only comparisons. For a whole program, the test requirement applies to a profile only
+if Java's own output passes the program's tests in that profile (`corpus/d2/WHOLE_PROGRAM.md`).
+
+`scripts/fetch_d2.sh` reproduces the inputs from
 `corpus/d2/sources.lock.json`; `corpus/d2/FORMAT.md`, `PROFILES.md`, `WHOLE_PROGRAM.md` and
 `JAVA_FAILURES.md` describe the cases, the profiles and the pairs Java itself cannot compile.
 
@@ -161,8 +226,9 @@ program is compiled by Java and by Rust under a random option profile; a mismatc
 automatically (delta debugging at the AST level) and kept as a reproduction. `fuzz/DESIGN.md`
 describes the crates. `gates/gate_0_3.sh` checks the fuzzer itself: the Java parser accepts its
 programs, the programs reach on average at least 60% of the `DefaultPassConfig` passes (pass-entry
-counters, averaged per program; D-016 adds a criterion on the passes they make effective), and a
-one-hour driver run finishes without harness crashes.
+counters, averaged per program), the passes they make effective cover at least 85% of the passes
+effective on D2 (`fuzz/DESIGN.md`, "Reach measurement"), and a one-hour driver run finishes without
+harness crashes.
 
 ### 4.7 Source maps, determinism and performance
 
@@ -190,6 +256,9 @@ one-hour driver run finishes without harness crashes.
   order, Java's exact order is ported (§8).
 - **Compiler state:** the Java `Compiler` object is split only as far as the borrow checker
   requires, keeping Java's field and method names.
+- **Performance work** may leave the Java structure where the output stays byte-identical; each
+  such divergence is marked in the code and listed in
+  [`crates/DESIGN.md`, "Performance divergences"](../crates/DESIGN.md#performance-divergences).
 
 The port follows the order in which Java runs: core types and the Node API, the parser (checked
 with `parse_dump`) and the code printer, the compiler and the unit-test harness, then the passes
@@ -252,9 +321,9 @@ forward.
 **Syncs target npm releases only.** The pin moves from one upstream release to a later one, and
 only to a release that is published on npm as a `google-closure-compiler` version (upstream tag
 `vYYYYMMDD` = npm `YYYYMMDD.0.0`), never to an unreleased master commit, so closure-rs always
-matches a compiler users can install (DECISIONS.md D-026). A registry tag is the upstream release
+matches a compiler users can install. A registry tag is the upstream release
 tag; the one older row, `bb8c8e7` (release `v20261005`), is named by its commit and stays because
-the closure-self D2 inputs are read from its checkout (D-026).
+the closure-self D2 inputs are read from its checkout (`corpus/d2/FORMAT.md`, "Sources").
 
 **The reference registry.** `scripts/references.tsv` lists every pinned reference: per tag its
 commit, the uberjar's sha256 (`-` until the jar is built and pinned), and its paths relative to

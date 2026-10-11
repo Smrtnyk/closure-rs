@@ -21,7 +21,7 @@
 //   test/com/google/javascript/jscomp/TypeCheckTestCase.java.
 
 //! Port of the TypeCheckTest methods whose post-call assertions are classified `rust_unit_test`
-//! (corpus/unit/rust_unit_tests/TypeCheckTest.md, D-015 (a)) and of the matching
+//! (corpus/unit/rust_unit_tests/TypeCheckTest.md) and of the matching
 //! OptionalChainTypeCheckTest method (corpus/unit/rust_unit_tests/OptionalChainTypeCheckTest.md).
 //!
 //! Every other TypeCheckTest method is a record in corpus/unit/records/TypeCheckTest.jsonl.gz and

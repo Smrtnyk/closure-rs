@@ -179,9 +179,9 @@ pub struct Config {
 }
 
 impl Config {
-    /// Rust-only (D-025): an equal config that shares no reference-counted data with this one,
-    /// for parsing on another thread (jscomp `parallel_parse`) without contending for the
-    /// reference counts of the shared maps and strings.
+    /// Rust-only (performance divergence): an equal config that shares no reference-counted data
+    /// with this one, for parsing on another thread (jscomp `parallel_parse`) without contending
+    /// for the reference counts of the shared maps and strings.
     pub fn unshared_copy(&self) -> Self {
         let copy = |s: &JsString| JsString::from_units(s.as_units().to_vec());
         Self {

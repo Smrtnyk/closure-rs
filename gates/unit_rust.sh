@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Unit-record ratchet (docs/PORTING.md §7, D-019): runs the Rust unit-record runner
+# Unit-record ratchet (docs/PORTING.md §7): runs the Rust unit-record runner
 # (crates/testing, bin unit_replay, as crates/testing/README.md documents) on the complete unit
 # corpus and compares the records that pass with the baseline gates/unit_ratchet.json.
 #   gates/unit_rust.sh [checkout-dir] [--update]

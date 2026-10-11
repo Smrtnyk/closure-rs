@@ -82,7 +82,7 @@
     {
       "method": "testAliasTypedefOntoNamespace",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -563,7 +563,7 @@
     {
       "method": "testClassStaticBlockWithThisLHS",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -696,98 +696,98 @@
     {
       "method": "testCollectedCtorBigIntProperty",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testCollectedCtorProperty1",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testCollectedCtorProperty10",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testCollectedCtorProperty11",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testCollectedCtorProperty12",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testCollectedCtorProperty13",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testCollectedCtorProperty14",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testCollectedCtorProperty15",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testCollectedCtorProperty2",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testCollectedCtorProperty3",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testCollectedCtorProperty5",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testCollectedCtorProperty9",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testCollectedFunctionStub",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testCollectedFunctionStubLocal",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -951,7 +951,7 @@
     {
       "method": "testConstructorProperty",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -1012,7 +1012,7 @@
     {
       "method": "testDeclaredConstType4",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -1027,7 +1027,7 @@
     {
       "method": "testDeclaredConstType6",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -1077,7 +1077,7 @@
     {
       "method": "testDeclaredObjectLitProperty4",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -1092,7 +1092,7 @@
     {
       "method": "testDeclaredObjectLitProperty6",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -1283,7 +1283,7 @@
     {
       "method": "testEnumProperty",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -1852,7 +1852,7 @@
     {
       "method": "testGoogProvide_getPropWithoutJSDoc",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -2187,91 +2187,91 @@
     {
       "method": "testInferredObjectLitProperty1",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testInferredObjectLitProperty2",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testInferredProperty1",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testInferredProperty1a",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testInferredProperty2",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testInferredProperty2b",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testInferredProperty2c",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testInferredProperty3",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testInferredProperty4",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testInferredProperty5",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testInferredProperty6",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testInferredPrototypeProperty1",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testInferredPrototypeProperty2",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -2466,14 +2466,14 @@
     {
       "method": "testMethodBeforeFunction1",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeDeclared(), getImplicitPrototype(), hasOwnProperty()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testMethodBeforeFunction2",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeDeclared(), getImplicitPrototype(), hasOwnProperty()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -2525,14 +2525,14 @@
     {
       "method": "testNamespacedFunctionStub",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testNamespacedFunctionStubLocal",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeDeclared()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -2694,7 +2694,7 @@
     {
       "method": "testPropertyInExterns1",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeDeclared(), hasOwnProperty()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -2715,21 +2715,21 @@
     {
       "method": "testPropertyOnUnknownSuperClass1",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), getImplicitPrototype(), hasOwnProperty()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testPropertyOnUnknownSuperClass2",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), getImplicitPrototype(), hasOwnProperty()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testPrototypeInit",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
@@ -2941,21 +2941,21 @@
     {
       "method": "testStubsInExterns2",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeDeclared(), hasOwnProperty()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testStubsInExterns3",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeDeclared(), hasOwnProperty()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
     {
       "method": "testStubsInExterns4",
       "status": "unclassified",
-      "pending": "D-017 item 2 typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
+      "pending": "FORMAT.md \"Post-call snapshot\" typed-scope property flags (Review fixer round 1): the method asserts ObjectType.isPropertyTypeInferred/isPropertyTypeDeclared, neutral booleans that no postCall key produces yet; not a Rust unit test (FORMAT.md: neutral values never are). Captured once the recorder snapshot holds the flags.",
       "formerRustUnitTestReason": "asserts JSType properties (isPropertyTypeInferred(), hasOwnProperty()) of types found in the scopes after the hooked call; replay compares the scopes only as typedScope dumps (testFieldsAfter globalScope/lastLocalScope/lastFunctionScope: name, type string, var isTypeInferred), which do not record these properties, and the records' postCall keys accessorSummary and moduleMetadataByPath hold getter/setter summaries and module metadata, not JSType objects",
       "formerCategory": "jstype"
     },
