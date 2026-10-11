@@ -66,23 +66,23 @@ source maps in every run.
 
 | Bundle | Level | Java | closure-rs | Speedup | Java memory | closure-rs memory |
 |---|---|---:|---:|---:|---:|---:|
-| three.js r186 (1.3 MB) | ADVANCED | 6.98 s | 1.82 s | 3.8× | 697 MB | 346 MB |
-| | SIMPLE | 4.47 s | 1.11 s | 4.0× | 627 MB | 312 MB |
-| fabric.js 7.4.0 (0.8 MB) | ADVANCED | 5.77 s | 1.36 s | 4.2× | 665 MB | 288 MB |
-| | SIMPLE | 3.28 s | 0.67 s | 4.9× | 566 MB | 253 MB |
-| d3 7.9.0 (0.6 MB) | ADVANCED | 5.64 s | 1.40 s | 4.0× | 782 MB | 292 MB |
-| | SIMPLE | 3.82 s | 0.86 s | 4.4× | 849 MB | 273 MB |
-| lodash 4.17.21 (0.2 MB) | ADVANCED | 3.65 s | 0.64 s | 5.7× | 568 MB | 243 MB |
-| | SIMPLE | 2.22 s | 0.33 s | 6.7× | 522 MB | 227 MB |
+| three.js r186 (1.3 MB) | ADVANCED | 4.64 s | 1.15 s | 4.0× | 691 MB | 314 MB |
+| | SIMPLE | 3.10 s | 0.73 s | 4.2× | 633 MB | 307 MB |
+| fabric.js 7.4.0 (0.8 MB) | ADVANCED | 3.89 s | 0.88 s | 4.4× | 662 MB | 284 MB |
+| | SIMPLE | 2.30 s | 0.46 s | 5.0× | 561 MB | 229 MB |
+| d3 7.9.0 (0.6 MB) | ADVANCED | 3.83 s | 0.91 s | 4.2× | 875 MB | 270 MB |
+| | SIMPLE | 2.59 s | 0.55 s | 4.7× | 780 MB | 247 MB |
+| lodash 4.17.21 (0.2 MB) | ADVANCED | 2.54 s | 0.39 s | 6.5× | 527 MB | 229 MB |
+| | SIMPLE | 1.58 s | 0.21 s | 7.4× | 533 MB | 211 MB |
 
 - **Inputs:** the bundle files (for three.js `three.core.js` and `three.module.js`) with their input
   source maps (`--source_map_input`), `--create_source_map`, `--source_map_include_content`,
   `--language_out=ECMASCRIPT_2015`.
 - **Java:** the `google-closure-compiler` 20261006.0.0 jar on OpenJDK 21: `java -jar`, default JVM
   settings, a new JVM per compile, as the npm package's API runs it.
-- **closure-rs:** 20261006.0.0, the profile-guided Linux x64 release binary.
-- **Machine:** AMD Ryzen 9 9950X (16 cores, 32 threads), 62 GB, Fedora Linux 44; other processes
-  used about a quarter of the threads during the runs. Medians of 5 runs; memory is peak RSS.
+- **closure-rs:** 20261006.2.1, the profile-guided Linux x64 release binary.
+- **Machine:** AMD Ryzen 9 9950X (16 cores, 32 threads), 62 GB, Fedora Linux 44, otherwise idle
+  during the runs. Medians of 5 runs; memory is peak RSS.
 
 `scripts/run_bench.py` runs these benchmarks ([bench/README.md](bench/README.md)).
 
