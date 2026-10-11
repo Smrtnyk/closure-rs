@@ -256,6 +256,63 @@ matches a compiler users can install (DECISIONS.md D-026). A registry tag is the
 tag; the one older row, `bb8c8e7` (release `v20261005`), is named by its commit and stays because
 the closure-self D2 inputs are read from its checkout (D-026).
 
+**The sync command.** `scripts/upstream_sync.py <tag>` does the mechanical part of a sync, on the
+checkout it is run from (a branch for the sync, also a git worktree):
+
+```sh
+python3 scripts/upstream_sync.py --list                    # the steps
+python3 scripts/upstream_sync.py v20261108 --dry-run       # what each step would do
+mkdir -p build/logs && setsid nohup python3 scripts/upstream_sync.py v20261108 \
+  > build/logs/upstream-sync.log 2>&1 &                     # the whole sync, detached
+python3 scripts/upstream_sync.py v20261108 --from unit-record   # resume at a step
+python3 scripts/upstream_sync.py v20261108 --only flags,license-headers
+```
+
+Every step first checks whether its result is already there and then only says so, so the command
+can be repeated or resumed at any step. A reference that exists (checkout, jar, oracle, recording
+workspace, golden results) is verified, never rebuilt or moved. The sync's own outputs go to the
+work directory `build/upstream-sync/<tag>/` of the main checkout (`--work DIR` moves it).
+`--jobs N` sets the parallelism of the recording and the D2 runs; `--unit-classes A,B` records,
+installs and replays only some test classes and `--d2-sample N` runs the D2 worklist on a sample
+(partial runs, for trying the command out).
+
+| Step | What it does | Uses |
+|---|---|---|
+| `resolve` | the tag's commit (GitHub) and its npm version; refuses a tag that is not on npm; picks the base reference (the registry's default, `--base`) | |
+| `registry` | adds the reference's row to `scripts/references.tsv`, with its own paths | |
+| `fetch` | the reference checkout | `scripts/fetch_reference.sh` |
+| `jar` | builds the uberjar with Bazel (copying the base's `MODULE.bazel.lock` when `MODULE.bazel` is unchanged), installs it read-only and pins its sha256 | `oracle/REFERENCE.md` |
+| `npm-check` | downloads the npm release: is its JS wrapper unchanged since the base release, and does `google-closure-compiler-java`'s `compiler.jar` have the reference jar's entries (all but the two version-stamp classes)? | |
+| `oracle` | the oracle jar | `oracle/build.sh` |
+| `resources` | the jar resources and the Java-side resource fixtures | `crates/resources/tools/sync_from_jar.py`, `GenResourceFixtures.java` |
+| `flags` | `scope/flags.txt` and the npm types | `scope/gen_flags.py`, `scripts/gen_npm_types.mjs` |
+| `license-headers` | the headers' upstream commit | `scripts/license_headers.py` |
+| `worklist` | `porting-worklist.md`: the upstream commits, every changed file with its diff stat and the Rust files ported from it (`LICENSES/headers.tsv`), changed tests with their record files; `upstream.diff` | |
+| `unit-ws` | the recording workspace | `scripts/unit_make_recording_ws.sh` |
+| `unit-jars` | the recording jars, into the work directory | `scripts/unit_bazel_build.sh` |
+| `unit-record` | records every test class against the new reference, into the work directory | `scripts/unit_record_all.sh` |
+| `unit-install` | copies the new records into `corpus/unit/records` (the old ones stay in the work directory) and regenerates what derives from them | `scripts/unit_derive_expected_pipeline.py`, `scripts/unit_options_defaults.sh` |
+| `unit-worklist` | replays the records with the Rust runner and maps the unit ratchet across the re-recording: regressed, lost and new records (`unit-worklist.json`) | `unit_replay`, `scripts/unit_ratchet_rebase.py` |
+| `d2-golden` | the D2 golden results of the new jar, next to the older ones | `gates/lib/golden_all.py` |
+| `d2-validate` | the final D2 corpus from them (`cases.jsonl`, `JAVA_FAILURES.md`, ...) | `corpus/d2/validate/` |
+| `d2-worklist` | the release binary against the new golden results, and the D2 ratchet rebased across them (`d2-worklist.txt`) | `gates/d2_rust.py run`, `check --rebase` |
+| `switch-default` | only with `--only switch-default`: moves the registry's `default` row and rewrites the texts that name the default reference (tag, commit, jar sha256, npm version) | |
+
+The long steps are the jar (a cold Bazel build), the recording (one JVM per test class) and the D2
+golden run; all three resume where they stopped. The command ends with what is left, the part
+that needs judgement:
+
+1. Port the Java changes (§7) from `porting-worklist.md` and `upstream.diff`: the Rust files, the
+   unit descriptors of new record classes, the Rust ports of new tests in classes without records.
+2. Triage `unit-worklist.json` and `d2-worklist.txt`: what the new reference breaks before the
+   port, and what a new Java behaviour (a crash fixed or added upstream) changes in the corpora.
+3. Verify as in §4: `--only license-headers` again for newly ported files, `gates/ci.sh`, the new
+   ratchets (`gates/unit_rust.sh --update`, `gates/d2_rust.py`), `gates/gate_0_1.sh` with
+   `CLOSURE_RS_REF=<tag>` (the oracle against the jar), `gates/gate_0_2.sh`, targeted probes for
+   the upstream changes and a differential fuzz run against the new reference.
+4. `--only switch-default`, then read its diff and update the counts the docs quote (records in
+   `corpus/unit/RECORDING.md`).
+
 **The reference registry.** `scripts/references.tsv` lists every pinned reference: per tag its
 commit, the uberjar's sha256 (`-` until the jar is built and pinned), and its paths relative to
 the main checkout: the checkout (`src`), the recording workspace (`recording_ws`), the uberjar
@@ -277,7 +334,7 @@ recording workspace of the selected tag, and `oracle/build.sh` refuses a referen
 sha256 is not pinned. `gates/d2_rust.py check --rebase` and `scripts/unit_ratchet_rebase.py`
 compare a ratchet across the reference change, pair by pair and record by record.
 
-A sync:
+By hand, a sync (each step names the scripts the command runs):
 
 1. Adds the new reference to `scripts/references.tsv` (the version notes in `README.md`,
    `npm/closure-rs/README.md`, `oracle/REFERENCE.md` and the license headers' upstream version
@@ -289,8 +346,10 @@ A sync:
    npm types (`scripts/gen_npm_types.mjs`), the jar resources
    (`crates/resources/tools/sync_from_jar.py "$REF_JAR" "$REF_SRC"`, which keeps the license
    header of `jar_contents.rs`), the unit corpus (`corpus/unit/RECORDING.md`,
-   `scripts/unit_record_all.sh`, `scripts/unit_options_defaults.sh`) and the D2 golden results
-   (`gates/lib/golden_all.py`).
+   `scripts/unit_record_all.sh`, whose outputs `UNIT_JARS_DIR`, `UNIT_RECORDS_DIR` and
+   `UNIT_RECORDING_DIR` can move, and `scripts/unit_options_defaults.sh`) and the D2 golden
+   results (`gates/lib/golden_all.py`, then `corpus/d2/validate/scan_golden.py`, `wp_test.py` and
+   `finalize.py`).
 4. Ports the Java diff between the old and the new pin (§7), and refreshes the license headers
    (`scripts/license_headers.py --apply`).
 5. Verifies the result as in §4: every unit record and D2 pair that matched before still matches
