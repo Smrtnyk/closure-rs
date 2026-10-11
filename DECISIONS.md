@@ -2,7 +2,8 @@
 
 Each entry records an interpretation of, or deviation from, [`docs/PORTING.md`](docs/PORTING.md),
 together with its reason; § references are to that document. Entry IDs are stable and cited
-from code, data and other documents, so the numbering has gaps where entries were removed. A
+from code, data and other documents, so they are never renumbered. The missing numbers were
+entries about how the port was organised, not about the compiler or its verification. A
 superseded entry is marked as such.
 
 ## D-003 — Project-local toolchains
