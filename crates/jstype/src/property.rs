@@ -334,7 +334,7 @@ impl Property for PropertyId {
     // port: Property#toString
     fn to_string(self, reg: &mut JSTypeRegistry, ast: &Ast) -> String {
         let name = match reg.property(self).name.clone() {
-            PropertyKey::String(name) => name.to_string_lossy(),
+            PropertyKey::String(name) => name.to_string(),
             PropertyKey::Symbol(name) => name.to_string(reg, ast),
         };
         format!(

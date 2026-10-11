@@ -118,7 +118,7 @@ impl CheckProvidesSorted {
         let mut sb = String::new();
 
         sb.push_str("goog.provide('");
-        sb.push_str(&namespace.to_string_lossy());
+        sb.push_str(&namespace.to_string());
         sb.push_str("');");
 
         sb

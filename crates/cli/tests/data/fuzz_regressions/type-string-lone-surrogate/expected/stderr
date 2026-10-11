@@ -1,0 +1,87 @@
+in.js:3:30: WARNING - [JSC_TYPE_MISMATCH] initializing variable
+found   : {
+  a?: null,
+  ?: number,
+  😀: number,
+  ?: string,
+  ??: boolean
+}
+required: number
+  3| /** @type {number} */ var a = {'\uD800': 1, '\uDC00': 'x', 'a\uDBFF': null, '\uDC00\uD800': true, '😀': 2};
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+in.js:5:30: WARNING - [JSC_TYPE_MISMATCH] initializing variable
+found   : {
+  ?: number,
+  A: number,
+  ?: number,
+  ?: number,
+  : number,
+  �: number
+}
+required: number
+  5| /** @type {number} */ var b = {'\uD800': 1, '': 2, 'A': 3, '\uDC00': 4, '?': 5, '�': 6};
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+in.js:7:30: WARNING - [JSC_TYPE_MISMATCH] initializing variable
+found   : ({A: number}|{?: number}|{: number})
+required: number
+  7| /** @type {number} */ var c = Math.random() ? {'\uD800': 1} : Math.random() ? {A: 1} : {'': 1};
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+in.js:13:32: WARNING - [JSC_TYPE_MISMATCH] initializing variable
+found   : {
+  a: number,
+  ?: number
+}
+required: {
+  a: number,
+  ?: number
+}
+  13| /** @type {typeof o} */ var t = p;
+                                      ^
+
+in.js:14:32: WARNING - [JSC_TYPE_MISMATCH] initializing variable
+found   : {
+  ?: number,
+  a: number
+}
+required: {
+  a: number,
+  ?: number
+}
+  14| /** @type {typeof o} */ var u = q;
+                                      ^
+
+in.js:16:30: WARNING - [JSC_TYPE_MISMATCH] initializing variable
+found   : {
+  a: {?: {?: Array<?>}},
+  b: function({\uDBFF: number}): undefined
+}
+required: number
+  16| /** @type {number} */ var d = {a: {'\uD800': {'\uDC00': [1]}}, b: function(/** {'\uDBFF': number} */ x) {}};
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+in.js:17:30: WARNING - [JSC_TYPE_MISMATCH] initializing variable
+found   : {
+  k0: number,
+  k1: number,
+  k2: number,
+  k3: number,
+  k4: number,
+  k5: number,
+  k6: number,
+  k7: number,
+  k8: number,
+  k9: number,
+  ...
+}
+required: number
+  17| /** @type {number} */ var e = {k0: 0, k1: 1, k2: 2, k3: 3, k4: 4, k5: 5, k6: 6, k7: 7, k8: 8, k9: 9, 'k\uD800': 10, 'k\uDC00': 11};
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+in.js:18:0: WARNING - [JSC_WRONG_ARGUMENT_COUNT] Function alert: called with 7 argument(s). Function requires at least 1 argument(s) and no more than 1 argument(s).
+  18| alert(a, b, c, d, e, t, u);
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+0 error(s), 8 warning(s), 100.0% typed

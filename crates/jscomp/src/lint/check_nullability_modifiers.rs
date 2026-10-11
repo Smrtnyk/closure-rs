@@ -245,7 +245,7 @@ impl CheckNullabilityModifiers {
             return "Record literal".to_string();
         }
         check_state!(Self::is_primitive_type(ast, node) || Self::is_reference_type(ast, node));
-        node.get_string(ast).to_string_lossy()
+        node.get_string(ast).to_string()
     }
 }
 

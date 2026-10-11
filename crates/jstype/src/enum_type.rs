@@ -257,8 +257,8 @@ pub(crate) fn append_to(
     if sb.is_for_annotations() {
         sb.append("!Object");
     } else {
-        let name = t.get_reference_name(reg).unwrap().to_string_lossy();
-        sb.append(&name);
+        let name = t.get_reference_name(reg).unwrap();
+        sb.append_utf16(&name);
     }
 }
 // port: EnumType#getDisplayName

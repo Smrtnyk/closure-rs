@@ -285,7 +285,7 @@ impl VarCheck {
             if curr_depends_on_var {
                 // The chunk dependency was properly declared.
             } else {
-                let var_name = n.get_string_ref(t).to_string_lossy();
+                let var_name = n.get_string_ref(t).to_string();
                 let args = [
                     curr_chunk.get_name(),
                     var_chunk.get_name(),
@@ -685,7 +685,7 @@ impl RedeclarationHandler for RedeclarationCheckHandler {
         let orig_node = orig_var.get_node(compiler);
         let orig_parent =
             orig_node.map(|orig_node| NodeUtil::get_declaring_parent(compiler, orig_node));
-        let name_str = name.to_string_lossy();
+        let name_str = name.to_string();
 
         match parent.get_token(compiler) {
             Token::CLASS | Token::CONST | Token::LET => {

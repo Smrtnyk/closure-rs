@@ -1762,13 +1762,16 @@ impl TypeValidator {
         missing: Option<&BTreeSet<JsString>>,
         mismatch: Option<&BTreeSet<JsString>>,
     ) -> String {
-        let mut found_str = JSType::to_string(found, reg, ast);
-        let mut required_str = JSType::to_string(required, reg, ast);
-        if found_str == required_str {
-            found_str = found.to_annotation_string(reg, ast, Nullability::IMPLICIT);
-            required_str = required.to_annotation_string(reg, ast, Nullability::IMPLICIT);
+        // Java compares its UTF-16 strings; the message holds the text its UTF-8 streams write.
+        let mut found_utf16 = found.to_string_utf16(reg, ast);
+        let mut required_utf16 = required.to_string_utf16(reg, ast);
+        if found_utf16 == required_utf16 {
+            found_utf16 = found.to_annotation_string_utf16(reg, ast, Nullability::IMPLICIT);
+            required_utf16 = required.to_annotation_string_utf16(reg, ast, Nullability::IMPLICIT);
         }
-        if found_str == required_str {
+        let mut found_str = found_utf16.to_string();
+        let mut required_str = required_utf16.to_string();
+        if found_utf16 == required_utf16 {
             // For some types, their annotation strings will be identical, but they might be
             // identically named structures in different scopes (and have theoretically different
             // "fully-qualified" names).

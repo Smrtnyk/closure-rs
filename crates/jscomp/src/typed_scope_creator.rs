@@ -3331,7 +3331,7 @@ impl AbstractScopeBuilder<'_> {
                     };
                     let qualified_name = l_value
                         .get_qualified_name(compiler)
-                        .map(|name| name.to_string_lossy())
+                        .map(|name| name.to_string())
                         .unwrap_or_else(|| "null".to_string());
                     let error = JSError::make(
                         compiler,

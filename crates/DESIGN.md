@@ -145,6 +145,11 @@ pub struct Ast { /* dense per-node arrays, never shrink */ }   // owns every nod
   original names, template strings, regexp text) is `JsString`. Every other `String` (file
   names, diagnostic messages, option values, JSON) is Rust `String`/`&str`. If Java indexes a
   string by `charAt`, the Rust value must be a `JsString` (or a local `Vec<u16>`).
+- **`JsString` to Rust `String`:** text bound for an output (diagnostic arguments, type strings,
+  a source name taken from a JSON string) uses `Display` (`to_string()`, which is
+  `charset::utf8_encoded_text`): it writes `?` for an unpaired surrogate, as Java's UTF-8
+  streams and `String#getBytes(UTF_8)` do. `to_string_lossy()` (U+FFFD) is only for text that
+  never reaches an output, such as a comparison with an ASCII name.
 - **Interning (`RhinoStringPool`)**: node strings are interned. `RhinoStringPool::add_or_get`
   returns a `JsString` that is pointer-identical for equal contents (Java's `==` on interned
   strings is `JsString::ptr_eq`). The pool is process-wide, split into independently locked

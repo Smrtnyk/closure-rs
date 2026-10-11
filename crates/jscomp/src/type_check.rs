@@ -732,7 +732,7 @@ impl TypeCheck {
                     var.get_name_node(compiler).expect("NullPointerException"),
                 )
             {
-                let var_name = var.get_name(compiler).to_string_lossy();
+                let var_name = var.get_name(compiler).to_string();
                 Self::report(compiler, n, &FUNCTION_MASKS_VARIABLE, &[&var_name]);
             }
 
@@ -1559,7 +1559,7 @@ impl TypeCheck {
             let is_getter = child.is_getter_def(compiler);
             let property_string = Self::type_to_string(compiler, property_type);
             let official_string = Self::type_to_string(compiler, official_property_type);
-            let property_name = property_name.to_string_lossy();
+            let property_name = property_name.to_string();
             Self::report(
                 compiler,
                 child,
@@ -1790,7 +1790,7 @@ impl TypeCheck {
                         right_type,
                         expected_property_type,
                         object,
-                        &pname.to_string_lossy(),
+                        &pname.to_string(),
                     );
                 }
                 return;
@@ -2331,7 +2331,7 @@ impl TypeCheck {
             right_type,
             allowed_value_type,
             owner,
-            &property_name.to_string_lossy(),
+            &property_name.to_string(),
         );
         if valid {
             self.ensure_typed_with_type(compiler, key, Some(right_type));
@@ -2451,10 +2451,10 @@ impl TypeCheck {
                         && !Self::declares_override(info)
                     {
                         let reg = compiler.get_type_registry();
-                        let human = property_name.human_readable_name(reg).to_string_lossy();
+                        let human = property_name.human_readable_name(reg).to_string();
                         let reference_name = super_class
                             .get_reference_name(reg)
-                            .map_or_else(|| "null".to_owned(), |name| name.to_string_lossy());
+                            .map_or_else(|| "null".to_owned(), |name| name.to_string());
                         Self::report(
                             compiler,
                             n,
@@ -2500,12 +2500,12 @@ impl TypeCheck {
             found_property |= interface_has_property;
 
             if interface_has_property && !Self::declares_override(info) {
-                let human = property_name.human_readable_name(reg).to_string_lossy();
+                let human = property_name.human_readable_name(reg).to_string();
                 let reference_name = prop_slot
                     .unwrap()
                     .get_owner_instance_type(reg)
                     .get_reference_name(reg)
-                    .map_or_else(|| "null".to_owned(), |name| name.to_string_lossy());
+                    .map_or_else(|| "null".to_owned(), |name| name.to_string());
                 Self::report(
                     compiler,
                     n,
@@ -2517,12 +2517,12 @@ impl TypeCheck {
 
         if !found_property && Self::declares_override(info) {
             let reg = compiler.get_type_registry();
-            let human = property_name.human_readable_name(reg).to_string_lossy();
+            let human = property_name.human_readable_name(reg).to_string();
             let reference_name = ctor_type
                 .get_instance_type(reg)
                 .expect("NullPointerException")
                 .get_reference_name(reg)
-                .map_or_else(|| "null".to_owned(), |name| name.to_string_lossy());
+                .map_or_else(|| "null".to_owned(), |name| name.to_string());
             Self::report(compiler, n, &UNKNOWN_OVERRIDE, &[&human, &reference_name]);
         }
     }
@@ -2588,7 +2588,7 @@ impl TypeCheck {
                 if declared_override
                     && !receiver_type.loosen_typechecking_due_to_forward_referenced_supertype(reg)
                 {
-                    let human = property_name.human_readable_name(reg).to_string_lossy();
+                    let human = property_name.human_readable_name(reg).to_string();
                     let receiver_string = JSType::to_string(receiver_type, reg, ast);
                     Self::report(
                         compiler,
@@ -2600,7 +2600,7 @@ impl TypeCheck {
             }
             Some(supertype_with_property) => {
                 if !declared_override {
-                    let human = property_name.human_readable_name(reg).to_string_lossy();
+                    let human = property_name.human_readable_name(reg).to_string();
                     let supertype_string = JSType::to_string(supertype_with_property, reg, ast);
                     Self::report(
                         compiler,
@@ -2614,7 +2614,7 @@ impl TypeCheck {
                 let overridden_property_type =
                     supertype_with_property.get_property_type(reg, ast, property_name.clone());
                 if !property_type.is_subtype_of(reg, ast, overridden_property_type) {
-                    let human = property_name.human_readable_name(reg).to_string_lossy();
+                    let human = property_name.human_readable_name(reg).to_string();
                     let supertype_string = JSType::to_string(supertype_with_property, reg, ast);
                     let overridden_string = JSType::to_string(overridden_property_type, reg, ast);
                     let property_string = JSType::to_string(property_type, reg, ast);
@@ -2765,7 +2765,7 @@ impl TypeCheck {
         {
             let abstract_method_name = compiler.get_coding_convention().get_abstract_method_name();
             let abstract_method_name =
-                abstract_method_name.map_or_else(|| "null".to_owned(), |n| n.to_string_lossy());
+                abstract_method_name.map_or_else(|| "null".to_owned(), |n| n.to_string());
             Self::report(
                 compiler,
                 object,
@@ -2783,7 +2783,7 @@ impl TypeCheck {
         let abstract_method_name = compiler.get_coding_convention().get_abstract_method_name();
         // This is bad i18n style but we don't localize our compiler errors.
         let abstract_method_message = match abstract_method_name {
-            Some(name) => format!(", or {}", name.to_string_lossy()),
+            Some(name) => format!(", or {name}"),
             None => String::new(),
         };
         Self::report(
@@ -3576,7 +3576,7 @@ impl TypeCheck {
                 }
                 let human_readable_name = name
                     .human_readable_name(compiler.get_type_registry())
-                    .to_string_lossy();
+                    .to_string();
                 let o_type_string = Self::type_to_string(compiler, o_type);
                 let interface_type_string = Self::type_to_string(compiler, interface_type);
                 let error = JSError::make(
@@ -3936,7 +3936,7 @@ impl TypeCheck {
         let name =
             NodeUtil::get_best_l_value_name(compiler, NodeUtil::get_best_l_value(compiler, n));
         match name {
-            Some(name) => name.to_string_lossy(),
+            Some(name) => name.to_string(),
             None => format!(
                 "<anonymous@{}:{}>",
                 n.get_source_file_name(compiler)
@@ -4740,8 +4740,7 @@ impl TypeCheck {
                 let (reg, ast) = compiler.get_type_registry_and_ast();
                 parent_object_type.get_property_type(reg, ast, component.clone())
             };
-            let type_name_supplier =
-                |c: &mut AbstractCompiler| owner.join(&c.ast).to_string_lossy();
+            let type_name_supplier = |c: &mut AbstractCompiler| owner.join(&c.ast).to_string();
             self.validator.expect_can_assign_to_property_of_type(
                 compiler,
                 goog_module_call,
@@ -4749,7 +4748,7 @@ impl TypeCheck {
                 property_type,
                 parent_object_type,
                 &type_name_supplier,
-                &component.to_string_lossy(),
+                &component.to_string(),
             );
         }
     }

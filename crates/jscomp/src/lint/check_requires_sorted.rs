@@ -469,7 +469,7 @@ impl CheckRequiresSorted {
             self.needs_fix = true;
             let replacement = canonical_imports
                 .iter()
-                .map(|i| i.format(t).to_string_lossy())
+                .map(|i| i.format(t).to_string())
                 .collect::<Vec<_>>()
                 .join("\n");
             if self.mode == Mode::COLLECT_AND_REPORT {

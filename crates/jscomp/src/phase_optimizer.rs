@@ -146,8 +146,7 @@ impl PhaseOptimizer {
         root: NodeId,
     ) {
         if self.print_ast_hashcodes {
-            let source = compiler.to_source_for_node(root);
-            use closure_rhino::java_lang::JavaHashCode;
+            let source = compiler.to_source_for_node_utf16(root);
             eprintln!("AST hashCode after {pass_name}: {}", source.hash_code());
         }
     }

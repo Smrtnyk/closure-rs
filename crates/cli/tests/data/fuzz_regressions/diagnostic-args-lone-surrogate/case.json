@@ -1,0 +1,13 @@
+{
+ "argv": [
+  "--compilation_level=SIMPLE",
+  "--jscomp_warning=checkTypes",
+  "--js",
+  "b.js",
+  "--js_output_file",
+  "out/out.js"
+ ],
+ "origin": "after fz-55a5a5258e13: diagnostic arguments converted into a variable before the report (JSC_CONFLICTING_GETTER_SETTER_TYPE, JSC_INVALID_ORDINAL_MAPPING) are written as Java's UTF-8 error stream writes them",
+ "exit_code": 2,
+ "outputs": []
+}

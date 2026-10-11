@@ -49,7 +49,7 @@ use crate::{
     js_type_registry::JSTypeRegistry,
     type_string_builder::{TypeStringBuilder, TypeStringItem},
 };
-use closure_rhino::node::Ast;
+use closure_rhino::{js_string::JsString, node::Ast};
 
 #[derive(Clone, Debug)]
 pub struct ArrowTypeData {
@@ -212,7 +212,7 @@ fn has_templated_parameter_type(t: TypeId, reg: &mut JSTypeRegistry, ast: &Ast) 
     false
 }
 // port: ArrowType#toString
-pub fn to_string(t: TypeId, reg: &mut JSTypeRegistry, ast: &Ast) -> String {
+pub fn to_string_utf16(t: TypeId, reg: &mut JSTypeRegistry, ast: &Ast) -> JsString {
     let mut sb = TypeStringBuilder::new(false);
     sb.append("(");
     let params = data(t, reg).parameter_list.clone();

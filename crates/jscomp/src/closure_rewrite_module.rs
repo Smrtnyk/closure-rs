@@ -1637,10 +1637,7 @@ impl ClosureRewriteModule {
                 t.report(
                     import_node,
                     &ILLEGAL_DESTRUCTURING_NOT_EXPORTED,
-                    &[
-                        &export_name.to_string_lossy(),
-                        &imported_namespace.to_string_lossy(),
-                    ],
+                    &[&export_name.to_string(), &imported_namespace.to_string()],
                 );
             }
             key = k.get_next(t);
@@ -2169,10 +2166,7 @@ impl ClosureRewriteModule {
                 t.report(
                     shadowed_node,
                     &IMPORT_INLINING_SHADOWS_VAR,
-                    &[
-                        &shadowed_name.to_string_lossy(),
-                        &namespace_to_inline.to_string_lossy(),
-                    ],
+                    &[&shadowed_name.to_string(), &namespace_to_inline.to_string()],
                 );
             }
             return;

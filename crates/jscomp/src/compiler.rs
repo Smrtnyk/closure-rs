@@ -3074,10 +3074,8 @@ impl Compiler {
             let unencoded = map
                 .get_raw_source_map_contents()
                 .expect("null raw source map contents");
-            Some(
-                base64::engine::general_purpose::STANDARD
-                    .encode(unencoded.to_string_lossy().as_bytes()),
-            )
+            // String#getBytes(UTF_8) writes '?' for an unpaired surrogate (Display).
+            Some(base64::engine::general_purpose::STANDARD.encode(unencoded.to_string().as_bytes()))
         } else {
             None
         }
@@ -3905,7 +3903,7 @@ impl Compiler {
         }
         if self.is_debug_logging_enabled() {
             self.create_or_reopen_indexed_log("Compiler", "source_after_pass", &[pass_name])
-                .log(&mut || current_js_source.to_string_lossy());
+                .log(&mut || current_js_source.to_string());
         } else {
             eprintln!();
             if let Some(message) = &self.debug_message {

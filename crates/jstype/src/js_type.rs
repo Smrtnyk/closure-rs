@@ -85,6 +85,7 @@ use crate::{
     type_string_builder::TypeStringBuilder,
 };
 use closure_rhino::{
+    java_lang::charset::utf8_encoded_text,
     js_string::JsString,
     jscomp_base::Tri,
     jsdoc_info::JSDocInfo,
@@ -798,12 +799,19 @@ pub trait JSType {
     fn is_unsuccessfully_resolved(self, reg: &JSTypeRegistry) -> bool;
     fn set_validator(self, reg: &mut JSTypeRegistry, ast: &Ast, validator: TypeValidator) -> bool;
     fn to_string(self, reg: &mut JSTypeRegistry, ast: &Ast) -> String;
+    fn to_string_utf16(self, reg: &mut JSTypeRegistry, ast: &Ast) -> JsString;
     fn to_annotation_string(
         self,
         reg: &mut JSTypeRegistry,
         ast: &Ast,
         nullability: Nullability,
     ) -> String;
+    fn to_annotation_string_utf16(
+        self,
+        reg: &mut JSTypeRegistry,
+        ast: &Ast,
+        nullability: Nullability,
+    ) -> JsString;
     fn append_to(self, reg: &mut JSTypeRegistry, ast: &Ast, sb: &mut TypeStringBuilder);
     fn match_constraint(self, reg: &mut JSTypeRegistry, ast: &Ast, constraint: TypeId);
     fn to_maybe_object_type(self, reg: &JSTypeRegistry) -> Option<TypeId>;
@@ -2723,9 +2731,15 @@ impl JSType for TypeId {
         }
     }
     // port: JSType#toString
+    /// The text Java's UTF-8 streams write for `toString()`: an unpaired surrogate (from a
+    /// property name) becomes the encoder's `'?'`. Comparisons use `to_string_utf16`.
     fn to_string(self, reg: &mut JSTypeRegistry, ast: &Ast) -> String {
+        utf8_encoded_text(self.to_string_utf16(reg, ast).as_units())
+    }
+    // port: JSType#toString
+    fn to_string_utf16(self, reg: &mut JSTypeRegistry, ast: &Ast) -> JsString {
         if matches!(reg.data(self).kind, JSTypeKind::Arrow(_)) {
-            crate::arrow_type::to_string(self, reg, ast)
+            crate::arrow_type::to_string_utf16(self, reg, ast)
         } else {
             TypeStringBuilder::new(false)
                 .append_type(reg, ast, self)
@@ -2733,12 +2747,25 @@ impl JSType for TypeId {
         }
     }
     // port: JSType#toAnnotationString
+    /// The text Java's UTF-8 streams write for `toAnnotationString(nullability)`.
     fn to_annotation_string(
         self,
         reg: &mut JSTypeRegistry,
         ast: &Ast,
         nullability: Nullability,
     ) -> String {
+        utf8_encoded_text(
+            self.to_annotation_string_utf16(reg, ast, nullability)
+                .as_units(),
+        )
+    }
+    // port: JSType#toAnnotationString
+    fn to_annotation_string_utf16(
+        self,
+        reg: &mut JSTypeRegistry,
+        ast: &Ast,
+        nullability: Nullability,
+    ) -> JsString {
         let mut builder = TypeStringBuilder::new(true);
         if nullability == Nullability::EXPLICIT {
             builder.append_non_null(reg, ast, self);

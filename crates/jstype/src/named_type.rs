@@ -218,7 +218,7 @@ pub(crate) fn append_to(
 ) {
     let type_ = get_referenced_type(id, reg);
     if !id.is_resolved(reg) || type_.is_no_resolved_type(reg) {
-        sb.append(&named_data(id, reg).reference.to_string_lossy());
+        sb.append_utf16(&named_data(id, reg).reference);
     } else {
         sb.append_type(reg, ast, type_);
     }

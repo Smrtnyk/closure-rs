@@ -74,7 +74,7 @@ pub(crate) fn get_type_class(_t: TypeId, _reg: &JSTypeRegistry) -> JSTypeClass {
 // port: KnownSymbolType#getDisplayName
 pub(crate) fn get_display_name(t: TypeId, reg: &JSTypeRegistry) -> Option<String> {
     match &reg.data(t).kind {
-        JSTypeKind::KnownSymbol(d) => Some(d.name.to_string_lossy()),
+        JSTypeKind::KnownSymbol(d) => Some(d.name.to_string()),
         _ => panic!("ClassCastException"),
     }
 }

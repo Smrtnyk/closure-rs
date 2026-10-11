@@ -40,7 +40,7 @@
 //   src/com/google/javascript/rhino/jstype/TypeStringBuilder.java.
 
 use crate::{JSTypeRegistry, TypeId, function_type::Parameter, js_type::JSType};
-use closure_rhino::node::Ast;
+use closure_rhino::{js_string::JsString, node::Ast};
 
 pub enum TypeStringItem<'a> {
     Text(&'a str),
@@ -48,8 +48,12 @@ pub enum TypeStringItem<'a> {
     Parameter(&'a Parameter),
 }
 
+/// Java's `StringBuilder` holds UTF-16, so the type string keeps the unpaired surrogates of
+/// property names taken from string literals: `build` returns it as a `JsString`, and union
+/// members sort by those code units. `JSType#to_string` turns it into the text Java's UTF-8
+/// streams write.
 pub struct TypeStringBuilder {
-    builder: String,
+    builder: Vec<u16>,
     is_for_annotations: bool,
     indentation: String,
 }
@@ -57,7 +61,7 @@ impl TypeStringBuilder {
     // port: TypeStringBuilder#TypeStringBuilder
     pub fn new(is_for_annotations: bool) -> Self {
         Self {
-            builder: String::new(),
+            builder: Vec::new(),
             is_for_annotations,
             indentation: String::new(),
         }
@@ -68,7 +72,14 @@ impl TypeStringBuilder {
     }
     // port: TypeStringBuilder#append
     pub fn append(&mut self, x: &str) -> &mut Self {
-        self.builder.push_str(x);
+        self.builder.extend(x.encode_utf16());
+        self
+    }
+    // port: TypeStringBuilder#append
+    /// `append` of a Java string that may hold unpaired surrogates (a property name or a
+    /// reference name).
+    pub fn append_utf16(&mut self, x: &JsString) -> &mut Self {
+        self.builder.extend_from_slice(x.as_units());
         self
     }
     // port: TypeStringBuilder#append
@@ -79,7 +90,7 @@ impl TypeStringBuilder {
     // port: TypeStringBuilder#appendAll
     pub fn append_all(
         &mut self,
-        elements: impl IntoIterator<Item = String>,
+        elements: impl IntoIterator<Item = JsString>,
         separator: &str,
     ) -> &mut Self {
         let mut separate = false;
@@ -89,7 +100,7 @@ impl TypeStringBuilder {
             } else {
                 separate = true;
             }
-            self.append(&e);
+            self.append_utf16(&e);
         }
         self
     }
@@ -160,8 +171,8 @@ impl TypeStringBuilder {
     }
     // port: TypeStringBuilder#breakLineAndIndent
     pub fn break_line_and_indent(&mut self) -> &mut Self {
-        self.builder.push('\n');
-        self.builder.push_str(&self.indentation);
+        self.builder.push(u16::from(b'\n'));
+        self.builder.extend(self.indentation.encode_utf16());
         self
     }
     // port: TypeStringBuilder#indent
@@ -173,13 +184,13 @@ impl TypeStringBuilder {
         self
     }
     // port: TypeStringBuilder#build
-    pub fn build(&self) -> String {
-        self.builder.clone()
+    pub fn build(&self) -> JsString {
+        JsString::from_units(self.builder.clone())
     }
     // port: TypeStringBuilder#cloneWithConfig
     pub fn clone_with_config(&self) -> Self {
         Self {
-            builder: String::new(),
+            builder: Vec::new(),
             is_for_annotations: self.is_for_annotations,
             indentation: self.indentation.clone(),
         }

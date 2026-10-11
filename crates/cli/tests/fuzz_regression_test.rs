@@ -15,13 +15,14 @@
  */
 
 //! Regression cases for differential-fuzzing fixes (fuzz/findings/): each directory under
-//! tests/data/fuzz_regressions/ holds the inputs, the argv and the Java reference bytes captured
-//! by tools/generate_fuzz_regressions.py. The binary runs in a scratch copy of the case with
-//! the golden environment, and its exit code, stdout, stderr and every file it creates must be
-//! identical to Java's.
+//! tests/data/fuzz_regressions/ holds the inputs, the argv (and optionally the input file that is
+//! piped to stdin) and the Java reference bytes captured by tools/generate_fuzz_regressions.py.
+//! The binary runs in a scratch copy of the case with the golden environment, and its exit code,
+//! stdout, stderr and every file it creates must be identical to Java's.
 
 use std::{
     collections::BTreeMap,
+    io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
@@ -91,7 +92,11 @@ fn fuzz_regressions_match_java_bytes() {
             std::fs::create_dir_all(p.parent().unwrap()).unwrap();
             std::fs::write(p, v).unwrap();
         }
-        let out = Command::new(env!("CARGO_BIN_EXE_closure-rs"))
+        let stdin = meta["stdin"]
+            .as_str()
+            .map(|name| inputs[name].clone())
+            .unwrap_or_default();
+        let mut child = Command::new(env!("CARGO_BIN_EXE_closure-rs"))
             .args(&args)
             .current_dir(&work)
             .env_clear()
@@ -99,9 +104,18 @@ fn fuzz_regressions_match_java_bytes() {
             .env("LANG", "C.UTF-8")
             .env("LC_ALL", "C.UTF-8")
             .env("TZ", "UTC")
-            .stdin(Stdio::null())
-            .output()
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
             .unwrap();
+        let mut pipe = child.stdin.take().unwrap();
+        let feeder = std::thread::spawn(move || {
+            // A run that never reads stdin may close the pipe first.
+            let _ = pipe.write_all(&stdin);
+        });
+        let out = child.wait_with_output().unwrap();
+        feeder.join().unwrap();
         let made: BTreeMap<String, Vec<u8>> = files_under(&work)
             .into_iter()
             .filter(|(k, _)| !inputs.contains_key(k))

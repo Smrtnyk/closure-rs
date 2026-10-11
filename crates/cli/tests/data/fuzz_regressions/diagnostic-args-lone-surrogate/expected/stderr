@@ -1,0 +1,15 @@
+b.js:6:6: WARNING - [JSC_CONFLICTING_GETTER_SETTER_TYPE] The types of the getter and setter for property '?' do not match.
+getter type is: number
+setter type is: string
+  6|   set '\uD800'(x) {}
+           ^^^^^^^^
+
+b.js:8:44: ERROR - [JSC_DUPLICATE_MEMBER] Class or object literal contains duplicate member "x?". In non-strict code, the last duplicate will overwrite the others.
+  8| var CLOSURE_TOGGLE_ORDINALS = {'\uD800': 1, 'x\uDBFF': 2, 'x\uDBFF': 3};
+                                                 ^^^^^^^^^
+
+b.js:8:58: ERROR - [JSC_INVALID_ORDINAL_MAPPING] CLOSURE_TOGGLE_ORDINALS must be initialized with an object literal mapping strings to booleans or unique whole numbers: duplicate key: x?
+  8| var CLOSURE_TOGGLE_ORDINALS = {'\uD800': 1, 'x\uDBFF': 2, 'x\uDBFF': 3};
+                                                               ^^^^^^^^^
+
+2 error(s), 1 warning(s), 85.7% typed

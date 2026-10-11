@@ -84,7 +84,7 @@ impl<T: StaticTypedSlot> SimpleReference<T> {
             self.node
                 .unwrap()
                 .get_qualified_name(ast)
-                .map_or_else(|| "null".into(), |q| q.to_string_lossy()),
+                .map_or_else(|| "null".into(), |q| q.to_string()),
             source_name.as_deref().unwrap_or("null"),
             line_no
         )

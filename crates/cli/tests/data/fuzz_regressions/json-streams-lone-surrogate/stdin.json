@@ -1,0 +1,1 @@
+[{"path": "p\ud800.js", "src": "/** @param {Foo\ud800} x */ function f(x) {}\n/** @typedef {{k\ud800: number}} */ var T;\n/** @type {T} */ var r = {'k\ud800': 'str'};\n"}, {"path": "q\udc00.js", "src": "/** @license L\udbff */\n/** @type {string} */ var y = 1; alert(f, r, y);\n"}]

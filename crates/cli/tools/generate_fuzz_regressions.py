@@ -2,10 +2,10 @@
 """Capture the Java reference bytes for the CLI regression cases of differential-fuzzing fixes.
 
 Each case is a directory tests/data/fuzz_regressions/<name>/ holding `case.json`
-({"argv": [...], "origin": "..."}) and the input files the argv names (relative paths). This
-script runs the pinned reference jar on it in the golden environment (oracle/PROTOCOL.md:
-env -i PATH HOME LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC, stdin empty, cwd = a scratch copy of the
-case) and writes expected/stdout, expected/stderr, expected/files/<every file the run created>
+({"argv": [...], "origin": "..."}, optionally "stdin": "<input file>") and the input files the
+argv names (relative paths). This script runs the pinned reference jar on it in the golden
+environment (oracle/PROTOCOL.md: env -i PATH HOME LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC, cwd = a
+scratch copy of the case, stdin the bytes of the "stdin" file or empty) and writes expected/stdout, expected/stderr, expected/files/<every file the run created>
 and the exit code into case.json. crates/cli/tests/fuzz_regression_test.rs replays the binary
 the same way and compares byte for byte.
 
@@ -40,7 +40,8 @@ def capture(case: Path):
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(p, dst)
             before.add(dst.relative_to(tmp).as_posix())
-        r = subprocess.run([str(JAVA), '-Xmx2g', '-jar', str(JAR), *meta['argv']], input=b'',
+        stdin = (case / meta['stdin']).read_bytes() if 'stdin' in meta else b''
+        r = subprocess.run([str(JAVA), '-Xmx2g', '-jar', str(JAR), *meta['argv']], input=stdin,
                            capture_output=True, cwd=tmp, env=ENV, timeout=300)
         exp = case / 'expected'
         shutil.rmtree(exp, ignore_errors=True)

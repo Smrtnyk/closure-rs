@@ -1,0 +1,17 @@
+a.js:2:0: WARNING - [JSC_REQUIRES_NOT_SORTED] goog.require() and goog.requireType() statements are not in recommended format. The correct order is:
+
+const a = goog.require('a?');
+const z = goog.require('z');
+
+  2| const z = goog.require('z');
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+a.js:2:10: ERROR - [JSC_MISSING_MODULE_OR_PROVIDE] Required namespace "z" never defined.
+  2| const z = goog.require('z');
+               ^^^^^^^^^^^^^^^^^
+
+a.js:3:10: ERROR - [JSC_MISSING_MODULE_OR_PROVIDE] Required namespace "a?" never defined.
+  3| const a = goog.require('a\uD800');
+               ^^^^^^^^^^^^^^^^^^^^^^^
+
+2 error(s), 1 warning(s)

@@ -486,7 +486,7 @@ impl TweakInfo {
                         value_node,
                         &INVALID_TWEAK_DEFAULT_VALUE_WARNING,
                         &[
-                            &self.tweak_id.to_string_lossy(),
+                            &self.tweak_id.to_string(),
                             register_func.get_name(),
                             register_func.get_expected_type_name().unwrap_or("null"),
                         ],

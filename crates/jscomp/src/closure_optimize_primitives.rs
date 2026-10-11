@@ -231,7 +231,7 @@ impl ClosureOptimizePrimitives {
                 };
                 if !keys.insert(key.clone()) {
                     let previous = first_param.unwrap().get_previous(compiler).unwrap();
-                    let key = key.to_string_lossy();
+                    let key = key.to_string();
                     compiler.report(JSError::make(
                         compiler,
                         previous,
