@@ -3,6 +3,7 @@
 its profiles.  Resumable: a pair whose result file exists in build/validate/wp/results/ is
 skipped.  chunk-profile outputs (chunks2, chunks3) are concatenated in chunk order (c0.js, "\n", c1.js[, "\n", c2.js]) into one file,
 which is how a page would load the two chunks as consecutive classic scripts.
+Run it from the checkout that holds corpus-cache/ (the main checkout, not a git worktree).
 """
 import concurrent.futures as cf
 import json, os, re, subprocess, sys, time, base64
@@ -72,6 +73,16 @@ def one(case, prof):
 
 
 def main():
+    # The golden outputs and the library test files are read from this checkout's corpus-cache/.
+    # A git worktree has none, and a symlink to the main checkout's does not help: Node loads the
+    # test files under their real path, outside the test directory the shim's harness expects.
+    cache = os.path.join(REPO, "corpus-cache")
+    missing = [rel for rel in (rr.GOLDEN_ROOT, "corpus-cache/d2/whole-program")
+               if not os.path.isdir(os.path.join(REPO, rel))]
+    if missing or os.path.islink(cache):
+        what = f"no {missing[0]}/" if missing else "corpus-cache/ is a symlink"
+        sys.exit(f"wp_test.py: {what} in {REPO}; run it from the checkout that holds "
+                 "corpus-cache/ (the main checkout, not a git worktree)")
     profiles = case_args.load_profiles()
     cases = [c for c in case_args.load_cases() if c["source"] == "whole-program"]
     pairs = [(c, p) for c in cases for p in case_args.case_profiles(c, profiles)]

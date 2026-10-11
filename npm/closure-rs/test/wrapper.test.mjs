@@ -1,5 +1,5 @@
 // Tests of the npm wrapper against a real closure-rs binary (node:test, no dependencies).
-//   CLOSURE_RS_BINARY=target/release/closure-rs node --test npm/closure-rs/test/
+//   CLOSURE_RS_BINARY=target/release/closure-rs node --test npm/closure-rs/test/wrapper.test.mjs
 // The binary must be set: the wrapper resolves it at import time.
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
