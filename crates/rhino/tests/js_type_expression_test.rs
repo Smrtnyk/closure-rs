@@ -35,7 +35,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   test/com/google/javascript/rhino/JSTypeExpressionTest.java.
 
 use closure_rhino::{js_type_expression::JSTypeExpression, node::Ast, token::Token};

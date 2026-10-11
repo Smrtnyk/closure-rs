@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   test/com/google/javascript/jscomp/FunctionInjectorTest.java.
 
 //! Port of `FunctionInjectorTest.java`: inline function tests.
@@ -100,8 +100,12 @@ impl FunctionInjectorTest {
             let r#ref = Reference::new(n, scope, chunk, mode);
             let fn_body = NodeUtil::get_function_body(t, fn_node);
             let references_own_receiver = NodeUtil::references_own_receiver(t, fn_node);
-            let has_function =
-                NodeUtil::has(t, fn_body, &|ast, n| n.is_function(ast), &|_, _| true);
+            let has_function = NodeUtil::has(
+                t,
+                fn_body,
+                &NodeUtil::is_function_or_non_static_class_field_initializer,
+                &|_, _| true,
+            );
             let result = injector.can_inline_reference_to_function(
                 t.get_compiler(),
                 &r#ref,
@@ -181,8 +185,12 @@ impl FunctionInjectorTest {
             let r#ref = Reference::new(n, scope, chunk, mode);
             let fn_body = NodeUtil::get_function_body(t, fn_node);
             let references_own_receiver = NodeUtil::references_own_receiver(t, fn_node);
-            let has_function =
-                NodeUtil::has(t, fn_body, &|ast, n| n.is_function(ast), &|_, _| true);
+            let has_function = NodeUtil::has(
+                t,
+                fn_body,
+                &NodeUtil::is_function_or_non_static_class_field_initializer,
+                &|_, _| true,
+            );
             let can_inline = injector.can_inline_reference_to_function(
                 t.get_compiler(),
                 &r#ref,

@@ -94,8 +94,8 @@ fn all_descriptors_load_and_round_trip() {
     println!("case keys: {keys:?}");
     println!("expression tags: {tags:?}");
     assert_eq!(files.len(), 255);
-    assert_eq!(cases, 374);
-    assert_eq!(keys["processor"], 370);
+    assert_eq!(cases, 375);
+    assert_eq!(keys["processor"], 371);
     assert_eq!(keys["testFieldsAfter"], 64);
     assert_eq!(keys["postconditions"], 17);
 
@@ -131,7 +131,7 @@ fn options_defaults_load_and_round_trip() {
 #[test]
 fn expected_pipeline_loads_and_round_trips() {
     let entries = load_expected_pipeline().unwrap();
-    assert_eq!(entries.len(), 21_308);
+    assert_eq!(entries.len(), 21_314);
     for (e, raw) in &entries {
         assert_eq!(&e.to_json(), raw);
     }

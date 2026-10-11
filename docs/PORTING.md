@@ -18,10 +18,10 @@ closure-rs is a Rust implementation of Closure Compiler whose observable behavio
 It is a faithful port, not a redesign: it does not "improve" the optimizer or its output. A
 difference from the Java compiler at the pinned commit is a porting defect.
 
-**Reference:** `github.com/google/closure-compiler` release `v20261006`, commit
-`48f4107ca2aac52149546ccc42894522fcfdb17d` (2026-10-06), the release published on npm as
-`google-closure-compiler@20261006.0.0` (registry tag `v20261006` in `scripts/references.tsv`).
-`scripts/fetch_reference.sh` fetches it into `reference/closure-compiler-v20261006` (gitignored);
+**Reference:** `github.com/google/closure-compiler` release `v20261007`, commit
+`21768cdbfa949bcce3f80d4285feb66475c4758c` (2026-10-07), the release published on npm as
+`google-closure-compiler@20261007.0.0` (registry tag `v20261007` in `scripts/references.tsv`).
+`scripts/fetch_reference.sh` fetches it into `reference/closure-compiler-v20261007` (gitignored);
 `oracle/REFERENCE.md` describes how the reference jar is built. The pin moves only when the port
 is synced with upstream (§9), and only to an upstream release that is published on npm.
 

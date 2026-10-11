@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   test/com/google/javascript/jscomp/SourceFileTest.java.
 
 use closure_jscomp::{
@@ -146,6 +146,49 @@ fn test_line_offset_helper(factory: impl Fn(&str) -> SourceFile) {
     }
     assert_eq!(starts_with_newline.get_num_bytes(), 8);
     assert_eq!(starts_with_newline.get_num_lines(), 3);
+
+    // The same three lines with each single line terminator: \r, U+2028, U+2029 and \r\n.
+    for (code, offsets, num_bytes) in [
+        ("'1';\r'2';\r'3'\r", [0, 5, 10], 14),
+        ("'1';\u{2028}'2';\u{2028}'3'\u{2028}", [0, 5, 10], 14),
+        ("'1';\u{2029}'2';\u{2029}'3'\u{2029}", [0, 5, 10], 14),
+        ("'1';\r\n'2';\r\n'3'\r\n", [0, 6, 12], 17),
+    ] {
+        let f = factory(code);
+        for (line, offset) in [(1, offsets[0]), (2, offsets[1]), (3, offsets[2])] {
+            assert_eq!(f.get_line_offset(line), offset);
+        }
+        assert_eq!(f.get_num_bytes(), num_bytes);
+        assert_eq!(f.get_num_lines(), 4);
+        assert_eq!(f.get_line(1).as_deref(), Some("'1';"));
+        assert_eq!(f.get_line(2).as_deref(), Some("'2';"));
+        assert_eq!(f.get_line(3).as_deref(), Some("'3'"));
+    }
+
+    let f_mixed = factory("'1';\r\n'2';\r'3'\u{2028}'4'\u{2029}'5'\n");
+    for (line, offset) in [(1, 0), (2, 6), (3, 11), (4, 15), (5, 19)] {
+        assert_eq!(f_mixed.get_line_offset(line), offset);
+    }
+    assert_eq!(f_mixed.get_num_lines(), 6);
+    assert_eq!(f_mixed.get_line(1).as_deref(), Some("'1';"));
+    assert_eq!(f_mixed.get_line(2).as_deref(), Some("'2';"));
+    assert_eq!(f_mixed.get_line(3).as_deref(), Some("'3'"));
+    assert_eq!(f_mixed.get_line(4).as_deref(), Some("'4'"));
+    assert_eq!(f_mixed.get_line(5).as_deref(), Some("'5'"));
+    assert_eq!(f_mixed.get_line(6), None);
+
+    for (offset, line, column) in [
+        (0, 1, 0),
+        (5, 1, 5),
+        (6, 2, 0),
+        (11, 3, 0),
+        (15, 4, 0),
+        (19, 5, 0),
+        (23, 6, 0),
+    ] {
+        assert_eq!(f_mixed.get_line_of_offset(offset), line);
+        assert_eq!(f_mixed.get_column_of_offset(offset), column);
+    }
 }
 // port: SourceFileTest#stringOfLength
 fn string_of_length(length: usize) -> String {

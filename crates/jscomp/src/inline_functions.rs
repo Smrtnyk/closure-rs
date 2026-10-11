@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   src/com/google/javascript/jscomp/InlineFunctions.java.
 
 //! Port of `com.google.javascript.jscomp.InlineFunctions`.
@@ -270,8 +270,13 @@ impl InlineFunctions {
                     function_state.set_references_this(true);
                 }
 
-                if NodeUtil::has(compiler, block, &|ast, n| n.is_function(ast), &|_, _| true) {
-                    function_state.set_has_inner_functions(true);
+                if NodeUtil::has(
+                    compiler,
+                    block,
+                    &NodeUtil::is_function_or_non_static_class_field_initializer,
+                    &|_, _| true,
+                ) {
+                    function_state.set_has_inner_closures(true);
                     // If there are inner functions, we can inline into global scope
                     // if there are no local vars or named functions.
                     // TODO(johnlenz): this can be improved by looking at the possible
@@ -1169,7 +1174,7 @@ impl CandidateReferenceCollector<'_> {
             fn_node,
             &function_state.get_names_to_alias(),
             function_state.get_references_this(),
-            function_state.has_inner_functions(),
+            function_state.has_inner_closures(),
         );
         if result != CanInlineResult::NO {
             // Yeah!
@@ -1248,7 +1253,7 @@ struct FunctionState {
     remove: bool,
     inline_directly: bool,
     references_this: bool,
-    has_inner_functions: bool,
+    has_inner_closures: bool,
     references: Option<IndexMap<NodeId, Reference>>,
     chunk: Option<JSChunk>,
     names_to_alias: Option<IndexSet<JsString>>,
@@ -1270,7 +1275,7 @@ impl FunctionState {
             remove: true,
             inline_directly: false,
             references_this: false,
-            has_inner_functions: false,
+            has_inner_closures: false,
             references: None,
             chunk: None,
             names_to_alias: None,
@@ -1296,14 +1301,15 @@ impl FunctionState {
         self.references_this
     }
 
-    // port: InlineFunctions.FunctionState#setHasInnerFunctions
-    fn set_has_inner_functions(&mut self, has_inner_functions: bool) {
-        self.has_inner_functions = has_inner_functions;
+    /// Whether the function contains inner functions or non-static class field initializers.
+    // port: InlineFunctions.FunctionState#setHasInnerClosures
+    fn set_has_inner_closures(&mut self, has_inner_closures: bool) {
+        self.has_inner_closures = has_inner_closures;
     }
 
-    // port: InlineFunctions.FunctionState#hasInnerFunctions
-    fn has_inner_functions(&self) -> bool {
-        self.has_inner_functions
+    // port: InlineFunctions.FunctionState#hasInnerClosures
+    fn has_inner_closures(&self) -> bool {
+        self.has_inner_closures
     }
 
     // port: InlineFunctions.FunctionState#removeBlockInliningReferences

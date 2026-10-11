@@ -32,7 +32,7 @@
 //   UnitRecorder.java (oracle/patches/0002-recording-hooks.patch),
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   src/com/google/javascript/jscomp/ProcessDefines.java,
 //   test/com/google/javascript/jscomp/ProcessDefinesTest.java.
 

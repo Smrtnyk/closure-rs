@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   src/com/google/javascript/jscomp/NodeUtil.java.
 
 #![allow(clippy::match_like_matches_macro)] // Retain Java switch bodies.
@@ -2226,6 +2226,30 @@ impl NodeUtil {
     // port: NodeUtil#isClassStaticBlock
     pub fn is_class_static_block(ast: &Ast, n: NodeId) -> bool {
         n.is_block(ast) && n.has_parent(ast) && n.get_parent(ast).unwrap().is_class_members(ast)
+    }
+    /// Returns whether `n` is the initializer expression of a non-static class field (e.g. `a`
+    /// in `class { x = a; }` or `class { [k] = a; }`).
+    ///
+    /// Unlike static field initializers and computed field keys, which are evaluated eagerly when
+    /// the class definition is evaluated, non-static field initializers are evaluated once per
+    /// `new` call (like an inner function body).
+    // port: NodeUtil#isNonStaticClassFieldInitializer
+    pub fn is_non_static_class_field_initializer(ast: &Ast, n: NodeId) -> bool {
+        let parent = n.get_parent(ast).unwrap();
+        // Note: COMPUTED_FIELD_DEF has only one child (the key) if there is no initializer.
+        if parent.is_member_field_def(ast)
+            || (parent.is_computed_field_def(ast) && parent.get_second_child(ast) == Some(n))
+        {
+            return !parent.is_static_member(ast);
+        }
+        false
+    }
+    /// Returns whether `n` is a function or a non-static class field initializer: both are code
+    /// whose evaluation is deferred until later (and possibly repeated), and which may capture
+    /// variables from the enclosing scope.
+    // port: NodeUtil#isFunctionOrNonStaticClassFieldInitializer
+    pub fn is_function_or_non_static_class_field_initializer(ast: &Ast, n: NodeId) -> bool {
+        n.is_function(ast) || Self::is_non_static_class_field_initializer(ast, n)
     }
     // port: NodeUtil#isFunctionExpression
     pub fn is_function_expression(ast: &Ast, n: NodeId) -> bool {

@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   src/com/google/javascript/jscomp/Compiler.java,
 //   src/com/google/javascript/jscomp/resources/ResourceLoader.java.
 
@@ -118,9 +118,9 @@ fn runtime_libs_typedast_through_compiler_class() {
     )
     .unwrap();
     let bytes = stream.read_all_bytes();
-    assert_eq!(bytes.len(), 3_516_009);
+    assert_eq!(bytes.len(), 3_518_957);
     assert_eq!(
         sha256_hex(bytes),
-        "5b49763aae9aa8851782ddc3520493c2a33ef2d40a26cc6227c8787b25103bd9"
+        "3f53799ff9d9b73024179aebf3e2e6b7caa298e828e786733495b99f53ddd52a"
     );
 }

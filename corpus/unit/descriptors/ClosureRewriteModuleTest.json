@@ -1,8 +1,8 @@
 {
-  "source": "test/com/google/javascript/jscomp/ClosureRewriteModuleTest.java getProcessor (lines 55-68), bb8c8e7: the CompilerPass lambda (externs, main) -> {...} is written in the DSL (pattern 'A pass built at process time'). The getProcessor parameter `compiler` that the lambda captures is bound by the outer let. Body: rai = new SemanticReverseAbstractInterpreter(compiler.getTypeRegistry()); globalTypedScope = checkNotNull(new TypeCheck(compiler, rai, compiler.getTypeRegistry()).processForTesting(externs, main)); compiler.setTypeCheckingHasRun(true); new ClosureRewriteModule(compiler, null, globalTypedScope).process(externs, main). No helper.",
+  "source": "test/com/google/javascript/jscomp/ClosureRewriteModuleTest.java getProcessor (lines 56-72, commit 21768cdbf): the CompilerPass lambda (externs, main) -> {...} is written in the DSL (pattern 'A pass built at process time'). The getProcessor parameter `compiler` that the lambda captures is bound by the outer let. Body: if the test field runTypeCheck is set (setUp sets it; the testUntyped* methods clear it), rai = new SemanticReverseAbstractInterpreter(compiler.getTypeRegistry()); globalTypedScope = checkNotNull(new TypeCheck(compiler, rai, compiler.getTypeRegistry()).processForTesting(externs, main)); compiler.setTypeCheckingHasRun(true); otherwise globalTypedScope stays null. Then new ClosureRewriteModule(compiler, null, globalTypedScope).process(externs, main). One case per runTypeCheck value. No helper.",
   "cases": [
     {
-      "when": {},
+      "when": {"testFields.runTypeCheck": true},
       "processor": {
         "let": [["compiler", {"compiler": true}]],
         "in": {
@@ -53,6 +53,29 @@
               ],
               "value": {"null": true}
             }
+          }
+        }
+      }
+    },
+    {
+      "when": {"testFields.runTypeCheck": false},
+      "processor": {
+        "let": [["compiler", {"compiler": true}]],
+        "in": {
+          "lambda": ["externs", "main"],
+          "iface": "com.google.javascript.jscomp.CompilerPass",
+          "body": {
+            "do": [
+              {
+                "call": {
+                  "new": "com.google.javascript.jscomp.ClosureRewriteModule",
+                  "args": [{"var": "compiler"}, {"null": true}, {"null": true}]
+                },
+                "method": "process",
+                "args": [{"var": "externs"}, {"var": "main"}]
+              }
+            ],
+            "value": {"null": true}
           }
         }
       }

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   test/com/google/javascript/jscomp/RewritePolyfillsTest.java.
 
 //! Port of RewritePolyfillsTest.java: unit tests for the RewritePolyfills compiler pass.
@@ -867,8 +867,10 @@ fn test_force_inject_es2015_skips_es2015_polyfills() {
 fn test_iterator_polyfill() {
     let mut f = Fixture::new();
     f.add_library("Iterator", "es_next", "es3", Some("es6/iterator"));
+    f.add_library("Iterator.from", "es_next", "es3", Some("es6/iterator/from"));
     f.set_language(ES_2020, ES3);
     f.test_injects("Iterator;", &["es6/iterator"]);
     f.test_injects("class MyIter extends Iterator {}", &["es6/iterator"]);
+    f.test_injects("Iterator.from(x);", &["es6/iterator", "es6/iterator/from"]);
     f.test_does_not_inject("");
 }

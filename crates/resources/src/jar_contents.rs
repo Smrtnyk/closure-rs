@@ -268,6 +268,22 @@ pub static JAR_ENTRIES: &[ArchiveEntry] = &[
         )),
     },
     ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/iterator/",
+        content: EntryContent::Directory,
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/iterator/from.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/iterator/from.js"
+        )),
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/iterator_helpers.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/iterator_helpers.js"
+        )),
+    },
+    ArchiveEntry {
         name: "com/google/javascript/jscomp/js/es6/map.js",
         content: EntryContent::File(include_bytes!(
             "../data/com/google/javascript/jscomp/js/es6/map.js"
@@ -978,6 +994,12 @@ pub static JAR_ENTRIES: &[ArchiveEntry] = &[
     ArchiveEntry {
         name: "com/google/javascript/jscomp/js/util/",
         content: EntryContent::Directory,
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/util/checkisobject.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/util/checkisobject.js"
+        )),
     },
     ArchiveEntry {
         name: "com/google/javascript/jscomp/js/util/checkstringargs.js",

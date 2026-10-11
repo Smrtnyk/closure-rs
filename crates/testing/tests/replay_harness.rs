@@ -38,7 +38,7 @@
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayMain.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   src/com/google/javascript/jscomp/CompilerOptions.java,
 //   src/com/google/javascript/jscomp/JSError.java,
 //   src/com/google/javascript/jscomp/NodeTraversal.java,

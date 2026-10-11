@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 48f4107:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   src/com/google/javascript/jscomp/FunctionArgumentInjector.java.
 
 //! Port of `com.google.javascript.jscomp.FunctionArgumentInjector`.
@@ -296,26 +296,29 @@ impl FunctionArgumentInjector {
     ///
     /// We don't want "undefined" to be substituted for "x", and get undefined=2
     // port: FunctionArgumentInjector#findModifiedParameters(Node,ImmutableSet,boolean)
+    #[allow(clippy::collapsible_if)] // Retain Java control flow.
     fn find_modified_parameters_in(
         ast: &Ast,
         n: NodeId,
         names: &IndexSet<JsString>,
-        mut in_inner_function: bool,
+        mut in_inner_closure: bool,
     ) -> IndexSet<JsString> {
         let mut unsafe_ = IndexSet::<_>::default();
+        if NodeUtil::is_function_or_non_static_class_field_initializer(ast, n) {
+            // A function parameter can not be replaced with a direct inlined value
+            // if it is referred to by an inner function or a non-static class field
+            // initializer. The inner function or field initializer can out live the
+            // call we are replacing, so it must capture a unique name.  This approach
+            // does not work within loop bodies so those are forbidden elsewhere.
+            in_inner_closure = true;
+        }
+
         if n.is_name(ast) {
             if names.contains(&n.get_string(ast))
-                && (in_inner_function || Self::can_name_value_change(ast, n))
+                && (in_inner_closure || Self::can_name_value_change(ast, n))
             {
                 unsafe_.insert(n.get_string(ast));
             }
-        } else if n.is_function(ast) {
-            // A function parameter can not be replaced with a direct inlined value
-            // if it is referred to by an inner function. The inner function
-            // can out live the call we are replacing, so inner function must
-            // capture a unique name.  This approach does not work within loop
-            // bodies so those are forbidden elsewhere.
-            in_inner_function = true;
         }
 
         for c in n.children(ast) {
@@ -323,7 +326,7 @@ impl FunctionArgumentInjector {
                 ast,
                 c,
                 names,
-                in_inner_function,
+                in_inner_closure,
             ));
         }
 
@@ -529,8 +532,8 @@ impl FunctionArgumentInjector {
         names_needing_temps
     }
 
-    /// We consider a return or expression trivial if it doesn't contain a conditional expression
-    /// or a function.
+    /// We consider a return or expression trivial if it doesn't contain a conditional expression,
+    /// a function, or a non-static class field initializer.
     // port: FunctionArgumentInjector#bodyMayHaveConditionalCode
     pub fn body_may_have_conditional_code(&self, ast: &Ast, n: NodeId) -> bool {
         if !n.is_return(ast) && !n.is_expr_result(ast) {
@@ -539,8 +542,8 @@ impl FunctionArgumentInjector {
         self.may_have_conditional_code(ast, n)
     }
 
-    /// We consider an expression trivial if it doesn't contain a conditional expression or a
-    /// function.
+    /// We consider an expression trivial if it doesn't contain a conditional expression, a
+    /// function, or a non-static class field initializer.
     // port: FunctionArgumentInjector#mayHaveConditionalCode
     pub fn may_have_conditional_code(&self, ast: &Ast, n: NodeId) -> bool {
         for c in n.children(ast) {
@@ -555,7 +558,11 @@ impl FunctionArgumentInjector {
                 | Token::OPTCHAIN_GETPROP => {
                     return true;
                 }
-                _ => {}
+                _ => {
+                    if NodeUtil::is_non_static_class_field_initializer(ast, c) {
+                        return true;
+                    }
+                }
             }
             if self.may_have_conditional_code(ast, c) {
                 return true;
