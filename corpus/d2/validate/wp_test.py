@@ -3,7 +3,8 @@
 its profiles.  Resumable: a pair whose result file exists in build/validate/wp/results/ is
 skipped.  chunk-profile outputs (chunks2, chunks3) are concatenated in chunk order (c0.js, "\n", c1.js[, "\n", c2.js]) into one file,
 which is how a page would load the two chunks as consecutive classic scripts.
-Run it from the checkout that holds corpus-cache/ (the main checkout, not a git worktree).
+corpus-cache/ may be a symlink to the main checkout's (a git worktree): node runs with
+--preserve-symlinks, so the library test files keep the path the shims' harness expects.
 """
 import concurrent.futures as cf
 import json, os, re, subprocess, sys, time, base64
@@ -15,6 +16,9 @@ import run_reference as rr  # noqa: E402
 
 WP = os.path.join(REPO, "build/validate/wp")
 NODE = os.environ.get("NODE", "node")
+# Node resolves symlinks to real paths by default; a linked corpus-cache/ would put the library
+# test files outside the test directory the shims' harness expects.
+NODE_FLAGS = ["--preserve-symlinks"]
 
 
 def text(v):
@@ -52,7 +56,7 @@ def one(case, prof):
         argv[0] = NODE
         t0 = time.monotonic()
         try:
-            p = subprocess.run(argv, cwd=REPO, capture_output=True, text=True, timeout=600,
+            p = subprocess.run([argv[0], *NODE_FLAGS, *argv[1:]], cwd=REPO, capture_output=True, text=True, timeout=600,
                                stdin=subprocess.DEVNULL)
             so, se, ec = p.stdout, p.stderr, p.returncode
         except subprocess.TimeoutExpired as e:
@@ -73,16 +77,13 @@ def one(case, prof):
 
 
 def main():
-    # The golden outputs and the library test files are read from this checkout's corpus-cache/.
-    # A git worktree has none, and a symlink to the main checkout's does not help: Node loads the
-    # test files under their real path, outside the test directory the shim's harness expects.
-    cache = os.path.join(REPO, "corpus-cache")
+    # The golden outputs and the library test files are read from this checkout's corpus-cache/
+    # (in a git worktree: a symlink to the main checkout's).
     missing = [rel for rel in (rr.GOLDEN_ROOT, "corpus-cache/d2/whole-program")
                if not os.path.isdir(os.path.join(REPO, rel))]
-    if missing or os.path.islink(cache):
-        what = f"no {missing[0]}/" if missing else "corpus-cache/ is a symlink"
-        sys.exit(f"wp_test.py: {what} in {REPO}; run it from the checkout that holds "
-                 "corpus-cache/ (the main checkout, not a git worktree)")
+    if missing:
+        sys.exit(f"wp_test.py: no {missing[0]}/ in {REPO}; run it from the main checkout, or link "
+                 "corpus-cache/ to the main checkout's in a git worktree")
     profiles = case_args.load_profiles()
     cases = [c for c in case_args.load_cases() if c["source"] == "whole-program"]
     pairs = [(c, p) for c in cases for p in case_args.case_profiles(c, profiles)]

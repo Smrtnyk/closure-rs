@@ -798,9 +798,7 @@ class Sync:
                 f.write(r.golden_tag + "\n")
         jobs = [str(self.jobs)] if self.jobs else []
         self.run([sys.executable, "corpus/d2/validate/scan_golden.py", *jobs])
-        # node resolves the corpus-cache symlink of a worktree; the harnesses expect the link path
-        self.run([sys.executable, "corpus/d2/validate/wp_test.py", *jobs],
-                 env=self.env(NODE_OPTIONS="--preserve-symlinks --preserve-symlinks-main"))
+        self.run([sys.executable, "corpus/d2/validate/wp_test.py", *jobs])
         self.run([sys.executable, "corpus/d2/validate/finalize.py"])
         if not self.diffstat("corpus/d2"):
             return "ran (no changes)"
@@ -983,10 +981,10 @@ def jar_compare(npm_jar, ref_jar):
 # ---- switch-default -------------------------------------------------------------------------------
 # Files that name the default reference. Not rewritten: crates/** (scripts/license_headers.py
 # writes the headers), LICENSES/, the generated corpus files (finalize.py, the recorder), the
-# ratchets, the Java sources that cite the commit they were written against (oracle/), the
-# decision record, and the release files that carry closure-rs' own version
-# (npm/config.json, npm/closure-rs/package.json, .github/ISSUE_TEMPLATE/), which a release changes.
-DOC_EXCLUDE = re.compile(r"^(crates/|LICENSES/|fuzz/|DECISIONS\.md$|corpus/unit/(records|derived|descriptors|postcall)/"
+# ratchets, the Java sources that cite the commit they were written against (oracle/), and the
+# release files that carry closure-rs' own version (npm/config.json, npm/closure-rs/package.json,
+# .github/ISSUE_TEMPLATE/), which a release changes.
+DOC_EXCLUDE = re.compile(r"^(crates/|LICENSES/|fuzz/|corpus/unit/(records|derived|descriptors|postcall)/"
                          r"|corpus/d2/(?!PROFILES\.md$)|gates/[^/]*\.json$|oracle/(src|replay|patches)/"
                          r"|npm/config\.json$|npm/closure-rs/package\.json$|\.github/ISSUE_TEMPLATE/"
                          r"|scripts/references\.tsv$|npm/closure-rs/index\.d\.c?ts$)")
