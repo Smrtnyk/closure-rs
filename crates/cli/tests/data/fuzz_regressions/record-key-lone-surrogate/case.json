@@ -1,0 +1,16 @@
+{
+ "argv": [
+  "--compilation_level=SIMPLE",
+  "--formatting=PRETTY_PRINT",
+  "--jscomp_warning=checkTypes",
+  "--js",
+  "input.js",
+  "--js_output_file",
+  "out/out.js"
+ ],
+ "origin": "fz-55a5a5258e13 (profile pretty, --jscomp_warning=checkTypes): a record type's property name holding an unpaired surrogate in JSC_TYPE_MISMATCH",
+ "exit_code": 0,
+ "outputs": [
+  "out/out.js"
+ ]
+}

@@ -50,8 +50,7 @@ use crate::{
     type_string_builder::TypeStringBuilder,
 };
 use closure_rhino::{
-    check_state, error_reporter::ErrorReporter, js_string::JsString, jscomp_base::Tri, node::Ast,
-    outcome::Outcome,
+    check_state, error_reporter::ErrorReporter, jscomp_base::Tri, node::Ast, outcome::Outcome,
 };
 use std::sync::Arc;
 
@@ -553,7 +552,7 @@ pub(crate) fn append_to(
     for alt in data(t, reg).alternates.clone().iter().copied() {
         names.push(sb.clone_with_config().append_type(reg, ast, alt).build());
     }
-    names.sort_by(|a, b| JsString::from(a.as_str()).cmp(&JsString::from(b.as_str())));
+    names.sort();
     sb.append_all(names, "|").append(")");
 }
 // port: UnionType#getPossibleToBooleanOutcomes

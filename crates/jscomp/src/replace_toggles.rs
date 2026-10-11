@@ -149,7 +149,7 @@ impl AbstractPostOrderCallbackInterface for Traversal<'_> {
                 let key = cur.get_string(t);
                 if mapping.contains_key(&key) {
                     let compiler = t.get_compiler();
-                    let message = format!("duplicate key: {}", key.to_string_lossy());
+                    let message = format!("duplicate key: {key}");
                     compiler.report(JSError::make(
                         compiler,
                         cur,

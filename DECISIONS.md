@@ -520,3 +520,22 @@ output files, exit code 255.
 `--instrument_mapping_report`, `--production_instrumentation_array_name` and
 `--remove_j2cl_asserts` are not refused on their own: only PRODUCTION instrumentation and the J2CL
 passes read them, and those are refused.
+
+## D-029 — Source names that hold unpaired surrogates
+Source names are Rust `String`s throughout the port (`SourceFile`, the nodes' source files,
+diagnostics, chunks, source maps), so they cannot hold an unpaired surrogate. Only one input can
+give a name one: the `path` of a `--json_streams` input written with a JSON escape such as
+`\ud800` (command-line arguments and files are decoded with replacement and never yield one). An
+input source map's `sources` can hold one too, but Java fails on such a name with an
+`InvalidPathException` (exit 254), which is outside the comparison (D-009).
+
+closure-rs stores such a path as the text Java's UTF-8 streams write for it: each unpaired
+surrogate becomes `?`, the encoder's replacement. Diagnostics (text and JSON), the manifest, the
+bundle and the chunk dependency file then match Java byte for byte.
+
+**What still differs from Java:**
+- The output source map's `sources` entry: Java escapes the surrogate (`"p\ud800.js"`),
+  closure-rs writes `"p?.js"`.
+- Identity: two paths that differ only in their unpaired surrogates, or in a surrogate and a `?`,
+  are two inputs in Java and one name in closure-rs, which stops with an internal error ("already
+  exist in chunk").

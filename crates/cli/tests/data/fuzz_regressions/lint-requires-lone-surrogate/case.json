@@ -1,0 +1,13 @@
+{
+ "argv": [
+  "--compilation_level=SIMPLE",
+  "--jscomp_warning=lintChecks",
+  "--js",
+  "a.js",
+  "--js_output_file",
+  "out/out.js"
+ ],
+ "origin": "after fz-55a5a5258e13: the corrected require list of JSC_REQUIRES_NOT_SORTED is written as Java's UTF-8 error stream writes it",
+ "exit_code": 2,
+ "outputs": []
+}

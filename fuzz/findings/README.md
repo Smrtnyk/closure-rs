@@ -15,6 +15,7 @@ an out-of-corpus benchmark (`bench/`), is written up in the same form
 | File | What it explains | Regression cases |
 |---|---|---|
 | [fz-6fc868fd3e39.md](fz-6fc868fd3e39.md) | A diagnostic argument holding an unpaired surrogate is printed as `?` (Java's UTF-8 error stream), not U+FFFD. | `typeof-lone-surrogate`, `typeof-lone-surrogate-json`, `namespace-lone-surrogate` |
+| [fz-55a5a5258e13.md](fz-55a5a5258e13.md) | A type string keeps the unpaired surrogates of quoted property names (property and union order) and prints each as `?`, as Java's UTF-8 error stream writes it. | `record-key-lone-surrogate`, `type-string-lone-surrogate`, `type-string-lone-surrogate-json`, `diagnostic-args-lone-surrogate`, `lint-requires-lone-surrogate`, `json-streams-lone-surrogate` |
 | [fz-b67df42e8d08.md](fz-b67df42e8d08.md) | `OptimizeCalls.ReferenceMap#isCallTarget` on a reference whose parent was detached earlier in the same run answers false. | `optimize-calls-detached-call-target` |
 | [bench-fabric-sourcemap-resolve.md](bench-fabric-sourcemap-resolve.md) | An input source map that fails to resolve while the report is printed is counted in the summary line but not printed. | `dangling-source-map-url`, `dangling-source-map-url-json` |
 

@@ -1,0 +1,38 @@
+input.js:25:5: WARNING - [JSC_POSSIBLE_INEXISTENT_PROPERTY] Property html never defined on goog
+
+This property is accessed on a "loose" type, but is not defined anywhere in the program, so it must not exist.
+  25| goog.html.sanitizer.TagBlacklist = {
+           ^^^^
+
+input.js:25:10: WARNING - [JSC_POSSIBLE_INEXISTENT_PROPERTY] Property sanitizer never defined on goog.html
+
+This property is accessed on a "loose" type, but is not defined anywhere in the program, so it must not exist.
+  25| goog.html.sanitizer.TagBlacklist = {
+                ^^^^^^^^^
+
+input.js:54:0: WARNING - [JSC_TYPE_MISMATCH] assignment
+found   : {APPLET: boolean, AUDIO: boolean, BASE: boolean, BGSOUND: boolean, EMBED: boolean, FORM: boolean, IFRAME: boolean, ISINDEX: boolean, KEYGEN: boolean, LAYER: boolean, LINK: boolean, META: boolean, OBJECT: boolean, SCRIPT: boolean, STYLE: boolean, SVG: boolean, TEMPLATE: boolean, ?: boolean}
+required: {APPLET: boolean, AUDIO: boolean, BASE: boolean, BGSOUND: boolean, EMBED: boolean, FORM: boolean, IFRAME: boolean, ISINDEX: boolean, KEYGEN: boolean, LAYER: boolean, LINK: number, META: number, OBJECT: number, SCRIPT: number, STYLE: number, SVG: number, TEMPLATE: number, ?: number}
+  54| goog.html.sanitizer.TagBlacklist = {
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  55|   'APPLET': true,
+      ^^^^^^^^^^^^^^^^^
+...
+  81|   '\uD800': true
+      ^^^^^^^^^^^^^^^^
+  82| }
+      ^
+
+input.js:54:5: WARNING - [JSC_POSSIBLE_INEXISTENT_PROPERTY] Property html never defined on goog
+
+This property is accessed on a "loose" type, but is not defined anywhere in the program, so it must not exist.
+  54| goog.html.sanitizer.TagBlacklist = {
+           ^^^^
+
+input.js:54:10: WARNING - [JSC_POSSIBLE_INEXISTENT_PROPERTY] Property sanitizer never defined on goog.html
+
+This property is accessed on a "loose" type, but is not defined anywhere in the program, so it must not exist.
+  54| goog.html.sanitizer.TagBlacklist = {
+                ^^^^^^^^^
+
+0 error(s), 5 warning(s), 86.4% typed

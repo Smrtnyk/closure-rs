@@ -179,7 +179,7 @@ impl VariableReferenceCheck {
                     .get_token(compiler),
             )
         {
-            let name = v.get_name(compiler).to_string_lossy();
+            let name = v.get_name(compiler).to_string();
             let error = JSError::make(
                 compiler,
                 reference_node,
@@ -268,7 +268,7 @@ impl VariableReferenceCheck {
                     warning_node = hoisted_fn.get_node();
                 }
             }
-            let name = v.get_name(compiler).to_string_lossy();
+            let name = v.get_name(compiler).to_string();
             let location = Self::location_of(compiler, v.get_node(compiler));
             let error = JSError::make(compiler, warning_node, diagnostic_type, &[&name, &location]);
             compiler.report(error);
@@ -278,7 +278,7 @@ impl VariableReferenceCheck {
         if (let_const_shadows_var || shadow_catch_var)
             && Some(v.get_scope(compiler)) == reference.get_scope()
         {
-            let name = v.get_name(compiler).to_string_lossy();
+            let name = v.get_name(compiler).to_string();
             let error = JSError::make(
                 compiler,
                 reference_node,
@@ -370,7 +370,7 @@ impl VariableReferenceCheck {
             } else {
                 &EARLY_REFERENCE
             };
-            let name = v.get_name(compiler).to_string_lossy();
+            let name = v.get_name(compiler).to_string();
             let error = JSError::make(compiler, reference.get_node(), diagnostic_type, &[&name]);
             compiler.report(error);
             return true;
@@ -430,7 +430,7 @@ impl VariableReferenceCheck {
             }
         }
 
-        let name = v.get_name(compiler).to_string_lossy();
+        let name = v.get_name(compiler).to_string();
         let error = JSError::make(
             compiler,
             unused_assignment.get_node(),
@@ -637,7 +637,7 @@ impl<'a> ReferenceCheckingBehavior<'a> {
                 }
 
                 if !has_errors && v.is_const(compiler) && reference.is_lvalue(compiler) {
-                    let name = v.get_name(compiler).to_string_lossy();
+                    let name = v.get_name(compiler).to_string();
                     let error =
                         JSError::make(compiler, reference_node, &REASSIGNED_CONSTANT, &[&name]);
                     compiler.report(error);
@@ -654,7 +654,7 @@ impl<'a> ReferenceCheckingBehavior<'a> {
                         reference.get_scope().unwrap().get_root_node(compiler),
                     )
                 {
-                    let name = v.get_name(compiler).to_string_lossy();
+                    let name = v.get_name(compiler).to_string();
                     let error =
                         JSError::make(compiler, reference_node, &EARLY_REFERENCE_ERROR, &[&name]);
                     compiler.report(error);

@@ -1,0 +1,45 @@
+p?.js:1:12: WARNING - [JSC_UNRECOGNIZED_TYPE_ERROR] Bad type annotation. Unknown type Foo?
+  1| /** @param {Foo?} x */ function f(x) {}
+                 ^
+
+p?.js:1:12: WARNING - [JSC_MISSING_NULLABILITY_MODIFIER_JSDOC] Foo? is a reference type with no nullability modifier, which is disallowed by the style guide.
+Please add a ! to make it explicitly non-nullable, or a ? to make it explicitly nullable.
+  1| /** @param {Foo?} x */ function f(x) {}
+                 ^^^^
+
+p?.js:2:31: WARNING - [JSC_VAR] Using `var` (prefer `const` or `let`).
+  2| /** @typedef {{k?: number}} */ var T;
+                                    ^^^^^^
+
+p?.js:3:11: WARNING - [JSC_MISSING_NULLABILITY_MODIFIER_JSDOC] T is a reference type with no nullability modifier, which is disallowed by the style guide.
+Please add a ! to make it explicitly non-nullable, or a ? to make it explicitly nullable.
+  3| /** @type {T} */ var r = {'k?': 'str'};
+                ^
+
+p?.js:3:17: WARNING - [JSC_VAR] Using `var` (prefer `const` or `let`).
+  3| /** @type {T} */ var r = {'k?': 'str'};
+                      ^^^^^^^^^^^^^^^^^^^^^^
+
+p?.js:3:25: WARNING - [JSC_TYPE_MISMATCH] initializing variable
+found   : {k?: string}
+required: {k?: number}
+missing : []
+mismatch: [k?]
+  3| /** @type {T} */ var r = {'k?': 'str'};
+                              ^^^^^^^^^^^^^
+
+q?.js:2:22: WARNING - [JSC_VAR] Using `var` (prefer `const` or `let`).
+  2| /** @type {string} */ var y = 1; alert(f, r, y);
+                           ^^^^^^^^^^
+
+q?.js:2:30: WARNING - [JSC_TYPE_MISMATCH] initializing variable
+found   : number
+required: string
+  2| /** @type {string} */ var y = 1; alert(f, r, y);
+                                   ^
+
+q?.js:2:33: WARNING - [JSC_WRONG_ARGUMENT_COUNT] Function alert: called with 3 argument(s). Function requires at least 1 argument(s) and no more than 1 argument(s).
+  2| /** @type {string} */ var y = 1; alert(f, r, y);
+                                      ^^^^^^^^^^^^^^
+
+0 error(s), 9 warning(s), 100.0% typed

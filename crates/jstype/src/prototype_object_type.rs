@@ -346,13 +346,13 @@ impl PropertyForPrettyPrinting {
     }
     // port: PrototypeObjectType.PropertyForPrettyPrinting#appendTo
     fn append_to(&self, reg: &mut JSTypeRegistry, ast: &Ast, sb: &mut TypeStringBuilder) {
-        let name = self.key.human_readable_name(reg).to_string_lossy();
+        let name = self.key.human_readable_name(reg);
         match self.key {
             PropertyKey::String(_) => {
-                sb.append(&name);
+                sb.append_utf16(&name);
             }
             PropertyKey::Symbol(_) => {
-                sb.append("[").append(&name).append("]");
+                sb.append("[").append_utf16(&name).append("]");
             }
         }
         sb.append(": ").append_non_null(reg, ast, self.type_);
@@ -368,7 +368,7 @@ pub fn append_to(t: TypeId, reg: &mut JSTypeRegistry, ast: &Ast, sb: &mut TypeSt
             t.get_reference_name(reg)
         }
         .unwrap();
-        sb.append(&name.to_string_lossy());
+        sb.append_utf16(&name);
         return;
     }
     if !t.is_pretty_print(reg) {
@@ -445,8 +445,8 @@ fn compare_properties(
         (PropertyKey::String(_), PropertyKey::Symbol(_)) => std::cmp::Ordering::Less,
         (PropertyKey::Symbol(_), PropertyKey::String(_)) => std::cmp::Ordering::Greater,
         _ => {
-            let a = JsString::from(a.type_.to_string(reg, ast));
-            let b = JsString::from(b.type_.to_string(reg, ast));
+            let a = a.type_.to_string_utf16(reg, ast);
+            let b = b.type_.to_string_utf16(reg, ast);
             a.cmp(&b)
         }
     }

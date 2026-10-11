@@ -101,7 +101,7 @@ fn with_type_printer<T>(
     match registry {
         Some(registry) => {
             // port: JSType#toString
-            let mut type_printer = |t: TypeId| JsString::from(JSType::to_string(t, registry, ast));
+            let mut type_printer = |t: TypeId| JSType::to_string_utf16(t, registry, ast);
             print(ast, Some(&mut type_printer))
         }
         None => print(ast, None),

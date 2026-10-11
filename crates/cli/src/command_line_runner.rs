@@ -3565,7 +3565,8 @@ impl CommandLineRunner {
             let mut found_json_input_source_map = false;
             for file in files {
                 let file = file.as_ref().ok_or_else(|| RunnerException::java_exception("java.lang.NullPointerException", "Cannot invoke \"com.google.javascript.jscomp.AbstractCommandLineRunner$JsonFileSpec.getSourceMap()\" because \"jsonFile\" is null".into(), vec![]).at_cli("AbstractCommandLineRunner", "doRun", 1202))?;
-                let path = file.get_path().expect("null path").to_string_lossy();
+                // The source name `createInputs` gives this file (DECISIONS.md D-029).
+                let path = file.get_path().expect("null path").to_string();
                 if let Some(map) = file.get_source_map()
                     && !map.is_empty()
                 {

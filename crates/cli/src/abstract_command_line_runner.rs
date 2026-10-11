@@ -1287,8 +1287,10 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
         if let Some(files) = json_files {
             for file in files {
                 let file = file.as_ref().expect("null JsonFileSpec");
+                // Source names are Rust strings: an unpaired surrogate in the path is held as
+                // the '?' Java's UTF-8 streams write for it (DECISIONS.md D-029).
                 inputs.push(SourceFile::from_code(
-                    &file.get_path().expect("null path").to_string_lossy(),
+                    &file.get_path().expect("null path").to_string(),
                     file.get_src().expect("null src").clone(),
                 ));
             }

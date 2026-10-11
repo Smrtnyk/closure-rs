@@ -165,14 +165,10 @@ pub(crate) fn append_to(
     if sb.is_for_annotations() {
         sb.append_type(reg, ast, primitive);
     } else {
-        sb.append(
-            &get_reference_name(t, reg)
-                .unwrap_or_else(|| "null".into())
-                .to_string_lossy(),
-        )
-        .append("<")
-        .append_type(reg, ast, primitive)
-        .append(">");
+        sb.append_utf16(&get_reference_name(t, reg).unwrap_or_else(|| "null".into()))
+            .append("<")
+            .append_type(reg, ast, primitive)
+            .append(">");
     }
 }
 // port: EnumElementType#getReferenceName

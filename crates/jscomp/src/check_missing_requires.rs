@@ -861,7 +861,7 @@ impl CheckMissingRequires {
                 n,
                 to_report,
                 &[
-                    &namespace.to_string_lossy(),
+                    &namespace.to_string(),
                     file_name.as_deref().unwrap_or("null"),
                 ],
             );

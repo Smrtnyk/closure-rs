@@ -142,9 +142,9 @@ pub(crate) fn append_to(
     ast: &Ast,
     sb: &mut TypeStringBuilder,
 ) {
-    let name = data(id, reg).name.to_string_lossy();
+    let name = data(id, reg).name.clone();
     let bound = data(id, reg).bound;
-    sb.append(&name);
+    sb.append_utf16(&name);
     if bound != reg.get_native_type(JSTypeNative::UNKNOWN_TYPE) {
         sb.append(" extends ");
         sb.append_type(reg, ast, bound);

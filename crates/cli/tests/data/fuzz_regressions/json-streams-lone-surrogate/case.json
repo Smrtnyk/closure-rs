@@ -1,0 +1,20 @@
+{
+ "argv": [
+  "--compilation_level=SIMPLE",
+  "--jscomp_warning=checkTypes",
+  "--jscomp_warning=lintChecks",
+  "--json_streams=IN",
+  "--chunk=c0:2",
+  "--chunk_output_path_prefix=out/",
+  "--output_manifest=manifest.txt",
+  "--output_chunk_dependencies=deps.json"
+ ],
+ "origin": "after fz-55a5a5258e13: --json_streams input whose paths, JSDoc and comments hold unpaired surrogates (source names in diagnostics, the manifest and the chunk dependencies; types; the license comment in the output)",
+ "stdin": "stdin.json",
+ "exit_code": 0,
+ "outputs": [
+  "deps.json",
+  "manifest.txt",
+  "out/c0.js"
+ ]
+}

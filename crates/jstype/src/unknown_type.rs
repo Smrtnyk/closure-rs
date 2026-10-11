@@ -178,7 +178,7 @@ pub(crate) fn append_to(
     sb: &mut crate::type_string_builder::TypeStringBuilder,
 ) {
     let _ = t;
-    sb.append(&get_reference_name(t, reg).unwrap().to_string_lossy());
+    sb.append_utf16(&get_reference_name(t, reg).unwrap());
 }
 // port: UnknownType#resolveInternal
 pub(crate) fn resolve_internal(

@@ -171,12 +171,7 @@ pub fn append_to(t: TypeId, reg: &mut JSTypeRegistry, ast: &Ast, sb: &mut TypeSt
         crate::prototype_object_type::append_to(t, reg, ast, sb);
         return;
     } else if sb.is_for_annotations() {
-        sb.append(
-            &constructor
-                .get_normalized_reference_name(reg)
-                .unwrap()
-                .to_string_lossy(),
-        );
+        sb.append_utf16(&constructor.get_normalized_reference_name(reg).unwrap());
         return;
     }
     let name = constructor.get_reference_name(reg).unwrap();
@@ -198,7 +193,7 @@ pub fn append_to(t: TypeId, reg: &mut JSTypeRegistry, ast: &Ast, sb: &mut TypeSt
             .append(&lineno.to_string())
             .append(">");
     }
-    sb.append(&name.to_string_lossy());
+    sb.append_utf16(&name);
 }
 fn is_native_instance(t: TypeId, reg: &JSTypeRegistry, name: &str) -> bool {
     t.get_constructor(reg).unwrap().is_native_object_type(reg)

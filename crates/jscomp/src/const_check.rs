@@ -134,7 +134,7 @@ impl Callback for ConstCheck {
                         if n.is_from_externs(t) {
                             self.initialized_constants.insert(var);
                         } else if n.has_children(t) && !self.initialized_constants.insert(var) {
-                            Self::report_error(t.get_compiler(), n, var, &name.to_string_lossy());
+                            Self::report_error(t.get_compiler(), n, var, &name.to_string());
                         }
                     }
                 }
@@ -160,12 +160,7 @@ impl Callback for ConstCheck {
                     if Self::is_constant(t.get_compiler(), var, lhs)
                         && !self.initialized_constants.insert(var.unwrap())
                     {
-                        Self::report_error(
-                            t.get_compiler(),
-                            n,
-                            var.unwrap(),
-                            &name.to_string_lossy(),
-                        );
+                        Self::report_error(t.get_compiler(), n, var.unwrap(), &name.to_string());
                     } else if var.is_some_and(|var| var.is_goog_module_exports(t.get_compiler()))
                         && !self.initialized_constants.insert(var.unwrap())
                     {
@@ -188,12 +183,7 @@ impl Callback for ConstCheck {
                     let scope = t.get_scope();
                     let var = scope.get_var(t.get_compiler(), name.clone());
                     if Self::is_constant(t.get_compiler(), var, lhs) {
-                        Self::report_error(
-                            t.get_compiler(),
-                            n,
-                            var.unwrap(),
-                            &name.to_string_lossy(),
-                        );
+                        Self::report_error(t.get_compiler(), n, var.unwrap(), &name.to_string());
                     }
                 }
             }

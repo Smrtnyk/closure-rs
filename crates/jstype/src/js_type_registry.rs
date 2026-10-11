@@ -630,7 +630,7 @@ impl JSTypeRegistry {
                 );
                 if let Some(readable) = source.get_first_child(ast).unwrap().get_original_name(ast)
                 {
-                    return Some(readable.to_string_lossy());
+                    return Some(readable.to_string());
                 }
             }
             return Some(type_.to_string(self, ast));
@@ -675,7 +675,7 @@ impl JSTypeRegistry {
             }
         }
         if n.is_qualified_name(ast) {
-            n.get_qualified_name(ast).unwrap().to_string_lossy()
+            n.get_qualified_name(ast).unwrap().to_string()
         } else if type_.is_function_type(self) {
             "function".into()
         } else {

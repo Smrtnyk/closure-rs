@@ -369,7 +369,7 @@ impl FunctionTypeBuilder {
         if self.fn_name.is_empty() {
             "<anonymous>".to_string()
         } else {
-            self.fn_name.to_string_lossy()
+            self.fn_name.to_string()
         }
     }
 
@@ -1190,7 +1190,7 @@ impl FunctionTypeBuilder {
             if template.contains_cycle(reg, ast) {
                 let reference_name = template
                     .get_reference_name(reg)
-                    .map_or_else(|| "null".to_string(), |name| name.to_string_lossy());
+                    .map_or_else(|| "null".to_string(), |name| name.to_string());
                 self.report_error(
                     compiler,
                     &crate::rhino_error_reporter::CYCLIC_INHERITANCE_ERROR,

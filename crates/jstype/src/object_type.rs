@@ -906,7 +906,7 @@ pub fn get_jsdoc_info(t: TypeId, reg: &JSTypeRegistry) -> Option<Arc<JSDocInfo>>
 // port: ObjectType#getDisplayName
 pub fn get_display_name(t: TypeId, reg: &JSTypeRegistry) -> Option<String> {
     t.get_normalized_reference_name(reg)
-        .map(|name| name.to_string_lossy())
+        .map(|name| name.to_string())
 }
 // port: ObjectType#createDelegateSuffix
 pub fn create_delegate_suffix(suffix: &str) -> String {

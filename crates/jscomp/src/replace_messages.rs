@@ -226,9 +226,9 @@ impl ReplaceMessages {
                         call_node,
                         &INVALID_ALTERNATE_MESSAGE_PLACEHOLDERS,
                         &[
-                            &alternate_id.to_string_lossy(),
+                            &alternate_id.to_string(),
                             &alternate_names,
-                            &message.get_key().to_string_lossy(),
+                            &message.get_key().to_string(),
                             &js_code_names,
                         ],
                     ));
@@ -1647,6 +1647,6 @@ fn java_starts_with_at(s: &JsString, prefix: &str, toffset: i32) -> bool {
 
 /// `String.valueOf(ImmutableSet<String>)`: `[a, b]`.
 fn java_set_to_string(set: &IndexSet<JsString>) -> String {
-    let items: Vec<String> = set.iter().map(|s| s.to_string_lossy()).collect();
+    let items: Vec<String> = set.iter().map(JsString::to_string).collect();
     format!("[{}]", items.join(", "))
 }

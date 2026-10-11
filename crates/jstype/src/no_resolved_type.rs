@@ -155,9 +155,7 @@ pub fn append_to(t: TypeId, reg: &mut JSTypeRegistry, _ast: &Ast, sb: &mut TypeS
     if sb.is_for_annotations() {
         sb.append("?");
     } else {
-        sb.append(&format!(
-            "NoResolvedType<{}>",
-            get_reference_name(t, reg).unwrap()
-        ));
+        let name = get_reference_name(t, reg).unwrap();
+        sb.append("NoResolvedType<").append_utf16(&name).append(">");
     }
 }
