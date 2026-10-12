@@ -4,16 +4,25 @@
 # One JVM per class (-Xmx2g), P parallel workers (default 10 => <= 20 GB heap total).
 # Resumable: a class whose stats file exists is skipped. Run it detached:
 #   setsid nohup scripts/unit_record_all.sh > build/logs/unit_record.log 2>&1 &
+#   scripts/unit_record_all.sh [CLASS_LIST]   (default build/unit/all_test_classes.txt)
+# The environment can move every output, as scripts/upstream_sync.py does for a new reference:
+#   UNIT_JARS_DIR       the recording jars (default build/unit/jars, scripts/unit_bazel_build.sh)
+#   UNIT_RECORDS_DIR    the records (default corpus/unit/records of the main checkout)
+#   UNIT_RECORDING_DIR  stats/, logs/, the agent jar, the trace scope file and the PID file
+#                       (default build/unit/recording; the others then stay where they were)
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/paths.sh"  # ROOT, REF_RECORDING_WS
-echo $$ > "$ROOT/build/logs/unit_record.pid"
+RECDIR="${UNIT_RECORDING_DIR:-$ROOT/build/unit/recording}"
+PIDDIR="${UNIT_RECORDING_DIR:-$ROOT/build/logs}"
+mkdir -p "$PIDDIR"
+echo $$ > "$PIDDIR/unit_record.pid"
 . "$ROOT/tools/env.sh"
 P="${UNIT_RECORD_PARALLEL:-10}"
 WS="$REF_RECORDING_WS"
-JARS="$ROOT/build/unit/jars"
-REC="$ROOT/corpus/unit/records"
-STAT="$ROOT/build/unit/recording/stats"
-LOGD="$ROOT/build/unit/recording/logs"
+JARS="${UNIT_JARS_DIR:-$ROOT/build/unit/jars}"
+REC="${UNIT_RECORDS_DIR:-$ROOT/corpus/unit/records}"
+STAT="$RECDIR/stats"
+LOGD="$RECDIR/logs"
 mkdir -p "$REC" "$STAT" "$LOGD"
 CLASSES="${1:-$ROOT/build/unit/all_test_classes.txt}"
 # RECORDING.md "Pass trace": the NoopAgent runs in TRACE mode in every recording JVM,
@@ -21,8 +30,11 @@ CLASSES="${1:-$ROOT/build/unit/all_test_classes.txt}"
 # hooked call). Agent jar and scope file are rebuilt here (deterministic) before any class runs.
 AGENT_JAR="$ROOT/build/unit/noop-agent/noop-agent.jar"
 TRACE_SCOPE="$ROOT/build/unit/trace/scope.txt"
-bash "$ROOT/scripts/unit_noop_agent_build.sh" "$AGENT_JAR" >/dev/null || { echo "agent build failed" >&2; exit 1; }
-python3 "$ROOT/scripts/unit_trace_scope.py" "$TRACE_SCOPE" || { echo "trace scope failed" >&2; exit 1; }
+if [ -n "${UNIT_RECORDING_DIR:-}" ]; then
+  AGENT_JAR="$RECDIR/noop-agent.jar"; TRACE_SCOPE="$RECDIR/trace-scope.txt"
+fi
+bash "$(dirname "${BASH_SOURCE[0]}")/unit_noop_agent_build.sh" "$AGENT_JAR" >/dev/null || { echo "agent build failed" >&2; exit 1; }
+python3 "$(dirname "${BASH_SOURCE[0]}")/unit_trace_scope.py" "$TRACE_SCOPE" || { echo "trace scope failed" >&2; exit 1; }
 export WS JARS REC STAT LOGD AGENT_JAR TRACE_SCOPE
 run_one() {
   cls="$1"; name="${cls##*.}"

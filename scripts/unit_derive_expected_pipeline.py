@@ -23,7 +23,8 @@ record file's base name without .jsonl.gz and `index` the 0-based line number in
 """
 import gzip, json, os, sys
 
-from paths import ROOT  # the main checkout (scripts/paths.py)
+# The checkout this script lives in (also a git worktree): the corpus is tracked there.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REC = f"{ROOT}/corpus/unit/records"
 OUT = f"{ROOT}/corpus/unit/derived/expected_pipeline.jsonl.gz"
 

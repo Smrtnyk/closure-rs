@@ -9,7 +9,8 @@ harness to reuse as the reference implementation of the rule.
 """
 import gzip, json, os, sys, collections
 
-from paths import ROOT  # the main checkout (scripts/paths.py)
+# The checkout this script lives in (also a git worktree): the corpus is tracked there.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REC = f"{ROOT}/corpus/unit/records"
 
 # Iteration order is insertion order, sequence order or sorted order: independent of hash codes.

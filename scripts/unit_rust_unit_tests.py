@@ -9,7 +9,8 @@ Fragments: `_non_harness.md` (every in-scope non-harness test class, gate 0.2 (c
 import os
 import sys
 
-from paths import ROOT  # the main checkout (scripts/paths.py)
+# The checkout this script lives in (also a git worktree): the corpus is tracked there.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRAG = f"{ROOT}/corpus/unit/rust_unit_tests"
 OUT = f"{ROOT}/corpus/unit/RUST_UNIT_TESTS.md"
 
