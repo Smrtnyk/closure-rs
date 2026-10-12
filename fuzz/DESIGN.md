@@ -54,6 +54,18 @@ The dispatch core is `fuzz/jsgen/src/engine.rs`; the productions live in separat
 - `jsdoc.rs`: type expressions.
 - `idioms.rs`: annotated declarations, `@enum`, `@constructor`, `@record`, `@typedef`,
   `@nocollapse` and casts.
+- `typed.rs`, `items.rs`: well-typed values and typed top-level items (functions, classes,
+  enums, constants, module state) in script, goog.module, goog.provide, ES module and CommonJS
+  style; `passes.rs`: inputs for specific optimization passes; `program.rs`: multi-file
+  programs.
+- `strict.rs`: the strict-aware mode for `advanced_strict` (`--warning_level=VERBOSE
+  --jscomp_error=*`, where every warning, lint included, is an error). While
+  `strict::with_strict` is active, `generate_strict_nth` builds a single-file program from
+  typed items and typed statements only, and `program.rs` leaves out what the type and lint
+  checks always reject (goog.provide and CommonJS files, default exports, `var`, unsorted or
+  unused imports, untyped filler, fractional bitwise operands, constants initialized to
+  `null`). Outside the mode the generators' output does not change. Unit test:
+  `strict_mode_avoids_lint_forms`.
 - Same table convention, registered in `closure/mod.rs`. This module is enabled by
   `Config::closure`.
 
@@ -87,10 +99,25 @@ Production { name, weight, leaf, when: fn(&Ctx) -> bool, emit: fn(&mut Gen) }
    goog.module, goog.provide, ES modules or CommonJS; the module forms include destructuring `goog.require`/`require`, `goog.module.get`, whole-object and
    whole-value `exports =`/`module.exports =`, `export let`/`var`, `export default`
    function/class declarations, `import {a as b}`, `export {x} from` and side-effect imports,
-   guarded by the unit test `module_forms_appear`), 5% sloppy (jsgen sloppy dialect,
+   guarded by the unit test `module_forms_appear`; one goog program in three uses the weak
+   layout below), 5% sloppy (jsgen sloppy dialect,
    `--strict_mode_input=false` for parse and compile) and 25% mutate (`mutate_with`, whole
    D2 pool as donors). `gen` keeps the four jsgen categories at 30:25:15:5. The
    `unsupported` dialect is never used by the driver.
+   **Strict mode.** A jsgen program whose profile (step 3) is `advanced_strict` is generated
+   in the strict-aware mode three times in four (`STRICT_SHARE`, drawn from
+   `Rng::fork(seed ^ STRICT_SALT, i)`): a lang, closure or sloppy draw becomes a `strict`
+   program (`generate_strict_nth`, category `strict`, origin `jsgen:strict:...`), a multi draw
+   is generated with the mode on (origin `jsgen:multi:<kind>:strict:...`). The other quarter,
+   and every mutant, keep their ordinary form, so `advanced_strict` still compares the
+   diagnostics of code that fails the checks. Unit test: `strict_mode_follows_advanced_strict`.
+   **Weak layout.** A weak-layout goog program has one more file, placed where the other files
+   keep their `chunks2`/`chunks3` chunks, that other modules reach only through
+   `goog.requireType` (its class is named only in JSDoc), and carries
+   `--dependency_mode=PRUNE` or `PRUNE_LEGACY` with an `--entry_point` for every other module
+   in its `extra_flags`. Java marks the extra file weak, moves it to the weak
+   chunk and `removeWeakSources` empties it; the entry points keep every other file in the
+   compilation and in its chunk. Unit test: `weak_layout_appears_and_is_weak`.
 2. **Parse filter.** The program goes through the oracle's `parse_dump` with CLI default
    options. A program with `errors != []` is rejected and counted.
 3. **Profile.** A D2 profile is drawn among those that apply, with these weights
@@ -100,15 +127,21 @@ Production { name, weight, leaf, when: fn(&Ctx) -> bool, emit: fn(&mut Gen) }
    multi-file programs can get `chunks2`/`chunks3`, so single-file ADVANCED-family draws split
    between `advanced` and `advanced_strict`. The draw comes from `Rng::fork(seed ^ PROFILE_SALT,
    i)`, so it is deterministic per program (unit test `profile_weights_and_determinism`).
-   Single-file jsgen programs whose profile has a `--language_out` below ES2018 are generated in
-   `low_target` mode (no BigInt, no ES2018+ regexp features); multi-file programs are not (a
-   known gap).
+   jsgen programs whose profile has a `--language_out` below ES2018 are generated in
+   `low_target` mode (no BigInt, no ES2018+ regexp features). A multi-file program's profile
+   depends only on its having two or more files, so it is known before generation too.
+   A chunk-profile program with a dynamic `import()` gets `--chunk_output_type=ES_MODULES`
+   (`chunk_dynamic_import_flags`): Java crashes on dynamic imports under the default
+   GLOBAL_NAMESPACE chunk output, and such crashes are dropped from the comparison.
    On top of the profile, one program in three (never under `ws`) gets one or two random
    in-scope option flags from `OPTION_POOL` (groups of mutually exclusive alternatives, each
    with a condition such as "chunk profiles only" or "goog programs only"; e.g.
    `--isolate_polyfills`, `--rename_prefix_namespace`, `--assume_function_wrapper`,
    `--angular_pass`, `--chunk_output_type=ES_MODULES`, `--generate_exports`). Flags a profile
-   locks are never drawn. The pool comes from `scope/flags.txt` (generated by
+   locks are never drawn, and a drawn flag that cannot compile the program is dropped after the
+   draw (`fits_program`: `--process_closure_primitives=false` with `goog.define`/
+   `goog.forwardDeclare` calls, `--third_party` with `@export` or `goog.forwardDeclare`). The
+   pool comes from `scope/flags.txt` (generated by
    `scope/gen_flags.py` from the pinned `CommandLineRunner`): every in-scope flag is either in
    `OPTION_POOL` or in `NOT_DRAWN` with the reason it is not drawn, and
    `check_option_pool` enforces that at driver start-up and in `cargo test`. The drawn flags are
@@ -207,9 +240,9 @@ Two facts matter when reading (b) (Java `SortingErrorManager.hasHaltingErrors`,
   The Gate 0.3 report therefore gives, as diagnostics that do not change (b), the (b) mean over
   exit-0 runs only and the share of measured runs without comparable output, split into runs
   that reached the end of their profile's pipeline (marker: `latePeepholeOptimizations`; for
-  `ws`, the names every exit-0 `ws` run enters) and runs that halted early. A type-clean or
-  strict-aware generation mode for `advanced_strict` would raise the exit-0-only mean (a known
-  gap).
+  `ws`, the names every exit-0 `ws` run enters) and runs that halted early. The strict-aware
+  mode (Driver flow, step 1) exists so that most `advanced_strict` runs exit 0 and have their
+  optimized output compared.
 
 The report marks itself STALE when the fuzz/ sources on disk (`*.rs` and `Cargo.toml`) differ
 from the ones the results were measured with.

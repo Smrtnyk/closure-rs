@@ -2,9 +2,10 @@
 //!
 //!   jsgen --seed S [--index I]                     print one program to stdout
 //!   jsgen --seed S --count N --out-dir D           write D/p<I>.js for I in 0..N
-//!   options: --max-depth K (<= 64), --no-closure, --max-top N
+//!   options: --max-depth K (<= 64), --no-closure, --max-top N, --strict (the strict-aware
+//!   single-file generator for advanced_strict, `generate_strict_nth`)
 
-use jsgen::{Config, generate_nth};
+use jsgen::{Config, generate_nth, generate_strict_nth};
 use std::path::PathBuf;
 
 fn main() {
@@ -13,6 +14,7 @@ fn main() {
     let mut count: Option<u64> = None;
     let mut out_dir: Option<PathBuf> = None;
     let mut cfg = Config::default();
+    let mut strict = false;
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut i = 0;
     let val = |i: &mut usize| -> String {
@@ -36,9 +38,10 @@ fn main() {
                 cfg.max_top = val(&mut i).parse().unwrap_or_else(|_| die("bad --max-top"))
             }
             "--no-closure" => cfg.closure = false,
+            "--strict" => strict = true,
             "-h" | "--help" => {
                 println!(
-                    "usage: jsgen --seed S [--index I | --count N --out-dir D] [--max-depth K] [--max-top N] [--no-closure]"
+                    "usage: jsgen --seed S [--index I | --count N --out-dir D] [--max-depth K] [--max-top N] [--no-closure] [--strict]"
                 );
                 return;
             }
@@ -46,16 +49,22 @@ fn main() {
         }
         i += 1;
     }
+    let gen_one = |k: u64| {
+        if strict {
+            generate_strict_nth(seed, k, &cfg)
+        } else {
+            generate_nth(seed, k, &cfg)
+        }
+    };
     match (count, out_dir) {
         (Some(n), Some(d)) => {
             std::fs::create_dir_all(&d).unwrap_or_else(|e| die(&e.to_string()));
             for k in 0..n {
                 let p = d.join(format!("p{k}.js"));
-                std::fs::write(&p, generate_nth(seed, k, &cfg))
-                    .unwrap_or_else(|e| die(&e.to_string()));
+                std::fs::write(&p, gen_one(k)).unwrap_or_else(|e| die(&e.to_string()));
             }
         }
-        (None, None) => print!("{}", generate_nth(seed, index, &cfg)),
+        (None, None) => print!("{}", gen_one(index)),
         _ => die("--count and --out-dir go together"),
     }
 }

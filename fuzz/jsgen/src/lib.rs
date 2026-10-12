@@ -12,6 +12,7 @@
 
 pub mod closure;
 pub use closure::program::{ClosureProgram, FileKind, generate_closure_nth};
+pub use closure::strict::generate_strict_nth;
 pub mod engine;
 pub mod lang;
 pub mod rng;

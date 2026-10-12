@@ -1,7 +1,8 @@
 //! Unit tests for the Closure builder (`closure/`).
 
-use super::program::{FileKind, chunk2, chunk3, generate_closure_nth, may_import};
-use crate::{Config, generate_nth};
+use super::program::{FileKind, chunk2, chunk3, generate_closure_nth, may_import, weak_position};
+use super::strict::with_strict;
+use crate::{Config, generate_nth, generate_strict_nth};
 
 fn balanced(s: &str) -> bool {
     // Rough structural check that ignores string contents and comments' braces in types:
@@ -71,9 +72,23 @@ fn multi_file_programs_are_deterministic_and_legal() {
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), n, "duplicate file names");
+        // The weak layout's extra file sits where the other files keep their chunks: their
+        // imports are legal for their own count and positions.
+        let weak = p
+            .extra_flags
+            .iter()
+            .any(|f| f.starts_with("--dependency_mode="));
+        let nm = n - usize::from(weak);
+        let wp = if weak { weak_position(nm) } else { n };
+        let orig = |k: usize| if k > wp { k - 1 } else { k };
         for (k, (name, src)) in p.files.iter().enumerate() {
             for &j in &p.deps[k] {
-                assert!(may_import(k, j, n), "index {i}: {k} imports {j} of {n}");
+                assert!(j != wp, "index {i}: {k} imports the weak file");
+                let (ko, jo) = (orig(k), orig(j));
+                assert!(
+                    may_import(ko, jo, nm),
+                    "index {i}: {ko} imports {jo} of {nm}"
+                );
                 let target = &p.files[j].0;
                 let stem = target.trim_end_matches(".js");
                 assert!(
@@ -85,6 +100,12 @@ fn multi_file_programs_are_deterministic_and_legal() {
         }
         match p.kind {
             FileKind::GoogModule | FileKind::GoogProvide => {
+                // Weak layout: the dependency mode, then every module but the last file.
+                if let Some(mode) = p.extra_flags.first() {
+                    let mut want = vec![mode.clone()];
+                    want.extend((1..n - 1).map(|k| format!("--entry_point=goog:gen.m{k}")));
+                    assert_eq!(p.extra_flags, want, "index {i}");
+                }
                 assert_eq!(p.files[0].0, "base.js");
                 assert!(p.files[0].1.contains("@provideGoog"));
                 for (_, src) in &p.files[1..] {
@@ -99,9 +120,13 @@ fn multi_file_programs_are_deterministic_and_legal() {
             }
             _ => assert!(p.extra_flags.is_empty()),
         }
-        // Every non-first module imports something: chunk boundaries get crossed.
+        // Every non-first module imports something: chunk boundaries get crossed (the weak
+        // layout's extra file imports nothing).
         let first_module = usize::from(p.files[0].0 == "base.js");
         for k in (first_module + 1)..n {
+            if k == wp || orig(k) <= first_module {
+                continue;
+            }
             assert!(!p.deps[k].is_empty(), "index {i}: file {k} imports nothing");
         }
     }
@@ -313,4 +338,93 @@ fn module_forms_appear() {
     for (name, ok) in checks {
         assert!(ok, "module form never generated: {name}");
     }
+}
+
+/// Weak layout: the extra file is never `goog.require`d, the last module reaches it through
+/// `goog.requireType`, every other module is an entry point, and the extra file sits where
+/// the other files keep their chunks.
+#[test]
+fn weak_layout_appears_and_is_weak() {
+    let cfg = Config::default();
+    let mut weak_programs = 0;
+    let mut modes = std::collections::BTreeSet::new();
+    for i in 0..600u64 {
+        let p = generate_closure_nth(91, i, &cfg);
+        let Some(mode) = p
+            .extra_flags
+            .iter()
+            .find(|f| f.starts_with("--dependency_mode="))
+        else {
+            continue;
+        };
+        modes.insert(mode.clone());
+        weak_programs += 1;
+        let n = p.files.len();
+        let w = n - 1;
+        let wp = weak_position(w);
+        assert!(
+            wp < w,
+            "index {i}: no chunk-preserving position for {w} files"
+        );
+        assert_eq!(p.files[wp].0, format!("m{w}.js"), "index {i}");
+        let req = format!("goog.require('gen.m{w}')");
+        assert!(
+            p.files.iter().all(|(_, src)| !src.contains(&req)),
+            "index {i}"
+        );
+        assert!(
+            p.files[n - 1]
+                .1
+                .contains(&format!("goog.requireType('gen.m{w}')")),
+            "index {i}"
+        );
+        assert!(
+            !p.extra_flags
+                .contains(&format!("--entry_point=goog:gen.m{w}")),
+            "index {i}"
+        );
+    }
+    assert!(
+        weak_programs >= 60,
+        "only {weak_programs} weak-layout programs in 600"
+    );
+    assert_eq!(modes.len(), 2, "both prune modes appear: {modes:?}");
+}
+
+/// Strict-aware mode: none of the forms the lint checks always reject.
+#[test]
+fn strict_mode_avoids_lint_forms() {
+    let cfg = Config::default();
+    let mut kinds = std::collections::BTreeSet::new();
+    for i in 0..300u64 {
+        let p = with_strict(true, || generate_closure_nth(17, i, &cfg));
+        assert_eq!(p, with_strict(true, || generate_closure_nth(17, i, &cfg)));
+        kinds.insert(format!("{:?}", p.kind));
+        assert!(!matches!(
+            p.kind,
+            FileKind::GoogProvide | FileKind::CommonJs
+        ));
+        for (name, src) in &p.files {
+            if name == "base.js" {
+                continue;
+            }
+            for bad in ["export default", "var ", "goog.provide("] {
+                assert!(!src.contains(bad), "index {i} {name}: {bad}");
+            }
+            assert!(balanced(src), "index {i} {name}");
+        }
+        let s = generate_strict_nth(17, i, &cfg);
+        assert_eq!(s, generate_strict_nth(17, i, &cfg));
+        assert!(balanced(&s), "single {i}");
+        for bad in ["var ", "if (false)", "0.5", "goog."] {
+            assert!(!s.contains(bad), "single {i}: {bad}");
+        }
+    }
+    assert_eq!(
+        kinds.len(),
+        2,
+        "goog.module and ES module programs: {kinds:?}"
+    );
+    // The mode does not leak out of `with_strict`.
+    assert!(!super::strict::active());
 }

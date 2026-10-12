@@ -13,8 +13,19 @@
 //! `--js` in the given order, and add `extra_flags` (CommonJS needs
 //! `--process_common_js_modules`). goog.* programs start with a minimal `base.js`
 //! (`@provideGoog`), because ADVANCED rejects an undeclared `goog`.
+//!
+//! Weak layout: one goog program in three gets one more file, `m<n>.js`, that the last module
+//! and some others reach only through `goog.requireType` and name only in JSDoc, and is
+//! compiled with `--dependency_mode=PRUNE` (or `PRUNE_LEGACY`) and an
+//! `--entry_point=goog:gen.m<i>` for every other module. The entry points keep every other
+//! file in the compilation, so the extra file is the only one that
+//! `SortedDependencies.getSortedWeakDependenciesOf` marks weak: `JSChunkGraph` moves it to the
+//! weak chunk and `removeWeakSources` empties it after the checks. The extra file goes where
+//! the other files keep their `chunks2` and `chunks3` chunks ([`weak_position`]), and they are
+//! the program without the layout plus the `goog.requireType` lines and type uses.
 
 use super::items::{self, Item, Style};
+use super::strict;
 use crate::engine::Gen;
 use crate::rng::Rng;
 use crate::{Config, rng};
@@ -54,7 +65,8 @@ pub struct ClosureProgram {
     pub files: Vec<(String, String)>,
     /// Extra compiler flags the program needs (case `extra_flags`).
     pub extra_flags: Vec<String>,
-    /// `deps[i]` = indices of the files that file `i` imports.
+    /// `deps[i]` = indices of the files that file `i` imports (not the weak layout's extra
+    /// file, which only `goog.requireType` reaches).
     pub deps: Vec<Vec<usize>>,
 }
 
@@ -62,6 +74,7 @@ pub struct ClosureProgram {
 pub const BASE_JS: &str = "/**
  * @fileoverview Minimal Closure base for generated programs.
  * @provideGoog
+ * @suppress {lintChecks,strictMissingProperties}
  */
 /** @const */
 var goog = goog || {};
@@ -158,7 +171,12 @@ pub fn may_import(i: usize, j: usize, n: usize) -> bool {
 /// `this` or throw at top level (ClosureCheckModule), and the others are not meaningful at
 /// module scope. The statement's declarations are scoped to it, so later code never
 /// references a name whose declaration was dropped.
-fn filler(g: &mut Gen) {
+///
+/// `after_default_decl`: the file has an `export default function|class` declaration. Java's
+/// parser reads such a declaration followed by a line that starts with `(`, `[`, a template,
+/// `/`, `+` or `-` as one expression (`export default (function f() {..})(..)`), so `f` is never
+/// bound; statements starting that way are dropped too.
+fn filler(g: &mut Gen, after_default_decl: bool) {
     for _ in 0..3 {
         let saved = std::mem::take(&mut g.out);
         // Own scope: a dropped attempt must not leave its declarations visible.
@@ -170,7 +188,11 @@ fn filler(g: &mut Gen) {
         let stmt = std::mem::replace(&mut g.out, saved);
         let bad = ["this", "arguments", "await", "yield", "throw"]
             .iter()
-            .any(|w| stmt.contains(w));
+            .any(|w| stmt.contains(w))
+            || (after_default_decl
+                && stmt
+                    .trim_start()
+                    .starts_with(['(', '[', '`', '/', '+', '-']));
         if !bad {
             g.w(&stmt);
             return;
@@ -341,6 +363,10 @@ fn destructure(g: &mut Gen, items: &[Item]) -> (String, Vec<Item>) {
             reached.push(it.clone());
         }
     }
+    if strict::active() {
+        // Lint (JSC_REQUIRES_NOT_SORTED): bindings sorted by exported name.
+        parts.sort();
+    }
     (format!("{{{}}}", parts.join(", ")), reached)
 }
 
@@ -365,13 +391,72 @@ fn module_get_use(g: &mut Gen, j: usize, shape: &Shape, its: &[Item]) {
     g.w(&format!("; }}\nconsole.log({f}());"));
 }
 
+/// The extra file of the weak layout (module docs).
+struct WeakFile {
+    text: String,
+    /// The exported class that users name in JSDoc.
+    class: String,
+    /// `users[i]`: file `i` reaches the weak file through goog.requireType.
+    users: Vec<bool>,
+}
+
+/// The weak file `m<idx>.js` of a goog.module / goog.provide program: a class (the type its
+/// users name) and up to two more typed items, each exported by name.
+fn weak_file(mut g: Gen, kind: FileKind, idx: usize, users: Vec<bool>) -> WeakFile {
+    let ns = format!("gen.m{idx}");
+    let style = if kind == FileKind::GoogProvide {
+        g.w(&format!("goog.provide('{ns}');"));
+        Style::Provide(ns)
+    } else {
+        g.w(&format!("goog.module('{ns}');"));
+        Style::GoogModule
+    };
+    set_kind(kind);
+    items::set_imports(vec![]);
+    items::set_export_mode(false, false);
+    g.nl();
+    let class = items::class(&mut g, &style).name().to_string();
+    for _ in 0..g.rng.range(0, 2) {
+        g.nl();
+        items::declare(&mut g, &style);
+    }
+    set_kind(FileKind::Script);
+    g.out.push('\n');
+    WeakFile {
+        text: g.out,
+        class,
+        users,
+    }
+}
+
+/// Where the weak layout's extra file goes among `n` files: the first `--js` position (after
+/// `base.js`) at which every other file keeps its `chunks2` and `chunks3` chunk, else the end.
+/// Such a position exists for every goog program size (4 to 6 files).
+pub fn weak_position(n: usize) -> usize {
+    let shifted = |i: usize, p: usize| if i < p { i } else { i + 1 };
+    (1..=n)
+        .find(|&p| {
+            (0..n).all(|i| {
+                chunk2(i, n) == chunk2(shifted(i, p), n + 1)
+                    && chunk3(i, n) == chunk3(shifted(i, p), n + 1)
+            })
+        })
+        .unwrap_or(n)
+}
+
 pub fn generate_closure_nth(seed: u64, index: u64, cfg: &Config) -> ClosureProgram {
     generate_closure(Rng::fork(seed ^ 0xC105_E000_0000_0000, index), cfg)
 }
 
+/// Salt of the weak-layout stream (forked from the program's stream without consuming it, so
+/// programs without the layout are unchanged by it).
+const WEAK_SALT: u64 = 0x5745_414b;
+
 pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
+    let mut lay = Rng::fork(rng.clone().next_u64(), WEAK_SALT);
     let mut g = Gen::new(rng, cfg);
-    let kind = *g.rng.pick(&[
+    let st = strict::active();
+    let mut kind = *g.rng.pick(&[
         FileKind::GoogModule,
         FileKind::GoogModule,
         FileKind::GoogProvide,
@@ -379,11 +464,34 @@ pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
         FileKind::EsModule,
         FileKind::CommonJs,
     ]);
+    if st {
+        kind = match kind {
+            // Lint: every goog.provide is JSC_USE_OF_GOOG_PROVIDE.
+            FileKind::GoogProvide => FileKind::GoogModule,
+            // The CommonJS rewrite leaves `var` and statements without semicolons that the lint
+            // checks then report (JSC_VAR, JSC_MISSING_SEMICOLON).
+            FileKind::CommonJs => FileKind::EsModule,
+            k => k,
+        };
+    }
     let has_base = matches!(kind, FileKind::GoogModule | FileKind::GoogProvide);
     // With base.js in c0, two modules would leave the second one nothing legal to import
     // under chunks3 (c0 = {base.js}), so goog programs get at least three.
     let modules = g.rng.range(if has_base { 3 } else { 2 }, 5) as usize;
     let n = modules + usize::from(has_base);
+    // Weak layout (module docs): the extra file, generated first from its own stream, and the
+    // files that reach it through goog.requireType (always the last module).
+    let weak: Option<WeakFile> = (has_base && lay.chance(1, 3)).then(|| {
+        let users: Vec<bool> = (0..n)
+            .map(|i| i == n - 1 || (i > 0 && lay.chance(1, 3)))
+            .collect();
+        weak_file(
+            Gen::new(Rng::fork(lay.next_u64(), n as u64), cfg),
+            kind,
+            n,
+            users,
+        )
+    });
     let mut files: Vec<(String, String)> = vec![];
     let mut deps: Vec<Vec<usize>> = vec![];
     // exports[i] = items exported by file i.
@@ -425,6 +533,8 @@ pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
         {
             my_deps.push(j);
         }
+        // Weak layout: this file names the weak file's class in JSDoc.
+        let weak_use = weak.as_ref().filter(|w| w.users[i]);
         set_kind(kind);
         g.out.clear();
         g.push_scope();
@@ -432,6 +542,7 @@ pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
         let mut alias: Vec<(usize, String, Vec<Item>)> = vec![];
         let mut legacy = false;
         let mut type_uses: Vec<String> = vec![];
+        let mut weak_ty: Option<String> = None;
         let mut default_uses: Vec<String> = vec![];
         match kind {
             FileKind::GoogModule => {
@@ -441,12 +552,14 @@ pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
                     g.w("goog.module.declareLegacyNamespace();");
                     legacy = true;
                 }
+                // Import statements, written after the loop (sorted in strict mode: lint
+                // JSC_REQUIRES_NOT_SORTED compares the statements' text).
+                let mut hdr: Vec<String> = vec![];
                 for &j in &my_deps {
                     if let Shape::Value(it) = &shapes[j] {
                         // Whole-value export: the require is the value itself.
                         let a = format!("m{j}");
-                        g.nl();
-                        g.w(&format!("const {a} = goog.require('gen.m{j}');"));
+                        hdr.push(format!("const {a} = goog.require('gen.m{j}');"));
                         let r = items::renamed(it, &a).unwrap_or_else(|| it.clone());
                         alias.push((j, String::new(), vec![r]));
                         continue;
@@ -459,22 +572,30 @@ pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
                     if !exports[j].is_empty() && g.rng.chance(1, 3) {
                         // Destructuring require (named exports only).
                         let (pat, reached) = destructure(&mut g, &exports[j]);
-                        g.nl();
-                        g.w(&format!("const {pat} = goog.require('gen.m{j}');"));
+                        hdr.push(format!("const {pat} = goog.require('gen.m{j}');"));
                         alias.push((j, String::new(), reached));
                         continue;
                     }
                     if let Some(c) = cls.filter(|_| g.rng.chance(1, 4)) {
                         let t = format!("t{j}");
-                        g.nl();
-                        g.w(&format!("const {t} = goog.requireType('gen.m{j}');"));
+                        hdr.push(format!("const {t} = goog.requireType('gen.m{j}');"));
                         type_uses.push(format!("{t}.{c}"));
                         continue;
                     }
                     let a = format!("m{j}");
-                    g.nl();
-                    g.w(&format!("const {a} = goog.require('gen.m{j}');"));
+                    hdr.push(format!("const {a} = goog.require('gen.m{j}');"));
                     alias.push((j, format!("{a}."), exports[j].clone()));
+                }
+                if let Some(w) = weak_use {
+                    hdr.push(format!("const t{n} = goog.requireType('gen.m{n}');"));
+                    weak_ty = Some(format!("t{n}.{}", w.class));
+                }
+                if st {
+                    hdr.sort();
+                }
+                for h in &hdr {
+                    g.nl();
+                    g.w(h);
                 }
             }
             FileKind::GoogProvide => {
@@ -483,6 +604,11 @@ pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
                     g.nl();
                     g.w(&format!("goog.require('gen.m{j}');"));
                     alias.push((j, format!("gen.m{j}."), exports[j].clone()));
+                }
+                if let Some(w) = weak_use {
+                    g.nl();
+                    g.w(&format!("goog.requireType('gen.m{n}');"));
+                    weak_ty = Some(format!("gen.m{n}.{}", w.class));
                 }
             }
             FileKind::EsModule => {
@@ -590,7 +716,8 @@ pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
             _ => 0,
         };
         let collect = shape_pick >= 5;
-        let es_default = kind == FileKind::EsModule && g.rng.chance(1, 4);
+        // Strict: lint reports every default export (JSC_DEFAULT_EXPORT).
+        let es_default = kind == FileKind::EsModule && g.rng.chance(1, 4) && !st;
         items::set_export_mode(collect, es_default);
         let k = g.rng.range(1, 4);
         let mut mine = vec![];
@@ -638,6 +765,14 @@ pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
                 "/** @type {{?{t}}} */\nconst {v} = null;\nconsole.log({v} === null ? 0 : 1);"
             ));
         }
+        if let Some(t) = &weak_ty {
+            // A name of its own per file (goog.provide files share the global scope); not
+            // `g.fresh`, which would shift the later names of this file.
+            g.nl();
+            g.w(&format!(
+                "/** @type {{?{t}}} */\nconst weakTv{i} = null;\nconsole.log(weakTv{i} === null ? 0 : 1);"
+            ));
+        }
         for d in &default_uses {
             g.nl();
             g.w(&format!("console.log({d});"));
@@ -661,8 +796,9 @@ pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
         // Some core-language filler (module-local).
         // Rare: untyped core-language code is the main source of type diagnostics, and the
         // single-file programs already cover it.
-        if g.rng.chance(1, 4) {
-            filler(&mut g);
+        // Strict: untyped core-language code never passes `--jscomp_error=*`.
+        if g.rng.chance(1, 4) && !st {
+            filler(&mut g, defaulted.is_some());
         }
         // Uses of imported items (cross-file, often cross-chunk).
         for (_, pfx, its) in &alias {
@@ -671,7 +807,13 @@ pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
             }
             g.nl();
             let p = pfx.clone();
-            items::observe(&mut g, &|_| p.clone(), its);
+            if st && pfx.is_empty() {
+                // Strict: every destructured or named import is used (JSC_EXTRA_REQUIRE_WARNING,
+                // unused imports).
+                items::observe_all(&mut g, "", its);
+            } else {
+                items::observe(&mut g, &|_| p.clone(), its);
+            }
         }
         // Wide classes: the declaring file only instantiates them (so crossChunkCodeMotion
         // cannot move the whole class to a deeper chunk) and leaves the method calls to
@@ -693,13 +835,20 @@ pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
             .filter(|it| !matches!(it, Item::Wide { .. }))
             .cloned()
             .collect();
-        if g.rng.chance(1, 2) {
+        // Strict: with a whole-value export the other declarations are module-local, so all of
+        // them are used here (JSC_UNUSED_LOCAL_ASSIGNMENT).
+        let use_all = st && matches!(shape, Shape::Value(_));
+        if g.rng.chance(1, 2) || use_all {
             g.nl();
             let local_pfx = match &style {
                 Style::Provide(ns) => format!("{ns}."),
                 _ => String::new(),
             };
-            items::observe(&mut g, &|_| local_pfx.clone(), &local_items);
+            if use_all {
+                items::observe_all(&mut g, &local_pfx, &local_items);
+            } else {
+                items::observe(&mut g, &|_| local_pfx.clone(), &local_items);
+            }
         }
         if matches!(kind, FileKind::GoogModule | FileKind::GoogProvide) && g.rng.chance(1, 3) {
             let it = g.rng.pick(&mine).clone();
@@ -753,7 +902,7 @@ pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
                     )),
                 }
             }
-            if defaulted.is_none() && !local_items.is_empty() && g.rng.chance(1, 5) {
+            if defaulted.is_none() && !local_items.is_empty() && g.rng.chance(1, 5) && !st {
                 g.nl();
                 g.w("export default ");
                 let it = g.rng.pick(&local_items).clone();
@@ -821,6 +970,21 @@ pub fn generate_closure(rng: rng::Rng, cfg: &Config) -> ClosureProgram {
     set_kind(FileKind::Script);
     let extra_flags = if kind == FileKind::CommonJs {
         vec!["--process_common_js_modules".to_string()]
+    } else if let Some(w) = weak {
+        let p = weak_position(n);
+        for d in &mut deps {
+            for j in d.iter_mut() {
+                if *j >= p {
+                    *j += 1;
+                }
+            }
+        }
+        files.insert(p, (format!("m{n}.js"), w.text));
+        deps.insert(p, vec![]);
+        let mode = *lay.pick(&["PRUNE", "PRUNE_LEGACY"]);
+        let mut f = vec![format!("--dependency_mode={mode}")];
+        f.extend((1..n).map(|i| format!("--entry_point=goog:gen.m{i}")));
+        f
     } else {
         vec![]
     };
