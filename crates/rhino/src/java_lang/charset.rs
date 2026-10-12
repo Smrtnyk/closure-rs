@@ -129,8 +129,9 @@ impl Charset {
                 little = true;
             }
         }
-        // Rust-only (D-025): one output buffer, sized up front, and a fast path for ASCII runs
-        // of UTF-8 (Java's decoder loops over a char buffer too; the result is the same).
+        // Rust-only (performance divergence): one output buffer, sized up front, and a fast path
+        // for ASCII runs of UTF-8 (Java's decoder loops over a char buffer too; the result is the
+        // same).
         out.reserve(bytes.len().saturating_sub(i));
         while i < bytes.len() {
             if self == Self::UTF_8 && bytes[i] < 128 {

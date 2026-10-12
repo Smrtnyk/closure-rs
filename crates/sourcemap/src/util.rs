@@ -155,8 +155,8 @@ impl UnescapedRegion {
     // port: Util.UnescapedRegion#appendUnescaped
     fn append_unescaped(&mut self, s: &JsString, sb: &mut String) {
         if self.unescaped_region_start != self.unescaped_region_end {
-            // Rust-only (D-025): the region holds only characters that need no escape (printable
-            // ASCII), copied directly instead of through a substring.
+            // Rust-only (performance divergence): the region holds only characters that need no
+            // escape (printable ASCII), copied directly instead of through a substring.
             let region = &s.as_units()[self.unescaped_region_start..self.unescaped_region_end];
             sb.extend(region.iter().map(|&unit| {
                 char::from_u32(u32::from(unit)).unwrap_or(char::REPLACEMENT_CHARACTER)

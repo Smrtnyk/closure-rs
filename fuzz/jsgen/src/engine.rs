@@ -35,7 +35,8 @@ pub struct Ctx {
     /// Set by jump statements (`break`/`continue`/`return`/`throw`); `block` emits nothing
     /// after a jump. Reason: dead block-scoped declarations after a jump crash the Java
     /// reference (IllegalStateException in NodeUtil.getInsertionPointAfterAllInnerFunctionDeclarations
-    /// via PeepholeRemoveDeadCode.redeclareIfBlockScopedVar), and D-009 drops Java crashes.
+    /// via PeepholeRemoveDeadCode.redeclareIfBlockScopedVar), and Java crashes are dropped
+    /// (docs/PORTING.md §4.4).
     pub terminated: bool,
 }
 

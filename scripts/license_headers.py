@@ -32,7 +32,7 @@ Inputs (defaults resolve against the main checkout, scripts/paths.py ROOT, as re
 and build/ are not tracked; $CLOSURE_RS_ROOT overrides it):
   reference/closure-compiler          Closure Compiler at the selected reference (paths.REF_SRC,
                                       v20261007 by default; scripts/fetch_reference.sh)
-  tools/jdk-21/lib/src.zip            the pinned JDK 21 sources (DECISIONS.md D-003)
+  tools/jdk-21/lib/src.zip            the pinned JDK 21 sources (oracle/REFERENCE.md, "Toolchain")
   protobuf v30.2 source tree          ~/.cache/bazel/_bazel_*/*/external/protobuf+ (Closure's
                                       Bazel build), or --protobuf DIR
   --libs DIR (build/license-sources)  guava-33.4.6-jre-sources.jar, gson-2.9.1-sources.jar,

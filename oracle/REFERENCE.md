@@ -5,12 +5,12 @@
 | Reference | google/closure-compiler release `v20261007` @ `21768cdbfa949bcce3f80d4285feb66475c4758c` = npm `google-closure-compiler@20261007.0.0` (registry tag `v20261007` in `scripts/references.tsv`, the default; fetched with `scripts/fetch_reference.sh` into `reference/closure-compiler-v20261007`) |
 | Bazel | 8.0.0 (from the reference's `.bazelversion`), via bazelisk v1.29.0 (`tools/bin/bazelisk`) |
 | JDK | Temurin jdk-21.0.12.1+1 (`tools/jdk-21`); Bazel builds with its hermetic remote JDK |
-| Tools | `scripts/setup_tools.sh` installs bazelisk, the JDK and `tools/env.sh` under `tools/`, pinned by version and sha256 (DECISIONS.md D-003) |
+| Tools | `scripts/setup_tools.sh` installs bazelisk, the JDK and `tools/env.sh` under `tools/`, pinned by version and sha256 ("Toolchain" below) |
 | Uberjar | `build/reference-v20261007/closure-compiler.jar`, sha256 `7792e7a3c1b1459ec5c80d8a3ce617eab2eb3a0f0aa078a292e91a42abc65ca2` |
 | Oracle | `build/oracle-v20261007/oracle.jar` |
 | Bazel output_base | `~/.cache/bazel/_bazel_<user>/<hash>` (Bazel's default for the reference workspace; one per checkout) |
 
-Every reference stays installed alongside the newer ones (docs/PORTING.md §9, DECISIONS.md D-026):
+Every reference stays installed alongside the newer ones (docs/PORTING.md §9):
 
 | Registry tag | Upstream | Checkout (under the main checkout) | Uberjar sha256 | Oracle |
 |---|---|---|---|---|
@@ -33,6 +33,16 @@ zlib-ng's default strategies, the build gives a jar with the same entries, byte 
 other compressed bytes and so another sha256. `.github/workflows/java-comparison.yml` therefore
 builds zlib-ng 2.3.3 with those options and installs it ahead of the system zlib before it
 builds the jar.
+
+## Toolchain
+
+The reference build needs a JDK, Bazel and protoc, none of which the project expects on the host,
+and nothing is installed system-wide. `scripts/setup_tools.sh` installs bazelisk and a Temurin
+JDK 21 (the reference's `java_language_version=21`) under `tools/`, which is gitignored, each
+pinned by version and sha256; `. tools/env.sh` puts them on `PATH` and sets
+`BAZELISK_HOME=tools/bazelisk-home`. Bazel itself comes from the reference's `.bazelversion`,
+builds protoc from source and keeps its default output root (`~/.cache/bazel`). The whole-suite test target is
+`//:compiler_tests`, the `gen_java_tests` test_suite, which is narrower than `//:all`.
 
 ## Commands
 

@@ -3006,8 +3006,9 @@ use(C);
     );
 }
 
-// Rust-only (DECISIONS.md D-025): the second run of the pass on a compiler skips the externs when
-// their NAMEs resolve only to vars declared in the externs, and traverses them otherwise.
+// Rust-only (crates/DESIGN.md, "Performance divergences"): the second run of the pass on a compiler
+// skips the externs when their NAMEs resolve only to vars declared in the externs, and traverses
+// them otherwise.
 #[test]
 fn test_rerun_skips_externs_that_refer_only_to_externs() {
     let mut t = InlineVariablesTest::set_up();

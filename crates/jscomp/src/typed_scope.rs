@@ -74,9 +74,9 @@ pub(crate) struct TypedScopeData {
     pub(crate) view: OnceLock<&'static Arc<TypedScopeView>>,
 }
 
-/// Rust-only (D-025): lock-free copies of a typed scope's fields that never change after
-/// construction (see `scope::ScopeMirror`), in `Compiler::typed_scope_mirror`, index-aligned with
-/// `TypedScopeArena::scopes`.
+/// Rust-only (performance divergence): lock-free copies of a typed scope's fields that never change
+/// after construction (see `scope::ScopeMirror`), in `Compiler::typed_scope_mirror`, index-aligned
+/// with `TypedScopeArena::scopes`.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TypedScopeMeta {
     root_node: NodeId,
@@ -513,7 +513,7 @@ impl TypedScope {
 
     // port: TypedScope#getVar
     pub fn get_var(self, compiler: &mut AbstractCompiler, name: impl NameArg) -> Option<TypedVar> {
-        // Rust-only: the name is read by reference (D-025).
+        // Rust-only: the name is read by reference (performance divergence).
         name.with_name(|name| self.get_var_by_ref(compiler, name))
     }
 
@@ -554,8 +554,9 @@ impl TypedScope {
     }
 
     // port: AbstractScope#getVar
-    /// Rust-only fast path (D-025): for a name no implicit slot can match, getOwnSlot only reads
-    /// each scope's declared vars, so the chain is walked under one read lock.
+    /// Rust-only fast path (performance divergence): for a name no implicit slot can match,
+    /// getOwnSlot only reads each scope's declared vars, so the chain is walked under one read
+    /// lock.
     fn abstract_get_var(
         self,
         compiler: &mut AbstractCompiler,

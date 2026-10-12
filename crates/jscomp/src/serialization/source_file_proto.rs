@@ -18,7 +18,7 @@
 //   src/com/google/javascript/jscomp/GlobalNamespace.java,
 //   src/com/google/javascript/rhino/typed_ast/source_file.proto.
 
-// Generated from src/com/google/javascript/rhino/typed_ast/source_file.proto (protoc's Java API shape; D-003, no
+// Generated from src/com/google/javascript/rhino/typed_ast/source_file.proto (protoc's Java API shape; no
 // protoc on the host). Wire format and defaults follow proto3; see protobuf.rs.
 #![allow(clippy::all, unused_imports, unused_variables, dead_code)]
 use super::protobuf::{

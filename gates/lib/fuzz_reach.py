@@ -26,7 +26,7 @@ Subcommands
                                       changingRuns > 0, and pass-dump effective passes
 
 All oracle servers run in the golden environment (oracle_client.golden_env(), ready line
-checked against GOLDEN_JVM_ENV; D-010).  Heap: --servers x 1536m plus at most one 3g retry.
+checked against GOLDEN_JVM_ENV; docs/PORTING.md §4.1).  Heap: --servers x 1536m plus at most one 3g retry.
 """
 from __future__ import annotations
 

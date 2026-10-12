@@ -24,5 +24,5 @@
    "category": "test-local-object"
   }
  ],
- "note": "re-checked by classify batch 13 (D-017): the methods' only post-call statements are addPolyfill guards on test-local input construction."
+ "note": "re-checked by classify batch 13: the methods' only post-call statements are addPolyfill guards on test-local input construction."
 }

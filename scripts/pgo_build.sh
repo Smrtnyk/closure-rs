@@ -12,8 +12,9 @@
 #  4. builds the release binary with the merged profile (-Cprofile-use), where
 #     `cargo build --release --locked --bin closure-rs [--target TRIPLE]` puts it.
 #
-# The profile changes how fast the compiler runs, never what it writes (DECISIONS.md D-025): on
-# the benchmark bundles the profile-guided binary takes about 8% less CPU time.
+# The profile changes how fast the compiler runs, never what it writes (crates/DESIGN.md,
+# "Performance divergences"): on the benchmark bundles the profile-guided binary takes about 8%
+# less CPU time.
 # Exit code: 0 = built with the profile; non-zero = a step failed (the caller may build without).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

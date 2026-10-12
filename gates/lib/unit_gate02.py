@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Gate 0.2 ((a)-(e), D-015/D-017; docs/PORTING.md §4.2) driver.  Used by gates/gate_0_2.sh.
+"""Gate 0.2 ((a)-(e) as gates/gate_0_2.sh defines them; docs/PORTING.md §4.2) driver.  Used by gates/gate_0_2.sh.
 
 Subcommands (each resumable: a finished unit leaves <unit>.done.json and is skipped):
   prep        compile the replay harness once, prove rule 6, compute the pass mapping
   replay      (a) replay every record-bearing class, no agent
   cov-orig    (c) original suite (all *Test classes, recording hook OFF) under the JaCoCo agent
   cov-replay  (c) full replay under the same JaCoCo agent
-  mutate      (d) class-level NoopAgent replays (D-015, D-017 items 10 and 11): the 30 in-scope passes
+  mutate      (d) class-level NoopAgent replays (FORMAT.md "Change-expecting records", HARNESS.md "Pass trace and group no-op"): the 30 in-scope passes
               (type-check unit {TypedScopeCreator, TypeInferencePass, TypeCheck} as one) with the most
               change-expecting records, each group of two or more ranked passes a record's passTrace shows
               (joint no-op, agent form A;B;C), and TypeCheck alone for information
@@ -71,7 +71,7 @@ WRAPPERS = {"com.google.javascript.jscomp.PeepholeOptimizationsPass",
 NOOP_AGENT_SRC = f"{ROOT}/oracle/replay/agent/src/closurers/agent/NoopAgent.java"
 NOOP_AGENT_BUILD = f"{ROOT}/scripts/unit_noop_agent_build.sh"
 NOOP_AGENT_JAR = f"{W}/tools/noop-agent.jar"
-# D-017 item 8 (HARNESS.md "Pass trace"): NoopAgent TRACE mode, scope = in-scope src top-level classes.
+# HARNESS.md "Pass trace": NoopAgent TRACE mode, scope = in-scope src top-level classes.
 TRACE_SRC = f"{ROOT}/oracle/replay/agent/src/closurers/agent/Trace.java"
 TRACE_SCOPE_SCRIPT = f"{ROOT}/scripts/unit_trace_scope.py"
 TRACE_SCOPE = f"{W}/tools/trace_scope.txt"
@@ -409,7 +409,7 @@ def entry_owners(names):
     return out
 
 
-# D-017 item 10 helpers (compiled into build/gate02/java against the replay classpath; not on the replay
+# Change-expecting helpers (FORMAT.md "Change-expecting records"; compiled into build/gate02/java against the replay classpath; not on the replay
 # classpath itself, and neither name matches the rule-6 *Test pattern).
 EQUIV_JAVA = r"""package com.google.javascript.jscomp;
 
@@ -429,7 +429,7 @@ import java.util.List;
 import java.util.zip.GZIPInputStream;
 
 /**
- * Gate 0.2(d) helper, D-017 item 10: for each compiler_test_case record whose expected output is a
+ * Gate 0.2(d) helper (FORMAT.md "Change-expecting records"): for each compiler_test_case record whose expected output is a
  * list of files, parse the record's input sources and the expected output in the record's language
  * mode (options.languageIn; each file parsed on its own, parser only) and compare the scripts,
  * file by file, with Node.isEquivalentTo, without normalization, including JSDoc when the record's
@@ -562,10 +562,10 @@ import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
 /**
- * Gate 0.2(d) helper, D-017 item 10 (postcondition): for each compiler_test_case record with
+ * Gate 0.2(d) helper (FORMAT.md "Change-expecting records") (postcondition): for each compiler_test_case record with
  * expected.postconditions > 0, replay the record with the whole processor a no-op
  * (ReplayCompilerTest.noopProcessor, the parsed and unprocessed input) and compare the observed
- * postCall.postcondition state (D-017 item 1) with the recorded one. Prints class TAB index TAB
+ * postCall.postcondition state (FORMAT.md "Postcondition data") with the recorded one. Prints class TAB index TAB
  * (equal|differs|noRecordedValue|noObservedValue|error: ...) per such record.
  */
 public final class Gate02PostcondProbe {
@@ -700,13 +700,13 @@ def outer(fq):
 
 
 TYPECHECK_KEY = "com.google.javascript.jscomp.TypeCheck"
-# D-017 item 11: TypeCheck is ranked (and no-op'd) as the type-check unit.
+# TypeCheck is ranked (and no-op'd) as the type-check unit.
 TYPECHECK_UNIT = ("com.google.javascript.jscomp.TypeCheck", "com.google.javascript.jscomp.TypeInferencePass",
                   "com.google.javascript.jscomp.TypedScopeCreator")
 
 
 def unit_key(p):
-    """D-017 item 11: a member of the type-check unit {TypedScopeCreator, TypeInferencePass, TypeCheck}
+    """A member of the type-check unit {TypedScopeCreator, TypeInferencePass, TypeCheck}
     is ranked and attributed as the unit (key TYPECHECK_KEY)."""
     return TYPECHECK_KEY if p in TYPECHECK_UNIT else p
 
@@ -724,7 +724,7 @@ def nested_src_classes(srcset):
 
 
 def compute_pass_map(counts):
-    """Ranking candidates per record, for gate (d) (D-015, D-017 item 11). A record of test class T (kind
+    """Ranking candidates per record, for gate (d) (HARNESS.md "Pass trace and group no-op"). A record of test class T (kind
     compiler_test_case or type_check) is a record of src pass P when:
       1. name convention: P's simple name S is the longest src pass-role class name with
          T == S + 'Test', or T starting with S followed by an upper-case letter when the record's
@@ -733,10 +733,10 @@ def compute_pass_map(counts):
          (class/object/unrepresentable/classRef) where that class or P has a pass role,
          excluding harness wrappers (PeepholeOptimizationsPass, PhaseOptimizer, CombinedCompilerPass); or
       3. kind type_check: P = TypeCheck (TypeCheckTestCase runs TypeCheck).
-    D-017 item 11: when rule 1 applies (the test class is named after P, prefix form included, fixed per
-    item 5) the record is a record of P only; members of the type-check unit {TypedScopeCreator,
+    When rule 1 applies (the test class is named after P, prefix form included, with the name-prefix
+    fix) the record is a record of P only; members of the type-check unit {TypedScopeCreator,
     TypeInferencePass, TypeCheck} count as the unit (unit_key). Per record the map also keeps whether
-    rule 1 applied ("named") and the record's passTrace (D-017 item 8) mapped through unit_key ("trace"),
+    rule 1 applied ("named") and the record's passTrace (FORMAT.md "passTrace") mapped through unit_key ("trace"),
     which d_units uses to attribute records to the ranked passes and groups.
     Integration records test whole pipelines and are not attributed to a pass."""
     src = src_top_classes()
@@ -756,9 +756,10 @@ def compute_pass_map(counts):
             lst.append((r["kind"], sorted(acc), r.get("passTrace")))
         per_record[name] = lst
     roles = pass_roles(sorted(srcset | referenced))
-    # D-017 item 11 name rule: a top-level src class whose pass role comes from
-    # a nested pass-role class (ReplaceMessages: MsgProtectionPass/FullReplacementPass) is a pass for
-    # rule 1 as it already is for rule 2 (outer() of a pass-role class), so the two notions agree.
+    # Name rule (HARNESS.md "Pass trace and group no-op"): a top-level src class whose pass role
+    # comes from a nested pass-role class (ReplaceMessages: MsgProtectionPass/FullReplacementPass)
+    # is a pass for rule 1 as it already is for rule 2 (outer() of a pass-role class), so the two
+    # notions agree.
     nested = nested_src_classes(srcset)
     nroles = pass_roles(nested) if nested else {}
     nested_pass_tops = {outer(n) for n in nested if nroles.get(n) == "pass"}
@@ -798,7 +799,7 @@ def compute_pass_map(counts):
             named_passes = {outer(c) for c in acc if outer(c) not in WRAPPERS
                             and (roles.get(c) == "pass" or roles.get(outer(c)) == "pass")}
             if conv and (not prefix_only or conv in named_passes or not named_passes):
-                # D-017 item 11: named after a pass -> that pass only.
+                # Named after a pass -> that pass only.
                 recs.append([unit_key(conv)])
                 nameds.append(True)
                 continue
@@ -829,7 +830,7 @@ PHASE_CODE = ("class_source_file", "rule6_scan", "ensure_tools", "src_top_classe
 
 
 def build_noop_agent():
-    """Class-level no-op mutation agent (HARNESS.md "Class-level no-op mutation", D-015 d)."""
+    """Class-level no-op mutation agent (HARNESS.md "Class-level no-op mutation")."""
     marker = f"{NOOP_AGENT_JAR}.done.json"
     digest = sha256(NOOP_AGENT_SRC) + sha256(TRACE_SRC) + sha256(NOOP_AGENT_BUILD) + sha256(TRACE_SCOPE_SCRIPT)
     if (os.path.exists(marker) and os.path.exists(NOOP_AGENT_JAR) and os.path.exists(TRACE_SCOPE)
@@ -943,12 +944,12 @@ def replay_argv(name, out, mutate=None, exec_file=None, post_out=None, noop=Fals
     if exec_file:
         a.append(f"-javaagent:{AGENT}=destfile={exec_file},{AGENT_OPTS}")
     if trace_out:
-        # D-017 item 8: NoopAgent TRACE mode (no class is no-op'd); ReplayMain compares each record's
+        # NoopAgent TRACE mode (FORMAT.md "passTrace"; no class is no-op'd); ReplayMain compares each record's
         # passTrace with the replayed one (a difference fails the record) and writes the statuses.
         assert not mutate, "trace mode and no-op mutation are separate runs"
         a += [ASM_EXPORT, f"-javaagent:{NOOP_AGENT_JAR}=trace={TRACE_SCOPE}"]
     if mutate:
-        # D-015 (d): class-level no-op of the pass's entry points wherever it is constructed
+        # Class-level no-op of the pass's entry points wherever it is constructed
         # (NoopAgent rewrites the class bytes at load time; src/ is untouched). The agent writes
         # LOADED/REWROTE lines to <out stem>.agent.txt as proof that the mutation took effect.
         # The report is removed by run_units right before the unit runs, never here: argv is built
@@ -1079,7 +1080,7 @@ def compile_gate_java():
 
 
 def change_facts():
-    """D-017 item 10 inputs, computed once per stamp (build/gate02/changefacts/):
+    """Change-expecting inputs (FORMAT.md "Change-expecting records"), computed once per stamp (build/gate02/changefacts/):
       code: per compiler_test_case record whose expected output is a file list, Gate02AstEquiv parses
         the input sources and the expected output in the record's language mode (options.languageIn;
         each file with the parser only, CompilerInput.getAstRoot, no module loading) and compares the
@@ -1088,7 +1089,7 @@ def change_facts():
         annotated " (no languageIn: CompilerOptions default)" and " (JSDoc compared)");
       postcondition: per compiler_test_case record with expected.postconditions > 0, Gate02PostcondProbe
         replays it with the whole processor a no-op (the parsed, unprocessed input) and compares the
-        observed postCall.postcondition state (D-017 item 1) with the recorded expected value
+        observed postCall.postcondition state (FORMAT.md "Postcondition data") with the recorded expected value
         ("equal" / "differs" / "noRecordedValue" / "noObservedValue" / "error: ...")."""
     d = f"{W}/changefacts"
     cache = f"{d}/changefacts.json"
@@ -1128,7 +1129,7 @@ def change_facts():
 
 
 def change_expecting(cls, i, r, facts):
-    """D-017 item 10 (gate 0.2 (d)): the record expects
+    """Gate 0.2 (d), FORMAT.md "Change-expecting records": the record expects
       - an output AST different from its input: the input and the expected output, parsed in the
         record's language mode, are not isEquivalentTo (no normalization; a text-only difference is
         no-change; a record whose comparison could not be made counts as change-expecting); or
@@ -1160,12 +1161,12 @@ def in_scope_pass(fq):
 
 
 def unit_members(key):
-    """The classes the NoopAgent no-ops jointly for a ranked pass key (D-017 item 11)."""
+    """The classes the NoopAgent no-ops jointly for a ranked pass key (HARNESS.md "Pass trace and group no-op")."""
     return list(TYPECHECK_UNIT) if key == TYPECHECK_KEY else [key]
 
 
 def d_units(top, pm):
-    """D-017 item 11 measurement units over the 30 ranked passes R:
+    """Measurement units (HARNESS.md "Pass trace and group no-op") over the 30 ranked passes R:
       - a record whose test class is named after a pass (compute_pass_map rule 1) belongs to that pass
         only (when it is ranked);
       - otherwise the record belongs to the ranked passes whose entry points its passTrace shows
@@ -1206,13 +1207,13 @@ def d_units(top, pm):
                       "dir": "group-" + hashlib.sha256(";".join(g).encode()).hexdigest()[:12],
                       "members": members, "records": recs})
     if TYPECHECK_KEY in rset:
-        units.append({"key": TYPECHECK_KEY + "#alone", "kind": "info", "label": "TypeCheck alone (information, D-017 item 11)",
+        units.append({"key": TYPECHECK_KEY + "#alone", "kind": "info", "label": "TypeCheck alone (information)",
                       "dir": "TypeCheck.alone", "members": [TYPECHECK_KEY], "records": single[TYPECHECK_KEY]})
     return units
 
 
 def selected_passes():
-    """D-015 (d), D-017 items 10 and 11: the 30 in-scope passes (type-check unit as one) with the most
+    """Gate 0.2 (d) (FORMAT.md "Change-expecting records", HARNESS.md "Pass trace and group no-op"): the 30 in-scope passes (type-check unit as one) with the most
     change-expecting records (ranking candidates from compute_pass_map), and the measurement units."""
     pm = jload(f"{W}/passmap.json")
     facts = change_facts()
@@ -1280,7 +1281,7 @@ def load_desc(c):
 
 
 def captured_postcondition_indices(r):
-    """D-017 item 1 (FORMAT.md "Postcondition data"): indices i of expected.postconditionValues whose
+    """FORMAT.md "Postcondition data": indices i of expected.postconditionValues whose
     lambda's asserted state the recorder captured as replay-compared post-call data
     (expected.postconditionsCaptured, valid only when postCall.postcondition is present)."""
     ex = r.get("expected") or {}
@@ -1292,7 +1293,7 @@ def captured_postcondition_indices(r):
 
 def placeholder_sections(r):
     """Top-level record sections that hold a {"unrepresentable": ...} placeholder anywhere, except the
-    lambda placeholders of postconditions whose asserted state is captured (D-017 item 1)."""
+    lambda placeholders of postconditions whose asserted state is captured (FORMAT.md "Postcondition data")."""
     found = set()
     skip = captured_postcondition_indices(r)
 
@@ -1323,7 +1324,7 @@ def placeholder_sections(r):
 
 
 def _postcall_absent_key(rec, via):
-    """D-017 item 3 (FORMAT.md "postCall key-set equality"): postCallAbsent.<compiler|pass>.<key> claims
+    """FORMAT.md "postCall key-set equality": postCallAbsent.<compiler|pass>.<key> claims
     that the asserted state is the absence of that key. Valid because ReplayMain compares postCall by
     JsonObject equality (exact key sets): the record must have a postCall snapshot whose section lacks
     the key (pass keys also without the "pass." prefix)."""
@@ -1339,7 +1340,7 @@ def _postcall_absent_key(rec, via):
 
 def _postcall_key(rec, via):
     """FORMAT.md postcall schema: postCall.<compiler|pass|postcondition>.<key>; pass keys may omit
-    "pass.". The postcondition section (D-017 item 1, FORMAT.md "Postcondition data") is part of the
+    "pass.". The postcondition section (FORMAT.md "Postcondition data") is part of the
     postCall object replay compares by JsonObject equality, like the other two sections."""
     parts = via.split(".", 2)
     if len(parts) != 3 or parts[0] != "postCall" or parts[1] not in ("compiler", "pass", "postcondition"):
@@ -1413,7 +1414,7 @@ def load_postcall(c):
             if not (x.get("reason") or "").strip():
                 errs.append(f"{c}#{m}: rust_unit_test needs a reason")
                 continue
-            # D-015 a: rust_unit_test means "the assertion inspects Java-internal
+            # rust_unit_test means "the assertion inspects Java-internal
             # objects". A reason that itself says the asserted state is not Java-internal, or that
             # the label is interim/provisional (pending a snapshot key), is not that class: the method
             # stays unclassified until it is captured.
@@ -1421,7 +1422,7 @@ def load_postcall(c):
             bad_marker = next((k for k in RUT_REJECT_MARKERS if k in low), None)
             if bad_marker:
                 errs.append(f"{c}#{m}: rust_unit_test reason contains {bad_marker!r}; not a Java-internal "
-                            f"assertion (D-015 a): capture it or leave it unclassified")
+                            f"assertion: capture it or leave it unclassified")
                 continue
             rv = next((k for k in RUT_REPLAYED_VALUE_MARKERS if k in low), None)
             # Applies to the categories whose asserted value could itself be the replayed value
@@ -1448,7 +1449,7 @@ def load_postcall(c):
                     continue
         elif st == "unclassified":
             # An explicit entry for a method that is neither captured nor a Rust unit
-            # test yet (the D-017 item 2 neutral key it needs is not produced). It counts as unclassified;
+            # test yet (the neutral snapshot key it needs is not produced). It counts as unclassified;
             # `pending` says what would capture it.
             if not (x.get("pending") or "").strip():
                 errs.append(f"{c}#{m}: an explicit unclassified entry needs a pending text")
@@ -1461,14 +1462,14 @@ def load_postcall(c):
 
 
 def post_call_audit(post_by_class, fails_by_class, marked):
-    """D-015 (a): the static post-call-assertion scan (gates/lib/unit_postassert_scan.py) joined with
+    """Gate 0.2 (a): the static post-call-assertion scan (gates/lib/unit_postassert_scan.py) joined with
     the replay's post-call state and corpus/unit/postcall/<Class>.json (FORMAT.md). A flagged method is
     classified when (1) its postcall entry is `captured` and every claim in `via` holds for every
     record of the method (there is no mechanical rule), or (2) its postcall
     entry is `rust_unit_test` (every record of the method is excluded) and the
     reason names every postCall key its records carry. Records with replay post state
     "unclassified" (testFieldsAfter changed, not compared) are resolved by the same entries.
-    Descriptor `postCallAssertions` no longer classify anything (D-015 replaced them)."""
+    Descriptor `postCallAssertions` no longer classify anything (corpus/unit/postcall/ replaced them)."""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import unit_postassert_scan
     flagged = unit_postassert_scan.scan(REC)  # raises UnresolvedSource (fails the report loudly)
@@ -2044,11 +2045,11 @@ def cmd_report():
         for i, x in post.items():
             if x.get("postState") == "notCaptured" and (c, i) not in ic_resolved:
                 not_captured.setdefault(c, {})[i] = x.get("reason", "")
-    # D-015 (a), gate 0.2 (a): a record of a rust_unit_test method is not
+    # Gate 0.2 (a): a record of a rust_unit_test method is not
     # captured, whatever else replay compares for it. The same holds for the records of a method that is
     # unclassified (with or without an explicit entry) or whose classification claim does not hold, and
     # for records with unclassified post state: none of them is captured, so all count toward the cap
-    # (D-015: "records that are not captured count toward a 3% exclusion cap"); the methods themselves
+    # (records that are not captured count toward the 3% exclusion cap); the methods themselves
     # still fail (a) through the unclassified count. A compared testFieldsAfter field (postState
     # "checked") does not hold the asserted state (the method is classified rust_unit_test exactly
     # because no snapshot holds it), so it no longer exempts the record from the 3% exclusion cap.
@@ -2203,7 +2204,7 @@ def cmd_report():
     for r in proc_rows:
         for k, v in r["statuses"].items():
             proc_summary[k] = proc_summary.get(k, 0) + v
-    # D-017 item 8: processor identity is verified mechanically by the pass trace. ReplayMain ran with
+    # FORMAT.md "passTrace": processor identity is verified mechanically by the pass trace. ReplayMain ran with
     # the NoopAgent in TRACE mode and wrote <Class>.trace.jsonl: per record equal / mismatch (also a
     # replay failure) / unverified (no recorded passTrace). An unverified record counts as excluded
     # under the 3% cap; a missing or incomplete trace file fails (a). processorIdentityNote is not
@@ -2274,7 +2275,7 @@ def cmd_report():
                             "exclusionCap": EXCLUSION_CAP, "exclusionCapOk": a_cap_ok,
                             "fail": a_fail, "excludedMarkedUnrepresentable": a_excl - a_not_captured - a_trace_unverified,
                             "excludedTraceUnverified": a_trace_unverified,
-                            "passTrace": {"rule": "D-017 item 8: NoopAgent TRACE mode records the in-scope src top-level classes whose pass entry points (CompilerPass/HotSwapCompilerPass/CallGraphCompilerPass process, hotSwapScript, peephole optimizeSubtree/transpileSubtree, NodeTraversal callback methods) execute during the hooked call, in the recording run (record passTrace) and in replay; the sets must be equal (a difference fails the record); a record without a recorded passTrace counts as excluded under the 3% cap; processorIdentityNote is not accepted as evidence",
+                            "passTrace": {"rule": "NoopAgent TRACE mode records the in-scope src top-level classes whose pass entry points (CompilerPass/HotSwapCompilerPass/CallGraphCompilerPass process, hotSwapScript, peephole optimizeSubtree/transpileSubtree, NodeTraversal callback methods) execute during the hooked call, in the recording run (record passTrace) and in replay; the sets must be equal (a difference fails the record); a record without a recorded passTrace counts as excluded under the 3% cap; processorIdentityNote is not accepted as evidence",
                                           "statusCounts": trace_status, "mismatch": len(trace_mismatch),
                                           "mismatchSample": trace_mismatch[:30], "missingOrIncompleteTraceFiles": trace_missing,
                                           "unverifiedRecords": sum(len(v) for v in trace_unverified.values()),
@@ -2294,7 +2295,7 @@ def cmd_report():
                                               "recordsCountedThatPassUnderNoop": sum(r["passUnderNoopProcessor"] for r in noop_rows),
                                               "perClass": noop_rows},
                             "postconditionCountMismatch": len(pc_mismatch), "postconditionCountMismatchSample": pc_mismatch[:30],
-                            "processorIdentity": {"rule": "additional check (kept): counted compiler_test_case records: scalar, enum and String leaves of the replayed processor dump (depth 2) must equal the recorded ones, object by object by class after classMap; mismatch fails (a); classDiffers records are listed (classDiffersNoLeafCompared = nothing comparable); identity itself is verified by passTrace (D-017 item 8), not by processorIdentityNote",
+                            "processorIdentity": {"rule": "additional check (kept): counted compiler_test_case records: scalar, enum and String leaves of the replayed processor dump (depth 2) must equal the recorded ones, object by object by class after classMap; mismatch fails (a); classDiffers records are listed (classDiffersNoLeafCompared = nothing comparable); identity itself is verified by passTrace (FORMAT.md "passTrace"), not by processorIdentityNote",
                                                   "statusCounts": proc_summary, "mismatch": len(proc_mismatch),
                                                   "unverifiedClassDiffers": proc_unverified,
                                                   "unverifiedClassDiffersRecords": sum(x["records"] for x in proc_unverified),
@@ -2344,7 +2345,7 @@ def cmd_report():
         else:
             orig = coverage_xml([f"{W}/cov/orig/{n}.exec" for n in allc], "orig")
             repl = coverage_xml([f"{W}/cov/replay/{c}.exec" for c in record_classes()], "replay")
-            # D-017 item 9: a harness-based test class is one whose original run makes at least one
+            # Gate 0.2 (c): a harness-based test class is one whose original run makes at least one
             # hooked harness call, i.e. a record-bearing class (by (b), records == hooked calls).
             # Classes that inherit a harness (static class-hierarchy check of the pristine test/ tree)
             # but never call it are non-harness classes: they leave the denominator and must be
@@ -2375,7 +2376,7 @@ def cmd_report():
                             orig_fail.append(t)
                 else:
                     orig_fail.append(f"{n}: no stats (JVM rc {jload(f'{W}/cov/orig/{n}.done.json')['rc']})")
-            # D-015 (c): the denominator is the original suite's harness-based test classes (the
+            # Gate 0.2 (c): the denominator is the original suite's harness-based test classes (the
             # record-bearing classes); the whole-suite ratio is reported alongside.
             ratio = (rc_ / hc) if hc else 0.0
             whole_ratio = (rc_ / oc) if oc else 0.0
@@ -2410,14 +2411,14 @@ def cmd_report():
                                 "replayCoveredLines": ins_r, "wholeSuiteRatio": (ins_r / ins_o) if ins_o else 0.0,
                                 "origHarnessClassesCoveredLines": ins_h,
                                 "ratio": ratio, "neededReplayLinesFor98": int(-(-0.98 * ins_h // 1)),
-                                "note": "the gate verdict (D-015 (c), gate 0.2 (c) 'in-scope src/')"}
+                                "note": "the gate verdict (gate 0.2 (c) 'in-scope src/')"}
             c_res = {"ok": ratio >= 0.98 and not nonh_missing and rut_fresh,
                      "scope": c_res_info_scope,
                      "info_allSrc": {"srcFiles": len(files), "srcLines": tl, "origCoveredLines": oc,
                                      "replayCoveredLines": rc_, "harnessCoveredLines": hc,
                                      "ratio": all_src_ratio, "wholeSuiteRatio": whole_ratio,
                                      "note": "informational only: all of src/, including the docs/PORTING.md §2 out-of-scope code"},
-                     "denominator": "original suite restricted to the harness-based test classes (D-017 item 9): classes whose original run makes at least one hooked harness call (record-bearing classes); harness-hierarchy classes with zero records are non-harness classes and must be listed in RUST_UNIT_TESTS.md",
+                     "denominator": "original suite restricted to the harness-based test classes (gate 0.2 (c)): classes whose original run makes at least one hooked harness call (record-bearing classes); harness-hierarchy classes with zero records are non-harness classes and must be listed in RUST_UNIT_TESTS.md",
                      "harnessHierarchy": hier_note, "harnessClassesWithZeroRecords": harness_zero_records,
                      "harnessClasses": len(harness), "harnessCoveredLines": ins_h, "harnessPct": 100.0 * ins_h / ins_tl,
                      "wholeSuiteRatio": (ins_r / ins_o) if ins_o else 0.0,
@@ -2509,7 +2510,7 @@ def cmd_report():
             per_cls.append({"class": cls, "records": len(idx), "failedUnderMutation": len(fset),
                             "failedNonAssertion": len(fnon),
                             "harnessCompleted": rr is not None, "construction": cons})
-        # D-015 (d): the pass mark is over change-expecting records only; records that expect no
+        # Gate 0.2 (d): the pass mark is over change-expecting records only; records that expect no
         # change are reported (and expected to pass under the no-op).
         rate = failed_change / n_change if n_change else 0.0
         # Every pass-role class under P that the replays loaded must have at least one
@@ -2562,7 +2563,7 @@ def cmd_report():
                             "changeFacts": {"code": collections_counter([v[:60] for m in facts["code"].values() for v in m.values()]),
                                             "postcondition": collections_counter([v[:60] for m in facts["postcondition"].values() for v in m.values()])},
                             "unitsRule": d_units.__doc__.strip(),
-                            "mutation": "class-level: oracle/replay/agent NoopAgent rewrites the pass class's entry points at load time (D-015 d)",
+                            "mutation": "class-level: oracle/replay/agent NoopAgent rewrites the pass class's entry points at load time",
                             "ranking": ranked[:45],
                             "rankingRule": "in-scope passes (docs/PORTING.md §2 out-of-scope packages and J2cl*/Polymer*/Chrome*/Debugger* classes excluded, in_scope_src) by change-expecting records: " + change_expecting.__doc__.strip(),
                             "attribution": compute_pass_map.__doc__.strip()}
@@ -2653,7 +2654,7 @@ def write_md(rep):
     L.append(f"| (a) replay 100% | {'PASS' if a['ok'] else 'FAIL'} | {a['pass']}/{a['replayed']} pass, {a['fail']} fail, {a['excludedMarkedUnrepresentable']} excluded (descriptor-marked), "
              f"{a['excludedPostCallNotCaptured']} excluded (post-call not captured), {a['excludedTraceUnverified']} excluded (no verifiable passTrace); exclusions {a['excludedTotal']} = {a['excludedFraction']:.2%} (cap 3%: {'ok' if a['exclusionCapOk'] else 'EXCEEDED'}); post state unclassified {a['postStateUnclassified']}; "
              f"post-call-assertion methods unclassified {a['postCallAssertionAudit']['unclassified']}/{a['postCallAssertionAudit']['methods']}; "
-             f"records demoted by the no-op vacuity rule {a['noopProcessor']['recordsDemotedNotCaptured']}; postcondition-count mismatches {a['postconditionCountMismatch']}; processor identity (passTrace, D-017 item 8): statuses {a['passTrace']['statusCounts']}, mismatch {a['passTrace']['mismatch']}, unverified (excluded) {a['excludedTraceUnverified']}, missing/incomplete trace files {len(a['passTrace']['missingOrIncompleteTraceFiles'])}; processor leaf check (additional): mismatch {a['processorIdentity']['mismatch']}, statuses {a['processorIdentity']['statusCounts']}; rule 6 {'clean' if a['rule6']['ok'] else 'VIOLATED'} |")
+             f"records demoted by the no-op vacuity rule {a['noopProcessor']['recordsDemotedNotCaptured']}; postcondition-count mismatches {a['postconditionCountMismatch']}; processor identity (passTrace): statuses {a['passTrace']['statusCounts']}, mismatch {a['passTrace']['mismatch']}, unverified (excluded) {a['excludedTraceUnverified']}, missing/incomplete trace files {len(a['passTrace']['missingOrIncompleteTraceFiles'])}; processor leaf check (additional): mismatch {a['processorIdentity']['mismatch']}, statuses {a['processorIdentity']['statusCounts']}; rule 6 {'clean' if a['rule6']['ok'] else 'VIOLATED'} |")
     L.append(f"| (b) records within 2% of hooked calls | {'PASS' if b['ok'] else 'FAIL'} | {b['records']} records vs {b['hookedOutermost']} hooked (outermost) calls, deviation {b['totalDeviation']:.4%}; {len(b['classesOutside2pct'])} classes outside 2% |")
     if "ratio" in c:
         L.append(f"| (c) coverage ratio >= 98% | {'PASS' if c['ok'] else 'FAIL'} | in-scope src/ ({c['srcFiles']} files): harness-class original {c['harnessPct']:.2f}%, replay {c['replayPct']:.2f}%, ratio {c['ratio']:.4f} (whole suite {c['origPct']:.2f}%, ratio {c['wholeSuiteRatio']:.4f}; all of src/, informational: ratio {c['info_allSrc']['ratio']:.4f}); non-harness in-scope classes not in RUST_UNIT_TESTS.md: {len(c['nonHarnessNotListedInRustUnitTests'])} of {c['nonHarnessInScopeClasses']}; RUST_UNIT_TESTS.md fresh: {c['rustUnitTestsMdFresh']} |")
@@ -2712,7 +2713,7 @@ def write_md(rep):
           f"corpus/unit/postcall/): {a['postCallAssertionAudit']['legacyDescriptorCount']}. Classification source: "
           "corpus/unit/postcall/<Class>.json (FORMAT.md). Per class: `criteria.a.postCallAssertionAudit.perClass` in gate_0_2.json; "
           "per method: build/gate02/postcall_audit_methods.json.", "",
-          f"Exclusions (D-015 (a), cap 3% of all records): {a['excludedTotal']} = {a['excludedFraction']:.2%}.", "",
+          f"Exclusions (cap 3% of all records): {a['excludedTotal']} = {a['excludedFraction']:.2%}.", "",
           f"Whole-processor no-op (`--noop-processor`): {a['noopProcessor']['recordsCountedThatPassUnderNoop']} counted compiler_test_case records "
           f"pass (no assertion-type failure). Vacuous classes: {', '.join(a['noopProcessor']['vacuousClasses']) or 'none'}; "
           f"{a['noopProcessor']['recordsDemotedNotCaptured']} of their records have no replay-checked post-call state or postcondition and "
@@ -2748,10 +2749,10 @@ def write_md(rep):
           f"{', '.join(c['scope']['excludedNamePrefixes'])} are dropped. {c['srcFiles']} in-scope source files, {c['srcLines']} lines.", "",
           f"| in-scope src/ | covered lines | of {c['srcLines']} | % |", "|---|---:|---:|---:|",
           f"| original suite | {c['origCoveredLines']} | {c['srcLines']} | {c['origPct']:.2f} |",
-          f"| original suite, harness-based classes only ({c['harnessClasses']}: classes with at least one hooked call, D-017 item 9) | {c['harnessCoveredLines']} | {c['srcLines']} | {c['harnessPct']:.2f} |",
+          f"| original suite, harness-based classes only ({c['harnessClasses']}: classes with at least one hooked call) | {c['harnessCoveredLines']} | {c['srcLines']} | {c['harnessPct']:.2f} |",
           f"| corpus replay | {c['replayCoveredLines']} | {c['srcLines']} | {c['replayPct']:.2f} |", "",
-          f"Classes that inherit a harness (static class-hierarchy check of the pristine test/ tree, {c['harnessHierarchy']}) but produced zero records: non-harness under D-017 item 9, not in the denominator, listed in RUST_UNIT_TESTS.md: {c['harnessClassesWithZeroRecords']}.", "",
-          f"Gate measure (D-015, in-scope src/): replay / harness-based classes = **{c['ratio']:.4f}** (threshold 0.98; "
+          f"Classes that inherit a harness (static class-hierarchy check of the pristine test/ tree, {c['harnessHierarchy']}) but produced zero records: non-harness classes, not in the denominator, listed in RUST_UNIT_TESTS.md: {c['harnessClassesWithZeroRecords']}.", "",
+          f"Gate measure (in-scope src/): replay / harness-based classes = **{c['ratio']:.4f}** (threshold 0.98; "
           f"{c['scope']['neededReplayLinesFor98']} replay-covered lines needed, {c['replayCoveredLines']} covered). "
           f"Whole-suite ratio on in-scope src/ (reported, not the gate): {c['wholeSuiteRatio']:.4f}. "
           f"In-scope non-harness test classes: {c['nonHarnessInScopeClasses']}, not listed in corpus/unit/RUST_UNIT_TESTS.md: {c['nonHarnessNotListedInRustUnitTests'][:20]}.", "",
@@ -2767,8 +2768,8 @@ def write_md(rep):
         L.append(f"Not measured: `{json.dumps(c)[:600]}`")
     L += ["", "## (d) No-op mutation", "",
           "Attribution of records to passes: " + d["attribution"].replace("\n", " "), "",
-          "Ranking (D-015): the 30 in-scope passes with the most change-expecting records. " + d["rankingRule"].replace("\n", " "), "",
-          "Mutation (D-015): " + d["mutation"] + ". For each pass, every class holding records of the pass was replayed under the agent "
+          "Ranking: the 30 in-scope passes with the most change-expecting records. " + d["rankingRule"].replace("\n", " "), "",
+          "Mutation: " + d["mutation"] + ". For each pass, every class holding records of the pass was replayed under the agent "
           "(`-javaagent:noop-agent.jar=<FQCN>`). A record counts as failed when it fails with an assertion-type failure under mutation "
           "and passed in (a); crashes of test-side code never count. The rate is over change-expecting records; records that expect "
           "no change are reported and are expected to pass. A pass whose entry points the agent never rewrote fails, and so does a pass "
@@ -2782,8 +2783,8 @@ def write_md(rep):
                  f"{r['rate']:.1%} | {r['noChangeRecords']} | {r['noChangeRecordsFailingUnderMutation']} | "
                  f"{len(r['agentRewroteEntryPoints'])} | {', '.join(x.rsplit('.', 1)[1] for x in r.get('agentLoadedPassClassesNotRewritten', [])) or 0}"
                  f"{(' [covered: ' + ', '.join(x.rsplit('.', 1)[1] for x in r['agentLoadedPassClassesCoveredByInheritedRewrite']) + ']') if r.get('agentLoadedPassClassesCoveredByInheritedRewrite') else ''} | {'yes' if r['ok'] else 'NO'} |")
-    L += ["", "### (d) Groups (D-017 item 11)", "", "Measurement units: " + d.get("unitsRule", "").replace("\n", " "), "",
-          f"Change-expecting facts (D-017 item 10): code comparison statuses {json.dumps(d.get('changeFacts', {}).get('code'))}; "
+    L += ["", "### (d) Groups", "", "Measurement units: " + d.get("unitsRule", "").replace("\n", " "), "",
+          f"Change-expecting facts: code comparison statuses {json.dumps(d.get('changeFacts', {}).get('code'))}; "
           f"postcondition comparison statuses {json.dumps(d.get('changeFacts', {}).get('postcondition'))}.", "",
           "Each group is no-op'd jointly (`-javaagent:noop-agent.jar=A;B;C`). A group whose records all expect no change is reported and not judged.", "",
           "| group | change-expecting | failed | rate | no-change records | no-change failing | classes | members without a REWROTE line (reported) | loaded pass classes not rewritten | >= 90% |",

@@ -755,7 +755,7 @@ fn outcome_and_post_state_contracts_on_real_records() {
     .unwrap();
     assert_eq!(compare(&assertion, &asserted), None);
 }
-// port: ReplayMain#replayOne (FORMAT.md outcome contract, D-010: depth-sensitive records)
+// port: ReplayMain#replayOne (FORMAT.md "Outcome contract": depth-sensitive records)
 #[test]
 fn stack_overflow_error_records_are_reported_unported_without_running() {
     let root = corpus::corpus_unit_dir();
@@ -781,10 +781,9 @@ fn stack_overflow_error_records_are_reported_unported_without_running() {
         registry,
         None,
     ) {
-        Err(Throwable::Unported(message)) => assert_eq!(
-            message,
-            "java.lang.StackOverflowError (depth-sensitive, D-010)"
-        ),
+        Err(Throwable::Unported(message)) => {
+            assert_eq!(message, "java.lang.StackOverflowError (depth-sensitive)")
+        }
         other => panic!("expected an unported depth-sensitive record, got {other:?}"),
     }
 }

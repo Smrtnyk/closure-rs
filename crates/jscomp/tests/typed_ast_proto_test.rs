@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//! Rust-only checks of the generated TypedAST protos (D-003): the Java-written
+//! Rust-only checks of the generated TypedAST protos: the Java-written
 //! `runtime_libs.typedast` (a `TypedAst.List`) parses and re-serializes to the same bytes, so
 //! the Rust messages are wire-compatible with protobuf-java, field order and defaults included.
 use closure_jscomp::serialization::protobuf::{

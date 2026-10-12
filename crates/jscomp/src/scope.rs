@@ -38,9 +38,9 @@ use std::{
     sync::{Arc, OnceLock, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak},
 };
 
-/// Rust-only (D-025): a variable-name argument that scope lookups read by reference. A
-/// `&JsString` is passed through without the clone (two atomic reference-count operations) that
-/// `impl Into<JsString>` costs; `&str` and `String` are converted as before.
+/// Rust-only (performance divergence): a variable-name argument that scope lookups read by
+/// reference. A `&JsString` is passed through without the clone (two atomic reference-count
+/// operations) that `impl Into<JsString>` costs; `&str` and `String` are converted as before.
 pub trait NameArg {
     fn with_name<R>(self, f: impl FnOnce(&JsString) -> R) -> R;
 }
@@ -100,8 +100,8 @@ pub struct ScopeArena {
     pub(crate) var_views: ChunkedVec<OnceLock<&'static VarView>>,
 }
 
-/// Rust-only, not in Java (D-025): the fields of scopes and vars that never change after
-/// construction (Java `final` fields), copied out of the shared `ScopeArena` so that the
+/// Rust-only, not in Java (performance divergence): the fields of scopes and vars that never change
+/// after construction (Java `final` fields), copied out of the shared `ScopeArena` so that the
 /// compiler's hot readers (`getRootNode`, `getParent`, `getDepth`, `Var#getName`, `getNode`,
 /// `getScope`, ...) skip the arena's lock. Index-aligned with `ScopeArena::scopes` / `vars`; a var
 /// that a scope view created (implicit vars) may be missing until the next `VarId::new`
@@ -213,7 +213,7 @@ impl ScopeId {
 
     /// Rust-only: `getVar` for a name no implicit slot can match: getOwnSlot only reads each
     /// scope's declared vars, so walk the chain under one read lock instead of one lock per
-    /// scope (D-025).
+    /// scope (performance divergence).
     fn get_declared_var(self, compiler: &AbstractCompiler, name: &JsString) -> Option<VarId> {
         let arena = ScopeArena::read(compiler);
         let mut scope = Some(self);
@@ -230,7 +230,7 @@ impl ScopeId {
     }
 
     /// Rust-only: `getVar(n.getString())` for a NAME (or IMPORT_STAR) node `n`, reading the
-    /// name in place instead of cloning it (D-025).
+    /// name in place instead of cloning it (performance divergence).
     pub fn get_var_of_node(self, compiler: &mut AbstractCompiler, n: NodeId) -> Option<VarId> {
         let name = n.get_string_ref(compiler);
         if ImplicitVar::of(name).is_none() {
@@ -267,9 +267,9 @@ impl ScopeId {
         check_argument!(!name.is_empty());
         self.note_mutation(compiler);
         if ImplicitVar::of(&name).is_none() {
-            // Rust-only fast path (D-025): with no implicit slot for `name`, getOwnSlot,
-            // hasOwnSlot and canDeclare only read declared vars, so the checks, the new Var and
-            // its declaration take one lock.
+            // Rust-only fast path (performance divergence): with no implicit slot for `name`,
+            // getOwnSlot, hasOwnSlot and canDeclare only read declared vars, so the checks, the new
+            // Var and its declaration take one lock.
             let name_node = name_node.into();
             VarId::check_name_node(compiler, name_node);
             let parent = self
@@ -386,17 +386,17 @@ impl ScopeId {
         self.0.get() as usize - 1
     }
 
-    /// Rust-only (D-025): moves a scope that the `SyntacticScopeCache` hands out again under a
-    /// new parent at the same depth (the parent's scope was scanned anew).
+    /// Rust-only (performance divergence): moves a scope that the `SyntacticScopeCache` hands out
+    /// again under a new parent at the same depth (the parent's scope was scanned anew).
     pub(crate) fn set_parent(self, compiler: &mut AbstractCompiler, parent: ScopeId) {
         ScopeArena::write(compiler).scopes[self.index()].parent = Some(parent);
         compiler.scope_mirror.scopes[self.index()].parent = Some(parent);
     }
 
-    /// Rust-only (D-025): whether every name declared here is still the name of its declaring
-    /// NAME node, and that node is still in the tree. The name of a function belongs to the
-    /// function's change scope, not to the scope that declares it, so the `SyntacticScopeCache`
-    /// checks it before handing out again a scope that declares a function.
+    /// Rust-only (performance divergence): whether every name declared here is still the name of
+    /// its declaring NAME node, and that node is still in the tree. The name of a function belongs
+    /// to the function's change scope, not to the scope that declares it, so the
+    /// `SyntacticScopeCache` checks it before handing out again a scope that declares a function.
     pub(crate) fn declared_names_unchanged(self, compiler: &AbstractCompiler) -> bool {
         let arena = ScopeArena::read(compiler);
         arena.scopes[self.index()]
@@ -411,8 +411,8 @@ impl ScopeId {
             })
     }
 
-    /// Rust-only (D-025): whether a var of this scope is the name of a function (see
-    /// `declared_names_unchanged`).
+    /// Rust-only (performance divergence): whether a var of this scope is the name of a function
+    /// (see `declared_names_unchanged`).
     pub(crate) fn declares_functions(self, compiler: &AbstractCompiler) -> bool {
         let arena = ScopeArena::read(compiler);
         arena.scopes[self.index()]
@@ -427,7 +427,8 @@ impl ScopeId {
             })
     }
 
-    /// Rust-only (D-025): marks whether the `SyntacticScopeCache` keeps this scope.
+    /// Rust-only (performance divergence): marks whether the `SyntacticScopeCache` keeps this
+    /// scope.
     pub(crate) fn set_kept(self, compiler: &mut AbstractCompiler, kept: bool) {
         compiler.scope_mirror.scopes[self.index()].kept = kept;
     }
@@ -480,8 +481,8 @@ impl AbstractScope for ScopeId {
         Some(ScopeId::make_implicit_var(self, compiler, var))
     }
 
-    /// Rust-only (D-025): a pass declaring or undeclaring a name in a scope that the
-    /// `SyntacticScopeCache` keeps makes it unfit for reuse. Also notes that the scope may now
+    /// Rust-only (performance divergence): a pass declaring or undeclaring a name in a scope that
+    /// the `SyntacticScopeCache` keeps makes it unfit for reuse. Also notes that the scope may now
     /// have vars (`ScopeMeta::may_have_vars`).
     fn note_mutation(self, compiler: &mut AbstractCompiler) {
         let meta = &mut compiler.scope_mirror.scopes[self.index()];

@@ -8,7 +8,7 @@
    "via": [
     "postCall.compiler.injectedLibraries"
    ],
-   "note": "After one test(...) (multistage), asserts getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() containsExactly es6/util/construct, es6/util/inherits, es6/util/arrayfromiterable: the set of runtime library paths injected into the compiler, which D-017 item 2 makes the neutral snapshot key postCall.compiler.injectedLibraries. Since harness round 2 (D-017 item 2, v7 recording) the method's record carries postCall.compiler.injectedLibraries in injection order, and replay compares it by postCall JSON equality (class-limited gate (a) run, fix-6 round 2: claim verified, record passes). It is not a Rust unit test: the asserted value is a set of library path strings, a neutral value (FORMAT.md, D-017 item 2)."
+   "note": "After one test(...) (multistage), asserts getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() containsExactly es6/util/construct, es6/util/inherits, es6/util/arrayfromiterable: the set of runtime library paths injected into the compiler, which FORMAT.md \"Post-call snapshot\" makes the neutral snapshot key postCall.compiler.injectedLibraries. Since harness round 2 (FORMAT.md \"Post-call snapshot\", v7 recording) the method's record carries postCall.compiler.injectedLibraries in injection order, and replay compares it by postCall JSON equality (class-limited gate (a) run, fix-6 round 2: claim verified, record passes). It is not a Rust unit test: the asserted value is a set of library path strings, a neutral value (FORMAT.md \"Post-call snapshot\")."
   },
   {
    "method": "classInheritance_usesReflectConstructForUnknownSuperclass",
@@ -16,7 +16,7 @@
    "via": [
     "postCall.compiler.injectedLibraries"
    ],
-   "note": "After one test(...) (multistage), asserts getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() containsExactly es6/util/construct, es6/util/inherits, es6/util/arrayfromiterable: the set of runtime library paths injected into the compiler, which D-017 item 2 makes the neutral snapshot key postCall.compiler.injectedLibraries. Since harness round 2 (D-017 item 2, v7 recording) the method's record carries postCall.compiler.injectedLibraries in injection order, and replay compares it by postCall JSON equality (class-limited gate (a) run, fix-6 round 2: claim verified, record passes). It is not a Rust unit test: the asserted value is a set of library path strings, a neutral value (FORMAT.md, D-017 item 2)."
+   "note": "After one test(...) (multistage), asserts getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() containsExactly es6/util/construct, es6/util/inherits, es6/util/arrayfromiterable: the set of runtime library paths injected into the compiler, which FORMAT.md \"Post-call snapshot\" makes the neutral snapshot key postCall.compiler.injectedLibraries. Since harness round 2 (FORMAT.md \"Post-call snapshot\", v7 recording) the method's record carries postCall.compiler.injectedLibraries in injection order, and replay compares it by postCall JSON equality (class-limited gate (a) run, fix-6 round 2: claim verified, record passes). It is not a Rust unit test: the asserted value is a set of library path strings, a neutral value (FORMAT.md \"Post-call snapshot\")."
   },
   {
    "method": "runtimeLibraryInjection_injectsOnlyWhatsNeededPerScript",
@@ -24,7 +24,7 @@
    "via": [
     "postCall.compiler.injectedLibraries"
    ],
-   "note": "After one test(...) (multistage), asserts getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() containsExactly es6/util/construct, es6/util/inherits, es6/util/arrayfromiterable, es6/object/assign: the set of runtime library paths injected into the compiler, which D-017 item 2 makes the neutral snapshot key postCall.compiler.injectedLibraries. Since harness round 2 (D-017 item 2, v7 recording) the method's record carries postCall.compiler.injectedLibraries in injection order, and replay compares it by postCall JSON equality (class-limited gate (a) run, fix-6 round 2: claim verified, record passes). It is not a Rust unit test: the asserted value is a set of library path strings, a neutral value (FORMAT.md, D-017 item 2)."
+   "note": "After one test(...) (multistage), asserts getLastCompiler().getRuntimeJsLibManager().getInjectedLibraries() containsExactly es6/util/construct, es6/util/inherits, es6/util/arrayfromiterable, es6/object/assign: the set of runtime library paths injected into the compiler, which FORMAT.md \"Post-call snapshot\" makes the neutral snapshot key postCall.compiler.injectedLibraries. Since harness round 2 (FORMAT.md \"Post-call snapshot\", v7 recording) the method's record carries postCall.compiler.injectedLibraries in injection order, and replay compares it by postCall JSON equality (class-limited gate (a) run, fix-6 round 2: claim verified, record passes). It is not a Rust unit test: the asserted value is a set of library path strings, a neutral value (FORMAT.md \"Post-call snapshot\")."
   },
   {
    "method": "runtimeFieldInjection_incompatibleWithRestArg",

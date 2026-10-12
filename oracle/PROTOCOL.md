@@ -271,7 +271,7 @@ order.
 ### Seam caveats
 
 `optimize_from_typedast(checks_to_typedast(argv))` is not always output-identical to
-`compile(argv)` (DECISIONS.md D-011):
+`compile(argv)`:
 
 - **Order, weak inputs, chunks.** The optimize run must get the inputs in the checks run's
   post-sort order, with WEAK inputs as `weak_inputs` (`--checks_only` skips stage 1's

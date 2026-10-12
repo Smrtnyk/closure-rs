@@ -30,10 +30,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 pub struct ThreadSafeDelegatingErrorManager {
     delegated: Mutex<Box<dyn ErrorManager>>,
-    /// Rust-only (D-025): set (under the `delegated` lock) when `hasHaltingErrors` found none,
-    /// cleared (under the lock) by every call that may change the delegate. The compiler shares
-    /// it, so its frequent `hasHaltingErrors` (CombinedCompilerPass asks at every node) needs no
-    /// lock while nothing was reported since.
+    /// Rust-only (performance divergence): set (under the `delegated` lock) when `hasHaltingErrors`
+    /// found none, cleared (under the lock) by every call that may change the delegate. The
+    /// compiler shares it, so its frequent `hasHaltingErrors` (CombinedCompilerPass asks at every
+    /// node) needs no lock while nothing was reported since.
     no_halting_errors: Arc<AtomicBool>,
 }
 impl ThreadSafeDelegatingErrorManager {

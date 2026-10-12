@@ -45,9 +45,9 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 pub struct RhinoStringPool;
-// Java's weak interner. Rust-only (D-025): split into independently locked shards by hash, so
-// that inputs parsed on several threads (jscomp `parallel_parse`) rarely wait for each other;
-// which shard holds a string never matters, only that equal strings share one entry. Entries
+// Java's weak interner. Rust-only (performance divergence): split into independently locked shards
+// by hash, so that inputs parsed on several threads (jscomp `parallel_parse`) rarely wait for each
+// other; which shard holds a string never matters, only that equal strings share one entry. Entries
 // are never removed: an interned string lives for the rest of the process (see `JsString`).
 type Interner = crate::fast_hash::IndexMap<&'static [u16], JsString>;
 const SHARD_BITS: u32 = 6;
@@ -109,9 +109,9 @@ impl RhinoStringPool {
         }
         Self::add_or_get_shared(s)
     }
-    /// Rust-only (D-025): runs `f` with a cache, private to this thread, in front of the shared
-    /// pool. The cache holds pool entries (so it returns exactly what the pool would) and keeps
-    /// them alive while `f` runs; it spares a thread that parses many strings (jscomp
+    /// Rust-only (performance divergence): runs `f` with a cache, private to this thread, in front
+    /// of the shared pool. The cache holds pool entries (so it returns exactly what the pool would)
+    /// and keeps them alive while `f` runs; it spares a thread that parses many strings (jscomp
     /// `parallel_parse`) a shared lock per string.
     pub fn with_thread_cache<R>(f: impl FnOnce() -> R) -> R {
         let previous = THREAD_CACHE.replace(Some(Default::default()));

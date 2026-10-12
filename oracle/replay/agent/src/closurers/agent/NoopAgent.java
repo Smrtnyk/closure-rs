@@ -20,16 +20,17 @@ import jdk.internal.org.objectweb.asm.MethodVisitor;
 import jdk.internal.org.objectweb.asm.Opcodes;
 
 /**
- * Class-level no-op mutation for gate 0.2(d) (D-015, HARNESS.md
+ * Class-level no-op mutation for gate 0.2(d) (HARNESS.md
  * "Class-level no-op mutation"). Usage:
  *
  * <pre>-javaagent:noop-agent.jar=&lt;pass FQCN&gt;[;&lt;pass FQCN&gt;...][,report=&lt;file&gt;]</pre>
  * <pre>-javaagent:noop-agent.jar=trace=&lt;scope file&gt;[,report=&lt;file&gt;]</pre>
  *
- * <p>Group no-op (D-017 item 11): several FQCNs separated by {@code ;} are no-op'd jointly in the
- * same JVM (each one and its nested classes, exactly as for a single target).
+ * <p>Group no-op (HARNESS.md "Pass trace and group no-op"): several FQCNs separated by {@code ;}
+ * are no-op'd jointly in the same JVM (each one and its nested classes, exactly as for a single
+ * target).
  *
- * <p>TRACE mode (D-017 item 8, HARNESS.md "Pass trace"): no class is no-op'd. Every class whose
+ * <p>TRACE mode (HARNESS.md "Pass trace"): no class is no-op'd. Every class whose
  * top-level class FQCN is listed in the scope file (one FQCN per line: the in-scope src top-level
  * classes) gets, at the start of each declared concrete entry point of the same entry-point set as
  * the no-op rewrite, a call {@code closurers.agent.Trace.hit(id)}, id = that top-level class.

@@ -20,10 +20,10 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-/// Rust-only layout (D-025): a string carries its `hashCode()` next to the reference to its
-/// code units, computed once when the string is made (Java's String caches it in the object).
-/// Hashing and `hashCode` read it without touching the code units, and strings with different
-/// hashes compare unequal without reading them.
+/// Rust-only layout (performance divergence): a string carries its `hashCode()` next to the
+/// reference to its code units, computed once when the string is made (Java's String caches it in
+/// the object). Hashing and `hashCode` read it without touching the code units, and strings with
+/// different hashes compare unequal without reading them.
 ///
 /// A string interned by `RhinoStringPool` is `Interned`: the pool keeps its code units for the
 /// rest of the process, so copies of it share them without reference counting, and two interned
@@ -39,7 +39,7 @@ enum Repr {
 }
 impl Default for JsString {
     fn default() -> Self {
-        // Rust-only (D-025): one shared empty string (see `From<&str>`).
+        // Rust-only (performance divergence): one shared empty string (see `From<&str>`).
         empty()
     }
 }
@@ -262,9 +262,9 @@ impl JsString {
         String::from_utf16_lossy(self.as_units())
     }
 }
-/// Rust-only (D-025): the first index of `needle` (non-empty) in `hay`, as `String#indexOf`
-/// finds it: scans for the first unit, then compares the rest (Java's loop does the same; a
-/// window-by-window slice compare costs a call per position).
+/// Rust-only (performance divergence): the first index of `needle` (non-empty) in `hay`, as
+/// `String#indexOf` finds it: scans for the first unit, then compares the rest (Java's loop does
+/// the same; a window-by-window slice compare costs a call per position).
 fn find_units(hay: &[u16], needle: &[u16]) -> Option<usize> {
     let (&first, rest) = needle.split_first()?;
     let last_start = hay.len().checked_sub(needle.len())?;
@@ -297,8 +297,8 @@ pub trait JsStrLike {
         self.with_units(|s| units.ends_with(s))
     }
 }
-/// Rust-only fast path (D-025): an ASCII str has one code unit per byte, so it is compared with
-/// code units without converting it.
+/// Rust-only fast path (performance divergence): an ASCII str has one code unit per byte, so it is
+/// compared with code units without converting it.
 fn ascii_units_eq(units: &[u16], s: &str) -> bool {
     units.len() == s.len() && units.iter().zip(s.bytes()).all(|(a, b)| *a == u16::from(b))
 }
@@ -360,13 +360,14 @@ impl<T: JsStrLike + ?Sized> JsStrLike for &T {
 }
 impl From<&str> for JsString {
     fn from(s: &str) -> Self {
-        // Rust-only (D-025): Java's "" literal is one interned object; share one empty string
-        // instead of allocating one per conversion.
+        // Rust-only (performance divergence): Java's "" literal is one interned object; share one
+        // empty string instead of allocating one per conversion.
         if s.is_empty() {
             return empty();
         }
-        // Rust-only (D-025): ASCII text (nearly all) has one code unit per byte, so the code
-        // units go straight into an array of the exact size (one allocation, no re-growth).
+        // Rust-only (performance divergence): ASCII text (nearly all) has one code unit per byte,
+        // so the code units go straight into an array of the exact size (one allocation, no
+        // re-growth).
         if s.is_ascii() {
             let units: Arc<[u16]> = s.bytes().map(u16::from).collect();
             return Self(Repr::Shared(Self::java_hash(&units), units));

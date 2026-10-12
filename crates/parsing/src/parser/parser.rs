@@ -582,7 +582,8 @@ impl Parser {
     fn parse_class_elements(&mut self) -> P<Vec<Tree>> {
         let mut result = Vec::new();
         loop {
-            // Rust-only (D-025): the token type is read in place instead of copying the token.
+            // Rust-only (performance divergence): the token type is read in place instead of
+            // copying the token.
             let type_ = self.peek_type_at(0);
             if type_ == TokenType::SEMI_COLON {
                 self.eat(TokenType::SEMI_COLON);
@@ -594,8 +595,8 @@ impl Parser {
         }
     }
     // port: Parser#isClassElementStart
-    /// Rust-only parameter (D-025): Java passes the token, of which only the type is read, so the
-    /// callers peek the type instead of copying the token.
+    /// Rust-only parameter (performance divergence): Java passes the token, of which only the type
+    /// is read, so the callers peek the type instead of copying the token.
     fn is_class_element_start_type(type_: TokenType) -> bool {
         match type_ {
             TokenType::IDENTIFIER
@@ -638,7 +639,7 @@ impl Parser {
         // only eat `static` if it being used as a keyword and not
         // a member name.
         if self.peek(TokenType::STATIC) {
-            // Rust-only (D-025): the token is read in place instead of copied.
+            // Rust-only (performance divergence): the token is read in place instead of copied.
             if Self::is_class_element_start_type(self.peek_type_at(1)) {
                 self.eat(TokenType::STATIC);
                 return true;
@@ -3954,7 +3955,7 @@ impl Parser {
     // @return whether the next token is an identifier.
     // port: Parser#peekId
     fn peek_id_at(&mut self, index: usize) -> bool {
-        // Rust-only (D-025): the token is read in place instead of copied.
+        // Rust-only (performance divergence): the token is read in place instead of copied.
         let token = self.scanner.peek_token_ref_at(index);
         let mut type_to_check = token.type_;
         if type_to_check == TokenType::IDENTIFIER {
@@ -4007,7 +4008,7 @@ impl Parser {
     }
     // port: Parser#eatObjectLiteralPropertyName
     fn eat_object_literal_property_name(&mut self) -> Option<Token> {
-        // Rust-only (D-025): only the type of the next token is read, in place.
+        // Rust-only (performance divergence): only the type of the next token is read, in place.
         match self.peek_type_at(0) {
             TokenType::STRING | TokenType::NUMBER | TokenType::BIGINT => Some(self.next_token()),
             _ => self.eat_id_or_keyword_as_id(),
@@ -4057,8 +4058,8 @@ impl Parser {
     // Returns a SourcePosition for the start of a parse tree that starts at the current location.
     // port: Parser#getTreeStartLocation
     fn get_tree_start_location(&mut self) -> SourcePosition {
-        // Rust-only (D-025): the position is copied out of the next token instead of copying
-        // the whole token.
+        // Rust-only (performance divergence): the position is copied out of the next token instead
+        // of copying the whole token.
         self.scanner.peek_token_ref_at(0).location.start.clone()
     }
     // Returns a SourcePosition for the end of a parse tree that ends at the current location.

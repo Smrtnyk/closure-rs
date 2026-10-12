@@ -81,7 +81,7 @@
           ]
         }
       },
-      "note": "testFieldsAfter (D-015 a): testBias/testBias2 assign the test field nameGenerator before test(); getProcessor hands that same DefaultNameGenerator object to RenameVars, which keeps it in its field `nameGenerator` (RenameVars.java line 136/169) and mutates it (reset/generateNextName). The record's testFieldsAfter.nameGenerator is that object after the call. The processor is once-shared so the testFieldsAfter holder is the very RenameVars instance the call used (1 repetition), and its nameGenerator field is compared against testFieldsAfter.nameGenerator; postCall.pass.variableMap is compared too."
+      "note": "testFieldsAfter (FORMAT.md \"corpus/unit/postcall/<Class>.json\"): testBias/testBias2 assign the test field nameGenerator before test(); getProcessor hands that same DefaultNameGenerator object to RenameVars, which keeps it in its field `nameGenerator` (RenameVars.java line 136/169) and mutates it (reset/generateNextName). The record's testFieldsAfter.nameGenerator is that object after the call. The processor is once-shared so the testFieldsAfter holder is the very RenameVars instance the call used (1 repetition), and its nameGenerator field is compared against testFieldsAfter.nameGenerator; postCall.pass.variableMap is compared too."
     },
     {
       "when": {},

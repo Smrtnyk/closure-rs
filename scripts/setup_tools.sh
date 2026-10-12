@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reproduces the project-local toolchain (DECISIONS.md D-003) under tools/:
+# Reproduces the project-local toolchain (oracle/REFERENCE.md, "Toolchain") under tools/:
 #   tools/bin/bazelisk   bazelisk release binary (linux-amd64)
 #   tools/jdk-21         Eclipse Temurin JDK 21 (linux x64)
 #   tools/env.sh         source-able environment (JAVA_HOME, PATH, BAZELISK_HOME)

@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-//! Rust-only, not in Java (DECISIONS.md D-025): an append-only vector stored in fixed-size
-//! chunks. The scope arenas grow by hundreds of thousands of entries over a compilation (every
-//! pass creates its scopes anew, Java's garbage collector frees them); a chunked vector grows
-//! without moving the entries it already holds, where a `Vec` copies them all at each doubling.
+//! Rust-only, not in Java (crates/DESIGN.md, "Performance divergences"): an append-only vector
+//! stored in fixed-size chunks. The scope arenas grow by hundreds of thousands of entries over a
+//! compilation (every pass creates its scopes anew, Java's garbage collector frees them); a chunked
+//! vector grows without moving the entries it already holds, where a `Vec` copies them all at each
+//! doubling.
 
 use std::ops::{Index, IndexMut};
 

@@ -947,8 +947,8 @@ impl JSDocInfo {
             _ => PackedPropertyValues::Multiple(values),
         }
     }
-    /// Rust-only (D-025): a copy whose type expressions are replaced by `map_expr` and whose
-    /// other node references by `map_node` (for `Ast::append_preparsed`).
+    /// Rust-only (performance divergence): a copy whose type expressions are replaced by `map_expr`
+    /// and whose other node references by `map_node` (for `Ast::append_preparsed`).
     pub fn map_nodes(
         &self,
         map_expr: &mut dyn FnMut(&Arc<JSTypeExpression>) -> Arc<JSTypeExpression>,

@@ -94,7 +94,7 @@ pub trait AbstractVar: Copy + Eq + ScopedName {
         self.var_data(compiler).name.clone()
     }
 
-    /// Rust-only: `getName().equals(name)` without copying the name (D-025).
+    /// Rust-only: `getName().equals(name)` without copying the name (performance divergence).
     fn name_equals(self, compiler: &AbstractCompiler, name: &str) -> bool {
         self.var_data(compiler).name == name
     }

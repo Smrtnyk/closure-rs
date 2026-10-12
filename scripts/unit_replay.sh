@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Unit-corpus replay (docs/PORTING.md §4.2, gate 0.2(a)/(c)/(d)).
 #   scripts/unit_replay.sh [--build-dir DIR] [--classes A,B] [--mutate-noop PassFQCN] [--coverage FILE]
-# --mutate-noop is the class-level no-op mutation of D-015 (d) (HARNESS.md "Class-level no-op
+# --mutate-noop is the class-level no-op mutation of gate 0.2(d) (HARNESS.md "Class-level no-op
 # mutation"): the NoopAgent JVM agent (oracle/replay/agent) rewrites the pass class's entry points
 # at load time, wherever the pass is constructed; the agent's report goes to $BUILD/noop-agent.txt.
 # Compiles oracle/replay/src + oracle/replay/helpers into its own build dir (default

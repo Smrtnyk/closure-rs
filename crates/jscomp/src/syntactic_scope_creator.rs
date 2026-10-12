@@ -35,8 +35,9 @@ use std::sync::Arc;
 pub struct SyntacticScopeCreator<'a> {
     redeclaration_handler: Box<dyn RedeclarationHandler + 'a>,
     treat_provides_as_redeclarations: bool,
-    /// Rust-only (D-025): whether this creator's scopes are reused across passes, true for the
-    /// default redeclaration handler (which has no effects); see `SyntacticScopeCache`.
+    /// Rust-only (performance divergence): whether this creator's scopes are reused across passes,
+    /// true for the default redeclaration handler (which has no effects); see
+    /// `SyntacticScopeCache`.
     reusable: bool,
 }
 
@@ -99,8 +100,9 @@ impl SyntacticScopeCreator<'_> {
         n: NodeId,
         parent: Option<ScopeId>,
     ) -> ScopeId {
-        // Rust-only (D-025): a scope that an earlier pass scanned from code nobody has changed
-        // since is handed out again instead of being scanned anew (see SyntacticScopeCache).
+        // Rust-only (performance divergence): a scope that an earlier pass scanned from code nobody
+        // has changed since is handed out again instead of being scanned anew (see
+        // SyntacticScopeCache).
         let context = if self.reusable {
             ScopeContext::of(compiler, n)
         } else {
@@ -167,13 +169,14 @@ struct ScopeScanner<'a> {
     input_id: Option<Arc<InputId>>,
     change_root_set: Option<IndexSet<NodeId>>,
     /// Rust-only: `compiler.getInput(inputId)` for the `input_id` it was looked up with, so that
-    /// each declaration needs no lookup by id (D-025).
+    /// each declaration needs no lookup by id (performance divergence).
     input_cache: Option<(Arc<InputId>, Option<CompilerInput>)>,
-    /// Rust-only (D-025): whether the top-level declarations of each script of this global scope
-    /// are replayed from, or recorded for, the `SyntacticScopeCache` (see `scan_script`).
+    /// Rust-only (performance divergence): whether the top-level declarations of each script of
+    /// this global scope are replayed from, or recorded for, the `SyntacticScopeCache` (see
+    /// `scan_script`).
     replay_scripts: bool,
-    /// Rust-only (D-025): the declarations of the script being scanned, while recorded; None
-    /// once a declaration went to another scope (the record is then not kept).
+    /// Rust-only (performance divergence): the declarations of the script being scanned, while
+    /// recorded; None once a declaration went to another scope (the record is then not kept).
     recording: Option<Option<Vec<ScriptDeclaration>>>,
 }
 
@@ -444,11 +447,12 @@ impl<'a> ScopeScanner<'a> {
         }
     }
 
-    /// Rust-only (D-025): the top level of `script` in a global scope. The declarations an earlier
-    /// scan found in it are made again, in their order, while the script is unchanged (the
-    /// externs and the unchanged scripts of a program need no walk of their statements); else
-    /// the script is scanned and its declarations are recorded. The declarations go through
-    /// `declare_var` as in a scan, so redeclarations across scripts are found the same way.
+    /// Rust-only (performance divergence): the top level of `script` in a global scope. The
+    /// declarations an earlier scan found in it are made again, in their order, while the script is
+    /// unchanged (the externs and the unchanged scripts of a program need no walk of their
+    /// statements); else the script is scanned and its declarations are recorded. The declarations
+    /// go through `declare_var` as in a scan, so redeclarations across scripts are found the same
+    /// way.
     fn scan_script(&mut self, compiler: &mut AbstractCompiler, script: NodeId) {
         if let Some(declarations) = SyntacticScopeCache::script_declarations(compiler, script) {
             for declaration in declarations.iter() {
@@ -478,7 +482,7 @@ impl<'a> ScopeScanner<'a> {
         }
     }
 
-    /// Rust-only (D-025): records a declaration for `scan_script`.
+    /// Rust-only (performance divergence): records a declaration for `scan_script`.
     fn record(&mut self, s: ScopeId, declaration: ScriptDeclaration) {
         if let Some(recording) = &mut self.recording {
             if s == self.scope {

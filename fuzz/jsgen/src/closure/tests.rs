@@ -196,7 +196,7 @@ fn define_only_at_top_level() {
 
 #[test]
 fn pass_targeted_idioms_appear() {
-    // passes.rs and the multi-file primitives (D-016 item 5): each idiom must be generated.
+    // passes.rs and the multi-file primitives: each idiom must be generated.
     let cfg = Config::default();
     let mut single = String::new();
     for i in 0..400u64 {

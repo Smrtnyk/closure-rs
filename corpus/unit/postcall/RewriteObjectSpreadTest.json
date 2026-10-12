@@ -1,7 +1,7 @@
 {
  "v": 1,
  "class": "com.google.javascript.jscomp.RewriteObjectSpreadTest",
- "note": "classify batch 16 (D-015 a).",
+ "note": "classify batch 16 (FORMAT.md \"corpus/unit/postcall/<Class>.json\").",
  "methods": [
   {
    "method": "testTyping_ofSpreadResult_isObject",

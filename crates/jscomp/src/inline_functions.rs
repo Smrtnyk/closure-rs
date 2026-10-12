@@ -1023,7 +1023,7 @@ impl<'a> FindCandidatesReferences<'a> {
         }
 
         // Other refs to a function name remove its candidacy for inlining
-        // Rust-only: the name is read in place (D-025).
+        // Rust-only: the name is read in place (performance divergence).
         let function_state = self.call_visitor.function_map.get_mut(n.get_string_ref(t));
         let Some(function_state) = function_state else {
             return;

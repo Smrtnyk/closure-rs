@@ -32,7 +32,8 @@ one of them would take effect: it prints that it does not support the feature an
 255, as for a flag error. This includes J2CL input (files named `*.java.js`), for which the Java
 compiler runs the J2CL passes by default; `--j2cl_pass=OFF` compiles it without them. With their
 default values these flags work as in the Java compiler. [`scope/flags.txt`](scope/flags.txt) lists
-every flag with its scope, and [DECISIONS.md D-028](DECISIONS.md) the exact rules.
+every flag with its scope, and
+[docs/PORTING.md §2.1](docs/PORTING.md#21-out-of-scope-features-are-refused) the exact rules.
 
 ## Usage
 
@@ -148,9 +149,9 @@ function names the Java method it ports. It is checked against the Java compiler
   those real-world projects with both compilers again before a release.
 
 [`docs/PORTING.md`](docs/PORTING.md) describes the scope, what byte-identical means, how the port
-mirrors the Java code, how fidelity is verified and how the port follows upstream.
-[`DECISIONS.md`](DECISIONS.md) records the interpretations and design decisions, and
-[`crates/DESIGN.md`](crates/DESIGN.md) the Java-to-Rust conventions.
+mirrors the Java code, how fidelity is verified and how the port follows upstream, and
+[`crates/DESIGN.md`](crates/DESIGN.md) the Java-to-Rust conventions, including where performance
+work leaves the Java structure.
 
 ## License
 

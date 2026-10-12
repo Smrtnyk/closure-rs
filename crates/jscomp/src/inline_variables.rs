@@ -103,7 +103,7 @@ impl CompilerPass for InlineVariables {
                 mode.var_predicate(compiler, var)
             }),
         );
-        // Rust-only (D-025): vars declared in the externs are never inlined.
+        // Rust-only (performance divergence): vars declared in the externs are never inlined.
         callback.skip_externs_when_unread();
         CompilerPass::process(&mut callback, compiler, externs, root);
     }

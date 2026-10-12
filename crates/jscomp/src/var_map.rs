@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-//! Rust-only, not in Java (DECISIONS.md D-025): the names declared in a scope, in declaration
-//! order (Java: `AbstractScope#vars`, a `LinkedHashMap`).
+//! Rust-only, not in Java (crates/DESIGN.md, "Performance divergences"): the names declared in a
+//! scope, in declaration order (Java: `AbstractScope#vars`, a `LinkedHashMap`).
 //!
 //! Most scopes declare one or two names. Those are kept in the scope itself and found by
 //! comparing the strings' cached hashes (an interned name then compares by identity), so a name

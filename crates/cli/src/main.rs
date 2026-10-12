@@ -22,7 +22,8 @@ use closure_cli::{
 };
 
 // Not in Java (the JVM has its own allocator): mimalloc is much faster than the system allocator
-// for the compiler's many small, short-lived allocations (DECISIONS.md D-025). It changes no output.
+// for the compiler's many small, short-lived allocations. It changes no output (crates/DESIGN.md,
+// "Performance divergences").
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
@@ -32,8 +33,9 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 // profile of an instrumented build (scripts/pgo_build.sh) is written by one of them.
 fn main() -> std::process::ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    // Rust-only (D-025): the whole run happens on one thread of the compiler's stack size, so
-    // that the compiler's stages run in place instead of each on a thread of its own.
+    // Rust-only (performance divergence): the whole run happens on one thread of the compiler's
+    // stack size, so that the compiler's stages run in place instead of each on a thread of its
+    // own.
     let code = closure_jscomp::compiler_executor::CompilerExecutor::run_process_on_compiler_thread(
         move || run(&args),
     );

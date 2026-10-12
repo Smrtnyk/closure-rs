@@ -449,7 +449,7 @@ impl DataFlowAnalysis<NodeId, LiveVariableLattice> for LiveVariablesAnalysis {
             }
         }
         self.compute_gen_kill(compiler, node, &mut r#gen, &mut kill, conditional);
-        // Java copies the shared input; here the input is owned (D-025).
+        // Java copies the shared input; here the input is owned (performance divergence).
         let mut result = input;
         result.live_set.and_not(&kill);
         result.live_set.or(&r#gen);

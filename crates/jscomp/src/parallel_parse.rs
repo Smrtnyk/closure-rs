@@ -16,8 +16,8 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
 //   src/com/google/javascript/jscomp/CompilerInput.java.
 
-//! Rust-only, not in Java (DECISIONS.md D-025): parses the inputs of a compilation on worker
-//! threads while the compiler asks for their ASTs one by one.
+//! Rust-only, not in Java (crates/DESIGN.md, "Performance divergences"): parses the inputs of a
+//! compilation on worker threads while the compiler asks for their ASTs one by one.
 //!
 //! Java parses each input when `CompilerInput#getAstRoot` first needs it, on the compiler thread
 //! (or, with `--num_parallel_threads`, in `PrebuildAst`). Here `start` sets worker threads to

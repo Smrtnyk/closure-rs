@@ -61,7 +61,7 @@ The recorder is `UnitRecorder` in patch 0002 (FORMAT.md has the schema):
   (`__notePostconditionCompiler` right before each postcondition loop of `testInternal`,
   `__recDepth` to recognise the outermost call).
 
-## Pass trace (D-017 item 8)
+## Pass trace
 The recording does not run through Bazel targets; it runs `UnitRecordingMain` with plain `java`
 (`scripts/unit_record_all.sh`). That script builds the NoopAgent jar
 (`scripts/unit_noop_agent_build.sh`) and the trace scope file (`scripts/unit_trace_scope.py`,
@@ -79,9 +79,9 @@ recorder writes no `passTrace`. No `src/` file is touched; the patch (0002) chan
    that a fresh clone of the pristine reference checkout plus patches 0001 and 0002 is
    byte-identical to the workspace in `test/` and `BUILD.bazel`, and that its `src/` is identical
    to the pristine `src/`.
-3. Rebuild `build/unit/jars` (`scripts/unit_bazel_build.sh`; the oracle jar is not touched,
-   D-010), archive the previous records and stats, and re-record all classes
-   (`scripts/unit_record_all.sh`).
+3. Rebuild `build/unit/jars` (`scripts/unit_bazel_build.sh`; the oracle jar is not touched, so
+   it stays ground truth, docs/PORTING.md §4.1), archive the previous records and stats, and
+   re-record all classes (`scripts/unit_record_all.sh`).
 4. Check the new records against the old ones: the record count per class, JVM crashes
    (`*.crash.json`), records with `postCallError`, and `scripts/unit_regress_check.py` (every
    record that replayed green before replays green now), then replay the corpus

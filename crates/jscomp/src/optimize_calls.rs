@@ -594,7 +594,7 @@ impl ReferenceMap {
 
 struct ReferenceMapBuildingCallback<'a> {
     /// Rust-only: Java's set of extern property names, as JS strings (compared without
-    /// converting each property name, D-025).
+    /// converting each property name, performance divergence).
     extern_props: IndexSet<JsString>,
     references: &'a mut ReferenceMap,
     global_scope: Option<ScopeId>,

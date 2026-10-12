@@ -471,7 +471,7 @@ impl<'a> Finder<'a> {
 
     // port: GatherModuleMetadata.Finder#visitName
     fn visit_name(&mut self, t: &mut NodeTraversal<'_>, n: NodeId) {
-        // Rust-only: the name is read in place (D-025).
+        // Rust-only: the name is read in place (performance divergence).
         if self.toggle_module_names.contains(n.get_string_ref(t)) {
             let scope = t.get_scope();
             let name_var = scope.get_var_of_node(t.get_compiler(), n);

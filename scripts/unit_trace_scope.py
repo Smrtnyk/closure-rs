@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes the NoopAgent TRACE-mode scope file (D-017 item 8, HARNESS.md "Pass trace"): one FQCN per
+"""Writes the NoopAgent TRACE-mode scope file (HARNESS.md "Pass trace"): one FQCN per
 line, every in-scope src top-level class (docs/PORTING.md §2 predicate `in_scope_src` of gates/lib/unit_gate02.py
 over the pristine reference src/). The agent instruments only entry points (CompilerPass /
 HotSwapCompilerPass / OptimizeCalls.CallGraphCompilerPass / peephole / NodeTraversal callback methods)

@@ -17,7 +17,7 @@
 //   test/com/google/javascript/jscomp/OptionalChainTypeCheckTest.java.
 
 //! Port of the OptionalChainTypeCheckTest method whose post-call assertions are classified
-//! `rust_unit_test` (corpus/unit/rust_unit_tests/OptionalChainTypeCheckTest.md, D-015 (a)). Every
+//! `rust_unit_test` (corpus/unit/rust_unit_tests/OptionalChainTypeCheckTest.md). Every
 //! other OptionalChainTypeCheckTest method is a record that replays in the unit-record harness.
 use closure_jstype::js_type::JSType;
 use closure_testing::type_check_test_case::TypeCheckTestCase;

@@ -979,7 +979,7 @@ pub fn visible_d2_inputs(root: &Path, max_bytes: u64) -> Vec<PathBuf> {
 }
 
 /// The subset of `files` (from [`visible_d2_inputs`]) whose D2 golden ADVANCED result
-/// (`corpus-cache/d2/_golden/<golden tag>/<case>/advanced.json`, D-012; the tag is the
+/// (`corpus-cache/d2/_golden/<golden tag>/<case>/advanced.json`, corpus/d2/PROFILES.md; the tag is the
 /// [`references::reference`] row's, `ref-cfa8886f` by default) exited 0 with
 /// non-trivial output (at least 40 bytes once comments and whitespace are removed).
 /// Most single-input D2 files are CJS/UMD npm files whose free names are

@@ -1,6 +1,6 @@
 ## TypeCheckTest (com.google.javascript.jscomp.TypeCheckTest)
 
-Post-call assertions classified `rust_unit_test` in `corpus/unit/postcall/TypeCheckTest.json` (D-015 (a)).
+Post-call assertions classified `rust_unit_test` in `corpus/unit/postcall/TypeCheckTest.json`.
 Each method below makes one hooked call, `parseAndTypeCheck(...)` or `parseAndTypeCheckWithScope(...)`
 (record kind `type_check`, api `parseAndTypeCheckWithScope`, comparison `observed_only`; HARNESS.md
 "parseAndTypeCheckWithScope"), and then inspects the Java objects the call returns: `JSType`s on nodes of

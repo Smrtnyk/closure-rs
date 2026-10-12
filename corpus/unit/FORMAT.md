@@ -170,7 +170,7 @@ A `java.util.Optional` is `{"optional":v}` (null when empty). A guava
 A lambda additionally carries `"captures"`: its captured values as a field dump (nested
 unrepresentable values inside captures are not listed again).
 
-### Neutral encodings (D-017 item 2)
+### Neutral encodings
 Two library value kinds have a dedicated neutral tag instead of a generic `object` dump of their
 private Java fields (which rule 1a of "Post-call state" demotes):
 - **Guava `com.google.common.collect.Table`**: `{"table":[[row,column,value],...],"impl":FQCN}`, the
@@ -218,11 +218,11 @@ including Truth's `AssertionErrorWithFacts`) rather than a compiler or harness e
 Java replay compares status, class and (truncated) message exactly. A non-Java harness cannot
 reproduce Java exception classes or messages that embed Java internals (Truth diffs,
 `Node.toString()` dumps with hashed `Color{id=…}`, `StackOverflowError` with a null message,
-which is JIT-depth-sensitive per D-010). For such a harness the contract is: status must match;
-for `assertion: true` records the harness must report its own assertion failure at the same
-check; `java.lang.StackOverflowError` records are depth-sensitive and reported separately
-(D-010); the exact class and message are compared only where the Rust harness defines an
-explicit mapping (gate 0.2 lists these exception records).
+which is JIT-depth-sensitive: docs/PORTING.md §4.1). For such a harness the contract is: status
+must match; for `assertion: true` records the harness must report its own assertion failure at the
+same check; `java.lang.StackOverflowError` records are depth-sensitive and reported separately; the
+exact class and message are compared only where the Rust harness defines an explicit mapping (gate
+0.2 lists these exception records).
 
 ## Post-call state
 Many tests assert on test-instance state after the hooked call (scopes, collected messages, id or
@@ -327,8 +327,7 @@ its descriptor carries a non-blank `processorIdentityNote` (top level or in a ca
 substitution (for example "the recorded processor is the test's anonymous wrapper $1 with no fields;
 the replayed PeepholeOptimizationsPass is the pass its process() builds"). Unjustified ones fail (a);
 the report lists every status count and the unjustified records per class. This leaf comparison is
-an additional check: processor identity itself is verified by the pass trace ("passTrace",
-D-017 item 8).
+an additional check: processor identity itself is verified by the pass trace ("passTrace").
 
 ## Post-call state: neutral equality
 Java replay compares the post-call dumps by exact JSON equality, which includes Java/Guava container
@@ -397,7 +396,7 @@ selected case replays M`), so it is excluded from gate (a) and counted in gate (
 green. Gate (a) re-checks every counted record from the replay's post lines
 (`postconditionsRecorded`/`postconditionsReplayed`) and fails on any remaining mismatch.
 
-## Referenceable values (D-015 e)
+## Referenceable values
 Test-instance fields (`testFields`, `testFieldsAfter`) and the `processor` dump are written in the
 **referenceable** mode (`UnitRecorder.refFields` / `refValue`). It is the value encoding above with
 one change: a value the dump cannot represent (a lambda or synthetic class, an object already being
@@ -412,7 +411,7 @@ encoded is still `unrepresentable` (and so are postcondition lambdas, whose code
 Replay dumps the replayed processor and the `testFieldsAfter` holder in the same mode, so both sides
 compare like with like. A `ref` compares as its class name (after `classMap` mapping).
 
-## Post-call snapshot (D-015 a)
+## Post-call snapshot
 Every `compiler_test_case` record has a top-level `postCall` object, taken right after the hooked
 call returns or throws (in `__recordExit`, after `testFieldsAfter`), or `postCallError` (string) when
 taking it threw. It is computed by `UnitRecorder.postCallSnapshot(compiler, processor, roots)`;
@@ -431,15 +430,15 @@ encoding. `compiler` is read from the compiler the record's `observed` comes fro
 | `externProperties` | `Compiler.getExternProperties()` | set of strings |
 | `variableMap` / `propertyMap` / `stringMap` | `Compiler.getVariableMap()` / `getPropertyMap()` / `getStringMap()` → `VariableMap.getOriginalNameToNewNameMap()` | map string → string |
 | `accessorSummary` | `Compiler.getAccessorSummary().getAccessors()` | map string → `PropertyAccessKind` enum |
-| `moduleMetadataByPath` | `Compiler.getModuleMetadataMap().getModulesByPath()` | object path → `{moduleType, usesClosure, isTestOnly, googNamespaces, stronglyRequiredGoogNamespaces, dynamicallyRequiredGoogNamespaces, maybeRequiredGoogNamespaces, weaklyRequiredGoogNamespaces, es6ImportSpecifiers, readToggles, nestedModules}` (multisets as lists; `nestedModules` = the nested `goog.loadModule` modules' metadata objects of the same shape, recursively, in `nestedModules()` order; D-017 item 2) |
+| `moduleMetadataByPath` | `Compiler.getModuleMetadataMap().getModulesByPath()` | object path → `{moduleType, usesClosure, isTestOnly, googNamespaces, stronglyRequiredGoogNamespaces, dynamicallyRequiredGoogNamespaces, maybeRequiredGoogNamespaces, weaklyRequiredGoogNamespaces, es6ImportSpecifiers, readToggles, nestedModules}` (multisets as lists; `nestedModules` = the nested `goog.loadModule` modules' metadata objects of the same shape, recursively, in `nestedModules()` order) |
 | `sourceMap` | `Compiler.getSourceMap().appendTo(sb, "out.js")` | string (source map V3 JSON) |
 | `typeMismatches` | `Compiler.getTypeMismatches()` | list, in recording order, of `{"found": JSType.toString(), "required": JSType.toString()}`; present only when non-empty; no key (and no `Error` key) when the accessor throws because type checking has not run; any other throw gives `typeMismatchesError` = the exception class, as for every key (for example `java.lang.IllegalStateException` in records of classes whose compiler had type checking run and its type information then made unavailable) |
 | `runJ2clPasses` | `Compiler.runJ2clPasses()` (set by `J2clSourceFileChecker`) | `true`; present only when true |
-| `injectedLibraries` | `Compiler.getRuntimeJsLibManager().getInjectedLibraries()` (D-017 item 2) | list of strings in injection order; present only when non-empty |
-| `allowableFeatures` | `Compiler.getAllowableFeatures()` (D-017 item 2) | list of `FeatureSet.Feature` constant names (`Feature.name()`) of the features the set has, in `Feature` enum declaration order; present when non-null |
-| `packageJsonMainEntries` | `Compiler.getModuleLoader().getPackageJsonMainEntries()` (D-017 item 2) | map string -> string (the loader's map order); present only when non-empty |
-| `typedPercent` | `Compiler.getErrorManager().getTypedPercent()` (D-017 item 2) | `{"double": Double.toString}`; present only when non-zero |
-| `moduleMapBoundNames` | `Compiler.getModuleMap().getModulesByPath()` -> `Module.boundNames().keySet()` (D-017 item 2) | object module path -> list of bound local names in `boundNames()` order; present only when the module map is set and non-empty |
+| `injectedLibraries` | `Compiler.getRuntimeJsLibManager().getInjectedLibraries()` | list of strings in injection order; present only when non-empty |
+| `allowableFeatures` | `Compiler.getAllowableFeatures()` | list of `FeatureSet.Feature` constant names (`Feature.name()`) of the features the set has, in `Feature` enum declaration order; present when non-null |
+| `packageJsonMainEntries` | `Compiler.getModuleLoader().getPackageJsonMainEntries()` | map string -> string (the loader's map order); present only when non-empty |
+| `typedPercent` | `Compiler.getErrorManager().getTypedPercent()` | `{"double": Double.toString}`; present only when non-zero |
+| `moduleMapBoundNames` | `Compiler.getModuleMap().getModulesByPath()` -> `Module.boundNames().keySet()` | object module path -> list of bound local names in `boundNames()` order; present only when the module map is set and non-empty |
 
 `pass` holds the results of **result producers**: pass objects reachable from the processor (its
 instance fields to object depth 2, list and array items included) and then from the roots (the
@@ -482,7 +481,7 @@ the asserted state: its `postCall` keys, or its `testFieldsAfter` fields under a
 or the postconditions the case replays (count rule). Which one covers a given test method is
 declared per class in `corpus/unit/postcall/<Class>.json` (next section) and verified by gate (a).
 
-## corpus/unit/postcall/<Class>.json (post-call classification, D-015 a)
+## corpus/unit/postcall/<Class>.json (post-call classification)
 One file per record-bearing test class that has methods flagged by the static post-call audit
 (`gates/lib/unit_postassert_scan.py`), maintained by hand. `<Class>` is the record
 file stem (`corpus/unit/records/<Class>.jsonl.gz`).
@@ -517,11 +516,11 @@ file stem (`corpus/unit/records/<Class>.jsonl.gz`).
   can be moved here.
 - `status` is `captured`, `rust_unit_test` or `unclassified`; nothing else is
   accepted. An explicit `unclassified` entry needs a non-empty `pending` text saying what would capture
-  the method (for example a D-017 item 2 neutral key the recorder does not produce yet); the method
+  the method (for example a neutral "Post-call snapshot" key the recorder does not produce yet); the method
   counts as unclassified in (a) exactly like a method without an entry. The records of every
   unclassified method (explicit entry or none, or a claim that does not hold), and records with
-  unclassified post state, are not captured, so they also count toward the 3% exclusion cap and (e)
-  (D-015 "records that are not captured count toward a 3% exclusion cap"). Methods moved from `rust_unit_test` keep the old text as
+  unclassified post state, are not captured, so they also count toward the 3% exclusion cap of (a)
+  and toward (e) (`gates/gate_0_2.sh`). Methods moved from `rust_unit_test` keep the old text as
   `formerRustUnitTestReason`/`formerCategory` and leave `corpus/unit/rust_unit_tests/`.
 - `captured`: `via` is a non-empty list of `postCall.<compiler|pass|postcondition>.<key>` (the
   `postcondition` section, "Postcondition data", is part of the `postCall` object replay compares by
@@ -546,11 +545,11 @@ file stem (`corpus/unit/records/<Class>.jsonl.gz`).
   A claim the records do not support fails the gate.
 - `rust_unit_test`: `reason` (non-empty) and `fragment`, a file under `corpus/unit/rust_unit_tests/`
   that names the method on its own line as `- <Class>#<method>: <what it checks>`. **Every** record of
-  the method is **excluded** from (a) and counts toward the 3% exclusion cap (D-015: "records that are
-  not captured count toward a 3% exclusion cap"). A compared `testFieldsAfter`
+  the method is **excluded** from (a) and counts toward the 3% exclusion cap (records that are not
+  captured count toward it). A compared `testFieldsAfter`
   field (post state `checked`) does not exempt a record, because the method is a Rust unit test
   precisely because no snapshot holds the asserted state; only a verified `captured` entry captures.
-  Per D-015 a ("the assertion inspects Java-internal objects"): the entry also needs
+  A Rust unit test is a method whose assertion inspects Java-internal objects, so the entry also needs
   `category`, one of the closed list `jstype` (JSType/FunctionType/ObjectType objects, the type
   registry), `jsdocinfo` (JSDocInfo/comment objects), `color` (Color/ColorRegistry objects),
   `node-identity` (Node object identity, Node props/flags, source positions of Node objects), `graph`
@@ -571,8 +570,8 @@ file stem (`corpus/unit/records/<Class>.jsonl.gz`).
   libraries, allowable features, package.json main entries, typed percent, ModuleMap bound names)
   are never a Rust unit test.
 
-## Change-expecting records (gate 0.2(d), D-015, D-017 item 10)
-A record is **change-expecting** (D-017 item 10, gate 0.2 (d)) when it expects:
+## Change-expecting records (gate 0.2(d))
+A record is **change-expecting** (gate 0.2 (d)) when it expects:
 - **an output AST different from its input.** `Gate02AstEquiv` (gates/lib/unit_gate02.py `EQUIV_JAVA`)
   parses the record's input sources (or chunk inputs) and the expected output file list in the
   record's language mode (`options.languageIn`; a missing `languageIn` means the CompilerOptions
@@ -592,7 +591,7 @@ A record is **change-expecting** (D-017 item 10, gate 0.2 (d)) when it expects:
 `integration` records are not attributed to a pass.
 
 ## Limits of the classification
-- **Post-call-only records are not change-expecting.** As gate 0.2 (d) / D-015 define it, a record
+- **Post-call-only records are not change-expecting.** As gate 0.2 (d) defines it, a record
   whose only expectation is post-call state does not count as change-expecting: its compared state
   may equal its entry state, which passes under any no-op.
 - **No-change-only classes** (Es6RewriteScriptsToModulesTest) cannot show that their descriptor runs
@@ -607,7 +606,7 @@ A record is **change-expecting** (D-017 item 10, gate 0.2 (d)) when it expects:
 - **Not captured by the recorder:** `compiler.typeJSDoc`, typed-scope property flags, a `typedScope`
   snapshot for `parseAndTypeCheckWithScope`, and a post-call snapshot for `integration` records.
 
-## passTrace (D-017 item 8)
+## passTrace
 Every record written by a recording JVM that runs the NoopAgent in TRACE mode
 (`-javaagent:noop-agent.jar=trace=<scope file>`, see RECORDING.md "Pass trace") has a top-level
 `passTrace`: the sorted list of FQCNs of the in-scope `src/` top-level classes (scope file =
@@ -625,7 +624,7 @@ the 3% cap. Replay (ReplayMain under the same agent mode) compares the replayed 
 `--trace-out` writes one status line per record (`equal`, `mismatch`, `unverified`).
 `processorIdentityNote` is not evidence of processor identity.
 
-## Postcondition data (D-017 item 1)
+## Postcondition data
 For a `compiler_test_case` record whose call ran at least one postcondition
 (`expected.postconditions > 0`), `postCall.postcondition` holds the state that postcondition
 lambdas assert, read from the compiler the outermost call's postconditions verify (the harness's
@@ -652,17 +651,17 @@ kept as recorded. Gate (e) does not count the lambda placeholders inside
 `postCall.postcondition` is present (`captured_postcondition_indices`). Other postcondition
 lambdas (PolymerPassTest) stay unrepresentable.
 
-## postCall key-set equality (D-017 item 3)
+## postCall key-set equality
 `ReplayMain.compare` compares `rec.postCall` with the replayed `postCall` by Gson
 `JsonElement.equals`, which for `JsonObject` is map equality (same key set, equal values),
 recursively. A key present on one side only fails the record. So replay compares postCall key
-sets exactly, and a `postCallAbsent.<...>` capture path is valid under D-017 item 3.
+sets exactly, which is what makes a `postCallAbsent.<...>` capture path valid.
 In `corpus/unit/postcall/<Class>.json` a `captured` entry may name
 `postCallAbsent.<compiler|pass>.<key>` in `via`: the asserted state is that the snapshot has no
 such key. Gate (a) accepts it for a record only when the record has a `postCall` snapshot whose
 section lacks the key (`_postcall_absent_key`) and the record passes in (a).
 
-## Postcondition-lambda assertions are in-call (D-017 item 7)
+## Postcondition-lambda assertions are in-call
 `gates/lib/unit_postassert_scan.py` does not take an assertion for a post-call assertion when it
 lies inside the argument list of a hooked call (or hooked helper call), after a `->` that starts
 in that argument list, in a method whose recorded calls ran postconditions

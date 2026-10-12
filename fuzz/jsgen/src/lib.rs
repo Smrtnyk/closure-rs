@@ -2,7 +2,7 @@
 //!
 //! `generate(seed, &cfg)` always returns the same bytes for the same `(seed, cfg)`: the only
 //! randomness is this crate's own [`rng::Rng`], and no hash-map iteration is involved.
-//! Nesting depth is capped at [`MAX_DEPTH_CAP`] = 64 (D-010): at the cap only leaf
+//! Nesting depth is capped at [`MAX_DEPTH_CAP`] = 64 (docs/PORTING.md §4.1): at the cap only leaf
 //! productions are chosen.
 //!
 //! Layout (see `fuzz/DESIGN.md`): `engine.rs` is the dispatch core; `lang/` holds core
@@ -19,7 +19,7 @@ pub mod rng;
 use engine::Gen;
 use rng::Rng;
 
-/// Hard upper bound on generator nesting depth (D-010).
+/// Hard upper bound on generator nesting depth (docs/PORTING.md §4.1).
 pub const MAX_DEPTH_CAP: u32 = 64;
 
 /// At most this many top-level bindings are observed by the trailing `console.log`.

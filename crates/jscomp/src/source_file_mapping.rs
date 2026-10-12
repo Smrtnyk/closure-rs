@@ -21,9 +21,9 @@ use closure_sourcemap::{
     proto::mapping::OriginalMapping, source_map_consumer_v3::SourceMapConsumerV3,
 };
 use std::sync::Arc;
-/// Rust-only, not in Java (D-025): what `SourceFileMapping::get_source_mapping_cached` keeps
-/// from one call to the next, for a caller that asks about one node after another of the same
-/// file.
+/// Rust-only, not in Java (performance divergence): what
+/// `SourceFileMapping::get_source_mapping_cached` keeps from one call to the next, for a caller
+/// that asks about one node after another of the same file.
 #[derive(Default)]
 pub struct SourceMappingCache {
     /// The file last asked about and its parsed input map (`None`: it has none that maps).
@@ -48,8 +48,8 @@ pub trait SourceFileMapping {
         line_no: i32,
         column_no: i32,
     ) -> Option<OriginalMapping>;
-    /// Rust-only, not in Java (D-025): `get_source_mapping` for a caller that asks about one
-    /// node after another (the output source map), keeping in `cache` what the last call
+    /// Rust-only, not in Java (performance divergence): `get_source_mapping` for a caller that asks
+    /// about one node after another (the output source map), keeping in `cache` what the last call
     /// found, so that the file's input map and the resolved path are not looked up for every
     /// node. The result is the one `get_source_mapping` gives.
     fn get_source_mapping_cached(

@@ -54,8 +54,8 @@ pub struct SourceFile {
     loader: CodeLoader,
     state: Mutex<State>,
     load_lock: Mutex<()>,
-    /// Rust-only (D-025): `kind` (also in `state`) as an atomic, so that the frequent
-    /// `getKind`/`isExtern` reads take no lock.
+    /// Rust-only (performance divergence): `kind` (also in `state`) as an atomic, so that the
+    /// frequent `getKind`/`isExtern` reads take no lock.
     kind_code: std::sync::atomic::AtomicU8,
 }
 impl SourceFile {

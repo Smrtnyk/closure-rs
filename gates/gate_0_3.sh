@@ -5,7 +5,7 @@
 #   gates/gate_0_3.sh report     only rewrite gates/reports/gate_0_3.{md,json}
 #
 # Steps (artifacts under build/fuzz/gate/):
-#   0. Integration (D-016): scope/gen_flags.py --check (scope/flags.txt is what the pinned
+#   0. Integration: scope/gen_flags.py --check (scope/flags.txt is what the pinned
 #      CommandLineRunner gives; the driver checks its option pool against it), cargo build
 #      --workspace, cargo test --workspace, cargo clippy --workspace --all-targets -- -D warnings,
 #      cargo build --release --workspace; logs cargo-{build,test,clippy,release}.log and
@@ -27,15 +27,15 @@
 # (The hash was moved once, by hand, for clippy-only source fixes after a full
 # byte-identity check of the generated programs; see build/fuzz/gate/fuzz-src.verified.json.)
 # (b) is gated only on the Gate 0.3 definition: pass-entry counters (entry.jsonl), average
-# per program, over all 138 DefaultPassConfig names, >= 60%. D-016 adds (b2): the union over the
+# per program, over all 138 DefaultPassConfig names, >= 60%. (b2): the union over the
 # programs (runs where Java did not crash) of the passes the effect measure (fuzz/DESIGN.md) finds
 # effective (reach.jsonl) must cover >= 85% of the D2-effective set (fuzz_gate03.D2_SAMPLES). The
 # gate needs (a), (b), (b2) and (c); the other effect aggregates are diagnostics. The driver draws
-# profiles with the D-016 weights (ADVANCED family 65%, ws 3%, other 32%) and its random option
-# flags from scope/flags.txt. The report marks itself STALE when the fuzz/ sources on disk differ
-# from the ones the results were measured with.
+# profiles with the fuzz/DESIGN.md weights (ADVANCED family 65%, ws 3%, other 32%) and its random
+# option flags from scope/flags.txt. The report marks itself STALE when the fuzz/ sources on disk
+# differ from the ones the results were measured with.
 # Heap: at most 4 + 3 JVMs x 1536m (+1.5g during a 3g retry) = 12 GB.
-# All oracle JVMs run in the golden environment with the ready line checked (D-010).
+# All oracle JVMs run in the golden environment with the ready line checked (docs/PORTING.md §4.1).
 set -u
 . "$(dirname "${BASH_SOURCE[0]}")/../scripts/paths.sh"  # ROOT, WT, SSD_WT
 G=$ROOT/build/fuzz/gate
@@ -86,7 +86,7 @@ log = open(f"{g}/cargo-test.log", encoding="utf-8", errors="replace").read()
 res = [tuple(map(int, m)) for m in re.findall(r"test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored", log)]
 tp, tf, ti = (sum(x[i] for x in res) for i in range(3))
 tests = f"{tp} passed, {tf} failed, {ti} ignored"
-json.dump({"round": "D-016", "fuzz_src_sha256": sha, "build_exit": b, "test_exit": t, "clippy_exit": c,
+json.dump({"fuzz_src_sha256": sha, "build_exit": b, "test_exit": t, "clippy_exit": c,
            "release_exit": r, "tests": tests, "lines": [
     f"`cargo build --workspace`: exit {b}. `cargo test --workspace`: exit {t} ({tests}; log "
     "build/fuzz/gate/cargo-test.log). `cargo clippy --workspace --all-targets -- -D warnings`: exit "
@@ -97,16 +97,16 @@ json.dump({"round": "D-016", "fuzz_src_sha256": sha, "build_exit": b, "test_exit
     "default/sloppy/unsupported), the Closure generator (fuzz/jsgen/src/closure/, single-file "
     "idioms plus the multi-file goog.module/goog.provide/ES module/CommonJS API) and the mutator/minimizer, "
     "all driven by fuzz-driver `--source mixed` (lang, closure, multi, sloppy, mutate).",
-    "D-016 item 5 generator coverage: fuzz/jsgen/src/closure/passes.rs (wide prototype classes, "
+    "Generator coverage: fuzz/jsgen/src/closure/passes.rs (wide prototype classes, "
     "dead property writes in constructors, trivial and forwarding ES class constructors, @nosideeffects, "
     "@dict) and the multi-file program changes in items.rs/program.rs.",
     "Module forms (fuzz/jsgen/src/closure/program.rs, items.rs): destructuring goog.require "
     "and require, goog.module.get inside functions, whole-object and whole-value exports (exports = {..} / "
     "exports = X, module.exports = {..} / module.exports = X), export let/var, export default function/class, "
     "import {a as b}, export {x} from, and side-effect imports.",
-    "D-016 driver changes (fuzz/driver): "
+    "Driver (fuzz/driver): "
     "profiles are drawn with the "
-    "D-016 weights (ADVANCED family 65%, ws 3%, other 32%); the random option flags come from "
+    "fuzz/DESIGN.md weights (ADVANCED family 65%, ws 3%, other 32%); the random option flags come from "
     "scope/flags.txt (scope/gen_flags.py, checked here and at driver start-up); the report adds (b2). "
     "scope/gen_flags.py --check: exit 0."]}, open(f"{g}/integration.json", "w", encoding="utf-8"), indent=1)
 PY

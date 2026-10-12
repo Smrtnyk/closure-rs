@@ -925,8 +925,8 @@ impl CompilerOptions {
         let conformance_configs = Vec::new();
         let conformance_reporting_mode =
             ConformanceReportingMode::IGNORE_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG;
-        // Rust-only (D-025): the pattern is compiled once per process, not per options object
-        // (CodePrinter.Builder makes default options for every toSource call).
+        // Rust-only (performance divergence): the pattern is compiled once per process, not per
+        // options object (CodePrinter.Builder makes default options for every toSource call).
         static CONFORMANCE_REMOVE_REGEX_FROM_PATH: std::sync::LazyLock<Pattern> =
             std::sync::LazyLock::new(|| {
                 Pattern::compile("^((.*/)?google3/)?(/?(blaze|bazel)-out/[^/]+/(bin|genfiles)/)?")

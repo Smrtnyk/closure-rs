@@ -29,7 +29,7 @@
 //! Conformance violations are both reported as compiler errors, and are also reported separately
 //! to the `ErrorManager`.
 //!
-//! Iteration order (DECISIONS): Java groups the rules in a `HashMultimap<Precondition, Rule>`
+//! Iteration order: Java groups the rules in a `HashMultimap<Precondition, Rule>`
 //! (`initRules`, CheckConformance.java:211). Every `Precondition` and every `Rule` uses identity
 //! hashing, so the order of the categories and of the rules inside one category depends on the
 //! JVM run. In the port
@@ -37,8 +37,8 @@
 //! order observed in the oracle corpus (every CheckConformanceTest processor dump with two
 //! categories lists `BannedProperty.RequirementPrecondition.BANNED_PROPERTY` before the
 //! `BannedName` lambda). The rules inside one category keep first-insertion order: the corpus
-//! shows both orders for the same configuration shape (see
-//! `build/questions/conformance-rule-order-within-category.md`).
+//! shows both orders for the same configuration shape, so Java's order there depends on the run,
+//! and the diagnostics of those records do not depend on it.
 
 use crate::{
     AbstractCompiler,

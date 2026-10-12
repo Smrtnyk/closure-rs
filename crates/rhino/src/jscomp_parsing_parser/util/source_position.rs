@@ -22,11 +22,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-/// Rust-only, not in Java (D-025): the identity of the `SourceFile` a position belongs to. Java
-/// positions hold the SourceFile reference; the parser makes two positions per token, so the
-/// reference-count traffic of an `Arc` here is a measurable part of parsing. The handle is a
-/// plain number, unique per registered SourceFile object (Java's `==` on the reference), and
-/// gives back the file name, the only thing positions read from their source.
+/// Rust-only, not in Java (performance divergence): the identity of the `SourceFile` a position
+/// belongs to. Java positions hold the SourceFile reference; the parser makes two positions per
+/// token, so the reference-count traffic of an `Arc` here is a measurable part of parsing. The
+/// handle is a plain number, unique per registered SourceFile object (Java's `==` on the
+/// reference), and gives back the file name, the only thing positions read from their source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SourceFileId(u32);
 

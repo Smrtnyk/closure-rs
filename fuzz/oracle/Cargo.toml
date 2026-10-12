@@ -1,6 +1,6 @@
 [package]
 name = "fuzz-oracle"
-description = "Rust client for the closure-rs Java oracle server pool (oracle/PROTOCOL.md), golden env enforced (D-010)"
+description = "Rust client for the closure-rs Java oracle server pool (oracle/PROTOCOL.md), golden env enforced"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

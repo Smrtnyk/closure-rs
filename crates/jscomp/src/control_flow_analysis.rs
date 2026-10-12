@@ -205,8 +205,8 @@ impl ControlFlowAnalysis {
             self.priority_counter += 1;
             current.set_priority(&mut self.cfg, self.priority_counter);
 
-            // Rust-only (D-025): the successors are read from the graph in place instead of
-            // being copied into a new list.
+            // Rust-only (performance divergence): the successors are read from the graph in place
+            // instead of being copied into a new list.
             let cfg = &self.cfg;
             worklist.add_all(
                 cfg.node_out_edges(current)

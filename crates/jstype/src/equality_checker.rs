@@ -209,8 +209,9 @@ impl EqualityChecker {
         {
             return self.are_arrow_equal(reg, ast, left, right);
         }
-        // Rust-only (D-025): `areTypeMapEqual` holds when the left map has no keys, so the maps
-        // are only copied (releasing the registry) when there are keys to compare.
+        // Rust-only (performance divergence): `areTypeMapEqual` holds when the left map has no
+        // keys, so the maps are only copied (releasing the registry) when there are keys to
+        // compare.
         if !crate::js_type::template_type_map_ref(left, reg)
             .get_template_keys()
             .is_empty()

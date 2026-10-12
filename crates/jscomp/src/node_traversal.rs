@@ -60,8 +60,8 @@ enum ScopeObject {
 }
 enum ScopeCreatorHolder<'a> {
     Borrowed(&'a mut dyn ScopeCreator),
-    /// Rust-only (D-025): the default creator is kept in the traversal itself rather than boxed,
-    /// so that making a traversal allocates nothing for it.
+    /// Rust-only (performance divergence): the default creator is kept in the traversal itself
+    /// rather than boxed, so that making a traversal allocates nothing for it.
     Default(SyntacticScopeCreator<'a>),
 }
 impl ScopeCreatorHolder<'_> {
@@ -106,10 +106,11 @@ pub struct NodeTraversal<'a> {
     // lookups referring to that same object rather than copying its fields.
     compiler_input: Option<Arc<InputId>>,
     /// Rust-only: the CompilerInput found for `compiler_input` (Java's cached `compilerInput`;
-    /// a shared handle), so that `get_input` needs no input lookup by id (D-025).
+    /// a shared handle), so that `get_input` needs no input lookup by id (performance divergence).
     compiler_input_object: Option<CompilerInput>,
-    /// Rust-only: the chunk of `compiler_input_object`, read once per script (D-025; Java's
-    /// `getChunk` reads the input's field, which needs a lock and a weak upgrade here).
+    /// Rust-only: the chunk of `compiler_input_object`, read once per script
+    /// (performance divergence; Java's `getChunk` reads the input's field, which needs a lock and a
+    /// weak upgrade here).
     chunk_of_input: Option<Option<JSChunk>>,
 }
 
@@ -634,7 +635,8 @@ impl<C: ModuleCallback> Callback for AbstractModuleCallback<'_, C> {
             }
             _ => {}
         }
-        // Rust-only (D-025): the module is lent to the call instead of copied for every node.
+        // Rust-only (performance divergence): the module is lent to the call instead of copied for
+        // every node.
         let current_module = self.current_module.take();
         let result = self.should_traverse_module(t, n, current_module.as_ref(), self.scope_root);
         self.current_module = current_module;
@@ -687,7 +689,8 @@ impl<C: ModuleCallback> AbstractModuleCallback<'_, C> {
             }
             _ => {}
         }
-        // Rust-only (D-025): the module is lent to the call instead of copied for every node.
+        // Rust-only (performance divergence): the module is lent to the call instead of copied for
+        // every node.
         let current_module = self.current_module.take();
         self.visit_module(t, n, current_module.as_ref(), self.scope_root);
         self.current_module = current_module;
@@ -857,8 +860,8 @@ impl<'a> Builder<'a> {
         self.build().traverse_roots_tree(externs, root);
     }
 
-    /// Rust-only (DECISIONS.md D-025): `traverseRoots(externs, root)` without visiting `externs`;
-    /// the global scope is still the one of both roots.
+    /// Rust-only (crates/DESIGN.md, "Performance divergences"): `traverseRoots(externs, root)`
+    /// without visiting `externs`; the global scope is still the one of both roots.
     pub fn traverse_roots_skipping_externs(&mut self, externs: NodeId, root: NodeId) {
         self.build()
             .traverse_roots_tree_skipping_externs(externs, root);
@@ -991,7 +994,8 @@ impl<'a> NodeTraversal<'a> {
         }
     }
 
-    /// Rust-only (DECISIONS.md D-025): `traverse_roots_tree` without visiting `externs`.
+    /// Rust-only (crates/DESIGN.md, "Performance divergences"): `traverse_roots_tree` without
+    /// visiting `externs`.
     pub fn traverse_roots_tree_skipping_externs(&mut self, externs: NodeId, root: NodeId) {
         let callback = check_not_null!(self.callback.take());
         let result = catch_unwind(AssertUnwindSafe(|| {
@@ -1299,8 +1303,8 @@ impl<'a> NodeTraversal<'a> {
     // port: NodeTraversal#getInput
     #[allow(clippy::collapsible_if)] // Retain Java control flow.
     pub fn get_input(&mut self) -> Option<&CompilerInput> {
-        // Rust-only fast path (D-025): once the input is cached, getInputId() has been computed
-        // and the lookup below is skipped, so the id need not be copied again.
+        // Rust-only fast path (performance divergence): once the input is cached, getInputId() has
+        // been computed and the lookup below is skipped, so the id need not be copied again.
         if self.compiler_input_object.is_some() {
             return self.compiler_input_object.as_ref();
         }

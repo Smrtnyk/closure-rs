@@ -131,15 +131,15 @@
     "testInferTypes",
     "testTypeCheckAndInference"
    ],
-   "key": "typedPercent (D-017 item 2) for integration records",
+   "key": "typedPercent (FORMAT.md \"Post-call snapshot\") for integration records",
    "note": "asserts lastCompiler.getErrorManager().getTypedPercent() (a double: isEqualTo(0.0) after both test() calls of testInferTypes, isGreaterThan(0.0) in testTypeCheckAndInference) after test(); neutral, so never a Rust unit test. compiler.typedPercent exists since v7 for compiler_test_case records only; these records are kind=integration and carry no postCall (harness request: post-call snapshot for integration records)"
   },
   {
    "methods": [
     "testReplaceCssNames"
    ],
-   "key": "Result.cssNames for integration records (not named in D-017 item 2; harness request)",
-   "note": "asserts lastCompiler.getResult().cssNames containsExactly 'foo'; a set of strings, neutral; no snapshot key (not named in D-017 item 2) and integration records carry no postCall"
+   "key": "Result.cssNames for integration records (not named in FORMAT.md \"Post-call snapshot\"; harness request)",
+   "note": "asserts lastCompiler.getResult().cssNames containsExactly 'foo'; a set of strings, neutral; no snapshot key (not named in FORMAT.md \"Post-call snapshot\") and integration records carry no postCall"
   },
   {
    "methods": [

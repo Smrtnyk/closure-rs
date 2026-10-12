@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate scope/flags.txt from the pinned CommandLineRunner (docs/PORTING.md §2 "Scope", D-016 item 4).
+"""Generate scope/flags.txt from the pinned CommandLineRunner (docs/PORTING.md §2 "Scope").
 
     python3 scope/gen_flags.py            write scope/flags.txt
     python3 scope/gen_flags.py --check    exit 1 if scope/flags.txt differs from what the source gives
@@ -20,7 +20,7 @@ Scope rules (docs/PORTING.md §2, applied in this order; the first match decides
   4. otherwise                                                  -> in
 
 The generator never adds an exclusion that docs/PORTING.md §2 does not name (an added exclusion
-needs a decision in DECISIONS.md). The output is deterministic: rows are in source order,
+is added there first). The output is deterministic: rows are in source order,
 whitespace in usage text is collapsed, and the header records the source's sha256.
 """
 from __future__ import annotations

@@ -9,7 +9,7 @@
 //!   enums, constants, `@template` functions) in script, goog.module, goog.provide, ES module
 //!   and CommonJS styles, plus typed uses of them.
 //! - `idioms.rs`, `script.rs`: single-file statement and expression productions.
-//! - `passes.rs`: inputs for passes the fuzzer never reached before (D-016 item 5):
+//! - `passes.rs`: inputs for passes the fuzzer never reached before:
 //!   extractPrototypeMemberDeclarations, crossChunkMethodMotion, deadPropertyAssignmentElimination,
 //!   optimizeConstructors, `@nosideeffects`, `@dict`.
 //! - `program.rs`: multi-file programs whose imports are legal under one output file,

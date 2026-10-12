@@ -1288,7 +1288,8 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
             for file in files {
                 let file = file.as_ref().expect("null JsonFileSpec");
                 // Source names are Rust strings: an unpaired surrogate in the path is held as
-                // the '?' Java's UTF-8 streams write for it (DECISIONS.md D-029).
+                // the '?' Java's UTF-8 streams write for it (crates/DESIGN.md, "Source names that
+                // hold unpaired surrogates").
                 inputs.push(SourceFile::from_code(
                     &file.get_path().expect("null path").to_string(),
                     file.get_src().expect("null src").clone(),
@@ -2002,7 +2003,7 @@ impl
     >
 {
     // port: AbstractCommandLineRunner#performCompilation
-    /// Not in Java: returns the refusal of the J2CL passes (DECISIONS.md D-028), which stops the
+    /// Not in Java: returns the refusal of the J2CL passes (docs/PORTING.md §2.1), which stops the
     /// compilation.
     pub fn perform_compilation(
         &mut self,
@@ -2091,7 +2092,7 @@ impl
             }
         }
         // Not in Java: the J2CL passes, which the checks turn on for J2CL input, are refused
-        // before the optimizations that hold them (DECISIONS.md D-028).
+        // before the optimizations that hold them (docs/PORTING.md §2.1).
         if run_stage2 || run_stage3 {
             crate::out_of_scope::refuse_j2cl_passes(compiler)?;
         }

@@ -2227,7 +2227,7 @@ impl PeepholeFoldConstants {
             return self.try_fold_object_prop_access(compiler, n, left, &name);
         }
 
-        // Rust-only: the name is compared in place (D-025).
+        // Rust-only: the name is compared in place (performance divergence).
         if n.get_string_ref(compiler) == "length" {
             if NodeUtil::is_l_value(compiler, n) {
                 return n;

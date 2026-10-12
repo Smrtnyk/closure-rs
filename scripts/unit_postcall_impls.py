@@ -32,7 +32,7 @@ UNORDERED = {
     "com.google.common.collect.HashBiMap", "com.google.common.collect.HashBiMap$Inverse",
     "com.google.common.collect.AbstractMapBasedMultimap$WrappedSet",
     "com.google.common.collect.AbstractMapBasedMultimap$AsMap",
-    # D-017 item 2 (FORMAT.md "Neutral encodings"): a Guava Table is {"table": [[row, column, value],
+    # FORMAT.md "Neutral encodings": a Guava Table is {"table": [[row, column, value],
     # ...], "impl": ...}; HashBasedTable iterates rows and columns in hash order.
     "com.google.common.collect.HashBasedTable",
 }

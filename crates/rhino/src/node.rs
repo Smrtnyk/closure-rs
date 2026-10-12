@@ -329,7 +329,7 @@ pub enum NodeKind {
     Number { number: f64 },
     BigInt { bigint: Arc<BigInt> },
     String { str: JsString },
-    // Boxed (rare) so that the node stays small (D-025).
+    // Boxed (rare) so that the node stays small (performance divergence).
     TemplateLiteralSubstring(Box<TemplateLiteralStrings>),
 }
 #[derive(Clone, Debug)]
@@ -342,9 +342,9 @@ pub enum JSTypeOrColor {
     JSType(TypeId),
     Color(Color),
 }
-/// Rust-only (D-025): the tree links and token of a node, the fields every traversal reads.
-/// They live in their own dense array (`Ast::links`), apart from the rest of the node, so that
-/// walking the tree touches 20 bytes per node instead of the whole node.
+/// Rust-only (performance divergence): the tree links and token of a node, the fields every
+/// traversal reads. They live in their own dense array (`Ast::links`), apart from the rest of the
+/// node, so that walking the tree touches 20 bytes per node instead of the whole node.
 #[derive(Debug, Clone, Copy)]
 pub struct NodeLinks {
     token: Token,
@@ -357,8 +357,8 @@ pub struct NodeLinks {
 #[derive(Clone, Copy)]
 struct L(NodeId);
 /// The fields of a node that most passes read: its payload (string, number) and property list.
-/// Rust-only (D-025): Java's other node fields live in `NodeCold` and `NodeType`, in arrays of
-/// their own (`Ast::cold`, `Ast::types`), so that the hot array stays dense.
+/// Rust-only (performance divergence): Java's other node fields live in `NodeCold` and `NodeType`,
+/// in arrays of their own (`Ast::cold`, `Ast::types`), so that the hot array stays dense.
 #[derive(Debug)]
 pub struct NodeData {
     prop_list_head: Option<Arc<PropListItem>>,
@@ -506,14 +506,16 @@ pub struct Ast {
     nodes: Vec<NodeData>,
     cold: Vec<NodeCold>,
     types: Vec<NodeType>,
-    /// Rust-only (D-025): per node, bit `p` is set when its property list holds an item of type
-    /// `p`, so that looking up an absent property (the common case) reads this dense array only,
-    /// neither the node nor its list. Kept in step with `prop_list_head` by `Ast::set_props`.
+    /// Rust-only (performance divergence): per node, bit `p` is set when its property list holds an
+    /// item of type `p`, so that looking up an absent property (the common case) reads this dense
+    /// array only, neither the node nor its list. Kept in step with `prop_list_head` by
+    /// `Ast::set_props`.
     prop_masks: Vec<u64>,
-    /// Rust-only (D-025): per node, the JSDocInfo of its property list (a second reference to
-    /// it), so that `getJSDocInfo`, which most passes call on most nodes, reads this dense array
-    /// instead of the node and its list. Kept in step with `prop_list_head` by `Ast::set_props`
-    /// (a JSDOC_INFO item that holds no JSDocInfo fails there instead of in `getJSDocInfo`).
+    /// Rust-only (performance divergence): per node, the JSDocInfo of its property list (a second
+    /// reference to it), so that `getJSDocInfo`, which most passes call on most nodes, reads this
+    /// dense array instead of the node and its list. Kept in step with `prop_list_head` by
+    /// `Ast::set_props` (a JSDOC_INFO item that holds no JSDocInfo fails there instead of in
+    /// `getJSDocInfo`).
     jsdocs: Vec<Option<Arc<JSDocInfo>>>,
     links: Vec<NodeLinks>,
     pub(crate) implicit_template_bound: Option<Arc<JSTypeExpression>>,
@@ -526,10 +528,10 @@ pub struct Ast {
     /// Rust-only: in a preparse arena, the node count when the parse first asked for the
     /// implicit template bound.
     pub(crate) preparse_bound_first_use: Option<u32>,
-    /// Rust-only (D-025): whether `changed_nodes` is kept (see `track_changes`).
+    /// Rust-only (performance divergence): whether `changed_nodes` is kept (see `track_changes`).
     tracking_changes: bool,
-    /// Rust-only (D-025): the nodes whose children, token or string changed since the last
-    /// `take_changed_nodes`, in order, without immediate repeats.
+    /// Rust-only (performance divergence): the nodes whose children, token or string changed since
+    /// the last `take_changed_nodes`, in order, without immediate repeats.
     changed_nodes: Vec<NodeId>,
 }
 impl Index<NodeId> for Ast {
@@ -586,18 +588,20 @@ impl Ast {
     pub fn new() -> Self {
         Self::default()
     }
-    /// Rust-only, not in Java (D-025): from now on, records every node whose list of children,
-    /// token or string changes (`take_changed_nodes`), so that what was computed from a part of
-    /// the tree (the compiler's reused syntactic scopes) is known to be stale whether or not the
-    /// change was reported to the compiler.
+    /// Rust-only, not in Java (performance divergence): from now on, records every node whose list
+    /// of children, token or string changes (`take_changed_nodes`), so that what was computed from
+    /// a part of the tree (the compiler's reused syntactic scopes) is known to be stale whether or
+    /// not the change was reported to the compiler.
     pub fn track_changes(&mut self) {
         self.tracking_changes = true;
     }
-    /// Rust-only (D-025): moves the nodes recorded since the last call to the end of `into`.
+    /// Rust-only (performance divergence): moves the nodes recorded since the last call to the end
+    /// of `into`.
     pub fn take_changed_nodes(&mut self, into: &mut Vec<NodeId>) {
         into.append(&mut self.changed_nodes);
     }
-    /// Rust-only (D-025): records that the children, token or string of `n` changed.
+    /// Rust-only (performance divergence): records that the children, token or string of `n`
+    /// changed.
     #[inline]
     fn note_changed(&mut self, n: NodeId) {
         if self.tracking_changes && self.changed_nodes.last() != Some(&n) {
@@ -618,10 +622,10 @@ impl Ast {
         self.jsdocs[n.0.get() as usize - 1] = None;
         self[n].prop_list_head.take()
     }
-    /// Rust-only, not in Java (D-025): an arena in which a worker thread parses one input
-    /// (Java parses into the one shared object graph). `append_preparsed` then moves the result
-    /// into the compiler's arena with exactly the node ids, and the same object sharing, that
-    /// parsing directly into that arena at that point would have produced. The one piece of
+    /// Rust-only, not in Java (performance divergence): an arena in which a worker thread parses
+    /// one input (Java parses into the one shared object graph). `append_preparsed` then moves the
+    /// result into the compiler's arena with exactly the node ids, and the same object sharing,
+    /// that parsing directly into that arena at that point would have produced. The one piece of
     /// arena state a parse reads is the lazily created implicit template bound (Java's
     /// `JSTypeExpression.IMPLICIT_TEMPLATE_BOUND`); a preparse arena hands out a placeholder for
     /// it and records when it was first asked for, so that the append can create the real one at
@@ -640,9 +644,9 @@ impl Ast {
     pub fn node_count(&self) -> u32 {
         u32::try_from(self.nodes.len()).unwrap()
     }
-    /// Rust-only (D-025): moves the nodes of `other`, a `new_for_preparse` arena holding one
-    /// parsed input, to the end of this arena; see `new_for_preparse`. Returns how the ids of
-    /// `other` map to ids of this arena.
+    /// Rust-only (performance divergence): moves the nodes of `other`, a `new_for_preparse` arena
+    /// holding one parsed input, to the end of this arena; see `new_for_preparse`. Returns how the
+    /// ids of `other` map to ids of this arena.
     pub fn append_preparsed(&mut self, other: Ast) -> PreparsedIdMap {
         assert!(other.preparse && !self.preparse);
         let placeholder = other.implicit_template_bound.clone().unwrap();
@@ -1371,7 +1375,8 @@ impl NodeId {
         if ast[L(self)].token == Token::ROOT {
             consumer("ROOT has properties".into());
         }
-        // Rust-only (D-025): the list is walked by reference, without reference counting.
+        // Rust-only (performance divergence): the list is walked by reference, without reference
+        // counting.
         let mut item = ast[self].prop_list_head.as_deref();
         while let Some(p) = item {
             let prop = Prop::VALUES[p.prop_type as usize];
@@ -1496,7 +1501,7 @@ impl NodeId {
     // port: Node#removeProp
     pub fn remove_prop(self, ast: &mut Ast, prop: Prop) {
         // Rust-only: rebuildListWithoutProp returns the list itself when `prop` is absent; skip
-        // the walk that copies references then (D-025).
+        // the walk that copies references then (performance divergence).
         if self.lookup_property_ref(ast, prop).is_none() {
             return;
         }
@@ -2839,8 +2844,8 @@ impl NodeId {
                 }
             }
             Token::GETPROP => {
-                // Rust-only (D-025): the name is assembled in a buffer kept per thread and copied
-                // into the string once (one allocation per name).
+                // Rust-only (performance divergence): the name is assembled in a buffer kept per
+                // thread and copied into the string once (one allocation per name).
                 thread_local! {
                     static BUFFER: std::cell::RefCell<Vec<u16>> =
                         const { std::cell::RefCell::new(Vec::new()) };
@@ -3195,8 +3200,8 @@ impl NodeId {
     // port: Node#getJSDocInfo
     /// Rust-only: `get_jsdoc_info` by reference (no reference-count traffic).
     pub fn get_jsdoc_info_ref(self, ast: &Ast) -> Option<&Arc<JSDocInfo>> {
-        // Rust-only (D-025): read from the arena's dense mirror of the JSDOC_INFO items
-        // (`Ast::jsdocs`) instead of walking the property list.
+        // Rust-only (performance divergence): read from the arena's dense mirror of the JSDOC_INFO
+        // items (`Ast::jsdocs`) instead of walking the property list.
         ast.jsdocs[self.0.get() as usize - 1].as_ref()
     }
     // port: Node#setJSDocInfo

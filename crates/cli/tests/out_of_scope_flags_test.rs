@@ -15,7 +15,7 @@
  */
 
 //! The flags and inputs that turn on parts of Closure Compiler outside the port are refused
-//! (DECISIONS.md D-028), and the same flags with their inactive values compile as the Java
+//! (docs/PORTING.md §2.1), and the same flags with their inactive values compile as the Java
 //! compiler does. The expected outputs of the inactive cases were recorded from the Java compiler
 //! at the pinned release.
 use std::path::{Path, PathBuf};
