@@ -97,6 +97,7 @@ class Sync:
             if self.state.get("tag") != self.tag:
                 raise SystemExit(f"{self.state_path} belongs to {self.state.get('tag')}, not {self.tag}")
         self.notes = []  # (step, text): things the person running the sync must look at
+        self.dry_row = None  # --dry-run: the registry row the registry step would add
 
     # ---- helpers -------------------------------------------------------------------------------
     def note(self, step, text):
@@ -107,6 +108,14 @@ class Sync:
         e = dict(os.environ)
         e["CLOSURE_RS_REF"] = self.tag
         e.update({k: v for k, v in extra.items() if v is not None})
+        return e
+
+    def cargo_env(self, jobs):
+        """The environment of a cargo build: without $CLOSURE_RS_REF, which the build does not
+        read, so a rustc wrapper or build script that resolves the reference from another checkout's
+        registry (one that does not know the new tag yet) still works."""
+        e = {k: v for k, v in os.environ.items() if k != "CLOSURE_RS_REF"}
+        e["CARGO_BUILD_JOBS"] = os.environ.get("CARGO_BUILD_JOBS", jobs)
         return e
 
     def run(self, cmd, *, cwd=CHECKOUT, env=None, write=True, check=True, capture=False):
@@ -142,6 +151,8 @@ class Sync:
     def ref(self, tag=None):
         refs, _ = self.registry()
         tag = tag or self.tag
+        if tag == self.tag and tag not in refs and self.dry_row:
+            return paths.Reference(*self.dry_row)  # --dry-run: the row the registry step would add
         if tag not in refs:
             raise StepError(f"{tag} is not in scripts/references.tsv (step registry)")
         return refs[tag]
@@ -180,15 +191,20 @@ class Sync:
     def link_shared(self):
         """In a worktree, the gitignored shared state is reached through symlinks to the main
         checkout (.gitignore allows them): the D2 golden runner and the validation read
-        corpus-cache/, reference/ and tools/ relative to the checkout."""
+        corpus-cache/, reference/, tools/ and the reference's jar directories under build/
+        relative to the checkout."""
         if os.path.realpath(CHECKOUT) == os.path.realpath(ROOT):
             return
-        for d in ("tools", "reference", "corpus-cache"):
+        r = self.ref()
+        dirs = ["tools", "reference", "corpus-cache"]
+        dirs += sorted({os.path.dirname(p) for p in (r.jar, r.oracle_jar) if os.path.dirname(p)})
+        for d in dirs:
             p = os.path.join(CHECKOUT, d)
             if not os.path.lexists(p):
                 if self.dry:
                     log(f"  would link {d} -> {rel(os.path.join(ROOT, d))}")
                 else:
+                    os.makedirs(os.path.dirname(p), exist_ok=True)
                     os.symlink(os.path.join(ROOT, d), p)
                     log(f"  linked {d} -> {rel(os.path.join(ROOT, d))}")
 
@@ -277,6 +293,7 @@ class Sync:
         lines.insert(at, "\t".join(row))
         if self.dry:
             log("  would add: " + "\t".join(row))
+            self.dry_row = row
             return "ran"
         with open(REGISTRY, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
@@ -324,8 +341,10 @@ class Sync:
             else:
                 self.note("jar", "MODULE.bazel changed upstream: Bazel resolves the modules afresh and "
                                  "writes a new MODULE.bazel.lock")
+        cpus = f"--jobs={self.jobs} --local_resources=cpu={self.jobs}" if self.jobs \
+            else "--local_resources=cpu=HOST_CPUS*0.75"
         build = ". \"$1/tools/env.sh\" && cd \"$2\" && bazelisk build " \
-                "--local_resources=memory=HOST_RAM*0.3 --local_resources=cpu=HOST_CPUS*0.75 " \
+                f"--local_resources=memory=HOST_RAM*0.3 {cpus} " \
                 "//:compiler_uberjar_deploy.jar; rc=$?; bazelisk shutdown; exit $rc"
         self.run(["bash", "-c", build, "_", ROOT, src])
         if self.dry:
@@ -347,7 +366,9 @@ class Sync:
 
     def step_npm_check(self):
         """Compares the npm release with the reference: the package's JS wrapper against the base
-        release's, and the compiler.jar of google-closure-compiler-java against the reference jar."""
+        release's (its bundled externs/ and contrib/ listed apart), its contrib/ against the
+        reference checkout's, and the compiler.jar of google-closure-compiler-java against the
+        reference jar."""
         st = self.need_state()
         out = os.path.join(self.work, "npm-check.txt")
         if os.path.exists(out):
@@ -368,16 +389,28 @@ class Sync:
             old_version = f"{m.group(1)}.0.0"
             old = npm_unpack("google-closure-compiler", old_version, os.path.join(self.work, "npm"))
             changed, diff = wrapper_diff(old, new)
+            # externs/ and contrib/ are data, not wrapper code: npm/closure-rs packs them from the
+            # jar's externs and the reference checkout's contrib/ (scripts/npm_pack_main.mjs).
+            wrapper = [p for p in changed if not p.startswith(BUNDLED_DIRS)]
+            bundled = [p for p in changed if p.startswith(BUNDLED_DIRS)]
             report.append(f"google-closure-compiler {old_version} -> {st['npm_version']}: "
-                          + (f"{len(changed)} wrapper file(s) changed: {', '.join(changed)}"
-                             if changed else "the JS wrapper is unchanged"))
+                          + (f"{len(wrapper)} wrapper file(s) changed: {', '.join(wrapper)}"
+                             if wrapper else "the JS wrapper is unchanged"))
+            if bundled:
+                report.append(f"  {len(bundled)} bundled externs/contrib file(s) changed: {', '.join(bundled)}")
             report += [f"  package.json {k}: {v}" for k, v in package_json_diff(old, new)]
             with open(os.path.join(self.work, "npm-wrapper.diff"), "w", encoding="utf-8") as f:
                 f.write(diff)
-            if changed:
+            if wrapper:
                 self.note("npm-check", f"the npm wrapper changed upstream: {rel(os.path.join(self.work, 'npm-wrapper.diff'))} "
                                        "(npm/closure-rs follows it; its comments cite line numbers)")
-        else:
+        contrib = contrib_diff(new, self.abs(self.ref().src))
+        report.append(f"google-closure-compiler@{st['npm_version']} contrib/ vs the reference checkout: "
+                      + (f"{len(contrib)} file(s) differ: {', '.join(contrib[:50])}" if contrib else "identical"))
+        if contrib:
+            self.note("npm-check", "the npm package's contrib/ differs from the reference checkout's, which "
+                                   f"npm/closure-rs packs (scripts/npm_pack_main.mjs): {rel(out)}")
+        if not m:
             report.append(f"base {st['base']} is not an npm release: wrapper not compared")
         java = npm_unpack("google-closure-compiler-java", st["npm_version"], os.path.join(self.work, "npm"))
         differ, only_npm, only_ref = jar_compare(os.path.join(java, "compiler.jar"), jar)
@@ -583,7 +616,8 @@ class Sync:
             log(f"  {rel(d['jars'])} holds the recording jars")
             return "done"
         ws = self.abs(self.ref().recording_ws)
-        self.run(["bash", "scripts/unit_bazel_build.sh"], env=self.env(UNIT_JARS_DIR=d["jars"]))
+        self.run(["bash", "scripts/unit_bazel_build.sh"],
+                 env=self.env(UNIT_JARS_DIR=d["jars"], UNIT_BAZEL_JOBS=str(self.jobs) if self.jobs else None))
         self.run(["bash", "-c", ". \"$1/tools/env.sh\" && cd \"$2\" && bazelisk shutdown", "_", ROOT, ws])
         return "ran"
 
@@ -683,11 +717,21 @@ class Sync:
                     os.remove(t)
         verb = "would change" if self.dry else "changed"
         log(f"  {verb} {len(changed)} record files" + "".join(f"\n    {k} {n}" for k, n in changed))
+        for k, n in changed:  # the descriptors' unrepresentable entries name records by index
+            desc = os.path.join(CHECKOUT, "corpus", "unit", "descriptors", n + ".json")
+            if k == "updated" and os.path.exists(desc) and not self.dry:
+                moved, missing = remap_unrepresentable(desc, os.path.join(dst, n + ".jsonl.gz"))
+                if moved:
+                    log(f"  moved {moved} unrepresentable record indices in {rel(desc)}")
+                if missing:
+                    self.note("unit-install", f"{rel(desc)}: unrepresentable records gone upstream: "
+                                              f"{', '.join(missing)}")
         self.run([sys.executable, "scripts/unit_derive_expected_pipeline.py"])
+        self.run([sys.executable, "crates/testing/tests/data/gen_record_counts.py"])
         self.run([sys.executable, "scripts/unit_postcall_impls.py", "--check"], write=False, capture=True)
         self.run([sys.executable, "scripts/unit_rust_unit_tests.py", "--check"], write=False)
         self.run(["bash", "scripts/unit_options_defaults.sh"])
-        if self.diffstat("corpus/unit"):
+        if self.diffstat("corpus/unit", "crates/testing/tests/data/record_counts.tsv"):
             new_cls = [n for k, n in changed if k != "removed" and has_records(os.path.join(dst, n + ".jsonl.gz"))]
             missing = [n for n in new_cls if not os.path.exists(
                 os.path.join(CHECKOUT, "corpus", "unit", "descriptors", n + ".json"))]
@@ -714,9 +758,11 @@ class Sync:
         os.makedirs(rust, exist_ok=True)
         names = [c.rsplit(".", 1)[-1] for c in self.run_classes(self.test_classes())] if self.unit_classes else None
         sel = ["--classes", ",".join(names)] if names else ["--all"]
-        env = self.env(CARGO_BUILD_JOBS=os.environ.get("CARGO_BUILD_JOBS", "2"))
-        p = self.run(["cargo", "run", "--release", "-q", "-p", "closure-testing", "--bin", "unit_replay", "--",
-                      *sel, "--report", report, "--records-out", records_out], env=env, check=False)
+        self.run(["cargo", "build", "--release", "-q", "-p", "closure-testing", "--bin", "unit_replay"],
+                 env=self.cargo_env("2"))
+        target = os.environ.get("CARGO_TARGET_DIR") or os.path.join(CHECKOUT, "target")
+        p = self.run([os.path.join(target, "release", "unit_replay"),
+                      *sel, "--report", report, "--records-out", records_out], check=False)
         if p.returncode not in (0, 1):
             raise StepError(f"the unit-record runner exited {p.returncode}")
         status = {}
@@ -818,8 +864,7 @@ class Sync:
             return "done"
         target = os.environ.get("CARGO_TARGET_DIR") or os.path.join(CHECKOUT, "target")
         binary = os.path.join(target, "release", "closure-rs")
-        self.run(["cargo", "build", "--release", "-q", "--bin", "closure-rs"],
-                 env=self.env(CARGO_BUILD_JOBS=os.environ.get("CARGO_BUILD_JOBS", "4")))
+        self.run(["cargo", "build", "--release", "-q", "--bin", "closure-rs"], env=self.cargo_env("4"))
         sample = ["--sample", str(self.d2_sample), "--seed", "1"] if self.d2_sample else []
         jobs = ["--jobs", str(self.jobs)] if self.jobs else []
         if not self.dry:
@@ -887,6 +932,34 @@ class Sync:
         return "ran"
 
 
+def remap_unrepresentable(descriptor, records):
+    """Moves the record indices of a descriptor's `unrepresentable` entries to the re-recorded
+    file (matched by method and call). Returns (moved, missing) entry counts; the text keeps its
+    layout."""
+    with gzip.open(records, "rt", encoding="utf-8", errors="surrogatepass") as f:
+        recs = [json.loads(line) for line in f if line.strip()]
+    at = {(r.get("method"), r.get("call")): i for i, r in enumerate(recs)}
+    text = open(descriptor, encoding="utf-8").read()
+    moved, missing = 0, []
+    for u in json.loads(text).get("unrepresentable") or []:
+        if "method" not in u or "call" not in u:
+            continue
+        new = at.get((u["method"], u["call"]))
+        if new is None:
+            missing.append(f"{u['method']}#{u['call']}")
+            continue
+        if new != u["index"]:
+            pat = re.compile(r'"index": ' + str(u["index"]) + r',(\s*)"method": ' + re.escape(json.dumps(u["method"])))
+            text, n = pat.subn(lambda m: f'"index": {new},{m.group(1)}"method": {json.dumps(u["method"])}', text, 1)
+            if n != 1:
+                raise StepError(f"{descriptor}: cannot move unrepresentable entry {u['index']}")
+            moved += 1
+    if moved:
+        with open(descriptor, "w", encoding="utf-8") as f:
+            f.write(text)
+    return moved, missing
+
+
 def has_records(path):
     if not os.path.exists(path):
         return False
@@ -944,6 +1017,18 @@ def package_files(d):
             if p != "package.json":
                 out[p] = os.path.join(dp, fn)
     return out
+
+
+BUNDLED_DIRS = ("externs/", "contrib/")
+
+
+def contrib_diff(pkg, src):
+    """The files of the npm package's contrib/ that differ from (or are missing in) the reference
+    checkout's contrib/, and the reverse."""
+    a = {p: f for p, f in package_files(pkg).items() if p.startswith("contrib/")}
+    b = {os.path.relpath(f, src): f for p, f in package_files(os.path.join(src, "contrib")).items()}
+    return [p for p in sorted(set(a) | set(b))
+            if p not in a or p not in b or not filecmp.cmp(a[p], b[p], shallow=False)]
 
 
 def wrapper_diff(old, new):
@@ -1104,7 +1189,7 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="run only the read-only checks")
     ap.add_argument("--base", help="the reference to diff against (default: the registry's default)")
     ap.add_argument("--work", help="work directory (default <main checkout>/build/upstream-sync/<tag>)")
-    ap.add_argument("--jobs", type=int, help="parallel jobs for the recording and the D2 runs")
+    ap.add_argument("--jobs", type=int, help="parallel jobs for the Bazel builds, the recording and the D2 runs")
     ap.add_argument("--unit-classes", metavar="A,B", help="record, install and replay only these test "
                                                           "classes (a partial run, for testing)")
     ap.add_argument("--d2-sample", type=int, metavar="N", help="d2-worklist on a sample of N pairs (no rebase)")
