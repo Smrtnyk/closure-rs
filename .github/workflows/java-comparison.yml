@@ -10,10 +10,23 @@
 # run on the pinned JDK (scripts/setup_tools.sh) in the fixed environment of the golden runs
 # (docs/PORTING.md §4.1). The inputs are fetched at their pinned versions and hash-checked
 # (scripts/fetch_bench.sh); nothing fetched is committed.
+# Run by hand, it also times this closure-rs against the one built from another ref (ab_base,
+# default main) on one runner, the two binaries in turns (scripts/bench_ab.py): two separate runs
+# land on different machines whose speed differs by 10-30%, within one runner the noise is a few
+# percent. Its report is in the run's summary.
 name: java-comparison
 
 on:
   workflow_dispatch:
+    inputs:
+      ab_base:
+        description: "Also time closure-rs against the one built from this ref, on one runner (empty: skip)"
+        required: false
+        default: main
+      ab_rounds:
+        description: "Rounds of that comparison (each runs every job with both binaries)"
+        required: false
+        default: "5"
   workflow_call:
 
 permissions:
@@ -200,4 +213,95 @@ jobs:
           path: |
             build/bench/result.json
             build/bench/failing/
+          if-no-files-found: ignore
+
+  # The closure-rs of ab_base, built as rust-binary builds this run's (workflow_dispatch with
+  # ab_base only; a workflow_call has no such input and skips it).
+  base-binary:
+    name: closure-rs (release) of ${{ inputs.ab_base }}
+    if: inputs.ab_base != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ab_base }}
+      - name: Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo build --release
+        run: cargo build --release --locked --bin closure-rs
+      - uses: actions/upload-artifact@v7
+        with:
+          name: java-comparison-closure-rs-base
+          path: target/release/closure-rs
+          if-no-files-found: error
+
+  # Both binaries on the same runner, in turns, on the same inputs (scripts/bench_ab.py). The
+  # inputs and the benchmark definitions are this run's.
+  same-runner:
+    name: closure-rs speed against ${{ inputs.ab_base }} (one runner)
+    if: inputs.ab_base != ''
+    needs: [reference-jar, rust-binary, base-binary]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/cache@v6
+        with:
+          path: tools/downloads
+          key: tools-${{ hashFiles('scripts/setup_tools.sh') }}
+      - name: JDK (pinned)
+        run: scripts/setup_tools.sh
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: java-comparison-reference-jar
+          path: ${{ needs.reference-jar.outputs.jar_dir }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: java-comparison-closure-rs
+          path: bin/head
+      - uses: actions/download-artifact@v8
+        with:
+          name: java-comparison-closure-rs-base
+          path: bin/base
+      - name: GNU time (peak RSS)
+        run: |
+          chmod +x bin/head/closure-rs bin/base/closure-rs
+          [ -x /usr/bin/time ] || { sudo apt-get update -q && sudo apt-get install -y -q time; }
+
+      - uses: actions/cache@v6
+        with:
+          path: bench-cache
+          key: bench-inputs-${{ hashFiles('bench/projects.json', 'scripts/references.tsv') }}
+      - name: Fetch the benchmark inputs (pinned, hash-checked)
+        run: scripts/fetch_bench.sh
+
+      - name: Time both binaries in turns
+        env:
+          ROUNDS: ${{ inputs.ab_rounds }}
+        run: |
+          set -o pipefail
+          mkdir -p build/bench
+          python3 scripts/bench_ab.py --base bin/base/closure-rs --head bin/head/closure-rs \
+            --rounds "$ROUNDS" --variants --out build/bench/ab | tee build/bench/ab.md
+
+      - name: Summary
+        if: ${{ !cancelled() }}
+        env:
+          BASE: ${{ inputs.ab_base }}
+        run: |
+          {
+            echo "## closure-rs speed: this run's binary against $BASE, on one runner"
+            echo
+            cat build/bench/ab.md 2>/dev/null || echo "no results"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: java-comparison-same-runner
+          path: build/bench/ab/
           if-no-files-found: ignore
