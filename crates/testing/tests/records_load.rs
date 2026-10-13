@@ -101,9 +101,9 @@ fn all_records_load_and_round_trip() {
         "record_counts.tsv rows"
     );
     println!("records: {total}, non-empty files: {nonempty}, kinds: {by_kind:?}, apis: {by_api:?}");
-    assert_eq!(total, 24_788);
+    assert_eq!(total, 24_854);
     assert_eq!(nonempty, 255);
-    assert_eq!(by_kind["compiler_test_case"], 21_314);
+    assert_eq!(by_kind["compiler_test_case"], 21_380);
     assert_eq!(by_kind["type_check"], 2_729);
     assert_eq!(by_kind["integration"], 745);
     let api = |n: &str| by_api.get(n).copied().unwrap_or(0);

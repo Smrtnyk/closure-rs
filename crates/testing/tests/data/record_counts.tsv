@@ -26,7 +26,7 @@ CheckAccessControlsPolymerTest	5	5	0	0
 CheckAccessControlsTest	232	232	0	0
 CheckArrayWithGoogObjectTest	4	4	0	0
 CheckClosureImportsTest	115	115	0	0
-CheckConformanceTest	410	410	0	0
+CheckConformanceTest	396	396	0	0
 CheckConstPrivatePropertiesTest	57	57	0	0
 CheckConstantCaseNamesTest	40	40	0	0
 CheckDebuggerStatementTest	8	8	0	0
@@ -195,7 +195,7 @@ InferConstsTest	92	92	0	0
 InferJSDocInfoTest	54	54	0	0
 InjectTranspilationRuntimeLibrariesTest	0	0	0	0
 InlineAliasesTest	54	54	0	0
-InlineAndCollapsePropertiesTest	260	260	0	0
+InlineAndCollapsePropertiesTest	262	262	0	0
 InlineCostEstimatorTest	0	0	0	0
 InlineFunctionsTest	453	453	0	0
 InlineObjectLiteralsTest	91	91	0	0
@@ -287,7 +287,7 @@ PeepholeIntegrationTest	268	268	0	0
 PeepholeMinimizeConditionsTest	347	347	0	0
 PeepholeOptimizationsPassTest	12	12	0	0
 PeepholeRemoveDeadCodeTest	611	611	0	0
-PeepholeReplaceKnownMethodsTest	764	764	0	0
+PeepholeReplaceKnownMethodsTest	841	841	0	0
 PeepholeSubstituteAlternateSyntaxTest	255	255	0	0
 PerformanceTrackerTest	0	0	0	0
 PhaseOptimizerTest	0	0	0	0
@@ -337,7 +337,7 @@ ReplacedStringsDecoderTest	0	0	0	0
 ReportDecoderTest	0	0	0	0
 ReportUntranspilableFeaturesTest	54	54	0	0
 RequireAliasGeneratorTest	0	0	0	0
-RescopeGlobalSymbolsTest	272	272	0	0
+RescopeGlobalSymbolsTest	273	273	0	0
 RewriteAsyncFunctionsTest	28	28	0	0
 RewriteAsyncIterationTest	29	29	0	0
 RewriteCallerCodeLocationTest	32	32	0	0

@@ -41,7 +41,7 @@ fn sampled_record_count() -> usize {
         all += n;
         sampled += n.div_ceil(SAMPLE);
     }
-    assert_eq!(all, 24788);
+    assert_eq!(all, 24854);
     sampled
 }
 

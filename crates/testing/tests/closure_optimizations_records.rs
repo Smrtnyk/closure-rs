@@ -33,7 +33,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   test/com/google/javascript/jscomp/AngularPassTest.java,
 //   test/com/google/javascript/jscomp/ClosureCodeRemovalTest.java,
 //   test/com/google/javascript/jscomp/ClosureOptimizePrimitivesTest.java,
@@ -130,7 +130,7 @@ fn angular_pass_test() {
     assert_records("AngularPassTest", 57, 57, &[]);
 }
 
-// port: GenerateExportsTest (52 @Test methods, 79 recorded calls)
+// port: GenerateExportsTest (53 @Test methods, 79 recorded calls)
 #[test]
 fn generate_exports_test() {
     assert_records("GenerateExportsTest", 79, 79, &[]);
