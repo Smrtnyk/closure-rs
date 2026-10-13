@@ -2295,7 +2295,7 @@ def cmd_report():
                                               "recordsCountedThatPassUnderNoop": sum(r["passUnderNoopProcessor"] for r in noop_rows),
                                               "perClass": noop_rows},
                             "postconditionCountMismatch": len(pc_mismatch), "postconditionCountMismatchSample": pc_mismatch[:30],
-                            "processorIdentity": {"rule": "additional check (kept): counted compiler_test_case records: scalar, enum and String leaves of the replayed processor dump (depth 2) must equal the recorded ones, object by object by class after classMap; mismatch fails (a); classDiffers records are listed (classDiffersNoLeafCompared = nothing comparable); identity itself is verified by passTrace (FORMAT.md "passTrace"), not by processorIdentityNote",
+                            "processorIdentity": {"rule": "additional check (kept): counted compiler_test_case records: scalar, enum and String leaves of the replayed processor dump (depth 2) must equal the recorded ones, object by object by class after classMap; mismatch fails (a); classDiffers records are listed (classDiffersNoLeafCompared = nothing comparable); identity itself is verified by passTrace (FORMAT.md, 'passTrace'), not by processorIdentityNote",
                                                   "statusCounts": proc_summary, "mismatch": len(proc_mismatch),
                                                   "unverifiedClassDiffers": proc_unverified,
                                                   "unverifiedClassDiffersRecords": sum(x["records"] for x in proc_unverified),
