@@ -284,6 +284,7 @@ jobs:
           ROUNDS: ${{ inputs.ab_rounds }}
         run: |
           set -o pipefail
+          mkdir -p build/bench
           python3 scripts/bench_ab.py --base bin/base/closure-rs --head bin/head/closure-rs \
             --rounds "$ROUNDS" --variants --out build/bench/ab | tee build/bench/ab.md
 
