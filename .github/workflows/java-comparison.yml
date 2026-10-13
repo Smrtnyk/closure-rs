@@ -218,7 +218,7 @@ jobs:
   # The closure-rs of ab_base, built as rust-binary builds this run's (workflow_dispatch with
   # ab_base only; a workflow_call has no such input and skips it).
   base-binary:
-    name: closure-rs (release) of ${{ inputs.ab_base }}
+    name: closure-rs (release) of ab_base
     if: inputs.ab_base != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -240,7 +240,7 @@ jobs:
   # Both binaries on the same runner, in turns, on the same inputs (scripts/bench_ab.py). The
   # inputs and the benchmark definitions are this run's.
   same-runner:
-    name: closure-rs speed against ${{ inputs.ab_base }} (one runner)
+    name: closure-rs speed against ab_base (one runner)
     if: inputs.ab_base != ''
     needs: [reference-jar, rust-binary, base-binary]
     runs-on: ubuntu-24.04
