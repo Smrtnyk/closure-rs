@@ -107,7 +107,7 @@ fn all_records_load_and_round_trip() {
     assert_eq!(by_kind["type_check"], 2_729);
     assert_eq!(by_kind["integration"], 745);
     let api = |n: &str| by_api.get(n).copied().unwrap_or(0);
-    assert_eq!(api("testInternal"), 21_219);
+    assert_eq!(api("testInternal"), 21_285);
     assert_eq!(api("testExternChanges"), 95);
     assert_eq!(api("TypeTestBuilder.run"), 2_684);
     assert_eq!(api("parseAndTypeCheckWithScope"), 45);

@@ -989,7 +989,8 @@ mod tests {
     /// `\z` (Pattern.End) next to `$`; the expected matches and hitEnd values are JDK 21's.
     #[test]
     fn end_of_input() {
-        let ws = "[ \t\n-\r\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]+";
+        let ws =
+            "[ \t\n-\r\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]+";
         let cases = [
             ("a+\\z".to_string(), "aa\n", "", true),
             ("a+$".to_string(), "aa\n", "0,2;", true),
