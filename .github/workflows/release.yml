@@ -436,9 +436,13 @@ jobs:
 
       # The published version as git tag v<version> on the released commit and a GitHub Release with
       # the pull requests merged since the previous release; prerelease versions are marked as such.
+      # The workflow token cannot create the tag when the released commits change files under
+      # .github/workflows/ (HTTP 403), so the step takes RELEASE_TOKEN, a secret of the `npm`
+      # environment (a fine-grained token for this repository with Contents and Workflows
+      # read/write), and falls back to the workflow token without it.
       - name: Tag and GitHub Release
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
           DIST_TAG: ${{ inputs.dist_tag }}
         run: |
           version=$(tar -xzOf dist/*.tgz package/package.json | jq -r .version)
