@@ -107,6 +107,26 @@ summary and the outputs of a differing job (`--keep-failing`) as an artifact.
 DIR` writes it to `DIR/<job id>.args` instead (`/` in the id becomes `-`). The profile-guided
 release build (`scripts/pgo_build.sh --training DIR`) runs those files as its training compiles.
 
+### Comparing two closure-rs builds
+
+```sh
+python3 scripts/bench_ab.py --base OLD/closure-rs --head NEW/closure-rs --variants   # 5 rounds
+python3 scripts/bench_ab.py --report build/bench/ab                                  # reprint
+```
+
+`bench_ab.py` answers "is the new build slower?" without an idle machine. It runs the selected
+jobs with `run_bench.py --impl rust --reps 1`, alternating the two binaries over several rounds
+(base, head; head, base; ...), and reports head relative to base: the geometric mean over the
+jobs of the wall time, CPU time and peak RSS ratios, from the medians and within each round
+alone, plus the change per project and level. The spread of the per-round ratios is the noise of
+that machine; a change smaller than it cannot be told apart from noise. Separate runs, such as two
+CI runs on different runners, differ by 10-30% for the same binary, so they compare poorly.
+
+Run by hand, `java-comparison.yml` does this on one GitHub runner: it builds the closure-rs of the
+`ab_base` input (default `main`) next to the run's own and puts the report in the run summary
+(input `ab_rounds`, default 5; an empty `ab_base` skips it). Both are plain release builds, not
+profile-guided.
+
 ## Adding a benchmark
 
 Add a project (sources with `tree_sha256` left empty, jobs) to `projects.json`, run
