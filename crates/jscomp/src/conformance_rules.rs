@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   src/com/google/javascript/jscomp/CheckConformance.java,
 //   src/com/google/javascript/jscomp/ConformanceRules.java.
 
@@ -2365,76 +2365,6 @@ impl AbstractRuleImpl for BanUnknownDirectThisPropsReferences {
     }
 }
 
-/// Banned non-literal arguments passed to `goog.string.Const.from`. Possible calls to
-/// goog.string.Const in user code could look like:
-///
-/// ```text
-/// `goog.string.Const.from('foo');`
-/// `const alias = goog.string.Const.from; alias(foo);`
-/// `const {from} = goog.require('goog.string.Const'); from(foo);`
-/// `const alias = goog.require('goog.string.Const'); alias.from(foo);`
-/// ```
-// port: ConformanceRules.BanNonLiteralArgsToGoogStringConstFrom
-pub struct BanNonLiteralArgsToGoogStringConstFrom {
-    base: AbstractRule,
-}
-
-// port: ConformanceRules.BanNonLiteralArgsToGoogStringConstFrom#GOOG_STRING_CONST_FROM
-static GOOG_STRING_CONST_FROM: LazyLock<QualifiedName> =
-    LazyLock::new(|| QualifiedName::of("goog.string.Const.from"));
-
-impl BanNonLiteralArgsToGoogStringConstFrom {
-    // port: ConformanceRules.BanNonLiteralArgsToGoogStringConstFrom#BanNonLiteralArgsToGoogStringConstFrom
-    pub fn new(
-        compiler: &mut AbstractCompiler,
-        requirement: &Requirement,
-    ) -> Result<Self, InvalidRequirementSpec> {
-        Ok(Self {
-            base: AbstractRule::new(compiler, requirement)?,
-        })
-    }
-
-    // port: ConformanceRules.BanNonLiteralArgsToGoogStringConstFrom#isAllowed
-    fn is_allowed(ast: &Ast, argument: NodeId) -> bool {
-        argument.is_string_lit(ast)
-            || (argument.is_template_lit(ast) && argument.has_one_child(ast))
-    }
-}
-
-impl AbstractRuleImpl for BanNonLiteralArgsToGoogStringConstFrom {
-    fn base(&self) -> &AbstractRule {
-        &self.base
-    }
-    // port: ConformanceRules.BanNonLiteralArgsToGoogStringConstFrom#checkConformance
-    fn check_conformance(&mut self, t: &mut NodeTraversal<'_>, node: NodeId) -> ConformanceResult {
-        if node.is_call(t) {
-            let mut name = node.get_first_child(t).unwrap();
-            let Some(argument) = name.get_next(t) else {
-                return ConformanceResult::conformance();
-            };
-
-            // If the name is a qualified name, it must be goog.string.Const.from or an alias of it.
-            if name.is_name(t) {
-                let scope = t.get_scope();
-                let var_name = name.get_string(t);
-                let compiler = t.get_compiler();
-                let Some(var) = scope.get_var(compiler, &var_name) else {
-                    return ConformanceResult::conformance();
-                };
-                let Some(initial_value) = var.get_initial_value(compiler) else {
-                    return ConformanceResult::conformance();
-                };
-                name = initial_value;
-            }
-
-            if GOOG_STRING_CONST_FROM.matches(t, name) && !Self::is_allowed(t, argument) {
-                return ConformanceResult::violation();
-            }
-        }
-        ConformanceResult::conformance()
-    }
-}
-
 /// Banned unknown type references of the form "instance.prop" unless
 /// - (a) it is immediately cast/asserted, or
 /// - (b) it is a @template type (until template type restrictions are enabled), or
@@ -4128,9 +4058,6 @@ impl CustomRuleProxy {
             "BanUnknownThis" => RuleClass::Constructible(rule_constructor!(BanUnknownThis)),
             "BanUnknownDirectThisPropsReferences" => {
                 RuleClass::Constructible(rule_constructor!(BanUnknownDirectThisPropsReferences))
-            }
-            "BanNonLiteralArgsToGoogStringConstFrom" => {
-                RuleClass::Constructible(rule_constructor!(BanNonLiteralArgsToGoogStringConstFrom))
             }
             "BanUnknownTypedClassPropsReferences" => {
                 RuleClass::Constructible(rule_constructor!(BanUnknownTypedClassPropsReferences))

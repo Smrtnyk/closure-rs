@@ -183,6 +183,7 @@ enum Expr {
     Char(Predicate),
     Begin,
     Dollar,
+    End,
     Bound,
     Sequence(Vec<Expr>),
     Branch(Vec<Expr>),
@@ -306,6 +307,10 @@ impl Parser {
                     if self.peek() == Some('b') {
                         self.cursor += 1;
                         Expr::Bound
+                    } else if self.peek() == Some('z') {
+                        // port: Pattern#escape (case 'z': root = new End())
+                        self.cursor += 1;
+                        Expr::End
                     } else {
                         Expr::Char(self.escape()?)
                     }
@@ -477,6 +482,7 @@ enum Node {
     Char(Predicate, usize),
     Begin(usize),
     Dollar(usize),
+    End(usize),
     Bound(usize),
     Split(usize, usize),
     GroupHead(usize, usize),
@@ -512,6 +518,7 @@ impl Compiled {
             Expr::Char(p) => self.add(Node::Char(p, next)),
             Expr::Begin => self.add(Node::Begin(next)),
             Expr::Dollar => self.add(Node::Dollar(next)),
+            Expr::End => self.add(Node::End(next)),
             Expr::Bound => self.add(Node::Bound(next)),
             Expr::Sequence(v) => v
                 .into_iter()
@@ -787,6 +794,14 @@ impl Matcher {
                         self.hit_end = true;
                         state.node = *next;
                     }
+                    // port: Pattern.End#match (`\z`; anchoring bounds)
+                    Node::End(next) => {
+                        if state.pos != self.to {
+                            break;
+                        }
+                        self.hit_end = true;
+                        state.node = *next;
+                    }
                     Node::Bound(next) => {
                         let left = state.pos > self.from && self.bound_word_before(state.pos);
                         let right = state.pos < self.to && self.bound_word_at(state.pos);
@@ -970,6 +985,30 @@ mod tests {
         assert_eq!(patterns.len(), 16);
         assert_eq!(inputs.len(), 252);
         assert_eq!(case_count, 3096);
+    }
+    /// `\z` (Pattern.End) next to `$`; the expected matches and hitEnd values are JDK 21's.
+    #[test]
+    fn end_of_input() {
+        let ws = "[ \t\n-\r\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]+";
+        let cases = [
+            ("a+\\z".to_string(), "aa\n", "", true),
+            ("a+$".to_string(), "aa\n", "0,2;", true),
+            ("a+\\z".to_string(), "baa", "1,3;", true),
+            (format!("^{ws}|{ws}\\z"), " x \u{2028}", "0,1;2,4;", true),
+            (format!("{ws}\\z"), "x \n", "1,3;", true),
+            (format!("{ws}\\z"), "x \u{85}", "", true),
+            (format!("^{ws}"), "\u{feff}\u{a0}x", "0,2;", false),
+            (format!("{ws}\\z"), "   ", "0,3;", true),
+        ];
+        for (pattern, input, want, hit_end) in cases {
+            let mut m = Pattern::compile(&pattern).matcher(input);
+            let mut got = String::new();
+            while m.find() {
+                got.push_str(&format!("{},{};", m.start(), m.end()));
+            }
+            assert_eq!(got, want, "{pattern} on {input:?}");
+            assert_eq!(m.hit_end(), hit_end, "hitEnd {pattern} on {input:?}");
+        }
     }
     // port: String#charAt (fixture encoding)
     fn decode(s: &str) -> JsString {

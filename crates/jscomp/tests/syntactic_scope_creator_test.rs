@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   src/com/google/javascript/jscomp/testing/ScopeSubject.java,
 //   test/com/google/javascript/jscomp/SyntacticScopeCreatorTest.java.
 
@@ -2825,4 +2825,49 @@ fn test_goog_provide_declares_strength() {
         value_3.get_implicit_goog_namespace_strength(&compiler),
         SourceKind::STRONG
     );
+}
+
+// port: SyntacticScopeCreatorTest#testAbstractScopeHierarchyAndSlotOrder
+#[test]
+fn test_abstract_scope_hierarchy_and_slot_order() {
+    let (mut compiler, mut scope_creator, _redeclarations) = set_up();
+    let scope = get_scope(
+        &mut compiler,
+        &mut scope_creator,
+        "function f(a, b) { var c = 1; var d = 2; }",
+    );
+    let function = scope
+        .get_root_node(&compiler)
+        .get_first_child(&compiler)
+        .unwrap();
+    let f_scope = scope_creator.create_scope(&mut compiler, function, Some(scope));
+    let body = f_scope
+        .get_root_node(&compiler)
+        .get_last_child(&compiler)
+        .unwrap();
+    scope_creator.create_scope(&mut compiler, body, Some(f_scope));
+
+    // Test parent/depth
+    assert_eq!(f_scope.get_parent(&compiler), Some(scope));
+    assert_eq!(f_scope.get_depth(&compiler), 1);
+
+    // Test hoist/container scope resolution
+    assert!(f_scope.get_closest_hoist_scope(&compiler).is_some());
+
+    // Test deterministic getVarIterable insertion order
+    let vars: Vec<JsString> = f_scope
+        .get_var_iterable(&compiler)
+        .into_iter()
+        .map(|v| v.get_name(&compiler))
+        .collect();
+    assert_eq!(vars, vec![JsString::from("a"), JsString::from("b")]);
+
+    // Test getSlot / getOwnSlot
+    assert!(f_scope.get_own_slot(&mut compiler, "a").is_some());
+    assert!(f_scope.get_slot(&mut compiler, "f").is_some()); // From parent scope
+
+    // Test Arguments var equality
+    let args_var = f_scope.get_arguments_var(&mut compiler);
+    assert!(args_var.is_some());
+    assert_eq!(args_var, f_scope.get_own_slot(&mut compiler, "arguments"));
 }

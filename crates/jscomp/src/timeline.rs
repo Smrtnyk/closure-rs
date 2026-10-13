@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   src/com/google/javascript/jscomp/Timeline.java,
 //   test/com/google/javascript/jscomp/TimelineTest.java.
 
@@ -176,6 +176,8 @@ impl<T: Clone + Eq + Hash> Default for Timeline<T> {
 #[cfg(test)]
 mod tests {
     use super::Timeline;
+    use crate::change_tracker::ChangeTracker;
+    use closure_rhino::{ir::IR, node::Ast};
     use std::hash::{Hash, Hasher};
 
     #[derive(Clone, Copy, Debug)]
@@ -336,5 +338,32 @@ mod tests {
             Some(vec![ATE_GREEN_EGGS, ATE_HAM])
         );
         assert_eq!(timeline.get_since("Thursday"), Some(vec![ATE_HAM]));
+    }
+    // port: TimelineTest#testChangeTrackerDeletedFunctionRemovedFromTimeline
+    #[test]
+    fn test_change_tracker_deleted_function_removed_from_timeline() {
+        let mut change_tracker = ChangeTracker::new();
+        let mut ast = Ast::new();
+        let name = IR::name(&mut ast, "foo");
+        let params = IR::param_list(&mut ast, &[]);
+        let body = IR::block(&mut ast);
+        let function = IR::function(&mut ast, name, params, body);
+        let script = IR::script_with_children(&mut ast, &[function]);
+        IR::root(&mut ast, &[script]);
+
+        // Establish baseline
+        let _unused = change_tracker.get_changed_scope_nodes_for_pass("PassName");
+
+        change_tracker.report_change_to_change_scope(&mut ast, function);
+        function.detach(&mut ast);
+        change_tracker.report_function_deleted(&mut ast, function);
+
+        // This should be ignored because the function is marked as deleted.
+        change_tracker.report_change_to_change_scope(&mut ast, function);
+
+        assert_eq!(
+            change_tracker.get_changed_scope_nodes_for_pass("PassName"),
+            Some(Vec::new())
+        );
     }
 }

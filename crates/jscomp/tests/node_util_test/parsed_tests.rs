@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   test/com/google/javascript/jscomp/NodeUtilTest.java.
 
 use super::*;
@@ -335,6 +335,31 @@ mod assorted_tests {
             NodeUtil::get_string_value(&compiler, value_8).unwrap(),
             "[object Object]"
         );
+        for js in [
+            "{a: 1}",
+            "{'a': 1, 2: 3}",
+            "{foo() {}}",
+            "{get foo() { return 1; }}",
+            "{set foo(x) {}}",
+            "{toString: 1}",
+            "{'toString': 1}",
+            "{toString() { return 'foo'; }}",
+            "{get toString() { return 'foo'; }}",
+            "{set toString(x) {}}",
+            "{valueOf: 1}",
+            "{'valueOf': 1}",
+            "{valueOf() { return 1; }}",
+            "{get valueOf() { return 1; }}",
+            "{set valueOf(x) {}}",
+            "{__proto__: null}",
+            "{'__proto__': null}",
+            "{__proto__: p}",
+            "{[key]: 'val'}",
+            "{...spread}",
+        ] {
+            let n = parse_expr(&mut compiler, js);
+            assert!(NodeUtil::get_string_value(&compiler, n).is_none(), "{js}");
+        }
         let value_9 = parse_expr(&mut compiler, "[]");
         assert!(
             NodeUtil::get_string_value(&compiler, value_9)
@@ -1981,6 +2006,101 @@ mod assorted_tests {
         );
     }
 
+    /// Truth's `Double` `isEqualTo` (`Double.equals`: -0.0 and 0.0 differ).
+    fn assert_double(actual: Option<f64>, expected: f64, what: &str) {
+        assert_eq!(
+            actual.map(f64::to_bits),
+            Some(expected.to_bits()),
+            "{what}: {actual:?}"
+        );
+    }
+
+    fn assert_nan(actual: Option<f64>, what: &str) {
+        assert!(actual.is_some_and(f64::is_nan), "{what}: {actual:?}");
+    }
+
+    // port: NodeUtilTest.AssortedTests#testGetStringNumberValue
+    #[test]
+    fn test_get_string_number_value() {
+        let value = |s: &str| NodeUtil::get_string_number_value(&JsString::from(s));
+        let equal = [
+            // Whitespace and empty
+            ("", 0.0),
+            ("  ", 0.0),
+            ("\t\n\r ", 0.0),
+            (" \t 42 \n ", 42.0),
+            // Standard decimals
+            ("0", 0.0),
+            ("-0", -0.0),
+            ("1", 1.0),
+            ("-1", -1.0),
+            ("+1", 1.0),
+            ("1.5", 1.5),
+            ("-1.5", -1.5),
+            (".5", 0.5),
+            ("-.5", -0.5),
+            ("1e5", 100000.0),
+            ("1e-2", 0.01),
+            // Binary literals
+            ("0b10", 2.0),
+            ("0B11", 3.0),
+            ("0b0", 0.0),
+            ("  0b1010  ", 10.0),
+            // Octal literals
+            ("0o10", 8.0),
+            ("0O77", 63.0),
+            ("0o0", 0.0),
+            ("  0o12  ", 10.0),
+            // Hexadecimal
+            ("0x10", 16.0),
+            ("0X1f", 31.0),
+            ("0xffffffff", 4294967295.0),
+            ("0x0", 0.0),
+            // Large non-decimal literals (> 14 digits exercising BigInteger path)
+            ("0b10000000000000000000", 524288.0),
+            ("0o100000000000000", 4398046511104.0),
+            ("0x100000000000000", 72057594037927936.0),
+            // Infinity
+            ("Infinity", f64::INFINITY),
+            ("+Infinity", f64::INFINITY),
+            ("-Infinity", f64::NEG_INFINITY),
+        ];
+        for (s, expected) in equal {
+            assert_double(value(s), expected, s);
+        }
+        assert_double(
+            value(&format!("0x{}", "f".repeat(300))),
+            f64::INFINITY,
+            "0xf...f",
+        );
+        let nan = [
+            // Binary invalid
+            "0b", "0b2", "0b1a", "+0b1", "-0b1", // Octal invalid
+            "0o", "0o8", "0o7a", "+0o1", "-0o1", // Hex invalid
+            "0x", "0xg", "0x1.0p0", // Java suffixes rejected
+            "1d", "1D", "1f", "1F", "1.0d", "1.0f", "1e2d", "1e2f", // General invalid
+            "abc", "1.2.3", "--1", "+", "-",
+        ];
+        for s in nan {
+            assert_nan(value(s), s);
+        }
+        let null = [
+            // Hex with signs
+            "+0x10",
+            "-0x10",
+            // Case-insensitive infinity
+            "infinity",
+            "-infinity",
+            "+infinity",
+            // Vertical tab
+            "\u{000b}",
+            "\u{000b}1",
+        ];
+        for s in null {
+            assert!(value(s).is_none(), "{s:?}");
+        }
+    }
+
     // port: NodeUtilTest.AssortedTests#testGetNumberValue
     #[test]
     fn test_get_number_value() {
@@ -2220,6 +2340,14 @@ mod assorted_tests {
                 .unwrap()
                 .is_nan()
         );
+        for (js, expected) in [("\"0b10\"", 2.0), ("\"0o10\"", 8.0)] {
+            let n = parse_expr(&mut compiler, js);
+            assert_double(NodeUtil::get_number_value(&compiler, n), expected, js);
+        }
+        for js in ["\"1d\"", "\"1f\""] {
+            let n = parse_expr(&mut compiler, js);
+            assert_nan(NodeUtil::get_number_value(&compiler, n), js);
+        }
         let value_41 = parse_expr(&mut compiler, "1");
         assert_eq!(
             NodeUtil::get_number_value(&compiler, value_41)
@@ -2414,6 +2542,59 @@ mod assorted_tests {
                 .unwrap()
                 .is_nan()
         );
+        for js in [
+            "{a: 1}",
+            "{'a': 1, 2: 3}",
+            "{foo() {}}",
+            "{get foo() { return 1; }}",
+            "{set foo(x) {}}",
+            "{valueOf: 1}",
+            "{toString: 1}",
+            "{valueOf() { return 1; }}",
+            "{toString() { return '1'; }}",
+            "{get valueOf() { return 1; }}",
+            "{set valueOf(x) {}}",
+            "{__proto__: null}",
+            "{'__proto__': null}",
+            "{[key]: 1}",
+            "{...spread}",
+        ] {
+            let n = parse_expr(&mut compiler, js);
+            assert!(NodeUtil::get_number_value(&compiler, n).is_none(), "{js}");
+        }
+
+        // Unary with conversions
+        for (js, expected) in [
+            ("-\"1\"", -1.0),
+            ("+\"1\"", 1.0),
+            ("~\"1\"", -2.0),
+            ("-true", -1.0),
+            ("+true", 1.0),
+            ("~true", -2.0),
+            ("-false", -0.0),
+            ("+false", 0.0),
+            ("~false", -1.0),
+            ("-[1]", -1.0),
+            ("+[1]", 1.0),
+            ("~[1]", -2.0),
+            ("~{}", -1.0),
+            // Nested unaries with conversions
+            ("- -\"1\"", 1.0),
+            ("+ +\"1\"", 1.0),
+            ("+ -\"1\"", -1.0),
+            ("~ ~\"1\"", 1.0),
+            ("- -1", 1.0),
+            ("+ +1", 1.0),
+            ("+ -1", -1.0),
+            ("~ ~1", 1.0),
+        ] {
+            let n = parse_expr(&mut compiler, js);
+            assert_double(NodeUtil::get_number_value(&compiler, n), expected, js);
+        }
+        for js in ["-{}", "+{}"] {
+            let n = parse_expr(&mut compiler, js);
+            assert_nan(NodeUtil::get_number_value(&compiler, n), js);
+        }
     }
 
     // port: NodeUtilTest.AssortedTests#testGetNumberValueNoConversions
@@ -2438,6 +2619,28 @@ mod assorted_tests {
         assert!(NodeUtil::get_number_value_no_conversions(&compiler, value_8).is_none());
         let value_9 = parse_expr(&mut compiler, "{}");
         assert!(NodeUtil::get_number_value_no_conversions(&compiler, value_9).is_none());
+
+        // Unary operators without conversions should return null for non-numeric operands
+        for js in [
+            "-\"1\"", "-\"1d\"", "-true", "-false", "-[1]", "-{}", "+\"1\"", "+\"1d\"", "+true",
+            "+false", "+[1]", "+{}", "~\"1\"", "~true", "~false", "~[1]", "~{}",
+            // Nested unaries without conversions
+            "- -\"1\"", "+ +\"1\"", "+ -\"1\"", "~ ~\"1\"",
+        ] {
+            let n = parse_expr(&mut compiler, js);
+            assert!(
+                NodeUtil::get_number_value_no_conversions(&compiler, n).is_none(),
+                "{js}"
+            );
+        }
+        for (js, expected) in [("- -1", 1.0), ("+ +1", 1.0), ("+ -1", -1.0), ("~ ~1", 1.0)] {
+            let n = parse_expr(&mut compiler, js);
+            assert_double(
+                NodeUtil::get_number_value_no_conversions(&compiler, n),
+                expected,
+                js,
+            );
+        }
         let value_10 = parse_expr(&mut compiler, "1");
         assert_eq!(
             NodeUtil::get_number_value_no_conversions(&compiler, value_10)

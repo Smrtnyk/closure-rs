@@ -33,7 +33,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   test/com/google/javascript/jscomp/Es6ForOfConverterTest.java,
 //   test/com/google/javascript/jscomp/Es6RewriteBlockScopedDeclarationTest.java,
 //   test/com/google/javascript/jscomp/Es6RewriteBlockScopedFunctionDeclarationTest.java,

@@ -28,7 +28,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   test/com/google/javascript/jscomp/DiagnosticGroupsTest.java.
 // Ported from closure-rs' own Java oracle tooling:
 //   crates/jscomp/tests/java/CompilerDiagnosticGroups.java.
@@ -73,6 +73,100 @@ fn conformance_errors_cannot_be_downgraded() {
             group.get_name()
         );
     }
+}
+
+// port: DiagnosticGroupsTest#testClosureUnawareCodeWarningsGuard
+#[test]
+fn test_closure_unaware_code_warnings_guard() {
+    use closure_jscomp::{
+        check_level::CheckLevel,
+        closure_unaware_code_warnings_guard::ClosureUnawareCodeWarningsGuard,
+        diagnostic_type::DiagnosticType, js_error::JSError, rhino_error_reporter,
+        source_file::SourceFile,
+    };
+    use closure_rhino::{node::Ast, static_source_file::StaticSourceFile};
+    static FOO: DiagnosticType = DiagnosticType::error("FOO", "foo");
+
+    let guard = ClosureUnawareCodeWarningsGuard::new();
+    let mut ast = Ast::new();
+    let closure_unaware_file = || -> Arc<dyn StaticSourceFile> {
+        let src = SourceFile::from_code("foo.js", "");
+        src.mark_as_closure_unaware_code();
+        Arc::new(src)
+    };
+
+    let n1 = ast.new_string("test");
+    n1.set_static_source_file(&mut ast, Some(closure_unaware_file()));
+    n1.set_is_in_closure_unaware_subtree(&mut ast, true);
+    let suppressible_error = JSError::make(
+        &ast,
+        n1,
+        &rhino_error_reporter::JSDOC_MISSING_TYPE_WARNING,
+        &[""],
+    );
+    assert_eq!(
+        guard.level(&ast, &suppressible_error),
+        Some(CheckLevel::OFF)
+    );
+
+    let n2 = ast.new_string("test");
+    let non_suppressible_error = JSError::make(
+        &ast,
+        n2,
+        &rhino_error_reporter::JSDOC_MISSING_TYPE_WARNING,
+        &[""],
+    );
+    assert_eq!(guard.level(&ast, &non_suppressible_error), None);
+
+    let n3 = ast.new_string("test");
+    n3.set_static_source_file(&mut ast, Some(closure_unaware_file()));
+    n3.set_is_in_closure_unaware_subtree(&mut ast, true);
+    let other_error = JSError::make(&ast, n3, &FOO, &[""]);
+    assert_eq!(guard.level(&ast, &other_error), None);
+}
+
+// port: DiagnosticGroupsTest#testDiagnosticGroupPathSuppressingWarningsGuard
+#[test]
+fn test_diagnostic_group_path_suppressing_warnings_guard() {
+    use closure_jscomp::{
+        check_level::CheckLevel,
+        diagnostic_group_path_suppressing_warnings_guard::DiagnosticGroupPathSuppressingWarningsGuard,
+        diagnostic_type::DiagnosticType, js_error::JSError, warnings_guard::WarningsGuard,
+    };
+    static FOO: DiagnosticType = DiagnosticType::error("FOO", "foo");
+
+    let guard =
+        DiagnosticGroupPathSuppressingWarningsGuard::new(LINT_CHECKS.clone(), "suppress_me");
+
+    let lint_check = *LINT_CHECKS.get_types().iter().next().unwrap();
+    let error_in_path = JSError::make_with_source_location(
+        "some/path/suppress_me/file.js",
+        -1,
+        -1,
+        lint_check,
+        &[],
+    );
+    assert_eq!(
+        guard.level(&error_in_path),
+        Some(CheckLevel::OFF),
+        "DiagnosticGroupPathSuppressingWarningsGuard should suppress in matching path"
+    );
+
+    let error_in_other_path =
+        JSError::make_with_source_location("some/other/file.js", -1, -1, lint_check, &[]);
+    assert_eq!(
+        guard.level(&error_in_other_path),
+        None,
+        "DiagnosticGroupPathSuppressingWarningsGuard should not suppress in other path"
+    );
+
+    let other_error_in_path =
+        JSError::make_with_source_location("some/path/suppress_me/file.js", -1, -1, &FOO, &[]);
+    assert_eq!(
+        guard.level(&other_error_in_path),
+        None,
+        "DiagnosticGroupPathSuppressingWarningsGuard should not suppress unrelated errors"
+    );
 }
 
 // port: CompilerDiagnosticGroups#main

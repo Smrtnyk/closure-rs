@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   src/com/google/javascript/jscomp/NodeUtil.java.
 
 #![allow(clippy::match_like_matches_macro)] // Retain Java switch bodies.
@@ -199,7 +199,13 @@ impl NodeUtil {
                 }
             }
             Token::ARRAYLIT => Self::array_to_string(ast, n),
-            Token::OBJECTLIT => Some("[object Object]".into()),
+            Token::OBJECTLIT => {
+                if n.has_children(ast) {
+                    None
+                } else {
+                    Some("[object Object]".into())
+                }
+            }
             _ => None,
         }
     }
@@ -256,12 +262,14 @@ impl NodeUtil {
                 "Infinity" => Some(f64::INFINITY),
                 _ => None,
             },
-            Token::POS => Self::do_get_number_value(ast, n.get_only_child(ast), true),
-            Token::NEG => {
-                Self::do_get_number_value(ast, n.get_only_child(ast), true).map(|val| -val)
+            // unary plus triggers numeric conversions only when numberConversions is true
+            Token::POS => Self::do_get_number_value(ast, n.get_only_child(ast), number_conversions),
+            Token::NEG => Self::do_get_number_value(ast, n.get_only_child(ast), number_conversions)
+                .map(|val| -val),
+            Token::BITNOT => {
+                Self::do_get_number_value(ast, n.get_only_child(ast), number_conversions)
+                    .map(|val| f64::from(!JSCompDoubles::ecmascript_to_int32(val)))
             }
-            Token::BITNOT => Self::do_get_number_value(ast, n.get_only_child(ast), true)
-                .map(|val| f64::from(!JSCompDoubles::ecmascript_to_int32(val))),
             Token::FALSE | Token::NOT | Token::NULL | Token::TRUE => {
                 if !number_conversions {
                     return None;
@@ -296,11 +304,40 @@ impl NodeUtil {
         if s.is_empty() {
             return Some(0.0);
         }
-        if s.length() > 2 && s.char_at(0) == b'0' as u16 && matches!(s.char_at(1), 120 | 88) {
-            return Some(
-                closure_rhino::java_lang::parse_int(s.substring_from(2).as_units(), 16)
-                    .map_or(f64::NAN, f64::from),
-            );
+        if s.length() >= 2 && s.char_at(0) == b'0' as u16 {
+            let prefix = s.char_at(1);
+            let radix = match prefix {
+                120 | 88 => 16, // 'x' | 'X'
+                98 | 66 => 2,   // 'b' | 'B'
+                111 | 79 => 8,  // 'o' | 'O'
+                _ => 0,
+            };
+            if radix != 0 {
+                let digits = s.substring_from(2);
+                if digits.is_empty() {
+                    return Some(f64::NAN);
+                }
+                if !digits
+                    .as_units()
+                    .iter()
+                    .all(|&c| Self::is_valid_digit(c, radix))
+                {
+                    return Some(f64::NAN);
+                }
+                // The digits are valid ASCII digits of the radix, so Java's parse cannot fail.
+                return Some(if digits.length() <= 14 {
+                    // Long.parseLong: at most 14 digits fit in a long.
+                    i64::from_str_radix(&digits.to_string_lossy(), radix).unwrap() as f64
+                } else {
+                    closure_rhino::java_lang::big_integer::double_value(
+                        &closure_rhino::java_lang::big_integer::parse_big_integer(
+                            &digits,
+                            radix as i32,
+                        )
+                        .unwrap(),
+                    )
+                });
+            }
         }
         if s.length() > 3
             && matches!(s.char_at(0), 45 | 43)
@@ -312,7 +349,34 @@ impl NodeUtil {
         if s == "infinity" || s == "-infinity" || s == "+infinity" {
             return None;
         }
+        if s == "Infinity" || s == "+Infinity" {
+            return Some(f64::INFINITY);
+        }
+        if s == "-Infinity" {
+            return Some(f64::NEG_INFINITY);
+        }
+        // Only [0-9] . e E + - reach Double.parseDouble.
+        if !s
+            .as_units()
+            .iter()
+            .all(|&c| matches!(c, 48..=57 | 46 | 101 | 69 | 43 | 45))
+        {
+            return Some(f64::NAN);
+        }
         Some(closure_rhino::java_lang::double::parse_double(&s).unwrap_or(f64::NAN))
+    }
+    // port: NodeUtil#isValidDigit
+    fn is_valid_digit(c: u16, radix: u32) -> bool {
+        match radix {
+            2 => c == b'0' as u16 || c == b'1' as u16,
+            8 => (b'0' as u16..=b'7' as u16).contains(&c),
+            16 => {
+                (b'0' as u16..=b'9' as u16).contains(&c)
+                    || (b'a' as u16..=b'f' as u16).contains(&c)
+                    || (b'A' as u16..=b'F' as u16).contains(&c)
+            }
+            _ => false,
+        }
     }
     // port: NodeUtil#getBigIntValue
     pub fn get_big_int_value(ast: &Ast, n: NodeId) -> Option<BigInt> {

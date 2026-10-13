@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   src/com/google/javascript/jscomp/PeepholeReplaceKnownMethods.java.
 
 //! Port of `PeepholeReplaceKnownMethods.java`.
@@ -38,6 +38,20 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
+use std::sync::LazyLock;
+
+// port: PeepholeReplaceKnownMethods#ECMA_WHITESPACE
+const ECMA_WHITESPACE: &str =
+    "[ \t\n-\r\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]+";
+// port: PeepholeReplaceKnownMethods#TRIM_BOTH_PATTERN
+static TRIM_BOTH_PATTERN: LazyLock<Pattern> =
+    LazyLock::new(|| Pattern::compile(&format!("^{ECMA_WHITESPACE}|{ECMA_WHITESPACE}\\z")));
+// port: PeepholeReplaceKnownMethods#TRIM_START_PATTERN
+static TRIM_START_PATTERN: LazyLock<Pattern> =
+    LazyLock::new(|| Pattern::compile(&format!("^{ECMA_WHITESPACE}")));
+// port: PeepholeReplaceKnownMethods#TRIM_END_PATTERN
+static TRIM_END_PATTERN: LazyLock<Pattern> =
+    LazyLock::new(|| Pattern::compile(&format!("{ECMA_WHITESPACE}\\z")));
 
 pub struct PeepholeReplaceKnownMethods {
     fields: AbstractPeepholeOptimizationFields,
@@ -152,18 +166,79 @@ impl PeepholeReplaceKnownMethods {
 
         // Method node might not be a string if callTarget is a GETELEM.
         // e.g. Array[something]()
-        if call_target.get_string_ref(compiler) != "of" {
+        let method_name = call_target.get_string(compiler);
+        match method_name.to_string_lossy().as_str() {
+            "of" => {
+                subtree.remove_first_child(compiler);
+
+                let arraylit = compiler.new_node(Token::ARRAYLIT);
+                let children = subtree.remove_children(compiler);
+                arraylit.add_children_to_back(compiler, children);
+                subtree.replace_with(compiler, arraylit);
+                self.report_change_to_enclosing_scope(compiler, arraylit);
+                arraylit
+            }
+            "isArray" => self.try_fold_array_is_array(compiler, subtree, call_target),
+            _ => subtree,
+        }
+    }
+
+    /// Try to evaluate Array.isArray:
+    ///
+    /// ```text
+    ///     Array.isArray([]) -> true
+    ///     Array.isArray([1, 2, 3]) -> true
+    ///     Array.isArray({}) -> false
+    ///     Array.isArray(123) -> false
+    ///     Array.isArray('hello') -> false
+    ///     Array.isArray(null) -> false
+    ///     Array.isArray() -> false
+    /// ```
+    // port: PeepholeReplaceKnownMethods#tryFoldArrayIsArray
+    fn try_fold_array_is_array(
+        &self,
+        compiler: &mut AbstractCompiler,
+        subtree: NodeId,
+        call_target: NodeId,
+    ) -> NodeId {
+        check_argument!(subtree.is_call(compiler) && call_target.is_get_prop(compiler));
+
+        let Some(first_arg) = call_target.get_next(compiler) else {
+            // Array.isArray() with 0 arguments evaluates to Array.isArray(undefined) -> false.
+            let new_node = NodeUtil::boolean_node(compiler, false).srcref(compiler, subtree);
+            subtree.replace_with(compiler, new_node);
+            self.report_change_to_enclosing_scope(compiler, new_node);
+            return new_node;
+        };
+
+        if first_arg.get_next(compiler).is_some() {
+            // 2 or more arguments: preserve call to avoid dropping potential side effects or
+            // arguments.
             return subtree;
         }
 
-        subtree.remove_first_child(compiler);
+        if self.may_have_side_effects(compiler, first_arg) {
+            return subtree;
+        }
 
-        let arraylit = compiler.new_node(Token::ARRAYLIT);
-        let children = subtree.remove_children(compiler);
-        arraylit.add_children_to_back(compiler, children);
-        subtree.replace_with(compiler, arraylit);
-        self.report_change_to_enclosing_scope(compiler, arraylit);
-        arraylit
+        let is_array = if first_arg.is_array_lit(compiler) {
+            true
+        } else if NodeUtil::is_immutable_value(compiler, first_arg)
+            || first_arg.is_object_lit(compiler)
+            || first_arg.is_reg_exp(compiler)
+            || first_arg.is_function(compiler)
+            || first_arg.is_class(compiler)
+        {
+            false
+        } else {
+            return subtree;
+        };
+
+        self.mark_functions_deleted(compiler, subtree);
+        let new_node = NodeUtil::boolean_node(compiler, is_array).srcref(compiler, subtree);
+        subtree.replace_with(compiler, new_node);
+        self.report_change_to_enclosing_scope(compiler, new_node);
+        new_node
     }
 
     // port: PeepholeReplaceKnownMethods#tryFoldKnownNumberMethods
@@ -179,9 +254,8 @@ impl PeepholeReplaceKnownMethods {
         match method_name_str.as_str() {
             "parseInt" | "parseFloat" => {
                 let first_arg = call_target.get_next(compiler);
-                // Java dereferences a null firstArg in isNumericLiteral (NullPointerException).
                 if first_arg.is_some_and(|a| a.is_string_lit(compiler))
-                    || Self::is_numeric_literal(compiler, first_arg.unwrap())
+                    || NodeUtil::is_numeric_literal(compiler, first_arg)
                 {
                     return self.try_fold_parse_number(
                         compiler,
@@ -387,6 +461,38 @@ impl PeepholeReplaceKnownMethods {
                                 first_arg,
                             );
                         }
+                        "includes" => {
+                            return self.try_fold_string_includes(
+                                compiler,
+                                subtree,
+                                string_node,
+                                first_arg,
+                            );
+                        }
+                        "startsWith" => {
+                            return self.try_fold_string_starts_with(
+                                compiler,
+                                subtree,
+                                string_node,
+                                first_arg,
+                            );
+                        }
+                        "endsWith" => {
+                            return self.try_fold_string_ends_with(
+                                compiler,
+                                subtree,
+                                string_node,
+                                first_arg,
+                            );
+                        }
+                        "at" => {
+                            return self.try_fold_string_at(
+                                compiler,
+                                subtree,
+                                string_node,
+                                Some(first_arg),
+                            );
+                        }
                         "substr" => {
                             return self.try_fold_string_substr(
                                 compiler,
@@ -446,8 +552,16 @@ impl PeepholeReplaceKnownMethods {
                     "toUpperCase" => {
                         return self.try_fold_string_to_upper_case(compiler, subtree, string_node);
                     }
-                    "trim" => {
-                        return self.try_fold_string_trim(compiler, subtree, string_node);
+                    "trim" | "trimStart" | "trimEnd" | "trimLeft" | "trimRight" => {
+                        return self.try_fold_string_trim(
+                            compiler,
+                            subtree,
+                            string_node,
+                            &function_name,
+                        );
+                    }
+                    "at" => {
+                        return self.try_fold_string_at(compiler, subtree, string_node, None);
                     }
                     _ => {}
                 }
@@ -518,7 +632,7 @@ impl PeepholeReplaceKnownMethods {
             let first_argument = call_target.get_next(compiler);
             if let Some(first_argument) = first_argument
                 && (first_argument.is_string_lit(compiler)
-                    || Self::is_numeric_literal(compiler, first_argument))
+                    || NodeUtil::is_numeric_literal(compiler, Some(first_argument)))
                 && (function_name_string == "parseInt" || function_name_string == "parseFloat")
             {
                 subtree = self.try_fold_parse_number(
@@ -530,12 +644,6 @@ impl PeepholeReplaceKnownMethods {
             }
         }
         subtree
-    }
-
-    /// Returns true both for number literals and their negations (e.g. `-12.3`).
-    // port: PeepholeReplaceKnownMethods#isNumericLiteral
-    fn is_numeric_literal(ast: &Ast, n: NodeId) -> bool {
-        n.is_number(ast) || (n.is_neg(ast) && n.get_only_child(ast).is_number(ast))
     }
 
     /// Returns The lowered string Node.
@@ -583,25 +691,31 @@ impl PeepholeReplaceKnownMethods {
         compiler: &mut AbstractCompiler,
         subtree: NodeId,
         string_node: NodeId,
+        function_name: &str,
     ) -> NodeId {
-        // See ECMA 15.5.4.20, 7.2, and 7.3
-        // All Unicode 10.0 whitespace + BOM
-        let whitespace = "[ \t\n-\r\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]+";
-        let trimmed = Self::replace_all(
+        // See ECMA-262 § 22.1.3.32 (trim), § 22.1.3.34 (trimStart), § 22.1.3.33 (trimEnd),
+        // Annex B.2.2.15 (trimLeft), Annex B.2.2.16 (trimRight), § 12.2, and § 12.3
+        // All Unicode whitespace + LineTerminator + BOM
+        let pattern = match function_name {
+            "trim" => &*TRIM_BOTH_PATTERN,
+            "trimStart" | "trimLeft" => &*TRIM_START_PATTERN,
+            "trimEnd" | "trimRight" => &*TRIM_END_PATTERN,
+            _ => return subtree,
+        };
+        let result = Self::replace_all(
+            pattern,
             &string_node.get_string(compiler),
-            &format!("^{whitespace}|{whitespace}$"),
             &JsString::from(""),
         );
-        let replacement = IR::string(compiler, trimmed);
+        let replacement = IR::string(compiler, result).srcref(compiler, subtree);
         subtree.replace_with(compiler, replacement);
         self.report_change_to_enclosing_scope(compiler, replacement);
         replacement
     }
 
-    /// Rust-only: Java's `String#replaceAll(String regex, String replacement)` for a replacement
-    /// without `$` or `\` (Matcher#replaceAll's find/append loop).
-    fn replace_all(s: &JsString, regex: &str, replacement: &JsString) -> JsString {
-        let pattern = Pattern::compile(regex);
+    /// Rust-only: Java's `Matcher#replaceAll(String replacement)` for a replacement without `$`
+    /// or `\` (its find/append loop).
+    fn replace_all(pattern: &Pattern, s: &JsString, replacement: &JsString) -> JsString {
         let mut matcher = pattern.matcher(s.clone());
         let units = s.as_units();
         let mut result: Vec<u16> = Vec::new();
@@ -695,7 +809,7 @@ impl PeepholeReplaceKnownMethods {
         if !is_parse_int {
             // parseFloat logic
             let mut string_val: JsString;
-            if Self::is_numeric_literal(compiler, first_arg) {
+            if NodeUtil::is_numeric_literal(compiler, Some(first_arg)) {
                 let check_val = self.get_side_effect_free_number_value(compiler, first_arg);
                 let numeric_node = NodeUtil::number_node(compiler, check_val.unwrap(), Some(n));
                 n.replace_with(compiler, numeric_node);
@@ -919,6 +1033,235 @@ impl PeepholeReplaceKnownMethods {
         self.report_change_to_enclosing_scope(compiler, new_node);
 
         new_node
+    }
+
+    /// Rust-only: Java's `String#startsWith(String prefix, int toffset)`.
+    fn starts_with_from(s: &JsString, prefix: &JsString, toffset: i32) -> bool {
+        // Note: toffset might be near -1>>>1.
+        if toffset < 0 || toffset as i64 > s.length() as i64 - prefix.length() as i64 {
+            return false;
+        }
+        let start = toffset as usize;
+        s.as_units()[start..start + prefix.length()] == *prefix.as_units()
+    }
+
+    /// The position argument of includes/startsWith/endsWith when it is a numeric literal:
+    /// `(int) Math.min(Math.max(posVal, 0), lstring.length())`.
+    fn clamp_position(pos_val: f64, length: usize) -> i32 {
+        math::min(math::max(pos_val, 0.0), length as f64) as i32
+    }
+
+    /// Try to evaluate String.prototype.includes:
+    ///
+    /// ```text
+    ///     "abcdef".includes("bc") -> true
+    ///     "abcdef".includes("bc", 2) -> false
+    /// ```
+    // port: PeepholeReplaceKnownMethods#tryFoldStringIncludes
+    fn try_fold_string_includes(
+        &self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        lstring_node: NodeId,
+        first_arg: NodeId,
+    ) -> NodeId {
+        check_argument!(n.is_call(compiler));
+        check_argument!(lstring_node.is_string_lit(compiler));
+
+        if first_arg.is_reg_exp(compiler) {
+            return n;
+        }
+
+        let lstring = lstring_node.get_string(compiler);
+        let Some(search_value) = self.get_side_effect_free_string_value(compiler, first_arg) else {
+            return n;
+        };
+
+        let second_arg = first_arg.get_next(compiler);
+        let mut from_index: i32 = 0;
+        if let Some(second_arg) = second_arg {
+            if second_arg.get_next(compiler).is_some()
+                || self.may_have_side_effects(compiler, second_arg)
+            {
+                return n;
+            }
+            if NodeUtil::is_numeric_literal(compiler, Some(second_arg)) {
+                let pos_val = NodeUtil::get_numeric_literal_value(compiler, Some(second_arg));
+                from_index = Self::clamp_position(pos_val, lstring.length());
+            } else if !NodeUtil::is_null_or_undefined(compiler, second_arg) {
+                return n;
+            }
+        }
+
+        let contains = lstring.index_of_from(&search_value, from_index) != -1;
+        let new_node = NodeUtil::boolean_node(compiler, contains).srcref(compiler, n);
+        n.replace_with(compiler, new_node);
+        self.report_change_to_enclosing_scope(compiler, new_node);
+        new_node
+    }
+
+    /// Try to evaluate String.prototype.startsWith:
+    ///
+    /// ```text
+    ///     "abcdef".startsWith("abc") -> true
+    ///     "abcdef".startsWith("bc", 1) -> true
+    /// ```
+    // port: PeepholeReplaceKnownMethods#tryFoldStringStartsWith
+    fn try_fold_string_starts_with(
+        &self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        lstring_node: NodeId,
+        first_arg: NodeId,
+    ) -> NodeId {
+        check_argument!(n.is_call(compiler));
+        check_argument!(lstring_node.is_string_lit(compiler));
+
+        if first_arg.is_reg_exp(compiler) {
+            return n;
+        }
+
+        let lstring = lstring_node.get_string(compiler);
+        let Some(search_value) = self.get_side_effect_free_string_value(compiler, first_arg) else {
+            return n;
+        };
+
+        let second_arg = first_arg.get_next(compiler);
+        let mut start: i32 = 0;
+        if let Some(second_arg) = second_arg {
+            if second_arg.get_next(compiler).is_some()
+                || self.may_have_side_effects(compiler, second_arg)
+            {
+                return n;
+            }
+            if NodeUtil::is_numeric_literal(compiler, Some(second_arg)) {
+                let pos_val = NodeUtil::get_numeric_literal_value(compiler, Some(second_arg));
+                start = Self::clamp_position(pos_val, lstring.length());
+            } else if !NodeUtil::is_null_or_undefined(compiler, second_arg) {
+                return n;
+            }
+        }
+
+        let result = Self::starts_with_from(&lstring, &search_value, start);
+        let new_node = NodeUtil::boolean_node(compiler, result).srcref(compiler, n);
+        n.replace_with(compiler, new_node);
+        self.report_change_to_enclosing_scope(compiler, new_node);
+        new_node
+    }
+
+    /// Try to evaluate String.prototype.endsWith:
+    ///
+    /// ```text
+    ///     "abcdef".endsWith("def") -> true
+    ///     "abcdef".endsWith("de", 5) -> true
+    /// ```
+    // port: PeepholeReplaceKnownMethods#tryFoldStringEndsWith
+    fn try_fold_string_ends_with(
+        &self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        lstring_node: NodeId,
+        first_arg: NodeId,
+    ) -> NodeId {
+        check_argument!(n.is_call(compiler));
+        check_argument!(lstring_node.is_string_lit(compiler));
+
+        if first_arg.is_reg_exp(compiler) {
+            return n;
+        }
+
+        let lstring = lstring_node.get_string(compiler);
+        let Some(search_value) = self.get_side_effect_free_string_value(compiler, first_arg) else {
+            return n;
+        };
+
+        let second_arg = first_arg.get_next(compiler);
+        let mut end = lstring.length() as i32;
+        if let Some(second_arg) = second_arg {
+            if second_arg.get_next(compiler).is_some()
+                || self.may_have_side_effects(compiler, second_arg)
+            {
+                return n;
+            }
+            if NodeUtil::is_numeric_literal(compiler, Some(second_arg)) {
+                let pos_val = NodeUtil::get_numeric_literal_value(compiler, Some(second_arg));
+                end = Self::clamp_position(pos_val, lstring.length());
+            } else if second_arg.is_null(compiler) {
+                end = 0;
+            } else if NodeUtil::is_undefined(compiler, second_arg) {
+                end = lstring.length() as i32;
+            } else {
+                return n;
+            }
+        }
+
+        let search_length = search_value.length() as i32;
+        let start = end - search_length;
+        let result = start >= 0 && Self::starts_with_from(&lstring, &search_value, start);
+        let new_node = NodeUtil::boolean_node(compiler, result).srcref(compiler, n);
+        n.replace_with(compiler, new_node);
+        self.report_change_to_enclosing_scope(compiler, new_node);
+        new_node
+    }
+
+    /// Try to evaluate String.prototype.at:
+    ///
+    /// ```text
+    ///     "abcdef".at(0) -> "a"
+    ///     "abcdef".at(-1) -> "f"
+    ///     "abcdef".at(10) -> void 0
+    /// ```
+    // port: PeepholeReplaceKnownMethods#tryFoldStringAt
+    fn try_fold_string_at(
+        &self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        string_node: NodeId,
+        first_arg: Option<NodeId>,
+    ) -> NodeId {
+        check_argument!(n.is_call(compiler));
+        check_argument!(string_node.is_string_lit(compiler));
+
+        let pos_val = match first_arg {
+            None => 0.0,
+            Some(first_arg) => {
+                if first_arg.get_next(compiler).is_some() {
+                    return n;
+                }
+                let Some(maybe_pos) = self.get_side_effect_free_number_value(compiler, first_arg)
+                else {
+                    return n;
+                };
+                if maybe_pos.is_nan() { 0.0 } else { maybe_pos }
+            }
+        };
+
+        let string_val = string_node.get_string(compiler);
+        let len = string_val.length() as i32;
+
+        let replacement = if pos_val.is_infinite()
+            || pos_val >= f64::from(len)
+            || pos_val <= f64::from(-(len + 1))
+        {
+            NodeUtil::new_undefined_node(compiler, Some(n))
+        } else {
+            let int_pos = pos_val as i64;
+            let k = if int_pos >= 0 {
+                int_pos
+            } else {
+                i64::from(len) + int_pos
+            };
+            if k < 0 || k >= i64::from(len) {
+                NodeUtil::new_undefined_node(compiler, Some(n))
+            } else {
+                let c = string_val.substring(k as usize, k as usize + 1);
+                IR::string(compiler, c).srcref(compiler, n)
+            }
+        };
+
+        n.replace_with(compiler, replacement);
+        self.report_change_to_enclosing_scope(compiler, replacement);
+        replacement
     }
 
     /// Try to fold an array join: ['a', 'b', 'c'].join('') -> 'abc';

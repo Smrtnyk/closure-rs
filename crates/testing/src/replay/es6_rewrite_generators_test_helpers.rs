@@ -31,7 +31,7 @@
 // Ported from closure-rs' own Java oracle tooling:
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   test/com/google/javascript/jscomp/Es6RewriteGeneratorsTest.java.
 
 //! Port of the replay helper `oracle/replay/helpers/.../Es6RewriteGeneratorsTest_Helpers.java`
