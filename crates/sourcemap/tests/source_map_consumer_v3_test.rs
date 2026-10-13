@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   test/com/google/debugging/sourcemap/SourceMapConsumerV3Test.java.
 
 use closure_rhino::js_string::JsString;

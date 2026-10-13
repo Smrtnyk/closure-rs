@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   src/com/google/javascript/jscomp/CompilerPass.java,
 //   test/com/google/javascript/jscomp/ValidityCheckTest.java.
 
@@ -145,4 +145,48 @@ fn test_constant_annotation_mismatch() {
         message.contains("The name x is not consistently annotated as constant."),
         "{message}"
     );
+}
+
+// port: ValidityCheckTest#testSourceInfoCheck
+#[test]
+fn test_source_info_check() {
+    use closure_jscomp::{Compiler, source_info_check::SourceInfoCheck};
+    let mut compiler = Compiler::new();
+    let script = compiler.parse_test_code("var x = 3;");
+    let foo = compiler.new_string("foo");
+    let n = compiler.new_node_with_child(Token::EXPR_RESULT, foo); // Child missing source info
+    let var = script.get_first_child(&compiler).unwrap();
+    n.srcref(&mut compiler, var);
+    script.add_child_to_back(&mut compiler, n);
+
+    let mut check = SourceInfoCheck::new(&compiler);
+    let root = compiler.new_node_with_child(Token::ROOT, script);
+    // Java passes null externs; SourceInfoCheck does not read them.
+    check.process(&mut compiler, root, root);
+
+    let errors = compiler.get_errors();
+    assert_eq!(errors.len(), 1);
+    assert!(
+        errors[0]
+            .get_description()
+            .contains("No source location information associated with"),
+        "{}",
+        errors[0].get_description()
+    );
+}
+
+// port: ValidityCheckTest#testErrorPass
+#[test]
+fn test_error_pass() {
+    use closure_jscomp::{Compiler, diagnostic_type::DiagnosticType, error_pass::ErrorPass};
+    static TEST_ERROR: DiagnosticType =
+        DiagnosticType::error("TEST_ERROR", "Test error description");
+    let mut compiler = Compiler::new();
+    let mut pass = ErrorPass::new(&compiler, &TEST_ERROR);
+    let script = compiler.parse_test_code("var x = 1;");
+    // Java passes null externs; ErrorPass does not read them.
+    pass.process(&mut compiler, script, script);
+    let errors = compiler.get_errors();
+    assert_eq!(errors.len(), 1);
+    assert!(std::ptr::eq(errors[0].get_type(), &TEST_ERROR));
 }

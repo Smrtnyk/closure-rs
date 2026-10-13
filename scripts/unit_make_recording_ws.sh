@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Rebuilds the recording workspace $REF_RECORDING_WS (for the default reference
-# reference/closure-compiler-v20261007-recording; docs/PORTING.md §9) from scratch: a clone of
+# reference/closure-compiler-v20261011-recording; docs/PORTING.md §9) from scratch: a clone of
 # the pristine reference checkout $REF_SRC at $REF_COMMIT plus this checkout's
 # oracle/patches/*.patch (test/ and BUILD only).
 # The pristine checkout is only read (git clone), never modified.

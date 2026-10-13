@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/PeepholeReplaceKnownMethodsTest.java.
 
@@ -200,57 +200,47 @@ fn test_string_index_of() {
 fn test_fold_string_includes() {
     let mut t = PeepholeReplaceKnownMethodsTest::new();
     // Fold String.prototype.includes with Constant Arguments
-    // Baseline current behavior and guards:
     // Under ECMA-262 § 22.1.3.8, String.prototype.includes evaluates substring search with position
     // clamping.
-    // Future optimization fold targets:
-    // - 'hello world'.includes('world') -> true
-    // - 'foo'.includes('bar') -> false
-    // - 'abcdef'.includes('bc') -> true
-    // - 'abcdef'.includes('xyz') -> false
-    // - 'abc'.includes('') -> true
-    // - ''.includes('') -> true
-    // - 'abc'.includes('a', 1) -> false
-    // - 'abc'.includes('b', 1) -> true
-    // - 'abc'.includes('c', 2) -> true
-    // - 'abcdef'.includes('bc', 1) -> true
-    // - 'abcdef'.includes('bc', 2) -> false
-    // - 'abc'.includes('a', -5) -> true
-    // - 'abc'.includes('a', 10) -> false
-    // - 'abcdef'.includes('bc', -5) -> true
-    // - 'abcdef'.includes('bc', 100) -> false
-    // - '123'.includes(2) -> true
-    // - 'true'.includes(true) -> true
-    // - 'abc1def'.includes(1) -> true
-    // - 'abctruedef'.includes(true) -> true
-    // - 'abcnulldef'.includes(null) -> true
-    // - 'abcundefineddef'.includes(undefined) -> true
-    // - 'abcNaNdef'.includes(NaN) -> true
-    t.fold_same("x = 'hello world'.includes('world')");
-    t.fold_same("x = 'foo'.includes('bar')");
-    t.fold_same("x = 'abcdef'.includes('bc')");
-    t.fold_same("x = 'abcdef'.includes('xyz')");
-    t.fold_same("x = 'abc'.includes('')");
-    t.fold_same("x = ''.includes('')");
+    t.fold("x = 'hello world'.includes('world')", "x = true");
+    t.fold("x = 'foo'.includes('bar')", "x = false");
+    t.fold("x = 'abcdef'.includes('bc')", "x = true");
+    t.fold("x = 'abcdef'.includes('xyz')", "x = false");
+    t.fold("x = 'abc'.includes('')", "x = true");
+    t.fold("x = ''.includes('')", "x = true");
     // Positional search & clamping
-    t.fold_same("x = 'abc'.includes('a', 1)");
-    t.fold_same("x = 'abc'.includes('b', 1)");
-    t.fold_same("x = 'abc'.includes('c', 2)");
-    t.fold_same("x = 'abcdef'.includes('bc', 1)");
-    t.fold_same("x = 'abcdef'.includes('bc', 2)");
-    t.fold_same("x = 'abc'.includes('a', -5)");
-    t.fold_same("x = 'abc'.includes('a', 10)");
-    t.fold_same("x = 'abcdef'.includes('bc', -5)");
-    t.fold_same("x = 'abcdef'.includes('bc', 100)");
+    t.fold("x = 'abc'.includes('a', 1)", "x = false");
+    t.fold("x = 'abc'.includes('b', 1)", "x = true");
+    t.fold("x = 'abc'.includes('c', 2)", "x = true");
+    t.fold("x = 'abcdef'.includes('bc', 1)", "x = true");
+    t.fold("x = 'abcdef'.includes('bc', 2)", "x = false");
+    t.fold("x = 'abc'.includes('a', -5)", "x = true");
+    t.fold("x = 'abc'.includes('a', 10)", "x = false");
+    t.fold("x = 'abcdef'.includes('bc', -5)", "x = true");
+    t.fold("x = 'abcdef'.includes('bc', 100)", "x = false");
+    t.fold("x = 'abc'.includes('', 100)", "x = true");
+    t.fold_same("x = 'abc'.includes('a', NaN)");
+    t.fold_same("x = 'abc'.includes('a', Infinity)");
+    t.fold_same("x = 'abc'.includes('a', -Infinity)");
+    t.fold("x = 'abc'.includes('a', 0.9)", "x = true");
+    t.fold("x = 'abc'.includes('a', 1.1)", "x = false");
+    t.fold("x = 'abc'.includes('a', null)", "x = true");
+    t.fold("x = 'abc'.includes('a', undefined)", "x = true");
+    t.fold("x = 'abc'.includes('a', void 0)", "x = true");
+    t.fold("x = 'abc'.includes('a', -0)", "x = true");
+    t.fold("x = 'abc'.includes('a', +0)", "x = true");
+    t.fold("x = 'abc'.includes('a', +1)", "x = false");
     // Coercions
-    t.fold_same("x = '123'.includes(2)");
-    t.fold_same("x = 'true'.includes(true)");
-    t.fold_same("x = 'abc1def'.includes(1)");
-    t.fold_same("x = 'abctruedef'.includes(true)");
-    t.fold_same("x = 'abcnulldef'.includes(null)");
-    t.fold_same("x = 'abcundefineddef'.includes(undefined)");
-    t.fold_same("x = 'abcNaNdef'.includes(NaN)");
+    t.fold("x = '123'.includes(2)", "x = true");
+    t.fold("x = 'true'.includes(true)", "x = true");
+    t.fold("x = 'abc1def'.includes(1)", "x = true");
+    t.fold("x = 'abctruedef'.includes(true)", "x = true");
+    t.fold("x = 'abcnulldef'.includes(null)", "x = true");
+    t.fold("x = 'abcundefineddef'.includes(undefined)", "x = true");
+    t.fold("x = 'abcNaNdef'.includes(NaN)", "x = true");
     // Negative / Guard cases (Must NOT fold)
+    t.fold_same("x = 'abc'.includes()");
+    // zero arguments
     t.fold_same("x = str.includes('a')");
     // non-literal receiver
     t.fold_same("x = 'abc'.includes(y)");
@@ -267,6 +257,10 @@ fn test_fold_string_includes() {
     // unexpected extra arguments
     t.fold_same("x = 'abcdef'.includes({a: 2})");
     t.fold_same("x = 'abcdef'.includes([1, 2])");
+    t.fold_same("x = 'abc'.includes('a', {valueOf() { return 1; }})");
+    t.fold_same("x = 'abc'.includes('a', '0b1')");
+    t.fold_same("x = 'abc'.includes('a', '1d')");
+    t.fold_same("x = 'abc'.includes('a', {})");
     t.fold_same("x = tag `Hello ${name}`.includes('a')");
 }
 
@@ -275,50 +269,38 @@ fn test_fold_string_includes() {
 fn test_fold_string_starts_with() {
     let mut t = PeepholeReplaceKnownMethodsTest::new();
     // Fold String.prototype.startsWith with Constant Arguments
-    // Baseline current behavior and guards:
     // Under ECMA-262 § 22.1.3.24, String.prototype.startsWith evaluates substring prefix matching
     // with position clamping.
-    // Future optimization fold targets:
-    // - 'abcdef'.startsWith('abc') -> true
-    // - 'abcdef'.startsWith('def') -> false
-    // - 'abcdef'.startsWith('bc') -> false
-    // - 'abcdef'.startsWith('bc', 1) -> true
-    // - 'abcdef'.startsWith('bc', 2) -> false
-    // - 'abcdef'.startsWith('abc', -5) -> true
-    // - 'abcdef'.startsWith('', 2) -> true
-    // - 'abcdef'.startsWith('') -> true
-    // - ''.startsWith('') -> true
-    // - 'abcdef'.startsWith('bc', 100) -> false
-    // - '12345'.startsWith(1) -> true
-    // - 'true'.startsWith(true) -> true
-    // - '1abcdef'.startsWith(1) -> true
-    // - 'abc1def'.startsWith(1) -> false
-    // - 'trueabcdef'.startsWith(true) -> true
-    // - 'abctruedef'.startsWith(true) -> false
-    // - 'nullabcdef'.startsWith(null) -> true
-    // - 'undefinedabcdef'.startsWith(undefined) -> true
-    // - 'NaNabcdef'.startsWith(NaN) -> true
-    t.fold_same("x = 'abcdef'.startsWith('abc')");
-    t.fold_same("x = 'abcdef'.startsWith('def')");
-    t.fold_same("x = 'abcdef'.startsWith('bc')");
-    t.fold_same("x = 'abcdef'.startsWith('')");
-    t.fold_same("x = ''.startsWith('')");
+    t.fold("x = 'abcdef'.startsWith('abc')", "x = true");
+    t.fold("x = 'abcdef'.startsWith('def')", "x = false");
+    t.fold("x = 'abcdef'.startsWith('bc')", "x = false");
+    t.fold("x = 'abcdef'.startsWith('')", "x = true");
+    t.fold("x = ''.startsWith('')", "x = true");
     // Positional search & clamping
-    t.fold_same("x = 'abcdef'.startsWith('bc', 1)");
-    t.fold_same("x = 'abcdef'.startsWith('bc', 2)");
-    t.fold_same("x = 'abcdef'.startsWith('abc', -5)");
-    t.fold_same("x = 'abcdef'.startsWith('', 2)");
-    t.fold_same("x = 'abcdef'.startsWith('bc', 100)");
+    t.fold("x = 'abcdef'.startsWith('bc', 1)", "x = true");
+    t.fold("x = 'abcdef'.startsWith('bc', 2)", "x = false");
+    t.fold("x = 'abcdef'.startsWith('abc', -5)", "x = true");
+    t.fold("x = 'abcdef'.startsWith('', 2)", "x = true");
+    t.fold("x = 'abcdef'.startsWith('bc', 100)", "x = false");
+    t.fold("x = 'abcdef'.startsWith('bc', null)", "x = false");
+    t.fold("x = 'abcdef'.startsWith('abc', null)", "x = true");
+    t.fold("x = 'abcdef'.startsWith('bc', undefined)", "x = false");
+    t.fold("x = 'abcdef'.startsWith('abc', undefined)", "x = true");
+    t.fold("x = 'abcdef'.startsWith('abc', void 0)", "x = true");
+    t.fold("x = 'abcdef'.startsWith('bc', -0)", "x = false");
+    t.fold("x = 'abcdef'.startsWith('abc', -0)", "x = true");
+    t.fold("x = 'abcdef'.startsWith('abc', +0)", "x = true");
+    t.fold("x = 'abcdef'.startsWith('bc', +1)", "x = true");
     // Coercions
-    t.fold_same("x = '12345'.startsWith(1)");
-    t.fold_same("x = 'true'.startsWith(true)");
-    t.fold_same("x = '1abcdef'.startsWith(1)");
-    t.fold_same("x = 'abc1def'.startsWith(1)");
-    t.fold_same("x = 'trueabcdef'.startsWith(true)");
-    t.fold_same("x = 'abctruedef'.startsWith(true)");
-    t.fold_same("x = 'nullabcdef'.startsWith(null)");
-    t.fold_same("x = 'undefinedabcdef'.startsWith(undefined)");
-    t.fold_same("x = 'NaNabcdef'.startsWith(NaN)");
+    t.fold("x = '12345'.startsWith(1)", "x = true");
+    t.fold("x = 'true'.startsWith(true)", "x = true");
+    t.fold("x = '1abcdef'.startsWith(1)", "x = true");
+    t.fold("x = 'abc1def'.startsWith(1)", "x = false");
+    t.fold("x = 'trueabcdef'.startsWith(true)", "x = true");
+    t.fold("x = 'abctruedef'.startsWith(true)", "x = false");
+    t.fold("x = 'nullabcdef'.startsWith(null)", "x = true");
+    t.fold("x = 'undefinedabcdef'.startsWith(undefined)", "x = true");
+    t.fold("x = 'NaNabcdef'.startsWith(NaN)", "x = true");
     // Negative / Guard cases (Must NOT fold)
     t.fold_same("x = str.startsWith('a')");
     // non-literal receiver
@@ -330,12 +312,20 @@ fn test_fold_string_starts_with() {
     // regex argument throws TypeError at runtime (ECMA-262 §
     // 22.1.3.24)
     t.fold_same("x = 'abcdef'.startsWith(/abc/)");
+    t.fold_same("x = 'abcdef'.startsWith(foo)");
     t.fold_same("x = 'abcdef'.startsWith('bc', pos)");
     // non-constant position
     t.fold_same("x = 'abcdef'.startsWith('bc', 1, 2)");
     // unexpected extra arguments
     t.fold_same("x = 'abcdef'.startsWith({a: 2})");
     t.fold_same("x = 'abcdef'.startsWith([1, 2])");
+    t.fold_same("x = 'abcdef'.startsWith('bc', {valueOf() { return 1; }})");
+    t.fold_same("x = 'abcdef'.startsWith('bc', '0b1')");
+    t.fold_same("x = 'abcdef'.startsWith('bc', '1d')");
+    t.fold_same("x = 'abcdef'.startsWith('bc', {})");
+    t.fold_same("x = 'abcdef'.startsWith('abc', NaN)");
+    t.fold_same("x = 'abcdef'.startsWith('abc', Infinity)");
+    t.fold_same("x = 'abcdef'.startsWith('abc', -Infinity)");
     t.fold_same("x = tag `Hello ${name}`.startsWith('a')");
 }
 
@@ -344,52 +334,38 @@ fn test_fold_string_starts_with() {
 fn test_fold_string_ends_with() {
     let mut t = PeepholeReplaceKnownMethodsTest::new();
     // Fold String.prototype.endsWith with Constant Arguments
-    // Baseline current behavior and guards:
     // Under ECMA-262 § 22.1.3.7, String.prototype.endsWith evaluates substring suffix matching with
     // endPosition clamping.
-    // Future optimization fold targets:
-    // - 'abcdef'.endsWith('def') -> true
-    // - 'abcdef'.endsWith('abc') -> false
-    // - 'abcdef'.endsWith('de') -> false
-    // - 'abcdef'.endsWith('abc', 3) -> true
-    // - 'abcdef'.endsWith('bcd', 4) -> true
-    // - 'abcdef'.endsWith('de', 5) -> true
-    // - 'abcdef'.endsWith('def', 100) -> true
-    // - 'abcdef'.endsWith('', -5) -> true
-    // - 'abcdef'.endsWith('a', -5) -> false
-    // - 'abcdef'.endsWith('') -> true
-    // - ''.endsWith('') -> true
-    // - '12345'.endsWith(5) -> true
-    // - 'true'.endsWith(true) -> true
-    // - 'abcdef1'.endsWith(1) -> true
-    // - '1abcdef'.endsWith(1) -> false
-    // - 'abcdeftrue'.endsWith(true) -> true
-    // - 'trueabcdef'.endsWith(true) -> false
-    // - 'abcdefnull'.endsWith(null) -> true
-    // - 'abcdefundefined'.endsWith(undefined) -> true
-    // - 'abcdefNaN'.endsWith(NaN) -> true
-    t.fold_same("x = 'abcdef'.endsWith('def')");
-    t.fold_same("x = 'abcdef'.endsWith('abc')");
-    t.fold_same("x = 'abcdef'.endsWith('de')");
-    t.fold_same("x = 'abcdef'.endsWith('')");
-    t.fold_same("x = ''.endsWith('')");
+    t.fold("x = 'abcdef'.endsWith('def')", "x = true");
+    t.fold("x = 'abcdef'.endsWith('abc')", "x = false");
+    t.fold("x = 'abcdef'.endsWith('de')", "x = false");
+    t.fold("x = 'abcdef'.endsWith('')", "x = true");
+    t.fold("x = ''.endsWith('')", "x = true");
     // Positional search & clamping
-    t.fold_same("x = 'abcdef'.endsWith('abc', 3)");
-    t.fold_same("x = 'abcdef'.endsWith('bcd', 4)");
-    t.fold_same("x = 'abcdef'.endsWith('de', 5)");
-    t.fold_same("x = 'abcdef'.endsWith('def', 100)");
-    t.fold_same("x = 'abcdef'.endsWith('', -5)");
-    t.fold_same("x = 'abcdef'.endsWith('a', -5)");
+    t.fold("x = 'abcdef'.endsWith('abc', 3)", "x = true");
+    t.fold("x = 'abcdef'.endsWith('bcd', 4)", "x = true");
+    t.fold("x = 'abcdef'.endsWith('de', 5)", "x = true");
+    t.fold("x = 'abcdef'.endsWith('def', 100)", "x = true");
+    t.fold("x = 'abcdef'.endsWith('', -5)", "x = true");
+    t.fold("x = 'abcdef'.endsWith('a', -5)", "x = false");
+    t.fold("x = 'abcdef'.endsWith('def', undefined)", "x = true");
+    t.fold("x = 'abcdef'.endsWith('def', void 0)", "x = true");
+    t.fold("x = 'abcdef'.endsWith('def', null)", "x = false");
+    t.fold("x = 'abcdef'.endsWith('', null)", "x = true");
+    t.fold("x = 'abcdef'.endsWith('def', -0)", "x = false");
+    t.fold("x = 'abcdef'.endsWith('', -0)", "x = true");
+    t.fold("x = 'abcdef'.endsWith('def', +0)", "x = false");
+    t.fold("x = 'abcdef'.endsWith('de', +5)", "x = true");
     // Coercions
-    t.fold_same("x = '12345'.endsWith(5)");
-    t.fold_same("x = 'true'.endsWith(true)");
-    t.fold_same("x = 'abcdef1'.endsWith(1)");
-    t.fold_same("x = '1abcdef'.endsWith(1)");
-    t.fold_same("x = 'abcdeftrue'.endsWith(true)");
-    t.fold_same("x = 'trueabcdef'.endsWith(true)");
-    t.fold_same("x = 'abcdefnull'.endsWith(null)");
-    t.fold_same("x = 'abcdefundefined'.endsWith(undefined)");
-    t.fold_same("x = 'abcdefNaN'.endsWith(NaN)");
+    t.fold("x = '12345'.endsWith(5)", "x = true");
+    t.fold("x = 'true'.endsWith(true)", "x = true");
+    t.fold("x = 'abcdef1'.endsWith(1)", "x = true");
+    t.fold("x = '1abcdef'.endsWith(1)", "x = false");
+    t.fold("x = 'abcdeftrue'.endsWith(true)", "x = true");
+    t.fold("x = 'trueabcdef'.endsWith(true)", "x = false");
+    t.fold("x = 'abcdefnull'.endsWith(null)", "x = true");
+    t.fold("x = 'abcdefundefined'.endsWith(undefined)", "x = true");
+    t.fold("x = 'abcdefNaN'.endsWith(NaN)", "x = true");
     // Negative / Guard cases (Must NOT fold)
     t.fold_same("x = str.endsWith('a')");
     // non-literal receiver
@@ -401,12 +377,20 @@ fn test_fold_string_ends_with() {
     // regex argument throws TypeError at runtime (ECMA-262 §
     // 22.1.3.7)
     t.fold_same("x = 'abcdef'.endsWith(/def/)");
+    t.fold_same("x = 'abcdef'.endsWith(foo)");
     t.fold_same("x = 'abcdef'.endsWith('de', pos)");
     // non-constant endPosition
     t.fold_same("x = 'abcdef'.endsWith('de', 5, 2)");
     // unexpected extra arguments
     t.fold_same("x = 'abcdef'.endsWith({a: 2})");
     t.fold_same("x = 'abcdef'.endsWith([1, 2])");
+    t.fold_same("x = 'abcdef'.endsWith('de', {valueOf() { return 5; }})");
+    t.fold_same("x = 'abcdef'.endsWith('de', '0b101')");
+    t.fold_same("x = 'abcdef'.endsWith('de', '5d')");
+    t.fold_same("x = 'abcdef'.endsWith('de', {})");
+    t.fold_same("x = 'abcdef'.endsWith('def', NaN)");
+    t.fold_same("x = 'abcdef'.endsWith('def', Infinity)");
+    t.fold_same("x = 'abcdef'.endsWith('def', -Infinity)");
     t.fold_same("x = tag `Hello ${name}`.endsWith('a')");
 }
 
@@ -415,36 +399,34 @@ fn test_fold_string_ends_with() {
 fn test_fold_string_trim_start() {
     let mut t = PeepholeReplaceKnownMethodsTest::new();
     // Fold String.prototype.trimStart / trimLeft with Constant Arguments
-    // Baseline current behavior and guards:
     // Under ECMA-262 § 22.1.3.34 (trimStart) and Annex § B.2.2.15 (trimLeft), leading WhiteSpace
     // and LineTerminator characters are removed.
-    // Future optimization fold targets:
-    // - '   foo   '.trimStart() -> 'foo   '
-    // - '   foo   '.trimLeft() -> 'foo   '
-    // - 'foo   '.trimStart() -> 'foo   '
-    // - 'foo   '.trimLeft() -> 'foo   '
-    // - ''.trimStart() -> ''
-    // - ''.trimLeft() -> ''
-    // - '   '.trimStart() -> ''
-    // - '   '.trimLeft() -> ''
-    // - '\\uFEFF\\u00A0\\t\\n foo \\t\\n'.trimStart() -> 'foo \\t\\n'
-    // - '\\uFEFF\\u00A0\\t\\n foo \\t\\n'.trimLeft() -> 'foo \\t\\n'
-    // - '\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000foo \\t'.trimStart() -> 'foo \\t'
-    // - '\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000foo \\t'.trimLeft() -> 'foo \\t'
-    t.fold_same("x = '   foo   '.trimStart()");
-    t.fold_same("x = '   foo   '.trimLeft()");
-    t.fold_same("x = 'foo   '.trimStart()");
-    t.fold_same("x = 'foo   '.trimLeft()");
-    t.fold_same("x = ''.trimStart()");
-    t.fold_same("x = ''.trimLeft()");
-    t.fold_same("x = '   '.trimStart()");
-    t.fold_same("x = '   '.trimLeft()");
-    t.fold_same("x = '\\uFEFF\\u00A0\\t\\n foo \\t\\n'.trimStart()");
-    t.fold_same("x = '\\uFEFF\\u00A0\\t\\n foo \\t\\n'.trimLeft()");
-    t.fold_same(
-        "x = '\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000foo \\t'.trimStart()",
+    t.fold("x = '   foo   '.trimStart()", "x = 'foo   '");
+    t.fold("x = '   foo   '.trimLeft()", "x = 'foo   '");
+    t.fold("x = 'foo   '.trimStart()", "x = 'foo   '");
+    t.fold("x = 'foo   '.trimLeft()", "x = 'foo   '");
+    t.fold("x = ''.trimStart()", "x = ''");
+    t.fold("x = ''.trimLeft()", "x = ''");
+    t.fold("x = '   '.trimStart()", "x = ''");
+    t.fold("x = '   '.trimLeft()", "x = ''");
+    t.fold(
+        "x = '\\uFEFF\\u00A0\\t\\n foo \\t\\n'.trimStart()",
+        "x = 'foo \\t\\n'",
     );
-    t.fold_same("x = '\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000foo \\t'.trimLeft()");
+    t.fold(
+        "x = '\\uFEFF\\u00A0\\t\\n foo \\t\\n'.trimLeft()",
+        "x = 'foo \\t\\n'",
+    );
+    t.fold(
+        "x = '\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000foo \\t'.trimStart()",
+        "x = 'foo \\t'",
+    );
+    t.fold(
+        "x = '\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000foo \\t'.trimLeft()",
+        "x = 'foo \\t'",
+    );
+    t.fold("x = '\\u0085x'.trimStart()", "x = '\\u0085x'");
+    t.fold("x = '\\u0085x'.trimLeft()", "x = '\\u0085x'");
     // Negative / Guard cases (Must NOT fold)
     t.fold_same("x = str.trimStart()");
     // non-literal receiver
@@ -464,36 +446,36 @@ fn test_fold_string_trim_start() {
 fn test_fold_string_trim_end() {
     let mut t = PeepholeReplaceKnownMethodsTest::new();
     // Fold String.prototype.trimEnd / trimRight with Constant Arguments
-    // Baseline current behavior and guards:
     // Under ECMA-262 § 22.1.3.33 (trimEnd) and Annex § B.2.2.16 (trimRight), trailing WhiteSpace
     // and LineTerminator characters are removed.
-    // Future optimization fold targets:
-    // - '   foo   '.trimEnd() -> '   foo'
-    // - '   foo   '.trimRight() -> '   foo'
-    // - '   foo'.trimEnd() -> '   foo'
-    // - '   foo'.trimRight() -> '   foo'
-    // - ''.trimEnd() -> ''
-    // - ''.trimRight() -> ''
-    // - '   '.trimEnd() -> ''
-    // - '   '.trimRight() -> ''
-    // - '\\t\\n foo \\uFEFF\\u00A0\\t\\n'.trimEnd() -> '\\t\\n foo'
-    // - '\\t\\n foo \\uFEFF\\u00A0\\t\\n'.trimRight() -> '\\t\\n foo'
-    // - '\\t foo\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000'.trimEnd() -> '\\t foo'
-    // - '\\t foo\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000'.trimRight() -> '\\t foo'
-    t.fold_same("x = '   foo   '.trimEnd()");
-    t.fold_same("x = '   foo   '.trimRight()");
-    t.fold_same("x = '   foo'.trimEnd()");
-    t.fold_same("x = '   foo'.trimRight()");
-    t.fold_same("x = ''.trimEnd()");
-    t.fold_same("x = ''.trimRight()");
-    t.fold_same("x = '   '.trimEnd()");
-    t.fold_same("x = '   '.trimRight()");
-    t.fold_same("x = '\\t\\n foo \\uFEFF\\u00A0\\t\\n'.trimEnd()");
-    t.fold_same("x = '\\t\\n foo \\uFEFF\\u00A0\\t\\n'.trimRight()");
-    t.fold_same("x = '\\t foo\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000'.trimEnd()");
-    t.fold_same(
-        "x = '\\t foo\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000'.trimRight()",
+    t.fold("x = '   foo   '.trimEnd()", "x = '   foo'");
+    t.fold("x = '   foo   '.trimRight()", "x = '   foo'");
+    t.fold("x = '   foo'.trimEnd()", "x = '   foo'");
+    t.fold("x = '   foo'.trimRight()", "x = '   foo'");
+    t.fold("x = ''.trimEnd()", "x = ''");
+    t.fold("x = ''.trimRight()", "x = ''");
+    t.fold("x = '   '.trimEnd()", "x = ''");
+    t.fold("x = '   '.trimRight()", "x = ''");
+    t.fold(
+        "x = '\\t\\n foo \\uFEFF\\u00A0\\t\\n'.trimEnd()",
+        "x = '\\t\\n foo'",
     );
+    t.fold(
+        "x = '\\t\\n foo \\uFEFF\\u00A0\\t\\n'.trimRight()",
+        "x = '\\t\\n foo'",
+    );
+    t.fold(
+        "x = '\\t foo\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000'.trimEnd()",
+        "x = '\\t foo'",
+    );
+    t.fold(
+        "x = '\\t foo\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000'.trimRight()",
+        "x = '\\t foo'",
+    );
+    t.fold("x = 'x\\u0085'.trimEnd()", "x = 'x\\u0085'");
+    t.fold("x = 'x\\u0085'.trimRight()", "x = 'x\\u0085'");
+    t.fold("x = 'abc \\u0085'.trimEnd()", "x = 'abc \\u0085'");
+    t.fold("x = 'abc \\u0085'.trimRight()", "x = 'abc \\u0085'");
     // Negative / Guard cases (Must NOT fold)
     t.fold_same("x = str.trimEnd()");
     // non-literal receiver
@@ -506,6 +488,29 @@ fn test_fold_string_trim_end() {
     t.fold_same("x = '   foo   '.trimRight(foo())");
     t.fold_same("x = tag `   foo   `.trimEnd()");
     t.fold_same("x = tag `   foo   `.trimRight()");
+}
+
+// port: PeepholeReplaceKnownMethodsTest#testFoldStringTrim
+#[test]
+fn test_fold_string_trim() {
+    let mut t = PeepholeReplaceKnownMethodsTest::new();
+    t.fold("x = '   foo   '.trim()", "x = 'foo'");
+    t.fold("x = 'foo   '.trim()", "x = 'foo'");
+    t.fold("x = '   foo'.trim()", "x = 'foo'");
+    t.fold("x = ''.trim()", "x = ''");
+    t.fold("x = '   '.trim()", "x = ''");
+    t.fold(
+        "x = '\\uFEFF\\u00A0\\t\\n foo \\t\\n\\uFEFF\\u00A0'.trim()",
+        "x = 'foo'",
+    );
+    t.fold("x = '\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000foo\\u1680\\u2000\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000'.trim()", "x = 'foo'");
+    t.fold("x = '\\u0085x\\u0085'.trim()", "x = '\\u0085x\\u0085'");
+    t.fold("x = '\\u0085'.trim()", "x = '\\u0085'");
+    // Negative / Guard cases (Must NOT fold)
+    t.fold_same("x = str.trim()");
+    t.fold_same("x = '   foo   '.trim(1)");
+    t.fold_same("x = '   foo   '.trim(foo())");
+    t.fold_same("x = tag `   foo   `.trim()");
 }
 
 // port: PeepholeReplaceKnownMethodsTest#testFoldStringAt
@@ -549,48 +554,61 @@ fn test_fold_string_at() {
     // - '\\ud834\udd1e'.at(1) -> '\\udd1e'
     // - '\\ud834\udd1e'.at(-1) -> '\\udd1e'
     // - '\\ud834\udd1e'.at(-2) -> '\\ud834'
-    t.fold_same("x = 'hello'.at()");
-    t.fold_same("x = 'hello'.at(undefined)");
-    t.fold_same("x = 'hello'.at(0)");
-    t.fold_same("x = 'hello'.at(1)");
-    t.fold_same("x = 'hello'.at(4)");
+    t.fold("x = 'hello'.at()", "x = 'h'");
+    t.fold("x = 'hello'.at(undefined)", "x = 'h'");
+    t.fold("x = 'hello'.at(0)", "x = 'h'");
+    t.fold("x = 'hello'.at(1)", "x = 'e'");
+    t.fold("x = 'hello'.at(4)", "x = 'o'");
     // Negative relative indices
-    t.fold_same("x = 'hello'.at(-1)");
-    t.fold_same("x = 'hello'.at(-2)");
-    t.fold_same("x = 'hello'.at(-5)");
+    t.fold("x = 'hello'.at(-1)", "x = 'o'");
+    t.fold("x = 'hello'.at(-2)", "x = 'l'");
+    t.fold("x = 'hello'.at(-5)", "x = 'h'");
     // Out-of-bounds (evaluates to void 0)
-    t.fold_same("x = 'hello'.at(5)");
-    t.fold_same("x = 'hello'.at(10)");
-    t.fold_same("x = 'hello'.at(-6)");
-    t.fold_same("x = 'hello'.at(-10)");
-    t.fold_same("x = ''.at(0)");
-    t.fold_same("x = ''.at(-1)");
-    t.fold_same("x = 'hello'.at(Infinity)");
-    t.fold_same("x = 'hello'.at(-Infinity)");
+    t.fold("x = 'hello'.at(5)", "x = void 0");
+    t.fold("x = 'hello'.at(10)", "x = void 0");
+    t.fold("x = 'hello'.at(-6)", "x = void 0");
+    t.fold("x = 'hello'.at(-10)", "x = void 0");
+    t.fold("x = ''.at(0)", "x = void 0");
+    t.fold("x = ''.at(-1)", "x = void 0");
+    t.fold("x = ''.at(-0.5)", "x = void 0");
+    t.fold("x = 'hello'.at(Infinity)", "x = void 0");
+    t.fold("x = 'hello'.at(-Infinity)", "x = void 0");
     // Floating-point truncation
-    t.fold_same("x = 'hello'.at(1.9)");
-    t.fold_same("x = 'hello'.at(-1.9)");
-    t.fold_same("x = 'hello'.at(0.5)");
-    t.fold_same("x = 'hello'.at(-0.5)");
-    t.fold_same("x = 'hello'.at(4.1)");
-    t.fold_same("x = 'hello'.at(4.9)");
-    t.fold_same("x = 'hello'.at(-5.1)");
-    t.fold_same("x = 'hello'.at(-5.9)");
-    t.fold_same("x = 'a'.at(-1.5)");
-    t.fold_same("x = 'hello'.at(-6.0)");
-    t.fold_same("x = 'hello'.at(-6.1)");
+    t.fold("x = 'hello'.at(1.9)", "x = 'e'");
+    t.fold("x = 'hello'.at(-1.9)", "x = 'o'");
+    t.fold("x = 'hello'.at(0.5)", "x = 'h'");
+    t.fold("x = 'hello'.at(-0.5)", "x = 'h'");
+    t.fold("x = 'hello'.at(4.1)", "x = 'o'");
+    t.fold("x = 'hello'.at(4.9)", "x = 'o'");
+    t.fold("x = 'hello'.at(-5.1)", "x = 'h'");
+    t.fold("x = 'hello'.at(-5.9)", "x = 'h'");
+    t.fold("x = 'a'.at(-1.5)", "x = 'a'");
+    t.fold("x = 'hello'.at(-6.0)", "x = void 0");
+    t.fold("x = 'hello'.at(-6.1)", "x = void 0");
     // Coercions
-    t.fold_same("x = '123'.at(0)");
-    t.fold_same("x = 'hello'.at(null)");
-    t.fold_same("x = 'hello'.at(false)");
-    t.fold_same("x = 'hello'.at(true)");
-    t.fold_same("x = 'hello'.at(NaN)");
-    t.fold_same("x = 'hello'.at('1')");
+    t.fold("x = '123'.at(0)", "x = '1'");
+    t.fold("x = 'hello'.at(null)", "x = 'h'");
+    t.fold("x = 'hello'.at(false)", "x = 'h'");
+    t.fold("x = 'hello'.at(true)", "x = 'e'");
+    t.fold("x = 'hello'.at(NaN)", "x = 'h'");
+    t.fold("x = 'hello'.at('1')", "x = 'e'");
     // Surrogate pairs & code units
-    t.fold_same(with_unit("x = '\\ud834", 0xdd1e, "'.at(0)"));
-    t.fold_same(with_unit("x = '\\ud834", 0xdd1e, "'.at(1)"));
-    t.fold_same(with_unit("x = '\\ud834", 0xdd1e, "'.at(-1)"));
-    t.fold_same(with_unit("x = '\\ud834", 0xdd1e, "'.at(-2)"));
+    t.fold(
+        with_unit("x = '\\ud834", 0xdd1e, "'.at(0)"),
+        "x = '\\ud834'",
+    );
+    t.fold(
+        with_unit("x = '\\ud834", 0xdd1e, "'.at(1)"),
+        "x = '\\udd1e'",
+    );
+    t.fold(
+        with_unit("x = '\\ud834", 0xdd1e, "'.at(-1)"),
+        "x = '\\udd1e'",
+    );
+    t.fold(
+        with_unit("x = '\\ud834", 0xdd1e, "'.at(-2)"),
+        "x = '\\ud834'",
+    );
     // Negative / Guard cases (Must NOT fold)
     t.fold_same("x = str.at(0)");
     // non-literal receiver
@@ -1503,61 +1521,37 @@ fn test_fold_array_bug() {
 #[test]
 fn test_fold_array_is_array() {
     let mut t = PeepholeReplaceKnownMethodsTest::new();
-    // Fold Array.isArray with Constant and Literal Arguments
-    // Baseline current behavior and guards:
     // Under ECMA-262 § 23.1.2.2 and § 7.2.2 (IsArray), Array.isArray determines whether the
     // argument is an Array exotic object.
-    // Future optimization fold targets:
-    // - Array literals:
-    //   - Array.isArray([]) -> true
-    //   - Array.isArray([1, 2, 3]) -> true
-    //   - Array.isArray(['a', 'b']) -> true
-    // - Non-array primitives:
-    //   - Array.isArray(123) -> false
-    //   - Array.isArray(0) -> false
-    //   - Array.isArray('hello') -> false
-    //   - Array.isArray('') -> false
-    //   - Array.isArray(true) -> false
-    //   - Array.isArray(false) -> false
-    //   - Array.isArray(null) -> false
-    //   - Array.isArray(undefined) -> false
-    //   - Array.isArray(void 0) -> false
-    //   - Array.isArray(NaN) -> false
-    //   - Array.isArray(Infinity) -> false
-    //   - Array.isArray(-Infinity) -> false
-    // - Object literals & other reference types:
-    //   - Array.isArray({}) -> false
-    //   - Array.isArray({0: 'a', length: 1}) -> false
-    //   - Array.isArray(/abc/) -> false
-    //   - Array.isArray(function() {}) -> false
-    //   - Array.isArray(() => {}) -> false
-    // - Omitted argument:
-    //   - Array.isArray() -> false (arg evaluates to undefined)
     // Positive fold cases (Array literals)
-    t.fold_same("x = Array.isArray([])");
-    t.fold_same("x = Array.isArray([1, 2, 3])");
-    t.fold_same("x = Array.isArray(['a', 'b'])");
+    t.fold("x = Array.isArray([])", "x = true");
+    t.fold("x = Array.isArray([,])", "x = true");
+    t.fold("x = Array.isArray([1, 2, 3])", "x = true");
+    t.fold("x = Array.isArray(['a', 'b'])", "x = true");
     // Positive fold cases (Non-array primitives)
-    t.fold_same("x = Array.isArray(123)");
-    t.fold_same("x = Array.isArray(0)");
-    t.fold_same("x = Array.isArray('hello')");
-    t.fold_same("x = Array.isArray('')");
-    t.fold_same("x = Array.isArray(true)");
-    t.fold_same("x = Array.isArray(false)");
-    t.fold_same("x = Array.isArray(null)");
-    t.fold_same("x = Array.isArray(undefined)");
-    t.fold_same("x = Array.isArray(void 0)");
-    t.fold_same("x = Array.isArray(NaN)");
-    t.fold_same("x = Array.isArray(Infinity)");
-    t.fold_same("x = Array.isArray(-Infinity)");
+    t.fold("x = Array.isArray(123)", "x = false");
+    t.fold("x = Array.isArray(1n)", "x = false");
+    t.fold("x = Array.isArray(0)", "x = false");
+    t.fold("x = Array.isArray('hello')", "x = false");
+    t.fold("x = Array.isArray('')", "x = false");
+    t.fold("x = Array.isArray(`abc`)", "x = false");
+    t.fold("x = Array.isArray(true)", "x = false");
+    t.fold("x = Array.isArray(false)", "x = false");
+    t.fold("x = Array.isArray(null)", "x = false");
+    t.fold("x = Array.isArray(undefined)", "x = false");
+    t.fold("x = Array.isArray(void 0)", "x = false");
+    t.fold("x = Array.isArray(NaN)", "x = false");
+    t.fold("x = Array.isArray(Infinity)", "x = false");
+    t.fold("x = Array.isArray(-Infinity)", "x = false");
     // Positive fold cases (Object literals & other reference types)
-    t.fold_same("x = Array.isArray({})");
-    t.fold_same("x = Array.isArray({0: 'a', length: 1})");
-    t.fold_same("x = Array.isArray(/abc/)");
-    t.fold_same("x = Array.isArray(function() {})");
-    t.fold_same("x = Array.isArray(() => {})");
+    t.fold("x = Array.isArray({})", "x = false");
+    t.fold("x = Array.isArray({0: 'a', length: 1})", "x = false");
+    t.fold("x = Array.isArray(/abc/)", "x = false");
+    t.fold("x = Array.isArray(function() {})", "x = false");
+    t.fold("x = Array.isArray(() => {})", "x = false");
+    t.fold("x = Array.isArray(class {})", "x = false");
     // Positive fold cases (Omitted argument -> evaluates as undefined)
-    t.fold_same("x = Array.isArray()");
+    t.fold("x = Array.isArray()", "x = false");
     // Negative / Guard cases (MUST NOT fold)
     t.fold_same("x = Array.isArray(x)");
     // unknown variable
@@ -1569,6 +1563,9 @@ fn test_fold_array_is_array() {
     // array literal containing side-effecting element
     t.fold_same("x = Array.isArray([...x])");
     // array literal with spread element
+    t.fold_same("x = Array.isArray(class extends foo() {})");
+    t.fold_same("x = Array.isArray(class { static { foo(); } })");
+    t.fold_same("x = Array.isArray(class { [foo()]() {} })");
     t.fold_same("x = Array.isArray([], 1)");
     // unexpected extra arguments
     t.fold_same("x = window.Array.isArray([])");

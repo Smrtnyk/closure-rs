@@ -36,7 +36,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   src/com/google/javascript/rhino/NonJSDocComment.java.
 
 use crate::{js_string::JsString, jscomp_parsing_parser::util::source_position::SourcePosition};

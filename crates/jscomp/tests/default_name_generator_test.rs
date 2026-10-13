@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   test/com/google/javascript/jscomp/DefaultNameGeneratorTest.java.
 
 use closure_jscomp::{
@@ -230,4 +230,41 @@ fn test_generate_with_priority3() {
     ng.reset(reserved_names(), "".into(), &IndexSet::<_>::default());
     let result = generate(&mut ng, "", 106);
     assert_eq!(result[0], "a");
+}
+// port: DefaultNameGeneratorTest#testDeterministicNameGeneration
+#[test]
+fn test_deterministic_name_generation() {
+    let empty_names = || ReservedNames::default();
+    let reserved_chars1 = IndexSet::<u16>::from_iter([b'a' as u16, b'b' as u16, b'c' as u16]);
+    let reserved_chars2 = IndexSet::<u16>::from_iter([b'c' as u16, b'b' as u16, b'a' as u16]);
+
+    let mut ng1 =
+        DefaultNameGenerator::with_reserved_characters(empty_names(), "".into(), &reserved_chars1);
+    let mut ng2 =
+        DefaultNameGenerator::with_reserved_characters(empty_names(), "".into(), &reserved_chars2);
+
+    let result1 = generate(&mut ng1, "", 10);
+    let result2 = generate(&mut ng2, "", 10);
+
+    assert_eq!(result1, result2);
+
+    let names = |order: [&str; 3]| -> ReservedNames {
+        Arc::new(RwLock::new(order.into_iter().map(JsString::from).collect()))
+    };
+
+    ng1 = DefaultNameGenerator::with_reserved_characters(
+        names(["a", "b", "c"]),
+        "".into(),
+        &IndexSet::<_>::default(),
+    );
+    ng2 = DefaultNameGenerator::with_reserved_characters(
+        names(["c", "b", "a"]),
+        "".into(),
+        &IndexSet::<_>::default(),
+    );
+
+    let result1 = generate(&mut ng1, "", 10);
+    let result2 = generate(&mut ng2, "", 10);
+
+    assert_eq!(result1, result2);
 }

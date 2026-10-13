@@ -14,9 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   src/com/google/javascript/jscomp/FindExportableNodes.java,
-//   src/com/google/javascript/jscomp/NodeTraversal.java.
+//   src/com/google/javascript/jscomp/NodeTraversal.java,
+//   test/com/google/javascript/jscomp/GenerateExportsTest.java.
 
 //! Port of `FindExportableNodes.java`.
 #![allow(clippy::collapsible_match)] // Keep Java's switch/if control flow.
@@ -267,5 +268,21 @@ impl Callback for FindExportableNodes {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FindExportableNodes;
+    use crate::{compiler::Compiler, node_traversal::NodeTraversal};
+
+    // port: GenerateExportsTest#testFindExportableNodes
+    #[test]
+    fn test_find_exportable_nodes() {
+        let mut compiler = Compiler::new();
+        let root = compiler.parse_test_code("/** @export */ function Foo() {}");
+        let mut pass = FindExportableNodes::new(&compiler, true);
+        NodeTraversal::traverse(&mut compiler, root, &mut pass);
+        assert!(!pass.get_exports().is_empty());
     }
 }

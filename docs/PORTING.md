@@ -19,10 +19,10 @@ It is a faithful port, not a redesign: the Java code is ported as it is, the out
 identical, and the port does not "improve" the optimizer or its output. A difference from the Java
 compiler at the pinned commit is a porting defect.
 
-**Reference:** `github.com/google/closure-compiler` release `v20261007`, commit
-`21768cdbfa949bcce3f80d4285feb66475c4758c` (2026-10-07), the release published on npm as
-`google-closure-compiler@20261007.0.0` (registry tag `v20261007` in `scripts/references.tsv`).
-`scripts/fetch_reference.sh` fetches it into `reference/closure-compiler-v20261007` (gitignored);
+**Reference:** `github.com/google/closure-compiler` release `v20261011`, commit
+`1b3821824da923efc81b39249b7030bec3c4ae48` (2026-10-10), the release published on npm as
+`google-closure-compiler@20261011.0.0` (registry tag `v20261011` in `scripts/references.tsv`).
+`scripts/fetch_reference.sh` fetches it into `reference/closure-compiler-v20261011` (gitignored);
 `oracle/REFERENCE.md` describes how the reference jar is built. The pin moves only when the port
 is synced with upstream (§9), and only to an upstream release that is published on npm.
 
@@ -341,9 +341,9 @@ Every step first checks whether its result is already there and then only says s
 can be repeated or resumed at any step. A reference that exists (checkout, jar, oracle, recording
 workspace, golden results) is verified, never rebuilt or moved. The sync's own outputs go to the
 work directory `build/upstream-sync/<tag>/` of the main checkout (`--work DIR` moves it).
-`--jobs N` sets the parallelism of the recording and the D2 runs; `--unit-classes A,B` records,
-installs and replays only some test classes and `--d2-sample N` runs the D2 worklist on a sample
-(partial runs, for trying the command out).
+`--jobs N` sets the parallelism of the Bazel builds, the recording and the D2 runs;
+`--unit-classes A,B` records, installs and replays only some test classes and `--d2-sample N` runs
+the D2 worklist on a sample (partial runs, for trying the command out).
 
 | Step | What it does | Uses |
 |---|---|---|
@@ -351,7 +351,7 @@ installs and replays only some test classes and `--d2-sample N` runs the D2 work
 | `registry` | adds the reference's row to `scripts/references.tsv`, with its own paths | |
 | `fetch` | the reference checkout | `scripts/fetch_reference.sh` |
 | `jar` | builds the uberjar with Bazel (copying the base's `MODULE.bazel.lock` when `MODULE.bazel` is unchanged), installs it read-only and pins its sha256 | `oracle/REFERENCE.md` |
-| `npm-check` | downloads the npm release: is its JS wrapper unchanged since the base release, and does `google-closure-compiler-java`'s `compiler.jar` have the reference jar's entries (all but the two version-stamp classes)? | |
+| `npm-check` | downloads the npm release: is its JS wrapper unchanged since the base release (its bundled `externs/` and `contrib/` are listed apart), is its `contrib/` the reference checkout's (which `npm/closure-rs` packs), and does `google-closure-compiler-java`'s `compiler.jar` have the reference jar's entries (all but the two version-stamp classes)? | |
 | `oracle` | the oracle jar | `oracle/build.sh` |
 | `resources` | the jar resources and the Java-side resource fixtures | `crates/resources/tools/sync_from_jar.py`, `GenResourceFixtures.java` |
 | `flags` | `scope/flags.txt` and the npm types | `scope/gen_flags.py`, `scripts/gen_npm_types.mjs` |
@@ -360,7 +360,7 @@ installs and replays only some test classes and `--d2-sample N` runs the D2 work
 | `unit-ws` | the recording workspace | `scripts/unit_make_recording_ws.sh` |
 | `unit-jars` | the recording jars, into the work directory | `scripts/unit_bazel_build.sh` |
 | `unit-record` | records every test class against the new reference, into the work directory | `scripts/unit_record_all.sh` |
-| `unit-install` | copies the new records into `corpus/unit/records` (the old ones stay in the work directory) and regenerates what derives from them | `scripts/unit_derive_expected_pipeline.py`, `scripts/unit_options_defaults.sh` |
+| `unit-install` | copies the new records into `corpus/unit/records` (the old ones stay in the work directory) and regenerates what derives from them | `scripts/unit_derive_expected_pipeline.py`, `crates/testing/tests/data/gen_record_counts.py`, `scripts/unit_options_defaults.sh` |
 | `unit-worklist` | replays the records with the Rust runner and maps the unit ratchet across the re-recording: regressed, lost and new records (`unit-worklist.json`) | `unit_replay`, `scripts/unit_ratchet_rebase.py` |
 | `d2-golden` | the D2 golden results of the new jar, next to the older ones | `gates/lib/golden_all.py` |
 | `d2-validate` | the final D2 corpus from them (`cases.jsonl`, `JAVA_FAILURES.md`, ...) | `corpus/d2/validate/` |

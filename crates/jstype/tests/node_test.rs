@@ -35,7 +35,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 21768cd:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
 //   test/com/google/javascript/rhino/NodeTest.java.
 
 //! The `NodeTest.java` cases that need a `JSTypeRegistry` (closure-rhino cannot depend on
