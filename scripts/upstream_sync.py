@@ -326,6 +326,10 @@ class Sync:
             self.set_registry_sha(sha)
             return "ran"
         src = self.abs(r.src)
+        if self.dry and not os.path.isdir(src):
+            log(f"  would build the uberjar in {rel(src)} once fetched, install it as {rel(jar)} "
+                "(mode 0555) and pin its sha256")
+            return "ran"
         st = self.need_state()
         base_src = self.abs(self.ref(st["base"]).src)
         lock = os.path.join(src, "MODULE.bazel.lock")
