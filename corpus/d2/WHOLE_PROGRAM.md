@@ -144,8 +144,8 @@ A case's `test_profiles` lists the profiles whose Java output passes the library
 
 ### `whole-program-ieee754-1.2.1` / `advanced_strict`
 
-- Java exit code 77; test exit None; tests (total, pass, fail, skip): None.
-- Java exit 77, outputs=[]
+- Java exit code 78; test exit None; tests (total, pass, fail, skip): None.
+- Java exit 78, outputs=[]
 
 ### `whole-program-jsesc-3.1.0` / `advanced_strict`
 
