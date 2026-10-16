@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   src/com/google/javascript/jscomp/DiagnosticGroups.java.
 
 #![allow(clippy::vec_init_then_push)] // Preserve Java statement order and borrowing branches.

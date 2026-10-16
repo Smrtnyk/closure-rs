@@ -9,7 +9,7 @@ The compiler argv comes from case_args.compiler_args() (shared with every later 
 The process runs with cwd = repository root, repo-relative paths only, and a minimal fixed
 environment.  The result is written atomically to
   corpus-cache/d2/_golden/<golden tag>/<case-id>/<profile>.json
-(golden tag ref-<first 8 hex of the jar sha256>, ref-1e15ffeb for the default reference; the jar
+(golden tag ref-<first 8 hex of the jar sha256>, ref-3a86b1b9 for the default reference; the jar
 and its sha256 are the scripts/references.tsv row $CLOSURE_RS_REF, docs/PORTING.md §9)
 as {args, compiler_args, exit_code, timed_out, stdout, stderr, outputs, wall_ms,
 peak_rss_kb, ...}.  Text that is not valid UTF-8 is stored as {"base64": "..."}.

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   src/com/google/javascript/jscomp/ControlFlowAnalysis.java.
 
 #![allow(clippy::collapsible_match)] // Retain the Java token switch and its nested branches.

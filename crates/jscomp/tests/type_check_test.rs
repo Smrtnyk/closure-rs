@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   test/com/google/javascript/jscomp/CompilerTypeTestCase.java,
 //   test/com/google/javascript/jscomp/TypeCheckTest.java,
 //   test/com/google/javascript/jscomp/TypeCheckTestCase.java.

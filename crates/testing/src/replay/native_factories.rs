@@ -30,7 +30,7 @@
  */
 // Ported from closure-rs' own Java oracle tooling:
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java.
 
 //! Native PassFactory callbacks share replay state while borrowing the executing compiler.

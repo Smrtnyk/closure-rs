@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   src/com/google/javascript/jscomp/Es6RewriteArrowFunction.java.
 
 //! Port of `Es6RewriteArrowFunction.java`: converts ES6 arrow functions to standard anonymous ES3

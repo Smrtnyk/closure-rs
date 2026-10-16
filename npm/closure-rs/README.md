@@ -18,8 +18,8 @@ Windows on Arm runs the x64 binary.
 
 ## Versions
 
-The major version is the upstream release the output matches: `20261011.x.y` matches
-`google-closure-compiler@20261011.0.0`. Minor releases leave the output unchanged (speed, the
+The major version is the upstream release the output matches: `20261015.x.y` matches
+`google-closure-compiler@20261015.0.0`. Minor releases leave the output unchanged (speed, the
 wrapper, platforms); patch releases fix differences from the Java compiler, crashes and wrapper
 bugs. `latest` is the stable release; experimental builds are prereleases under the dist-tag
 `exp`. See [Versioning](https://github.com/Smrtnyk/closure-rs#versioning).
@@ -35,7 +35,7 @@ Change only `package.json`:
 ```
 
 To stay on one upstream release, use a range instead of `latest`, for example
-`"npm:closure-rs@^20261011.0.0"`. Code that imports `google-closure-compiler` keeps working,
+`"npm:closure-rs@^20261015.0.0"`. Code that imports `google-closure-compiler` keeps working,
 TypeScript types included:
 
 ```ts
