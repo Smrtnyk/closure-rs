@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   src/com/google/javascript/jscomp/RewriteAsyncFunctions.java.
 
 //! Port of `RewriteAsyncFunctions.java`.
@@ -297,6 +297,13 @@ impl FunctionContext {
         }
     }
 }
+
+/// Java's helpful NullPointerException message when an object literal's async method calls
+/// `super.x()`: `NodeUtil.getEnclosingClass` is null and `AstFactory.getTypeOfThisForEs6Class`
+/// dereferences it (`checkArgument(functionNode.isClass(), ...)`); `NodeTraversal`'s internal
+/// error carries the exception's message.
+const NO_ENCLOSING_CLASS_NPE: &str =
+    "Cannot invoke \"com.google.javascript.rhino.Node.isClass()\" because \"functionNode\" is null";
 
 pub struct RewriteAsyncFunctions {
     namespace: TranspilationNamespace,
@@ -731,7 +738,7 @@ impl RewriteAsyncFunctions {
                         let async_context_root = self.get_context_root_node(async_context);
                         let enclosing_class =
                             NodeUtil::get_enclosing_class(compiler, async_context_root)
-                                .expect("java.lang.NullPointerException");
+                                .expect(NO_ENCLOSING_CLASS_NPE);
                         let this_alias = self
                             .ast_factory
                             .create_this_alias_reference_for_es6_class(
@@ -753,7 +760,7 @@ impl RewriteAsyncFunctions {
                         let async_context_root = self.get_context_root_node(async_context);
                         let enclosing_class =
                             NodeUtil::get_enclosing_class(compiler, async_context_root)
-                                .expect("java.lang.NullPointerException");
+                                .expect(NO_ENCLOSING_CLASS_NPE);
                         let this_alias = self
                             .ast_factory
                             .create_this_alias_reference_for_es6_class(
