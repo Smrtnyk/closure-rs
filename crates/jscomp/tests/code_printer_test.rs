@@ -4273,3 +4273,38 @@ var $jscomp$scope$3556498$0$STR = '3';
         expected_code
     );
 }
+// port: CodePrinterTest#testNullishCoalesceCastInOr
+#[test]
+fn test_nullish_coalesce_cast_in_or() {
+    // TODO(b/571641705): CodeGenerator omits required parentheses around ?? in CAST-wrapped logical expressions
+    let mut t = CodePrinterTestBase::new();
+    let ast = &mut t.last_compiler;
+    let x = IR::name(ast, JsString::from("x"));
+    let y = IR::name(ast, JsString::from("y"));
+    let coalesce = IR::coalesce(ast, x, y);
+    let cast = ast.new_node_with_child(Token::CAST, coalesce);
+    let z = IR::name(ast, JsString::from("z"));
+    let or = IR::or(ast, cast, z);
+    t.assert_print_node(JsString::from("x??y||z"), or);
+}
+// port: CodePrinterTest#testNullishCoalesceExtends
+#[test]
+fn test_nullish_coalesce_extends() {
+    // TODO(b/571641705): CodeGenerator omits required parentheses around ?? in class extends clauses
+    let mut t = CodePrinterTestBase::new();
+    t.language_mode = LanguageMode::ECMASCRIPT_NEXT;
+    let node = t.parse(JsString::from("class C extends (a ?? b) {}"));
+    assert_eq!(t.print_node(node), JsString::from("class C extends a??b{}"));
+}
+// port: CodePrinterTest#testNullishCoalesceAssignExtends
+#[test]
+fn test_nullish_coalesce_assign_extends() {
+    // TODO(b/571641705): CodeGenerator omits required parentheses around ??= in class extends clauses
+    let mut t = CodePrinterTestBase::new();
+    t.language_mode = LanguageMode::ECMASCRIPT_NEXT;
+    let node = t.parse(JsString::from("class C extends (a ??= b) {}"));
+    assert_eq!(
+        t.print_node(node),
+        JsString::from("class C extends a??=b{}")
+    );
+}

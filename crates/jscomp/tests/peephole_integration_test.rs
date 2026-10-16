@@ -216,6 +216,9 @@ fn test_hook_if_integration() {
     t.test("x?void 0:y()", "x||y()");
     t.test("!x?void 0:y()", "x&&y()");
     t.test("x?y():void 0", "x&&y()");
+
+    t.test_same("window.f = x => x ? true : false;");
+    t.test_same("window.f = x => x ? false : true;");
 }
 
 // port: PeepholeIntegrationTest#testFoldLogicalOpIntegration

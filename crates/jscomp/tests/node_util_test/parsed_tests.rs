@@ -2059,7 +2059,7 @@ mod assorted_tests {
             // Large non-decimal literals (> 14 digits exercising BigInteger path)
             ("0b10000000000000000000", 524288.0),
             ("0o100000000000000", 4398046511104.0),
-            ("0x100000000000000", 72057594037927936.0),
+            ("0x100000000000000", 7.205759403792794E+16),
             // Infinity
             ("Infinity", f64::INFINITY),
             ("+Infinity", f64::INFINITY),

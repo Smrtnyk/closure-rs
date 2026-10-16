@@ -1219,3 +1219,39 @@ $jscomp.global.Object.defineProperties(C.prototype, {});
 "#,
     );
 }
+
+/// Java's `assertThrows(RuntimeException.class, ..)` around a harness call, for the message
+/// checks on `Throwables.getRootCause(e)`: a compiler crash is a panic in Rust (the root cause's
+/// class is not kept), so this returns the panic message.
+fn assert_throws_message(f: impl FnOnce()) -> String {
+    let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
+        .expect_err("expected a RuntimeException");
+    if let Some(s) = err.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(s) = err.downcast_ref::<&str>() {
+        s.to_string()
+    } else {
+        String::new()
+    }
+}
+
+// port: RemoveUnusedCodeClassPropertiesTest#testClosureInFieldInitializerDoubleTraversalCrash
+#[test]
+fn test_closure_in_field_initializer_double_traversal_crash() {
+    let mut f = Fixture::new();
+    // TODO(b/571953140): traverses field initializers twice, crashing on removal
+    f.t.keep_locals = false;
+
+    let root = assert_throws_message(|| {
+        f.test_same(concat!(
+            "class C {\n",
+            "  fn = () => {\n",
+            "    function unused() {}\n",
+            "    return 1;\n",
+            "  };\n",
+            "}\n",
+            "alert(new C().fn());\n"
+        ))
+    });
+    assert!(root.contains("Has no parent"), "{root}");
+}

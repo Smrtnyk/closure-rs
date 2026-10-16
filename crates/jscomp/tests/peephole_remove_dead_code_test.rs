@@ -2076,3 +2076,12 @@ fn test_batch_e_pure_expression_statement_and_block_elimination() {
     t.fold_same("function f() { return 3; }");
     t.fold_same("for (let x = 1; x < 10; x++) {}");
 }
+
+// port: PeepholeRemoveDeadCodeTest#testUnusedClassWithInstanceFieldSideEffects
+#[test]
+fn test_unused_class_with_instance_field_side_effects() {
+    let mut t = PeepholeRemoveDeadCodeTest::new();
+    // TODO(b/573195636): Hoists side effects out of non-static class field initializers on unused
+    // class expressions.
+    t.test("(class { x = alert(1); });", "alert(1);");
+}

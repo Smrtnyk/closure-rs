@@ -289,6 +289,21 @@ impl Callback for GatherCandidates<'_> {
                 // class field with no initialization
                 invalidating_prop_ref = true;
             }
+        } else if n.is_call(t)
+            && {
+                let compiler = t.get_compiler();
+                compiler
+                    .get_coding_convention()
+                    .is_property_rename_function(compiler, n.get_first_child(compiler).unwrap())
+            }
+            && n.has_more_than_one_child(t)
+            && n.get_second_child(t).unwrap().is_string_lit(t)
+        {
+            // JSCompiler_renameProperty('foo', obj) and goog.reflect.objectProperty name `foo` for
+            // reflective access, so `foo` may be written without a GETPROP, e.g. by
+            // `obj[JSCompiler_renameProperty('foo', obj)] = value`.
+            prop_name = n.get_second_child(t).unwrap().get_string(t);
+            invalidating_prop_ref = true;
         } else {
             return;
         }

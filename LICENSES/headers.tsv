@@ -288,7 +288,7 @@ crates/jscomp/src/implicit_nullability_check.rs	daca8e43d52e8e60	Apache-2.0	clos
 crates/jscomp/src/index_provider.rs	7c61bcf7739e518b	Apache-2.0	closure:src/com/google/javascript/jscomp/IndexProvider.java
 crates/jscomp/src/infer_consts.rs	cd46edd400e3c177	Apache-2.0	closure:src/com/google/javascript/jscomp/InferConsts.java
 crates/jscomp/src/infer_js_doc_info.rs	1b0cd38e24fc7b42	Apache-2.0	closure:src/com/google/javascript/jscomp/InferJSDocInfo.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
-crates/jscomp/src/inject_closure_unaware_runtime_libraries.rs	40078e6dd71f5ca3	Apache-2.0	closure:src/com/google/javascript/jscomp/InjectClosureUnawareRuntimeLibraries.java
+crates/jscomp/src/inject_closure_unaware_runtime_libraries.rs	01a834b7f15034aa	Apache-2.0	closure:src/com/google/javascript/jscomp/InjectClosureUnawareRuntimeLibraries.java; closure:test/com/google/javascript/jscomp/TranspileAndOptimizeClosureUnawareTest.java
 crates/jscomp/src/inject_runtime_libraries.rs	970fe6bbb8fb57cc	Apache-2.0	closure:src/com/google/javascript/jscomp/InjectRuntimeLibraries.java
 crates/jscomp/src/inject_transpilation_runtime_libraries.rs	8571900c36b7edc4	Apache-2.0	closure:src/com/google/javascript/jscomp/InjectTranspilationRuntimeLibraries.java
 crates/jscomp/src/inline_and_collapse_properties.rs	19d9a9f780da4fe6	Apache-2.0	closure:src/com/google/javascript/jscomp/InlineAndCollapseProperties.java
@@ -420,7 +420,7 @@ crates/jscomp/src/polyfill_usage_finder.rs	da0404f477f24deb	Apache-2.0	closure:s
 crates/jscomp/src/polymer_pass_errors.rs	e67b97f855473347	Apache-2.0	closure:src/com/google/javascript/jscomp/PolymerPassErrors.java
 crates/jscomp/src/prebuild_ast.rs	1ff90aab6747c3cc	Apache-2.0	closure:src/com/google/javascript/jscomp/PrebuildAst.java
 crates/jscomp/src/prebuild_dependency_info.rs	fa4e9b98a2067727	Apache-2.0	closure:src/com/google/javascript/jscomp/PrebuildDependencyInfo.java
-crates/jscomp/src/preprocessor_symbol_table.rs	9a640346738dce0e	Apache-2.0	closure:src/com/google/javascript/jscomp/PreprocessorSymbolTable.java
+crates/jscomp/src/preprocessor_symbol_table.rs	7fef3fbfcfdb06cb	Apache-2.0	closure:src/com/google/javascript/jscomp/PreprocessorSymbolTable.java; closure:test/com/google/javascript/jscomp/ProcessClosurePrimitivesTest.java
 crates/jscomp/src/print_stream_error_manager.rs	5986d4757f2276e7	Apache-2.0	closure:src/com/google/javascript/jscomp/PrintStreamErrorManager.java
 crates/jscomp/src/print_stream_error_report_generator.rs	27b7fa9de4d01ebb	Apache-2.0	closure:src/com/google/javascript/jscomp/PrintStreamErrorReportGenerator.java
 crates/jscomp/src/process_closure_primitives.rs	305b069c5088b4c5	Apache-2.0	closure:src/com/google/javascript/jscomp/ProcessClosurePrimitives.java; closure:src/com/google/javascript/jscomp/CssRenamingMap.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java

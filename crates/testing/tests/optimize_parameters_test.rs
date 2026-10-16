@@ -2518,3 +2518,309 @@ fn test_no_hoist_import_meta() {
         "f();\n"
     ));
 }
+
+// port: OptimizeParametersTest#testPublicClassFields_propertyReadInInitializerCanBeSideEffected
+#[test]
+fn test_public_class_fields_property_read_in_initializer_can_be_side_effected() {
+    let mut t = Test::new();
+    // TODO(b/572053067): side-effectful constructor argument moved into constructor body after
+    // non-static field initializer that reads modified state
+    t.harness
+        .set_language_out(language_mode("ECMASCRIPT_2022"))
+        .unwrap();
+    t.test(
+        concat!(
+            "function use(val) {}\n",
+            "const obj = {p: 1};\n",
+            "class C {\n",
+            "  x = obj.p;\n",
+            "  constructor(a) {\n",
+            "    use(this.x + a);\n",
+            "  }\n",
+            "}\n",
+            "new C(obj.p = 2);\n"
+        ),
+        concat!(
+            "function use(val) {}\n",
+            "const obj = {p: 1};\n",
+            "class C {\n",
+            "  x = obj.p;\n",
+            "  constructor() {\n",
+            "    var a = obj.p = 2; // <----- this is wrong, obj.p = 2 *should* execute before x = obj.p\n",
+            "    use(this.x + a);\n",
+            "  }\n",
+            "}\n",
+            "new C();\n"
+        ),
+    );
+}
+
+// port: OptimizeParametersTest#testAsyncGenerator_doNotMoveSideEffectfulCallArgIntoBody
+#[test]
+fn test_async_generator_do_not_move_side_effectful_call_arg_into_body() {
+    let mut t = Test::new();
+    // TODO(b/573183650): side-effectful call argument moved into async generator body
+    t.test(
+        concat!(
+            "async function* g(p) {\n",
+            "  yield await p;\n",
+            "}\n",
+            "g(alert(1));\n"
+        ),
+        concat!(
+            "async function* g() {\n",
+            "  var p = alert(1);\n",
+            "  yield await p;\n",
+            "}\n",
+            "g();\n"
+        ),
+    );
+}
+
+// port: OptimizeParametersTest#testAsyncGeneratorMethod_doNotMoveSideEffectfulCallArgIntoBody
+#[test]
+fn test_async_generator_method_do_not_move_side_effectful_call_arg_into_body() {
+    let mut t = Test::new();
+    // TODO(b/573183650): side-effectful call argument moved into async generator method body
+    t.test(
+        concat!(
+            "class C {\n",
+            "  async *g(p) {\n",
+            "    yield await p;\n",
+            "  }\n",
+            "}\n",
+            "new C().g(alert(1));\n"
+        ),
+        concat!(
+            "class C {\n",
+            "  async *g() {\n",
+            "    var p = alert(1);\n",
+            "    yield await p;\n",
+            "  }\n",
+            "}\n",
+            "(new C()).g();\n"
+        ),
+    );
+}
+
+// port: OptimizeParametersTest#testAsyncGenerator_doNotMoveMutableCallArgAcrossAwait
+#[test]
+fn test_async_generator_do_not_move_mutable_call_arg_across_await() {
+    let mut t = Test::new();
+    // TODO(b/573183650): mutable call argument moved into async generator body across suspension
+    // point
+    t.test(
+        concat!(
+            "var x = 1;\n",
+            "async function* g(a) {\n",
+            "  yield a;\n",
+            "}\n",
+            "async function run() {\n",
+            "  const it = g(x);\n",
+            "  await alert();\n",
+            "  x = 2;\n",
+            "  return (await it.next()).value;\n",
+            "}\n",
+            "run();\n"
+        ),
+        concat!(
+            "var x = 1;\n",
+            "async function* g() {\n",
+            "  var a = x;\n",
+            "  yield a;\n",
+            "}\n",
+            "async function run() {\n",
+            "  const it = g();\n",
+            "  await alert();\n",
+            "  x = 2;\n",
+            "  return (await it.next()).value;\n",
+            "}\n",
+            "run();\n"
+        ),
+    );
+}
+
+// port: OptimizeParametersTest#testAsyncGenerator_doNotMoveDefaultOrDestructuringParamIntoBody
+#[test]
+fn test_async_generator_do_not_move_default_or_destructuring_param_into_body() {
+    let mut t = Test::new();
+    // TODO(b/573183650): default or destructuring parameter moved into async generator body
+    t.test(
+        concat!(
+            "async function* g(a = alert(1)) {\n",
+            "  yield a;\n",
+            "}\n",
+            "g();\n"
+        ),
+        concat!(
+            "async function* g() {\n",
+            "  var a = alert(1);\n",
+            "  yield a;\n",
+            "}\n",
+            "g();\n"
+        ),
+    );
+    t.test(
+        concat!(
+            "async function* g({a} = {a: alert(1)}) {\n",
+            "  yield a;\n",
+            "}\n",
+            "g();\n"
+        ),
+        concat!(
+            "async function* g() {\n",
+            "  ({a} = {a: alert(1)});\n",
+            "  var a;\n",
+            "  yield a;\n",
+            "}\n",
+            "g();\n"
+        ),
+    );
+    t.test(
+        concat!(
+            "async function* g({a}) {\n",
+            "  yield a;\n",
+            "}\n",
+            "g();\n"
+        ),
+        concat!(
+            "async function* g() {\n",
+            "  ({a} = void 0);\n",
+            "  var a;\n",
+            "  yield a;\n",
+            "}\n",
+            "g();\n"
+        ),
+    );
+}
+
+// port: OptimizeParametersTest#testGenerator_doNotMoveSideEffectfulCallArgIntoBody
+#[test]
+fn test_generator_do_not_move_side_effectful_call_arg_into_body() {
+    let mut t = Test::new();
+    // TODO(b/573183650): side-effectful call argument moved into generator body
+    t.test(
+        concat!(
+            "function* g(p) {\n",
+            "  yield p;\n",
+            "}\n",
+            "g(alert(1));\n"
+        ),
+        concat!(
+            "function* g() {\n",
+            "  var p = alert(1);\n",
+            "  yield p;\n",
+            "}\n",
+            "g();\n"
+        ),
+    );
+}
+
+// port: OptimizeParametersTest#testGeneratorMethod_doNotMoveSideEffectfulCallArgIntoBody
+#[test]
+fn test_generator_method_do_not_move_side_effectful_call_arg_into_body() {
+    let mut t = Test::new();
+    // TODO(b/573183650): side-effectful call argument moved into generator method body
+    t.test(
+        concat!(
+            "class C {\n",
+            "  *g(p) {\n",
+            "    yield p;\n",
+            "  }\n",
+            "}\n",
+            "new C().g(alert(1));\n"
+        ),
+        concat!(
+            "class C {\n",
+            "  *g() {\n",
+            "    var p = alert(1);\n",
+            "    yield p;\n",
+            "  }\n",
+            "}\n",
+            "(new C()).g();\n"
+        ),
+    );
+}
+
+// port: OptimizeParametersTest#testGenerator_doNotMoveMutableCallArgAcrossNext
+#[test]
+fn test_generator_do_not_move_mutable_call_arg_across_next() {
+    let mut t = Test::new();
+    // TODO(b/573183650): mutable call argument moved into generator body across suspension point
+    t.test(
+        concat!(
+            "var x = 1;\n",
+            "function* g(a) {\n",
+            "  yield a;\n",
+            "}\n",
+            "function run() {\n",
+            "  const it = g(x);\n",
+            "  x = 2;\n",
+            "  return it.next().value;\n",
+            "}\n",
+            "run();\n"
+        ),
+        concat!(
+            "var x = 1;\n",
+            "function* g() {\n",
+            "  var a = x;\n",
+            "  yield a;\n",
+            "}\n",
+            "function run() {\n",
+            "  const it = g();\n",
+            "  x = 2;\n",
+            "  return it.next().value;\n",
+            "}\n",
+            "run();\n"
+        ),
+    );
+}
+
+// port: OptimizeParametersTest#testGenerator_doNotMoveDefaultOrDestructuringParamIntoBody
+#[test]
+fn test_generator_do_not_move_default_or_destructuring_param_into_body() {
+    let mut t = Test::new();
+    // TODO(b/573183650): default or destructuring parameter moved into generator body
+    t.test(
+        concat!(
+            "function* g(a = alert(1)) {\n",
+            "  yield a;\n",
+            "}\n",
+            "g();\n"
+        ),
+        concat!(
+            "function* g() {\n",
+            "  var a = alert(1);\n",
+            "  yield a;\n",
+            "}\n",
+            "g();\n"
+        ),
+    );
+    t.test(
+        concat!(
+            "function* g({a} = {a: alert(1)}) {\n",
+            "  yield a;\n",
+            "}\n",
+            "g();\n"
+        ),
+        concat!(
+            "function* g() {\n",
+            "  ({a} = {a: alert(1)});\n",
+            "  var a;\n",
+            "  yield a;\n",
+            "}\n",
+            "g();\n"
+        ),
+    );
+    t.test(
+        concat!("function* g({a}) {\n", "  yield a;\n", "}\n", "g();\n"),
+        concat!(
+            "function* g() {\n",
+            "  ({a} = void 0);\n",
+            "  var a;\n",
+            "  yield a;\n",
+            "}\n",
+            "g();\n"
+        ),
+    );
+}

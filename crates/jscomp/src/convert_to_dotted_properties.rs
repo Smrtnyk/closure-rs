@@ -76,8 +76,6 @@ impl Callback for ConvertToDottedProperties {
         match n.get_token(t) {
             Token::COMPUTED_PROP | Token::COMPUTED_FIELD_DEF => {
                 let left_elem = n.get_first_child(t).unwrap();
-                // Java: null for a computed field without an initializer (`[x];`), only
-                // dereferenced once the key is known to be a valid string property name.
                 let right_elem = left_elem.get_next(t);
 
                 // not convert property named constructor or __proto__ in object literals.
@@ -90,10 +88,13 @@ impl Callback for ConvertToDottedProperties {
                         && left_elem.get_string_ref(t) == "__proto__")
                 {
                     left_elem.detach(t);
-                    let right_elem = right_elem.expect("NullPointerException");
-                    right_elem.detach(t);
+                    if let Some(right_elem) = right_elem {
+                        // A COMPUTED_FIELD_DEF has no second child when the field has no initializer.
+                        right_elem.detach(t);
+                    }
                     let temp;
                     if n.is_computed_prop(t) {
+                        let right_elem = right_elem.expect("NullPointerException");
                         if right_elem.is_function(t) {
                             if n.get_boolean_prop(t, NodeId::COMPUTED_PROP_GETTER) {
                                 let name = left_elem.get_string(t);
@@ -119,9 +120,14 @@ impl Callback for ConvertToDottedProperties {
                             let name = left_elem.get_string(t);
                             temp = IR::string_key_with_value(t, name, right_elem);
                         }
+                    } else if right_elem.is_none() {
+                        // An uninitialized field, e.g. `class C { ['x']; }`, becomes a 0-child
+                        // MEMBER_FIELD_DEF, matching how the parser represents `class C { x; }`.
+                        let name = left_elem.get_string(t);
+                        temp = t.new_string_with_token(Token::MEMBER_FIELD_DEF, name);
                     } else {
                         let name = left_elem.get_string(t);
-                        temp = IR::member_field_def(t, name, right_elem);
+                        temp = IR::member_field_def(t, name, right_elem.unwrap());
                     }
 
                     let is_static_member = n.is_static_member(t);

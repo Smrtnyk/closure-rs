@@ -727,3 +727,62 @@ fn test_polyfil_temp_multiple_files_inserted_in_first_file() {
     f.set_language(ES6, ES5);
     f.test_strings(&["$jscomp.polyfill('String.prototype.endsWith', 'es6', 'es5');", "x().endsWith(y);"], &["var $jscomp$polyfillTmp;\n$jscomp.polyfill('String.prototype.endsWith', 'es6', 'es5');\n", "($jscomp$polyfillTmp = x(),\n  $jscomp$lookupPolyfilledValue($jscomp$polyfillTmp, 'endsWith'))\n      .call($jscomp$polyfillTmp, y);\n"]);
 }
+
+/// Java's `assertThrows(RuntimeException.class, ..)` around a harness call, for the message
+/// checks on `Throwables.getRootCause(e)`: a compiler crash is a panic in Rust (the root cause's
+/// class is not kept), so this returns the panic message.
+fn assert_throws_message(f: impl FnOnce()) -> String {
+    let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
+        .expect_err("expected a RuntimeException");
+    if let Some(s) = err.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(s) = err.downcast_ref::<&str>() {
+        s.to_string()
+    } else {
+        String::new()
+    }
+}
+
+// port: IsolatePolyfillsTest#testOptChainMethodCallOnPlainGetProp
+#[test]
+fn test_opt_chain_method_call_on_plain_get_prop() {
+    let mut f = Fixture::new();
+    // TODO(b/571890155): silent miscompile for x.includes?.(y)
+    f.add_library(
+        "String.prototype.includes",
+        "es6",
+        "es5",
+        Some("es6/string/includes"),
+    );
+    f.test_with_polyfills(
+        "x.includes?.(y);",
+        "$jscomp$lookupPolyfilledValue(x, 'includes').call?.(x, y);",
+    );
+}
+
+// port: IsolatePolyfillsTest#testOptChainNonCallContinuation
+#[test]
+fn test_opt_chain_non_call_continuation() {
+    let mut f = Fixture::new();
+    // TODO(b/571890155): semantic bug caught by AstValidator.validateFirstNodeOfOptChain
+    f.add_library(
+        "String.prototype.includes",
+        "es6",
+        "es5",
+        Some("es6/string/includes"),
+    );
+    let root = assert_throws_message(|| f.test_same_with_polyfills("x?.includes.bind(x);"));
+    assert!(
+        root.contains("Start of optional chain node OPTCHAIN_GETPROP is not marked as the start"),
+        "{root}"
+    );
+}
+
+// port: IsolatePolyfillsTest#testOptChainOnGlobalPolyfill
+#[test]
+fn test_opt_chain_on_global_polyfill() {
+    let mut f = Fixture::new();
+    // TODO(b/571890155): replaces window?.Map with $jscomp.polyfills['Map'] instead of preserving ?.
+    f.add_library("Map", "es6", "es5", Some("es6/map"));
+    f.test_with_polyfills("alert(window?.Map);", "alert($jscomp.polyfills['Map']);");
+}

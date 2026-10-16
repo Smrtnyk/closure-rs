@@ -3169,3 +3169,30 @@ fn test_fold_add_template_literals_validate_raw_and_cooked_string_for_literal_ba
     assert!(child4.get_cooked_string(&c).unwrap().is_empty());
     assert!(child4.get_raw_string(&c).is_empty());
 }
+
+/// Java's `assertThrows(RuntimeException.class, ..)` around a harness call, for the message
+/// checks on `Throwables.getRootCause(e)`: a compiler crash is a panic in Rust (the root cause's
+/// class is not kept), so this returns the panic message.
+fn assert_throws_message(f: impl FnOnce()) -> String {
+    let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
+        .expect_err("expected a RuntimeException");
+    if let Some(s) = err.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(s) = err.downcast_ref::<&str>() {
+        s.to_string()
+    } else {
+        String::new()
+    }
+}
+
+// port: PeepholeFoldConstantsTest#testFoldOptChain_nonNullReceiver_chainContinues
+#[test]
+fn test_fold_opt_chain_non_null_receiver_chain_continues() {
+    let mut t = PeepholeFoldConstantsTest::new();
+    // TODO(b/571220152): folding an opt-chain segment start orphans the continuation
+    let root = assert_throws_message(|| t.test_same("x = [1, 2, 3]?.length.toString()"));
+    assert!(
+        root.contains("Start of optional chain node OPTCHAIN_GETPROP is not marked as the start"),
+        "{root}"
+    );
+}

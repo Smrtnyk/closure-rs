@@ -1050,6 +1050,19 @@ impl FunctionStackEntry {
             catch_depth: 0,
         }
     }
+
+    /// Whether `v`, as seen from `scope`, is a variable of this function that only holds values
+    /// local to the current invocation, so that mutating them is invisible to the callers.
+    // port: PureFunctionIdentifier.FunctionBodyAnalyzer.FunctionStackEntry#isLocalVar
+    fn is_local_var(&self, compiler: &AbstractCompiler, v: Option<VarId>, scope: ScopeId) -> bool {
+        FunctionBodyAnalyzer::is_var_declared_in_same_container_scope(compiler, v, scope) && {
+            let v = v.unwrap();
+            !self.skiplisted_vars.contains(&v)
+                // Parameters and catch values can come from other scopes.
+                && !v.is_param(compiler)
+                && !v.is_catch(compiler)
+        }
+    }
 }
 
 /// Inspects function bodies for side effects and applies them to the associated
@@ -1678,16 +1691,8 @@ impl ScopedCallback for FunctionBodyAnalyzer<'_> {
                     continue;
                 }
 
-                let mut local_var = false;
-                // Parameters and catch values can come from other scopes.
-                if !v.is_param(compiler) && !v.is_catch(compiler) {
-                    // TODO(johnlenz): create a useful parameter list
-                    // sideEffectInfo.addKnownLocal(v.getName());
-                    local_var = true;
-                }
-
                 // Take care of locals that might have been tainted.
-                if (!local_var || function_entry.skiplisted_vars.contains(&v))
+                if !function_entry.is_local_var(compiler, Some(v), scope)
                     && function_entry.tainted_vars.contains(&v)
                 {
                     // If the function has global side-effects
@@ -1851,30 +1856,30 @@ impl SideEffectPropagation {
         if self.caller_is_alias {
             let callee_bitmask = summaries[callee.0].bitmask;
             summaries[caller.0].set_mask(callee_bitmask);
-            return summaries[caller.0].bitmask != initial_caller_flags;
-        }
-
-        if summaries[callee.0].mutates_global_state() {
+        } else if summaries[callee.0].mutates_global_state() {
             // If the callee modifies global state then so does that caller.
             summaries[caller.0].set_mutates_global_state_and_all_other_flags(ast, self.invocation);
-        }
-        if self.propagate_throws && summaries[callee.0].function_throws() {
-            // If the callee throws an exception then so does the caller.
-            summaries[caller.0].set_throws(ast, self.invocation);
-        }
-        if summaries[callee.0].mutates_arguments() && !self.all_args_unescaped_local {
-            // If the callee mutates its input arguments and the arguments escape the caller then
-            // it has unbounded side effects.
-            summaries[caller.0].set_mutates_global_state_and_all_other_flags(ast, self.invocation);
-        }
-        if summaries[callee.0].mutates_this() {
-            if self.invocation.unwrap().is_new(ast) {
-                // NEWing a constructor provide a unescaped "this" making side-effects impossible.
-            } else if self.callee_this_equals_caller_this {
-                summaries[caller.0].set_mutates_this(ast, self.invocation);
-            } else {
+        } else {
+            if self.propagate_throws && summaries[callee.0].function_throws() {
+                // If the callee throws an exception then so does the caller.
+                summaries[caller.0].set_throws(ast, self.invocation);
+            }
+            if summaries[callee.0].mutates_arguments() && !self.all_args_unescaped_local {
+                // If the callee mutates its input arguments and the arguments escape the caller
+                // then it has unbounded side effects.
                 summaries[caller.0]
                     .set_mutates_global_state_and_all_other_flags(ast, self.invocation);
+            }
+            if summaries[callee.0].mutates_this() {
+                if self.invocation.unwrap().is_new(ast) {
+                    // NEWing a constructor provide a unescaped "this" making side-effects
+                    // impossible.
+                } else if self.callee_this_equals_caller_this {
+                    summaries[caller.0].set_mutates_this(ast, self.invocation);
+                } else {
+                    summaries[caller.0]
+                        .set_mutates_global_state_and_all_other_flags(ast, self.invocation);
+                }
             }
         }
 

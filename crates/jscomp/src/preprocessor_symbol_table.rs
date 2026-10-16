@@ -1,4 +1,5 @@
 /*
+ * Copyright 2006 The Closure Compiler Authors.
  * Copyright 2011 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +15,8 @@
  * limitations under the License.
  */
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
-//   src/com/google/javascript/jscomp/PreprocessorSymbolTable.java.
+//   src/com/google/javascript/jscomp/PreprocessorSymbolTable.java,
+//   test/com/google/javascript/jscomp/ProcessClosurePrimitivesTest.java.
 
 use crate::abstract_compiler::AbstractCompiler;
 use closure_jstype::{
@@ -178,5 +180,28 @@ impl CachedInstanceFactory {
     // port: PreprocessorSymbolTable.CachedInstanceFactory#getInstanceOrNull
     pub fn get_instance_or_null(&self) -> Option<Arc<Mutex<PreprocessorSymbolTable>>> {
         self.instance.lock().unwrap().clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PreprocessorSymbolTable;
+    use closure_jstype::static_typed_scope::StaticTypedScope;
+    use closure_rhino::{ir::IR, js_string::JsString, node::Ast};
+
+    // port: ProcessClosurePrimitivesTest#testPreprocessorSymbolTable
+    #[test]
+    fn test_preprocessor_symbol_table() {
+        let mut ast = Ast::new();
+        let root = IR::root(&mut ast, &[]);
+        let mut table = PreprocessorSymbolTable::new(Some(root));
+        let n = IR::name(&mut ast, "test");
+        table.add_reference_with_name(n, Some(JsString::from("test")));
+        assert!(table.get_slot(&JsString::from("test")).is_some());
+        // getReferences(getSlot("test")): `get_slot` gives the slot as a `StaticTypedSlot`, the
+        // `SimpleSlot` itself is the one in `symbols`.
+        let slot = &table.symbols[&JsString::from("test")];
+        // assertThat(...).isNotNull(): a slice is never null.
+        let _references = table.get_references(slot);
     }
 }

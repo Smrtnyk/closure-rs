@@ -21,6 +21,7 @@ use closure_jscomp::{
     Compiler,
     compiler_options::{CompilerOptions, LanguageMode},
     compiler_pass::CompilerPass,
+    inject_runtime_libraries::InjectRuntimeLibraries,
     inject_transpilation_runtime_libraries::InjectTranspilationRuntimeLibraries,
     js::runtime_js_lib_manager::RuntimeLibraryMode,
     source_file::SourceFile,
@@ -210,4 +211,38 @@ fn test_class_no_inheritances_does_not_inject() {
     let mut t = InjectTranspilationRuntimeLibrariesTest::setup();
     let injected = t.parse_and_run_injection_pass("class A {}");
     assert!(injected.is_empty(), "{injected:?} is empty");
+}
+
+// port: InjectTranspilationRuntimeLibrariesTest#testInjectRuntimeLibraries_forceInject
+#[test]
+fn test_inject_runtime_libraries_force_inject() {
+    let mut compiler = Compiler::new();
+    let mut options = CompilerOptions::new();
+    options.set_language_out(LanguageMode::ECMASCRIPT5);
+    options.set_runtime_library_mode(RuntimeLibraryMode::RECORD_ONLY);
+
+    compiler.init(
+        &[Arc::new(SourceFile::from_code("externs", ""))],
+        &[Arc::new(SourceFile::from_code("testcode", ""))],
+        options,
+    );
+    compiler.parse();
+
+    let mut pass = InjectRuntimeLibraries::new(
+        &mut compiler,
+        ["es6/util/makeiterator".to_string()].into_iter().collect(),
+    );
+    let externs_root = compiler.get_externs_root().unwrap();
+    let js_root = compiler.get_js_root().unwrap();
+    pass.process(&mut compiler, externs_root, js_root);
+
+    let injected = compiler
+        .get_runtime_js_lib_manager()
+        .lock()
+        .unwrap()
+        .get_injected_libraries();
+    assert!(
+        injected.iter().any(|l| l == "es6/util/makeiterator"),
+        "{injected:?} contains es6/util/makeiterator"
+    );
 }

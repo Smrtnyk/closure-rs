@@ -172,3 +172,26 @@ pub fn find_nodes_non_empty(
 pub fn srcs_chunks(chunks: Vec<closure_jscomp::js_chunk::JSChunk>) -> TestPart {
     TestPart::Sources(CompilerTestCase::srcs_chunks(chunks))
 }
+
+/// `CompilerOptions.LanguageMode.<name>` as the harness's option value.
+pub fn language_mode(name: &str) -> DslValue {
+    DslValue::Enum {
+        class: "com.google.javascript.jscomp.CompilerOptions$LanguageMode".into(),
+        name: name.into(),
+    }
+}
+
+/// Java's `assertThrows(RuntimeException.class, ..)` around a harness call, for the message
+/// checks on `Throwables.getRootCause(e)`: a compiler crash is a panic in Rust (the root cause's
+/// class is not kept), so this returns the panic message.
+pub fn assert_throws_message(f: impl FnOnce()) -> String {
+    let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
+        .expect_err("expected a RuntimeException");
+    if let Some(s) = err.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(s) = err.downcast_ref::<&str>() {
+        s.to_string()
+    } else {
+        String::new()
+    }
+}
