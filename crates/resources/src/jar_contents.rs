@@ -1666,6 +1666,12 @@ pub static EXTERNS_ZIP_ENTRIES: &[ArchiveEntry] = &[
         content: EntryContent::File(include_bytes!("../data/externs/browser/wicg_ink.js")),
     },
     ArchiveEntry {
+        name: "browser/wicg_mediasession.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/externs/browser/wicg_mediasession.js"
+        )),
+    },
+    ArchiveEntry {
         name: "browser/wicg_picture_in_picture.js",
         content: EntryContent::File(include_bytes!(
             "../data/externs/browser/wicg_picture_in_picture.js"

@@ -60,19 +60,19 @@ fn externs_zip_entries_match_reference_jar() {
     check_archive("externs.zip", EXTERNS_ZIP_ENTRIES);
 }
 
-// port: closure-compiler.jar resource counts (126 externs, 167 runtime libraries)
+// port: closure-compiler.jar resource counts (127 externs, 167 runtime libraries)
 #[test]
 fn resource_counts() {
     let count = |entries: &[ArchiveEntry], pred: &dyn Fn(&ArchiveEntry) -> bool| {
         entries.iter().filter(|e| pred(e)).count()
     };
     let is_file = |e: &ArchiveEntry| matches!(e.content, EntryContent::File(_));
-    assert_eq!(EXTERNS_ZIP_ENTRIES.len(), 127);
-    assert_eq!(count(EXTERNS_ZIP_ENTRIES, &is_file), 126);
+    assert_eq!(EXTERNS_ZIP_ENTRIES.len(), 128);
+    assert_eq!(count(EXTERNS_ZIP_ENTRIES, &is_file), 127);
     assert_eq!(
         count(EXTERNS_ZIP_ENTRIES, &|e| e.name.ends_with(".js")
             && is_file(e)),
-        126
+        127
     );
     assert_eq!(
         count(JAR_ENTRIES, &|e| {
@@ -97,7 +97,7 @@ fn resource_counts() {
         .iter()
         .find(|e| e.name == "externs.zip")
         .unwrap();
-    assert!(matches!(zip.content, EntryContent::Zip(entries) if entries.len() == 127));
+    assert!(matches!(zip.content, EntryContent::Zip(entries) if entries.len() == 128));
 }
 
 // port: InputStreamReader(UTF_8) over every text resource (no replacement characters needed)
