@@ -5,7 +5,7 @@ the same `outcome` and `observed` (FORMAT.md "Replay"). `outcome.status = normal
 stands for **every** assertion the harness makes inside the hooked call, not only the output
 comparison. This file states that pipeline as a function of the recorded harness fields, with
 line numbers in the reference checkout the corpus was recorded from (`$REF_SRC`,
-`reference/closure-compiler-v20261011` for the default reference; docs/PORTING.md §9):
+`reference/closure-compiler-v20261015` for the default reference; docs/PORTING.md §9):
 `CTC` = `test/com/google/javascript/jscomp/CompilerTestCase.java`,
 `ITC` = `.../jscomp/integration/IntegrationTestCase.java`, `TCTC` = `.../jscomp/TypeCheckTestCase.java`,
 `NS` = `src/com/google/javascript/rhino/testing/NodeSubject.java`,

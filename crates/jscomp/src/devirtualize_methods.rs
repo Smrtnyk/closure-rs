@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   src/com/google/javascript/jscomp/DevirtualizeMethods.java.
 
 use crate::{
@@ -182,7 +182,14 @@ impl DevirtualizeMethods {
                     return false; // Constructors aren't methods.
                 }
 
-                true
+                if parent.is_object_lit(compiler) {
+                    // Case: `Foo.prototype = {
+                    //          bar() { },
+                    //        }`
+                    return Self::is_prototype_object_lit(compiler, parent);
+                }
+
+                true // Case: `class Foo { bar() { } }`
             }
             Token::GETPROP => {
                 // Case: `Foo.prototype.bar = function() { };
@@ -217,23 +224,34 @@ impl DevirtualizeMethods {
                     parent.to_string(compiler)
                 );
 
-                if !parent.is_second_child_of(compiler, Some(grandparent))
-                    || !NodeUtil::is_prototype_assignment(
-                        compiler,
-                        grandparent.get_first_child(compiler).unwrap(),
-                    )
-                    || !node
+                Self::is_prototype_object_lit(compiler, parent)
+                    && node
                         .get_first_child(compiler)
                         .unwrap()
                         .is_function(compiler)
-                {
-                    return false;
-                }
-
-                true
             }
             _ => false,
         }
+    }
+
+    /// Returns whether `object_lit` is the value assigned in `Foo.prototype = {...}`.
+    ///
+    /// Methods on other object literals are not eligible: plain objects are routinely enumerated,
+    /// copied, or mixed in, so removing a method from one is unsafe without the escape analysis
+    /// that InlineAndCollapseProperties performs.
+    // port: DevirtualizeMethods#isPrototypeObjectLit
+    fn is_prototype_object_lit(compiler: &AbstractCompiler, object_lit: NodeId) -> bool {
+        check_argument!(
+            object_lit.is_object_lit(compiler),
+            "%s",
+            object_lit.to_string(compiler)
+        );
+        let parent = object_lit.get_parent(compiler).unwrap();
+        object_lit.is_second_child_of(compiler, Some(parent))
+            && NodeUtil::is_prototype_assignment(
+                compiler,
+                parent.get_first_child(compiler).unwrap(),
+            )
     }
 
     // port: DevirtualizeMethods#isDefinitelyCtorOrInterface

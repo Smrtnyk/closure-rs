@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   src/com/google/javascript/jscomp/NodeUtil.java.
 
 #![allow(clippy::match_like_matches_macro)] // Retain Java switch bodies.
@@ -2001,10 +2001,11 @@ impl NodeUtil {
 impl NodeUtil {
     // port: NodeUtil#deleteNode
     pub fn delete_node(compiler: &mut AbstractCompiler, n: NodeId) {
-        let parent = n.get_parent(compiler).unwrap();
+        // Java: a detached `n` fails in `detach` ("Has no parent"), after markFunctionsDeleted.
+        let parent = n.get_parent(compiler);
         Self::mark_functions_deleted(compiler, n);
         n.detach(compiler);
-        compiler.report_change_to_enclosing_scope(parent);
+        compiler.report_change_to_enclosing_scope(parent.unwrap());
     }
     // port: NodeUtil#deleteFunctionCall
     pub fn delete_function_call(compiler: &mut AbstractCompiler, n: NodeId) {

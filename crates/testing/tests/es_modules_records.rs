@@ -31,7 +31,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   test/com/google/javascript/jscomp/Es6RelativizeImportPathsTest.java,
 //   test/com/google/javascript/jscomp/Es6RewriteModulesBeforeTypeCheckingTest.java,
 //   test/com/google/javascript/jscomp/Es6RewriteModulesTest.java,
@@ -141,10 +141,10 @@ fn es6_rewrite_modules_before_type_checking_test() {
 
 /// getProcessor runs `TypeCheck#processForTesting` for the global TypedScope before the pass;
 /// One record stops at ConvertChunksToESModules (chunk-output).
-// port: Es6RewriteModulesTest (86 recorded calls)
+// port: Es6RewriteModulesTest (88 recorded calls)
 #[test]
 fn es6_rewrite_modules_test() {
-    assert_records("Es6RewriteModulesTest", 86, 86, &[]);
+    assert_records("Es6RewriteModulesTest", 88, 88, &[]);
 }
 
 // port: Es6RewriteModulesWithGoogInteropTest (79 recorded calls)

@@ -326,6 +326,10 @@ class Sync:
             self.set_registry_sha(sha)
             return "ran"
         src = self.abs(r.src)
+        if self.dry and not os.path.isdir(src):
+            log(f"  would build the uberjar in {rel(src)} once fetched, install it as {rel(jar)} "
+                "(mode 0555) and pin its sha256")
+            return "ran"
         st = self.need_state()
         base_src = self.abs(self.ref(st["base"]).src)
         lock = os.path.join(src, "MODULE.bazel.lock")
@@ -644,6 +648,10 @@ class Sync:
         """Records the unit corpus against the new reference (scripts/unit_record_all.sh) into the
         work directory; resumable per class."""
         d = self.unit_dirs()
+        if self.dry and not os.path.isdir(self.abs(self.ref().recording_ws)):
+            log(f"  would record every test class of the recording workspace (step unit-ws) into "
+                f"{rel(d['records'])}")
+            return "ran"
         classes = self.test_classes()
         run = self.run_classes(classes)
         stats = os.path.join(d["recording"], "stats")

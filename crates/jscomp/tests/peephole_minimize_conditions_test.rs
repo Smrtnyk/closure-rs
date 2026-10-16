@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/PeepholeMinimizeConditionsTest.java.
 
@@ -232,6 +232,8 @@ fn test_fold_not() {
     t.fold("x = !(y() && true)", "x = !y()");
     // This will be further optimized by PeepholeFoldConstants.
     t.fold("x = !true", "x = !1");
+    t.fold_same("x = !!(a < b)");
+    t.fold_same("x = !!a");
 }
 
 // port: PeepholeMinimizeConditionsTest#testMinimizeExprCondition
@@ -384,6 +386,45 @@ fn test_minimize_hook() {
         "(x ? !y : !z) ? foo() : bar()",
         "(x ? y : z) ? bar() : foo()",
     );
+
+    t.fold_same("y = x ? true : false");
+    t.fold_same("y = x ? !0 : !1");
+    t.fold_same("y = x ? false : true");
+    t.fold_same("y = x ? !1 : !0");
+    t.fold("y = !x ? true : false", "y = x ? false : true");
+    t.fold("y = !x ? false : true", "y = x ? true : false");
+    t.fold_same("y = (a === b) ? true : false");
+    t.fold_same("y = (a === b) ? false : true");
+    t.fold(
+        "y = !(a === b) ? true : false",
+        "y = a !== b ? true : false",
+    );
+    t.fold_same("y = (a < b) ? true : false");
+    t.fold_same("y = (a < b) ? false : true");
+    t.fold("y = !(a < b) ? true : false", "y = a < b ? false : true");
+    t.fold("y = !(a < b) ? false : true", "y = a < b ? true : false");
+    t.fold("y = !!(a < b) ? true : false", "y = a < b ? true : false");
+    t.fold("y = (!a || !b) ? true : false", "y = a && b ? false : true");
+    t.fold(
+        "y = !(a && !b) ? true : false",
+        "y = !a || b ? true : false",
+    );
+    t.fold(
+        "y = !(a && !b) ? false : true",
+        "y = !a || b ? false : true",
+    );
+    t.fold(
+        "y = !(a === 1 && !b) ? false : true",
+        "y = a !== 1 || b ? false : true",
+    );
+    t.fold(
+        "y = (inc(), !test()) ? true : false",
+        "y = (inc(), test()) ? false : true",
+    );
+    t.fold_same("y = x ? (function(){}, true) : false");
+    t.fold_same("y = (a === b) ? (function(){}, true) : false");
+    t.fold_same("y = x ? 1 : 0");
+    t.fold_same("y = x ? 'a' : ''");
 }
 
 // port: PeepholeMinimizeConditionsTest#testMinimizeComma

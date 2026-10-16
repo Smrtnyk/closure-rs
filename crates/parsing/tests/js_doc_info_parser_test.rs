@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   src/com/google/javascript/jscomp/NodeUtil.java,
 //   test/com/google/javascript/jscomp/parsing/JsDocInfoParserTest.java.
 
@@ -3467,6 +3467,16 @@ fn test_bad_suppress8() {
     let mut f = set_up();
     f.parse(
         JsString::from("@suppress */"),
+        &[JsString::from("malformed @suppress tag")],
+    );
+}
+
+// port: JsDocInfoParserTest#testBadSuppressMultilineTrailingComma
+#[test]
+fn test_bad_suppress_multiline_trailing_comma() {
+    let mut f = set_up();
+    f.parse(
+        JsString::from("@suppress {x,\n * } */"),
         &[JsString::from("malformed @suppress tag")],
     );
 }
@@ -10690,6 +10700,34 @@ fn test_bad_implements_with_nullable() {
         let arg1 = (((jsdoc.clone()).unwrap()).get_implemented_interfaces())[0usize].clone();
         f.types.assert_type_equals_expression(arg0, &arg1)
     };
+}
+
+// port: JsDocInfoParserTest#testSuppressMultiline
+#[test]
+fn test_suppress_multiline() {
+    let mut f = set_up();
+    let mut js_doc_comment = JsString::from(
+        "@suppress {\n *   x, y,\n *   z\n * } Auto-added to unblock migration\n */\n",
+    );
+    let mut info = f.parse_with_documentation(
+        js_doc_comment.clone(),
+        /* parseDocumentation= */ true,
+        &[JsString::from("malformed @suppress tag")],
+    );
+    assert!((((info.clone()).unwrap()).get_suppressions()).is_empty());
+    assert!((((info.clone()).unwrap()).get_suppressions_and_their_description()).is_empty());
+}
+
+// port: JsDocInfoParserTest#testSuppressMultilineWithPipesAndLeadingSeparator
+#[test]
+fn test_suppress_multiline_with_pipes_and_leading_separator() {
+    let mut f = set_up();
+    let mut js_doc_comment = JsString::from("@suppress {x\n *   | y\n *   , z}\n */\n");
+    let mut info = f.parse(
+        js_doc_comment.clone(),
+        &[JsString::from("malformed @suppress tag")],
+    );
+    assert!(info.is_none());
 }
 
 // port: JsDocInfoParserTest#testJsDocAfterSuppress

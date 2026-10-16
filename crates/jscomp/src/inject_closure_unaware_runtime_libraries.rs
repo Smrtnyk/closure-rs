@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
-//   src/com/google/javascript/jscomp/InjectClosureUnawareRuntimeLibraries.java.
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+//   src/com/google/javascript/jscomp/InjectClosureUnawareRuntimeLibraries.java,
+//   test/com/google/javascript/jscomp/TranspileAndOptimizeClosureUnawareTest.java.
 
 //! Port of `InjectClosureUnawareRuntimeLibraries.java`.
 //!
@@ -273,5 +274,43 @@ impl CompilerPass for InjectClosureUnawareRuntimeLibraries {
     fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, _root: NodeId) {
         self.inject_libraries_into_main_ast(compiler);
         self.inject_fields_into_call_sites(compiler);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        ClosureUnawareCallSite, InjectClosureUnawareRuntimeLibraries, MainCompilerQueue,
+        apply_main_compiler_steps,
+    };
+    use crate::{
+        compiler::Compiler, compiler_options::CompilerOptions, compiler_pass::CompilerPass,
+    };
+    use closure_rhino::ir::IR;
+    use std::sync::{Arc, Mutex};
+
+    // port: TranspileAndOptimizeClosureUnawareTest#testInjectClosureUnawareRuntimeLibraries
+    #[test]
+    fn test_inject_closure_unaware_runtime_libraries() {
+        let mut main_compiler = Compiler::new();
+        let mut shadow_compiler = Compiler::new();
+        let options = CompilerOptions::new();
+        main_compiler.init(&[], &[], options.clone());
+        shadow_compiler.init(&[], &[], options);
+        // The nodes live in the shadow compilation's arena, where the pass runs (module docs).
+        let target = IR::name(&mut shadow_compiler, "fn");
+        let call = IR::call(&mut shadow_compiler, target, &[]);
+        let name = IR::name(&mut shadow_compiler, "fn");
+        let params = IR::param_list(&mut shadow_compiler, &[]);
+        let body = IR::block(&mut shadow_compiler);
+        let r#fn = IR::function(&mut shadow_compiler, name, params, body);
+        let call_site = ClosureUnawareCallSite::new(&shadow_compiler, call, r#fn);
+        let main_compiler_queue: MainCompilerQueue = Arc::new(Mutex::new(Vec::new()));
+        let mut pass =
+            InjectClosureUnawareRuntimeLibraries::new(main_compiler_queue.clone(), vec![call_site]);
+        let root = IR::root(&mut shadow_compiler, &[]);
+        pass.process(&mut shadow_compiler, root, root);
+        apply_main_compiler_steps(&mut main_compiler, &main_compiler_queue);
+        assert_eq!(call_site.call_node(), call);
     }
 }

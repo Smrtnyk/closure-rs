@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   src/com/google/javascript/jscomp/CoalesceVariableNames.java,
 //   src/com/google/javascript/jscomp/MemoizedScopeCreator.java,
 //   src/com/google/javascript/jscomp/NodeTraversal.java.
@@ -285,6 +285,7 @@ impl CoalesceVariableNames {
         compiler: &mut AbstractCompiler,
         n: NodeId,
         coalesced_var: VarId,
+        original_var: VarId,
         parent: NodeId,
     ) {
         check_state!(
@@ -303,7 +304,7 @@ impl CoalesceVariableNames {
             self.make_declaration_var(compiler, coalesced_var);
             // remove the declaration of the given name node as it has been coalesced with
             // coalescedVar
-            Self::remove_var_declaration(compiler, n);
+            self.remove_var_declaration(compiler, n, original_var);
         }
     }
 
@@ -523,7 +524,12 @@ impl CoalesceVariableNames {
     ///
     /// `name`: name node of the variable being coalesced
     // port: CoalesceVariableNames#removeVarDeclaration
-    fn remove_var_declaration(compiler: &mut AbstractCompiler, name: NodeId) {
+    fn remove_var_declaration(
+        &self,
+        compiler: &mut AbstractCompiler,
+        name: NodeId,
+        original_var: VarId,
+    ) {
         let var = NodeUtil::get_enclosing_node(compiler, name, &|ast, n| {
             NodeUtil::is_name_declaration(ast, Some(n))
         })
@@ -569,6 +575,21 @@ impl CoalesceVariableNames {
                 let mut assign = IR::assign(compiler, name, value).srcref(compiler, name);
 
                 // We don't need to wrapped it with EXPR node if it is within a FOR.
+                if !parent.is_vanilla_for(compiler) {
+                    assign = NodeUtil::new_expr(compiler, assign);
+                }
+                var.replace_with(compiler, assign);
+            } else if self.is_uninitialized_let_name_in_loop_body_and_live(
+                compiler,
+                name,
+                original_var,
+            ) {
+                name.detach(compiler);
+                let undefined_value = self
+                    .ast_factory
+                    .create_undefined_value(compiler)
+                    .srcref_tree(compiler, name);
+                let mut assign = IR::assign(compiler, name, undefined_value).srcref(compiler, name);
                 if !parent.is_vanilla_for(compiler) {
                     assign = NodeUtil::new_expr(compiler, assign);
                 }
@@ -666,6 +687,28 @@ impl CoalesceVariableNames {
         // Inside a loop body, but not the loop control node itself
         NodeUtil::is_within_loop(compiler, let_parent)
     }
+
+    // port: CoalesceVariableNames#isUninitializedLetNameInLoopBodyAndLive
+    fn is_uninitialized_let_name_in_loop_body_and_live(
+        &self,
+        compiler: &AbstractCompiler,
+        name_node: NodeId,
+        original_var: VarId,
+    ) -> bool {
+        if !Self::is_uninitialized_let_name_in_loop_body(compiler, name_node) {
+            return false;
+        }
+        check_state!(!self.live_analyses.is_empty());
+        let let_node = name_node.get_parent(compiler).unwrap();
+        let liveness = self.liveness();
+        let cfg = liveness.get_cfg();
+        let cfg_node = check_not_null!(cfg.get_node(&Some(let_node)));
+        let state = check_not_null!(
+            cfg_node.get_annotation_as::<LinearFlowState<LiveVariableLattice>>(cfg)
+        );
+        let var_index = liveness.get_var_index(&original_var.get_name(compiler));
+        var_index >= 0 && state.get_out().is_live(var_index)
+    }
 }
 
 impl CompilerPass for CoalesceVariableNames {
@@ -725,7 +768,13 @@ impl Callback for CoalesceVariableNames {
             let coalesced_name = coalesced_var.get_name(t.get_compiler());
             n.set_string(t, coalesced_name);
             t.get_compiler().report_change_to_enclosing_scope(n);
-            self.update_declarations_post_coalescing(t.get_compiler(), n, coalesced_var, parent);
+            self.update_declarations_post_coalescing(
+                t.get_compiler(),
+                n,
+                coalesced_var,
+                var,
+                parent,
+            );
         } else {
             // This code block is slow but since usePseudoName is for debugging,
             // we should not sacrifice performance for non-debugging compilation to
@@ -777,7 +826,13 @@ impl Callback for CoalesceVariableNames {
             if v_node_value.equals(t.get_compiler(), coalesced_var) {
                 return;
             }
-            self.update_declarations_post_coalescing(t.get_compiler(), n, coalesced_var, parent);
+            self.update_declarations_post_coalescing(
+                t.get_compiler(),
+                n,
+                coalesced_var,
+                var,
+                parent,
+            );
         }
     }
 

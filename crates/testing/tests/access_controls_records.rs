@@ -30,7 +30,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   test/com/google/javascript/jscomp/CheckAccessControlsOldSyntaxTest.java,
 //   test/com/google/javascript/jscomp/CheckAccessControlsTest.java,
 //   test/com/google/javascript/jscomp/ImplicitNullabilityCheckTest.java,
@@ -87,10 +87,10 @@ fn assert_all_pass(class: &str, expected: usize) {
     assert!(failing.is_empty(), "{}", failing.join("\n"));
 }
 
-// port: CheckAccessControlsTest (223 @Test methods, 232 recorded calls)
+// port: CheckAccessControlsTest (224 @Test methods, 233 recorded calls)
 #[test]
 fn check_access_controls_test() {
-    assert_all_pass("CheckAccessControlsTest", 232);
+    assert_all_pass("CheckAccessControlsTest", 233);
 }
 
 // port: CheckAccessControlsOldSyntaxTest (210 @Test methods, 215 recorded calls)

@@ -30,7 +30,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/ModulesTestUtils.java,
 //   test/com/google/javascript/jscomp/ProcessCommonJSModulesTest.java.
@@ -2189,4 +2189,38 @@ fn test_require_dot_dot() {
         ],
     )
     .unwrap();
+}
+
+// port: ProcessCommonJSModulesTest#testFindModuleDependencies
+#[test]
+fn test_find_module_dependencies() {
+    let mut compiler = closure_jscomp::Compiler::new();
+    let mut options = CompilerOptions::new();
+    options.set_process_common_js_modules(true);
+    options.set_module_resolution_mode(ResolutionMode::NODE);
+    compiler.init(
+        &[std::sync::Arc::new(SourceFile::from_code("externs.js", ""))],
+        &[std::sync::Arc::new(SourceFile::from_code(
+            "mod.js",
+            "var x = 1;",
+        ))],
+        options,
+    );
+    let root = compiler.parse_inputs().unwrap();
+    let script = root
+        .get_second_child(&compiler)
+        .unwrap()
+        .get_first_child(&compiler)
+        .unwrap();
+    let mut pass = closure_jscomp::find_module_dependencies::FindModuleDependencies::new(
+        true,
+        true,
+        &IndexMap::default(),
+    );
+    pass.process(&mut compiler, script);
+    let input_id = script.get_input_id(&compiler).unwrap();
+    let input = compiler.get_input(&input_id);
+    assert!(input.is_some());
+    // assertThat(input.getKnownProvides()).isNotNull(): a Vec is never null.
+    let _known_provides = input.unwrap().get_known_provides();
 }

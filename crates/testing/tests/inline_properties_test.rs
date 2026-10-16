@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   test/com/google/javascript/jscomp/InlinePropertiesTest.java.
 
 //! Port of InlinePropertiesTest (CompilerTestCase over the crates/testing port).
@@ -1070,5 +1070,88 @@ fn test_initialized_subclass_field_prevents_inlining() {
         "  escaped = false;\n",
         "}\n",
         "(new RawGuard()).escaped;\n"
+    ));
+}
+
+// port: InlinePropertiesTest#testFieldInitializerReadsLaterField
+#[test]
+fn test_field_initializer_reads_later_field() {
+    let mut t = Test::new();
+    // TODO(b/571953100): inlines property read in field initializer before field is initialized
+    t.test(
+        concat!(
+            "class C {\n",
+            "  y = this.x;\n",
+            "  x = 1;\n",
+            "}\n",
+            "use((new C()).y);\n"
+        ),
+        concat!(
+            "class C {\n",
+            "  y = 1;\n",
+            "  x = 1;\n",
+            "}\n",
+            "use((new C()).y);\n"
+        ),
+    );
+}
+
+// port: InlinePropertiesTest#testFieldInitializerAssigningThisPropInsideOuterConstructor
+#[test]
+fn test_field_initializer_assigning_this_prop_inside_outer_constructor() {
+    let mut t = Test::new();
+    // TODO(b/571953100): inlines this.x in inner class field initializer from outer constructor
+    t.test(
+        concat!(
+            "class Outer {\n",
+            "  constructor() {\n",
+            "    /** @unrestricted */\n",
+            "    class Inner {\n",
+            "      f = (use(this.x), this.x = 1);\n",
+            "    }\n",
+            "    new Inner();\n",
+            "  }\n",
+            "}\n",
+            "new Outer();\n"
+        ),
+        concat!(
+            "class Outer {\n",
+            "  constructor() {\n",
+            "    class Inner {\n",
+            "      f = (use(1), this.x = 1);\n",
+            "    }\n",
+            "    new Inner();\n",
+            "  }\n",
+            "}\n",
+            "new Outer();\n"
+        ),
+    );
+}
+
+// port: InlinePropertiesTest#testPropertyNamedByRenameFunction
+#[test]
+fn test_property_named_by_rename_function() {
+    let mut t = Test::new();
+    // `JSCompiler_renameProperty('foo', C)` names `foo` for reflective access, so the unknown
+    // function may write `C.prototype.foo` and `foo` must not be inlined.
+    t.test_same(concat!(
+        "/** @constructor */\n",
+        "function C() {}\n",
+        "C.prototype.foo = 1;\n",
+        "externUnknownVar(C.prototype, JSCompiler_renameProperty('foo', C), 2);\n",
+        "new C().foo;\n"
+    ));
+}
+
+// port: InlinePropertiesTest#testPropertyWrittenThroughRenamedName
+#[test]
+fn test_property_written_through_renamed_name() {
+    let mut t = Test::new();
+    t.test_same(concat!(
+        "/** @constructor */\n",
+        "function C() {}\n",
+        "C.prototype.foo = 1;\n",
+        "C.prototype[JSCompiler_renameProperty('foo', C)] = 2;\n",
+        "new C().foo;\n"
     ));
 }

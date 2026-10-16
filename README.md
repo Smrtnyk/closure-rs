@@ -14,10 +14,10 @@ its [documentation](https://developers.google.com/closure/compiler) and the offi
 ## Status
 
 closure-rs is stable and matches Closure Compiler release
-[`v20261011`](https://github.com/google/closure-compiler/tree/v20261011) (commit
-[`1b38218`](https://github.com/google/closure-compiler/tree/1b3821824da923efc81b39249b7030bec3c4ae48)),
+[`v20261015`](https://github.com/google/closure-compiler/tree/v20261015) (commit
+[`3aeb67d`](https://github.com/google/closure-compiler/tree/3aeb67d9ac328013d2ee6bf9552f13fd1a7de529)),
 published on npm as
-[`google-closure-compiler@20261011.0.0`](https://www.npmjs.com/package/google-closure-compiler/v/20261011.0.0).
+[`google-closure-compiler@20261015.0.0`](https://www.npmjs.com/package/google-closure-compiler/v/20261015.0.0).
 It follows upstream *releases*, not master commits: each sync moves it to a newer npm release
 ([Versioning](#versioning)). Its output is deterministic;
 [How the port is checked](#how-the-port-is-checked) describes how it is compared with the Java
@@ -91,14 +91,14 @@ source maps in every run.
 
 Versions are `<upstream>.<minor>.<patch>`:
 
-- **major:** the upstream release whose output closure-rs matches (`20261011` is
-  `google-closure-compiler@20261011.0.0`). A sync to a newer upstream release starts a new major
+- **major:** the upstream release whose output closure-rs matches (`20261015` is
+  `google-closure-compiler@20261015.0.0`). A sync to a newer upstream release starts a new major
   version at `.0.0`.
 - **minor:** releases that leave the output unchanged: speed, the npm wrapper, new platforms.
 - **patch:** fixes: a difference from the Java compiler, a crash, a bug in the npm wrapper.
 
-So a range such as `^20261011.0.0` stays on one upstream release. `latest` is the stable release;
-experimental builds are prereleases (for example `20261011.1.0-exp.1`) under the dist-tag `exp`.
+So a range such as `^20261015.0.0` stays on one upstream release. `latest` is the stable release;
+experimental builds are prereleases (for example `20261015.1.0-exp.1`) under the dist-tag `exp`.
 
 ## Bugs and issues
 

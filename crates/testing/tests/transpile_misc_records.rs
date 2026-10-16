@@ -33,7 +33,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   test/com/google/javascript/jscomp/Es6ForOfConverterTest.java,
 //   test/com/google/javascript/jscomp/Es6RewriteBlockScopedDeclarationTest.java,
 //   test/com/google/javascript/jscomp/Es6RewriteBlockScopedFunctionDeclarationTest.java,
@@ -102,10 +102,10 @@ fn assert_records(class: &str, expected: usize) {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
-// port: Es6RewriteBlockScopedDeclarationTest (37 @Test methods, 96 recorded calls)
+// port: Es6RewriteBlockScopedDeclarationTest (38 @Test methods, 97 recorded calls)
 #[test]
 fn es6_rewrite_block_scoped_declaration_test() {
-    assert_records("Es6RewriteBlockScopedDeclarationTest", 96);
+    assert_records("Es6RewriteBlockScopedDeclarationTest", 97);
 }
 
 // port: Es6RewriteBlockScopedFunctionDeclarationTest (7 @Test methods, 7 recorded calls)

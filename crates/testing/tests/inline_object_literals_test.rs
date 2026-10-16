@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   test/com/google/javascript/jscomp/InlineObjectLiteralsTest.java.
 
 //! Port of InlineObjectLiteralsTest (CompilerTestCase over the crates/testing port).
@@ -1080,4 +1080,70 @@ fn test_object_spread_reading_from_overwritten_prop() {
         "var obj = {prop: 6, ...foo};\n",
         "use(obj.prop);\n"
     ));
+}
+
+// port: InlineObjectLiteralsTest#testObject1_optChainContinues
+#[test]
+fn test_object1_opt_chain_continues() {
+    let mut t = Test::new();
+    // TODO(b/571220152): inlining an opt-chain segment start orphans the continuation
+    let root = assert_throws_message(|| {
+        t.test_same("function local(){var a = {x:x(), y:y()}; f(a?.x.toString(), a?.y);}")
+    });
+    assert!(
+        root.contains("Start of optional chain node OPTCHAIN_GETPROP is not marked as the start"),
+        "{root}"
+    );
+}
+
+// port: InlineObjectLiteralsTest#testClassField_perIterationLetCapture
+#[test]
+fn test_class_field_per_iteration_let_capture() {
+    let mut t = Test::new();
+    // TODO(b/572003863): let/const object literal in a loop body is split into function-scoped vars
+    t.harness
+        .set_language_out(language_mode("ECMASCRIPT_2022"))
+        .unwrap();
+    t.test_local(
+        concat!(
+            "for (let i = 0; i < 2; i++) {\n",
+            "  let o = {a: i};\n",
+            "  arr.push(class { x = o.a; });\n",
+            "}\n"
+        ),
+        concat!(
+            "for (let i = 0; i < 2; i++) {\n",
+            "  var JSCompiler_object_inline_a_0 = i;\n",
+            "  arr.push(class {\n",
+            "    x = JSCompiler_object_inline_a_0;\n",
+            "  });\n",
+            "}\n"
+        ),
+    );
+}
+
+// port: InlineObjectLiteralsTest#testClassField_perIterationLetCapture_arrowControl
+#[test]
+fn test_class_field_per_iteration_let_capture_arrow_control() {
+    let mut t = Test::new();
+    // TODO(b/572003863): let/const object literal in a loop body is split into function-scoped vars
+    t.harness
+        .set_language_out(language_mode("ECMASCRIPT_2022"))
+        .unwrap();
+    t.test_local(
+        concat!(
+            "for (let i = 0; i < 2; i++) {\n",
+            "  let o = {a: i};\n",
+            "  arr.push(() => o.a);\n",
+            "}\n"
+        ),
+        concat!(
+            "for (let i = 0; i < 2; i++) {\n",
+            "  var JSCompiler_object_inline_a_0 = i;\n",
+            "  arr.push(() => {\n",
+            "    return JSCompiler_object_inline_a_0;\n",
+            "  });\n",
+            "}\n"
+        ),
+    );
 }

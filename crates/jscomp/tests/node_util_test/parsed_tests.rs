@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   test/com/google/javascript/jscomp/NodeUtilTest.java.
 
 use super::*;
@@ -2059,7 +2059,7 @@ mod assorted_tests {
             // Large non-decimal literals (> 14 digits exercising BigInteger path)
             ("0b10000000000000000000", 524288.0),
             ("0o100000000000000", 4398046511104.0),
-            ("0x100000000000000", 72057594037927936.0),
+            ("0x100000000000000", 7.205759403792794E+16),
             // Infinity
             ("Infinity", f64::INFINITY),
             ("+Infinity", f64::INFINITY),

@@ -1,13 +1,13 @@
 # Oracle protocol (docs/PORTING.md §4.1)
 
 The oracle is a Java program that uses the pinned reference uberjar `$REF_JAR`
-(`build/reference-v20261011/closure-compiler.jar` for the default reference; `scripts/paths.sh`,
+(`build/reference-v20261015/closure-compiler.jar` for the default reference; `scripts/paths.sh`,
 `oracle/REFERENCE.md`) **as a library**. The reference `src/` is never modified.
 
 ## Building and running
 
 ```bash
-. scripts/paths.sh     # REF_JAR, ORACLE_JAR of the reference ($CLOSURE_RS_REF, default v20261011)
+. scripts/paths.sh     # REF_JAR, ORACLE_JAR of the reference ($CLOSURE_RS_REF, default v20261015)
 oracle/build.sh        # javac (JDK 21, --release 21) against $REF_JAR -> $ORACLE_JAR
 CP=$ORACLE_JAR:$REF_JAR
 GENV=(env -i PATH=/usr/bin:/bin HOME="$HOME" LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC)   # golden environment, required (see "Environment")
@@ -163,7 +163,7 @@ synthetic `$strong$`/`$weak$` chunks and fill files (`<chunk>$fillFile`). Both a
 compiler was created. The seam needs them: see `optimize_from_typedast` and "Seam caveats".
 
 **Inline files.** `{"files":{"relpath":"content",...}}` writes each file to
-`tmp/inline-<pid>-<n>/relpath` next to the oracle jar (`build/oracle-v20261011/tmp/` for the
+`tmp/inline-<pid>-<n>/relpath` next to the oracle jar (`build/oracle-v20261015/tmp/` for the
 default reference). The request then runs in a child JVM (`Main request`) whose cwd is that
 directory, so relative paths in `args` and in the output mean the same as for `java -jar` run in
 that directory. The response adds `"inline_dir"`.

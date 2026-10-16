@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/PeepholeIntegrationTest.java.
 
@@ -216,6 +216,9 @@ fn test_hook_if_integration() {
     t.test("x?void 0:y()", "x||y()");
     t.test("!x?void 0:y()", "x&&y()");
     t.test("x?y():void 0", "x&&y()");
+
+    t.test_same("window.f = x => x ? true : false;");
+    t.test_same("window.f = x => x ? false : true;");
 }
 
 // port: PeepholeIntegrationTest#testFoldLogicalOpIntegration

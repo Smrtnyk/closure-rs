@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 1b38218:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
 //   test/com/google/javascript/jscomp/DevirtualizeMethodsTest.java.
 
 //! Port of DevirtualizeMethodsTest (CompilerTestCase over the crates/testing port).
@@ -819,6 +819,75 @@ fn test_rewrite_defined_using_proto_object_lit() {
             "JSCompiler_StaticMethods_foo(o)\n"
         ),
     );
+}
+
+// port: DevirtualizeMethodsTest#testRewrite_definedUsingProtoObjectLit_shorthandMethod
+#[test]
+fn test_rewrite_defined_using_proto_object_lit_shorthand_method() {
+    let mut t = Test::new();
+    t.test(
+        "a.prototype = {foo() { return 2; }}; o.foo()",
+        concat!(
+            "var JSCompiler_StaticMethods_foo = function(JSCompiler_StaticMethods_foo$self) {\n",
+            "  return 2;\n",
+            "};\n",
+            "a.prototype={};\n",
+            "JSCompiler_StaticMethods_foo(o)\n"
+        ),
+    );
+}
+
+// Methods on plain object literals are left to CollapseProperties, which (unlike this pass)
+// checks whether the object escapes. Plain objects are routinely enumerated, copied, or
+// mixed in (e.g. Polymer behaviors), so removing a method from one is unsafe in general.
+
+// port: DevirtualizeMethodsTest#testNoRewrite_definedUsingPlainObjectLit
+#[test]
+fn test_no_rewrite_defined_using_plain_object_lit() {
+    let mut t = Test::new();
+    t.test_same(concat!(
+        "const obj = {\n",
+        "  x: 1,\n",
+        "  foo: function() {\n",
+        "    return this.x;\n",
+        "  },\n",
+        "};\n",
+        "use(obj);\n",
+        "obj.foo();\n"
+    ));
+}
+
+// port: DevirtualizeMethodsTest#testNoRewrite_definedUsingPlainObjectLit_shorthandMethod
+#[test]
+fn test_no_rewrite_defined_using_plain_object_lit_shorthand_method() {
+    let mut t = Test::new();
+    // Regression test for b/571987051: shorthand methods were devirtualized even though the
+    // equivalent `foo: function() {}` above was not. This went unnoticed in ES5 output because
+    // shorthand methods were transpiled to `foo: function() {}` before this pass ran.
+    t.test_same(concat!(
+        "const obj = {\n",
+        "  x: 1,\n",
+        "  foo() {\n",
+        "    return this.x;\n",
+        "  },\n",
+        "};\n",
+        "use(obj);\n",
+        "obj.foo();\n"
+    ));
+}
+
+// port: DevirtualizeMethodsTest#testNoRewrite_definedUsingAnonymousObjectLit_shorthandMethod
+#[test]
+fn test_no_rewrite_defined_using_anonymous_object_lit_shorthand_method() {
+    let mut t = Test::new();
+    t.test_same("use({foo() { return 1; }}); o.foo();");
+}
+
+// port: DevirtualizeMethodsTest#testNoRewrite_definedUsingObjectLitNestedInProtoObjectLit_shorthandMethod
+#[test]
+fn test_no_rewrite_defined_using_object_lit_nested_in_proto_object_lit_shorthand_method() {
+    let mut t = Test::new();
+    t.test_same("a.prototype = {bar: {foo() { return 1; }}}; o.foo();");
 }
 
 // port: DevirtualizeMethodsTest#testNoRewrite_multipleDefinitions_definedUsingProtoObjectLit_definedUsingGetProp
