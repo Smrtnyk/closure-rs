@@ -648,6 +648,10 @@ class Sync:
         """Records the unit corpus against the new reference (scripts/unit_record_all.sh) into the
         work directory; resumable per class."""
         d = self.unit_dirs()
+        if self.dry and not os.path.isdir(self.abs(self.ref().recording_ws)):
+            log(f"  would record every test class of the recording workspace (step unit-ws) into "
+                f"{rel(d['records'])}")
+            return "ran"
         classes = self.test_classes()
         run = self.run_classes(classes)
         stats = os.path.join(d["recording"], "stats")
