@@ -415,6 +415,160 @@ impl PureFunctionIdentifierTest {
 }
 
 #[test]
+fn test_mutates_this_local_receiver_not_local() {
+    let (mut harness, mut t) = PureFunctionIdentifierTest::set_up();
+    harness.disable_type_check().unwrap();
+    let prefix = r#"/** @constructor */
+function Foo() {}
+Foo.prototype.init = function() { this.x = 1; };
+"#;
+    // Reassigned to a non-local value.
+    t.assert_no_pure_calls(
+        &mut harness,
+        &format!(
+            "{prefix}{}",
+            r#"function f() {
+  var o = {};
+  for (var i = 0; i < 2; i++) { o.init(); o = window; }
+}
+f();
+"#
+        ),
+    );
+    // Parameter.
+    t.assert_no_pure_calls(
+        &mut harness,
+        &format!(
+            "{prefix}{}",
+            r#"function f(o) { o.init(); }
+f({});
+"#
+        ),
+    );
+    // Catch variable.
+    t.assert_no_pure_calls(
+        &mut harness,
+        &format!(
+            "{prefix}{}",
+            r#"function f() { try { throw window; } catch (e) { e.init(); } }
+f();
+"#
+        ),
+    );
+    // `this` is not the receiver when invoked via `.call`.
+    t.assert_no_pure_calls(
+        &mut harness,
+        &format!(
+            "{prefix}{}",
+            r#"function f() { var o = Foo.prototype.init; o.call(window); }
+f();
+"#
+        ),
+    );
+}
+
+#[test]
+fn test_mutates_arguments_local_variable() {
+    let (mut harness, mut t) = PureFunctionIdentifierTest::set_up();
+    harness.disable_type_check().unwrap();
+    t.assert_pure_calls_marked(
+        &mut harness,
+        r#"function setX(o) { o.x = 1; }
+function g() { var o = {}; setX(o); }
+g();
+"#,
+        &["g"],
+    );
+    // Reassigned to a non-local value.
+    t.assert_no_pure_calls(
+        &mut harness,
+        r#"function setX(o) { o.x = 1; }
+function g() { var o = {}; o = window; setX(o); }
+g();
+"#,
+    );
+    // The arguments passed via `.apply` are the elements of the array.
+    t.assert_no_pure_calls(
+        &mut harness,
+        r#"function setX(o) { o.x = 1; }
+function g() { var a = [window]; setX.apply(null, a); }
+g();
+"#,
+    );
+}
+
+#[test]
+fn test_mutates_arguments_per_parameter() {
+    let (mut harness, mut t) = PureFunctionIdentifierTest::set_up();
+    harness.disable_type_check().unwrap();
+    t.assert_pure_calls_marked(
+        &mut harness,
+        r#"function setX(o, v) { o.x = v; }
+function g(v) { var o = {}; setX(o, v); }
+g(window);
+"#,
+        &["g"],
+    );
+    t.assert_no_pure_calls(
+        &mut harness,
+        r#"function setX(o, v) { o.x = v; }
+function g(v) { var o = {}; setX(v, o); }
+g(window);
+"#,
+    );
+    // The mutated parameters of all definitions of an ambiguated name are combined.
+    t.assert_no_pure_calls(
+        &mut harness,
+        r#"A.a = function(x, y) { x.p = 1; };
+B.a = function(x, y) { y.p = 1; };
+function g() { C.a({}, window); }
+g();
+"#,
+    );
+    // Via the alias `f = A.a`, `f` also mutates its second parameter. This must reach the callers
+    // of `f`, even though `f` was already known to mutate its first parameter.
+    t.assert_no_pure_calls(
+        &mut harness,
+        r#"var f = function(x, y) { x.p = 1; };
+f = A.a;
+A.a = function(x, y) { y.p = 1; };
+function g() { f({}, window); }
+g();
+"#,
+    );
+    // The arguments following a spread don't correspond to the parameter at their position.
+    t.assert_no_pure_calls(
+        &mut harness,
+        r#"function setY(x, y) { y.p = 1; }
+function g() { setY(...[window, window], {}); }
+g();
+"#,
+    );
+    // The callees of `goog.reflect.cache` are invoked with the key, not the first argument.
+    t.assert_no_pure_calls(
+        &mut harness,
+        r#"function g() { goog.reflect.cache({}, window, function(k) { k.x = 1; }); }
+g();
+"#,
+    );
+}
+
+#[test]
+fn test_mutates_arguments_rest_parameter() {
+    let (mut harness, mut t) = PureFunctionIdentifierTest::set_up();
+    harness.disable_type_check().unwrap();
+    // Rest parameters are treated like destructured parameters, which don't directly correspond
+    // to an argument.
+    t.assert_no_pure_calls(
+        &mut harness,
+        r#"function f(a, ...r) { r.x = 1; }
+function g() { f({}, {}); }
+g();
+"#,
+    );
+}
+
+#[test]
 fn test_mutates_this_in_arrow_function_new_receiver() {
     let (mut harness, mut t) = PureFunctionIdentifierTest::set_up();
     harness.disable_type_check().unwrap();

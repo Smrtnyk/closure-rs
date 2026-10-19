@@ -10712,10 +10712,23 @@ fn test_suppress_multiline() {
     let mut info = f.parse_with_documentation(
         js_doc_comment.clone(),
         /* parseDocumentation= */ true,
-        &[JsString::from("malformed @suppress tag")],
+        &[],
     );
-    assert!((((info.clone()).unwrap()).get_suppressions()).is_empty());
-    assert!((((info.clone()).unwrap()).get_suppressions_and_their_description()).is_empty());
+    let xyz = [
+        JsString::from("x"),
+        JsString::from("y"),
+        JsString::from("z"),
+    ]
+    .into_iter()
+    .collect::<IndexSet<JsString>>();
+    assert_eq!(((info.clone()).unwrap()).get_suppressions(), xyz);
+    let suppressions = ((info.clone()).unwrap()).get_suppressions_and_their_description();
+    assert_eq!(suppressions.len(), 1);
+    assert!(
+        suppressions
+            .iter()
+            .any(|(k, v)| k == &xyz && v == &(JsString::from("Auto-added to unblock migration")))
+    );
 }
 
 // port: JsDocInfoParserTest#testSuppressMultilineWithPipesAndLeadingSeparator
@@ -10723,11 +10736,17 @@ fn test_suppress_multiline() {
 fn test_suppress_multiline_with_pipes_and_leading_separator() {
     let mut f = set_up();
     let mut js_doc_comment = JsString::from("@suppress {x\n *   | y\n *   , z}\n */\n");
-    let mut info = f.parse(
-        js_doc_comment.clone(),
-        &[JsString::from("malformed @suppress tag")],
+    let mut info = f.parse(js_doc_comment.clone(), &[]);
+    assert_eq!(
+        ((info.clone()).unwrap()).get_suppressions(),
+        [
+            JsString::from("x"),
+            JsString::from("y"),
+            JsString::from("z")
+        ]
+        .into_iter()
+        .collect::<IndexSet<JsString>>()
     );
-    assert!(info.is_none());
 }
 
 // port: JsDocInfoParserTest#testJsDocAfterSuppress

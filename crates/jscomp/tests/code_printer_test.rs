@@ -3420,6 +3420,40 @@ fn test_exponents() {
     t.assert_print_number(".01", 0.01);
     t.assert_print_number("1.01", 1.01);
 }
+// port: CodePrinterTest#testFormatNumber
+#[test]
+fn test_format_number() {
+    use closure_jscomp::code_consumer::format_number;
+    // Schubfach boundary values
+    assert_eq!(format_number(2.0e-3), ".002");
+    assert_eq!(format_number(1.0e23), "1E23");
+    assert_eq!(
+        format_number("9.007199254740993e15".parse::<f64>().unwrap()),
+        "9007199254740992"
+    );
+
+    // Subnormals and MAX_VALUE
+    assert_eq!(format_number(f64::from_bits(1)), "4.9E-324");
+    assert_eq!(format_number(f64::MAX), "1.7976931348623157E308");
+
+    // Powers of 10
+    assert_eq!(format_number(100.0), "100");
+    assert_eq!(format_number(1000.0), "1E3");
+    assert_eq!(format_number(1e12), "1E12");
+    assert_eq!(format_number(1e13), "1E13");
+
+    // Hex-vs-decimal crossover integers around 1000000000000L
+    assert_eq!(format_number(1000000000000.0), "1E12");
+    assert_eq!(format_number(1000000000001.0), "0xe8d4a51001");
+
+    // Leading-zero fractions
+    assert_eq!(format_number(0.5), ".5");
+    assert_eq!(format_number(0.002), ".002");
+    assert_eq!(format_number(0.0001), "1E-4");
+
+    // .0E stripping
+    assert_eq!(format_number(1.0e21), "1E21");
+}
 // port: CodePrinterTest#testIndirectEval
 #[test]
 fn test_indirect_eval() {

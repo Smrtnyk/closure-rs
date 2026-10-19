@@ -192,7 +192,9 @@ impl Callback for GatherCallback {
             Token::CALL => {
                 if NodeUtil::is_object_define_property_definition(t, n) {
                     self.visit_define_property(t, n);
-                } else if NodeUtil::is_object_define_properties_definition(t, n) {
+                } else if NodeUtil::is_object_define_properties_definition(t, n)
+                    || NodeUtil::is_object_create_with_properties_definition(t, n)
+                {
                     self.visit_define_properties(t, n);
                 }
             }

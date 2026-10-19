@@ -176,7 +176,7 @@ fn every_java_configuration_matches_every_field() {
         let mut actual = support::options_fields(&options);
         support::normalize_standins(&mut expected);
         support::normalize_standins(&mut actual);
-        assert_eq!(actual.as_object().unwrap().len(), 205);
+        assert_eq!(actual.as_object().unwrap().len(), 204);
         for (name, value) in actual.as_object().unwrap() {
             assert_eq!(
                 value,

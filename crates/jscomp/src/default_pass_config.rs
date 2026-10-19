@@ -1221,14 +1221,12 @@ impl DefaultPassConfig {
                 let reach = options.get_inline_functions_level();
                 let assume_strict_this =
                     options.assume_strict_this() || options.expect_strict_mode_input();
-                let assume_minimum_capture = options.assume_closures_only_capture_references();
                 let max_size_after_inlining = options.get_max_function_size_after_inlining();
                 Box::new(crate::inline_functions::InlineFunctions::new(
                     compiler,
                     compiler.get_unique_name_id_supplier(),
                     reach,
                     assume_strict_this,
-                    assume_minimum_capture,
                     max_size_after_inlining,
                 ))
             }))

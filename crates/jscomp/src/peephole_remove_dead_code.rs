@@ -439,6 +439,32 @@ impl PeepholeRemoveDeadCode {
                 // never execute.
                 false
             }
+            Token::MEMBER_FIELD_DEF => {
+                if tree.is_static_member(compiler) && tree.has_children(compiler) {
+                    let first_child = tree.get_first_child(compiler).unwrap();
+                    self.try_simplify_unused_result_internal(
+                        compiler,
+                        first_child,
+                        side_effect_roots,
+                    );
+                }
+                false
+            }
+            Token::COMPUTED_FIELD_DEF => {
+                // Computed key initializers run once when the class is defined, even on
+                // non-static fields.
+                let first_child = tree.get_first_child(compiler).unwrap();
+                self.try_simplify_unused_result_internal(compiler, first_child, side_effect_roots);
+                if tree.is_static_member(compiler) && tree.has_two_children(compiler) {
+                    let last_child = tree.get_last_child(compiler).unwrap();
+                    self.try_simplify_unused_result_internal(
+                        compiler,
+                        last_child,
+                        side_effect_roots,
+                    );
+                }
+                false
+            }
             _ => {
                 // This is the meat of this function. It covers the general case of nodes which
                 // are unused

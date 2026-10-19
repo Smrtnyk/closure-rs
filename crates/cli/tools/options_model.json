@@ -33,7 +33,6 @@
     "deadPropertyAssignmentElimination",
     "inlineConstantVars",
     "maxFunctionSizeAfterInlining",
-    "assumeClosuresOnlyCaptureReferences",
     "inlineProperties",
     "crossChunkCodeMotion",
     "crossChunkCodeMotionNoStubMethods",

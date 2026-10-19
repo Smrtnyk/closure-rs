@@ -1238,18 +1238,6 @@ impl<'a> IRFactory<'a> {
         node.put_boolean_prop(ast, NodeId::QUOTED_PROP, true);
         Ok(node)
     }
-    // port: IRFactory.TransformDispatcher#processComprehension
-    fn process_comprehension(&mut self, ast: &mut Ast, tree: &ParseTree) -> P<NodeId> {
-        self.unsupported_language_feature(ast, tree, "array/generator comprehensions")
-    }
-    // port: IRFactory.TransformDispatcher#processComprehensionFor
-    fn process_comprehension_for(&mut self, ast: &mut Ast, tree: &ParseTree) -> P<NodeId> {
-        self.unsupported_language_feature(ast, tree, "array/generator comprehensions")
-    }
-    // port: IRFactory.TransformDispatcher#processComprehensionIf
-    fn process_comprehension_if(&mut self, ast: &mut Ast, tree: &ParseTree) -> P<NodeId> {
-        self.unsupported_language_feature(ast, tree, "array/generator comprehensions")
-    }
     // port: IRFactory.TransformDispatcher#processArrayLiteral
     fn process_array_literal(&mut self, ast: &mut Ast, tree: &ParseTree) -> P<NodeId> {
         let tree = tree.as_array_literal_expression();
@@ -3380,21 +3368,6 @@ impl<'a> IRFactory<'a> {
             self.transform_list(ast, type_, list.unwrap())
         }
     }
-    // port: IRFactory.TransformDispatcher#unsupportedLanguageFeature
-    fn unsupported_language_feature(
-        &mut self,
-        ast: &mut Ast,
-        node: &ParseTree,
-        feature: &str,
-    ) -> P<NodeId> {
-        self.error_reporter.error(
-            &format!("unsupported language feature: {feature}"),
-            &self.source_name,
-            Self::lineno(node),
-            Self::charno(node),
-        );
-        Ok(self.create_missing_expression_node(ast))
-    }
     // port: IRFactory.TransformDispatcher#processLiteralExpression
     fn process_literal_expression(&mut self, ast: &mut Ast, expr: &ParseTree) -> P<NodeId> {
         match expr.as_literal_expression().literal_token.type_ {
@@ -3510,9 +3483,6 @@ impl<'a> IRFactory<'a> {
             ParseTreeType::IMPORT_META_EXPRESSION => self.process_import_meta(ast, node),
             ParseTreeType::ARRAY_PATTERN => self.process_array_pattern(ast, node),
             ParseTreeType::OBJECT_PATTERN => self.process_object_pattern(ast, node),
-            ParseTreeType::COMPREHENSION => self.process_comprehension(ast, node),
-            ParseTreeType::COMPREHENSION_FOR => self.process_comprehension_for(ast, node),
-            ParseTreeType::COMPREHENSION_IF => self.process_comprehension_if(ast, node),
             ParseTreeType::DEFAULT_PARAMETER => self.process_default_parameter(ast, node),
             ParseTreeType::ITER_REST => self.process_iter_rest(ast, node),
             ParseTreeType::ITER_SPREAD => self.process_iter_spread(ast, node),
@@ -3649,7 +3619,12 @@ impl<'a> IRFactory<'a> {
                     let num_digits = if cur as usize + 1 < value.length()
                         && Self::is_octal_digit(value.char_at(cur as usize + 1))
                     {
-                        if cur as usize + 2 < value.length()
+                        // A three digit escape is only legal when the leading digit is 0-3; with a
+                        // leading digit of 4-7 the value would exceed \377, so only two digits are
+                        // consumed and the third octal digit is a literal character (ECMAScript
+                        // Annex B.1.2 LegacyOctalEscapeSequence).
+                        if c <= u16::from(b'3')
+                            && cur as usize + 2 < value.length()
                             && Self::is_octal_digit(value.char_at(cur as usize + 2))
                         {
                             3

@@ -4465,6 +4465,52 @@ mod assorted_tests {
         assert_not_l_value_named_x(&compiler, x.unwrap());
     }
 
+    // port: NodeUtilTest.AssortedTests#testIsDeclarationLValue
+    #[test]
+    fn test_is_declaration_l_value() {
+        let mut compiler = Compiler::new();
+        assert_declaration_l_value_named_x(&mut compiler, "var x;");
+        assert_declaration_l_value_named_x(&mut compiler, "let x = 1;");
+        assert_declaration_l_value_named_x(&mut compiler, "const x = 1;");
+        assert_declaration_l_value_named_x(&mut compiler, "const [x] = arr;");
+        assert_declaration_l_value_named_x(&mut compiler, "const [[x]] = arr;");
+        assert_declaration_l_value_named_x(&mut compiler, "const {y: x} = obj;");
+        assert_declaration_l_value_named_x(&mut compiler, "const {z: {y: x}} = obj;");
+        assert_declaration_l_value_named_x(&mut compiler, "const [x = 1] = arr;");
+        assert_declaration_l_value_named_x(&mut compiler, "const [...x] = arr;");
+        assert_declaration_l_value_named_x(&mut compiler, "const {...x} = obj;");
+        assert_declaration_l_value_named_x(&mut compiler, "const {[k]: x} = obj;");
+        assert_declaration_l_value_named_x(&mut compiler, "const {[k]: [x = 1]} = obj;");
+        assert_declaration_l_value_named_x(&mut compiler, "for (const [x] of arr) {}");
+        assert_declaration_l_value_named_x(&mut compiler, "for (const [[x]] of arr) {}");
+        assert_declaration_l_value_named_x(&mut compiler, "function f(x) {}");
+        assert_declaration_l_value_named_x(&mut compiler, "function f(x = 1) {}");
+        assert_declaration_l_value_named_x(&mut compiler, "function f(...x) {}");
+        assert_declaration_l_value_named_x(&mut compiler, "function f({z: [x = 1]} = {}) {}");
+        assert_declaration_l_value_named_x(&mut compiler, "try {} catch ({y: [x]}) {}");
+    }
+
+    // port: NodeUtilTest.AssortedTests#testIsNotDeclarationLValue
+    #[test]
+    fn test_is_not_declaration_l_value() {
+        let mut compiler = Compiler::new();
+        assert_not_declaration_l_value_named_x(&mut compiler, "x = 1;");
+        assert_not_declaration_l_value_named_x(&mut compiler, "x++;");
+        assert_not_declaration_l_value_named_x(&mut compiler, "([x] = arr);");
+        assert_not_declaration_l_value_named_x(&mut compiler, "([[x]] = arr);");
+        assert_not_declaration_l_value_named_x(&mut compiler, "({y: x} = obj);");
+        assert_not_declaration_l_value_named_x(&mut compiler, "({z: {y: x}} = obj);");
+        assert_not_declaration_l_value_named_x(&mut compiler, "([x = 1] = arr);");
+        assert_not_declaration_l_value_named_x(&mut compiler, "([...x] = arr);");
+        assert_not_declaration_l_value_named_x(&mut compiler, "({...x} = obj);");
+        assert_not_declaration_l_value_named_x(&mut compiler, "({[k]: x} = obj);");
+        assert_not_declaration_l_value_named_x(&mut compiler, "for ([x] of arr) {}");
+        assert_not_declaration_l_value_named_x(&mut compiler, "for ([[x]] of arr) {}");
+        assert_not_declaration_l_value_named_x(&mut compiler, "var a = x;");
+        assert_not_declaration_l_value_named_x(&mut compiler, "const [a = x] = arr;");
+        assert_not_declaration_l_value_named_x(&mut compiler, "const {[x]: a} = obj;");
+    }
+
     // port: NodeUtilTest.AssortedTests#testGetBestJsDocInfoNodeStrict_declaredName_doesNotThrow
     #[test]
     fn test_get_best_js_doc_info_node_strict_declared_name_does_not_throw() {
@@ -6358,6 +6404,37 @@ mod assorted_tests {
         let value_7 = parse_first(&mut compiler, Token::CALL, "Object.defineProperties();");
         assert!(!NodeUtil::is_object_define_properties_definition(
             &compiler, value_7
+        ));
+    }
+
+    // port: NodeUtilTest.AssortedTests#testIsObjectCreateWithPropertiesDefinition
+    #[test]
+    fn test_is_object_create_with_properties_definition() {
+        let mut compiler = Compiler::new();
+        let value_1 = parse_first(&mut compiler, Token::CALL, "Object.create(null, {});");
+        assert!(NodeUtil::is_object_create_with_properties_definition(
+            &compiler, value_1
+        ));
+        let value_2 = parse_first(
+            &mut compiler,
+            Token::CALL,
+            "$jscomp.global.Object.create(proto, foo);",
+        );
+        assert!(NodeUtil::is_object_create_with_properties_definition(
+            &compiler, value_2
+        ));
+
+        let value_3 = parse_first(&mut compiler, Token::CALL, "Object.create(proto);");
+        assert!(!NodeUtil::is_object_create_with_properties_definition(
+            &compiler, value_3
+        ));
+        let value_4 = parse_first(
+            &mut compiler,
+            Token::CALL,
+            "other.Object.create(proto, {});",
+        );
+        assert!(!NodeUtil::is_object_create_with_properties_definition(
+            &compiler, value_4
         ));
     }
 

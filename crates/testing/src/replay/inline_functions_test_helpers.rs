@@ -133,13 +133,11 @@ pub fn inline_functions(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslValue,
         DslValue::Object(supplier),
         DslValue::Enum { name: reach, .. },
         DslValue::Bool(assume_strict_this),
-        DslValue::Bool(assume_minimum_capture),
         DslValue::Int(max_size_after_inlining),
     ] = args.as_slice()
     else {
         return Err(Throwable::HarnessError(
-            "InlineFunctions#<init>(AbstractCompiler,Supplier,Reach,boolean,boolean,int) arguments"
-                .into(),
+            "InlineFunctions#<init>(AbstractCompiler,Supplier,Reach,boolean,int) arguments".into(),
         ));
     };
     if supplier.borrow().class != UNIQUE_ID_SUPPLIER {
@@ -159,7 +157,6 @@ pub fn inline_functions(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslValue,
         Arc::new(get),
         reach,
         *assume_strict_this,
-        *assume_minimum_capture,
         *max_size_after_inlining,
     );
     let pass: Box<dyn CompilerPass> = Box::new(InlineFunctionsWithSupplier {

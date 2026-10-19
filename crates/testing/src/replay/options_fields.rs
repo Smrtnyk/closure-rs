@@ -199,11 +199,6 @@ pub fn set_field(
             *options.replay_fields_mut().max_function_size_after_inlining =
                 OptionValue::decode_value(&decoded)?
         }
-        "assumeClosuresOnlyCaptureReferences" => {
-            *options
-                .replay_fields_mut()
-                .assume_closures_only_capture_references = OptionValue::decode_value(&decoded)?
-        }
         "inlineProperties" => {
             *options.replay_fields_mut().inline_properties = OptionValue::decode_value(&decoded)?
         }
@@ -935,10 +930,6 @@ pub fn get_field(options: &CompilerOptions, name: &str) -> Result<JsonValue, Thr
         "maxFunctionSizeAfterInlining" => options
             .replay_fields()
             .max_function_size_after_inlining
-            .encode_value()?,
-        "assumeClosuresOnlyCaptureReferences" => options
-            .replay_fields()
-            .assume_closures_only_capture_references
             .encode_value()?,
         "inlineProperties" => options.replay_fields().inline_properties.encode_value()?,
         "crossChunkCodeMotion" => options

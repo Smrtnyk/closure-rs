@@ -88,9 +88,18 @@ impl Harness {
     }
     // port: ParserTest#parseError
     fn parse_error(&mut self, source: impl Into<JsString>, errors: &[&str]) -> Option<NodeId> {
+        let errors: Vec<JsString> = errors.iter().map(|e| JsString::from(*e)).collect();
+        self.parse_error_js_strings(source, &errors)
+    }
+    // port: ParserTest#parseError (error messages that are not valid UTF-8, e.g. a lone surrogate)
+    fn parse_error_js_strings(
+        &mut self,
+        source: impl Into<JsString>,
+        errors: &[JsString],
+    ) -> Option<NodeId> {
         assert!(!errors.is_empty());
         let mut reporter = TestErrorReporter::new();
-        reporter.expect_all_errors(errors);
+        reporter.expect_all_errors_js_strings(errors);
         let config = self.create_config();
         let result = ParserRunner::parse(
             &mut self.types.ast,
@@ -4611,34 +4620,6 @@ fn test_destructuring_no_rhs() {
     let _ = tmp9;
 }
 
-// port: ParserTest#testComprehensions
-#[test]
-fn test_comprehensions() {
-    let mut h = Harness::new();
-    h.strict_mode = StrictMode::SLOPPY;
-    let mut error = (format!(
-        "{}{}",
-        "unsupported language feature:", " array/generator comprehensions"
-    ))
-    .to_string();
-    let tmp1 = h.parse_error("[for (x of y) z];", &[&error]);
-    let _ = tmp1;
-    let tmp2 = h.parse_error("[for ({x,y} of z) x+y];", &[&error]);
-    let _ = tmp2;
-    let tmp3 = h.parse_error("[for (x of y) if (x<10) z];", &[&error]);
-    let _ = tmp3;
-    let tmp4 = h.parse_error("[for (a = 5 of v) a];", &["'identifier' expected"]);
-    let _ = tmp4;
-    let tmp5 = h.parse_error("(for (x of y) z);", &[&error]);
-    let _ = tmp5;
-    let tmp6 = h.parse_error("(for ({x,y} of z) x+y);", &[&error]);
-    let _ = tmp6;
-    let tmp7 = h.parse_error("(for (x of y) if (x<10) z);", &[&error]);
-    let _ = tmp7;
-    let tmp8 = h.parse_error("(for (a = 5 of v) a);", &["'identifier' expected"]);
-    let _ = tmp8;
-}
-
 // port: ParserTest#testLetForbidden1
 #[test]
 fn test_let_forbidden1() {
@@ -6093,6 +6074,91 @@ fn test_octal_escapes() {
     );
 }
 
+// port: ParserTest#testOctalEscapeWithLeadingDigitFourToSeven
+#[test]
+fn test_octal_escape_with_leading_digit_four_to_seven() {
+    let mut h = Harness::new();
+    h.mode = LanguageMode::ECMASCRIPT5;
+    h.strict_mode = StrictMode::SLOPPY;
+    let mut n = h.parse_warning(
+        "var x = '\\777'",
+        &["Unnecessary escape: '\\7' is equivalent to just '7'"],
+    );
+    assert!(
+        n.get_first_first_child(&h.ast)
+            .unwrap()
+            .get_first_child(&h.ast)
+            .unwrap()
+            .is_string_lit(&h.ast)
+    );
+    assert_eq!(
+        n.get_first_first_child(&h.ast)
+            .unwrap()
+            .get_first_child(&h.ast)
+            .unwrap()
+            .get_string(&h.ast),
+        JsString::from("?7")
+    );
+    n = h.parse_warning(
+        "var x = '\\500'",
+        &["Unnecessary escape: '\\5' is equivalent to just '5'"],
+    );
+    assert!(
+        n.get_first_first_child(&h.ast)
+            .unwrap()
+            .get_first_child(&h.ast)
+            .unwrap()
+            .is_string_lit(&h.ast)
+    );
+    assert_eq!(
+        n.get_first_first_child(&h.ast)
+            .unwrap()
+            .get_first_child(&h.ast)
+            .unwrap()
+            .get_string(&h.ast),
+        JsString::from("(0")
+    );
+    n = h.parse_warning(
+        "var x = '\\400'",
+        &["Unnecessary escape: '\\4' is equivalent to just '4'"],
+    );
+    assert!(
+        n.get_first_first_child(&h.ast)
+            .unwrap()
+            .get_first_child(&h.ast)
+            .unwrap()
+            .is_string_lit(&h.ast)
+    );
+    assert_eq!(
+        n.get_first_first_child(&h.ast)
+            .unwrap()
+            .get_first_child(&h.ast)
+            .unwrap()
+            .get_string(&h.ast),
+        JsString::from(" 0")
+    );
+    // A leading digit of 0-3 still consumes up to three octal digits.
+    n = h.parse_warning(
+        "var x = '\\251'",
+        &["Unnecessary escape: '\\2' is equivalent to just '2'"],
+    );
+    assert!(
+        n.get_first_first_child(&h.ast)
+            .unwrap()
+            .get_first_child(&h.ast)
+            .unwrap()
+            .is_string_lit(&h.ast)
+    );
+    assert_eq!(
+        n.get_first_first_child(&h.ast)
+            .unwrap()
+            .get_first_child(&h.ast)
+            .unwrap()
+            .get_string(&h.ast),
+        JsString::from("©")
+    );
+}
+
 // port: ParserTest#testOldStyleOctalLiterals
 #[test]
 fn test_old_style_octal_literals() {
@@ -7032,10 +7098,19 @@ fn test_invalid_unicode_point_escape_in_identifiers() {
     let _ = tmp11;
     let tmp12 = h.parse_error("Js\\u{10000}ompiler", &["Invalid escape sequence"]);
     let _ = tmp12;
-    let tmp13 = h.parse_error("Js\\u{10041}ompiler", &["Invalid escape sequence"]);
+    let tmp13 = h.parse_error("var _\\u{16978}", &["Invalid escape sequence"]);
     let _ = tmp13;
-    let tmp14 = h.parse_error("Js\\u{110041}ompiler", &["Invalid escape sequence"]);
+    let tmp14 = h.parse_error_js_strings(
+        "var _\u{16978}",
+        &[JsString::from("Character '")
+            .concat(&JsString::from_units(vec![0xD81A]))
+            .concat(&"' (U+D81A) is not a valid identifier start char".into())],
+    );
     let _ = tmp14;
+    let tmp15 = h.parse_error("Js\\u{10041}ompiler", &["Invalid escape sequence"]);
+    let _ = tmp15;
+    let tmp16 = h.parse_error("Js\\u{110041}ompiler", &["Invalid escape sequence"]);
+    let _ = tmp16;
 }
 
 // port: ParserTest#testInvalidUnicodePointEscapeStringLiterals
@@ -12685,6 +12760,77 @@ fn closure_unaware_annotation_on_non_function_call_errors() {
         &mut error_reporter,
     );
     let _ = tmp2;
+}
+
+// port: ParserTest#testNewTargetInClassFieldInitializer
+#[test]
+fn test_new_target_in_class_field_initializer() {
+    let mut h = Harness::new();
+    h.mode = LanguageMode::ECMASCRIPT_2022;
+    h.expect_features(&[
+        Feature::CLASSES,
+        Feature::PUBLIC_CLASS_FIELDS,
+        Feature::NEW_TARGET,
+    ]);
+    let tmp1 = h.parse_error(
+        "class C { x = new.target; static s = new.target; }",
+        &[
+            "new.target must be inside a function",
+            "new.target must be inside a function",
+        ],
+    );
+    let _ = tmp1;
+}
+
+// port: ParserTest#testNewTargetInClassFieldInitializer_inArrowFn
+#[test]
+fn test_new_target_in_class_field_initializer_in_arrow_fn() {
+    let mut h = Harness::new();
+    h.mode = LanguageMode::ECMASCRIPT_2022;
+    h.expect_features(&[
+        Feature::CLASSES,
+        Feature::PUBLIC_CLASS_FIELDS,
+        Feature::NEW_TARGET,
+    ]);
+    let tmp1 = h.parse("class C { x = () => new.target; static s = () => new.target; }");
+    let _ = tmp1;
+}
+
+// port: ParserTest#testNewTargetInClassComputedPropertyName
+#[test]
+fn test_new_target_in_class_computed_property_name() {
+    let mut h = Harness::new();
+    h.mode = LanguageMode::ECMASCRIPT_2022;
+    h.expect_features(&[
+        Feature::CLASSES,
+        Feature::PUBLIC_CLASS_FIELDS,
+        Feature::NEW_TARGET,
+    ]);
+    let tmp1 = h.parse_error(
+        "class C { [new.target] = 1; static [new.target] = 1; }",
+        &[
+            "new.target must be inside a function",
+            "new.target must be inside a function",
+        ],
+    );
+    let _ = tmp1;
+}
+
+// port: ParserTest#testNewTargetInClassStaticBlock
+#[test]
+fn test_new_target_in_class_static_block() {
+    let mut h = Harness::new();
+    h.mode = LanguageMode::ECMASCRIPT_2022;
+    h.expect_features(&[
+        Feature::CLASSES,
+        Feature::CLASS_STATIC_BLOCK,
+        Feature::NEW_TARGET,
+    ]);
+    let tmp1 = h.parse_error(
+        "class C { static { new.target; } }",
+        &["new.target must be inside a function"],
+    );
+    let _ = tmp1;
 }
 
 // port: ParserTest#testParse

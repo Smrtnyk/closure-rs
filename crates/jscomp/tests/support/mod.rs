@@ -874,10 +874,6 @@ pub fn options_fields(options: &CompilerOptions) -> Value {
             options.get_max_function_size_after_inlining().record(),
         ),
         (
-            "assumeClosuresOnlyCaptureReferences",
-            options.assume_closures_only_capture_references().record(),
-        ),
-        (
             "inlineProperties",
             options.should_inline_properties().record(),
         ),

@@ -132,6 +132,11 @@ pub struct PureFunctionIdentifier {
     assume_getters_are_pure: bool,
 
     has_processed: bool,
+
+    /// Arena of every [`FunctionStackEntry`] of the analysis traversal, indexed by
+    /// [`FunctionEntryId`]. Java's call-graph edges keep their caller's entry alive after the
+    /// traversal has popped it; the entries live here so that the edges can hold handles.
+    function_stack_entries: Vec<FunctionStackEntry>,
 }
 
 impl PureFunctionIdentifier {
@@ -188,7 +193,14 @@ impl PureFunctionIdentifier {
             implicit_pure_fn,
             assume_getters_are_pure,
             has_processed: false,
+            function_stack_entries: Vec::new(),
         }
+    }
+
+    fn add_function_stack_entry(&mut self, entry: FunctionStackEntry) -> FunctionEntryId {
+        let id = FunctionEntryId(self.function_stack_entries.len());
+        self.function_stack_entries.push(entry);
+        id
     }
 
     /// Java's `summariesForAllNamesOfFunctionByNode.get(node)`: an empty collection when absent.
@@ -777,14 +789,15 @@ impl PureFunctionIdentifier {
     /// This is an iterative process executed until a fixed point, where no caller summary would
     /// be given new side-effects from from any callee summary, is reached.
     // port: PureFunctionIdentifier#propagateSideEffects
-    fn propagate_side_effects(&mut self, ast: &Ast) {
+    fn propagate_side_effects(&mut self, compiler: &mut AbstractCompiler) {
         let summaries = &mut self.summaries;
+        let entries = &self.function_stack_entries;
         FixedPointGraphTraversal::new_traversal(
             |_graph: &mut LinkedDirectedGraph<SummaryId, SideEffectPropagation>,
              source: SummaryId,
              edge: SideEffectPropagation,
              destination: SummaryId| {
-                edge.propagate(ast, summaries, source, destination)
+                edge.propagate(compiler, entries, summaries, source, destination)
             },
         )
         .compute_fixed_point(&mut self.reverse_call_graph);
@@ -864,6 +877,27 @@ impl PureFunctionIdentifier {
                 compiler.report_change_to_enclosing_scope(call_node);
             }
         }
+    }
+
+    /// Returns the index of `param` in the parameter list of its function.
+    ///
+    /// `param` must not be destructured (which includes rest parameters).
+    // port: PureFunctionIdentifier#getParamIndex
+    fn get_param_index(compiler: &AbstractCompiler, param: VarId) -> i32 {
+        let node = if param.is_default_param(compiler) {
+            param.get_parent_node(compiler)
+        } else {
+            param.get_name_node(compiler)
+        }
+        .unwrap();
+        check_state!(
+            node.get_parent(compiler).unwrap().is_param_list(compiler),
+            "%s",
+            node.to_string(compiler)
+        );
+        node.get_parent(compiler)
+            .unwrap()
+            .get_index_of_child(compiler, node)
     }
 
     // port: PureFunctionIdentifier#isInvocationViaCallOrApply
@@ -1019,6 +1053,11 @@ impl Callback for ExternFunctionAnnotationAnalyzer<'_> {
     }
 }
 
+/// Handle of a [`FunctionStackEntry`] in `PureFunctionIdentifier::function_stack_entries` (Java's
+/// object identity of the entry).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct FunctionEntryId(usize);
+
 /// A single function literal definition and associated side-effect-related information.
 ///
 /// We define separate objects for function literal to simplify handling of nested function
@@ -1073,20 +1112,26 @@ struct FunctionBodyAnalyzer<'a> {
     // The enclosing PureFunctionIdentifier instance (Java inner class).
     pfi: &'a mut PureFunctionIdentifier,
     // Preloaded with an entry to represent the global scope.
-    function_scope_stack: Vec<FunctionStackEntry>,
+    function_scope_stack: Vec<FunctionEntryId>,
 }
 
 impl<'a> FunctionBodyAnalyzer<'a> {
     fn new(pfi: &'a mut PureFunctionIdentifier) -> Self {
+        let global = pfi.add_function_stack_entry(FunctionStackEntry::new(None, false));
         Self {
             pfi,
-            function_scope_stack: vec![FunctionStackEntry::new(None, false)],
+            function_scope_stack: vec![global],
         }
+    }
+
+    fn entry(&self, id: FunctionEntryId) -> &FunctionStackEntry {
+        &self.pfi.function_stack_entries[id.0]
     }
 
     /// Java's `functionScopeStack.getLast()`.
     fn last_entry(&mut self) -> &mut FunctionStackEntry {
-        self.function_scope_stack.last_mut().unwrap()
+        let id = *self.function_scope_stack.last().unwrap();
+        &mut self.pfi.function_stack_entries[id.0]
     }
 
     fn summary(&mut self, summary: SummaryId) -> &mut AmbiguatedFunctionSummary {
@@ -1209,7 +1254,8 @@ impl<'a> FunctionBodyAnalyzer<'a> {
             }
 
             Token::OPTCHAIN_CALL | Token::CALL | Token::NEW | Token::TAGGED_TEMPLATELIT => {
-                self.visit_call(traversal.get_compiler(), encloser_summary, node);
+                let scope = traversal.get_scope();
+                self.visit_call(traversal.get_compiler(), encloser_summary, scope, node);
             }
 
             Token::DESTRUCTURING_LHS => {
@@ -1489,6 +1535,7 @@ impl<'a> FunctionBodyAnalyzer<'a> {
         &mut self,
         compiler: &mut AbstractCompiler,
         caller_info: SummaryId,
+        scope: ScopeId,
         invocation: NodeId,
     ) {
         // Handle special cases (Math, RegExp)
@@ -1519,15 +1566,23 @@ impl<'a> FunctionBodyAnalyzer<'a> {
             return;
         }
 
-        let enclosing_function = self.function_scope_stack.last().unwrap();
-        let propates_throws = enclosing_function.catch_depth == 0;
-        let caller_is_arrow_function = enclosing_function.root.unwrap().is_arrow_function(compiler);
+        let enclosing_function = *self.function_scope_stack.last().unwrap();
+        let propagates_throws = self.entry(enclosing_function).catch_depth == 0;
+        let caller_is_arrow_function = self
+            .entry(enclosing_function)
+            .root
+            .unwrap()
+            .is_arrow_function(compiler);
+        let arguments_match_parameters = self.arguments_match_parameters(compiler, invocation);
         for callee_info in callee_summaries {
             let edge = SideEffectPropagation::for_invocation(
                 compiler,
                 invocation,
+                scope,
+                enclosing_function,
                 caller_is_arrow_function,
-                propates_throws,
+                arguments_match_parameters,
+                propagates_throws,
             );
             self.pfi.reverse_call_graph.connect_nodes(
                 self.pfi.summaries[callee_info.0].graph_node,
@@ -1535,6 +1590,20 @@ impl<'a> FunctionBodyAnalyzer<'a> {
                 self.pfi.summaries[caller_info.0].graph_node,
             );
         }
+    }
+
+    /// Whether the i-th argument of `invocation` is passed as the i-th parameter of the callee,
+    /// in the absence of spread arguments.
+    // port: PureFunctionIdentifier.FunctionBodyAnalyzer#argumentsMatchParameters
+    fn arguments_match_parameters(&self, compiler: &AbstractCompiler, invocation: NodeId) -> bool {
+        !invocation.is_tagged_template_lit(compiler)
+            && !PureFunctionIdentifier::is_invocation_via_call_or_apply(compiler, invocation)
+            // For caching calls like `goog.reflect.cache(cacheObj, key, valueFn)`, the analyzed
+            // callee is `valueFn(key)`, whose 0th parameter is the 2nd argument (`key`).
+            && compiler
+                .get_coding_convention()
+                .describe_caching_call(compiler, invocation)
+                .is_none()
     }
 
     // port: PureFunctionIdentifier.FunctionBodyAnalyzer#addToCatchDepthIfTryBlock
@@ -1576,7 +1645,7 @@ impl Callback for FunctionBodyAnalyzer<'_> {
             self.pfi.all_function_calls.push(node);
         }
 
-        let enclosing_function = self.function_scope_stack.last().unwrap();
+        let enclosing_function = self.entry(*self.function_scope_stack.last().unwrap());
         let root = enclosing_function.root;
         let is_artificially_pure = enclosing_function.is_artificially_pure;
         let Some(root) = root.filter(|_| !is_artificially_pure) else {
@@ -1613,10 +1682,11 @@ impl ScopedCallback for FunctionBodyAnalyzer<'_> {
         let jsdoc = NodeUtil::get_best_jsdoc_info(t, function);
         let is_artificially_pure = jsdoc.is_some_and(|jsdoc| jsdoc.is_no_side_effects());
 
-        self.function_scope_stack.push(FunctionStackEntry::new(
+        let entry = self.pfi.add_function_stack_entry(FunctionStackEntry::new(
             Some(function),
             is_artificially_pure,
         ));
+        self.function_scope_stack.push(entry);
         if !self
             .pfi
             .summaries_for_all_names_of_function_by_node
@@ -1643,20 +1713,16 @@ impl ScopedCallback for FunctionBodyAnalyzer<'_> {
         }
 
         let function_scope_root = function_scope.get_root_node(t.get_compiler());
+        let function_entry = *self.function_scope_stack.last().unwrap();
         check_state!(
-            Some(function_scope_root) == self.function_scope_stack.last().unwrap().root,
+            Some(function_scope_root) == self.entry(function_entry).root,
             "%s",
             function_scope_root.to_string(t)
         );
-        // Java keeps reading `functionEntry` after removing it from the stack.
-        let popped = if t.get_scope_root() == self.function_scope_stack.last().unwrap().root {
-            self.function_scope_stack.pop()
-        } else {
-            None
-        };
-        let function_entry = popped
-            .as_ref()
-            .unwrap_or_else(|| self.function_scope_stack.last().unwrap());
+        if t.get_scope_root() == self.entry(function_entry).root {
+            self.function_scope_stack.pop();
+        }
+        let function_entry = &self.pfi.function_stack_entries[function_entry.0];
         let summaries = &mut self.pfi.summaries;
 
         // Handle deferred local variable modifications:
@@ -1687,7 +1753,11 @@ impl ScopedCallback for FunctionBodyAnalyzer<'_> {
                     && !function_entry.skiplisted_vars.contains(&v)
                     && function_entry.tainted_vars.contains(&v)
                 {
-                    side_effect_info.set_mutates_arguments(compiler, v.get_node(compiler));
+                    side_effect_info.set_mutates_argument_at(
+                        compiler,
+                        PureFunctionIdentifier::get_param_index(compiler, v),
+                        v.get_node(compiler),
+                    );
                     continue;
                 }
 
@@ -1716,9 +1786,6 @@ struct SideEffectPropagation {
     // side effects of the "callee" just need to be copied onto the "caller".
     caller_is_alias: bool,
 
-    // If all the arguments passed to the callee are local to the caller.
-    all_args_unescaped_local: bool,
-
     /*
      * If you call a function with apply or call, one of the arguments at the call site will be
      * used as 'this' inside the implementation. If this is pass into apply like so:
@@ -1734,6 +1801,16 @@ struct SideEffectPropagation {
 
     // The token used to invoke the callee by the caller.
     invocation: Option<NodeId>,
+
+    // The scope containing the invocation.
+    call_scope: Option<ScopeId>,
+
+    // The function containing the invocation.
+    caller_entry: Option<FunctionEntryId>,
+
+    // Whether the i-th argument of the invocation is passed as the i-th parameter of the callee,
+    // in the absence of spread arguments.
+    arguments_match_parameters: bool,
 }
 
 impl GraphvizValue for SideEffectPropagation {
@@ -1747,13 +1824,16 @@ impl SideEffectPropagation {
     /// `ast` reads the invocation for Java's argument check; it is `None` only when
     /// `invocation` is `None` (Java's `invocation == null` branch).
     // port: PureFunctionIdentifier.SideEffectPropagation#SideEffectPropagation
+    #[allow(clippy::too_many_arguments)]
     fn new(
         ast: Option<&Ast>,
         caller_is_alias: bool,
-        all_args_unescaped_local: bool,
         callee_this_equals_caller_this: bool,
         propagate_throws: bool,
         invocation: Option<NodeId>,
+        call_scope: Option<ScopeId>,
+        caller_entry: Option<FunctionEntryId>,
+        arguments_match_parameters: bool,
     ) -> Self {
         if let (Some(ast), Some(invocation)) = (ast, invocation) {
             check_argument!(
@@ -1765,23 +1845,30 @@ impl SideEffectPropagation {
 
         Self {
             caller_is_alias,
-            all_args_unescaped_local,
             callee_this_equals_caller_this,
             propagate_throws,
             invocation,
+            call_scope,
+            caller_entry,
+            arguments_match_parameters,
         }
     }
 
     // port: PureFunctionIdentifier.SideEffectPropagation#forAlias
     fn for_alias() -> Self {
-        Self::new(None, true, false, false, true, None)
+        Self::new(None, true, false, true, None, None, None, false)
     }
 
+    /// `caller_is_arrow_function` is Java's `callerEntry.root.isArrowFunction()`, read by the
+    /// caller, which holds the entry.
     // port: PureFunctionIdentifier.SideEffectPropagation#forInvocation
     fn for_invocation(
         ast: &Ast,
         invocation: NodeId,
+        call_scope: ScopeId,
+        caller_entry: FunctionEntryId,
         caller_is_arrow_function: bool,
+        arguments_match_parameters: bool,
         propagate_throws: bool,
     ) -> Self {
         check_argument!(
@@ -1793,13 +1880,77 @@ impl SideEffectPropagation {
         Self::new(
             Some(ast),
             false,
-            NodeUtil::all_args_unescaped_local(ast, invocation),
             // `this` in an arrow function is the `this` of the enclosing function, which is not
             // tracked.
             Self::callee_and_caller_share_this(ast, invocation) && !caller_is_arrow_function,
             propagate_throws,
             Some(invocation),
+            Some(call_scope),
+            Some(caller_entry),
+            arguments_match_parameters,
         )
+    }
+
+    /// Whether `expr`, passed to the callee, holds a value that is local to the caller.
+    ///
+    /// Must only be called once the caller has been fully traversed.
+    // port: PureFunctionIdentifier.SideEffectPropagation#holdsLocalValue
+    fn holds_local_value(
+        &self,
+        compiler: &mut AbstractCompiler,
+        entries: &[FunctionStackEntry],
+        expr: NodeId,
+    ) -> bool {
+        NodeUtil::evaluates_to_local_value(compiler, expr)
+            || (expr.is_name(compiler) && {
+                let call_scope = self.call_scope.unwrap();
+                let name = expr.get_string(compiler);
+                let v = call_scope.get_var(compiler, name);
+                entries[self.caller_entry.unwrap().0].is_local_var(compiler, v, call_scope)
+            })
+    }
+
+    /// Whether all the arguments that may be mutated by the callee are local to the caller.
+    // port: PureFunctionIdentifier.SideEffectPropagation#mutatedArgumentsAreLocal
+    fn mutated_arguments_are_local(
+        &self,
+        compiler: &mut AbstractCompiler,
+        entries: &[FunctionStackEntry],
+        mutated_param_mask: i64,
+    ) -> bool {
+        let invocation = self.invocation.unwrap();
+        if !self.arguments_match_parameters {
+            return NodeUtil::all_args_unescaped_local(compiler, invocation);
+        }
+        let mut index: i32 = 0;
+        let mut arg = invocation.get_second_child(compiler);
+        while let Some(a) = arg {
+            if a.is_spread(compiler) {
+                return false;
+            }
+            if (index >= i64::BITS as i32 || (mutated_param_mask & (1i64 << index)) != 0)
+                && !self.holds_local_value(compiler, entries, a)
+            {
+                return false;
+            }
+            arg = a.get_next(compiler);
+            index += 1;
+        }
+        true
+    }
+
+    /// Whether the receiver of the invocation is local to the caller, e.g. `o` in `o.m()`.
+    // port: PureFunctionIdentifier.SideEffectPropagation#receiverIsLocal
+    fn receiver_is_local(
+        &self,
+        compiler: &mut AbstractCompiler,
+        entries: &[FunctionStackEntry],
+    ) -> bool {
+        let invocation = self.invocation.unwrap();
+        let callee = invocation.get_first_child(compiler).unwrap();
+        !PureFunctionIdentifier::is_invocation_via_call_or_apply(compiler, invocation)
+            && NodeUtil::is_normal_or_opt_chain_get_prop(compiler, callee)
+            && self.holds_local_value(compiler, entries, callee.get_first_child(compiler).unwrap())
     }
 
     // port: PureFunctionIdentifier.SideEffectPropagation#calleeAndCallerShareThis
@@ -1844,7 +1995,8 @@ impl SideEffectPropagation {
     // port: PureFunctionIdentifier.SideEffectPropagation#propagate
     fn propagate(
         &self,
-        ast: &Ast,
+        compiler: &mut AbstractCompiler,
+        entries: &[FunctionStackEntry],
         summaries: &mut [AmbiguatedFunctionSummary],
         callee: SummaryId,
         caller: SummaryId,
@@ -1852,38 +2004,51 @@ impl SideEffectPropagation {
         // `callee` and `caller` may be the same summary (a self-edge), so the callee's state is
         // read through its handle at each use, as Java reads the shared object.
         let initial_caller_flags = summaries[caller.0].bitmask;
+        let initial_caller_param_mask = summaries[caller.0].mutated_param_mask;
 
         if self.caller_is_alias {
             let callee_bitmask = summaries[callee.0].bitmask;
             summaries[caller.0].set_mask(callee_bitmask);
+            summaries[caller.0].mutated_param_mask |= summaries[callee.0].mutated_param_mask;
         } else if summaries[callee.0].mutates_global_state() {
             // If the callee modifies global state then so does that caller.
-            summaries[caller.0].set_mutates_global_state_and_all_other_flags(ast, self.invocation);
+            summaries[caller.0]
+                .set_mutates_global_state_and_all_other_flags(compiler, self.invocation);
         } else {
             if self.propagate_throws && summaries[callee.0].function_throws() {
                 // If the callee throws an exception then so does the caller.
-                summaries[caller.0].set_throws(ast, self.invocation);
+                summaries[caller.0].set_throws(compiler, self.invocation);
             }
-            if summaries[callee.0].mutates_arguments() && !self.all_args_unescaped_local {
+            if summaries[callee.0].mutates_arguments()
+                && !self.mutated_arguments_are_local(
+                    compiler,
+                    entries,
+                    summaries[callee.0].mutated_param_mask,
+                )
+            {
                 // If the callee mutates its input arguments and the arguments escape the caller
                 // then it has unbounded side effects.
                 summaries[caller.0]
-                    .set_mutates_global_state_and_all_other_flags(ast, self.invocation);
+                    .set_mutates_global_state_and_all_other_flags(compiler, self.invocation);
             }
             if summaries[callee.0].mutates_this() {
-                if self.invocation.unwrap().is_new(ast) {
+                if self.invocation.unwrap().is_new(compiler) {
                     // NEWing a constructor provide a unescaped "this" making side-effects
                     // impossible.
                 } else if self.callee_this_equals_caller_this {
-                    summaries[caller.0].set_mutates_this(ast, self.invocation);
+                    summaries[caller.0].set_mutates_this(compiler, self.invocation);
+                } else if self.receiver_is_local(compiler, entries) {
+                    // The callee mutates an object local to the caller, e.g.
+                    // `const o = new Foo(); o.m();`.
                 } else {
                     summaries[caller.0]
-                        .set_mutates_global_state_and_all_other_flags(ast, self.invocation);
+                        .set_mutates_global_state_and_all_other_flags(compiler, self.invocation);
                 }
             }
         }
 
         summaries[caller.0].bitmask != initial_caller_flags
+            || summaries[caller.0].mutated_param_mask != initial_caller_param_mask
     }
 }
 
@@ -1903,6 +2068,8 @@ struct AmbiguatedFunctionSummary {
     // The side effect flags for this set of functions.
     // TODO(nickreid): Replace this with a `Node.SideEffectFlags`.
     bitmask: i32,
+    // The indices of the parameters (0..63) mutated by this function, if MUTATES_ARGUMENTS is set.
+    mutated_param_mask: i64,
     collect_impure_debugging_reason: bool,
     // FUNCTION nodes with a name corresponding to this summary that are impure.
     // Only ever initialized if `collect_impure_debugging_reason` is true, and if
@@ -1942,6 +2109,7 @@ impl AmbiguatedFunctionSummary {
             name,
             graph_node: graph.create_node(id),
             bitmask: 0,
+            mutated_param_mask: 0,
             collect_impure_debugging_reason: false,
             impure_function_reasons_for_debugging: None,
         }
@@ -2016,6 +2184,7 @@ impl AmbiguatedFunctionSummary {
         debugging_reason: Option<NodeId>,
     ) -> &mut Self {
         self.maybe_collect_impure_debugging_reason(ast, debugging_reason);
+        self.mutated_param_mask = !0;
         self.set_mask(
             Self::THROWS
                 | Self::MUTATES_THIS
@@ -2035,6 +2204,27 @@ impl AmbiguatedFunctionSummary {
     // port: PureFunctionIdentifier.AmbiguatedFunctionSummary#setMutatesArguments
     fn set_mutates_arguments(&mut self, ast: &Ast, debugging_reason: Option<NodeId>) -> &mut Self {
         self.maybe_collect_impure_debugging_reason(ast, debugging_reason);
+        self.mutated_param_mask = !0;
+        self.set_mask(Self::MUTATES_ARGUMENTS)
+    }
+
+    /// Marks the function as mutating the parameter at `param_index`.
+    // port: PureFunctionIdentifier.AmbiguatedFunctionSummary#setMutatesArgumentAt
+    fn set_mutates_argument_at(
+        &mut self,
+        ast: &Ast,
+        param_index: i32,
+        debugging_reason: Option<NodeId>,
+    ) -> &mut Self {
+        check_argument!(param_index >= 0, "%s", param_index);
+        self.maybe_collect_impure_debugging_reason(ast, debugging_reason);
+        // A parameter that doesn't fit in the mask is approximated by all the parameters.
+        let param_bit: i64 = if param_index < i64::BITS as i32 {
+            1i64 << param_index
+        } else {
+            !0
+        };
+        self.mutated_param_mask |= param_bit;
         self.set_mask(Self::MUTATES_ARGUMENTS)
     }
 

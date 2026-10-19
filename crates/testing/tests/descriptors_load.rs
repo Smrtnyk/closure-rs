@@ -119,8 +119,8 @@ fn options_defaults_load_and_round_trip() {
     assert_eq!(d.v, 2);
     assert_eq!(d.class, "com.google.javascript.jscomp.CompilerOptions");
     assert_eq!(d.depth, 4);
-    assert_eq!(d.fields.len(), 205);
-    assert_eq!(d.field_types.len(), 205);
+    assert_eq!(d.fields.len(), 204);
+    assert_eq!(d.field_types.len(), 204);
     assert!(
         d.fields.keys().eq(d.field_types.keys()),
         "fields vs fieldTypes"

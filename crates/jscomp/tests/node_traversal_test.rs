@@ -961,3 +961,39 @@ fn test_report_change4() {
         &mut NameChangingCallback,
     );
 }
+
+// port: NodeTraversalTest#testCanonicalTraverseEntryPoints
+#[test]
+fn test_canonical_traverse_entry_points() {
+    let mut compiler = Compiler::new();
+    let externs = compiler.new_node(Token::BLOCK);
+    let root = compiler.new_node(Token::BLOCK);
+    let scope_root = compiler.new_node_with_children2(Token::ROOT, externs, root);
+
+    let visited: std::cell::RefCell<Vec<NodeId>> = std::cell::RefCell::new(vec![]);
+    let mut cb = closure_jscomp::node_traversal::AbstractPostOrderCallback::new(
+        |_t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>| {
+            visited.borrow_mut().push(n);
+        },
+    );
+
+    // test traverse
+    NodeTraversal::traverse(&mut compiler, root, &mut cb);
+    assert_eq!(*visited.borrow(), [root]);
+    visited.borrow_mut().clear();
+
+    // test traverseRoots
+    NodeTraversal::traverse_roots(&mut compiler, &mut cb, externs, root);
+    assert_eq!(*visited.borrow(), [externs, root]);
+    visited.borrow_mut().clear();
+
+    // test traverseScopeRoots
+    NodeTraversal::traverse_scope_roots(&mut compiler, &[root], &mut cb, false);
+    assert_eq!(*visited.borrow(), [root]);
+    visited.borrow_mut().clear();
+
+    // test traverseAtScope
+    let scope = SyntacticScopeCreator::new().create_scope(&mut compiler, scope_root, None);
+    NodeTraversal::traverse_at_scope_with_callback(&mut compiler, &mut cb, scope);
+    assert_eq!(*visited.borrow(), [externs, root, scope_root]);
+}

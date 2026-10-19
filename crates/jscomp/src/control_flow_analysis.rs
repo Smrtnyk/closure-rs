@@ -44,7 +44,7 @@ pub struct ControlFlowAnalysis {
     should_traverse_functions: bool,
     root: NodeId,
     exception_handler: VecDeque<NodeId>,
-    // Guava HashMultimap's identity-hash order varies per JVM. Use insertion order.
+    // Guava LinkedHashMultimap: keys and each key's values in insertion order.
     finally_map: IndexMap<NodeId, IndexSet<Option<NodeId>>>,
 }
 #[derive(Default)]

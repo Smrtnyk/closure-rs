@@ -114,3 +114,30 @@ fn test_generated_ids_are_deterministic_across_runs() {
     // different IDs for same input with same compiler
     assert_ne!(unique_id1, different_unique_id1);
 }
+
+// port: UniqueIdSupplierTest#testProtoRoundTripPreservesInsertionOrder
+#[test]
+fn test_proto_round_trip_preserves_insertion_order() {
+    let mut unique_id_supplier = UniqueIdSupplier::new();
+    let input1 = CompilerInput::new(SourceFile::from_code("fileA.js", ""));
+    let input2 = CompilerInput::new(SourceFile::from_code("fileB.js", ""));
+    let input3 = CompilerInput::new(SourceFile::from_code("fileC.js", ""));
+
+    let _unused1 = unique_id_supplier.get_unique_id(&input1);
+    let _unused2 = unique_id_supplier.get_unique_id(&input2);
+    let _unused3 = unique_id_supplier.get_unique_id(&input3);
+    let _unused4 = unique_id_supplier.get_unique_id(&input1); // increment counter for fileA
+
+    let protos = unique_id_supplier.to_proto();
+
+    assert_eq!(protos.len(), 3);
+    assert_eq!(protos[0].get_hash(), JsString::from("fileA.js").hash_code());
+    assert_eq!(protos[0].get_counter(), 2);
+    assert_eq!(protos[1].get_hash(), JsString::from("fileB.js").hash_code());
+    assert_eq!(protos[1].get_counter(), 1);
+    assert_eq!(protos[2].get_hash(), JsString::from("fileC.js").hash_code());
+    assert_eq!(protos[2].get_counter(), 1);
+
+    let restored = UniqueIdSupplier::from_proto(&protos);
+    assert_eq!(restored.to_proto(), protos);
+}

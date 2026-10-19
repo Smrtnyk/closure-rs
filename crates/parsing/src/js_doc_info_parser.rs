@@ -1509,6 +1509,7 @@ impl<'a> JsDocInfoParser<'a> {
         }
         let mut suppressions = IndexSet::<_>::default();
         loop {
+            self.skip_eols();
             if self.match_token(JsDocToken::STRING) {
                 let name = self.stream.get_string();
                 if !self.suppression_names.contains(&name) {
@@ -1520,6 +1521,7 @@ impl<'a> JsDocInfoParser<'a> {
                 self.add_parser_warning(ast, Msg::JSDOC_SUPPRESS);
                 return token;
             }
+            self.skip_eols();
             if self.match_two(JsDocToken::PIPE, JsDocToken::COMMA) {
                 token = self.next();
             } else {

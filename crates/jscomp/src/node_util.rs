@@ -2468,11 +2468,23 @@ impl NodeUtil {
             | Token::CATCH
             | Token::CLASS
             | Token::FUNCTION => true,
-            Token::STRING_KEY => {
-                Self::is_name_declaration(ast, parent.get_parent(ast).unwrap().get_grandparent(ast))
-            }
-            Token::OBJECT_PATTERN | Token::ARRAY_PATTERN => {
-                Self::is_name_declaration(ast, parent.get_grandparent(ast))
+            Token::STRING_KEY
+            | Token::OBJECT_PATTERN
+            | Token::ARRAY_PATTERN
+            | Token::COMPUTED_PROP
+            | Token::DEFAULT_VALUE
+            | Token::ITER_REST
+            | Token::OBJECT_REST => {
+                let root_target_parent = Self::get_root_target(ast, n).get_parent(ast).unwrap();
+                if root_target_parent.is_rest(ast) || root_target_parent.is_default_value(ast) {
+                    return root_target_parent
+                        .get_parent(ast)
+                        .unwrap()
+                        .is_param_list(ast);
+                } else if root_target_parent.is_destructuring_lhs(ast) {
+                    return Self::is_name_declaration(ast, root_target_parent.get_parent(ast));
+                }
+                root_target_parent.is_param_list(ast) || root_target_parent.is_catch(ast)
             }
             _ => false,
         }
@@ -3218,6 +3230,18 @@ impl NodeUtil {
             return false;
         }
         getprop.get_string_ref(ast) == "defineProperties"
+            && Self::is_known_global_object_reference(ast, getprop.get_first_child(ast).unwrap())
+    }
+
+    /// Returns `true` if the node is a 2-argument `Object.create(proto, descriptors)`.
+    // port: NodeUtil#isObjectCreateWithPropertiesDefinition
+    pub fn is_object_create_with_properties_definition(ast: &Ast, n: NodeId) -> bool {
+        if !n.is_call(ast) || !n.has_x_children(ast, 3) {
+            return false;
+        }
+        let getprop = n.get_first_child(ast).unwrap();
+        getprop.is_get_prop(ast)
+            && getprop.get_string_ref(ast) == "create"
             && Self::is_known_global_object_reference(ast, getprop.get_first_child(ast).unwrap())
     }
 }

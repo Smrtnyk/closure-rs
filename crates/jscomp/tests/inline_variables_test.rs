@@ -3006,6 +3006,66 @@ use(C);
     );
 }
 
+/// `LanguageMode.<name>` as the harness's option value.
+fn language_mode(name: &str) -> DslValue {
+    DslValue::Enum {
+        class: "com.google.javascript.jscomp.CompilerOptions$LanguageMode".into(),
+        name: name.into(),
+    }
+}
+
+#[test]
+fn test_field_declared_const_assigned_inside_instance_field_initializer() {
+    let mut t = InlineVariablesTest::set_up();
+    // TODO(b/572004916): @const assigned in field initializer is inlined before instantiation
+    t.harness
+        .set_language_out(language_mode("ECMASCRIPT_2022"))
+        .unwrap();
+    t.test(
+        r#"/** @const */ var a;
+class C {
+  x = (a = 1);
+}
+alert(a);
+new C();
+"#,
+        r#"class C {
+  x = 1;
+}
+alert(1);
+new C();
+"#,
+    );
+}
+
+#[test]
+fn test_field_declared_const_assigned_inside_instance_field_initializer_local() {
+    let mut t = InlineVariablesTest::set_up();
+    // TODO(b/572004916): local @const assigned in field initializer is inlined before instantiation
+    t.harness
+        .set_language_out(language_mode("ECMASCRIPT_2022"))
+        .unwrap();
+    t.test(
+        r#"function f() {
+  /** @const */ var a;
+  class C {
+    x = (a = 1);
+  }
+  alert(a);
+  return new C();
+}
+"#,
+        r#"function f() {
+  class C {
+    x = 1;
+  }
+  alert(1);
+  return new C();
+}
+"#,
+    );
+}
+
 // Rust-only (crates/DESIGN.md, "Performance divergences"): the second run of the pass on a compiler
 // skips the externs when their NAMEs resolve only to vars declared in the externs, and traverses
 // them otherwise.

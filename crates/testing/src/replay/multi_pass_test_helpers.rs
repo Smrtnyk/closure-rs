@@ -140,7 +140,6 @@ impl MultiPassTestHelpers {
                         compiler.get_unique_name_id_supplier(),
                         Reach::ALL,
                         true,
-                        true,
                         CompilerOptions::UNLIMITED_FUN_SIZE_AFTER_INLINING,
                     ));
                     pass

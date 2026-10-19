@@ -69,7 +69,6 @@ pub struct InlineFunctions {
     function_argument_injector: Rc<FunctionArgumentInjector>,
 
     reach: Reach,
-    assume_minimum_capture: bool,
 
     enforce_max_size_after_inlining: bool,
     max_size_after_inlining: i32,
@@ -82,7 +81,6 @@ impl InlineFunctions {
         safe_name_id_supplier: Arc<dyn Fn() -> String + Send + Sync>,
         reach: Reach,
         assume_strict_this: bool,
-        assume_minimum_capture: bool,
         max_size_after_inlining: i32,
     ) -> Self {
         check_argument!(reach != Reach::NONE);
@@ -98,7 +96,6 @@ impl InlineFunctions {
         let injector = function_injector::Builder::new(compiler)
             .safe_name_id_supplier(safe_name_id_supplier)
             .assume_strict_this(assume_strict_this)
-            .assume_minimum_capture(assume_minimum_capture)
             .function_argument_injector(function_argument_injector.clone())
             .build(compiler);
         Self {
@@ -107,7 +104,6 @@ impl InlineFunctions {
             injector,
             function_argument_injector,
             reach,
-            assume_minimum_capture,
             enforce_max_size_after_inlining: max_size_after_inlining
                 != CompilerOptions::UNLIMITED_FUN_SIZE_AFTER_INLINING,
             max_size_after_inlining,
@@ -193,7 +189,6 @@ impl InlineFunctions {
             fns,
             injector,
             function_argument_injector,
-            assume_minimum_capture,
             enforce_max_size_after_inlining,
             max_size_after_inlining,
             ..
@@ -282,7 +277,7 @@ impl InlineFunctions {
                     // TODO(johnlenz): this can be improved by looking at the possible
                     // values for locals.  If there are simple values, or constants
                     // we could still inline.
-                    if !*assume_minimum_capture && Self::has_local_names(compiler, fn_node) {
+                    if Self::has_local_names(compiler, fn_node) {
                         function_state
                             .disallow_inlining(compiler, DisallowInliningReason::HAS_LOCAL_NAMES);
                     }

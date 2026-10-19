@@ -107,7 +107,7 @@ that need them.
   the per-class table must equal `tests/data/record_counts.tsv`, which
   `tests/data/gen_record_counts.py` writes independently with Python's `json` module.
 - `tests/descriptors_load.rs`: all 255 descriptors (375 cases) load and round-trip, and their stems
-  equal the non-empty record files; `options_defaults.json` (205 fields) and `expected_pipeline`
+  equal the non-empty record files; `options_defaults.json` (204 fields) and `expected_pipeline`
   (21,464 lines) load and round-trip.
 - `tests/cross_checks.rs`: case selection for every record; descriptor `unrepresentable` entries
   name existing records; `expected_pipeline` is keyed one-to-one onto the `compiler_test_case`
@@ -227,7 +227,7 @@ ReplaceMessagesTest helper (`TEST_ID_GENERATOR`, `SimpleMessageBundle` and its h
 `replay/replace_messages_helpers.rs`.
 
 `mod.rs` only declares modules. A stand-in is replaced in place when its implementation is ported;
-an Unported-only body is never marked as a port. Replay assigns all 205 fields on the real
+an Unported-only body is never marked as a port. Replay assigns all 204 fields on the real
 CompilerOptions without invoking setters, and constructor defaults are checked before assignment.
 NodeSubject's equality, mismatch and serializer code is ported; its other Truth convenience
 subjects are outside the replay comparison path and are not ported.

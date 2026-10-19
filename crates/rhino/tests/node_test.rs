@@ -1660,3 +1660,47 @@ fn test_is_pos() {
     let number = ast.new_number(1.0);
     assert!(!number.is_pos(&ast));
 }
+// port: NodeTest#testReplaceWithPropagatesSrcrefIfMissing
+#[test]
+fn test_replace_with_propagates_srcref_if_missing() {
+    let mut ast = Ast::new();
+    let parent = ast.new_node(Token::BLOCK);
+    let target = ast.new_node(Token::NAME);
+    target.set_lineno_charno(&mut ast, 10, 5);
+    target.set_source_file_for_testing(&mut ast, "target.js");
+    parent.add_child_to_back(&mut ast, target);
+    // Case (a): replacement has no source info
+    let replacement1 = ast.new_node(Token::NAME);
+    target.replace_with(&mut ast, replacement1);
+    assert_eq!(replacement1.get_lineno(&ast), 10);
+    assert_eq!(replacement1.get_charno(&ast), 5);
+    assert_eq!(
+        replacement1.get_source_file_name(&ast).as_deref(),
+        Some("target.js")
+    );
+    // Case (b): replacement already has source info
+    let replacement2 = ast.new_node(Token::NAME);
+    replacement2.set_lineno_charno(&mut ast, 20, 8);
+    replacement2.set_source_file_for_testing(&mut ast, "replacement.js");
+    replacement1.replace_with(&mut ast, replacement2);
+    assert_eq!(replacement2.get_lineno(&ast), 20);
+    assert_eq!(replacement2.get_charno(&ast), 8);
+    assert_eq!(
+        replacement2.get_source_file_name(&ast).as_deref(),
+        Some("replacement.js")
+    );
+    // Case (c): child of replacement has no source info
+    let replacement3 = ast.new_node(Token::NAME);
+    let child = ast.new_node(Token::NAME);
+    replacement3.add_child_to_back(&mut ast, child);
+    replacement2.replace_with(&mut ast, replacement3);
+    assert_eq!(replacement3.get_lineno(&ast), 20);
+    assert_eq!(replacement3.get_charno(&ast), 8);
+    assert_eq!(
+        replacement3.get_source_file_name(&ast).as_deref(),
+        Some("replacement.js")
+    );
+    assert_eq!(child.get_lineno(&ast), -1);
+    assert_eq!(child.get_charno(&ast), -1);
+    assert!(child.get_source_file_name(&ast).is_none());
+}

@@ -232,7 +232,7 @@ fn test_fold_not() {
     t.fold("x = !(y() && true)", "x = !y()");
     // This will be further optimized by PeepholeFoldConstants.
     t.fold("x = !true", "x = !1");
-    t.fold_same("x = !!(a < b)");
+    t.fold("x = !!(a < b)", "x = a < b");
     t.fold_same("x = !!a");
 }
 
@@ -387,42 +387,33 @@ fn test_minimize_hook() {
         "(x ? y : z) ? bar() : foo()",
     );
 
-    t.fold_same("y = x ? true : false");
-    t.fold_same("y = x ? !0 : !1");
-    t.fold_same("y = x ? false : true");
-    t.fold_same("y = x ? !1 : !0");
-    t.fold("y = !x ? true : false", "y = x ? false : true");
-    t.fold("y = !x ? false : true", "y = x ? true : false");
-    t.fold_same("y = (a === b) ? true : false");
-    t.fold_same("y = (a === b) ? false : true");
-    t.fold(
-        "y = !(a === b) ? true : false",
-        "y = a !== b ? true : false",
-    );
-    t.fold_same("y = (a < b) ? true : false");
-    t.fold_same("y = (a < b) ? false : true");
-    t.fold("y = !(a < b) ? true : false", "y = a < b ? false : true");
-    t.fold("y = !(a < b) ? false : true", "y = a < b ? true : false");
-    t.fold("y = !!(a < b) ? true : false", "y = a < b ? true : false");
-    t.fold("y = (!a || !b) ? true : false", "y = a && b ? false : true");
-    t.fold(
-        "y = !(a && !b) ? true : false",
-        "y = !a || b ? true : false",
-    );
-    t.fold(
-        "y = !(a && !b) ? false : true",
-        "y = !a || b ? false : true",
-    );
-    t.fold(
-        "y = !(a === 1 && !b) ? false : true",
-        "y = a !== 1 || b ? false : true",
-    );
+    t.fold("y = x ? true : false", "y = !!x");
+    t.fold("y = x ? !0 : !1", "y = !!x");
+    t.fold("y = x ? false : true", "y = !x");
+    t.fold("y = x ? !1 : !0", "y = !x");
+    t.fold("y = !x ? true : false", "y = !x");
+    t.fold("y = !x ? false : true", "y = !!x");
+    t.fold("y = (a === b) ? true : false", "y = a === b");
+    t.fold("y = (a === b) ? false : true", "y = a !== b");
+    t.fold("y = !(a === b) ? true : false", "y = a !== b");
+    t.fold("y = (a < b) ? true : false", "y = a < b");
+    t.fold("y = (a < b) ? false : true", "y = !(a < b)");
+    t.fold("y = !(a < b) ? true : false", "y = !(a < b)");
+    t.fold("y = !(a < b) ? false : true", "y = a < b");
+    t.fold("y = !!(a < b) ? true : false", "y = a < b");
+    t.fold("y = (!a || !b) ? true : false", "y = !a || !b");
+    t.fold("y = !(a && !b) ? true : false", "y = !(a && !b)");
+    t.fold("y = !(a && !b) ? false : true", "y = !!(a && !b)");
+    t.fold("y = !(a === 1 && !b) ? false : true", "y = a === 1 && !b");
     t.fold(
         "y = (inc(), !test()) ? true : false",
-        "y = (inc(), test()) ? false : true",
+        "y = (inc(), !test())",
     );
-    t.fold_same("y = x ? (function(){}, true) : false");
-    t.fold_same("y = (a === b) ? (function(){}, true) : false");
+    t.fold("y = x ? (function(){}, true) : false", "y = !!x");
+    t.fold(
+        "y = (a === b) ? (function(){}, true) : false",
+        "y = a === b",
+    );
     t.fold_same("y = x ? 1 : 0");
     t.fold_same("y = x ? 'a' : ''");
 }

@@ -161,9 +161,10 @@ impl ConstantDeclaration {
     }
 }
 
-/// Java's `HashBasedTable<JSType, String, ConstantDeclaration>`: rows are found like a Java
-/// `HashMap` finds a key (equal `JSType#hashCode`, then identity or `JSType#equals`). The table is
-/// only read with `get` and written with `row(..).putIfAbsent(..)`; it is never iterated.
+/// Java's `Tables.newCustomTable(new LinkedHashMap<>(), LinkedHashMap::new)` keyed by `JSType`
+/// and `String`: rows are found like a Java `LinkedHashMap` finds a key (equal `JSType#hashCode`,
+/// then identity or `JSType#equals`). The table is only read with `get` and written with
+/// `row(..).putIfAbsent(..)`; it is never iterated.
 /// One row of the table: its JSType key and the column map.
 type ConstPropertyRow = (TypeId, IndexMap<JsString, ConstantDeclaration>);
 
@@ -186,7 +187,7 @@ impl ConstPropertyTable {
             .position(|(key, _)| *key == row || row.equals(reg, ast, *key))
     }
 
-    // port: HashBasedTable#get
+    // port: Table#get
     fn get(
         &self,
         reg: &mut JSTypeRegistry,
@@ -200,7 +201,7 @@ impl ConstPropertyTable {
         self.rows[&hash][index].1.get(column).copied()
     }
 
-    // port: HashBasedTable#row + Map#putIfAbsent
+    // port: Table#row + Map#putIfAbsent
     fn row_put_if_absent(
         &mut self,
         reg: &mut JSTypeRegistry,

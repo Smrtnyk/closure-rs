@@ -1083,7 +1083,7 @@ impl<'a> NodeTraversal<'a> {
         }
     }
 
-    // port: NodeTraversal#traverseAtScope
+    // port: NodeTraversal#traverseAtScope(AbstractScope)
     pub fn traverse_at_scope(&mut self, s: impl Into<AbstractScopeHandle>) {
         let s = s.into();
         let callback = check_not_null!(self.callback.take());
@@ -1187,6 +1187,19 @@ impl<'a> NodeTraversal<'a> {
                 self.traverse_with_scope_callback(n, s, callback);
             }
         }
+    }
+
+    /// Traverses the given scope.
+    // port: NodeTraversal#traverseAtScope(AbstractCompiler, Callback, AbstractScope)
+    pub fn traverse_at_scope_with_callback(
+        compiler: &mut AbstractCompiler,
+        cb: &mut dyn Callback,
+        scope: impl Into<AbstractScopeHandle>,
+    ) {
+        NodeTraversal::builder()
+            .set_compiler(compiler)
+            .set_callback(cb)
+            .traverse_at_scope(scope);
     }
 
     // port: NodeTraversal#traverseScopeRoots

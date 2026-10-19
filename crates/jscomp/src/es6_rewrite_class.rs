@@ -23,11 +23,13 @@ use crate::{
     ast_factory::{AstFactory, Type},
     compiler_options::Es6SubclassTranspilation,
     compiler_pass::CompilerPass,
+    diagnostic_type::DiagnosticType,
     es6_convert_super_constructor_calls::Es6ConvertSuperConstructorCalls,
     global_namespace::GlobalNamespace,
     js::runtime_js_lib_manager::JsLibField,
+    js_error::JSError,
     node_traversal::{Callback, NodeTraversal},
-    node_util::NodeUtil,
+    node_util::{NodeUtil, ValueType},
     transpilation_namespace::TranspilationNamespace,
     transpilation_passes::TranspilationPasses,
     transpilation_util::TranspilationUtil,
@@ -55,6 +57,12 @@ static FEATURES: LazyLock<FeatureSet> = LazyLock::new(|| {
         Feature::SUPER,
     ])
 });
+
+// port: Es6RewriteClass#CONSTRUCTOR_PRIMITIVE_RETURN
+pub static CONSTRUCTOR_PRIMITIVE_RETURN: DiagnosticType = DiagnosticType::error(
+    "JSC_CONSTRUCTOR_PRIMITIVE_RETURN",
+    "Class constructors may only return an object or undefined",
+);
 
 /// Converts ES6 classes to valid ES5 or ES3 code.
 pub struct Es6RewriteClass {
@@ -137,6 +145,10 @@ impl Es6RewriteClass {
             {
                 self.visit_non_method_member(t.get_compiler(), member, &mut metadata);
             } else if NodeUtil::is_es6_constructor_member_function_def(t, member) {
+                if !class_node.is_from_externs(t) {
+                    let function = member.get_first_child(t).unwrap();
+                    Self::report_primitive_returns(t.get_compiler(), function);
+                }
                 let class_color = class_node.get_color(t);
                 let ctor = member
                     .remove_first_child(t)
@@ -234,6 +246,44 @@ impl Es6RewriteClass {
         }
 
         t.report_code_change();
+    }
+
+    /// Reports an error for each primitive value returned from a class constructor. A native
+    /// class constructor ignores such a value in a base class and throws a TypeError in a derived
+    /// class (ES2022 § 10.2.2). After transpilation the constructor is a plain function, so a
+    /// subclass's `Base.call(this) || this` can evaluate to the value, and a derived class
+    /// constructor returns the new object instead of throwing.
+    ///
+    /// Only side-effect-free primitive values ([`NodeUtil::is_immutable_value`]) are recognized,
+    /// except `undefined`, which both kinds of constructor may return. A computed return value
+    /// would need a runtime check in every constructor.
+    // port: Es6RewriteClass#reportPrimitiveReturns
+    fn report_primitive_returns(compiler: &mut AbstractCompiler, constructor: NodeId) {
+        // TODO(b/573571176): A derived constructor that returns `undefined`, explicitly or by
+        // reaching the end of its body, before calling `super()` must throw a ReferenceError.
+        let body = NodeUtil::get_function_body(compiler, constructor);
+        // The visitor only reads the AST; the errors are reported in visiting order afterwards.
+        let mut primitive_returns = Vec::new();
+        NodeUtil::visit_post_order_with_predicate(
+            compiler,
+            body,
+            &mut |ast: &mut closure_rhino::node::Ast, n: NodeId| {
+                if n.is_return(ast)
+                    && n.has_children(ast)
+                    && NodeUtil::is_immutable_value(ast, n.get_first_child(ast).unwrap())
+                    && NodeUtil::get_known_value_type(ast, n.get_first_child(ast).unwrap())
+                        != ValueType::VOID
+                {
+                    primitive_returns.push(n);
+                }
+            },
+            // A `return` in a nested function belongs to that function.
+            &|ast, n| !n.is_function(ast),
+        );
+        for n in primitive_returns {
+            let error = JSError::make(compiler, n, &CONSTRUCTOR_PRIMITIVE_RETURN, &[]);
+            compiler.report(error);
+        }
     }
 
     // port: Es6RewriteClass#createObjectDotDefineProperties

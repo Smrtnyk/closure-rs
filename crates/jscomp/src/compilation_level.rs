@@ -112,7 +112,6 @@ impl CompilationLevel {
         options.set_renaming_policy(VariableRenamingPolicy::LOCAL, PropertyRenamingPolicy::OFF);
         options.set_inline_variables(Reach::LOCAL_ONLY);
         options.set_inline_functions(Reach::LOCAL_ONLY);
-        options.set_assume_closures_only_capture_references(false);
         options.set_warning_level(diagnostic_groups::GLOBAL_THIS.clone(), CheckLevel::OFF);
         options.set_fold_constants(true);
         options.set_coalesce_variable_names(true);
@@ -159,7 +158,6 @@ impl CompilationLevel {
         options.set_smart_name_removal(true);
         options.set_inline_constant_vars(true);
         options.set_inline_functions(Reach::ALL);
-        options.set_assume_closures_only_capture_references(false);
         options.set_inline_variables(Reach::ALL);
         options.set_compute_function_side_effects(true);
         options.set_assume_strict_this(true);

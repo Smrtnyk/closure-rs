@@ -2777,15 +2777,12 @@ impl TypeInference<'_> {
         n.set_jstype(compiler, Some(type_));
 
         if n.is_assign_add(compiler) {
-            // TODO(johnlenz): this should not update the type of the lhs as that is use as a
-            // input and need to be preserved for type checking.
-            // Instead call this overload `updateScopeForAssignment(scope, left, leftType, type,
-            // null);`
-            scope = self.update_scope_for_assignment(
+            scope = self.update_scope_for_assignment_with_update_node(
                 compiler,
                 scope,
                 left,
                 Some(type_),
+                /* update_node= */ None,
                 AssignmentType::ASSIGN,
             );
         }

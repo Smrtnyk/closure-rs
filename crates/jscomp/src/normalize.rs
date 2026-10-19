@@ -810,6 +810,7 @@ impl NormalizeStatements {
 
         // Change the original ASSIGN_X to an ASSIGN.
         shorthand.set_token(compiler, Token::ASSIGN);
+        lhs.copy_type_from(compiler, shorthand);
         shorthand.add_child_to_back(compiler, lhs);
         shorthand.add_child_to_back(compiler, op_node);
 
