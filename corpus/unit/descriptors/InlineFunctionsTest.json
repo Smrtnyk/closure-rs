@@ -1,5 +1,5 @@
 {
-  "source": "test/com/google/javascript/jscomp/InlineFunctionsTest.java getProcessor (lines 66-74); the test-instance field uniqueIdSupplier (line 46) and the nested class UniqueIdSupplier (lines 76-83) are copied verbatim into helper InlineFunctionsTest_Helpers (bb8c8e7).",
+  "source": "test/com/google/javascript/jscomp/InlineFunctionsTest.java getProcessor (lines 67-74, commit 9954c6da7); the test-instance field uniqueIdSupplier (line 46) and the nested class UniqueIdSupplier (lines 76-83) are copied verbatim into helper InlineFunctionsTest_Helpers (bb8c8e7).",
   "classMap": {
     "com.google.javascript.jscomp.InlineFunctionsTest$UniqueIdSupplier": "com.google.javascript.jscomp.InlineFunctionsTest_Helpers$UniqueIdSupplier"
   },
@@ -17,7 +17,6 @@
            "name": "uniqueIdSupplier"},
           {"field": "inliningReach"},
           {"field": "assumeStrictThis"},
-          {"field": "assumeMinimumCapture"},
           {"field": "maxSizeAfterInlining"}
         ]
       },
@@ -35,7 +34,6 @@
            "name": "uniqueIdSupplier"},
           {"field": "inliningReach"},
           {"field": "assumeStrictThis"},
-          {"field": "assumeMinimumCapture"},
           {"field": "maxSizeAfterInlining"}
         ]
       },

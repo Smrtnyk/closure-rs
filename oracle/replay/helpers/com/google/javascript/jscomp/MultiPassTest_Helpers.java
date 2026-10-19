@@ -1,11 +1,11 @@
 /*
  * closure-rs unit-corpus helper (corpus/unit/DSL.md "helper"). Copied from
- * test/com/google/javascript/jscomp/MultiPassTest.java (closure-compiler commit bb8c8e7):
+ * test/com/google/javascript/jscomp/MultiPassTest.java (closure-compiler commit 9954c6da7):
  *   field `passes`: line 35, VERBATIM.
  *   GetProcessor.getProcessor: getProcessor (lines 48-57), VERBATIM apart from one more
  *                     indentation level (2 spaces); the @Override (line 47) was dropped because
  *                     the method now lives in an inner helper class, not in CompilerTestCase.
- *   addNormalization ... addInjectTranspilationRuntimeLibraries: lines 430-549, VERBATIM.
+ *   addNormalization ... addInjectTranspilationRuntimeLibraries: lines 430-548, VERBATIM.
  * Generated (not in the test):
  *   - the field `testName` and getName(), standing in for CompilerTestCase#getName() (which
  *     addPeephole calls); the descriptor passes the recorded harness.effective.getName.
@@ -100,7 +100,6 @@ final class MultiPassTest_Helpers {
                         compiler,
                         compiler.getUniqueNameIdSupplier(),
                         CompilerOptions.Reach.ALL,
-                        true,
                         true,
                         CompilerOptions.UNLIMITED_FUN_SIZE_AFTER_INLINING))
             .build());
