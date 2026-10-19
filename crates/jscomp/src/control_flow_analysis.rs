@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/ControlFlowAnalysis.java.
 
 #![allow(clippy::collapsible_match)] // Retain the Java token switch and its nested branches.
@@ -44,7 +44,7 @@ pub struct ControlFlowAnalysis {
     should_traverse_functions: bool,
     root: NodeId,
     exception_handler: VecDeque<NodeId>,
-    // Guava HashMultimap's identity-hash order varies per JVM. Use insertion order.
+    // Guava LinkedHashMultimap: keys and each key's values in insertion order.
     finally_map: IndexMap<NodeId, IndexSet<Option<NodeId>>>,
 }
 #[derive(Default)]

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   test/com/google/javascript/jscomp/CompilerOptionsTest.java.
 
 use closure_jscomp::compiler_options::{BrowserFeaturesetYear, CompilerOptions, LanguageMode};
@@ -258,4 +258,28 @@ fn test_transpile_public_class_fields() {
             .get_output_feature_set()
             .has(Feature::PUBLIC_CLASS_FIELDS)
     );
+}
+// port: CompilerOptionsTest#testRequiresTypesForOptimization
+#[test]
+fn test_requires_types_for_optimization() {
+    let mut options = CompilerOptions::new();
+    assert!(!options.requires_types_for_optimization());
+
+    options.set_closure_pass(true);
+    assert!(!options.requires_types_for_optimization());
+
+    options.set_closure_pass(false);
+    options.set_remove_closure_asserts(true);
+    assert!(!options.requires_types_for_optimization());
+
+    options.set_remove_closure_asserts(false);
+    options.set_remove_abstract_methods(true);
+    assert!(!options.requires_types_for_optimization());
+
+    options.set_closure_pass(true);
+    assert!(options.requires_types_for_optimization());
+
+    options.set_remove_abstract_methods(false);
+    options.set_remove_closure_asserts(true);
+    assert!(options.requires_types_for_optimization());
 }

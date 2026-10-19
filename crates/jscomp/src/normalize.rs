@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/Normalize.java.
 
 //! Port of `Normalize.java`.
@@ -810,6 +810,7 @@ impl NormalizeStatements {
 
         // Change the original ASSIGN_X to an ASSIGN.
         shorthand.set_token(compiler, Token::ASSIGN);
+        lhs.copy_type_from(compiler, shorthand);
         shorthand.add_child_to_back(compiler, lhs);
         shorthand.add_child_to_back(compiler, op_node);
 

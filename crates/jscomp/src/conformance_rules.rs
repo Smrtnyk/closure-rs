@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/CheckConformance.java,
 //   src/com/google/javascript/jscomp/ConformanceRules.java.
 
@@ -1735,10 +1735,12 @@ impl RestrictedNameCall {
 
         let mut builder: Vec<RestrictedNameCallRestriction> = Vec::new();
         for value in requirement.get_value_list() {
-            // NodeUtil.newQName(compiler, null) throws NullPointerException in Java.
+            // NodeUtil.newQName(compiler, null) throws NullPointerException in Java, with the
+            // JDK's message.
             let name = NodeUtil::new_qname(
                 compiler,
-                Self::get_name_from_value(value).expect("NullPointerException"),
+                Self::get_name_from_value(value)
+                    .expect("Cannot invoke \"String.indexOf(int)\" because \"name\" is null"),
             );
             let restricted_decl = ConformanceUtil::get_type_from_value(value);
             let Some(restricted_decl) = restricted_decl else {
@@ -3934,31 +3936,16 @@ pub struct CustomRuleProxy {
     custom_rule: Box<dyn Rule>,
 }
 
-type RuleConstructor =
+// port: ConformanceRules.CustomRuleProxy.CustomRuleFactory
+type CustomRuleFactory =
     fn(&mut AbstractCompiler, &Requirement) -> Result<Box<dyn Rule>, InvalidRequirementSpec>;
 
-/// What `Class.forName(className)` finds for a class of the compiler (Java reflection; the port
-/// knows the classes of `ConformanceRules`, the package `CustomRuleProxy` loads its rules from).
-enum RuleClass {
-    /// A `Rule` class with a public `(AbstractCompiler, Requirement)` constructor.
-    Constructible(RuleConstructor),
-    /// A `Rule` class without public constructors.
-    NoPublicConstructor,
-    /// An abstract `Rule` class: `Constructor#newInstance` throws `InstantiationException`.
-    Abstract,
-    /// A class that is not a `Rule`.
-    NotRule,
-}
-
-macro_rules! rule_constructor {
+macro_rules! custom_rule_factory {
     ($rule:ident) => {
         (|compiler, requirement| Ok(Box::new($rule::new(compiler, requirement)?) as Box<dyn Rule>))
-            as RuleConstructor
+            as CustomRuleFactory
     };
 }
-
-/// The binary name prefix of the nested classes of `ConformanceRules`.
-const CONFORMANCE_RULES_CLASS_PREFIX: &str = "com.google.javascript.jscomp.ConformanceRules$";
 
 impl CustomRuleProxy {
     // port: ConformanceRules.CustomRuleProxy#CustomRuleProxy
@@ -3978,117 +3965,105 @@ impl CustomRuleProxy {
         compiler: &mut AbstractCompiler,
         requirement: &Requirement,
     ) -> Result<Box<dyn Rule>, InvalidRequirementSpec> {
-        let custom = Self::get_rule_class(requirement.get_java_class())?;
-        let ctor = Self::get_rule_constructor(&custom)?;
-        // ctor.newInstance(compiler, requirement): an InvalidRequirementSpec thrown by the
-        // constructor is rethrown; InstantiationException becomes a RuntimeException.
-        match ctor {
-            Some(ctor) => ctor(compiler, requirement),
-            None => panic!(
-                "java.lang.RuntimeException: java.lang.InstantiationException: {}",
+        let Some(factory) = Self::custom_rule_registry(requirement.get_java_class()) else {
+            return Err(InvalidRequirementSpec::new(format!(
+                "Unknown conformance rule: {}",
                 requirement.get_java_class()
-            ),
-        }
-    }
-
-    /// Returns the public `(AbstractCompiler, Requirement)` constructor (`None` for an abstract
-    /// class, whose constructor exists but cannot be instantiated).
-    // port: ConformanceRules.CustomRuleProxy#getRuleConstructor
-    fn get_rule_constructor(
-        cls: &RuleClass,
-    ) -> Result<Option<RuleConstructor>, InvalidRequirementSpec> {
-        match cls {
-            RuleClass::Constructible(ctor) => Ok(Some(*ctor)),
-            RuleClass::Abstract => Ok(None),
-            RuleClass::NoPublicConstructor | RuleClass::NotRule => Err(
-                InvalidRequirementSpec::new("No valid class constructors found."),
-            ),
-        }
-    }
-
-    /// `Class.forName(className)` and the `Rule` supertype check.
-    ///
-    /// Java resolves any class on the classpath. The port knows the classes of
-    /// `ConformanceRules`; a name without a package cannot name a class of the compiler or its
-    /// libraries (none is in the default package), so it is not found. Any other class (a custom
-    /// rule of the user, or of the Java tests) cannot be loaded by the port: Unported.
-    // port: ConformanceRules.CustomRuleProxy#getRuleClass
-    fn get_rule_class(class_name: &str) -> Result<RuleClass, InvalidRequirementSpec> {
-        let custom_class =
-            if let Some(nested) = class_name.strip_prefix(CONFORMANCE_RULES_CLASS_PREFIX) {
-                Self::conformance_rules_class(nested)
-            } else if class_name == "com.google.javascript.jscomp.ConformanceRules" {
-                Some(RuleClass::NotRule)
-            } else if !class_name.contains('.') {
-                None
-            } else {
-                panic!("unported: ConformanceRules.CustomRuleProxy java_class {class_name}")
-            };
-        let Some(custom_class) = custom_class else {
-            return Err(InvalidRequirementSpec::with_cause("JavaClass not found."));
+            )));
         };
-        if !matches!(custom_class, RuleClass::NotRule) {
-            return Ok(custom_class);
-        }
-        Err(InvalidRequirementSpec::new("JavaClass is not a rule."))
+        factory(compiler, requirement)
     }
 
-    /// The nested classes of `ConformanceRules` by their binary name after `ConformanceRules$`.
-    fn conformance_rules_class(nested: &str) -> Option<RuleClass> {
-        Some(match nested {
-            "AbstractRule" | "AbstractTypeRestrictionRule" => RuleClass::Abstract,
-            "NoOp"
-            | "BannedDependency"
-            | "BannedDependencyRegex"
-            | "BannedName"
-            | "BannedProperty"
-            | "RestrictedNameCall"
-            | "RestrictedMethodCall"
-            | "RestrictedPropertyWrite"
-            | "BannedCodePattern"
-            | "CustomRuleProxy" => RuleClass::NoPublicConstructor,
-            "InferredConstCheck" => RuleClass::Constructible(rule_constructor!(InferredConstCheck)),
-            "BannedStringRegex" => RuleClass::Constructible(rule_constructor!(BannedStringRegex)),
-            "BanForOf" => RuleClass::Constructible(rule_constructor!(BanForOf)),
-            "RequireUseStrict" => RuleClass::Constructible(rule_constructor!(RequireUseStrict)),
-            "BanThrowOfNonErrorTypes" => {
-                RuleClass::Constructible(rule_constructor!(BanThrowOfNonErrorTypes))
+    /// `CUSTOM_RULE_REGISTRY.get(javaClass)`: the rules `CustomRuleProxy` can create, by the
+    /// binary name of their class.
+    // port: ConformanceRules.CustomRuleProxy#createCustomRuleRegistry
+    fn custom_rule_registry(java_class: &str) -> Option<CustomRuleFactory> {
+        Some(match java_class {
+            "com.google.javascript.jscomp.ConformanceRules$NoOp" => custom_rule_factory!(NoOp),
+            "com.google.javascript.jscomp.ConformanceRules$InferredConstCheck" => {
+                custom_rule_factory!(InferredConstCheck)
             }
-            "BanNullDeref" => RuleClass::Constructible(rule_constructor!(BanNullDeref)),
-            "BanUnknownThis" => RuleClass::Constructible(rule_constructor!(BanUnknownThis)),
-            "BanUnknownDirectThisPropsReferences" => {
-                RuleClass::Constructible(rule_constructor!(BanUnknownDirectThisPropsReferences))
+            "com.google.javascript.jscomp.ConformanceRules$BannedDependency" => {
+                custom_rule_factory!(BannedDependency)
             }
-            "BanUnknownTypedClassPropsReferences" => {
-                RuleClass::Constructible(rule_constructor!(BanUnknownTypedClassPropsReferences))
+            "com.google.javascript.jscomp.ConformanceRules$BannedDependencyRegex" => {
+                custom_rule_factory!(BannedDependencyRegex)
             }
-            "BanUnresolvedType" => RuleClass::Constructible(rule_constructor!(BanUnresolvedType)),
-            "StrictBanUnresolvedType" => {
-                RuleClass::Constructible(rule_constructor!(StrictBanUnresolvedType))
+            "com.google.javascript.jscomp.ConformanceRules$BannedName" => {
+                custom_rule_factory!(BannedName)
             }
-            "BanGlobalVars" => RuleClass::Constructible(rule_constructor!(BanGlobalVars)),
-            "BannedEnhance" => RuleClass::Constructible(rule_constructor!(BannedEnhance)),
-            "BannedModsRegex" => RuleClass::Constructible(rule_constructor!(BannedModsRegex)),
-            "BanCreateElement" => RuleClass::Constructible(rule_constructor!(BanCreateElement)),
-            "BanCreateDom" => RuleClass::Constructible(rule_constructor!(BanCreateDom)),
-            "BanElementSetAttribute" => {
-                RuleClass::Constructible(rule_constructor!(BanElementSetAttribute))
+            "com.google.javascript.jscomp.ConformanceRules$BannedProperty" => {
+                custom_rule_factory!(BannedProperty)
             }
-            "BanSettingAttributes" => {
-                RuleClass::Constructible(rule_constructor!(BanSettingAttributes))
+            "com.google.javascript.jscomp.ConformanceRules$BannedStringRegex" => {
+                custom_rule_factory!(BannedStringRegex)
             }
-            "BanExecCommand" => RuleClass::Constructible(rule_constructor!(BanExecCommand)),
-            "BanStaticThis" => RuleClass::Constructible(rule_constructor!(BanStaticThis)),
-            "ConformanceResult"
-            | "ConformanceLevel"
-            | "AllowList"
-            | "ConformanceUtil"
-            | "SecuritySensitiveAttributes"
-            | "BannedProperty$RequirementPrecondition"
-            | "RestrictedNameCall$Restriction"
-            | "RestrictedMethodCall$Restriction"
-            | "RestrictedPropertyWrite$Restriction"
-            | "BanSettingAttributes$AttributeSettingRestriction" => RuleClass::NotRule,
+            "com.google.javascript.jscomp.ConformanceRules$RestrictedNameCall" => {
+                custom_rule_factory!(RestrictedNameCall)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$RestrictedMethodCall" => {
+                custom_rule_factory!(RestrictedMethodCall)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$RestrictedPropertyWrite" => {
+                custom_rule_factory!(RestrictedPropertyWrite)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BannedCodePattern" => {
+                custom_rule_factory!(BannedCodePattern)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BanForOf" => {
+                custom_rule_factory!(BanForOf)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$RequireUseStrict" => {
+                custom_rule_factory!(RequireUseStrict)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BanThrowOfNonErrorTypes" => {
+                custom_rule_factory!(BanThrowOfNonErrorTypes)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BanNullDeref" => {
+                custom_rule_factory!(BanNullDeref)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BanUnknownThis" => {
+                custom_rule_factory!(BanUnknownThis)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BanUnknownDirectThisPropsReferences" => {
+                custom_rule_factory!(BanUnknownDirectThisPropsReferences)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BanUnknownTypedClassPropsReferences" => {
+                custom_rule_factory!(BanUnknownTypedClassPropsReferences)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BanUnresolvedType" => {
+                custom_rule_factory!(BanUnresolvedType)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$StrictBanUnresolvedType" => {
+                custom_rule_factory!(StrictBanUnresolvedType)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BanGlobalVars" => {
+                custom_rule_factory!(BanGlobalVars)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BannedEnhance" => {
+                custom_rule_factory!(BannedEnhance)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BannedModsRegex" => {
+                custom_rule_factory!(BannedModsRegex)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BanCreateElement" => {
+                custom_rule_factory!(BanCreateElement)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BanCreateDom" => {
+                custom_rule_factory!(BanCreateDom)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BanElementSetAttribute" => {
+                custom_rule_factory!(BanElementSetAttribute)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BanSettingAttributes" => {
+                custom_rule_factory!(BanSettingAttributes)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BanExecCommand" => {
+                custom_rule_factory!(BanExecCommand)
+            }
+            "com.google.javascript.jscomp.ConformanceRules$BanStaticThis" => {
+                custom_rule_factory!(BanStaticThis)
+            }
             _ => return None,
         })
     }

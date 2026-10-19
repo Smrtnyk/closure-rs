@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/UniqueIdSupplier.java.
 
 //! Port of `UniqueIdSupplier.java`.
@@ -30,8 +30,7 @@ pub use crate::compiler_state_proto::UniqueIdProto;
 /// the compiler. The generated ID format is: uniqueId = "fileHashCode$counterForThisFile"
 #[derive(Debug, Clone, Default)]
 pub struct UniqueIdSupplier {
-    /// Guava `HashMultiset<Integer>` (backed by `java.util.HashMap`): element -> count, in
-    /// insertion order. `to_proto` reproduces the HashMap iteration order.
+    /// Guava `LinkedHashMultiset<Integer>`: element -> count, in insertion order.
     counter: closure_rhino::fast_hash::IndexMap<i32, i32>,
 }
 
@@ -71,7 +70,7 @@ impl UniqueIdSupplier {
     // port: UniqueIdSupplier#toProto
     pub fn to_proto(&self) -> Vec<UniqueIdProto> {
         let mut result = Vec::new();
-        for (element, count) in java_hash_map_order(&self.counter) {
+        for (&element, &count) in &self.counter {
             result.push(UniqueIdProto {
                 hash: element,
                 counter: count,
@@ -88,31 +87,4 @@ impl UniqueIdSupplier {
         }
         supplier
     }
-}
-
-/// The iteration order of a `java.util.HashMap<Integer, _>` filled in `map`'s insertion order
-/// without removals: buckets in index order (`HashMap.hash` spreads `h ^ (h >>> 16)`, the table
-/// starts at 16 slots and doubles once the size exceeds 0.75 of it), each bucket in insertion
-/// order (a resize splits buckets keeping their relative order).
-fn java_hash_map_order(map: &closure_rhino::fast_hash::IndexMap<i32, i32>) -> Vec<(i32, i32)> {
-    let mut capacity: usize = 16;
-    let mut threshold: usize = 12;
-    for size in 1..=map.len() {
-        if size > threshold {
-            capacity *= 2;
-            threshold *= 2;
-        }
-    }
-    // A bucket with 8 or more entries in a table of 64 or more slots would be a tree bin,
-    // whose order this does not model; Integer keys never collide that much here.
-    let mut entries: Vec<(usize, i32, i32)> = map
-        .iter()
-        .map(|(&k, &v)| {
-            let h = k as u32;
-            let spread = h ^ (h >> 16);
-            ((spread as usize) & (capacity - 1), k, v)
-        })
-        .collect();
-    entries.sort_by_key(|e| e.0);
-    entries.into_iter().map(|(_, k, v)| (k, v)).collect()
 }

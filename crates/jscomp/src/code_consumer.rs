@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/CodeConsumer.java.
 
 #![allow(clippy::if_same_then_else)] // Retain Java token-boundary branches.
@@ -356,15 +356,15 @@ pub fn add_number<C: CodeConsumer + ?Sized>(cc: &mut C, x: f64) {
         "%s",
         java_lang::double_to_string(x)
     );
+    cc.add_constant(&format_number(x).into());
+}
+// port: CodeConsumer#formatNumber
+pub fn format_number(x: f64) -> String {
     if (x as i64) as f64 != x {
         let value = java_lang::double_to_string(x).replace(".0E", "E");
-        cc.add_constant(
-            &value
-                .strip_prefix("0.")
-                .map_or_else(|| value.clone(), |tail| format!(".{tail}"))
-                .into(),
-        );
-        return;
+        return value
+            .strip_prefix("0.")
+            .map_or_else(|| value.clone(), |tail| format!(".{tail}"));
     }
     let value = x as i64;
     let mut mantissa = value;
@@ -376,20 +376,18 @@ pub fn add_number<C: CodeConsumer + ?Sized>(cc: &mut C, x: f64) {
         }
     }
     if exp > 2 {
-        cc.add_constant(&format!("{mantissa}E{exp}").into());
-        return;
+        return format!("{mantissa}E{exp}");
     }
     let dec_value_string = value.to_string();
     // Values <1E12 are shorter in decimal
     if value <= 1_000_000_000_000 {
-        cc.add_constant(&dec_value_string.into());
-        return;
+        return dec_value_string;
     }
     let hex_value_string = format!("{value:x}");
     if hex_value_string.len() + 2 < dec_value_string.len() {
-        cc.add_constant(&format!("0x{hex_value_string}").into());
+        format!("0x{hex_value_string}")
     } else {
-        cc.add_constant(&dec_value_string.into());
+        dec_value_string
     }
 }
 // port: CodeConsumer#isWordChar

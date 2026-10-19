@@ -1,13 +1,13 @@
 # D2 option profiles
 
 `corpus/d2/profiles.json` maps each profile name used in a case's `profiles` list to an
-exact flag list for the pinned `CommandLineRunner` (reference `v20261015`, commit `3aeb67d`,
-uberjar sha256 `3a86b1b9…`; the default row of `scripts/references.tsv`). The argv for a (case, profile) pair is built **only** by
+exact flag list for the pinned `CommandLineRunner` (reference `v20261018`, commit `9954c6d`,
+uberjar sha256 `5b6ef89b…`; the default row of `scripts/references.tsv`). The argv for a (case, profile) pair is built **only** by
 `gates/lib/case_args.py` (`compiler_args()`, `case_profiles()`). The golden runner, the
 oracle comparison and every later D2 gate call it. Nothing else may rebuild argv.
 
 Every flag below was checked against
-`reference/closure-compiler-v20261015/src/com/google/javascript/jscomp/CommandLineRunner.java`.
+`reference/closure-compiler-v20261018/src/com/google/javascript/jscomp/CommandLineRunner.java`.
 `python3 gates/lib/case_args.py` parses that file's `@Option` declarations and re-checks
 every flag used by a profile or a case. It also checks that the `multi_valued_flags` list
 exactly matches the `List`-typed options. `golden_all.py` refuses to start if this check
@@ -56,7 +56,7 @@ Notes:
 ## argv layout
 
 ```
-tools/jdk-21/bin/java <JVM flags> -jar build/reference-v20261015/closure-compiler.jar \
+tools/jdk-21/bin/java <JVM flags> -jar build/reference-v20261018/closure-compiler.jar \
   <profile flags> <case extra_flags> --externs=<e>... --js=<inputs then shims>... \
   [--chunk=...] <output flag>
 ```
@@ -136,8 +136,8 @@ Closure Library `--dependency_mode`, `--entry_point`, `--module_resolution` and
 ## Golden results
 
 `gates/lib/run_reference.py` writes one file per pair:
-`corpus-cache/d2/_golden/ref-3a86b1b9/<case-id>/<profile>.json` (`ref-<first 8 hex digits of
-the jar's sha256>`; the results of an older reference, such as `ref-1e15ffeb`, stay next to it).
+`corpus-cache/d2/_golden/ref-5b6ef89b/<case-id>/<profile>.json` (`ref-<first 8 hex digits of
+the jar's sha256>`; the results of an older reference, such as `ref-3a86b1b9`, stay next to it).
 
 **Fields:**
 - `args`: the exact full argv. `compiler_args` is the part after the jar.
@@ -162,7 +162,7 @@ Text that is not valid UTF-8 is stored as `{"base64": …}`.
 - `-XX:TieredStopAtLevel=1`
 - `-XX:-UsePerfData`
 - `-Xlog:disable -Xlog:all=off`, which keeps JVM logging out of stdout
-- `-Xshare:auto -XX:SharedArchiveFile=build/golden-tmp/cds-3a86b1b9.jsa` (named after the jar's
+- `-Xshare:auto -XX:SharedArchiveFile=build/golden-tmp/cds-5b6ef89b.jsa` (named after the jar's
   sha256). This is a dynamic AppCDS archive created once by a throwaway compile.
 
 **Environment.** The child process gets a fixed minimal environment: `PATH`, `HOME`,

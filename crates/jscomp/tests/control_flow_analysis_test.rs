@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   test/com/google/javascript/jscomp/ControlFlowAnalysisTest.java.
 
 #![allow(dead_code)]
@@ -2209,6 +2209,57 @@ alert(action)
         &compiler,
     );
     assert_no_edge(&cfg, Token::BREAK, Token::BLOCK, &compiler);
+}
+
+// port: ControlFlowAnalysisTest#testTryFinallyDeterminism
+#[test]
+fn test_try_finally_determinism() {
+    let mut compiler = Compiler::new();
+    let src = r###"a: {
+  b: {
+    try {
+      if (x) { break a; } else { break b; }
+    } finally {
+      fin();
+    }
+  }
+  afterB();
+}
+afterA();
+"###;
+    let cfg = create_cfg(&mut compiler, src);
+
+    let fin_expr = cfg
+        .get_nodes()
+        .into_iter()
+        .find(|n| {
+            n.get_value(&cfg).is_some_and(|v| {
+                v.is_expr_result(&compiler)
+                    && v.get_first_first_child(&compiler)
+                        .unwrap()
+                        .matches_name(&compiler, "fin")
+            })
+        })
+        .unwrap();
+
+    let on_ex_targets: Vec<String> = cfg
+        .get_out_edges(fin_expr.get_value(&cfg))
+        .iter()
+        .filter(|e| {
+            *e.get_value(&cfg) == Branch::ON_EX && e.get_destination(&cfg).get_value(&cfg).is_some()
+        })
+        .map(|e| {
+            e.get_destination(&cfg)
+                .get_value(&cfg)
+                .unwrap()
+                .get_first_first_child(&compiler)
+                .unwrap()
+                .get_string(&compiler)
+                .to_string()
+        })
+        .collect();
+
+    assert_eq!(on_ex_targets, ["afterA", "afterB"]);
 }
 
 use closure_jscomp::node_util::NodeUtil;

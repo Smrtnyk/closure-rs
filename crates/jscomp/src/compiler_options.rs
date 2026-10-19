@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/CompilerOptions.java.
 
 use crate::{
@@ -132,7 +132,6 @@ pub struct CompilerOptions {
     dead_property_assignment_elimination: Tri,
     inline_constant_vars: bool,
     max_function_size_after_inlining: i32,
-    assume_closures_only_capture_references: bool,
     inline_properties: bool,
     cross_chunk_code_motion: bool,
     cross_chunk_code_motion_no_stub_methods: bool,
@@ -967,7 +966,6 @@ impl CompilerOptions {
         let inline_functions_level = Reach::NONE;
         let max_function_size_after_inlining = Self::UNLIMITED_FUN_SIZE_AFTER_INLINING;
         let assume_strict_this = false;
-        let assume_closures_only_capture_references = false;
         let inline_properties = false;
         let cross_chunk_code_motion = false;
         let parent_chunk_can_see_symbols_declared_in_children = false;
@@ -1083,7 +1081,6 @@ impl CompilerOptions {
             dead_property_assignment_elimination,
             inline_constant_vars,
             max_function_size_after_inlining,
-            assume_closures_only_capture_references,
             inline_properties,
             cross_chunk_code_motion,
             cross_chunk_code_motion_no_stub_methods: false,
@@ -2203,14 +2200,6 @@ impl CompilerOptions {
     pub fn set_assume_strict_this(&mut self, enable: bool) {
         self.assume_strict_this = enable;
     }
-    // port: CompilerOptions#assumeClosuresOnlyCaptureReferences
-    pub fn assume_closures_only_capture_references(&self) -> bool {
-        self.assume_closures_only_capture_references
-    }
-    // port: CompilerOptions#setAssumeClosuresOnlyCaptureReferences
-    pub fn set_assume_closures_only_capture_references(&mut self, enable: bool) {
-        self.assume_closures_only_capture_references = enable;
-    }
     // port: CompilerOptions#setPropertiesThatMustDisambiguate
     pub fn set_properties_that_must_disambiguate(&mut self, names: IndexSet<String>) {
         self.properties_that_must_disambiguate = names;
@@ -2537,6 +2526,7 @@ impl CompilerOptions {
             || self.ambiguate_properties
             || self.inline_properties
             || self.use_types_for_local_optimization
+            || (self.closure_pass && (self.remove_abstract_methods || self.remove_closure_asserts))
     }
     // port: CompilerOptions#setRewriteFunctionExpressions
     pub fn set_rewrite_function_expressions(&mut self, rewrite_function_expressions: bool) {
@@ -3558,8 +3548,6 @@ impl fmt::Display for CompilerOptions {
         entries.push(format!("ambiguateProperties={displayed}"));
         let displayed = self.angular_pass.to_string();
         entries.push(format!("angularPass={displayed}"));
-        let displayed = self.assume_closures_only_capture_references.to_string();
-        entries.push(format!("assumeClosuresOnlyCaptureReferences={displayed}"));
         let displayed = self.assume_getters_are_pure.to_string();
         entries.push(format!("assumeGettersArePure={displayed}"));
         let displayed = self.assume_properties_are_statically_analyzable.to_string();
@@ -4353,7 +4341,6 @@ replay_compiler_options_fields!(
     dead_property_assignment_elimination: Tri,
     inline_constant_vars: bool,
     max_function_size_after_inlining: i32,
-    assume_closures_only_capture_references: bool,
     inline_properties: bool,
     cross_chunk_code_motion: bool,
     cross_chunk_code_motion_no_stub_methods: bool,

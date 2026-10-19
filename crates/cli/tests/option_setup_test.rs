@@ -25,7 +25,7 @@ fn option_setup_parity() {
     let model: serde_json::Value =
         serde_json::from_str(include_str!("../tools/options_model.json")).unwrap();
     let keys = model["modelled"].as_array().unwrap();
-    assert_eq!(keys.len(), 186);
+    assert_eq!(keys.len(), 185);
     assert_eq!(model["unmodelled"].as_array().unwrap().len(), 19);
     for row in &rows {
         let args: Vec<String> = serde_json::from_value(row["argv"].clone()).unwrap();

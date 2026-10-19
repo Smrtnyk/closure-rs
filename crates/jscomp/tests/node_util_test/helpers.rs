@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   test/com/google/javascript/jscomp/NodeUtilTest.java.
 
 use super::*;
@@ -265,6 +265,16 @@ pub(super) fn assert_l_value_named_x(compiler: &Compiler, n: NodeId) {
 pub(super) fn assert_not_l_value_named_x(compiler: &Compiler, n: NodeId) {
     assert_eq!(n.get_string(compiler), "x");
     assert!(!NodeUtil::is_l_value(compiler, n));
+}
+// port: NodeUtilTest.AssortedTests#assertDeclarationLValueNamedX
+pub(super) fn assert_declaration_l_value_named_x(compiler: &mut Compiler, js: &str) {
+    let x = get_name_node_from(compiler, js, "x");
+    assert!(NodeUtil::is_declaration_l_value(compiler, x), "{js}");
+}
+// port: NodeUtilTest.AssortedTests#assertNotDeclarationLValueNamedX
+pub(super) fn assert_not_declaration_l_value_named_x(compiler: &mut Compiler, js: &str) {
+    let x = get_name_node_from(compiler, js, "x");
+    assert!(!NodeUtil::is_declaration_l_value(compiler, x), "{js}");
 }
 // port: NodeUtilTest.AssortedTests#assertLhsByDestructuring
 pub(super) fn assert_lhs_by_destructuring(compiler: &Compiler, n: NodeId) {

@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/GatherGetterAndSetterProperties.java,
 //   src/com/google/javascript/jscomp/NodeTraversal.java.
 
@@ -192,7 +192,9 @@ impl Callback for GatherCallback {
             Token::CALL => {
                 if NodeUtil::is_object_define_property_definition(t, n) {
                     self.visit_define_property(t, n);
-                } else if NodeUtil::is_object_define_properties_definition(t, n) {
+                } else if NodeUtil::is_object_define_properties_definition(t, n)
+                    || NodeUtil::is_object_create_with_properties_definition(t, n)
+                {
                     self.visit_define_properties(t, n);
                 }
             }

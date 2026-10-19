@@ -35,10 +35,13 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   test/com/google/javascript/rhino/JSTypeExpressionTest.java.
 
-use closure_rhino::{js_type_expression::JSTypeExpression, node::Ast, token::Token};
+use closure_rhino::{
+    fast_hash::IndexSet, js_string::JsString, js_type_expression::JSTypeExpression, node::Ast,
+    token::Token,
+};
 use std::sync::Arc;
 
 // port: JSTypeExpressionTest#getTestExpression
@@ -54,7 +57,7 @@ fn get_test_expression(ast: &mut Ast) -> JSTypeExpression {
     f.add_child_to_back(ast, c);
     f.add_child_to_back(ast, d);
     f.add_child_to_back(ast, e);
-    JSTypeExpression::new(f, "")
+    JSTypeExpression::new(f, "<JSTypeExpressionTest>")
 }
 // port: JSTypeExpressionTest#testGetAllTypeNames
 #[test]
@@ -94,4 +97,41 @@ fn test_is_explicit_unknown_template_bound() {
     let child = ast.new_string("number");
     let root = ast.new_node_with_child(Token::QMARK, child);
     assert!(!JSTypeExpression::new(root, "").is_explicit_unknown_template_bound(&ast));
+}
+// port: JSTypeExpressionTest#testMakeOptionalArgAndVarArgsDoesNotMutateRoot
+#[test]
+fn test_make_optional_arg_and_var_args_does_not_mutate_root() {
+    let mut ast = Ast::new();
+    let root = ast.new_node(Token::NAME);
+    let expr = Arc::new(JSTypeExpression::new(root, "source.js"));
+    let opt_arg = JSTypeExpression::make_optional_arg(&mut ast, Arc::clone(&expr));
+    assert_eq!(opt_arg.get_root().get_token(&ast), Token::EQUALS);
+    assert!(opt_arg.get_root().get_parent(&ast).is_none());
+    let var_arg = JSTypeExpression::make_var_args(&mut ast, Arc::clone(&expr));
+    assert_eq!(var_arg.get_root().get_token(&ast), Token::ITER_REST);
+    assert!(var_arg.get_root().get_parent(&ast).is_none());
+    // root remains detached
+    assert!(expr.get_root().get_parent(&ast).is_none());
+    // We can call it multiple times on the same expression without throwing
+    let opt_arg2 = JSTypeExpression::make_optional_arg(&mut ast, Arc::clone(&expr));
+    assert_eq!(opt_arg2.get_root().get_token(&ast), Token::EQUALS);
+    assert!(opt_arg2.get_root().get_parent(&ast).is_none());
+    // replaceNamesWithUnknownType does not mutate the original root
+    let replaced = expr
+        .replace_names_with_unknown_type(&mut ast, &IndexSet::from_iter([JsString::from("foo")]));
+    assert!(replaced.get_root().get_parent(&ast).is_none());
+    assert!(expr.get_root().get_parent(&ast).is_none());
+}
+// port: JSTypeExpressionTest#testConstructWithAttachedNodeClonesRoot
+#[test]
+fn test_construct_with_attached_node_clones_root() {
+    let mut ast = Ast::new();
+    let parent = ast.new_node(Token::BLOCK);
+    let child = ast.new_node(Token::NAME);
+    parent.add_child_to_back(&mut ast, child);
+    assert_eq!(child.get_parent(&ast), Some(parent));
+    let expr = JSTypeExpression::new_in(&mut ast, child, "source.js");
+    assert_ne!(expr.get_root(), child);
+    assert!(expr.get_root().get_parent(&ast).is_none());
+    assert_eq!(child.get_parent(&ast), Some(parent));
 }

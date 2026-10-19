@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/TypeTransformation.java.
 
 //! A class for processing type transformation expressions.
@@ -1162,8 +1162,10 @@ impl TypeTransformation {
 
     // port: TypeTransformation#evalNativeTypeExpr
     fn eval_native_type_expr(&self, compiler: &mut AbstractCompiler, ttl_ast: NodeId) -> TypeId {
-        let expr =
-            JSTypeExpression::new(self.get_call_argument(compiler, ttl_ast, 0), VIRTUAL_FILE);
+        let argument = self
+            .get_call_argument(compiler, ttl_ast, 0)
+            .clone_tree(compiler);
+        let expr = JSTypeExpression::new(argument, VIRTUAL_FILE);
         let (registry, ast) = compiler.get_type_registry_and_ast();
         registry.evaluate_type_expression(ast, &expr, Some(Arc::clone(&self.type_env)))
     }

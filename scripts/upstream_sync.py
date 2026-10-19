@@ -706,7 +706,7 @@ class Sync:
             if not self.dry:
                 raise StepError(f"no recording in {rel(d['records'])} (step unit-record)")
             log(f"  would copy the records of {rel(d['records'])} once they are recorded")
-            names = []
+            return "ran"
         names_now = set(names)
         if not self.unit_classes and names:  # a complete recording: classes gone upstream lose their records
             all_names = {c.rsplit(".", 1)[-1] for c in classes}

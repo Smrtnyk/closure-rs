@@ -33,7 +33,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   test/com/google/javascript/jscomp/ConstCheckTest.java,
 //   test/com/google/javascript/jscomp/DeclaredGlobalExternsOnWindowTest.java,
 //   test/com/google/javascript/jscomp/RemoveUnnecessarySyntheticExternsTest.java,
@@ -95,10 +95,10 @@ fn assert_records(class: &str, expected: usize) {
     }
 }
 
-// port: VarCheckTest (128 @Test methods, 225 recorded calls)
+// port: VarCheckTest (131 @Test methods, 226 recorded calls)
 #[test]
 fn var_check_test() {
-    assert_records("VarCheckTest", 225);
+    assert_records("VarCheckTest", 226);
 }
 
 // port: VariableReferenceCheckTest (122 @Test methods, 311 recorded calls)

@@ -28,7 +28,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   test/com/google/javascript/jscomp/CheckConformanceTest.java.
 // Ported from closure-rs' own Java oracle tooling:
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayMain.java.
@@ -67,66 +67,16 @@ fn replay(class: &str) -> Vec<RecordResult> {
     records
 }
 
-// port: CheckConformanceTest (172 @Test methods, 396 recorded calls)
+// port: CheckConformanceTest (168 @Test methods, 420 recorded calls)
 #[test]
 fn check_conformance_test() {
     let records = replay("CheckConformanceTest");
-    assert_eq!(records.len(), 396);
-    let custom: &[(&str, &str)] = &[
-        (
-            "testCustom3",
-            "com.google.javascript.jscomp.CheckConformanceTest",
-        ),
-        (
-            "testCustom4",
-            "com.google.javascript.jscomp.CheckConformanceTest$CustomRuleMissingPublicConstructor",
-        ),
-        (
-            "testCustom5",
-            "com.google.javascript.jscomp.CheckConformanceTest$CustomRule",
-        ),
-        (
-            "testCustom6",
-            "com.google.javascript.jscomp.CheckConformanceTest$CustomRule",
-        ),
-        (
-            "testCustom7",
-            "com.google.javascript.jscomp.CheckConformanceTest$CustomRuleReport",
-        ),
-    ];
-    let mut unported = 0;
+    assert_eq!(records.len(), 420);
     for r in &records {
-        match r.status.as_str() {
-            "pass" => {}
-            "unported" => {
-                let java_class = custom
-                    .iter()
-                    .find(|(method, _)| *method == r.method)
-                    .map(|(_, class)| *class)
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "{}[{}] {}: unported {:?}",
-                            r.class, r.index, r.method, r.unported_by
-                        )
-                    });
-                assert_eq!(
-                    r.unported_by.as_deref(),
-                    Some(
-                        format!("ConformanceRules.CustomRuleProxy java_class {java_class}")
-                            .as_str()
-                    ),
-                    "{}[{}] {}",
-                    r.class,
-                    r.index,
-                    r.method
-                );
-                unported += 1;
-            }
-            _ => panic!(
-                "{}[{}] {}: {} {:?}",
-                r.class, r.index, r.method, r.status, r.why
-            ),
-        }
+        assert_eq!(
+            r.status, "pass",
+            "{}[{}] {}: {} {:?} {:?}",
+            r.class, r.index, r.method, r.status, r.why, r.unported_by
+        );
     }
-    assert_eq!(unported, 5);
 }

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   test/com/google/javascript/jscomp/TypeInferenceTest.java.
 
 //! Port of TypeInferenceTest.
@@ -2859,6 +2859,25 @@ fn test_assign_add() {
     t.assuming("x", NUMBER_TYPE);
     t.in_function("x += '5';");
     t.verify("x", STRING_TYPE);
+}
+
+// port: TypeInferenceTest#testAssignAdd_lhsNodeInputType
+#[test]
+fn test_assign_add_lhs_node_input_type() {
+    let t = TypeInferenceTest::set_up();
+    t.in_function("L: { /** @type {*} */ let data; data += ''; }");
+    let block = t.get_labeled_statement("L").statement_node;
+    // In L: { let data; data += ''; }, the block has two children: LET and EXPR_RESULT.
+    let lhs = {
+        let compiler = t.c();
+        let expr_result = block.get_last_child(&compiler).unwrap();
+        let assign_add = expr_result.get_first_child(&compiler).unwrap();
+        assign_add.get_first_child(&compiler).unwrap()
+    };
+    // Pre-fix: LHS node under ASSIGN_ADD gets overwritten with the result type (STRING_TYPE).
+    // Post-fix: LHS node preserves its input type (UNKNOWN_TYPE / ALL_TYPE).
+    t.assert_node_js_type(lhs)
+        .is_equal_to(t.get_native_type(ALL_TYPE));
 }
 
 // port: TypeInferenceTest#testAssignOrToNumeric

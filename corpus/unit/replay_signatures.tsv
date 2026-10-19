@@ -259,7 +259,7 @@ InlineAliasesTest	com.google.javascript.jscomp.InlineAndCollapseProperties.build
 InlineAliasesTest	com.google.javascript.jscomp.PhaseOptimizer	com.google.javascript.jscomp.PhaseOptimizer	<init>(com.google.javascript.jscomp.AbstractCompiler,com.google.javascript.jscomp.PerformanceTracker)
 InlineAliasesTest	com.google.javascript.jscomp.PhaseOptimizer.addOneTimePass	com.google.javascript.jscomp.PhaseOptimizer	addOneTimePass(com.google.javascript.jscomp.PassFactory)
 InlineAndCollapsePropertiesTest	com.google.javascript.jscomp.InlineAndCollapsePropertiesTest_Helpers.getProcessor	com.google.javascript.jscomp.InlineAndCollapsePropertiesTest_Helpers	getProcessor(com.google.javascript.jscomp.Compiler)
-InlineFunctionsTest	com.google.javascript.jscomp.InlineFunctions	com.google.javascript.jscomp.InlineFunctions	<init>(com.google.javascript.jscomp.AbstractCompiler,java.util.function.Supplier,com.google.javascript.jscomp.CompilerOptions$Reach,boolean,boolean,int)
+InlineFunctionsTest	com.google.javascript.jscomp.InlineFunctions	com.google.javascript.jscomp.InlineFunctions	<init>(com.google.javascript.jscomp.AbstractCompiler,java.util.function.Supplier,com.google.javascript.jscomp.CompilerOptions$Reach,boolean,int)
 InlineFunctionsTest	com.google.javascript.jscomp.InlineFunctionsTest_Helpers	com.google.javascript.jscomp.InlineFunctionsTest_Helpers	<init>()
 InlineObjectLiteralsTest	com.google.javascript.jscomp.Compiler.getUniqueNameIdSupplier	com.google.javascript.jscomp.Compiler	getUniqueNameIdSupplier()
 InlineObjectLiteralsTest	com.google.javascript.jscomp.InlineObjectLiterals	com.google.javascript.jscomp.InlineObjectLiterals	<init>(com.google.javascript.jscomp.AbstractCompiler,java.util.function.Supplier)

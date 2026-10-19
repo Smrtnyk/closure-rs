@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/LinkedFlowScope.java,
 //   src/com/google/javascript/jscomp/TypeInference.java.
 
@@ -2777,15 +2777,12 @@ impl TypeInference<'_> {
         n.set_jstype(compiler, Some(type_));
 
         if n.is_assign_add(compiler) {
-            // TODO(johnlenz): this should not update the type of the lhs as that is use as a
-            // input and need to be preserved for type checking.
-            // Instead call this overload `updateScopeForAssignment(scope, left, leftType, type,
-            // null);`
-            scope = self.update_scope_for_assignment(
+            scope = self.update_scope_for_assignment_with_update_node(
                 compiler,
                 scope,
                 left,
                 Some(type_),
+                /* update_node= */ None,
                 AssignmentType::ASSIGN,
             );
         }

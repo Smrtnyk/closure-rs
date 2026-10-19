@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/CompilerPass.java,
 //   src/com/google/javascript/jscomp/testing/TestExternsBuilder.java,
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
@@ -39,7 +39,7 @@ use closure_jscomp::{
         VIOLATED_CHUNK_DEP_ERROR, VarCheck,
     },
 };
-use closure_rhino::node::NodeId;
+use closure_rhino::{ir::IR, node::NodeId};
 use closure_testing::{
     compiler_test_case::{CompilerTestCase, TestPart},
     jscomp_api::{JSChunk, SourceFile, SourceKind},
@@ -1486,6 +1486,54 @@ fn test_no_create_vars_for_labels() {
         &f,
         srcs("x:var y"),
         var_check_externs().as_str(),
+    );
+}
+
+#[test]
+fn test_js_compiler_rename_property_in_required_symbols() {
+    assert!(closure_jscomp::var_check::REQUIRED_SYMBOLS.contains(&"JSCompiler_renameProperty"));
+}
+
+#[test]
+fn test_js_compiler_rename_property_synthesized_extern() {
+    let (mut t, mut h, f) = set_up();
+    check_synthesized_extern(&mut t, &mut h, &f, srcs(""), var_check_externs().as_str());
+    assert!(var_check_externs().contains("var JSCompiler_renameProperty;\n"));
+}
+
+#[test]
+fn test_js_compiler_rename_property_synthesized_extern_allows_later_passes() {
+    let (mut t, mut h, _f) = set_up();
+    let compiler = t
+        .create_and_initialize_compiler(
+            &mut h,
+            &var_checks_support::externs_of(""),
+            &CompilerTestCase::srcs("var placeholder = 1;"),
+        )
+        .unwrap();
+    let mut compiler = compiler.borrow_mut();
+    compiler.parse_inputs();
+    let externs = compiler.get_externs_root().unwrap();
+    let root = compiler.get_js_root().unwrap();
+    VarCheck::new_with_validity_check(&compiler, /* validity_check= */ false).process(
+        &mut compiler,
+        externs,
+        root,
+    );
+    // Simulate a pass like ClosureOptimizePrimitives or DartSuperAccessorsPass adding a call
+    // to JSCompiler_renameProperty without an explicit extern declaration.
+    let callee = IR::name(&mut compiler, "JSCompiler_renameProperty");
+    let arg = IR::string(&mut compiler, "foo");
+    let call = IR::call(&mut compiler, callee, &[arg]);
+    let synthetic_call = IR::expr_result(&mut compiler, call);
+    root.get_first_child(&compiler)
+        .unwrap()
+        .add_child_to_back(&mut compiler, synthetic_call);
+    // ValidityCheck runs VarCheck with validityCheck = true, which must pass without throwing.
+    VarCheck::new_with_validity_check(&compiler, /* validity_check= */ true).process(
+        &mut compiler,
+        externs,
+        root,
     );
 }
 

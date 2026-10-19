@@ -293,12 +293,6 @@ pub fn options_fields(
                 options.get_max_function_size_after_inlining().setup_json(),
             ),
             (
-                "assumeClosuresOnlyCaptureReferences".into(),
-                options
-                    .assume_closures_only_capture_references()
-                    .setup_json(),
-            ),
-            (
                 "inlineProperties".into(),
                 options.should_inline_properties().setup_json(),
             ),

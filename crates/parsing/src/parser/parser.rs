@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/parsing/parser/Parser.java.
 
 #![allow(clippy::upper_case_acronyms)] // Retain Java enum constant names.
@@ -41,7 +41,6 @@ use super::{
     trees::*,
     trees::{
         comment,
-        comprehension_tree::ComprehensionType,
         function_declaration_tree::{self, Kind},
     },
     util::{Reporter, SourcePosition, SourceRange},
@@ -1820,7 +1819,7 @@ impl Parser {
             TokenType::NO_SUBSTITUTION_TEMPLATE | TokenType::TEMPLATE_HEAD => {
                 self.parse_template_literal(None)
             }
-            TokenType::OPEN_SQUARE => self.parse_array_initializer(),
+            TokenType::OPEN_SQUARE => self.parse_array_literal(),
             TokenType::OPEN_CURLY => self.parse_object_literal(),
             TokenType::OPEN_PAREN => {
                 self.parse_cover_parenthesized_expression_and_arrow_parameter_list()
@@ -1987,87 +1986,6 @@ impl Parser {
         Ok(LiteralExpressionTree::new(
             self.get_tree_location(start),
             literal,
-        ))
-    }
-    // port: Parser#parseArrayInitializer
-    fn parse_array_initializer(&mut self) -> P<Tree> {
-        if self.peek_type_at(1) == TokenType::FOR {
-            self.parse_array_comprehension()
-        } else {
-            self.parse_array_literal()
-        }
-    }
-    // port: Parser#parseGeneratorComprehension
-    fn parse_generator_comprehension(&mut self) -> P<Tree> {
-        self.parse_comprehension(
-            ComprehensionType::GENERATOR,
-            TokenType::OPEN_PAREN,
-            TokenType::CLOSE_PAREN,
-        )
-    }
-    // port: Parser#parseArrayComprehension
-    fn parse_array_comprehension(&mut self) -> P<Tree> {
-        self.parse_comprehension(
-            ComprehensionType::ARRAY,
-            TokenType::OPEN_SQUARE,
-            TokenType::CLOSE_SQUARE,
-        )
-    }
-    // port: Parser#parseComprehension
-    fn parse_comprehension(
-        &mut self,
-        type_: ComprehensionType,
-        start_token: TokenType,
-        end_token: TokenType,
-    ) -> P<Tree> {
-        let start = self.get_tree_start_location();
-        self.eat(start_token);
-        let mut children = Vec::new();
-        while self.peek(TokenType::FOR) || self.peek(TokenType::IF) {
-            if self.peek(TokenType::FOR) {
-                children.push(self.parse_comprehension_for()?);
-            } else {
-                children.push(self.parse_comprehension_if()?);
-            }
-        }
-        let tail_expression = self.parse_assignment_expression()?;
-        self.eat(end_token);
-        Ok(ComprehensionTree::new(
-            self.get_tree_location(start),
-            type_,
-            children,
-            tail_expression,
-        ))
-    }
-    // port: Parser#parseComprehensionFor
-    fn parse_comprehension_for(&mut self) -> P<Tree> {
-        let start = self.get_tree_start_location();
-        self.eat(TokenType::FOR);
-        self.eat(TokenType::OPEN_PAREN);
-        let initializer = if self.peek_id() {
-            self.parse_identifier_expression()?
-        } else {
-            self.parse_pattern(PatternKind::ANY)?
-        };
-        self.eat_predefined_string(PredefinedName::OF);
-        let collection = self.parse_assignment_expression()?;
-        self.eat(TokenType::CLOSE_PAREN);
-        Ok(ComprehensionForTree::new(
-            self.get_tree_location(start),
-            initializer,
-            collection,
-        ))
-    }
-    // port: Parser#parseComprehensionIf
-    fn parse_comprehension_if(&mut self) -> P<Tree> {
-        let start = self.get_tree_start_location();
-        self.eat(TokenType::IF);
-        self.eat(TokenType::OPEN_PAREN);
-        let initializer = self.parse_assignment_expression()?;
-        self.eat(TokenType::CLOSE_PAREN);
-        Ok(ComprehensionIfTree::new(
-            self.get_tree_location(start),
-            initializer,
         ))
     }
     // 11.1.4 Array Literal Expression
@@ -2412,9 +2330,6 @@ impl Parser {
     //     ( Expression , ... BindingIdentifier )
     // port: Parser#parseCoverParenthesizedExpressionAndArrowParameterList
     fn parse_cover_parenthesized_expression_and_arrow_parameter_list(&mut self) -> P<Tree> {
-        if self.peek_type_at(1) == TokenType::FOR {
-            return self.parse_generator_comprehension();
-        }
         let start = self.get_tree_start_location();
         self.eat(TokenType::OPEN_PAREN);
         // Case ( )

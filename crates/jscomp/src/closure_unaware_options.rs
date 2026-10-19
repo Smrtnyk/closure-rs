@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/ClosureUnawareOptions.java.
 
 //! Port of `ClosureUnawareOptions.java`.
@@ -105,7 +105,6 @@ impl<'a> ClosureUnawareOptions<'a> {
         shadow_options.set_coding_convention(CodingConventions::get_default());
         shadow_options.set_remove_closure_asserts(false);
 
-        shadow_options.set_assume_closures_only_capture_references(false);
         shadow_options.set_assume_getters_are_pure(false);
         shadow_options.set_assume_properties_are_statically_analyzable(false);
         shadow_options.set_assume_static_inheritance_is_not_used(false);

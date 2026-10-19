@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/PeepholeMinimizeConditions.java.
 
 //! Port of `PeepholeMinimizeConditions.java`.
@@ -404,6 +404,19 @@ impl PeepholeMinimizeConditions {
             Token::NE => Token::EQ,
             Token::SHEQ => Token::SHNE,
             Token::SHNE => Token::SHEQ,
+            Token::NOT => {
+                // !!(a < b) -> a < b (when the inner expression already produces a boolean)
+                if NodeUtil::is_boolean_result(
+                    compiler,
+                    not_child.get_first_child(compiler).unwrap(),
+                ) {
+                    let expr = not_child.remove_first_child(compiler).unwrap();
+                    n.replace_with(compiler, expr);
+                    self.report_change_to_enclosing_scope(compiler, parent);
+                    return expr;
+                }
+                return n;
+            }
             // GT, GE, LT, LE are not handled in this because !(x<NaN) != x>=NaN.
             _ => {
                 return n;
@@ -440,11 +453,53 @@ impl PeepholeMinimizeConditions {
     // port: PeepholeMinimizeConditions#tryMinimizeHook
     fn try_minimize_hook(&self, compiler: &mut AbstractCompiler, n: NodeId) -> NodeId {
         let original_cond = n.get_first_child(compiler).unwrap();
+        let then_branch = original_cond.get_next(compiler).unwrap();
+        let else_branch = then_branch.get_next(compiler).unwrap();
+
+        // Fold boolean-literal HOOKs:
+        //   x ? true : false -> x   (if x is already a boolean result)
+        //   x ? true : false -> !!x (otherwise)
+        //   x ? false : true -> !x
+        // Note: identical branches (e.g. x ? true : true -> true or (x, true)) are handled
+        // generally for any equal subtrees (x ? a : a) in PeepholeRemoveDeadCode.tryFoldHook.
+        if NodeUtil::is_boolean_result(compiler, then_branch)
+            && NodeUtil::is_boolean_result(compiler, else_branch)
+        {
+            let then_val = self.get_side_effect_free_boolean_value(compiler, then_branch);
+            let else_val = self.get_side_effect_free_boolean_value(compiler, else_branch);
+            let mut replacement: Option<NodeId> = None;
+            if then_val == Tri::TRUE && else_val == Tri::FALSE {
+                // x ? true : false -> x (if boolean) or !!x
+                let cond = original_cond.detach(compiler);
+                replacement = Some(if NodeUtil::is_boolean_result(compiler, cond) {
+                    cond
+                } else {
+                    let inner = IR::not(compiler, cond).srcref(compiler, n);
+                    IR::not(compiler, inner).srcref(compiler, n)
+                });
+            } else if then_val == Tri::FALSE && else_val == Tri::TRUE {
+                // x ? false : true -> !x
+                let cond = original_cond.detach(compiler);
+                replacement = Some(IR::not(compiler, cond).srcref(compiler, n));
+            }
+            if let Some(replacement) = replacement {
+                // Replace `x ? true : false` or `x ? false : true` with `replacement` (`x`, `!!x`,
+                // or `!x`)
+                n.replace_with(compiler, replacement);
+                self.report_change_to_enclosing_scope(compiler, replacement);
+                self.mark_functions_deleted(compiler, n);
+                return if replacement.is_not(compiler) {
+                    self.try_minimize_not(compiler, replacement)
+                } else {
+                    replacement
+                };
+            }
+        }
+
         let min_cond = MinimizedCondition::from_condition_node(compiler, original_cond);
         let m_node = min_cond.get_minimized(compiler, MinimizationStyle::ALLOW_LEADING_NOT);
         if m_node.is_not(compiler) {
             // Swap the HOOK
-            let then_branch = n.get_second_child(compiler).unwrap();
             let without_not = m_node.without_not(compiler);
             self.replace_node(compiler, original_cond, &without_not);
             then_branch.detach(compiler);

@@ -31,7 +31,7 @@
 // Ported from closure-rs' own Java oracle tooling:
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/AstValidator.java,
 //   test/com/google/javascript/jscomp/AstValidatorTest.java.
 

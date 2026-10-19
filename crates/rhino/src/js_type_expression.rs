@@ -36,7 +36,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/rhino/JSTypeExpression.java.
 
 //! Port of the JSDoc type AST wrapper.
@@ -57,12 +57,23 @@ pub struct JSTypeExpression {
     source_name: String,
 }
 impl JSTypeExpression {
-    // port: JSTypeExpression#JSTypeExpression
+    /// Java's constructor for a `root` without a parent (which Java keeps as is); every caller
+    /// in the port passes a new or detached root. [`Self::new_in`] is the full constructor.
     pub fn new(root: NodeId, source_name: impl Into<String>) -> Self {
         Self {
             root,
             source_name: source_name.into(),
         }
+    }
+    /// A root that has a parent is cloned, so that the expression owns a detached tree.
+    // port: JSTypeExpression#JSTypeExpression
+    pub fn new_in(ast: &mut Ast, root: NodeId, source_name: impl Into<String>) -> Self {
+        let root = if root.get_parent(ast).is_some() {
+            root.clone_tree(ast)
+        } else {
+            root
+        };
+        Self::new(root, source_name)
     }
     /// Rust-only: this expression with another root node (for `Ast::append_preparsed`).
     pub fn with_root(&self, root: NodeId) -> Self {
@@ -169,7 +180,8 @@ impl JSTypeExpression {
         if expr.is_optional_arg(ast) || expr.is_var_args(ast) {
             expr
         } else {
-            let equals = ast.new_node_with_child(Token::EQUALS, expr.root);
+            let root = expr.root.clone_tree(ast);
+            let equals = ast.new_node_with_child(Token::EQUALS, root);
             equals.clone_props_from(ast, expr.root);
             Arc::new(Self::new(equals, expr.source_name.clone()))
         }
@@ -179,7 +191,8 @@ impl JSTypeExpression {
         if expr.is_optional_arg(ast) || expr.is_var_args(ast) {
             expr
         } else {
-            let equals = ast.new_node_with_child(Token::ITER_REST, expr.root);
+            let root = expr.root.clone_tree(ast);
+            let equals = ast.new_node_with_child(Token::ITER_REST, root);
             equals.clone_props_from(ast, expr.root);
             Arc::new(Self::new(equals, expr.source_name.clone()))
         }

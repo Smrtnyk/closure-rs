@@ -26,7 +26,7 @@ CheckAccessControlsPolymerTest	5	5	0	0
 CheckAccessControlsTest	233	233	0	0
 CheckArrayWithGoogObjectTest	4	4	0	0
 CheckClosureImportsTest	115	115	0	0
-CheckConformanceTest	396	396	0	0
+CheckConformanceTest	420	420	0	0
 CheckConstPrivatePropertiesTest	57	57	0	0
 CheckConstantCaseNamesTest	40	40	0	0
 CheckDebuggerStatementTest	8	8	0	0
@@ -144,7 +144,7 @@ Es6RewriteArrowFunctionTest	23	23	0	0
 Es6RewriteBlockScopedDeclarationTest	97	97	0	0
 Es6RewriteBlockScopedFunctionDeclarationTest	7	7	0	0
 Es6RewriteClassExtendsExpressionsTest	20	20	0	0
-Es6RewriteClassTest	148	148	0	0
+Es6RewriteClassTest	151	151	0	0
 Es6RewriteDestructuringTest	144	144	0	0
 Es6RewriteGeneratorsTest	96	96	0	0
 Es6RewriteModulesBeforeTypeCheckingTest	82	82	0	0
@@ -176,11 +176,11 @@ FunctionToBlockMutatorTest	0	0	0	0
 FunctionTypeBuilderTest	8	8	0	0
 FunctionTypeTest	0	0	0	0
 GatherExternPropertiesTest	32	32	0	0
-GatherGetterAndSetterPropertiesTest	33	33	0	0
+GatherGetterAndSetterPropertiesTest	36	36	0	0
 GatherModuleMetadataTest	90	90	0	0
 GatherRawExportsTest	36	36	0	0
 GenerateExportsTest	79	79	0	0
-GetterAndSetterIntegrationTest	31	0	31	0
+GetterAndSetterIntegrationTest	33	0	33	0
 GlobalNamespaceTest	0	0	0	0
 GoogleCodingConventionTest	0	0	0	0
 GraphColoringTest	0	0	0	0
@@ -197,14 +197,14 @@ InjectTranspilationRuntimeLibrariesTest	0	0	0	0
 InlineAliasesTest	54	54	0	0
 InlineAndCollapsePropertiesTest	263	263	0	0
 InlineCostEstimatorTest	0	0	0	0
-InlineFunctionsTest	453	453	0	0
+InlineFunctionsTest	435	435	0	0
 InlineObjectLiteralsTest	94	94	0	0
 InlinePropertiesTest	55	55	0	0
 InlineSimpleMethodsTest	81	81	0	0
 InlineVariablesConstantsTest	31	31	0	0
-InlineVariablesTest	271	271	0	0
+InlineVariablesTest	273	273	0	0
 InstrumentAsyncContextTest	49	49	0	0
-IntegrationTest	340	0	340	0
+IntegrationTest	341	0	341	0
 InvalidatingTypesTest	0	0	0	0
 IsolatePolyfillsTest	57	57	0	0
 J2clAssertRemovalPassTest	3	3	0	0
@@ -286,7 +286,7 @@ PeepholeFoldConstantsTest	1580	1580	0	0
 PeepholeIntegrationTest	270	270	0	0
 PeepholeMinimizeConditionsTest	372	372	0	0
 PeepholeOptimizationsPassTest	12	12	0	0
-PeepholeRemoveDeadCodeTest	612	612	0	0
+PeepholeRemoveDeadCodeTest	627	627	0	0
 PeepholeReplaceKnownMethodsTest	841	841	0	0
 PeepholeSubstituteAlternateSyntaxTest	255	255	0	0
 PerformanceTrackerTest	0	0	0	0
@@ -309,7 +309,7 @@ ProductionInstrumentationReporterTest	0	0	0	0
 PropertyMapTest	0	0	0	0
 PrototypeObjectTypeTest	0	0	0	0
 PruningAnalysisTest	0	0	0	0
-PureFunctionIdentifierTest	460	460	0	0
+PureFunctionIdentifierTest	476	476	0	0
 QualifiedNameTest	0	0	0	0
 RandomNameGeneratorTest	0	0	0	0
 RecordTypeTest	0	0	0	0
@@ -422,7 +422,7 @@ UnusedLocalsCheckTest	80	80	0	0
 UseSiteRenamerTest	0	0	0	0
 UtilTest	0	0	0	0
 ValidityCheckTest	3	3	0	0
-VarCheckTest	225	225	0	0
+VarCheckTest	226	226	0	0
 VariableMapTest	0	0	0	0
 VariableReferenceCheckTest	311	311	0	0
 VirtualFileTest	0	0	0	0

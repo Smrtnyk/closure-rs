@@ -34,7 +34,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   test/com/google/javascript/jscomp/ClosureUnawarePhaseOptimizerTest.java,
 //   test/com/google/javascript/jscomp/MultiPassTest.java,
 //   test/com/google/javascript/jscomp/ProcessClosureProvidesAndRequiresTest.java,
@@ -131,10 +131,10 @@ fn assert_all_pass(class: &str, expected: usize) {
     );
 }
 
-// port: IntegrationTest (340 recorded calls; 3 reach out-of-scope passes)
+// port: IntegrationTest (341 recorded calls; 3 reach out-of-scope passes)
 #[test]
 fn integration_test() {
-    assert_all_pass("IntegrationTest", 340);
+    assert_all_pass("IntegrationTest", 341);
 }
 
 // port: AdvancedOptimizationsIntegrationTest (134 recorded calls)
@@ -149,10 +149,10 @@ fn closure_integration_test() {
     assert_all_pass("ClosureIntegrationTest", 90);
 }
 
-// port: GetterAndSetterIntegrationTest (31 recorded calls)
+// port: GetterAndSetterIntegrationTest (33 recorded calls)
 #[test]
 fn getter_and_setter_integration_test() {
-    assert_all_pass("GetterAndSetterIntegrationTest", 31);
+    assert_all_pass("GetterAndSetterIntegrationTest", 33);
 }
 
 // port: ClosurePrimitivesIntegrationTest (4 recorded calls)

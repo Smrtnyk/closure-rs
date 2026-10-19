@@ -32,7 +32,7 @@
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayMain.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java.
 
 //! Exact Java signatures resolved while the Java corpus replay ran. No Rust overload guesses.
@@ -144,7 +144,7 @@ impl Registry {
             crate::replay::inline_functions_test_helpers::holder,
         );
         out.register(
-            "com.google.javascript.jscomp.InlineFunctions#<init>(com.google.javascript.jscomp.AbstractCompiler,java.util.function.Supplier,com.google.javascript.jscomp.CompilerOptions$Reach,boolean,boolean,int)",
+            "com.google.javascript.jscomp.InlineFunctions#<init>(com.google.javascript.jscomp.AbstractCompiler,java.util.function.Supplier,com.google.javascript.jscomp.CompilerOptions$Reach,boolean,int)",
             crate::replay::inline_functions_test_helpers::inline_functions,
         );
         out.register(

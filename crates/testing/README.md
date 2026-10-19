@@ -29,7 +29,7 @@ directory.
   does not know. A key FORMAT.md does not document is a load error, not a silent loss. Value tags
   (`value::Value`) follow FORMAT.md "Value encoding", including the neutral encodings, protobuf
   messages, Guava tables, `typedScope` and `captures`. An unknown or ambiguous tag is an error.
-- **Round trip.** `Record::to_json(Record::from_json(x)) == x` holds for all 24,938 records (JSON
+- **Round trip.** `Record::to_json(Record::from_json(x)) == x` holds for all 24,987 records (JSON
   equality, so key order does not matter). The same holds for all 255 descriptors, for
   `options_defaults.json` and for every `expected_pipeline` line. A harness can therefore trust
   that the typed model carries the whole record.
@@ -59,7 +59,7 @@ Per record file (one Java test class):
    matches. These are ports of `ReplayDsl#selectCase` / `#selectCaseOrNull` / `#matches` /
    `#path`, run on the raw record JSON. They keep Java's `String.split("\\.")` (trailing empty
    segments dropped) and Gson 2.9.1 `JsonElement.equals` (parsed numbers compare as doubles). All
-   21,464 `compiler_test_case` records select a case (`tests/cross_checks.rs`).
+   21,510 `compiler_test_case` records select a case (`tests/cross_checks.rs`).
 3. **Options**: start from the real `CompilerOptions::new()` (its defaults are checked against every field
    captured in `options_defaults.json`), replace each key present in `Record::options` (an
    `@class` names a subclass), apply the case's `options.skip` / `options.then`
@@ -102,13 +102,13 @@ that need them.
 `cargo test -p closure-testing` (the crate and its gzip decoder are built with
 `opt-level = 3` in the dev profile; the structural runner test also replays the full corpus):
 
-- `tests/records_load.rs`: all 24,938 records in 432 files (255 non-empty) load with 0 errors and
+- `tests/records_load.rs`: all 24,987 records in 432 files (255 non-empty) load with 0 errors and
   round-trip; the counts per kind and per API are checked; `call` numbering per method is checked;
   the per-class table must equal `tests/data/record_counts.tsv`, which
   `tests/data/gen_record_counts.py` writes independently with Python's `json` module.
 - `tests/descriptors_load.rs`: all 255 descriptors (375 cases) load and round-trip, and their stems
-  equal the non-empty record files; `options_defaults.json` (205 fields) and `expected_pipeline`
-  (21,464 lines) load and round-trip.
+  equal the non-empty record files; `options_defaults.json` (204 fields) and `expected_pipeline`
+  (21,510 lines) load and round-trip.
 - `tests/cross_checks.rs`: case selection for every record; descriptor `unrepresentable` entries
   name existing records; `expected_pipeline` is keyed one-to-one onto the `compiler_test_case`
   records; the 9 lone-surrogate lines keep their surrogates through the typed model and the writer.
@@ -148,9 +148,11 @@ A caught Rust panic reproduces a recorded non-assertion exception only for
 `java.lang.IllegalStateException`, `java.lang.IllegalArgumentException`,
 `java.lang.NullPointerException` or `java.lang.ClassCastException`, and only when its message
 matches after the recorder's exact 4,000 UTF-16-unit truncation (including its suffix).
+A panic with the message `AssertionError: <message>` (the port's `throw new AssertionError(..)` in
+compiler code) reproduces a recorded assertion outcome with exactly that message.
 Diagnostics and post-state must still match. Typed Throwables still require the same Java class;
-assertion outcomes and every other panic remain failures. Non-string panic payloads have no
-message to compare and always fail.
+every other panic remains a failure. Non-string panic payloads have no message to compare and
+always fail.
 A **fail** is any other mismatch or a harness error. An **unported** record reports the first missing
 class or resolved signature. It never substitutes expected data for execution.
 
@@ -227,7 +229,7 @@ ReplaceMessagesTest helper (`TEST_ID_GENERATOR`, `SimpleMessageBundle` and its h
 `replay/replace_messages_helpers.rs`.
 
 `mod.rs` only declares modules. A stand-in is replaced in place when its implementation is ported;
-an Unported-only body is never marked as a port. Replay assigns all 205 fields on the real
+an Unported-only body is never marked as a port. Replay assigns all 204 fields on the real
 CompilerOptions without invoking setters, and constructor defaults are checked before assignment.
 NodeSubject's equality, mismatch and serializer code is ported; its other Truth convenience
 subjects are outside the replay comparison path and are not ported.
@@ -237,7 +239,7 @@ subjects are outside the replay comparison path and are not ported.
 `tests/replay_harness.rs` checks diagnostics on real JSErrors, duplicate pairing/order, Java hash
 replacement, string normalization, all option defaults, warning-guard order, value decoding,
 DSL evaluation and TSV resolution, recorder dumps, outcome comparison and neutral post-state
-comparison. `tests/unit_replay_runner.rs` classifies every one of the 24,938 records exactly once,
+comparison. `tests/unit_replay_runner.rs` classifies every one of the 24,987 records exactly once,
 checks accounting and zero harness errors, and round-trips the report; it makes no assertion about
 pass/fail counts. Rhino NodeSubject tests exercise semantic properties, subclass payloads,
 declared types, shadows, JSDoc flags, serializer cleanup and failure prefixes.

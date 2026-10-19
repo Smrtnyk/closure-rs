@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/PeepholeRemoveDeadCode.java.
 
 //! Port of `PeepholeRemoveDeadCode.java`.
@@ -437,6 +437,32 @@ impl PeepholeRemoveDeadCode {
                 // Functions that aren't being invoked are dead. If they were invoked we'd see the
                 // CALL before arriving here. We don't want to look at any children since they'll
                 // never execute.
+                false
+            }
+            Token::MEMBER_FIELD_DEF => {
+                if tree.is_static_member(compiler) && tree.has_children(compiler) {
+                    let first_child = tree.get_first_child(compiler).unwrap();
+                    self.try_simplify_unused_result_internal(
+                        compiler,
+                        first_child,
+                        side_effect_roots,
+                    );
+                }
+                false
+            }
+            Token::COMPUTED_FIELD_DEF => {
+                // Computed key initializers run once when the class is defined, even on
+                // non-static fields.
+                let first_child = tree.get_first_child(compiler).unwrap();
+                self.try_simplify_unused_result_internal(compiler, first_child, side_effect_roots);
+                if tree.is_static_member(compiler) && tree.has_two_children(compiler) {
+                    let last_child = tree.get_last_child(compiler).unwrap();
+                    self.try_simplify_unused_result_internal(
+                        compiler,
+                        last_child,
+                        side_effect_roots,
+                    );
+                }
                 false
             }
             _ => {

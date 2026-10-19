@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/FunctionInjector.java.
 
 //! Port of `com.google.javascript.jscomp.FunctionInjector`.
@@ -61,7 +61,6 @@ pub struct FunctionInjector {
     allow_decomposition: bool,
     known_constant_functions: IndexSet<JsString>,
     assume_strict_this: bool,
-    assume_minimum_capture: bool,
     safe_name_id_supplier: Arc<dyn Fn() -> String + Send + Sync>,
     throwaway_name_supplier: Arc<dyn Fn() -> String + Send + Sync>,
     function_argument_injector: Rc<FunctionArgumentInjector>,
@@ -80,7 +79,6 @@ impl FunctionInjector {
         Self {
             safe_name_id_supplier: builder.safe_name_id_supplier.unwrap(),
             assume_strict_this: builder.assume_strict_this,
-            assume_minimum_capture: builder.assume_minimum_capture,
             allow_decomposition: builder.allow_decomposition,
             function_argument_injector: builder.function_argument_injector.unwrap(),
             known_constant_functions: IndexSet::<_>::default(),
@@ -97,7 +95,6 @@ impl FunctionInjector {
 pub struct Builder {
     safe_name_id_supplier: Option<Arc<dyn Fn() -> String + Send + Sync>>,
     assume_strict_this: bool,
-    assume_minimum_capture: bool,
     allow_decomposition: bool,
     function_argument_injector: Option<Rc<FunctionArgumentInjector>>,
 }
@@ -108,7 +105,6 @@ impl Builder {
         Self {
             safe_name_id_supplier: None,
             assume_strict_this: true,
-            assume_minimum_capture: true,
             allow_decomposition: true,
             function_argument_injector: None,
         }
@@ -138,12 +134,6 @@ impl Builder {
     // port: FunctionInjector.Builder#assumeStrictThis
     pub fn assume_strict_this(mut self, assume_strict_this: bool) -> Self {
         self.assume_strict_this = assume_strict_this;
-        self
-    }
-
-    // port: FunctionInjector.Builder#assumeMinimumCapture
-    pub fn assume_minimum_capture(mut self, assume_minimum_capture: bool) -> Self {
-        self.assume_minimum_capture = assume_minimum_capture;
         self
     }
 
@@ -402,7 +392,7 @@ impl FunctionInjector {
         // a memory leak.  This isn't a problem in the global scope as those values
         // last until explicitly cleared.
         if contains_closures {
-            if !self.assume_minimum_capture && !r#ref.scope.is_global(compiler) {
+            if !r#ref.scope.is_global(compiler) {
                 // TODO(johnlenz): Allow inlining into any scope without local names or inner
                 // functions.
                 return CanInlineResult::NO;
@@ -945,7 +935,7 @@ impl FunctionInjector {
             // that contains functions (excluding the function being inlined).
             if self.references_eval(compiler, caller_fn) {
                 forbid_temps = true;
-            } else if !self.assume_minimum_capture {
+            } else {
                 let inner_fn = self.inner_function_of(compiler, caller_fn);
                 let callee_is_only_inner_fn = inner_fn == InnerFunction::NoFunctions
                     || inner_fn == InnerFunction::One(callee_fn);

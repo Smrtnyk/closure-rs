@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/PeepholeRemoveDeadCodeTest.java.
 
@@ -2077,11 +2077,102 @@ fn test_batch_e_pure_expression_statement_and_block_elimination() {
     t.fold_same("for (let x = 1; x < 10; x++) {}");
 }
 
+// port: PeepholeRemoveDeadCodeTest#testUnusedClassWithUninitializedField
+#[test]
+fn test_unused_class_with_uninitialized_field() {
+    let mut t = PeepholeRemoveDeadCodeTest::new();
+    t.test("(class { x; });", "");
+}
+
 // port: PeepholeRemoveDeadCodeTest#testUnusedClassWithInstanceFieldSideEffects
 #[test]
 fn test_unused_class_with_instance_field_side_effects() {
     let mut t = PeepholeRemoveDeadCodeTest::new();
-    // TODO(b/573195636): Hoists side effects out of non-static class field initializers on unused
-    // class expressions.
-    t.test("(class { x = alert(1); });", "alert(1);");
+    t.test("(class { x = alert(1); });", "");
+    t.test("(class { x = alert(1); y = alert(2); });", "");
+}
+
+// port: PeepholeRemoveDeadCodeTest#testUnusedClassWithInstanceFieldSideEffects_thisAndSuper
+#[test]
+fn test_unused_class_with_instance_field_side_effects_this_and_super() {
+    let mut t = PeepholeRemoveDeadCodeTest::new();
+    t.test("(class { x = this.y(); });", "");
+    t.test("(class extends Object { x = super.toString(); });", "");
+}
+
+// port: PeepholeRemoveDeadCodeTest#testUnusedClassWithComputedInstanceFieldSideEffects
+#[test]
+fn test_unused_class_with_computed_instance_field_side_effects() {
+    let mut t = PeepholeRemoveDeadCodeTest::new();
+    t.test("(class { [alert(1)] = alert(2); });", "alert(1);");
+    t.test("(class { ['x'] = alert(2); });", "");
+}
+
+// port: PeepholeRemoveDeadCodeTest#testUnusedClassWithComputedInstanceFieldSideEffects_uninitialized
+#[test]
+fn test_unused_class_with_computed_instance_field_side_effects_uninitialized() {
+    let mut t = PeepholeRemoveDeadCodeTest::new();
+    t.test("(class { [alert(1)]; });", "alert(1);");
+}
+
+// port: PeepholeRemoveDeadCodeTest#testUnusedClassWithStaticField_uninitialized
+#[test]
+fn test_unused_class_with_static_field_uninitialized() {
+    let mut t = PeepholeRemoveDeadCodeTest::new();
+    t.test("(class { static x; });", "");
+    t.test("(class { static [alert(1)]; });", "alert(1);");
+}
+
+// port: PeepholeRemoveDeadCodeTest#testUnusedClassWithStaticFieldSideEffects
+#[test]
+fn test_unused_class_with_static_field_side_effects() {
+    let mut t = PeepholeRemoveDeadCodeTest::new();
+    t.test("(class { static x = alert(1); });", "alert(1);");
+    t.test(
+        "(class { static x = alert(1); static y = alert(2); });",
+        "alert(1), alert(2);",
+    );
+    t.test(
+        "(class { static [alert(1)] = alert(2); });",
+        "alert(1), alert(2);",
+    );
+}
+
+/// Java's `assertThrows(Exception.class, ..)` around a harness call: a failed harness call is a
+/// panic in Rust, so this returns the panic message.
+fn assert_throws_message(f: impl FnOnce()) -> String {
+    let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
+        .expect_err("expected an Exception");
+    if let Some(s) = err.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(s) = err.downcast_ref::<&str>() {
+        s.to_string()
+    } else {
+        String::new()
+    }
+}
+
+// port: PeepholeRemoveDeadCodeTest#testUnusedClassWithStaticFieldSideEffects_thisAndSuper
+#[test]
+fn test_unused_class_with_static_field_side_effects_this_and_super() {
+    let mut t = PeepholeRemoveDeadCodeTest::new();
+    // TODO(b/574118308): fix the `super.y()` and `this.y()` inlining.
+    t.test(
+        "(class extends Parent { static x = this.y(); } );",
+        "this.y();",
+    );
+    let ex =
+        assert_throws_message(|| t.test_same("(class extends Parent { static x = super.y(); });"));
+    assert!(
+        ex.contains(
+            "super property references are only allowed in methods, class static blocks and class \
+             fields"
+        ),
+        "{ex}"
+    );
+    // This is correct - we know `super.toString()` has no side-effects so is safe to remove.
+    t.test(
+        "(class extends Object { static x = super.toString(); });",
+        "",
+    );
 }

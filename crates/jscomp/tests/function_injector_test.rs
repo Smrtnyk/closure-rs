@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   test/com/google/javascript/jscomp/FunctionInjectorTest.java.
 
 //! Port of `FunctionInjectorTest.java`: inline function tests.
@@ -47,7 +47,6 @@ use std::{rc::Rc, sync::Arc};
 
 const INLINE_DIRECT: InliningMode = InliningMode::DIRECT;
 const INLINE_BLOCK: InliningMode = InliningMode::BLOCK;
-const ASSUME_MINIMUM_CAPTURE: bool = false;
 
 // TODO(johnlenz): remove this constant once this has been proven in
 // production code.
@@ -85,7 +84,6 @@ impl FunctionInjectorTest {
         let mut injector = function_injector::Builder::new(&compiler)
             .allow_decomposition(self.allow_decomposition)
             .assume_strict_this(self.assume_strict_this)
-            .assume_minimum_capture(ASSUME_MINIMUM_CAPTURE)
             .function_argument_injector(function_argument_injector.clone())
             .build(&compiler);
         let tree = parse(&mut compiler, code);
@@ -146,7 +144,6 @@ impl FunctionInjectorTest {
         let mut injector = function_injector::Builder::new(&compiler)
             .allow_decomposition(self.allow_decomposition)
             .assume_strict_this(self.assume_strict_this)
-            .assume_minimum_capture(ASSUME_MINIMUM_CAPTURE)
             .function_argument_injector(function_argument_injector.clone())
             .build(&compiler);
 
@@ -255,7 +252,6 @@ impl FunctionInjectorTest {
         let injector = function_injector::Builder::new(&compiler)
             .allow_decomposition(self.allow_decomposition)
             .assume_strict_this(self.assume_strict_this)
-            .assume_minimum_capture(ASSUME_MINIMUM_CAPTURE)
             .build(&compiler);
         let tree = parse(&mut compiler, code);
 

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/parsing/parser/trees/ParseTreeType.java.
 
 // The types of concrete parse trees.
@@ -53,9 +53,6 @@ pub enum ParseTreeType {
     LITERAL_EXPRESSION,
     ARRAY_LITERAL_EXPRESSION,
     OBJECT_LITERAL_EXPRESSION,
-    COMPREHENSION,
-    COMPREHENSION_IF,
-    COMPREHENSION_FOR,
     GET_ACCESSOR,
     SET_ACCESSOR,
     PROPERTY_NAME_ASSIGNMENT,

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/parsing/parser/trees/ParseTree.java.
 
 use super::*;
@@ -35,9 +35,6 @@ pub enum ParseTreeData {
     CatchTree(Box<CatchTree>),
     ClassDeclarationTree(Box<ClassDeclarationTree>),
     CommaExpressionTree(Box<CommaExpressionTree>),
-    ComprehensionForTree(Box<ComprehensionForTree>),
-    ComprehensionIfTree(Box<ComprehensionIfTree>),
-    ComprehensionTree(Box<ComprehensionTree>),
     ComputedPropertyDefinitionTree(Box<ComputedPropertyDefinitionTree>),
     ComputedPropertyFieldTree(Box<ComputedPropertyFieldTree>),
     ComputedPropertyGetterTree(Box<ComputedPropertyGetterTree>),
@@ -226,27 +223,6 @@ impl ParseTree {
         match &self.data {
             ParseTreeData::CommaExpressionTree(value) => value,
             _ => panic!("ClassCastException: CommaExpressionTree"),
-        }
-    }
-    // port: ParseTree#asComprehensionIf
-    pub fn as_comprehension_if(&self) -> &ComprehensionIfTree {
-        match &self.data {
-            ParseTreeData::ComprehensionIfTree(value) => value,
-            _ => panic!("ClassCastException: ComprehensionIfTree"),
-        }
-    }
-    // port: ParseTree#asComprehensionFor
-    pub fn as_comprehension_for(&self) -> &ComprehensionForTree {
-        match &self.data {
-            ParseTreeData::ComprehensionForTree(value) => value,
-            _ => panic!("ClassCastException: ComprehensionForTree"),
-        }
-    }
-    // port: ParseTree#asComprehension
-    pub fn as_comprehension(&self) -> &ComprehensionTree {
-        match &self.data {
-            ParseTreeData::ComprehensionTree(value) => value,
-            _ => panic!("ClassCastException: ComprehensionTree"),
         }
     }
     // port: ParseTree#asComputedPropertyDefinition

@@ -76,7 +76,7 @@ Descriptors: 255.
 | `com.google.javascript.jscomp.InferConsts` | 1 | 1: ConstCheckTest |
 | `com.google.javascript.jscomp.InferJSDocInfo` | 1 | 1: InferJSDocInfoTest |
 | `com.google.javascript.jscomp.InjectTranspilationRuntimeLibraries` | 1 | 3: LateEs6ToEs3ConverterTest, RewriteAsyncFunctionsTest, RewriteAsyncIterationTest |
-| `com.google.javascript.jscomp.InlineFunctions` | 6 | 1: InlineFunctionsTest |
+| `com.google.javascript.jscomp.InlineFunctions` | 5 | 1: InlineFunctionsTest |
 | `com.google.javascript.jscomp.InlineObjectLiterals` | 2 | 1: InlineObjectLiteralsTest |
 | `com.google.javascript.jscomp.InlineProperties` | 1 | 1: InlinePropertiesTest |
 | `com.google.javascript.jscomp.InlineSimpleMethods` | 1 | 1: InlineSimpleMethodsTest |
@@ -459,7 +459,7 @@ Descriptors: 255.
 | `LocaleDataPassesTest_Helpers` | `oracle/replay/helpers/com/google/javascript/jscomp/LocaleDataPassesTest_Helpers.java` | 62 | (see file header) | LocaleDataPassesTest |
 | `MakeDeclaredNamesUniqueTest_Helpers.Processor` | `oracle/replay/helpers/com/google/javascript/jscomp/MakeDeclaredNamesUniqueTest_Helpers.java` | 48 | test/com/google/javascript/jscomp/MakeDeclaredNamesUniqueTest.java lines 51-67 | MakeDeclaredNamesUniqueTest |
 | `ManageClosureUnawareCodeTest_Helpers.GetProcessor` | `oracle/replay/helpers/com/google/javascript/jscomp/ManageClosureUnawareCodeTest_Helpers.java` | 64 | (see file header) | ManageClosureUnawareCodeTest |
-| `MultiPassTest_Helpers.GetProcessor` | `oracle/replay/helpers/com/google/javascript/jscomp/MultiPassTest_Helpers.java` | 192 | (see file header) | MultiPassTest |
+| `MultiPassTest_Helpers.GetProcessor` | `oracle/replay/helpers/com/google/javascript/jscomp/MultiPassTest_Helpers.java` | 191 | (see file header) | MultiPassTest |
 | `NodeUtilTest_Helpers` | `oracle/replay/helpers/com/google/javascript/jscomp/NodeUtilTest_Helpers.java` | 31 | (see file header) | NodeUtilTest |
 | `NormalizeTest_Helpers.RenamingConstantPropertiesTester` | `oracle/replay/helpers/com/google/javascript/jscomp/NormalizeTest_Helpers.java` | 37 | test/com/google/javascript/jscomp/NormalizeTest.java lines 1637-1654 | NormalizeTest |
 | `OptimizeCallsIntegrationTest_Helpers.GetProcessorPass` | `oracle/replay/helpers/com/google/javascript/jscomp/OptimizeCallsIntegrationTest_Helpers.java` | 44 | test/com/google/javascript/jscomp/OptimizeCallsIntegrationTest.java lines 58-74 | OptimizeCallsIntegrationTest |
@@ -826,7 +826,7 @@ Descriptors: 255.
 | InlineAliasesTest | `com.google.javascript.jscomp.PhaseOptimizer` | `com.google.javascript.jscomp.PhaseOptimizer.<init>(com.google.javascript.jscomp.AbstractCompiler,com.google.javascript.jscomp.PerformanceTracker)` |
 | InlineAliasesTest | `com.google.javascript.jscomp.PhaseOptimizer.addOneTimePass` | `com.google.javascript.jscomp.PhaseOptimizer.addOneTimePass(com.google.javascript.jscomp.PassFactory)` |
 | InlineAndCollapsePropertiesTest | `com.google.javascript.jscomp.InlineAndCollapsePropertiesTest_Helpers.getProcessor` | `com.google.javascript.jscomp.InlineAndCollapsePropertiesTest_Helpers.getProcessor(com.google.javascript.jscomp.Compiler)` |
-| InlineFunctionsTest | `com.google.javascript.jscomp.InlineFunctions` | `com.google.javascript.jscomp.InlineFunctions.<init>(com.google.javascript.jscomp.AbstractCompiler,java.util.function.Supplier,com.google.javascript.jscomp.CompilerOptions$Reach,boolean,boolean,int)` |
+| InlineFunctionsTest | `com.google.javascript.jscomp.InlineFunctions` | `com.google.javascript.jscomp.InlineFunctions.<init>(com.google.javascript.jscomp.AbstractCompiler,java.util.function.Supplier,com.google.javascript.jscomp.CompilerOptions$Reach,boolean,int)` |
 | InlineFunctionsTest | `com.google.javascript.jscomp.InlineFunctionsTest_Helpers` | `com.google.javascript.jscomp.InlineFunctionsTest_Helpers.<init>()` |
 | InlineObjectLiteralsTest | `com.google.javascript.jscomp.Compiler.getUniqueNameIdSupplier` | `com.google.javascript.jscomp.Compiler.getUniqueNameIdSupplier()` |
 | InlineObjectLiteralsTest | `com.google.javascript.jscomp.InlineObjectLiterals` | `com.google.javascript.jscomp.InlineObjectLiterals.<init>(com.google.javascript.jscomp.AbstractCompiler,java.util.function.Supplier)` |

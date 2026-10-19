@@ -23,13 +23,13 @@ use closure_testing::{corpus::load_options_defaults, json::JsonValue};
 #[test]
 fn all_compiler_options_defaults_match_java() {
     let (defaults, _) = load_options_defaults().unwrap();
-    assert_eq!(defaults.field_types.len(), 205);
+    assert_eq!(defaults.field_types.len(), 204);
     let expected = defaults.to_json();
     let mut expected = expected.get("fields").unwrap().clone();
     let mut actual = support::options_fields(&CompilerOptions::new());
     support::normalize_standins(&mut expected);
     support::normalize_standins(&mut actual);
-    assert_eq!(actual.as_object().unwrap().len(), 205);
+    assert_eq!(actual.as_object().unwrap().len(), 204);
     for (name, value) in actual.as_object().unwrap() {
         assert!(
             defaults.field_types.contains_key(name),

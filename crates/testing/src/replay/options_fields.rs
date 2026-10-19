@@ -33,7 +33,7 @@
 //   UnitRecorder.java (oracle/patches/0002-recording-hooks.patch),
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayOptions.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
 //   src/com/google/javascript/jscomp/CompilerOptions.java,
 //   src/com/google/javascript/jscomp/deps/ModuleLoader.java,
 //   src/com/google/javascript/jscomp/parsing/Config.java.
@@ -198,11 +198,6 @@ pub fn set_field(
         "maxFunctionSizeAfterInlining" => {
             *options.replay_fields_mut().max_function_size_after_inlining =
                 OptionValue::decode_value(&decoded)?
-        }
-        "assumeClosuresOnlyCaptureReferences" => {
-            *options
-                .replay_fields_mut()
-                .assume_closures_only_capture_references = OptionValue::decode_value(&decoded)?
         }
         "inlineProperties" => {
             *options.replay_fields_mut().inline_properties = OptionValue::decode_value(&decoded)?
@@ -935,10 +930,6 @@ pub fn get_field(options: &CompilerOptions, name: &str) -> Result<JsonValue, Thr
         "maxFunctionSizeAfterInlining" => options
             .replay_fields()
             .max_function_size_after_inlining
-            .encode_value()?,
-        "assumeClosuresOnlyCaptureReferences" => options
-            .replay_fields()
-            .assume_closures_only_capture_references
             .encode_value()?,
         "inlineProperties" => options.replay_fields().inline_properties.encode_value()?,
         "crossChunkCodeMotion" => options
