@@ -95,10 +95,10 @@ fn assert_records(class: &str, expected: usize) {
     }
 }
 
-// port: VarCheckTest (128 @Test methods, 225 recorded calls)
+// port: VarCheckTest (131 @Test methods, 226 recorded calls)
 #[test]
 fn var_check_test() {
-    assert_records("VarCheckTest", 225);
+    assert_records("VarCheckTest", 226);
 }
 
 // port: VariableReferenceCheckTest (122 @Test methods, 311 recorded calls)
