@@ -63,7 +63,7 @@ fn message_format_parity() {
             rows += 1;
         }
     }
-    assert_eq!(rows, 5341);
+    assert_eq!(rows, 5348);
 }
 // port: Formatter.FormatSpecifier#print(double,Locale) (JVM differential table)
 #[test]

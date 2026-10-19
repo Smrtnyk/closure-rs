@@ -1,4 +1,5 @@
 /*
+ * Copyright 2006 The Closure Compiler Authors.
  * Copyright 2018 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 3aeb67d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+//   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/GatherGetterAndSetterPropertiesTest.java.
 
 //! Port of the `GatherGetterAndSetterPropertiesTest.java` tests that have no corpus record. The

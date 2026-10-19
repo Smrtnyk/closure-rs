@@ -49,7 +49,7 @@ fn run(args: &[String]) -> i32 {
         Ok(runner) => runner,
         Err(error) => {
             eprintln!(
-                "Exception in thread \"main\" com.google.javascript.jscomp.FlagUsageException: {error}\n\tat com.google.javascript.jscomp.CommandLineRunner.initConfigFromFlags(CommandLineRunner.java:1657)\n\tat com.google.javascript.jscomp.CommandLineRunner.<init>(CommandLineRunner.java:1479)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2254)"
+                "Exception in thread \"main\" com.google.javascript.jscomp.FlagUsageException: {error}\n\tat com.google.javascript.jscomp.CommandLineRunner.initConfigFromFlags(CommandLineRunner.java:1656)\n\tat com.google.javascript.jscomp.CommandLineRunner.<init>(CommandLineRunner.java:1478)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2253)"
             );
             return 1;
         }
