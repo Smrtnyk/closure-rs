@@ -121,6 +121,6 @@ fn runtime_libs_typedast_through_compiler_class() {
     assert_eq!(bytes.len(), 3_526_864);
     assert_eq!(
         sha256_hex(bytes),
-        "0e2849e6d965f4b89f4e5650b75ccb0eca23fe1babbd8f3cc6c9ae1904b88059"
+        "7c2373285cf36ff3ba49fc683373eb2e10263bd3e8da1fe95bff599f29a2d39e"
     );
 }
