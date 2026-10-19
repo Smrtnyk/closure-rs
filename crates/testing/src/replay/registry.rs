@@ -144,7 +144,7 @@ impl Registry {
             crate::replay::inline_functions_test_helpers::holder,
         );
         out.register(
-            "com.google.javascript.jscomp.InlineFunctions#<init>(com.google.javascript.jscomp.AbstractCompiler,java.util.function.Supplier,com.google.javascript.jscomp.CompilerOptions$Reach,boolean,boolean,int)",
+            "com.google.javascript.jscomp.InlineFunctions#<init>(com.google.javascript.jscomp.AbstractCompiler,java.util.function.Supplier,com.google.javascript.jscomp.CompilerOptions$Reach,boolean,int)",
             crate::replay::inline_functions_test_helpers::inline_functions,
         );
         out.register(

@@ -1735,10 +1735,12 @@ impl RestrictedNameCall {
 
         let mut builder: Vec<RestrictedNameCallRestriction> = Vec::new();
         for value in requirement.get_value_list() {
-            // NodeUtil.newQName(compiler, null) throws NullPointerException in Java.
+            // NodeUtil.newQName(compiler, null) throws NullPointerException in Java, with the
+            // JDK's message.
             let name = NodeUtil::new_qname(
                 compiler,
-                Self::get_name_from_value(value).expect("NullPointerException"),
+                Self::get_name_from_value(value)
+                    .expect("Cannot invoke \"String.indexOf(int)\" because \"name\" is null"),
             );
             let restricted_decl = ConformanceUtil::get_type_from_value(value);
             let Some(restricted_decl) = restricted_decl else {

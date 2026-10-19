@@ -114,6 +114,10 @@ impl ReplayResult {
                 if reproduces_precondition(record, &result) {
                     // Keep the fixture alive so diagnostics/post-state are checked after the throw.
                     Ok(result)
+                } else if let Some(message) = reproduced_assertion_error(record, &result) {
+                    // A `java.lang.AssertionError` thrown by compiler code (the port panics with
+                    // "AssertionError: <message>"), not a failed assertion of the harness.
+                    Self::from_run(Err(Throwable::Assertion { message }))
                 } else {
                     std::panic::resume_unwind(payload)
                 }
@@ -296,6 +300,27 @@ fn reproduces_precondition(record: &JsonValue, result: &ReplayResult) -> bool {
             4000,
         )
         .gson_equals(want.get("message").unwrap_or(&JsonValue::Null))
+}
+/// The message of a recorded `java.lang.AssertionError` that a compiler panic reproduces: the
+/// port renders `throw new AssertionError(message)` in compiler code as a panic with the message
+/// `AssertionError: <message>`, which reproduces an assertion outcome with exactly that message.
+fn reproduced_assertion_error(record: &JsonValue, result: &ReplayResult) -> Option<String> {
+    let want = record.get("outcome")?;
+    if result.outcome.get("panicMessageAvailable") == Some(&JsonValue::Bool(false))
+        || want.get("status") != Some(&JsonValue::str("exception"))
+        || want.get("assertion") != Some(&JsonValue::Bool(true))
+    {
+        return None;
+    }
+    let panic_message = result
+        .outcome
+        .get("message")?
+        .as_js_string()?
+        .to_string_strict()?;
+    let message = panic_message.strip_prefix("AssertionError: ")?;
+    truncate_message(&JsonValue::str(message), 4000)
+        .gson_equals(want.get("message").unwrap_or(&JsonValue::Null))
+        .then(|| message.to_string())
 }
 // port: ReplayMain#truncate
 fn truncate_message(value: &JsonValue, n: usize) -> JsonValue {
