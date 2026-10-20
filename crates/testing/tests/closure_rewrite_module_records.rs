@@ -117,8 +117,8 @@ fn check_missing_requires_test() {
 /// (`new SemanticReverseAbstractInterpreter(registry)` first) unless the test field
 /// `runTypeCheck` is false (the testUntyped* methods). Every record passes (ChangeVerifier
 /// and the pass print typed nodes through the compiler's registry).
-// port: ClosureRewriteModuleTest (168 @Test methods, 215 recorded calls)
+// port: ClosureRewriteModuleTest (171 @Test methods, 218 recorded calls)
 #[test]
 fn closure_rewrite_module_test() {
-    assert_all_pass("ClosureRewriteModuleTest", 215);
+    assert_all_pass("ClosureRewriteModuleTest", 218);
 }

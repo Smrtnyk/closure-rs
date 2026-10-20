@@ -56,7 +56,7 @@ CheckProvidesSortedTest	3	3	0	0
 CheckRegExpTest	40	40	0	0
 CheckRequiresSortedTest	5	5	0	0
 CheckSideEffectsTest	95	95	0	0
-CheckSuperTest	98	98	0	0
+CheckSuperTest	101	101	0	0
 CheckSuspiciousCodeTest	238	238	0	0
 CheckTemplateParamsTest	29	29	0	0
 CheckTypeImportCodeReferencesTest	18	18	0	0
@@ -75,7 +75,7 @@ ClosureIntegrationTest	90	0	90	0
 ClosureOptimizePrimitivesTest	42	42	0	0
 ClosurePrimitivesIntegrationTest	4	0	4	0
 ClosureReverseAbstractInterpreterTest	0	0	0	0
-ClosureRewriteModuleTest	215	215	0	0
+ClosureRewriteModuleTest	218	218	0	0
 ClosureUnawareCodeIntegrationTest	24	0	24	0
 ClosureUnawarePhaseOptimizerTest	2	2	0	0
 ClusterPropagatorTest	0	0	0	0
@@ -144,7 +144,7 @@ Es6RewriteArrowFunctionTest	23	23	0	0
 Es6RewriteBlockScopedDeclarationTest	97	97	0	0
 Es6RewriteBlockScopedFunctionDeclarationTest	7	7	0	0
 Es6RewriteClassExtendsExpressionsTest	20	20	0	0
-Es6RewriteClassTest	151	151	0	0
+Es6RewriteClassTest	153	153	0	0
 Es6RewriteDestructuringTest	144	144	0	0
 Es6RewriteGeneratorsTest	96	96	0	0
 Es6RewriteModulesBeforeTypeCheckingTest	82	82	0	0
@@ -198,11 +198,11 @@ InlineAliasesTest	54	54	0	0
 InlineAndCollapsePropertiesTest	263	263	0	0
 InlineCostEstimatorTest	0	0	0	0
 InlineFunctionsTest	435	435	0	0
-InlineObjectLiteralsTest	94	94	0	0
+InlineObjectLiteralsTest	101	101	0	0
 InlinePropertiesTest	55	55	0	0
 InlineSimpleMethodsTest	81	81	0	0
 InlineVariablesConstantsTest	31	31	0	0
-InlineVariablesTest	273	273	0	0
+InlineVariablesTest	276	276	0	0
 InstrumentAsyncContextTest	49	49	0	0
 IntegrationTest	341	0	341	0
 InvalidatingTypesTest	0	0	0	0
@@ -281,13 +281,13 @@ ParserTest	0	0	0	0
 ParsingUtilTest	0	0	0	0
 PartialCompilationTest	0	0	0	0
 PathUtilTest	0	0	0	0
-PeepholeCollectPropertyAssignmentsTest	63	63	0	0
-PeepholeFoldConstantsTest	1580	1580	0	0
+PeepholeCollectPropertyAssignmentsTest	66	66	0	0
+PeepholeFoldConstantsTest	1584	1584	0	0
 PeepholeIntegrationTest	270	270	0	0
 PeepholeMinimizeConditionsTest	372	372	0	0
 PeepholeOptimizationsPassTest	12	12	0	0
 PeepholeRemoveDeadCodeTest	627	627	0	0
-PeepholeReplaceKnownMethodsTest	841	841	0	0
+PeepholeReplaceKnownMethodsTest	850	850	0	0
 PeepholeSubstituteAlternateSyntaxTest	255	255	0	0
 PerformanceTrackerTest	0	0	0	0
 PhaseOptimizerTest	0	0	0	0
