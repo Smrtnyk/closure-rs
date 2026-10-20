@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   src/com/google/javascript/jscomp/NodeIterators.java.
 
 //! Port of NodeIterators.java: a utility class for some useful iterators over the AST.

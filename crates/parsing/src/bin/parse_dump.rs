@@ -31,7 +31,7 @@
 // Ported from closure-rs' own Java oracle tooling:
 //   oracle/src/com/google/javascript/jscomp/OracleWorker.java,
 //   oracle/src/com/google/javascript/jscomp/ParseDump.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   src/com/google/javascript/jscomp/CompilerInput.java.
 
 //! Oracle-compatible parse_dump JSON-lines tool. Library modules contain only the Java ports.
