@@ -187,9 +187,12 @@ impl ControlFlowGraph<NodeId> {
             Token::WHILE | Token::DO | Token::IF | Token::FOR => {
                 NodeUtil::get_condition_expression(compiler, parent) != Some(n)
             }
-            Token::FOR_IN | Token::CASE | Token::CATCH | Token::WITH => {
-                Some(n) != parent.get_first_child(compiler)
-            }
+            Token::FOR_IN
+            | Token::FOR_OF
+            | Token::FOR_AWAIT_OF
+            | Token::CASE
+            | Token::CATCH
+            | Token::WITH => Some(n) != parent.get_first_child(compiler),
             _ => false,
         }
     }

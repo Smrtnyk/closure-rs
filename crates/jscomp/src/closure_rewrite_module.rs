@@ -1897,9 +1897,9 @@ impl ClosureRewriteModule {
         // `module$exports$a$b$c`
         let exported_namespace_name_node = self
             .ast_factory
-            .create_qname(
+            .create_qname_using_js_type_info(
                 compiler,
-                &NullableTypedScope(self.global_typed_scope),
+                self.global_typed_scope,
                 &exported_namespace.to_string(),
             )
             .srcref_tree(compiler, call);
@@ -2354,9 +2354,9 @@ impl ClosureRewriteModule {
             let compiler = t.get_compiler();
             let legacy_qname = self
                 .ast_factory
-                .create_qname(
+                .create_qname_using_js_type_info(
                     compiler,
-                    &NullableTypedScope(self.global_typed_scope),
+                    self.global_typed_scope,
                     &namespace_id
                         .expect("java.lang.NullPointerException")
                         .to_string(),

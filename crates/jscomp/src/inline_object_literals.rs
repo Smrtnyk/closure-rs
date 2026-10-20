@@ -94,7 +94,12 @@ impl Behavior for InliningBehavior {
                 continue;
             }
 
-            let reference_info = reference_map.get_references(v).unwrap();
+            // ReferenceMap only creates collections for variables that have references.
+            // A variable declared in a scope (e.g. unreferenced catch parameter or block-scoped
+            // function declaration) without references will return null.
+            let Some(reference_info) = reference_map.get_references(v) else {
+                continue;
+            };
 
             if self.is_inlinable_object(compiler, &reference_info.references) {
                 // Skiplist the object itself, as well as any other values

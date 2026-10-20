@@ -218,7 +218,7 @@ impl VariableMap {
                 new_line = string.length() as i32;
             }
             let end_of_line = new_line;
-            if Self::char_at(string, new_line - 1) == 13 {
+            if new_line > 0 && Self::char_at(string, new_line - 1) == 13 {
                 new_line -= 1;
             }
             let line = string.substring(start_of_line as usize, new_line as usize);
@@ -300,7 +300,7 @@ impl VariableMap {
             if stop_char_index == -1 {
                 return -1;
             }
-            if Self::char_at(value, stop_char_index - 1) != 92 {
+            if stop_char_index == 0 || Self::char_at(value, stop_char_index - 1) != 92 {
                 return stop_char_index;
             }
             i = stop_char_index.wrapping_add(1);

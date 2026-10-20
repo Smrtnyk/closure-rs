@@ -2548,7 +2548,7 @@ pub struct DecomposedCharset {
 
 impl DecomposedCharset {
     // port: RegExpTree.DecomposedCharset#DecomposedCharset
-    fn new(inverted: bool, ranges: CharRanges, named_groups: Vec<u16>) -> DecomposedCharset {
+    pub fn new(inverted: bool, ranges: CharRanges, named_groups: Vec<u16>) -> DecomposedCharset {
         DecomposedCharset {
             inverted,
             ranges,
@@ -2671,24 +2671,23 @@ impl DecomposedCharset {
         complexity
     }
 
-    /// Java's `equals` assigns to `this.inverted` (`this.inverted = that.inverted && ...`) and
-    /// returns the assigned value; kept as is.
-    // port: RegExpTree.DecomposedCharset#equals
-    pub fn equals(&mut self, that: &DecomposedCharset) -> bool {
-        self.inverted =
-            that.inverted && self.ranges == that.ranges && self.named_groups == that.named_groups;
-        self.inverted
+    /// The record's `equals`: equal components.
+    // port: RegExpTree.DecomposedCharset#equals (record)
+    pub fn equals(&self, that: &DecomposedCharset) -> bool {
+        self.inverted == that.inverted
+            && self.ranges == that.ranges
+            && self.named_groups == that.named_groups
     }
 
-    // port: RegExpTree.DecomposedCharset#hashCode
+    /// The record's `hashCode` as the JDK computes it (`java.lang.runtime.ObjectMethods`): `31 * h
+    /// + hash(c)` over the components in declaration order, starting from 0, with
+    /// `Boolean.hashCode` and the components' own `hashCode`.
+    // port: RegExpTree.DecomposedCharset#hashCode (record)
     pub fn hash_code(&self) -> i32 {
-        self.ranges.hash_code().wrapping_add(
-            31i32.wrapping_mul(
-                JsString::from_units(self.named_groups.clone())
-                    .hash_code()
-                    .wrapping_add(if self.inverted { 1 } else { 0 }),
-            ),
-        )
+        let mut h: i32 = if self.inverted { 1231 } else { 1237 };
+        h = h.wrapping_mul(31).wrapping_add(self.ranges.hash_code());
+        h.wrapping_mul(31)
+            .wrapping_add(JsString::from_units(self.named_groups.clone()).hash_code())
     }
 }
 

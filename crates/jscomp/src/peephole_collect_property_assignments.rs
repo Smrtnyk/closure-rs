@@ -389,6 +389,13 @@ impl PeepholeCollectPropertyAssignments {
                 if Some(&current_property_name) == property_name.as_ref() {
                     return false;
                 }
+            } else if cur.is_computed_prop(compiler) {
+                let key_node = cur.get_first_child(compiler).unwrap();
+                if !key_node.is_string_lit(compiler)
+                    || Some(&key_node.get_string(compiler)) == property_name.as_ref()
+                {
+                    return false;
+                }
             }
             current_property = cur.get_next(compiler);
         }

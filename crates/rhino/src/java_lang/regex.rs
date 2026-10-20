@@ -982,9 +982,9 @@ mod tests {
                 _ => panic!("Invalid fixture"),
             }
         }
-        assert_eq!(patterns.len(), 16);
-        assert_eq!(inputs.len(), 252);
-        assert_eq!(case_count, 3096);
+        assert_eq!(patterns.len(), 17);
+        assert_eq!(inputs.len(), 286);
+        assert_eq!(case_count, 4056);
     }
     /// `\z` (Pattern.End) next to `$`; the expected matches and hitEnd values are JDK 21's.
     #[test]

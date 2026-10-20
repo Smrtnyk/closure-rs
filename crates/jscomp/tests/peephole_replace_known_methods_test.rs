@@ -922,7 +922,7 @@ fn test_fold_string_split() {
     t.fold("x = 'aaa'.split('aaa')", "x = ['','']");
     t.fold("x = ' '.split(' ')", "x = ['','']");
     t.fold_same("x = 'abcde'.split(/ /)");
-    t.fold_same("x = 'abcde'.split(' ', -1)");
+    t.fold("x = 'abcde'.split(' ', -1)", "x = ['abcde']");
     // Template strings
     t.fold_same("x = `abcdef`.split()");
     t.fold_same("x = `abcdef ${abc}`.split()");
@@ -1137,6 +1137,11 @@ fn test_fold_math_functions_round() {
     t.fold("Math.round(NaN)", "NaN");
     t.fold("Math.round(3.5)", "4");
     t.fold("Math.round(-3.5)", "-3");
+    t.fold("x = Math.round(-0.5)", "x = -0.0");
+    t.fold("x = Math.round(-0.1)", "x = -0.0");
+    t.fold("x = Math.round(-0.0)", "x = -0.0");
+    t.fold("x = Math.round(0.0)", "x = 0");
+    t.fold("x = Math.round(-0.51)", "x = -1");
 }
 
 // port: PeepholeReplaceKnownMethodsTest#testFoldMathFunctions_sign
@@ -1635,4 +1640,15 @@ fn test_batch_d_math_and_number_static_methods() {
     t.fold_same("Math.abs(x)");
     t.fold_same("Math.sign(x)");
     t.fold_same("Math.trunc(x)");
+}
+
+// port: PeepholeReplaceKnownMethodsTest#testStringSplit_uint32Limit
+#[test]
+fn test_string_split_uint32_limit() {
+    let mut t = PeepholeReplaceKnownMethodsTest::new();
+    t.hooks.late = false;
+    t.fold("x = 'a,b'.split(',', 4294967296)", "x = []");
+    t.fold("x = 'a,b'.split(',', 0)", "x = []");
+    t.fold("x = 'a,b'.split(',', 1)", "x = ['a']");
+    t.fold("x = 'a,b'.split(',', -1)", "x = ['a', 'b']");
 }

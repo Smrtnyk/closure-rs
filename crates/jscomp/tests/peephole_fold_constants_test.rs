@@ -2576,6 +2576,18 @@ fn test_fold_object_literal_ref1() {
     );
 }
 
+// port: PeepholeFoldConstantsTest#testSetterDefIgnoredInObjectLiteralPropertyFolding
+#[test]
+fn test_setter_def_ignored_in_object_literal_property_folding() {
+    let mut t = PeepholeFoldConstantsTest::new();
+    // Pre-fix: SETTER_DEF and computed setters do not clear previously tracked data properties,
+    // incorrectly folding the access to the superseded data property value.
+    t.test("var x = ({ a: 1, set a(v) {} }).a;", "var x = 1;");
+    t.test("var x = ({ a: 1, set ['a'](v) {} }).a;", "var x = 1;");
+    t.test("var x = ({ a: 1, set b(v) {} }).a;", "var x = 1;");
+    t.test("var x = ({ set a(v) {}, a: 2 }).a;", "var x = 2;");
+}
+
 // port: PeepholeFoldConstantsTest#testFoldObjectLiteralRef2
 #[test]
 fn test_fold_object_literal_ref2() {

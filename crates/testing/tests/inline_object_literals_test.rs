@@ -1082,6 +1082,123 @@ fn test_object_spread_reading_from_overwritten_prop() {
     ));
 }
 
+// port: InlineObjectLiteralsTest#testUnreferencedVariableInScope_googModule
+#[test]
+fn test_unreferenced_variable_in_scope_goog_module() {
+    let mut t = Test::new();
+    t.test(
+        concat!(
+            "goog.module('my.mod');\n",
+            "function local() {\n",
+            "  var a = {x: 1};\n",
+            "  f(a.x);\n",
+            "}\n"
+        ),
+        concat!(
+            "goog.module('my.mod');\n",
+            "function local() {\n",
+            "  var JSCompiler_object_inline_x_0 = 1;\n",
+            "  f(JSCompiler_object_inline_x_0);\n",
+            "}\n"
+        ),
+    );
+}
+
+// port: InlineObjectLiteralsTest#testUnreferencedVariableInCatch
+#[test]
+fn test_unreferenced_variable_in_catch() {
+    let mut t = Test::new();
+    t.test_local(
+        concat!(
+            "try {\n",
+            "  var a = {x: 1};\n",
+            "  f(a.x);\n",
+            "} catch (e) {\n",
+            "}\n"
+        ),
+        concat!(
+            "try {\n",
+            "  var JSCompiler_object_inline_x_0 = 1;\n",
+            "  f(JSCompiler_object_inline_x_0);\n",
+            "} catch (e) {\n",
+            "}\n"
+        ),
+    );
+}
+
+// port: InlineObjectLiteralsTest#testUnreferencedVariableInScope
+#[test]
+fn test_unreferenced_variable_in_scope() {
+    let mut t = Test::new();
+    t.test_local(
+        concat!("var a = {x: 1};\n", "var unused;\n", "f(a.x);\n"),
+        concat!(
+            "var JSCompiler_object_inline_x_0 = 1;\n",
+            "var unused;\n",
+            "f(JSCompiler_object_inline_x_0);\n"
+        ),
+    );
+}
+
+// port: InlineObjectLiteralsTest#testUnreferencedVariableInDeadCode
+#[test]
+fn test_unreferenced_variable_in_dead_code() {
+    let mut t = Test::new();
+    t.test_local(
+        concat!(
+            "var a = {x: 1};\n",
+            "f(a.x);\n",
+            "return;\n",
+            "var dead = {y: 2};\n"
+        ),
+        concat!(
+            "var JSCompiler_object_inline_x_0 = 1;\n",
+            "f(JSCompiler_object_inline_x_0);\n",
+            "return;\n",
+            "var JSCompiler_object_inline_y_1 = 2;\n"
+        ),
+    );
+}
+
+// port: InlineObjectLiteralsTest#testIssue132728074
+#[test]
+fn test_issue132728074() {
+    let mut t = Test::new();
+    t.test_same(concat!(
+        "(() => {\n",
+        "  for (;;) {\n",
+        "    try {\n",
+        "      break;\n",
+        "    } catch (a) {\n",
+        "      {\n",
+        "        function a() {}\n",
+        "      }\n",
+        "    }\n",
+        "  }\n",
+        "});\n"
+    ));
+}
+
+// port: InlineObjectLiteralsTest#testIssue132728074_minimized
+#[test]
+fn test_issue132728074_minimized() {
+    let mut t = Test::new();
+    t.test_same(concat!(
+        "try {} catch (a) {\n",
+        "  {\n",
+        "    function a() {}\n",
+        "  }\n",
+        "}\n"
+    ));
+}
+
+// port: InlineObjectLiteralsTest#testIssue546730364
+#[test]
+fn test_issue546730364() {
+    let mut t = Test::new();
+    t.test_same(concat!("var x;\n", "{\n", "  function x() {}\n", "}\n"));
+}
+
 // port: InlineObjectLiteralsTest#testObject1_optChainContinues
 #[test]
 fn test_object1_opt_chain_continues() {

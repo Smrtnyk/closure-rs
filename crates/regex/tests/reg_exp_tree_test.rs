@@ -18,7 +18,8 @@
 
 //! Port of `com.google.javascript.jscomp.regex.RegExpTreeTest`.
 
-use closure_regex::reg_exp_tree::{RegExpException, RegExpTree};
+use closure_regex::char_ranges::{self, CharRanges};
+use closure_regex::reg_exp_tree::{DecomposedCharset, RegExpException, RegExpTree};
 use closure_rhino::js_string::JsString;
 
 // port: RegExpTreeTest#parseRegExpAndPrintPattern
@@ -270,4 +271,55 @@ fn test_invalid_unicode_escape() {
         "u",
         "Cannot parse hexadecimal encoding wider than 28 bits: FF00FFFF",
     );
+}
+
+// port: RegExpTreeTest#testDecomposedCharsetEqualsAndHashCode
+#[test]
+fn test_decomposed_charset_equals_and_hash_code() {
+    let named = |s: &str| s.encode_utf16().collect::<Vec<u16>>();
+    let empty1 = DecomposedCharset::new(false, char_ranges::EMPTY.clone(), named(""));
+    let empty2 = DecomposedCharset::new(false, char_ranges::EMPTY.clone(), named(""));
+    let inverted_empty = DecomposedCharset::new(true, char_ranges::EMPTY.clone(), named(""));
+
+    let ranges_a = CharRanges::with_members(&['a' as i32, 'b' as i32]);
+    let ranges_b = CharRanges::with_members(&['a' as i32, 'c' as i32]);
+    let charset_a1 = DecomposedCharset::new(false, ranges_a.clone(), named("\\d"));
+    let charset_a2 = DecomposedCharset::new(false, ranges_a.clone(), named("\\d"));
+    let charset_a_inverted = DecomposedCharset::new(true, ranges_a.clone(), named("\\d"));
+    let charset_diff_ranges = DecomposedCharset::new(false, ranges_b, named("\\d"));
+    let charset_diff_groups = DecomposedCharset::new(false, ranges_a.clone(), named("\\s"));
+
+    // Symmetric equality
+    assert!(empty1.equals(&empty2));
+    assert!(empty2.equals(&empty1));
+    assert_eq!(empty1.hash_code(), empty2.hash_code());
+
+    assert!(charset_a1.equals(&charset_a2));
+    assert!(charset_a2.equals(&charset_a1));
+    assert_eq!(charset_a1.hash_code(), charset_a2.hash_code());
+
+    // Inverted true equality
+    let charset_a_inverted2 = DecomposedCharset::new(true, ranges_a, named("\\d"));
+    assert!(charset_a_inverted.equals(&charset_a_inverted2));
+    assert_eq!(
+        charset_a_inverted.hash_code(),
+        charset_a_inverted2.hash_code()
+    );
+
+    // Inequality across inverted, ranges, and namedGroups
+    assert!(!empty1.equals(&inverted_empty));
+    assert!(!inverted_empty.equals(&empty1));
+    assert!(!charset_a1.equals(&charset_a_inverted));
+    assert!(!charset_a_inverted.equals(&charset_a1));
+    assert!(!charset_a1.equals(&charset_diff_ranges));
+    assert!(!charset_a1.equals(&charset_diff_groups));
+    // assertThat(charsetA1).isNotNull(): nothing to check in Rust.
+
+    // The JDK's record hashCode of these values (JDK 21, the reference JVM).
+    assert_eq!(empty1.hash_code(), 1188757);
+    assert_eq!(inverted_empty.hash_code(), 1182991);
+    assert_eq!(charset_a1.hash_code(), 1206806);
+    assert_eq!(charset_a_inverted.hash_code(), 1201040);
+    assert_eq!(charset_diff_ranges.hash_code(), 1448141);
+    assert_eq!(charset_diff_groups.hash_code(), 1206821);
 }

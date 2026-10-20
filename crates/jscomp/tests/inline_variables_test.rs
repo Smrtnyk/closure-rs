@@ -2918,6 +2918,23 @@ fn test_class_declaration_not_inlined() {
 fn test_class_expression_inlined() {
     let mut t = InlineVariablesTest::set_up();
     t.test("var C = class {}; use(C);", "use(class {});");
+    t.test("const C = class {}; use(C);", "use(class {});");
+    t.test("let C = class {}; use(C);", "use(class {});");
+}
+
+// port: InlineVariablesTest#testModerateMotionStepLimit_doesNotInlinedAcrossTooManyNodes
+#[test]
+fn test_moderate_motion_step_limit_does_not_inlined_across_too_many_nodes() {
+    let mut t = InlineVariablesTest::set_up();
+    let mut sb = String::new();
+    sb.push_str("var C = class {};\n");
+    // Generate enough side-effect-free class declarations to exceed MAX_MODERATE_MOTION_STEPS
+    // (5000)
+    for i in 0..1000 {
+        sb.push_str(&format!("class Extra{i} {{ foo() {{}} }}\n"));
+    }
+    sb.push_str("use(C);\n");
+    t.test_same(&sb);
 }
 
 #[test]

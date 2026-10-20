@@ -1000,6 +1000,25 @@ fn test_checks_only_skips_optimizations() {
     h.test(&["var foo = 1 + 1;"], &["var foo = 1 + 1;"]);
 }
 
+// port: CommandLineRunnerTest#testEs5OutputRunsClassCodeInSloppyMode
+#[test]
+fn test_es5_output_runs_class_code_in_sloppy_mode() {
+    // Won't fix (b/573608886): class code is strict mode code, so natively `this.ro = 2` throws a
+    // TypeError, because `ro` only has a getter. With --language_out=ECMASCRIPT5, unlike
+    // ECMASCRIPT5_STRICT, the output has no 'use strict', so the transpiled class code runs in
+    // sloppy mode and the write is silently ignored. We decided not to change this, since the
+    // compiler isn't required to preserve errors in code that is already broken.
+    let mut h = Harness::new();
+    h.args.push("--language_in=ECMASCRIPT_2015".into());
+    h.args.push("--language_out=ECMASCRIPT5".into());
+    h.compile_sources(&[
+        "class C { get ro() { return 1; } write() { this.ro = 2; } } new C().write();",
+    ]);
+    let output_source = h.get_compiler().to_source().to_string();
+    assert!(!output_source.contains("use strict"), "{output_source}");
+    assert!(output_source.contains("this.ro=2"), "{output_source}");
+}
+
 // port: CommandLineRunnerTest#testWithKeywordWithEs5ChecksOff
 #[test]
 fn test_with_keyword_with_es5_checks_off() {

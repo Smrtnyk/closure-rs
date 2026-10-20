@@ -98,7 +98,7 @@ pub trait LineParser {
 }
 impl JsFileLineParser {
     const STRING_LITERAL_PATTERN: &'static str =
-        r#"\s*(?:'((?:\\'|[^'])*?)'|"((?:\\"|[^"])*?)")\s*"#;
+        r#"\s*(?:'((?:\\.|[^'\\])*)'|"((?:\\.|[^"\\])*)")\s*"#;
     // port: JsFileLineParser#JsFileLineParser
     pub fn new(error_manager: SharedErrorManager) -> Self {
         Self {
