@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/PeepholeCollectPropertyAssignmentsTest.java.
 
@@ -104,6 +104,21 @@ fn test36122565a() {
     let mut t = PeepholeCollectPropertyAssignmentsTest::new();
     t.test_same("var foo = { bar: g(), baz: 4 };\nfoo.bar = 3;\nfoo.baz = 3;\nconsole.log(foo.bar);\nconsole.log(foo.baz);\n");
     t.test("var foo = { bar: g(), baz: 4 };\nfoo.baz = 3;\nfoo.bar = 3;\nconsole.log(foo.bar);\nconsole.log(foo.baz);\n", "var foo = { bar: g(), baz: 3 };\nfoo.bar = 3;\nconsole.log(foo.bar);\nconsole.log(foo.baz);\n");
+}
+
+// port: PeepholeCollectPropertyAssignmentsTest#testComputedPropertyShadowing
+#[test]
+fn test_computed_property_shadowing() {
+    let mut t = PeepholeCollectPropertyAssignmentsTest::new();
+    t.test_same("var called = false;\nvar x = { set ['a'](v) { called = true; } };\nx.a = 2;\n");
+    t.test_same("var called = false;\nvar x = { get ['a']() { return 1; } };\nx.a = 2;\n");
+}
+
+// port: PeepholeCollectPropertyAssignmentsTest#testObjectSpreadDoesNotBlockFolding
+#[test]
+fn test_object_spread_does_not_block_folding() {
+    let mut t = PeepholeCollectPropertyAssignmentsTest::new();
+    t.test("var x = { ...c }; x.a = 1;", "var x = { ...c, a: 1 };");
 }
 
 // port: PeepholeCollectPropertyAssignmentsTest#testArrayOptimization1

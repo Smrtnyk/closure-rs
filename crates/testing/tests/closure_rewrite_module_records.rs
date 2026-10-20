@@ -31,7 +31,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   test/com/google/javascript/jscomp/CheckGoogJsImportTest.java,
 //   test/com/google/javascript/jscomp/CheckMissingRequiresTest.java,
 //   test/com/google/javascript/jscomp/ClosureRewriteModuleTest.java,
@@ -117,8 +117,8 @@ fn check_missing_requires_test() {
 /// (`new SemanticReverseAbstractInterpreter(registry)` first) unless the test field
 /// `runTypeCheck` is false (the testUntyped* methods). Every record passes (ChangeVerifier
 /// and the pass print typed nodes through the compiler's registry).
-// port: ClosureRewriteModuleTest (168 @Test methods, 215 recorded calls)
+// port: ClosureRewriteModuleTest (171 @Test methods, 218 recorded calls)
 #[test]
 fn closure_rewrite_module_test() {
-    assert_all_pass("ClosureRewriteModuleTest", 215);
+    assert_all_pass("ClosureRewriteModuleTest", 218);
 }

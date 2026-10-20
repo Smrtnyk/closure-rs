@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   src/com/google/javascript/jscomp/ControlFlowAnalysis.java,
 //   src/com/google/javascript/jscomp/ControlFlowGraph.java,
 //   src/com/google/javascript/jscomp/NodeTraversal.java.
@@ -187,9 +187,12 @@ impl ControlFlowGraph<NodeId> {
             Token::WHILE | Token::DO | Token::IF | Token::FOR => {
                 NodeUtil::get_condition_expression(compiler, parent) != Some(n)
             }
-            Token::FOR_IN | Token::CASE | Token::CATCH | Token::WITH => {
-                Some(n) != parent.get_first_child(compiler)
-            }
+            Token::FOR_IN
+            | Token::FOR_OF
+            | Token::FOR_AWAIT_OF
+            | Token::CASE
+            | Token::CATCH
+            | Token::WITH => Some(n) != parent.get_first_child(compiler),
             _ => false,
         }
     }

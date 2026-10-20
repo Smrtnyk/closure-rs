@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   src/com/google/javascript/jscomp/InlineVariables.java.
 
 //! Port of `InlineVariables.java`.
@@ -755,6 +755,15 @@ impl InliningBehavior {
         NodeUtil::is_literal_value(ast, value, true) || value.is_function(ast)
     }
 
+    /// Maximum number of AST steps LocalVarMotion will traverse before giving up. Prevents
+    /// quadratic traversal in large monolithic scopes with many definitions.
+    ///
+    /// 5000 steps is large enough to span massive side-effect-free AST structures like protobuf
+    /// descriptor arrays without regressing code size, while bounding worst-case traversal time in
+    /// huge monolithic scopes to fractions of a second.
+    // port: InlineVariables.InliningBehavior#MAX_MODERATE_MOTION_STEPS
+    const MAX_MODERATE_MOTION_STEPS: i32 = 5000;
+
     /// If the value of a variable is not constant, then it may read or modify state. Therefore it
     /// cannot be moved past anything else that may modify the value being read or read values
     /// that are modified.
@@ -791,10 +800,15 @@ impl InliningBehavior {
                 );
             };
         let target_name = reference.get_node();
+        let mut steps = 0;
         while it.has_next() {
             let cur_node = it.next(compiler);
             if cur_node == Some(target_name) {
                 return true;
+            }
+            steps += 1;
+            if steps > Self::MAX_MODERATE_MOTION_STEPS {
+                return false;
             }
         }
 

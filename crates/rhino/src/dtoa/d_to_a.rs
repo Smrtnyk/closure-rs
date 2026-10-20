@@ -55,7 +55,7 @@
  * OF THIS SOFTWARE OR ITS FITNESS FOR ANY PARTICULAR PURPOSE.
  *
  ***************************************************************/
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   src/com/google/javascript/rhino/dtoa/DToA.java.
 
 //! Faithful port of com.google.javascript.rhino.dtoa.DToA.

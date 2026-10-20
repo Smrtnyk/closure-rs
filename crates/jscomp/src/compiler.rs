@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   src/com/google/javascript/jscomp/Compiler.java.
 
 #![allow(
@@ -1373,6 +1373,7 @@ impl Compiler {
     // port: Compiler#initInputsByIdMap
     fn init_inputs_by_id_map(&mut self) {
         self.inputs_by_id.clear();
+        self.excerpt_provider.files.lock().unwrap().clear();
         for input in self.externs.clone() {
             if self.put_compiler_input(input.clone()).is_some() {
                 self.report(JSError::make_without_location(
@@ -3828,6 +3829,11 @@ impl Compiler {
         crate::node_util::NodeUtil::mark_functions_deleted(self, ast_root);
         input.get_chunk().unwrap().remove(&input);
         self.inputs_by_id.shift_remove(input.get_input_id());
+        self.excerpt_provider
+            .files
+            .lock()
+            .unwrap()
+            .shift_remove(input.get_name());
     }
     // port: Compiler#checkNotModule
     fn check_not_module(ast: &Ast, script: NodeId, message: &str) -> NodeId {
@@ -4980,6 +4986,7 @@ impl Compiler {
         self.externs_reference_summary = None;
         self.js_root = Some(js_root);
         self.inputs_by_id.clear();
+        self.excerpt_provider.files.lock().unwrap().clear();
         self.externs.clear();
 
         self.color_registry = deserialized_ast.get_color_registry().cloned();

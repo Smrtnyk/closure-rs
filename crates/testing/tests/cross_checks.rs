@@ -175,8 +175,8 @@ fn case_selection_and_unrepresentable_entries() {
     }
     assert!(errors.is_empty(), "{} records without a case", errors.len());
     println!("selected a case: {selected:?}; no case (optional): {no_match_optional:?}");
-    assert_eq!(ctc, 21_510);
-    assert_eq!(selected["compiler_test_case"], 21_510);
+    assert_eq!(ctc, 21_544);
+    assert_eq!(selected["compiler_test_case"], 21_544);
 }
 
 #[test]
@@ -216,7 +216,7 @@ fn expected_pipeline_matches_records() {
         }
     }
     assert_eq!(matched, entries.len());
-    assert_eq!(matched, 21_510);
+    assert_eq!(matched, 21_544);
 }
 
 fn has_lone_surrogate(v: &JsonValue) -> bool {
@@ -248,12 +248,12 @@ fn lone_surrogates_survive() {
     let want: Vec<String> = [
         ("PeepholeReplaceKnownMethodsTest", 42),
         ("PeepholeReplaceKnownMethodsTest", 43),
-        ("PeepholeReplaceKnownMethodsTest", 337),
-        ("PeepholeReplaceKnownMethodsTest", 338),
-        ("PeepholeReplaceKnownMethodsTest", 664),
-        ("PeepholeReplaceKnownMethodsTest", 665),
-        ("PeepholeReplaceKnownMethodsTest", 666),
-        ("PeepholeReplaceKnownMethodsTest", 667),
+        ("PeepholeReplaceKnownMethodsTest", 341),
+        ("PeepholeReplaceKnownMethodsTest", 342),
+        ("PeepholeReplaceKnownMethodsTest", 668),
+        ("PeepholeReplaceKnownMethodsTest", 669),
+        ("PeepholeReplaceKnownMethodsTest", 670),
+        ("PeepholeReplaceKnownMethodsTest", 671),
         ("SerializeAndDeserializeAstTest", 62),
     ]
     .iter()

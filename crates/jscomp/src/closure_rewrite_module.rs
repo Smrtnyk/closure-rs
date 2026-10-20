@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   src/com/google/javascript/jscomp/ClosureRewriteModule.java,
 //   src/com/google/javascript/jscomp/NodeTraversal.java.
 
@@ -1897,9 +1897,9 @@ impl ClosureRewriteModule {
         // `module$exports$a$b$c`
         let exported_namespace_name_node = self
             .ast_factory
-            .create_qname(
+            .create_qname_using_js_type_info(
                 compiler,
-                &NullableTypedScope(self.global_typed_scope),
+                self.global_typed_scope,
                 &exported_namespace.to_string(),
             )
             .srcref_tree(compiler, call);
@@ -2354,9 +2354,9 @@ impl ClosureRewriteModule {
             let compiler = t.get_compiler();
             let legacy_qname = self
                 .ast_factory
-                .create_qname(
+                .create_qname_using_js_type_info(
                     compiler,
-                    &NullableTypedScope(self.global_typed_scope),
+                    self.global_typed_scope,
                     &namespace_id
                         .expect("java.lang.NullPointerException")
                         .to_string(),

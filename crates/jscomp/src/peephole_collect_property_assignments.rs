@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   src/com/google/javascript/jscomp/PeepholeCollectPropertyAssignments.java.
 
 //! Port of `PeepholeCollectPropertyAssignments.java`.
@@ -387,6 +387,13 @@ impl PeepholeCollectPropertyAssignments {
             } else if cur.is_getter_def(compiler) || cur.is_setter_def(compiler) {
                 let current_property_name = cur.get_string(compiler);
                 if Some(&current_property_name) == property_name.as_ref() {
+                    return false;
+                }
+            } else if cur.is_computed_prop(compiler) {
+                let key_node = cur.get_first_child(compiler).unwrap();
+                if !key_node.is_string_lit(compiler)
+                    || Some(&key_node.get_string(compiler)) == property_name.as_ref()
+                {
                     return false;
                 }
             }

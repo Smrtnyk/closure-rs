@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   test/com/google/javascript/jscomp/VariableMapTest.java.
 
 use closure_jscomp::variable_map::VariableMap;
@@ -136,4 +136,19 @@ fn test_reverse_throws_error_on_duplicate() {
     assert!(
         std::panic::catch_unwind(|| VariableMap::new(&map(&[("AA", "b"), ("BB", "b")]))).is_err()
     );
+}
+// port: VariableMapTest#testFromLines_leadingNewline
+#[test]
+fn test_from_lines_leading_newline() {
+    let vm = VariableMap::from_bytes(b"\na:b\n").unwrap();
+    assert_eq!(vm.lookup_new_name(&"a".into()), Some("b".into()));
+
+    let vm_crlf = VariableMap::from_bytes(b"\r\na:b\r\n").unwrap();
+    assert_eq!(vm_crlf.lookup_new_name(&"a".into()), Some("b".into()));
+}
+// port: VariableMapTest#testFromLines_colonAtStartThrowsParseException
+#[test]
+fn test_from_lines_colon_at_start_throws_parse_exception() {
+    let err = VariableMap::from_bytes(b":foo\n").unwrap_err();
+    assert_eq!(err.message, "Bad line: :foo");
 }

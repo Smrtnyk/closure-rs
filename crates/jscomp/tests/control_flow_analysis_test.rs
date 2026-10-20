@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   test/com/google/javascript/jscomp/ControlFlowAnalysisTest.java.
 
 #![allow(dead_code)]
@@ -2504,6 +2504,54 @@ fn test_async_arrow_returning_arrow_cfg_root() {
         assert!(
             cfg.get_node(&Some(inner)).unwrap().get_priority(&cfg) == 2,
             "{src}"
+        );
+    }
+}
+
+// port: ControlFlowAnalysisTest#testIsEnteringNewCfgNode_enhancedForLoops
+#[test]
+fn test_is_entering_new_cfg_node_enhanced_for_loops() {
+    let mut compiler = Compiler::new();
+    type IsLoop = fn(&closure_rhino::node::Ast, NodeId) -> bool;
+    let cases: [(&str, &str, IsLoop); 3] = [
+        (
+            "for_in",
+            "for (var item in collection) { body(); }",
+            |ast, n| n.is_for_in(ast),
+        ),
+        (
+            "for_of",
+            "for (var item of collection) { body(); }",
+            |ast, n| n.is_for_of(ast),
+        ),
+        (
+            "for_await_of",
+            "async function f() { for await (var item of collection) { body(); } }",
+            |ast, n| n.is_for_await_of(ast),
+        ),
+    ];
+    for (name, src, is_loop) in cases {
+        let root = compiler.parse_synthetic_code(name, src);
+        let for_node = closure_jscomp::testing::code_sub_tree::CodeSubTree::find_nodes_non_empty(
+            &mut compiler,
+            root,
+            is_loop,
+        )[0];
+        let item = for_node.get_first_child(&compiler).unwrap();
+        let collection = item.get_next(&compiler).unwrap();
+        let body = collection.get_next(&compiler).unwrap();
+
+        assert!(
+            !ControlFlowGraph::<NodeId>::is_entering_new_cfg_node(&compiler, item),
+            "{name}"
+        );
+        assert!(
+            ControlFlowGraph::<NodeId>::is_entering_new_cfg_node(&compiler, collection),
+            "{name}"
+        );
+        assert!(
+            ControlFlowGraph::<NodeId>::is_entering_new_cfg_node(&compiler, body),
+            "{name}"
         );
     }
 }

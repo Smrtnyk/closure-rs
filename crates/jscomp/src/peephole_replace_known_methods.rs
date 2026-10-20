@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   src/com/google/javascript/jscomp/PeepholeReplaceKnownMethods.java.
 
 //! Port of `PeepholeReplaceKnownMethods.java`.
@@ -362,6 +362,10 @@ impl PeepholeReplaceKnownMethods {
                 "round" => {
                     if arg.is_nan() || arg.is_infinite() {
                         replacement = Some(arg);
+                    } else if arg >= -0.5
+                        && (arg < 0.0 || (arg == 0.0 && (arg.to_bits() as i64) < 0))
+                    {
+                        replacement = Some(-0.0);
                     } else {
                         replacement = Some(math::round(arg) as f64);
                     }
@@ -1815,11 +1819,11 @@ impl PeepholeReplaceKnownMethods {
 
             let arg2 = arg1.get_next(compiler);
             if let Some(arg2) = arg2 {
-                if arg2.is_number(compiler) {
-                    limit = std::cmp::min(arg2.get_double(compiler) as i32, limit);
-                    if limit < 0 {
-                        return n;
-                    }
+                if NodeUtil::is_numeric_literal(compiler, Some(arg2)) {
+                    let uint32_limit = JSCompDoubles::ecmascript_to_uint32(
+                        NodeUtil::get_numeric_literal_value(compiler, Some(arg2)),
+                    ) as u32 as i64;
+                    limit = std::cmp::min(uint32_limit, limit as i64) as i32;
                 } else {
                     return n;
                 }

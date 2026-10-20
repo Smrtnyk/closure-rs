@@ -29,7 +29,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   src/com/google/javascript/jscomp/CrossChunkCodeMotion.java,
 //   src/com/google/javascript/jscomp/CrossChunkMethodMotion.java,
 //   src/com/google/javascript/jscomp/IdGenerator.java.

@@ -1,0 +1,19 @@
+{
+ "argv": [
+  "--dependency_mode=PRUNE",
+  "--entry_point=a.js",
+  "--js",
+  "a.js",
+  "--js",
+  "b.js",
+  "--js",
+  "c.js",
+  "--js",
+  "d.js",
+  "--js_output_file",
+  "out/out.js"
+ ],
+ "origin": "probe of the JsFileLineParser string pattern of v20261019: a DEPS_PARSE_ERROR in an input that pruning drops is printed without a source excerpt (the compiler's inputs no longer hold it); an unterminated string that ends in an escaped quote is a syntax error",
+ "exit_code": 3,
+ "outputs": []
+}

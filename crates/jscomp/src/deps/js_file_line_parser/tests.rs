@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 9954c6d:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
 //   src/com/google/javascript/jscomp/deps/JsFileLineParser.java,
 //   test/com/google/javascript/jscomp/deps/JsFileLineParserTest.java.
 
@@ -131,6 +131,27 @@ fn test_multiple_block_comments() {
     );
 }
 
+// port: JsFileLineParserTest#testParseJsString_escapedQuotes
+#[test]
+fn test_parse_js_string_escaped_quotes() {
+    let mut parser = TestParser::without_error_manager();
+    assert_eq!(
+        parser.base.parse_js_string("'foo\\'bar'").unwrap(),
+        "foo\\'bar"
+    );
+    assert_eq!(
+        parser.base.parse_js_string("\"foo\\\"bar\"").unwrap(),
+        "foo\\\"bar"
+    );
+}
+// port: JsFileLineParserTest#testParseJsString_unterminatedEscapedQuote_throwsParseException
+#[test]
+fn test_parse_js_string_unterminated_escaped_quote_throws_parse_exception() {
+    let mut parser = TestParser::without_error_manager();
+    assert!(parser.base.parse_js_string("'foo\\'").is_err());
+    assert!(parser.base.parse_js_string("\"foo\\\"").is_err());
+}
+
 // port: JsFileLineParserTest#assertStrip
 fn assert_strip(expected: &str, input: &str) {
     let mut parser = TestParser::new(Arc::new(Mutex::new(BlackHoleErrorManager::new())));
@@ -149,6 +170,11 @@ struct TestParser {
     comments: JsString,
 }
 impl TestParser {
+    /// Java passes a null error manager; parseJsString never reports to it.
+    // port: JsFileLineParserTest.TestParser#TestParser()
+    fn without_error_manager() -> Self {
+        Self::new(Arc::new(Mutex::new(BlackHoleErrorManager::new())))
+    }
     // port: JsFileLineParserTest.TestParser#TestParser
     fn new(manager: SharedErrorManager) -> Self {
         Self {
