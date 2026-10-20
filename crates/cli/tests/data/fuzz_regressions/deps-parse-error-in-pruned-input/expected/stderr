@@ -1,0 +1,12 @@
+b.js:2:0: ERROR - [DEPS_PARSE_ERROR] Syntax error in JS String literal
+goog.require( 'c' , 'extra');
+  2| goog.require( 'c' , 'extra');
+     ^
+
+c.js:1:0: ERROR - [DEPS_PARSE_ERROR] Syntax error in JS String literal
+goog.provide('c\');
+
+d.js:2:0: ERROR - [DEPS_PARSE_ERROR] Syntax error in JS String literal
+goog.require('x', 'y');
+
+3 error(s), 0 warning(s)
