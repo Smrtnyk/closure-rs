@@ -118,9 +118,9 @@ fn runtime_libs_typedast_through_compiler_class() {
     )
     .unwrap();
     let bytes = stream.read_all_bytes();
-    assert_eq!(bytes.len(), 3_526_864);
+    assert_eq!(bytes.len(), 3_530_744);
     assert_eq!(
         sha256_hex(bytes),
-        "7c2373285cf36ff3ba49fc683373eb2e10263bd3e8da1fe95bff599f29a2d39e"
+        "feb246c5d2a4074923caa36814fba7913094789f5fe3aa119a528271e4dad601"
     );
 }
