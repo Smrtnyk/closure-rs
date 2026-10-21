@@ -258,6 +258,7 @@ fn registry_and_public_fields_match_pinned_java() {
             "MISPLACED_TYPE_ANNOTATION",
             &groups::MISPLACED_TYPE_ANNOTATION,
         ),
+        dump("MISSING_CALL_TO_SUPER", &groups::MISSING_CALL_TO_SUPER),
         dump("MISSING_OVERRIDE", &groups::MISSING_OVERRIDE),
         dump("MISSING_POLYFILL", &groups::MISSING_POLYFILL),
         dump("MISSING_PROPERTIES", &groups::MISSING_PROPERTIES),

@@ -1108,9 +1108,11 @@ impl<'a> TypeInference<'a> {
             scope = s.get_parent(compiler);
         }
         let Some(scope) = scope else {
-            // NOTE: we already have a parse error for new.target outside a function.  The only
-            // other case where this might happen is a top-level arrow function, which is a parse
-            // error in the VM, but allowed by our parser.
+            // `new.target` is not inside any non-arrow function. The loop above skips arrow
+            // functions because they use the `new.target` of the code around them, so this also
+            // covers arrow functions with no non-arrow function around them, e.g. a top-level
+            // `() => new.target`. IRFactory already reports a parse error for all of these, so just
+            // use the unknown type.
             new_target_node.set_jstype(compiler, Some(self.unknown_type));
             return;
         };

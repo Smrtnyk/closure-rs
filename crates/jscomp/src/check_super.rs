@@ -32,6 +32,15 @@ pub static MISSING_CALL_TO_SUPER: DiagnosticType = DiagnosticType::error(
     "constructor is missing a call to super()",
 );
 
+// For a derived class constructor that has a `super()` call or returns a value, but might still
+// return without calling `super()`. Unlike MISSING_CALL_TO_SUPER, this can be suppressed, since
+// the constructor might intentionally return a different object.
+// port: CheckSuper#MISSING_ROOT_LEVEL_CALL_TO_SUPER
+pub static MISSING_ROOT_LEVEL_CALL_TO_SUPER: DiagnosticType = DiagnosticType::error(
+    "JSC_MISSING_ROOT_LEVEL_CALL_TO_SUPER",
+    "constructor must unconditionally call super() in a root-level statement before any return",
+);
+
 // port: CheckSuper#THIS_BEFORE_SUPER
 pub static THIS_BEFORE_SUPER: DiagnosticType = DiagnosticType::error(
     "JSC_THIS_BEFORE_SUPER",

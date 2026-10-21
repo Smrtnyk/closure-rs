@@ -176,8 +176,9 @@ impl RescopeGlobalSymbolsRewriteCallback {
         &self,
         compiler: &AbstractCompiler,
     ) -> IndexSet<JsString> {
-        if self.optimize_local_access
-            != OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS
+        if !self
+            .optimize_local_access
+            .should_wrap_reassignable_symbols()
         {
             return IndexSet::<_>::default();
         }
@@ -252,7 +253,7 @@ impl RescopeGlobalSymbolsRewriteCallback {
 
         // Add pre-declarations for all LHS variables that are neither global/cross-chunk names nor
         // externs.
-        if self.optimize_local_access != OptimizeLocalAccess::DISABLED {
+        if self.optimize_local_access.should_optimize() {
             // If we are optimizing local accesses, we only want to pre-declare variables if the
             // declaration will be converted to assignments/property accesses and removed by
             // RemoveGlobalVarCallback. We don't want to add a new var declaration otherwise to
@@ -406,7 +407,7 @@ impl RescopeGlobalSymbolsRewriteCallback {
 
         let current_chunk = t.get_chunk();
 
-        if self.optimize_local_access != OptimizeLocalAccess::DISABLED {
+        if self.optimize_local_access.should_optimize() {
             let defining_chunk = var
                 .get_input(t.get_compiler())
                 .expect("NullPointerException")
@@ -434,10 +435,7 @@ impl RescopeGlobalSymbolsRewriteCallback {
                     // Early return to skip replacing the symbol.
                     return;
                 }
-            } else if self.optimize_local_access == OptimizeLocalAccess::ALL_CHUNKS
-                || self.optimize_local_access
-                    == OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS
-            {
+            } else if self.optimize_local_access.should_optimize_all_chunks() {
                 // Variables defined in a different chunk are still safe for local aliasing if all
                 // of the following conditions are met.
                 // 1. The variable is not written to in any other chunk than in the defining chunk.
@@ -560,10 +558,7 @@ impl RescopeGlobalSymbolsRewriteCallback {
     // port: RescopeGlobalSymbolsRewriteCallback#addDeclarations
     pub fn add_declarations(&mut self, compiler: &mut AbstractCompiler) {
         self.declare_chunk_globals(compiler);
-        if self.optimize_local_access == OptimizeLocalAccess::ALL_CHUNKS
-            || self.optimize_local_access
-                == OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS
-        {
+        if self.optimize_local_access.should_optimize_all_chunks() {
             self.declare_local_aliases_and_wrappers(compiler);
         }
     }
@@ -649,8 +644,9 @@ impl RescopeGlobalSymbolsRewriteCallback {
         let mut changed = false;
 
         let mut wrapped_reassignable_local_aliases: IndexSet<JsString> = IndexSet::<_>::default();
-        if self.optimize_local_access
-            == OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS
+        if self
+            .optimize_local_access
+            .should_wrap_reassignable_symbols()
         {
             wrapped_reassignable_local_aliases = IndexSet::<_>::default();
 

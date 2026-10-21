@@ -2162,7 +2162,10 @@ impl Es6NormalizeClasses {
             .synthesize_class_constructor_if_missing(t, record.class_node);
         let ctor =
             NodeUtil::get_es6_class_constructor_member_function_def(t, record.class_node).unwrap();
-        let ctor_block = ctor.get_first_child(t).unwrap().get_last_child(t).unwrap();
+        let ctor_fn = ctor.get_first_child(t).unwrap();
+        let ctor_block = ctor_fn.get_last_child(t).unwrap();
+        let is_derived = !record.class_node.get_second_child(t).unwrap().is_empty(t);
+
         let insertion_point =
             self.add_temporary_insertion_point(t.get_compiler(), ctor_block, record);
 
@@ -2347,11 +2350,148 @@ impl Es6NormalizeClasses {
             }
         }
 
+        // ES2022 § 10.2.2 ([[Construct]]) runs InitializeInstanceElements before
+        // OrdinaryCallEvaluateBody, which binds the parameters. So when a base constructor's
+        // parameters read `this` (or `super`, which passes `this` as the receiver), move its
+        // parameter default initializers into statements after the field initializations. In a
+        // derived constructor `this` is unbound until super() returns, so there a parameter that
+        // reads `this` throws both natively and after lowering.
+        if !is_derived
+            && NodeUtil::references_enclosing_receiver(t, ctor_fn.get_second_child(t).unwrap())
+        {
+            self.move_constructor_param_defaults_after_fields(t, ctor_fn, insertion_point);
+        }
+
         insertion_point.detach(t);
 
         // We moved the field from the class body to the constructor, so we need both.
         t.report_code_change();
         t.report_code_change_at_node(ctor_block);
+    }
+
+    /// Moves a constructor's parameter default initializers and destructuring patterns into
+    /// statements before `insertion_point`, so that the instance elements installed before
+    /// `insertion_point` are initialized before the defaults run.
+    ///
+    /// ```text
+    /// constructor(a, b = this.x, {c = this.y}) { body }
+    /// // becomes
+    /// constructor(a, b, TMP$0) {
+    ///   this.x = ...;
+    ///   this.y = ...;
+    ///   b = b === void 0 ? this.x : b;
+    ///   let {c = this.y} = TMP$0;
+    ///   body
+    /// }
+    /// ```
+    ///
+    /// `Normalize` has already run `MakeDeclaredNamesUnique`, so any variable declared in the
+    /// constructor body that shadowed a name referenced by a parameter default has already been
+    /// renamed.
+    // port: Es6NormalizeClasses#moveConstructorParamDefaultsAfterFields
+    fn move_constructor_param_defaults_after_fields(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        ctor_fn: NodeId,
+        insertion_point: NodeId,
+    ) {
+        let param_list = ctor_fn.get_second_child(t).unwrap();
+        let mut param_opt = param_list.get_first_child(t);
+        while let Some(param) = param_opt {
+            let next = param.get_next(t);
+            if param.is_default_value(t) {
+                let lhs = param.remove_first_child(t).unwrap();
+                let js_doc = lhs.get_jsdoc_info(t);
+                lhs.set_jsdoc_info(t, None);
+                let default_value = param.remove_first_child(t).unwrap();
+                if lhs.is_name(t) {
+                    // A name with a default, e.g. `b = this.x`, becomes the parameter `b` and the
+                    // statement `b = b === void 0 ? this.x : b;` after the fields.
+                    let rhs = self.create_default_value_hook(t, lhs, default_value);
+                    let lhs_clone = lhs.clone_node(t);
+                    let assign_stmt = self
+                        .ast_factory
+                        .create_assign_statement(t.get_compiler(), lhs_clone, rhs)
+                        .srcref_tree_if_missing(t, param);
+                    assign_stmt.insert_before(t, insertion_point);
+                    param.replace_with(t, lhs);
+                    lhs.set_jsdoc_info(t, js_doc);
+                } else {
+                    // A destructuring pattern with a default, e.g. `{c} = this.y`, becomes a
+                    // temporary parameter `TMP$0` and the statement
+                    // `let {c} = TMP$0 === void 0 ? this.y : TMP$0;` after the fields.
+                    check_state!(lhs.is_destructuring_pattern(t), "%s", lhs.to_string(t));
+                    let temp_name = self.generate_unique_tmp_var_name(t);
+                    let temp_param = self.ast_factory.create_name(
+                        t.get_compiler(),
+                        temp_name.as_str(),
+                        AstFactory::type_node(lhs),
+                    );
+                    let rhs = self.create_default_value_hook(t, temp_param, default_value);
+                    let let_stmt = IR::let_with_value(t, lhs, rhs).srcref_tree_if_missing(t, param);
+                    let_stmt.insert_before(t, insertion_point);
+                    let script = t.get_current_script().unwrap();
+                    NodeUtil::add_feature_to_script(
+                        t.get_compiler(),
+                        script,
+                        Feature::LET_DECLARATIONS,
+                    );
+                    param.replace_with(t, temp_param);
+                    temp_param.set_jsdoc_info(t, js_doc);
+                }
+            } else if param.is_destructuring_pattern(t)
+                || (param.is_rest(t) && param.get_only_child(t).is_destructuring_pattern(t))
+            {
+                // A destructuring pattern without a default, e.g. `{c = this.y}`, becomes a
+                // temporary parameter `TMP$0` and the statement `let {c = this.y} = TMP$0;` after
+                // the fields. In a rest parameter, `...[d = this.y]` becomes `...TMP$0` and
+                // `let [d = this.y] = TMP$0;`.
+                let pattern = if param.is_rest(t) {
+                    param.get_only_child(t)
+                } else {
+                    param
+                };
+                let js_doc = pattern.get_jsdoc_info(t);
+                pattern.set_jsdoc_info(t, None);
+                let temp_name = self.generate_unique_tmp_var_name(t);
+                let temp_param = self.ast_factory.create_name(
+                    t.get_compiler(),
+                    temp_name.as_str(),
+                    AstFactory::type_node(pattern),
+                );
+                pattern.replace_with(t, temp_param);
+                temp_param.set_jsdoc_info(t, js_doc);
+                let temp_param_clone = temp_param.clone_node(t);
+                let let_stmt = IR::let_with_value(t, pattern, temp_param_clone)
+                    .srcref_tree_if_missing(t, param);
+                let_stmt.insert_before(t, insertion_point);
+                let script = t.get_current_script().unwrap();
+                NodeUtil::add_feature_to_script(
+                    t.get_compiler(),
+                    script,
+                    Feature::LET_DECLARATIONS,
+                );
+            }
+            param_opt = next;
+        }
+    }
+
+    // port: Es6NormalizeClasses#createDefaultValueHook
+    fn create_default_value_hook(
+        &self,
+        t: &mut NodeTraversal<'_>,
+        param_name: NodeId,
+        default_value: NodeId,
+    ) -> NodeId {
+        let undefined = self.ast_factory.create_undefined_value(t.get_compiler());
+        undefined.make_non_indexable(t);
+        let param_name_clone = param_name.clone_node(t);
+        let sheq = self
+            .ast_factory
+            .create_sheq(t.get_compiler(), param_name_clone, undefined);
+        let param_name_clone = param_name.clone_node(t);
+        self.ast_factory
+            .create_hook(t.get_compiler(), sheq, default_value, param_name_clone)
     }
 
     /// Finds the location of super() call in the constructor and add a temporary empty node after

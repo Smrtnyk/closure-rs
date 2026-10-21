@@ -640,6 +640,9 @@ pub fn diagnostic_group(name: &str) -> Result<Arc<crate::jscomp_api::DiagnosticG
                 Some(closure_jscomp::diagnostic_groups::DEFINE_WITHOUT_GOOG_DEFINE.clone())
             }
             "TWEAKS" => Some(closure_jscomp::diagnostic_groups::TWEAKS.clone()),
+            "MISSING_CALL_TO_SUPER" => {
+                Some(closure_jscomp::diagnostic_groups::MISSING_CALL_TO_SUPER.clone())
+            }
             "MISSING_OVERRIDE" => Some(closure_jscomp::diagnostic_groups::MISSING_OVERRIDE.clone()),
             "MISSING_PROPERTIES" => {
                 Some(closure_jscomp::diagnostic_groups::MISSING_PROPERTIES.clone())

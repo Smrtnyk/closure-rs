@@ -10234,8 +10234,15 @@ fn test_new_target() {
     h.strict_mode = StrictMode::SLOPPY;
     let tmp1 = h.parse_error("new.target;", &["new.target must be inside a function"]);
     let _ = tmp1;
+    let tmp1b = h.parse_error(
+        "() => new.target;",
+        &["new.target must be inside a function"],
+    );
+    let _ = tmp1b;
     let tmp2 = h.parse("function f() { new.target; };");
     let _ = tmp2;
+    let tmp2b = h.parse("function f() { () => new.target; };");
+    let _ = tmp2b;
     h.mode = LanguageMode::ECMASCRIPT3;
     let tmp3 = h.parse_warning(
         "class C { f() { new.target; } }",
@@ -10264,6 +10271,38 @@ fn test_new_target() {
     ]);
     let tmp5 = h.parse("class C { f() { new.target; } }");
     let _ = tmp5;
+}
+
+// port: ParserTest#testNewTargetInFieldInitializersAndStaticBlocks
+#[test]
+fn test_new_target_in_field_initializers_and_static_blocks() {
+    let mut h = Harness::new();
+    // `new.target` is always `undefined` in field initializers and static blocks, also in arrow
+    // functions nested in them, so it is an error there.
+    let error = closure_parsing::ir_factory::NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK;
+    h.parse_error("class C { x = new.target; }", &[error]);
+    h.parse_error("class C { static x = new.target; }", &[error]);
+    h.parse_error("class C { ['x'] = new.target; }", &[error]);
+    h.parse_error("class C { static { new.target; } }", &[error]);
+    h.parse_error("class C { x = () => new.target; }", &[error]);
+    h.parse_error(
+        "function f() { class C { x = new.target; static { new.target; } } }",
+        &[error, error],
+    );
+    // A nested non-arrow function has its own `new.target`.
+    h.parse("class C { x = function() { return new.target; }; }");
+
+    // A computed key is not part of the initializer, so it may use `new.target` only inside a
+    // non-arrow function.
+    h.parse_error(
+        "class C { [new.target] = 1; }",
+        &["new.target must be inside a function"],
+    );
+    h.parse_error(
+        "() => class C { [new.target] = 1; };",
+        &["new.target must be inside a function"],
+    );
+    h.parse("function f() { class C { [new.target] = 1; } }");
 }
 
 // port: ParserTest#testNewDotSomethingInvalid
@@ -12775,8 +12814,8 @@ fn test_new_target_in_class_field_initializer() {
     let tmp1 = h.parse_error(
         "class C { x = new.target; static s = new.target; }",
         &[
-            "new.target must be inside a function",
-            "new.target must be inside a function",
+            closure_parsing::ir_factory::NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK,
+            closure_parsing::ir_factory::NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK,
         ],
     );
     let _ = tmp1;
@@ -12792,7 +12831,13 @@ fn test_new_target_in_class_field_initializer_in_arrow_fn() {
         Feature::PUBLIC_CLASS_FIELDS,
         Feature::NEW_TARGET,
     ]);
-    let tmp1 = h.parse("class C { x = () => new.target; static s = () => new.target; }");
+    let tmp1 = h.parse_error(
+        "class C { x = () => new.target; static s = () => new.target; }",
+        &[
+            closure_parsing::ir_factory::NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK,
+            closure_parsing::ir_factory::NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK,
+        ],
+    );
     let _ = tmp1;
 }
 
@@ -12828,7 +12873,7 @@ fn test_new_target_in_class_static_block() {
     ]);
     let tmp1 = h.parse_error(
         "class C { static { new.target; } }",
-        &["new.target must be inside a function"],
+        &[closure_parsing::ir_factory::NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK],
     );
     let _ = tmp1;
 }

@@ -598,6 +598,21 @@ impl OptimizeLocalAccess {
     pub fn value_of(name: &str) -> Option<Self> {
         Self::VALUES.iter().copied().find(|v| v.to_string() == name)
     }
+
+    // port: CompilerOptions.OptimizeLocalAccess#shouldOptimize
+    pub fn should_optimize(self) -> bool {
+        self != Self::DISABLED
+    }
+
+    // port: CompilerOptions.OptimizeLocalAccess#shouldOptimizeAllChunks
+    pub fn should_optimize_all_chunks(self) -> bool {
+        self as u8 >= Self::ALL_CHUNKS as u8
+    }
+
+    // port: CompilerOptions.OptimizeLocalAccess#shouldWrapReassignableSymbols
+    pub fn should_wrap_reassignable_symbols(self) -> bool {
+        self as u8 >= Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS as u8
+    }
 }
 impl fmt::Display for OptimizeLocalAccess {
     // port: CompilerOptions.OptimizeLocalAccess#toString
