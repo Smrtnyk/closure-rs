@@ -56,7 +56,7 @@ CheckProvidesSortedTest	3	3	0	0
 CheckRegExpTest	40	40	0	0
 CheckRequiresSortedTest	5	5	0	0
 CheckSideEffectsTest	95	95	0	0
-CheckSuperTest	101	101	0	0
+CheckSuperTest	112	112	0	0
 CheckSuspiciousCodeTest	238	238	0	0
 CheckTemplateParamsTest	29	29	0	0
 CheckTypeImportCodeReferencesTest	18	18	0	0
@@ -131,7 +131,7 @@ DisambiguatePropertiesTest	39	39	0	0
 DominatorTreeTest	0	0	0	0
 DotFormatterTest	0	0	0	0
 ES2021IntegrationTest	19	0	19	0
-ES2022IntegrationTest	26	0	26	0
+ES2022IntegrationTest	32	0	32	0
 EnumElementTypeTest	0	0	0	0
 ErrorToFixMapperTest	0	0	0	0
 Es6CheckModuleTest	34	34	0	0
@@ -342,7 +342,7 @@ RewriteAsyncFunctionsTest	31	31	0	0
 RewriteAsyncIterationTest	29	29	0	0
 RewriteCallerCodeLocationTest	32	32	0	0
 RewriteCatchWithNoBindingTest	4	4	0	0
-RewriteClassMembersTest	257	257	0	0
+RewriteClassMembersTest	264	264	0	0
 RewriteDynamicImportsTest	25	25	0	0
 RewriteGlobalDeclarationsForTryCatchWrappingTest	14	14	0	0
 RewriteGoogJsImportsTest	13	13	0	0

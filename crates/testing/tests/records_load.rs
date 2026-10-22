@@ -101,20 +101,20 @@ fn all_records_load_and_round_trip() {
         "record_counts.tsv rows"
     );
     println!("records: {total}, non-empty files: {nonempty}, kinds: {by_kind:?}, apis: {by_api:?}");
-    assert_eq!(total, 25_021);
+    assert_eq!(total, 25_045);
     assert_eq!(nonempty, 255);
-    assert_eq!(by_kind["compiler_test_case"], 21_544);
+    assert_eq!(by_kind["compiler_test_case"], 21_562);
     assert_eq!(by_kind["type_check"], 2_729);
-    assert_eq!(by_kind["integration"], 748);
+    assert_eq!(by_kind["integration"], 754);
     let api = |n: &str| by_api.get(n).copied().unwrap_or(0);
-    assert_eq!(api("testInternal"), 21_448);
+    assert_eq!(api("testInternal"), 21_466);
     assert_eq!(api("testExternChanges"), 96);
     assert_eq!(api("TypeTestBuilder.run"), 2_684);
     assert_eq!(api("parseAndTypeCheckWithScope"), 45);
-    assert_eq!(api("test"), 583);
-    assert_eq!(api("compile"), 47);
+    assert_eq!(api("test"), 584);
+    assert_eq!(api("compile"), 48);
     assert_eq!(api("test_warning"), 83);
     assert_eq!(api("testNoWarnings"), 27);
     assert_eq!(api("testParseError"), 4);
-    assert_eq!(api("test_warnings"), 4);
+    assert_eq!(api("test_warnings"), 8);
 }
