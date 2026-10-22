@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
 //   test/com/google/javascript/jscomp/OptimizeReturnsTest.java.
 
 //! Port of OptimizeReturnsTest (CompilerTestCase over the crates/testing port).

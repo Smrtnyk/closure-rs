@@ -31,7 +31,7 @@
  */
 // Ported from closure-rs' own Java oracle tooling:
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
 //   src/com/google/javascript/jscomp/ExtraRequireRemover.java,
 //   src/com/google/javascript/jscomp/ijs/ConvertToTypedInterface.java.
 

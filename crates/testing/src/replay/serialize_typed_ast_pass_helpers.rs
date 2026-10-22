@@ -34,7 +34,7 @@
 //   UnitRecorder.java (oracle/patches/0002-recording-hooks.patch),
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
 //   src/com/google/javascript/jscomp/serialization/SerializationOptions.java,
 //   src/com/google/javascript/jscomp/serialization/SerializeTypedAstPass.java,
 //   test/com/google/javascript/jscomp/serialization/SerializeAndDeserializeAstTest.java,
