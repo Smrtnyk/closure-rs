@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
 //   src/com/google/javascript/jscomp/NodeTraversal.java,
 //   src/com/google/javascript/jscomp/RescopeGlobalSymbols.java.
 
@@ -109,9 +109,8 @@ impl CompilerPass for RescopeGlobalSymbols {
 
         // Find global names that are used in more than one chunk. Those that
         // are have to be rewritten.
-        let mut find_cross_chunk_names = FindCrossChunkNamesCallback::new(
-            self.optimize_local_access != OptimizeLocalAccess::DISABLED,
-        );
+        let mut find_cross_chunk_names =
+            FindCrossChunkNamesCallback::new(self.optimize_local_access.should_optimize());
 
         // And find names that may refer to functions that reference this.
         let mut find_names_referencing_this = FindNamesReferencingThis::new();

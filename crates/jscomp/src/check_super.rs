@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
 //   src/com/google/javascript/jscomp/CheckSuper.java.
 
 #![allow(clippy::collapsible_match)] // Retain the Java switches and their nested branches.
@@ -30,6 +30,15 @@ use closure_rhino::{check_argument, check_not_null, check_state, node::NodeId, t
 pub static MISSING_CALL_TO_SUPER: DiagnosticType = DiagnosticType::error(
     "JSC_MISSING_CALL_TO_SUPER",
     "constructor is missing a call to super()",
+);
+
+// For a derived class constructor that has a `super()` call or returns a value, but might still
+// return without calling `super()`. Unlike MISSING_CALL_TO_SUPER, this can be suppressed, since
+// the constructor might intentionally return a different object.
+// port: CheckSuper#MISSING_ROOT_LEVEL_CALL_TO_SUPER
+pub static MISSING_ROOT_LEVEL_CALL_TO_SUPER: DiagnosticType = DiagnosticType::error(
+    "JSC_MISSING_ROOT_LEVEL_CALL_TO_SUPER",
+    "constructor must unconditionally call super() in a root-level statement before any return",
 );
 
 // port: CheckSuper#THIS_BEFORE_SUPER

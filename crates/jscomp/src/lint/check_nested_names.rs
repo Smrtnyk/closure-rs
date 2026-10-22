@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
 //   src/com/google/javascript/jscomp/lint/CheckNestedNames.java.
 
 //! Port of lint/CheckNestedNames.java: checks if code has a module-level static property

@@ -28,7 +28,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
 //   test/com/google/javascript/jscomp/DiagnosticGroupsTest.java.
 // Ported from closure-rs' own Java oracle tooling:
 //   crates/jscomp/tests/java/CompilerDiagnosticGroups.java.
@@ -258,6 +258,7 @@ fn registry_and_public_fields_match_pinned_java() {
             "MISPLACED_TYPE_ANNOTATION",
             &groups::MISPLACED_TYPE_ANNOTATION,
         ),
+        dump("MISSING_CALL_TO_SUPER", &groups::MISSING_CALL_TO_SUPER),
         dump("MISSING_OVERRIDE", &groups::MISSING_OVERRIDE),
         dump("MISSING_POLYFILL", &groups::MISSING_POLYFILL),
         dump("MISSING_PROPERTIES", &groups::MISSING_PROPERTIES),

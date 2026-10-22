@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
 //   src/com/google/javascript/jscomp/parsing/IRFactory.java.
 
 //! IRFactory transforms the external AST to the internal AST.
@@ -81,6 +81,9 @@ pub const UNEXPECTED_YIELD: &str = "yield must be inside generator function";
 pub const UNEXPECTED_AWAIT: &str = "await must be inside asynchronous function";
 pub const UNEXPECTED_FOR_AWAIT_OF: &str = "'for-await-of' used in a non-async function context";
 pub const UNEXPECTED_NEW_DOT_TARGET: &str = "new.target must be inside a function";
+// port: IRFactory#NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK
+pub const NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK: &str =
+    "new.target is not supported in class field initializers or static blocks";
 pub const UNDEFINED_LABEL: &str = "undefined label \"%s\"";
 const ES5_RESERVED_KEYWORDS: &[&str] = &[
     "class", "const", "enum", "export", "extends", "import", "super",
@@ -411,11 +414,24 @@ impl<'a> IRFactory<'a> {
         if n.get_token(ast) != Token::NEW_TARGET {
             return;
         }
+        let mut child = n;
         let mut parent = n.get_parent(ast);
         while let Some(p) = parent {
-            if p.is_function(ast) {
+            // Skip arrow functions, which use the `new.target` of the code around them.
+            if p.is_function(ast) && !p.is_arrow_function(ast) {
                 return;
             }
+            if p.is_member_field_def(ast)
+                || (p.is_computed_field_def(ast) && child.is_second_child_of(ast, Some(p)))
+                || (p.is_class_members(ast) && child.is_block(ast))
+            {
+                // Class field initializers and static blocks run with no [[NewTarget]], so
+                // `new.target` is always `undefined` there. That is rarely what the code means, so
+                // it is an error.
+                self.error(ast, n, NEW_DOT_TARGET_IN_CLASS_FIELD_OR_STATIC_BLOCK);
+                return;
+            }
+            child = p;
             parent = p.get_parent(ast);
         }
         self.error(ast, n, UNEXPECTED_NEW_DOT_TARGET);

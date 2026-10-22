@@ -35,7 +35,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
 //   src/com/google/javascript/rhino/HamtPMap.java, src/com/google/javascript/rhino/PMap.java.
 
 //! Port of Closure's persistent hash array mapped trie.

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
 //   src/com/google/javascript/jscomp/AbstractCommandLineRunner.java,
 //   src/com/google/javascript/jscomp/CommandLineRunner.java.
 
@@ -1955,7 +1955,7 @@ pub static CATEGORIES: &[(&str, &[&str])] = &[
         ],
     ),
 ];
-pub const DIAGNOSTIC_GROUP_NAMES: &str = "accessControls, checkPrototypalTypes, checkRegExp, checkTypes, checkVars, conformanceViolations, const, constantProperty, deprecated, deprecatedAnnotations, defineWithoutGoogDefine, duplicateMessage, es5Strict, externsValidation, functionParams, globalThis, invalidCasts, lintVarDeclarations, misplacedTypeAnnotation, missingOverride, missingPolyfill, missingProperties, missingProvide, missingRequire, missingReturn, missingSourcesWarnings, moduleLoad, moduleImport, msgDescriptions, nonStandardJsDocs, partialAlias, polymer, reportUnknownTypes, strictCheckTypes, strictMissingProperties, strictModuleDepCheck, strictPrimitiveOperators, suspiciousCode, typeInvalidation, undefinedVars, underscore, unknownDefines, unusedLocalVariables, uselessCode, untranspilableFeatures,visibility, weakModuleGet";
+pub const DIAGNOSTIC_GROUP_NAMES: &str = "accessControls, checkPrototypalTypes, checkRegExp, checkTypes, checkVars, conformanceViolations, const, constantProperty, deprecated, deprecatedAnnotations, defineWithoutGoogDefine, duplicateMessage, es5Strict, externsValidation, functionParams, globalThis, invalidCasts, lintVarDeclarations, misplacedTypeAnnotation, missingCallToSuper, missingOverride, missingPolyfill, missingProperties, missingProvide, missingRequire, missingReturn, missingSourcesWarnings, moduleLoad, moduleImport, msgDescriptions, nonStandardJsDocs, partialAlias, polymer, reportUnknownTypes, strictCheckTypes, strictMissingProperties, strictModuleDepCheck, strictPrimitiveOperators, suspiciousCode, typeInvalidation, undefinedVars, underscore, unknownDefines, unusedLocalVariables, uselessCode, untranspilableFeatures,visibility, weakModuleGet";
 impl Flags {
     // port: FieldSetter#addValue / MultiValueFieldSetter#addValue
     pub fn add_value(&mut self, index: usize, value: ParsedValue) {

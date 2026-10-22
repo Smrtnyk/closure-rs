@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
 //   src/com/google/javascript/jscomp/DiagnosticGroups.java.
 
 #![allow(clippy::vec_init_then_push)] // Preserve Java statement order and borrowing branches.
@@ -30,7 +30,7 @@ pub const WILDCARD_EXCLUDED_GROUPS: &[&str] = &[
     "missingSourcesWarnings",
     "closureUnawareCodeAnnotationPresent",
 ];
-pub const DIAGNOSTIC_GROUP_NAMES: &str = "accessControls, checkPrototypalTypes, checkRegExp, checkTypes, checkVars, conformanceViolations, const, constantProperty, deprecated, deprecatedAnnotations, defineWithoutGoogDefine, duplicateMessage, es5Strict, externsValidation, functionParams, globalThis, invalidCasts, lintVarDeclarations, misplacedTypeAnnotation, missingOverride, missingPolyfill, missingProperties, missingProvide, missingRequire, missingReturn, missingSourcesWarnings, moduleLoad, moduleImport, msgDescriptions, nonStandardJsDocs, partialAlias, polymer, reportUnknownTypes, strictCheckTypes, strictMissingProperties, strictModuleDepCheck, strictPrimitiveOperators, suspiciousCode, typeInvalidation, undefinedVars, underscore, unknownDefines, unusedLocalVariables, uselessCode, untranspilableFeatures,visibility, weakModuleGet";
+pub const DIAGNOSTIC_GROUP_NAMES: &str = "accessControls, checkPrototypalTypes, checkRegExp, checkTypes, checkVars, conformanceViolations, const, constantProperty, deprecated, deprecatedAnnotations, defineWithoutGoogDefine, duplicateMessage, es5Strict, externsValidation, functionParams, globalThis, invalidCasts, lintVarDeclarations, misplacedTypeAnnotation, missingCallToSuper, missingOverride, missingPolyfill, missingProperties, missingProvide, missingRequire, missingReturn, missingSourcesWarnings, moduleLoad, moduleImport, msgDescriptions, nonStandardJsDocs, partialAlias, polymer, reportUnknownTypes, strictCheckTypes, strictMissingProperties, strictModuleDepCheck, strictPrimitiveOperators, suspiciousCode, typeInvalidation, undefinedVars, underscore, unknownDefines, unusedLocalVariables, uselessCode, untranspilableFeatures,visibility, weakModuleGet";
 struct Builtins {
     fields: IndexMap<&'static str, Arc<DiagnosticGroup>>,
     groups_by_name: IndexMap<String, Arc<DiagnosticGroup>>,
@@ -142,6 +142,11 @@ static BUILTINS: LazyLock<Builtins> = LazyLock::new(|| {
     let group = Arc::new(DiagnosticGroup::new_named("tweakValidation", &types));
     groups_by_name.insert("tweakValidation".into(), group.clone());
     fields.insert("TWEAKS", group);
+    let mut types: Vec<&'static DiagnosticType> = vec![];
+    types.push(&crate::check_super::MISSING_ROOT_LEVEL_CALL_TO_SUPER);
+    let group = Arc::new(DiagnosticGroup::new_named("missingCallToSuper", &types));
+    groups_by_name.insert("missingCallToSuper".into(), group.clone());
+    fields.insert("MISSING_CALL_TO_SUPER", group);
     let mut types: Vec<&'static DiagnosticType> = vec![];
     types.push(&crate::type_check::HIDDEN_INTERFACE_PROPERTY);
     types.push(&crate::type_check::HIDDEN_PROTOTYPAL_SUPERTYPE_PROPERTY);
@@ -705,6 +710,8 @@ pub static DEFINE_WITHOUT_GOOG_DEFINE: LazyLock<Arc<DiagnosticGroup>> =
     LazyLock::new(|| BUILTINS.fields["DEFINE_WITHOUT_GOOG_DEFINE"].clone());
 pub static TWEAKS: LazyLock<Arc<DiagnosticGroup>> =
     LazyLock::new(|| BUILTINS.fields["TWEAKS"].clone());
+pub static MISSING_CALL_TO_SUPER: LazyLock<Arc<DiagnosticGroup>> =
+    LazyLock::new(|| BUILTINS.fields["MISSING_CALL_TO_SUPER"].clone());
 pub static MISSING_OVERRIDE: LazyLock<Arc<DiagnosticGroup>> =
     LazyLock::new(|| BUILTINS.fields["MISSING_OVERRIDE"].clone());
 pub static MISSING_PROPERTIES: LazyLock<Arc<DiagnosticGroup>> =

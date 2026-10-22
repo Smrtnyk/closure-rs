@@ -37,7 +37,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ff925ed:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
 //   src/com/google/javascript/rhino/Node.java.
 
 //! `Node#matchesQualifiedName(Node)` for a node and a pattern that live in two different node
