@@ -353,7 +353,7 @@ the D2 worklist on a sample (partial runs, for trying the command out).
 | `jar` | builds the uberjar with Bazel (copying the base's `MODULE.bazel.lock` when `MODULE.bazel` is unchanged), installs it read-only and pins its sha256 | `oracle/REFERENCE.md` |
 | `npm-check` | downloads the npm release: is its JS wrapper unchanged since the base release (its bundled `externs/` and `contrib/` are listed apart), is its `contrib/` the reference checkout's (which `npm/closure-rs` packs), and does `google-closure-compiler-java`'s `compiler.jar` have the reference jar's entries (all but the two version-stamp classes)? | |
 | `oracle` | the oracle jar | `oracle/build.sh` |
-| `resources` | the jar resources and the Java-side resource fixtures | `crates/resources/tools/sync_from_jar.py`, `GenResourceFixtures.java` |
+| `resources` | the jar resources, the Java-side resource fixtures and the upstream sources the port embeds verbatim (`crates/parsing/src/ParserConfig.properties`), each checked against the reference source | `crates/resources/tools/sync_from_jar.py`, `GenResourceFixtures.java` |
 | `flags` | `scope/flags.txt` and the npm types | `scope/gen_flags.py`, `scripts/gen_npm_types.mjs` |
 | `license-headers` | the headers' upstream commit | `scripts/license_headers.py` |
 | `worklist` | `porting-worklist.md`: the upstream commits, every changed file with its diff stat and the Rust files ported from it (`LICENSES/headers.tsv`), changed tests with their record files; `upstream.diff` | |

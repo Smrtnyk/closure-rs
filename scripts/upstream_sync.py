@@ -54,6 +54,13 @@ NPM_REGISTRY = "https://registry.npmjs.org"
 JAVA = os.path.join(ROOT, "tools", "jdk-21", "bin")
 FIXED_ENV = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "TZ": "UTC"}
 UNIT_JARS = ("unit_support_deploy.jar", "unit_all_tests.jar", "compiler_tests_lib.jar")
+# Upstream sources the port embeds verbatim (include_str!), as the jar ships them:
+# source path -> (jar entry, the port's copy). Step resources copies them from the jar.
+JAR_COPIES = {
+    "src/com/google/javascript/jscomp/parsing/ParserConfig.properties":
+        ("com/google/javascript/jscomp/parsing/ParserConfig.properties",
+         "crates/parsing/src/ParserConfig.properties"),
+}
 
 
 class StepError(Exception):
@@ -443,11 +450,28 @@ class Sync:
         return "ran"
 
     def step_resources(self):
-        """Regenerates the jar resources (crates/resources/tools/sync_from_jar.py) and the Java-side
-        resource fixtures (crates/resources/tools/GenResourceFixtures.java)."""
+        """Regenerates the jar resources (crates/resources/tools/sync_from_jar.py), the Java-side
+        resource fixtures (crates/resources/tools/GenResourceFixtures.java) and the port's verbatim
+        copies of upstream sources (JAR_COPIES)."""
         r = self.ref()
         jar, src = self.abs(r.jar), self.abs(r.src)
         self.run([sys.executable, "crates/resources/tools/sync_from_jar.py", jar, src])
+        for source, (entry, copy) in JAR_COPIES.items():
+            if self.dry:
+                log(f"  would copy {entry} from {rel(jar)} to {copy}")
+                continue
+            with zipfile.ZipFile(jar) as z:
+                data = z.read(entry)
+            with open(os.path.join(src, source), "rb") as f:
+                if f.read() != data:
+                    raise StepError(f"{entry} in {rel(jar)} differs from {source} of the reference")
+            dst = os.path.join(CHECKOUT, copy)
+            with open(dst, "rb") as f:
+                if f.read() == data:
+                    continue
+            with open(dst, "wb") as f:
+                f.write(data)
+            log(f"  updated {copy}")
         gen = os.path.join(self.work, "resource-fixtures")
         cls, out = os.path.join(gen, "classes"), os.path.join(gen, "out")
         fixtures = os.path.join(CHECKOUT, "crates", "resources", "tests", "fixtures")
@@ -466,7 +490,7 @@ class Sync:
                 if not os.path.exists(dst) or not filecmp.cmp(os.path.join(out, name), dst, shallow=False):
                     shutil.copyfile(os.path.join(out, name), dst)
                     log(f"  updated {rel(dst)}")
-        if not self.diffstat("crates/resources"):
+        if not self.diffstat("crates/resources", *(c for _, c in JAR_COPIES.values())):
             return "ran (no changes)"
         self.note("resources", "the jar resources changed: check the polyfill / runtime library "
                                "changes against the porting worklist")
@@ -541,6 +565,8 @@ class Sync:
                 kind = {"A": "added", "D": "deleted", "M": "modified"}.get(status.get(path, "M")[:1], "modified")
             e = {"path": path, "kind": kind, "added": add, "deleted": dele,
                  "rust": sorted(origins.get(path, []))}
+            if path in JAR_COPIES:
+                e["copy"] = JAR_COPIES[path][1]
             if path.startswith(("externs/", "src/com/google/javascript/jscomp/js/")):
                 groups["resources"].append(e)
             elif path.startswith("src/"):
@@ -569,7 +595,9 @@ class Sync:
             md += [f"## {title}: {len(groups[g])}", ""]
             for e in groups[g]:
                 extra = []
-                if g == "src":
+                if e.get("copy"):
+                    extra.append(f"copied to {e['copy']} (step resources)")
+                elif g == "src":
                     extra.append(", ".join(e["rust"]) if e["rust"] else "no Rust file ports it")
                 if e.get("rust") and g != "src":
                     extra.append(", ".join(e["rust"]))
@@ -582,7 +610,7 @@ class Sync:
             f.write("\n".join(md))
         log(f"  {len(commits)} upstream commits; {len(groups['src'])} source, {len(groups['test'])} test, "
             f"{len(groups['resources'])} resource and {len(groups['other'])} other files changed")
-        unmapped = [e["path"] for e in groups["src"] if not e["rust"]]
+        unmapped = [e["path"] for e in groups["src"] if not e["rust"] and not e.get("copy")]
         if unmapped:
             log(f"  source files no Rust file names as its origin: {', '.join(unmapped)}")
         log(f"  wrote {rel(os.path.join(self.work, 'porting-worklist.md'))} (and .json, upstream.diff)")
