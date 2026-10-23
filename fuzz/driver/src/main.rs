@@ -2417,13 +2417,33 @@ mod tests {
         d
     }
 
+    /// Tests run in parallel threads of one process. A process started while another test
+    /// still has its [`fake_bin`] script open for writing inherits that handle until it execs,
+    /// and running the script meanwhile fails with ETXTBSY ("Text file busy"). Scripts are
+    /// written under the write lock, processes started under the read lock ([`run_fake`]).
+    static SPAWN: std::sync::RwLock<()> = std::sync::RwLock::new(());
+
     /// A fake `closure-rs`: a shell script with `body`.
     fn fake_bin(dir: &Path, body: &str) -> PathBuf {
         use std::os::unix::fs::PermissionsExt;
+        let _w = SPAWN.write().unwrap_or_else(|e| e.into_inner());
         let p = dir.join("fake-closure-rs");
         std::fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
         std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
         p
+    }
+
+    /// [`run_binary`] under the read lock of [`SPAWN`].
+    fn run_fake(
+        bin: &Path,
+        args: &[String],
+        cwd: &Path,
+        out_dir: &Path,
+        out_key: &str,
+        timeout: Duration,
+    ) -> Result<Outcome, String> {
+        let _r = SPAWN.read().unwrap_or_else(|e| e.into_inner());
+        run_binary(bin, args, cwd, out_dir, out_key, timeout)
     }
 
     #[test]
@@ -2451,7 +2471,7 @@ printf 'LANG=%s TZ=%s CARGO=%s' "$LANG" "$TZ" "${CARGO:-unset}" >&2
 exit 3"#,
         );
         let args = vec!["--a=1".to_string(), "x y".to_string()];
-        let o = run_binary(
+        let o = run_fake(
             &bin,
             &args,
             &d,
@@ -2477,7 +2497,7 @@ exit 3"#,
         // equal once both sides are normalized, and any byte difference is reported.
         let d = scratch("shape");
         let bin = fake_bin(&d, "mkdir -p o; printf 'a' > o/c0.js; exit 0");
-        let b = run_binary(&bin, &[], &d, &d.join("o"), "r/o", Duration::from_secs(30)).unwrap();
+        let b = run_fake(&bin, &[], &d, &d.join("o"), "r/o", Duration::from_secs(30)).unwrap();
         let mut a = Outcome {
             exit_code: 0,
             stdout: vec![],
@@ -2503,12 +2523,12 @@ exit 3"#,
     fn rust_engine_reports_signals_timeouts_and_missing_out_dir() {
         let d = scratch("signal");
         let bin = fake_bin(&d, "kill -SEGV $$");
-        let o = run_binary(&bin, &[], &d, &d.join("none"), "n", Duration::from_secs(30)).unwrap();
+        let o = run_fake(&bin, &[], &d, &d.join("none"), "n", Duration::from_secs(30)).unwrap();
         assert_eq!(o.exit_code, 128 + 11);
         assert!(o.files.is_empty());
         let bin = fake_bin(&d, "exec sleep 20");
         let t0 = Instant::now();
-        let o = run_binary(
+        let o = run_fake(
             &bin,
             &[],
             &d,
@@ -2520,7 +2540,7 @@ exit 3"#,
         assert!(t0.elapsed() < Duration::from_secs(10));
         assert_eq!(o.exit_code, RUST_TIMEOUT_EXIT);
         assert!(String::from_utf8_lossy(&o.stderr).contains("killed after"));
-        assert!(run_binary(&d.join("missing"), &[], &d, &d, "n", Duration::from_secs(1)).is_err());
+        assert!(run_fake(&d.join("missing"), &[], &d, &d, "n", Duration::from_secs(1)).is_err());
         let _ = std::fs::remove_dir_all(&d);
     }
 
