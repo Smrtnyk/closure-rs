@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/jscomp/AbstractMessageFormatter.java,
 //   src/com/google/javascript/jscomp/VerboseMessageFormatter.java.
 
@@ -50,12 +50,10 @@ impl VerboseMessageFormatter {
         let source = source_name
             .filter(|s| !s.is_empty())
             .unwrap_or("(unknown source)");
-        // Preserve Java's counterintuitive condition: nonnegative line numbers
-        // print "(unknown line)" in this formatter.
         let line = if line_number < 0 {
-            line_number.to_string()
-        } else {
             "(unknown line)".into()
+        } else {
+            line_number.to_string()
         };
         let excerpt = region.map_or(".".into(), |r| format!(":\n\n{}", r.get_source_excerpt()));
         format!(

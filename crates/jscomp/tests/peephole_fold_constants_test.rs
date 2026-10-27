@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/PeepholeFoldConstantsTest.java.
 
@@ -1842,6 +1842,46 @@ fn test_fold_get_elem2() {
     t.test_same_warning("x = 'string'[0.5]", &INVALID_GETELEM_INDEX_ERROR);
     t.test("x = 'string'[-1]", "x = void 0;");
     t.test("x = 'string'[6]", "x = void 0;");
+}
+
+// port: PeepholeFoldConstantsTest#testFoldGetElem_nonCanonicalKeys
+#[test]
+fn test_fold_get_elem_non_canonical_keys() {
+    let mut t = PeepholeFoldConstantsTest::new();
+    t.test_same("var x = [1, 2]['+0'];");
+    t.test_same("var x = 'abc'['00'];");
+    t.test_same("var x = [1][false];");
+    t.test_same("var x = [1, 2]['1.0'];");
+    t.test_same("var x = [1, 2][' 0 '];");
+    t.test_same("var x = [1, 2][''];");
+    t.test_same("var x = [1, 2][null];");
+    t.test_same("var x = [1, 2][true];");
+    t.test("var x = [1, 2][!0];", "var x = [1, 2][true];");
+
+    t.test("var x = [1, 2]['0'];", "var x = 1;");
+    t.test("var x = [1, 2]['1'];", "var x = 2;");
+    t.test("var x = 'abc'['0'];", "var x = 'a';");
+
+    // Leading zeros, signs, exponents, and radix prefixes are not canonical.
+    t.test_same("var x = [1, 2]['01'];");
+    t.test_same("var x = [1, 2]['-0'];");
+    t.test_same("var x = [1, 2]['-1'];");
+    t.test_same("var x = 'abc'['-1'];");
+    t.test_same("var x = [1, 2]['1e0'];");
+    t.test_same("var x = [1, 2]['0x1'];");
+    // '0.5' names a property; it is not an invalid index, so no warning.
+    t.test_same("var x = [1, 2]['0.5'];");
+    // String([]) is '', which is not an index.
+    t.test_same("var x = [1, 2][[]];");
+    // 2^31 - 1 is the largest index folded; larger valid indexes are left alone.
+    t.test("var x = [1, 2]['2147483647'];", "var x = void 0;");
+    t.test_same("var x = [1, 2]['2147483648'];");
+    t.test_same("var x = [1, 2]['4294967294'];");
+    t.test_same("var x = [1, 2]['4294967295'];");
+    // Number keys still fold; -0 converts to the key '0'.
+    t.test("var x = [1, 2][-0];", "var x = 1;");
+    t.test_same("var x = [1, 2]?.['01'];");
+    t.test("var x = [1, 2]?.['1'];", "var x = 2;");
 }
 
 /// Optional versions of the above `testFoldGetElem2` tests

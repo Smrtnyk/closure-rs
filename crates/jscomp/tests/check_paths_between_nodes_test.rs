@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   test/com/google/javascript/jscomp/graph/CheckPathsBetweenNodesTest.java.
 
 use closure_jscomp::graph::check_paths_between_nodes::CheckPathsBetweenNodes;
@@ -52,6 +52,29 @@ impl<P: Fn(&&str) -> bool> CountingPredicate<P> {
     fn apply(&self, input: &&str) -> bool {
         self.count.set(self.count.get() + 1);
         (self.delegate)(input)
+    }
+}
+struct NodeCountingPredicate {
+    count: Cell<i32>,
+    target: &'static str,
+    return_value: bool,
+}
+impl NodeCountingPredicate {
+    // port: CheckPathsBetweenNodesTest.NodeCountingPredicate#NodeCountingPredicate
+    fn new(target: &'static str, return_value: bool) -> Self {
+        Self {
+            count: Cell::new(0),
+            target,
+            return_value,
+        }
+    }
+    // port: CheckPathsBetweenNodesTest.NodeCountingPredicate#apply
+    fn apply(&self, input: &&str) -> bool {
+        if *input == self.target {
+            self.count.set(self.count.get() + 1);
+            return self.return_value;
+        }
+        false
     }
 }
 // port: CheckPathsBetweenNodesTest#createTest
@@ -391,4 +414,187 @@ fn test_non_inclusive() {
         create_non_inclusive_test(&g, "a", "c", |v: &&str| *v == "b", ALL_EDGE)
             .some_paths_satisfy_predicate(&mut g)
     );
+}
+// port: CheckPathsBetweenNodesTest#testConfluentPaths_visitedEdgePreventsRedundantTraversal_allPaths
+#[test]
+fn test_confluent_paths_visited_edge_prevents_redundant_traversal_all_paths() {
+    let mut g = G::create();
+    g.create_node("a");
+    g.create_node("b");
+    g.create_node("c");
+    g.create_node("d");
+    g.create_node("e");
+
+    g.connect("a", "-", "b");
+    g.connect("a", "-", "c");
+    g.connect("b", "-", "d");
+    g.connect("c", "-", "d");
+    g.connect("d", "-", "e");
+
+    // Diamond DAG where paths a -> b -> d -> e and a -> c -> d -> e converge at 'd'.
+    // Once edge d -> e is traversed and marked VISITED_EDGE on the first path,
+    // the second path converging at 'd' must not re-traverse d -> e.
+    let count_e = NodeCountingPredicate::new("e", true);
+    assert!(
+        create_test(&g, "a", "e", |v: &&str| count_e.apply(v), ALL_EDGE)
+            .all_paths_satisfy_predicate(&mut g)
+    );
+    assert_eq!(count_e.count.get(), 1);
+}
+// port: CheckPathsBetweenNodesTest#testConfluentPaths_visitedEdgePreventsRedundantTraversal_somePaths
+#[test]
+fn test_confluent_paths_visited_edge_prevents_redundant_traversal_some_paths() {
+    let mut g = G::create();
+    g.create_node("a");
+    g.create_node("b");
+    g.create_node("c");
+    g.create_node("d");
+    g.create_node("e");
+
+    g.connect("a", "-", "b");
+    g.connect("a", "-", "c");
+    g.connect("b", "-", "d");
+    g.connect("c", "-", "d");
+    g.connect("d", "-", "e");
+
+    // Diamond DAG where paths a -> b -> d -> e and a -> c -> d -> e converge at 'd'.
+    // In somePathsSatisfyPredicate, when the first path does not satisfy the predicate,
+    // edge d -> e is marked VISITED_EDGE. The second path converging at 'd' must not
+    // re-traverse d -> e.
+    let count_e = NodeCountingPredicate::new("e", false);
+    assert!(
+        !create_test(&g, "a", "e", |v: &&str| count_e.apply(v), ALL_EDGE)
+            .some_paths_satisfy_predicate(&mut g)
+    );
+    assert_eq!(count_e.count.get(), 1);
+}
+// port: CheckPathsBetweenNodesTest#testConfluentPaths_withCycles_allPaths
+#[test]
+fn test_confluent_paths_with_cycles_all_paths() {
+    let mut g = G::create();
+    g.create_node("a");
+    g.create_node("b");
+    g.create_node("c");
+    g.create_node("d");
+    g.create_node("e");
+    g.create_node("f");
+
+    g.connect("a", "-", "b");
+    g.connect("a", "-", "c");
+    g.connect("b", "-", "d");
+    g.connect("c", "-", "d");
+    g.connect("d", "-", "e");
+    g.connect("e", "-", "d"); // cycle on confluent subgraph
+    g.connect("d", "-", "f");
+
+    // All paths from 'a' to 'f' converge at 'd'. The cycle e -> d is a back edge,
+    // and d -> f is marked VISITED_EDGE once traversed. 'f' must be visited once.
+    let count_f = NodeCountingPredicate::new("f", true);
+    assert!(
+        create_test(&g, "a", "f", |v: &&str| count_f.apply(v), ALL_EDGE)
+            .all_paths_satisfy_predicate(&mut g)
+    );
+    assert_eq!(count_f.count.get(), 1);
+}
+// port: CheckPathsBetweenNodesTest#testConfluentPaths_withCycles_somePaths
+#[test]
+fn test_confluent_paths_with_cycles_some_paths() {
+    let mut g = G::create();
+    g.create_node("a");
+    g.create_node("b");
+    g.create_node("c");
+    g.create_node("d");
+    g.create_node("e");
+    g.create_node("f");
+
+    g.connect("a", "-", "b");
+    g.connect("a", "-", "c");
+    g.connect("b", "-", "d");
+    g.connect("c", "-", "d");
+    g.connect("d", "-", "e");
+    g.connect("e", "-", "d"); // cycle on confluent subgraph
+    g.connect("d", "-", "f");
+
+    let count_f = NodeCountingPredicate::new("f", false);
+    assert!(
+        !create_test(&g, "a", "f", |v: &&str| count_f.apply(v), ALL_EDGE)
+            .some_paths_satisfy_predicate(&mut g)
+    );
+    assert_eq!(count_f.count.get(), 1);
+}
+// port: CheckPathsBetweenNodesTest#testCycles_backEdgeNotTraversed_allPaths
+#[test]
+fn test_cycles_back_edge_not_traversed_all_paths() {
+    let mut g = G::create();
+    g.create_node("a");
+    g.create_node("b");
+    g.create_node("c");
+    g.create_node("d");
+
+    g.connect("a", "-", "b");
+    g.connect("b", "-", "c");
+    g.connect("c", "-", "b"); // back edge to b
+    g.connect("b", "-", "d");
+
+    // NodeCountingPredicate on 'b': without back edges, 'b' is visited once.
+    // If the back edge c -> b is traversed, 'b' is revisited.
+    let count_b = NodeCountingPredicate::new("b", false);
+    assert!(
+        !create_test(&g, "a", "d", |v: &&str| count_b.apply(v), ALL_EDGE)
+            .all_paths_satisfy_predicate(&mut g)
+    );
+    assert_eq!(count_b.count.get(), 1);
+}
+// port: CheckPathsBetweenNodesTest#testCycles_backEdgeNotTraversed_somePaths
+#[test]
+fn test_cycles_back_edge_not_traversed_some_paths() {
+    let mut g = G::create();
+    g.create_node("a");
+    g.create_node("b");
+    g.create_node("c");
+    g.create_node("d");
+
+    g.connect("a", "-", "b");
+    g.connect("b", "-", "c");
+    g.connect("c", "-", "b"); // back edge to b
+    g.connect("b", "-", "d");
+
+    // NodeCountingPredicate on 'b': without back edges, 'b' is visited once.
+    // If the back edge c -> b is traversed, 'b' is revisited.
+    let count_b = NodeCountingPredicate::new("b", false);
+    assert!(
+        !create_test(&g, "a", "d", |v: &&str| count_b.apply(v), ALL_EDGE)
+            .some_paths_satisfy_predicate(&mut g)
+    );
+    assert_eq!(count_b.count.get(), 1);
+}
+// port: CheckPathsBetweenNodesTest#testCycles_backEdgeToStartNotTraversed
+#[test]
+fn test_cycles_back_edge_to_start_not_traversed() {
+    let mut g = G::create();
+    g.create_node("a");
+    g.create_node("b");
+    g.create_node("c");
+    g.create_node("d");
+
+    g.connect("a", "-", "b");
+    g.connect("b", "-", "c");
+    g.connect("c", "-", "a"); // back edge to start 'a'
+    g.connect("b", "-", "d");
+
+    // NodeCountingPredicate on 'a': without back edges, start 'a' is visited once.
+    // If the back edge c -> a is traversed, 'a' is revisited.
+    let count_a = NodeCountingPredicate::new("a", false);
+    assert!(
+        !create_test(&g, "a", "d", |v: &&str| count_a.apply(v), ALL_EDGE)
+            .all_paths_satisfy_predicate(&mut g)
+    );
+    assert_eq!(count_a.count.get(), 1);
+
+    let count_some_a = NodeCountingPredicate::new("a", false);
+    assert!(
+        !create_test(&g, "a", "d", |v: &&str| count_some_a.apply(v), ALL_EDGE)
+            .some_paths_satisfy_predicate(&mut g)
+    );
+    assert_eq!(count_some_a.count.get(), 1);
 }

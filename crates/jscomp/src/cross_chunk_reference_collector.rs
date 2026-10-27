@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/jscomp/CrossChunkReferenceCollector.java.
 
 //! Port of CrossChunkReferenceCollector.java: collects global variable references for use by
@@ -28,6 +28,7 @@ use crate::node_traversal::{Callback, NodeTraversal, ScopedCallback};
 use crate::node_util::NodeUtil;
 use crate::reference::Reference;
 use crate::reference_collection::ReferenceCollection;
+use crate::reference_collector;
 use crate::scope::ScopeId;
 use crate::scope_creator::ScopeCreator;
 use crate::var::VarId;
@@ -232,48 +233,6 @@ impl<'a> CrossChunkReferenceCollector<'a> {
     // port: CrossChunkReferenceCollector#peek
     fn peek<T: Clone>(list: &[T]) -> T {
         list.last().unwrap().clone()
-    }
-
-    /// @return true if this node marks the start of a new basic block
-    // port: CrossChunkReferenceCollector#isBlockBoundary
-    fn is_block_boundary(ast: &Ast, n: NodeId, parent: Option<NodeId>) -> bool {
-        if let Some(parent) = parent {
-            match parent.get_token(ast) {
-                Token::DO
-                | Token::FOR
-                | Token::FOR_IN
-                | Token::FOR_OF
-                | Token::FOR_AWAIT_OF
-                | Token::TRY
-                | Token::WHILE
-                | Token::WITH
-                | Token::CLASS => {
-                    // NOTE: TRY has up to 3 child blocks:
-                    // TRY
-                    //   BLOCK
-                    //   BLOCK
-                    //     CATCH
-                    //   BLOCK
-                    // Note that there is an explicit CATCH token but no explicit
-                    // FINALLY token. For simplicity, we consider each BLOCK
-                    // a separate basic BLOCK.
-                    return true;
-                }
-                Token::AND
-                | Token::HOOK
-                | Token::IF
-                | Token::OR
-                | Token::SWITCH
-                | Token::COALESCE => {
-                    // The first child of a conditional is not a boundary,
-                    // but all the rest of the children are.
-                    return Some(n) != parent.get_first_child(ast);
-                }
-                _ => {}
-            }
-        }
-
-        n.is_case(ast)
     }
 
     // port: CrossChunkReferenceCollector#addReferenceToCollection
@@ -543,7 +502,7 @@ impl Callback for CrossChunkReferenceCollector<'_> {
             self.top_level_statement_draft = Some(draft);
         }
         // If node is a new basic block, put on basic block stack
-        if Self::is_block_boundary(t, n, parent) {
+        if reference_collector::is_block_boundary(t, n, parent) {
             let block = BasicBlock::new(t, Some(Self::peek(&self.block_stack)), n);
             self.block_stack.push(block);
         }
@@ -588,7 +547,7 @@ impl Callback for CrossChunkReferenceCollector<'_> {
                 }
             }
         }
-        if Self::is_block_boundary(t, n, parent) {
+        if reference_collector::is_block_boundary(t, n, parent) {
             Self::pop(&mut self.block_stack);
         }
     }

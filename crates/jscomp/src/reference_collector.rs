@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/jscomp/ReferenceCollector.java.
 
 //! Port of `ReferenceCollector.java`.
@@ -367,7 +367,7 @@ fn is_inside(ast: &Ast, n: NodeId, root: NodeId) -> bool {
 
 /// Returns true if this node marks the start of a new basic block
 // port: ReferenceCollector#isBlockBoundary
-fn is_block_boundary(ast: &Ast, n: NodeId, parent: Option<NodeId>) -> bool {
+pub(crate) fn is_block_boundary(ast: &Ast, n: NodeId, parent: Option<NodeId>) -> bool {
     if let Some(parent) = parent {
         match parent.get_token(ast) {
             Token::DO

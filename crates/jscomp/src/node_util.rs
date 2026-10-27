@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/jscomp/NodeUtil.java.
 
 #![allow(clippy::match_like_matches_macro)] // Retain Java switch bodies.
@@ -2857,6 +2857,16 @@ impl NodeUtil {
     }
     // port: NodeUtil#newQName(AbstractCompiler,String)
     pub fn new_qname(compiler: &mut AbstractCompiler, name: impl Into<JsString>) -> NodeId {
+        let (convention, ast) = compiler.get_coding_convention_and_ast_mut();
+        Self::new_qname_with_convention(ast, convention, name)
+    }
+    // port: NodeUtil#newQName(CodingConvention,String)
+    pub fn new_qname_with_convention(
+        ast: &mut Ast,
+        convention: &dyn CodingConvention,
+        name: impl Into<JsString>,
+    ) -> NodeId {
+        let compiler = ast;
         let name = name.into();
         let dot = name.index_of(".");
         let mut end_pos = if dot == -1 {
@@ -2870,7 +2880,7 @@ impl NodeUtil {
         } else if node_name == "super" {
             IR::super_node(compiler)
         } else {
-            Self::new_name(compiler, node_name)
+            Self::new_name(compiler, convention, node_name)
         };
         qname.set_length(compiler, end_pos as i32);
         let mut start_pos = end_pos + 1;
@@ -2883,7 +2893,7 @@ impl NodeUtil {
             };
             let part = name.substring(start_pos, end_pos);
             qname = IR::getprop(compiler, qname, part.clone());
-            if compiler.get_coding_convention().is_constant_key(&part) {
+            if convention.is_constant_key(&part) {
                 qname.put_boolean_prop(compiler, Prop::IS_CONSTANT_NAME, true);
             }
             qname.set_length(compiler, part.length() as i32);
@@ -2898,7 +2908,19 @@ impl NodeUtil {
         basis_node: NodeId,
         original_name: impl Into<JsString>,
     ) -> NodeId {
-        let node = Self::new_qname(compiler, name);
+        let (convention, ast) = compiler.get_coding_convention_and_ast_mut();
+        Self::new_qname_with_convention_and_basis(ast, convention, name, basis_node, original_name)
+    }
+    // port: NodeUtil#newQName(CodingConvention,String,Node,String)
+    pub fn new_qname_with_convention_and_basis(
+        ast: &mut Ast,
+        convention: &dyn CodingConvention,
+        name: impl Into<JsString>,
+        basis_node: NodeId,
+        original_name: impl Into<JsString>,
+    ) -> NodeId {
+        let compiler = ast;
+        let node = Self::new_qname_with_convention(compiler, convention, name);
         node.srcref_tree_if_missing(compiler, basis_node);
         let original_name = original_name.into();
         if node.get_original_name(compiler).as_ref() != Some(&original_name) {
@@ -2934,16 +2956,27 @@ impl NodeUtil {
         }
         result
     }
-    // port: NodeUtil#newPropertyAccess
+    /// Creates a property access on the `context` tree.
+    // port: NodeUtil#newPropertyAccess(AbstractCompiler,Node,String)
     pub fn new_property_access(
         compiler: &mut AbstractCompiler,
         context: NodeId,
         name: impl Into<JsString>,
     ) -> NodeId {
+        let (convention, ast) = compiler.get_coding_convention_and_ast_mut();
+        Self::new_property_access_with_convention(ast, convention, context, name)
+    }
+    // port: NodeUtil#newPropertyAccess(CodingConvention,Node,String)
+    pub fn new_property_access_with_convention(
+        ast: &mut Ast,
+        convention: &dyn CodingConvention,
+        context: NodeId,
+        name: impl Into<JsString>,
+    ) -> NodeId {
         let name = name.into();
-        let prop_node = IR::getprop(compiler, context, name.clone());
-        if compiler.get_coding_convention().is_constant_key(&name) {
-            prop_node.put_boolean_prop(compiler, Prop::IS_CONSTANT_NAME, true);
+        let prop_node = IR::getprop(ast, context, name.clone());
+        if convention.is_constant_key(&name) {
+            prop_node.put_boolean_prop(ast, Prop::IS_CONSTANT_NAME, true);
         }
         prop_node
     }
@@ -2954,11 +2987,34 @@ impl NodeUtil {
         value: Option<NodeId>,
         info: Option<Arc<JSDocInfo>>,
     ) -> NodeId {
-        Self::new_qname_declaration(compiler, name, value, info, Token::VAR)
+        let (convention, ast) = compiler.get_coding_convention_and_ast_mut();
+        Self::new_qname_declaration_var_with_convention(ast, convention, name, value, info)
+    }
+    // port: NodeUtil#newQNameDeclaration(CodingConvention,String,Node,JSDocInfo)
+    pub fn new_qname_declaration_var_with_convention(
+        ast: &mut Ast,
+        convention: &dyn CodingConvention,
+        name: impl Into<JsString>,
+        value: Option<NodeId>,
+        info: Option<Arc<JSDocInfo>>,
+    ) -> NodeId {
+        Self::new_qname_declaration_with_convention(ast, convention, name, value, info, Token::VAR)
     }
     // port: NodeUtil#newQNameDeclaration(AbstractCompiler,String,Node,JSDocInfo,Token)
     pub fn new_qname_declaration(
         compiler: &mut AbstractCompiler,
+        name: impl Into<JsString>,
+        value: Option<NodeId>,
+        info: Option<Arc<JSDocInfo>>,
+        type_: Token,
+    ) -> NodeId {
+        let (convention, ast) = compiler.get_coding_convention_and_ast_mut();
+        Self::new_qname_declaration_with_convention(ast, convention, name, value, info, type_)
+    }
+    // port: NodeUtil#newQNameDeclaration(CodingConvention,String,Node,JSDocInfo,Token)
+    pub fn new_qname_declaration_with_convention(
+        ast: &mut Ast,
+        convention: &dyn CodingConvention,
         name: impl Into<JsString>,
         value: Option<NodeId>,
         info: Option<Arc<JSDocInfo>>,
@@ -2969,8 +3025,8 @@ impl NodeUtil {
             "%s",
             type_
         );
-        let name_node = Self::new_qname(compiler, name);
-        Self::get_declaration_from_name(compiler, name_node, value, type_, info)
+        let name_node = Self::new_qname_with_convention(ast, convention, name);
+        Self::get_declaration_from_name(ast, name_node, value, type_, info)
     }
     // port: NodeUtil#getRootOfQualifiedName(Node)
     pub fn get_root_of_qualified_name(ast: &Ast, q_name: NodeId) -> NodeId {
@@ -2996,13 +3052,17 @@ impl NodeUtil {
             q_name.substring(0, dot as usize)
         }
     }
-    // port: NodeUtil#newName(AbstractCompiler,String)
-    pub fn new_name(compiler: &mut AbstractCompiler, name: impl Into<JsString>) -> NodeId {
+    // port: NodeUtil#newName(CodingConvention,String)
+    fn new_name(
+        ast: &mut Ast,
+        convention: &dyn CodingConvention,
+        name: impl Into<JsString>,
+    ) -> NodeId {
         let name = name.into();
-        let name_node = IR::name(compiler, name.clone());
-        name_node.set_length(compiler, name.length() as i32);
-        if compiler.get_coding_convention().is_constant(&name) {
-            name_node.put_boolean_prop(compiler, Prop::IS_CONSTANT_NAME, true);
+        let name_node = IR::name(ast, name.clone());
+        name_node.set_length(ast, name.length() as i32);
+        if convention.is_constant(&name) {
+            name_node.put_boolean_prop(ast, Prop::IS_CONSTANT_NAME, true);
         }
         name_node
     }
@@ -3012,7 +3072,17 @@ impl NodeUtil {
         name: impl Into<JsString>,
         srcref: NodeId,
     ) -> NodeId {
-        Self::new_name(compiler, name).srcref(compiler, srcref)
+        let (convention, ast) = compiler.get_coding_convention_and_ast_mut();
+        Self::new_name_with_convention_and_srcref(ast, convention, name, srcref)
+    }
+    // port: NodeUtil#newName(CodingConvention,String,Node)
+    pub fn new_name_with_convention_and_srcref(
+        ast: &mut Ast,
+        convention: &dyn CodingConvention,
+        name: impl Into<JsString>,
+        srcref: NodeId,
+    ) -> NodeId {
+        Self::new_name(ast, convention, name).srcref(ast, srcref)
     }
     // port: NodeUtil#newName(AbstractCompiler,String,Node,String)
     pub fn new_name_with_basis(
@@ -3021,8 +3091,20 @@ impl NodeUtil {
         basis_node: NodeId,
         original_name: impl Into<JsString>,
     ) -> NodeId {
-        let name_node = Self::new_name_with_srcref(compiler, name, basis_node);
-        name_node.set_original_name(compiler, Some(original_name.into()));
+        let (convention, ast) = compiler.get_coding_convention_and_ast_mut();
+        Self::new_name_with_convention_and_basis(ast, convention, name, basis_node, original_name)
+    }
+    // port: NodeUtil#newName(CodingConvention,String,Node,String)
+    pub fn new_name_with_convention_and_basis(
+        ast: &mut Ast,
+        convention: &dyn CodingConvention,
+        name: impl Into<JsString>,
+        basis_node: NodeId,
+        original_name: impl Into<JsString>,
+    ) -> NodeId {
+        let name_node =
+            Self::new_name_with_convention_and_srcref(ast, convention, name, basis_node);
+        name_node.set_original_name(ast, Some(original_name.into()));
         name_node
     }
 
@@ -4812,25 +4894,49 @@ impl NodeUtil {
         root.add_child_to_back(compiler, var);
         compiler.report_change_to_enclosing_scope(var);
     }
-    // port: NodeUtil#markNewScopesChanged
+    /// Recurses through a tree, marking all function nodes as changed.
+    // port: NodeUtil#markNewScopesChanged(Node,AbstractCompiler)
     pub fn mark_new_scopes_changed(compiler: &mut AbstractCompiler, node: NodeId) {
-        compiler
-            .change_tracker
-            .mark_new_scopes_changed(&mut compiler.ast, node);
+        Self::mark_new_scopes_changed_with_tracker(
+            &mut compiler.ast,
+            &mut compiler.change_tracker,
+            node,
+        );
     }
-    // port: NodeUtil#markFunctionsDeleted
+    // port: NodeUtil#markNewScopesChanged(Node,ChangeTracker)
+    pub fn mark_new_scopes_changed_with_tracker(
+        ast: &mut Ast,
+        change_tracker: &mut ChangeTracker,
+        node: NodeId,
+    ) {
+        change_tracker.mark_new_scopes_changed(ast, node);
+    }
+    /// Recurses through a tree, marking all function nodes deleted.
+    // port: NodeUtil#markFunctionsDeleted(Node,AbstractCompiler)
     pub fn mark_functions_deleted(compiler: &mut AbstractCompiler, node: NodeId) {
-        if node.is_function(compiler) {
-            compiler.report_function_deleted(node);
+        Self::mark_functions_deleted_with_tracker(
+            &mut compiler.ast,
+            &mut compiler.change_tracker,
+            node,
+        );
+    }
+    // port: NodeUtil#markFunctionsDeleted(Node,ChangeTracker)
+    pub fn mark_functions_deleted_with_tracker(
+        ast: &mut Ast,
+        change_tracker: &mut ChangeTracker,
+        node: NodeId,
+    ) {
+        if node.is_function(ast) {
+            change_tracker.report_function_deleted(ast, node);
         }
-        let mut child = node.get_first_child(compiler);
+        let mut child = node.get_first_child(ast);
         while let Some(current) = child {
-            Self::mark_functions_deleted(compiler, current);
-            child = current.get_next(compiler);
+            Self::mark_functions_deleted_with_tracker(ast, change_tracker, current);
+            child = current.get_next(ast);
         }
-        let shadowed = node.get_closure_unaware_shadow(compiler);
+        let shadowed = node.get_closure_unaware_shadow(ast);
         if let Some(shadowed) = shadowed {
-            Self::mark_functions_deleted(compiler, shadowed);
+            Self::mark_functions_deleted_with_tracker(ast, change_tracker, shadowed);
         }
     }
     // port: NodeUtil#getParentChangeScopeNodes

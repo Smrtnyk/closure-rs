@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/jscomp/CheckConformance.java,
 //   src/com/google/javascript/jscomp/ConformanceRules.java.
 
@@ -221,6 +221,7 @@ pub struct CheckConformance {
 // port: CheckConformance#EXTENDABLE_FIELDS
 const EXTENDABLE_FIELDS: &[&str] = &[
     "config_file",
+    "error_message",
     "extends",
     "only_apply_to",
     "only_apply_to_regexp",
@@ -535,6 +536,14 @@ impl CheckConformance {
             .add_all_allowlist_entry(extending_requirement.get_allowlist_entry_list().to_vec())
             .add_all_value(extending_requirement.get_value_list().iter().cloned())
             .add_all_config_file(extending_requirement.get_config_file_list().iter().cloned());
+        if extending_requirement.has_error_message() && extended_requirement.has_error_message() {
+            let error_message = format!(
+                "{} {}",
+                extended_requirement.get_error_message(),
+                extending_requirement.get_error_message()
+            );
+            extended_requirement.set_error_message(error_message);
+        }
     }
 
     /// Validates a extendable requirement.

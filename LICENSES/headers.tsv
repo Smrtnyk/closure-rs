@@ -582,6 +582,7 @@ crates/jscomp/tests/ast_manipulations_test.rs	f471fc4284efe593	Apache-2.0	closur
 crates/jscomp/tests/ast_validator_test.rs	883fb220ddd0c184	Apache-2.0	closure:test/com/google/javascript/jscomp/AstValidatorTest.java; closure:src/com/google/javascript/jscomp/AstValidator.java; closure:src/com/google/javascript/jscomp/CompilerOptions.java; closure:test/com/google/javascript/jscomp/CompilerTestCase.java
 crates/jscomp/tests/base_transpiler_test.rs	19d1e8381d64f45d	Apache-2.0	closure:test/com/google/javascript/jscomp/transpile/BaseTranspilerTest.java; closure:src/com/google/javascript/jscomp/transpile/BaseTranspiler.java
 crates/jscomp/tests/change_verifier_test.rs	c8bb848dcf1e2683	Apache-2.0	closure:test/com/google/javascript/jscomp/ChangeVerifierTest.java
+crates/jscomp/tests/check_conformance_test.rs	7e57d6e78a254a1a	Apache-2.0	closure:test/com/google/javascript/jscomp/CompilerTestCase.java; closure:test/com/google/javascript/jscomp/CheckConformanceTest.java
 crates/jscomp/tests/check_missing_requires_test.rs	dfe815814a15f718	Apache-2.0	closure:test/com/google/javascript/jscomp/CompilerTestCase.java; closure:test/com/google/javascript/jscomp/CheckMissingRequiresTest.java
 crates/jscomp/tests/check_paths_between_nodes_test.rs	9d327c9014f9922d	Apache-2.0	closure:test/com/google/javascript/jscomp/graph/CheckPathsBetweenNodesTest.java
 crates/jscomp/tests/closure_bundler_test.rs	5d513f86d4a0e7b4	Apache-2.0	closure:test/com/google/javascript/jscomp/deps/ClosureBundlerTest.java
@@ -784,6 +785,7 @@ crates/jscomp/tests/type_transformation_test.rs	11f063a90fe7f5ee	Apache-2.0	clos
 crates/jscomp/tests/typed_ast_proto_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/tests/unique_id_supplier_test.rs	1524181385531d1e	Apache-2.0	closure:test/com/google/javascript/jscomp/UniqueIdSupplierTest.java
 crates/jscomp/tests/variable_map_test.rs	5372c51950178e7e	Apache-2.0	closure:test/com/google/javascript/jscomp/VariableMapTest.java
+crates/jscomp/tests/verbose_message_formatter_test.rs	df98b820dc6029aa	Apache-2.0	closure:test/com/google/javascript/jscomp/VerboseMessageFormatterTest.java
 crates/jscomp/tests/warnings_guard_test.rs	82d3c4f12509ec90	Apache-2.0	closure:test/com/google/javascript/jscomp/WarningsGuardTest.java
 crates/jscomp/tests/whitespace_wrap_goog_modules_test.rs	71e5261e9c87ea5b	Apache-2.0	closure:test/com/google/javascript/jscomp/WhitespaceWrapGoogModulesTest.java
 crates/jscomp/tests/wtf8_test.rs	37b74c6ff5376442	Apache-2.0	closure:test/com/google/javascript/jscomp/serialization/Wtf8Test.java

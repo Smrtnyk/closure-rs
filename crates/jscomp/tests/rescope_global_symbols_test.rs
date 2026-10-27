@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   test/com/google/javascript/jscomp/RescopeGlobalSymbolsTest.java.
 
 #[path = "support/pass_test_case.rs"]
@@ -1721,6 +1721,302 @@ fn test_all_chunks_local_access_optimization_multiple_chunks() {
     );
 }
 
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappingAndInitAssignment
+#[test]
+fn test_all_chunks_with_wrapping_and_init_assignment() {
+    let mut t = T::new();
+    t.optimize_local_access =
+        OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var a = 1; a + 1;")
+                .add_chunk("a;")
+                .build(),
+        ),
+        expected_many(&["var a = _.a = 1; a + 1;", "var {a} = _; a;"]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappingAndInitAssignment_let
+#[test]
+fn test_all_chunks_with_wrapping_and_init_assignment_let() {
+    let mut t = T::new();
+    t.optimize_local_access =
+        OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("let a = 1; a + 1;")
+                .add_chunk("a;")
+                .build(),
+        ),
+        expected_many(&["var a = _.a = 1; a + 1;", "var {a} = _; a;"]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappingAndInitAssignment_const
+#[test]
+fn test_all_chunks_with_wrapping_and_init_assignment_const() {
+    let mut t = T::new();
+    t.optimize_local_access =
+        OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("const a = 1; a + 1;")
+                .add_chunk("a;")
+                .build(),
+        ),
+        expected_many(&["var a = _.a = 1; a + 1;", "var {a} = _; a;"]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappingAndInitAssignment_mixedVarDeclaration
+#[test]
+fn test_all_chunks_with_wrapping_and_init_assignment_mixed_var_declaration() {
+    let mut t = T::new();
+    t.optimize_local_access =
+        OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var a = 1, b = 2, c = 3, d = 4; a + c + d;")
+                .add_chunk("a; b; d;")
+                .build(),
+        ),
+        expected_many(&[
+            "var a = _.a = 1; _.b = 2; var c = 3, d = _.d = 4; a + c + d;",
+            "var {a, b, d} = _; a; b; d;",
+        ]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappingAndInitAssignment_reassignedInDefiningChunk
+#[test]
+fn test_all_chunks_with_wrapping_and_init_assignment_reassigned_in_defining_chunk() {
+    let mut t = T::new();
+    t.optimize_local_access =
+        OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var a = 1; a = 2; a + 1;")
+                .add_chunk("a;")
+                .build(),
+        ),
+        expected_many(&["var a = _.a = 1; a = _.a = 2; a + 1;", "var {a} = _; a;"]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappingAndInitAssignment_multipleWrites
+#[test]
+fn test_all_chunks_with_wrapping_and_init_assignment_multiple_writes() {
+    let mut t = T::new();
+    t.optimize_local_access =
+        OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var a = 1; var b = 1; a = b = 2;")
+                .add_chunk("a; b;")
+                .build(),
+        ),
+        expected_many(&[
+            "var a = _.a = 1; var b = _.b = 1; a = _.a = b = _.b = 2;",
+            "var {a, b} = _; a; b;",
+        ]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappingAndInitAssignment_es5
+#[test]
+fn test_all_chunks_with_wrapping_and_init_assignment_es5() {
+    let mut t = T::new();
+    t.base.language_out = LanguageMode::ECMASCRIPT5;
+    t.optimize_local_access =
+        OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var a = 1; a + 1;")
+                .add_chunk("a;")
+                .build(),
+        ),
+        expected_many(&["var a = _.a = 1; a + 1;", "var a = _.a; a;"]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappingAndInitAssignment_destructuring
+#[test]
+fn test_all_chunks_with_wrapping_and_init_assignment_destructuring() {
+    let mut t = T::new();
+    t.optimize_local_access =
+        OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var [a, b, c] = [1, 2, 3]; a + b;")
+                .add_chunk("a; c;")
+                .build(),
+        ),
+        expected_many(&[
+            "var a, b; [a, b, _.c] = [1, 2, 3]; _.a = a; a + b;",
+            "var {a, c} = _; a; c;",
+        ]),
+    );
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var a = 1, [b, c] = [2, 3], d = 4; a + b + d;")
+                .add_chunk("a; c; d;")
+                .build(),
+        ),
+        expected_many(&[
+            "var a = _.a = 1, b; [b, _.c] = [2, 3]; var d = _.d = 4; a + b + d;",
+            "var {a, c, d} = _; a; c; d;",
+        ]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappingAndInitAssignment_forLoop
+#[test]
+fn test_all_chunks_with_wrapping_and_init_assignment_for_loop() {
+    let mut t = T::new();
+    t.optimize_local_access =
+        OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("for (var a = 0, b = 1, c = 2; a < 10; a++) { b++; }")
+                .add_chunk("a; c;")
+                .build(),
+        ),
+        expected_many(&[
+            "var a = _.a = {}; var c = _.c = {}; var b; for (a._ = 0, b = 1, c._ = 2; a._ < 10; a._++) { b++; }",
+            "var {a, c} = _; a._; c._;",
+        ]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappingAndInitAssignment_wrappedReassignableComposition
+#[test]
+fn test_all_chunks_with_wrapping_and_init_assignment_wrapped_reassignable_composition() {
+    let mut t = T::new();
+    t.optimize_local_access =
+        OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var a = 1, b = 2; function f() { b = 3; } a + b;")
+                .add_chunk("a; b;")
+                .build(),
+        ),
+        expected_many(&[
+            "var b = _.b = {}; var a = _.a = 1; b._ = 2; var f = function() { b._ = 3; }; a + b._;",
+            "var {a, b} = _; a; b._;",
+        ]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappingAndInitAssignment_uninitializedExternAndNonLocal
+#[test]
+fn test_all_chunks_with_wrapping_and_init_assignment_uninitialized_extern_and_non_local() {
+    let mut t = T::new();
+    t.optimize_local_access =
+        OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED;
+    t.assume_cross_chunk_names = false;
+    t.test_externs(
+        externs("var externVar;"),
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var externVar, a = 1; a + 1;")
+                .add_chunk("a;")
+                .build(),
+        ),
+        expected_many(&["var a = _.a = 1; a + 1;", "var {a} = _; a;"]),
+    );
+    t.test_externs(
+        externs("var externVar;"),
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var externVar; var a = 1; a + 1;")
+                .add_chunk("a;")
+                .build(),
+        ),
+        expected_many(&["var a = _.a = 1; a + 1;", "var {a} = _; a;"]),
+    );
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var crossChunkNoInit, a = 1; a + 1;")
+                .add_chunk("crossChunkNoInit; a;")
+                .build(),
+        ),
+        expected_many(&[
+            "var a = _.a = 1; a + 1;",
+            "var {crossChunkNoInit, a} = _; crossChunkNoInit; a;",
+        ]),
+    );
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var crossChunkNoInit, a = 1; a + 1;")
+                .add_chunk("crossChunkNoInit = 2; a;")
+                .build(),
+        ),
+        expected_many(&[
+            "var crossChunkNoInit = _.crossChunkNoInit = {}; var a = _.a = 1; a + 1;",
+            "var {a, crossChunkNoInit} = _; crossChunkNoInit._ = 2; a;",
+        ]),
+    );
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("let a; a = 1; a + 1;")
+                .add_chunk("a;")
+                .build(),
+        ),
+        expected_many(&["let a; a = _.a = 1; a + 1;", "var {a} = _; a;"]),
+    );
+    t.test_externs(
+        externs("var externVar;"),
+        srcs("var externVar, localVar = 1;"),
+        expected("var localVar = 1;"),
+    );
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("let localVar = 1, a; a + 1;")
+                .add_chunk("a;")
+                .build(),
+        ),
+        expected_many(&["var localVar = 1, a; a + 1;", "var {a} = _; a;"]),
+    );
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var a = 1; a++; a += 2; [a] = [3];")
+                .add_chunk("a;")
+                .build(),
+        ),
+        expected_many(&[
+            "var a = _.a = 1; a++; _.a = a; a += 2; _.a = a; [a] = [3]; _.a = a;",
+            "var {a} = _; a;",
+        ]),
+    );
+}
+
 // port: RescopeGlobalSymbolsTest#testAllChunksLocalAccessOptimization_independentChunks
 #[test]
 fn test_all_chunks_local_access_optimization_independent_chunks() {
@@ -1896,6 +2192,149 @@ fn test_all_chunks_with_wrapped_mutables_multiple_holder_symbols_es5() {
             "var a = _.a = {}; a._ = 1; a._ + 1;",
             "var b = _.b = {}; b._ = 1; b._ + 1;",
             "var a = _.a; var b = _.b; a._ = 2; b._ = 2;",
+        ]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappedMutables_definingChunkDependsOnUsingChunk
+#[test]
+fn test_all_chunks_with_wrapped_mutables_defining_chunk_depends_on_using_chunk() {
+    let mut t = T::new();
+    t.optimize_local_access = OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("function f() { return a; }")
+                .add_chunk("var a = 1;")
+                .add_chunk("a;")
+                .build(),
+        ),
+        expected_many(&[
+            "var a = _.a = {}; var f = function() { return a._; };",
+            "var {a} = _; a._ = 1;",
+            "var {a} = _; a._;",
+        ]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappedMutables_independentSiblingChunks
+#[test]
+fn test_all_chunks_with_wrapped_mutables_independent_sibling_chunks() {
+    let mut t = T::new();
+    t.optimize_local_access = OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_tree()
+                .add_chunk("var x = 1;")
+                .add_chunk("var a = 1; a + 1;")
+                .add_chunk("function f() { return a; }")
+                .build(),
+        ),
+        expected_many(&[
+            "_.a = {}; var x = 1;",
+            "var {a} = _; a._ = 1; a._ + 1;",
+            "var {a} = _; var f = function() { return a._; };",
+        ]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappedMutables_notUsedInDefiningChunk
+#[test]
+fn test_all_chunks_with_wrapped_mutables_not_used_in_defining_chunk() {
+    let mut t = T::new();
+    t.optimize_local_access = OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var a = 1;")
+                .add_chunk("a;")
+                .build(),
+        ),
+        expected_many(&["_.a = 1;", "var {a} = _; a;"]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappedMutables_externs
+#[test]
+fn test_all_chunks_with_wrapped_mutables_externs() {
+    let mut t = T::new();
+    t.optimize_local_access = OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS;
+    t.assume_cross_chunk_names = false;
+    t.test_externs(
+        externs("var window; var customExtern;"),
+        srcs_chunks(
+            JSChunkGraphBuilder::for_tree()
+                .add_chunk("window.onload = function() { return customExtern + a; };")
+                .add_chunk("var a = customExtern; window.foo = a;")
+                .add_chunk("customExtern = window.foo + a;")
+                .build(),
+        ),
+        expected_many(&[
+            "var a = _.a = {}; window.onload = function() { return customExtern + a._; };",
+            "var {a} = _; a._ = customExtern; window.foo = a._;",
+            "var {a} = _; customExtern = window.foo + a._;",
+        ]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappedMutables_sameVarDeclaredInExternsAndSource
+#[test]
+fn test_all_chunks_with_wrapped_mutables_same_var_declared_in_externs_and_source() {
+    let mut t = T::new();
+    t.optimize_local_access = OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS;
+    t.assume_cross_chunk_names = false;
+    t.test_externs(
+        externs("var ext;"),
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("function f() { return ext; }")
+                .add_chunk("var ext = 1; ext + 1;")
+                .build(),
+        ),
+        expected_many(&["var f = function() { return ext; };", "ext = 1; ext + 1;"]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappedMutables_functionAndClassUsedInNonDependentChunk
+#[test]
+fn test_all_chunks_with_wrapped_mutables_function_and_class_used_in_non_dependent_chunk() {
+    let mut t = T::new();
+    t.base.disable_compare_as_tree();
+    t.optimize_local_access = OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("function f() { return g() + h() + new C(); }")
+                .add_chunk("function g() { return 1; } function h() { return this; } class C {}")
+                .build(),
+        ),
+        expected_many(&[
+            "var g=_.g={};var h=_.h={};var C=_.C={};var f=function(){return g._()+(0,h._)()+new C._};",
+            "var {g,h,C}=_;g._=function(){return 1};h._=function(){return this};C._=class{}",
+        ]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testAllChunksWithWrappedMutables_mixedWrappedAndUnwrappedLocalAliases
+#[test]
+fn test_all_chunks_with_wrapped_mutables_mixed_wrapped_and_unwrapped_local_aliases() {
+    let mut t = T::new();
+    t.optimize_local_access = OptimizeLocalAccess::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var a = 1; a + 1; function f() { return b; }")
+                .add_chunk("var b, c; b = 2; c = 3; a + b + c;")
+                .build(),
+        ),
+        expected_many(&[
+            "var b = _.b = {}; var a; a = _.a = 1; a + 1; var f = function() { return b._; };",
+            "var {a, b} = _; var c; b._ = 2; c = 3; a + b._ + c;",
         ]),
     );
 }

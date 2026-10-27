@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/jscomp/SourceFile.java.
 
 // Keep Java nested conditionals and nested loader class names.
@@ -490,9 +490,11 @@ impl SourceFile {
                 self.get_name()
             );
         }
-        let mut state = self.state.lock().unwrap();
         let lines = proto.num_lines_plus_one.wrapping_sub(1);
         let bytes = proto.num_bytes_plus_one.wrapping_sub(1);
+        check_state!(lines >= -1, "protoNumLines must be >= -1: %s", lines);
+        check_state!(bytes >= -1, "protoNumBytes must be >= -1: %s", bytes);
+        let mut state = self.state.lock().unwrap();
         if lines != -1 {
             state.num_lines = lines;
         }
@@ -505,10 +507,23 @@ impl SourceFile {
     pub fn from_proto(proto: &SourceFileProto) -> Self {
         let kind = Self::get_source_kind_from_proto(proto);
         let file = Self::from_proto_with_kind(proto, kind);
+        // Restore the number of lines/bytes, which are offset by 1 in the proto.
+        let proto_num_lines = proto.num_lines_plus_one.wrapping_sub(1);
+        let proto_num_bytes = proto.num_bytes_plus_one.wrapping_sub(1);
+        check_state!(
+            proto_num_lines >= -1,
+            "protoNumLines must be >= -1: %s",
+            proto_num_lines
+        );
+        check_state!(
+            proto_num_bytes >= -1,
+            "protoNumBytes must be >= -1: %s",
+            proto_num_bytes
+        );
         {
             let mut state = file.state.lock().unwrap();
-            state.num_lines = proto.num_lines_plus_one.wrapping_sub(1);
-            state.num_bytes = proto.num_bytes_plus_one.wrapping_sub(1);
+            state.num_lines = proto_num_lines;
+            state.num_bytes = proto_num_bytes;
         }
         if proto.is_closure_unaware_code {
             file.mark_as_closure_unaware_code();
@@ -621,6 +636,7 @@ impl StaticSourceFile for SourceFile {
     }
     // port: SourceFile#getLineOfOffset
     fn get_line_of_offset(&self, offset: i32) -> i32 {
+        check_argument!(offset >= 0, "offset must be non-negative: %s", offset);
         let offsets = self.find_line_offsets();
         match offsets.binary_search(&offset) {
             Ok(index) => index as i32 + 1,

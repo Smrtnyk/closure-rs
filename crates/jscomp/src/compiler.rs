@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/jscomp/Compiler.java.
 
 #![allow(
@@ -3412,6 +3412,17 @@ impl Compiler {
             .get_coding_convention_ref()
             .unwrap_or(&self.default_coding_convention);
         (convention, self.type_registry.as_ref().unwrap(), &self.ast)
+    }
+    /// Rust-only: `Compiler#getCodingConvention` together with the arena, split-borrowed mutably
+    /// (`NodeUtil` factories that take a `CodingConvention` create nodes with it).
+    pub fn get_coding_convention_and_ast_mut(&mut self) -> (&dyn CodingConvention, &mut Ast) {
+        let convention = self
+            .options
+            .as_ref()
+            .expect("")
+            .get_coding_convention_ref()
+            .unwrap_or(&self.default_coding_convention);
+        (convention, &mut self.ast)
     }
     /// Rust-only: the `typeRegistry` field (as the AstFactories this compiler creates hold it)
     /// together with the arena, split-borrowed mutably.

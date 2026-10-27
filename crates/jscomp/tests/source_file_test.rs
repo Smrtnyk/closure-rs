@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   test/com/google/javascript/jscomp/SourceFileTest.java.
 
 use closure_jscomp::{
@@ -138,7 +138,7 @@ fn test_line_offset_helper(factory: impl Fn(&str) -> SourceFile) {
     }
     assert_eq!(f3.get_num_bytes(), 903);
     assert_eq!(f3.get_num_lines(), 4);
-    assert_eq!(f3.get_line_of_offset(-1), 0);
+    assert!(std::panic::catch_unwind(|| f3.get_line_of_offset(-1)).is_err());
     assert!(std::panic::catch_unwind(|| f3.get_column_of_offset(-1)).is_err());
     let starts_with_newline = factory("\n'a'\n'b'");
     for (line, offset) in [(1, 0), (2, 1), (3, 5)] {
@@ -557,10 +557,45 @@ fn test_restore_cached_state_treats_proto_num_lines_as_canonical() {
         &SourceFileProto::new_builder()
             .set_filename("file.js")
             .set_num_lines_plus_one(1000)
-            .set_num_bytes_plus_one(-1)
             .build(),
     );
     assert_eq!(s.get_num_lines(), 999);
+    assert_eq!(s.get_num_bytes(), 2);
+}
+// port: SourceFileTest#testRestoreCachedState_throwsOnNegativeCounts
+#[test]
+fn test_restore_cached_state_throws_on_negative_counts() {
+    let s = SourceFile::from_code("file.js", "42");
+    let lines_proto = SourceFileProto::new_builder()
+        .set_filename("file.js")
+        .set_num_lines_plus_one(-1)
+        .build();
+    assert!(std::panic::catch_unwind(|| s.restore_cached_state_from(&lines_proto)).is_err());
+
+    let bytes_proto = SourceFileProto::new_builder()
+        .set_filename("file.js")
+        .set_num_bytes_plus_one(-1)
+        .build();
+    assert!(std::panic::catch_unwind(|| s.restore_cached_state_from(&bytes_proto)).is_err());
+}
+// port: SourceFileTest#testFromProto_throwsOnNegativeCounts
+#[test]
+fn test_from_proto_throws_on_negative_counts() {
+    let lines_proto = SourceFileProto::new_builder()
+        .set_filename("file.js")
+        .set_source_kind(ProtoKind::CODE)
+        .set_preloaded_contents("42")
+        .set_num_lines_plus_one(-1)
+        .build();
+    assert!(std::panic::catch_unwind(|| SourceFile::from_proto(&lines_proto)).is_err());
+
+    let bytes_proto = SourceFileProto::new_builder()
+        .set_filename("file.js")
+        .set_source_kind(ProtoKind::CODE)
+        .set_preloaded_contents("42")
+        .set_num_bytes_plus_one(-1)
+        .build();
+    assert!(std::panic::catch_unwind(|| SourceFile::from_proto(&bytes_proto)).is_err());
 }
 // port: SourceFileTest#testStripConfigSegment_barePrefixes
 #[test]

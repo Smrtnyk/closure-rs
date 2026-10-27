@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/jscomp/CompilerOptions.java.
 
 use crate::{
@@ -585,7 +585,15 @@ pub enum OptimizeLocalAccess {
     DISABLED,
     DEFINING_CHUNK_ONLY,
     ALL_CHUNKS,
+    /// In addition to [`Self::ALL_CHUNKS`], create dedicated singleton holder objects for mutable
+    /// cross-chunk symbols or cross-chunk symbols referenced in a chunk that does not depend on
+    /// their defining chunk (e.g. `var a = _.a = {};`) and access them via `a._`.
     ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS,
+    /// In addition to [`Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS`], preserve `var`
+    /// declarations with initializers in place (e.g. `var a = _.a = 1;`) for variables that
+    /// remain local to their defining chunk instead of hoisting uninitialized `var` declarations
+    /// to the top of the chunk.
+    ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED,
 }
 impl OptimizeLocalAccess {
     pub const VALUES: &'static [Self] = &[
@@ -593,6 +601,7 @@ impl OptimizeLocalAccess {
         Self::DEFINING_CHUNK_ONLY,
         Self::ALL_CHUNKS,
         Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS,
+        Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED,
     ];
     // port: CompilerOptions.OptimizeLocalAccess#valueOf
     pub fn value_of(name: &str) -> Option<Self> {
@@ -612,6 +621,11 @@ impl OptimizeLocalAccess {
     // port: CompilerOptions.OptimizeLocalAccess#shouldWrapReassignableSymbols
     pub fn should_wrap_reassignable_symbols(self) -> bool {
         self as u8 >= Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS as u8
+    }
+
+    // port: CompilerOptions.OptimizeLocalAccess#shouldPreserveLocalVarDeclarations
+    pub fn should_preserve_local_var_declarations(self) -> bool {
+        self as u8 >= Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED as u8
     }
 }
 impl fmt::Display for OptimizeLocalAccess {
