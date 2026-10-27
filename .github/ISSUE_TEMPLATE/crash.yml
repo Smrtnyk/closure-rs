@@ -6,7 +6,7 @@ body:
     id: version
     attributes:
       label: closure-rs version
-      placeholder: "20261020.0.0"
+      placeholder: "20261025.0.0"
     validations:
       required: true
   - type: dropdown
