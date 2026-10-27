@@ -41,7 +41,7 @@ fn sampled_record_count() -> usize {
         all += n;
         sampled += n.div_ceil(SAMPLE);
     }
-    assert_eq!(all, 25045);
+    assert_eq!(all, 25105);
     sampled
 }
 
@@ -76,7 +76,7 @@ fn every_record_is_classified_once_and_the_report_round_trips() {
         },
     )
     .unwrap();
-    assert_eq!(classes, 432);
+    assert_eq!(classes, 433);
     assert_eq!(identities.len(), sampled_record_count());
     assert_eq!(report.totals.records, identities.len());
     assert_eq!(

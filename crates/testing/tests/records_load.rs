@@ -28,7 +28,7 @@ type FileResult = (String, Result<Vec<RecordKey>, String>);
 #[test]
 fn all_records_load_and_round_trip() {
     let files = record_files().unwrap();
-    assert_eq!(files.len(), 432, "record files");
+    assert_eq!(files.len(), 433, "record files");
     // Record by record: each is checked and dropped before the next line is read.
     let results: Vec<FileResult> = map_files_parallel(&files, 4, |f| {
         let r = records(f).map_err(|e| e.to_string()).and_then(|recs| {
@@ -101,13 +101,13 @@ fn all_records_load_and_round_trip() {
         "record_counts.tsv rows"
     );
     println!("records: {total}, non-empty files: {nonempty}, kinds: {by_kind:?}, apis: {by_api:?}");
-    assert_eq!(total, 25_045);
+    assert_eq!(total, 25_105);
     assert_eq!(nonempty, 255);
-    assert_eq!(by_kind["compiler_test_case"], 21_562);
+    assert_eq!(by_kind["compiler_test_case"], 21_622);
     assert_eq!(by_kind["type_check"], 2_729);
     assert_eq!(by_kind["integration"], 754);
     let api = |n: &str| by_api.get(n).copied().unwrap_or(0);
-    assert_eq!(api("testInternal"), 21_466);
+    assert_eq!(api("testInternal"), 21_526);
     assert_eq!(api("testExternChanges"), 96);
     assert_eq!(api("TypeTestBuilder.run"), 2_684);
     assert_eq!(api("parseAndTypeCheckWithScope"), 45);

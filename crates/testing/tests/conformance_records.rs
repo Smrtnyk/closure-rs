@@ -67,11 +67,11 @@ fn replay(class: &str) -> Vec<RecordResult> {
     records
 }
 
-// port: CheckConformanceTest (168 @Test methods, 420 recorded calls)
+// port: CheckConformanceTest (171 @Test methods, 422 recorded calls)
 #[test]
 fn check_conformance_test() {
     let records = replay("CheckConformanceTest");
-    assert_eq!(records.len(), 420);
+    assert_eq!(records.len(), 422);
     for r in &records {
         assert_eq!(
             r.status, "pass",
