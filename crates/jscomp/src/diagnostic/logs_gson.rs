@@ -48,7 +48,7 @@
 //   com/google/gson/internal/bind/CollectionTypeAdapterFactory.java,
 //   com/google/gson/internal/bind/MapTypeAdapterFactory.java,
 //   com/google/gson/internal/bind/TypeAdapters.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/jscomp/diagnostic/LogsGson.java.
 
 use closure_rhino::fast_hash::IndexMap;

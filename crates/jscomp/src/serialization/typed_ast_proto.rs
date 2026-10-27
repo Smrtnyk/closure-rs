@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/rhino/typed_ast/typed_ast.proto.
 
 // Generated from src/com/google/javascript/rhino/typed_ast/typed_ast.proto (protoc's Java API shape; no
