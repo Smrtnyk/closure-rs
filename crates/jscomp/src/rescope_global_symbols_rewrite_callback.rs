@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/jscomp/RescopeGlobalSymbolsRewriteCallback.java.
 
 // Identity keys are immutable even though the associated Java objects are mutable.
@@ -32,6 +32,7 @@ use closure_rhino::{
     ir::IR,
     js_string::JsString,
     node::{NodeId, Prop},
+    token::Token,
 };
 
 /// Node traversal callback to rewrite global symbols as part of the RescopeGlobalSymbols pass.
@@ -45,16 +46,23 @@ pub struct RescopeGlobalSymbolsRewriteCallback {
     pre_declarations: Vec<ChunkGlobal>,
 
     /// Map from chunks to the set of global symbols to be aliased directly for that chunk (e.g.
-    /// `var {a} = _`). Only populated if optimizeLocalAccess is an ALL_CHUNKS option.
+    /// `var {a} = _`). Only populated if optimizeLocalAccess is an ALL_CHUNKS option. These
+    /// symbols are used in that chunk, to avoid declaring unnecessary aliases. They can only be
+    /// reassigned during static execution of the defining chunk, and that defining chunk must be a
+    /// dependency of the using chunk. If ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS is set, then
+    /// symbols that should be wrapped and aliased will be tracked separately in
+    /// wrappedCrossChunkNames.
     local_aliases_for_unwrapped_cross_chunk_names: IndexMap<JSChunk, IndexSet<JsString>>,
 
-    /// Map from global wrapped reassignable symbols to the chunks that use them. Only populated if
-    /// optimizeLocalAccess is ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS.
+    /// Map from global wrapped symbols to the chunks that use them. Only populated if
+    /// optimizeLocalAccess is ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS. These symbols may be
+    /// reassigned anywhere or referenced in chunks that do not depend on their defining chunk.
     chunks_using_wrapped_reassignable_symbols: IndexMap<JsString, IndexSet<JSChunk>>,
 
-    /// Global symbols that are reassignable and will be wrapped in an object. Only populated if
-    /// optimizeLocalAccess is ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS.
-    wrapped_reassignable_cross_chunk_names: IndexSet<JsString>,
+    /// Global symbols that are reassignable or referenced in a chunk that does not depend on their
+    /// defining chunk, and will be wrapped in an object. Only populated if optimizeLocalAccess is
+    /// ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS.
+    wrapped_cross_chunk_names: IndexSet<JsString>,
 }
 
 // Appended to variables names that conflict with globalSymbolNamespace.
@@ -65,16 +73,18 @@ const DISAMBIGUATION_SUFFIX: &str = "$";
 pub struct SymbolInformation {
     cross_chunk_names: IndexSet<JsString>,
     cross_chunk_names_with_write_from_other_chunk: IndexSet<JsString>,
+    cross_chunk_names_used_in_non_dependent_chunk: IndexSet<JsString>,
     global_names_with_read_in_defining_chunk: IndexSet<JsString>,
     global_names_with_inner_scope_write_in_defining_chunk: IndexSet<JsString>,
     maybe_references_this: IndexSet<JsString>,
 }
 
 impl SymbolInformation {
-    // port: RescopeGlobalSymbolsRewriteCallback.SymbolInformation#SymbolInformation(Set, Set, Set, Set, Set)
+    // port: RescopeGlobalSymbolsRewriteCallback.SymbolInformation#SymbolInformation(Set, Set, Set, Set, Set, Set)
     pub fn new(
         cross_chunk_names: &IndexSet<JsString>,
         cross_chunk_names_with_write_from_other_chunk: &IndexSet<JsString>,
+        cross_chunk_names_used_in_non_dependent_chunk: &IndexSet<JsString>,
         global_names_with_read_in_defining_chunk: &IndexSet<JsString>,
         global_names_with_inner_scope_write_in_defining_chunk: &IndexSet<JsString>,
         maybe_references_this: &IndexSet<JsString>,
@@ -83,6 +93,8 @@ impl SymbolInformation {
             cross_chunk_names: cross_chunk_names.clone(),
             cross_chunk_names_with_write_from_other_chunk:
                 cross_chunk_names_with_write_from_other_chunk.clone(),
+            cross_chunk_names_used_in_non_dependent_chunk:
+                cross_chunk_names_used_in_non_dependent_chunk.clone(),
             global_names_with_read_in_defining_chunk: global_names_with_read_in_defining_chunk
                 .clone(),
             global_names_with_inner_scope_write_in_defining_chunk:
@@ -99,6 +111,11 @@ impl SymbolInformation {
     // port: RescopeGlobalSymbolsRewriteCallback.SymbolInformation#crossChunkNamesWithWriteFromOtherChunk
     pub fn cross_chunk_names_with_write_from_other_chunk(&self) -> &IndexSet<JsString> {
         &self.cross_chunk_names_with_write_from_other_chunk
+    }
+
+    // port: RescopeGlobalSymbolsRewriteCallback.SymbolInformation#crossChunkNamesUsedInNonDependentChunk
+    pub fn cross_chunk_names_used_in_non_dependent_chunk(&self) -> &IndexSet<JsString> {
+        &self.cross_chunk_names_used_in_non_dependent_chunk
     }
 
     // port: RescopeGlobalSymbolsRewriteCallback.SymbolInformation#globalNamesWithReadInDefiningChunk
@@ -137,10 +154,9 @@ impl RescopeGlobalSymbolsRewriteCallback {
             pre_declarations: Vec::new(),
             local_aliases_for_unwrapped_cross_chunk_names: IndexMap::<_, _>::default(),
             chunks_using_wrapped_reassignable_symbols: IndexMap::<_, _>::default(),
-            wrapped_reassignable_cross_chunk_names: IndexSet::<_>::default(),
+            wrapped_cross_chunk_names: IndexSet::<_>::default(),
         };
-        this.wrapped_reassignable_cross_chunk_names =
-            this.collect_wrapped_reassignable_cross_chunk_names(compiler);
+        this.wrapped_cross_chunk_names = this.collect_wrapped_cross_chunk_names(compiler);
         this
     }
 
@@ -171,11 +187,8 @@ impl RescopeGlobalSymbolsRewriteCallback {
         }
     }
 
-    // port: RescopeGlobalSymbolsRewriteCallback#collectWrappedReassignableCrossChunkNames
-    fn collect_wrapped_reassignable_cross_chunk_names(
-        &self,
-        compiler: &AbstractCompiler,
-    ) -> IndexSet<JsString> {
+    // port: RescopeGlobalSymbolsRewriteCallback#collectWrappedCrossChunkNames
+    fn collect_wrapped_cross_chunk_names(&self, compiler: &AbstractCompiler) -> IndexSet<JsString> {
         if !self
             .optimize_local_access
             .should_wrap_reassignable_symbols()
@@ -183,10 +196,16 @@ impl RescopeGlobalSymbolsRewriteCallback {
             return IndexSet::<_>::default();
         }
 
-        let mut builder: IndexSet<JsString> = IndexSet::<_>::default();
-        builder.extend(
+        let mut candidates: IndexSet<JsString> = IndexSet::<_>::default();
+        candidates.extend(
             self.symbol_info
                 .cross_chunk_names_with_write_from_other_chunk()
+                .iter()
+                .cloned(),
+        );
+        candidates.extend(
+            self.symbol_info
+                .cross_chunk_names_used_in_non_dependent_chunk()
                 .iter()
                 .cloned(),
         );
@@ -195,10 +214,12 @@ impl RescopeGlobalSymbolsRewriteCallback {
             .global_names_with_inner_scope_write_in_defining_chunk()
         {
             if self.is_cross_chunk_name(compiler, name) {
-                builder.insert(name.clone());
+                candidates.insert(name.clone());
             }
         }
-        builder
+        // Java: Set#removeAll (LinkedHashSet keeps the order of the remaining names).
+        candidates.retain(|name| !self.extern_names.contains(name));
+        candidates
     }
 
     // port: RescopeGlobalSymbolsRewriteCallback#visitNameDeclaration
@@ -239,9 +260,66 @@ impl RescopeGlobalSymbolsRewriteCallback {
         }
     }
 
-    /// Partially rewrites a declaration as an assignment.
+    /// Returns whether a global variable declared in the current chunk remains a local variable in
+    /// that chunk (rather than being replaced everywhere in the chunk by a property access like
+    /// `_.a` or `a._`, or referring to an extern).
+    ///
+    /// A global variable stays local in its defining chunk if it is not an extern and either:
+    ///
+    /// - it is not a cross-chunk global variable (so it is only ever used within this chunk), or
+    /// - `optimizeLocalAccess` is enabled and the cross-chunk variable is read in its defining
+    ///   chunk, is not written to from any other chunk, and is not wrapped in a holder object.
+    // port: RescopeGlobalSymbolsRewriteCallback#globalVarStaysLocalInDefiningChunk
+    fn global_var_stays_local_in_defining_chunk(
+        &self,
+        name: &JsString,
+        t: &mut NodeTraversal<'_>,
+    ) -> bool {
+        let scope = t.get_scope();
+        let is_global = scope
+            .get_var(t.get_compiler(), name.clone())
+            .expect("NullPointerException")
+            .is_global(t.get_compiler());
+        check_state!(is_global, "Expected global variable: %s", name);
+        if self.is_extern_var(name, t) {
+            return false;
+        }
+        if !self.is_cross_chunk_name(t.get_compiler(), name) {
+            return true;
+        }
+        if !self.optimize_local_access.should_optimize() {
+            return false;
+        }
+        !self
+            .symbol_info
+            .cross_chunk_names_with_write_from_other_chunk()
+            .contains(name)
+            && !self.wrapped_cross_chunk_names.contains(name)
+            && self
+                .symbol_info
+                .global_names_with_read_in_defining_chunk()
+                .contains(name)
+    }
+
+    /// Partially rewrites a variable declaration that contains at least one cross-chunk global or
+    /// extern variable.
+    ///
+    /// In the post-order traversal ([`Self::visit_name`]), all rescoped cross-chunk global
+    /// references will become property accesses (e.g. `_.a`), which are invalid as the LHS of a
+    /// variable declaration and therefore must be converted into `ASSIGN` nodes beforehand.
+    ///
+    /// - When `optimizeLocalAccess.shouldPreserveLocalVarDeclarations()` is true (outside of
+    ///   `for`-loop headers), `NAME` declarations that remain local variables in their defining
+    ///   chunk (both chunk-local variables and local-access-optimized cross-chunk variables) are
+    ///   kept in place as `NAME` children on the `VAR` declaration so their initializers stay
+    ///   attached to `var`. Only non-local `NAME` children with initializers and
+    ///   `DESTRUCTURING_LHS` children are converted to `ASSIGN` nodes.
+    /// - Otherwise (when `optimizeLocalAccess.shouldPreserveLocalVarDeclarations()` is false, or
+    ///   in `for`-loop headers), all local variables in the statement are recorded in
+    ///   `preDeclarations` to be hoisted as uninitialized `var` declarations at the top of the
+    ///   chunk, and all initialized `NAME` children and `DESTRUCTURING_LHS` children are
+    ///   converted to `ASSIGN` nodes.
     // port: RescopeGlobalSymbolsRewriteCallback#rewriteNameDeclaration
-    #[allow(clippy::nonminimal_bool)] // Retain Java's condition.
     fn rewrite_name_declaration(
         &mut self,
         t: &mut NodeTraversal<'_>,
@@ -251,41 +329,82 @@ impl RescopeGlobalSymbolsRewriteCallback {
     ) {
         let input = t.get_input().cloned().expect("NullPointerException");
 
-        // Add pre-declarations for all LHS variables that are neither global/cross-chunk names nor
-        // externs.
-        if self.optimize_local_access.should_optimize() {
-            // If we are optimizing local accesses, we only want to pre-declare variables if the
-            // declaration will be converted to assignments/property accesses and removed by
-            // RemoveGlobalVarCallback. We don't want to add a new var declaration otherwise to
-            // avoid redeclaration errors (e.g. "var a; let a;").
-            if self.contains_rescoped_or_initialized_vars(t, declaration, is_global_declaration) {
-                for &lhs in all_lhs_nodes {
-                    let name = lhs.get_string(t);
-                    if !self
-                        .symbol_info
-                        .cross_chunk_names_with_write_from_other_chunk()
-                        .contains(&name)
-                        && !self.wrapped_reassignable_cross_chunk_names.contains(&name)
-                        && !self.is_extern_var(&name, t)
-                        && (!self.is_cross_chunk_name(t.get_compiler(), &name)
-                            || self
-                                .symbol_info
-                                .global_names_with_read_in_defining_chunk()
-                                .contains(&name))
-                    {
-                        let root = input.get_ast_root(t.get_compiler());
-                        let name_node = IR::name(t, name).srcref(t, lhs);
-                        self.pre_declarations
-                            .push(ChunkGlobal::new(root, name_node));
-                    }
-                }
+        if self
+            .optimize_local_access
+            .should_preserve_local_var_declarations()
+            && !NodeUtil::is_any_for(t, declaration.get_parent(t).unwrap())
+        {
+            // If all variables in a global `let` or `const` declaration stay local (e.g.
+            // `let a = 1;` becoming `var a = _.a = 1;`), RemoveGlobalVarCallback will leave the
+            // declaration node in place, so convert its token to `VAR`. Uninitialized declarations
+            // with no rescoped variables (e.g. `let a;`) are left untouched.
+            if is_global_declaration
+                && !declaration.is_var(t)
+                && self.contains_rescoped_or_initialized_vars(t, declaration, is_global_declaration)
+            {
+                declaration.set_token(t, Token::VAR);
             }
-        } else {
+            let mut child = declaration.get_first_child(t);
+            while let Some(c) = child {
+                let next = c.get_next(t);
+                if c.is_name(t) {
+                    let name = c.get_string(t);
+                    if !self.global_var_stays_local_in_defining_chunk(&name, t) {
+                        if c.has_children(t) {
+                            let target = c.clone_node(t);
+                            let value = c.remove_first_child(t).unwrap();
+                            let assign = IR::assign(t, target, value);
+                            c.replace_with(t, assign);
+                            let info = declaration.get_jsdoc_info(t);
+                            assign.set_jsdoc_info(t, info);
+                        } else if self.is_extern_var(&name, t) {
+                            // Detach uninitialized extern redeclarations (e.g.
+                            // `var externVar, a = 1;`) so RemoveGlobalVarCallback does not treat
+                            // the remaining NAME node as a local variable.
+                            c.detach(t);
+                        }
+                    }
+                } else if c.is_destructuring_lhs(t) {
+                    // Destructuring declarations are converted to assignments, so any bound
+                    // variables that stay local to the defining chunk must be pre-declared at the
+                    // top of the chunk.
+                    let mut lhs_nodes: Vec<NodeId> = Vec::new();
+                    NodeUtil::visit_lhs_nodes_in_node(t.get_compiler(), c, &mut |_, lhs| {
+                        lhs_nodes.push(lhs);
+                    });
+                    for lhs in lhs_nodes {
+                        let name = lhs.get_string(t);
+                        if self.global_var_stays_local_in_defining_chunk(&name, t) {
+                            let root = input.get_ast_root(t.get_compiler());
+                            let name_node = IR::name(t, name).srcref(t, lhs);
+                            self.pre_declarations
+                                .push(ChunkGlobal::new(root, name_node));
+                        }
+                    }
+                    let target = c.remove_first_child(t).unwrap();
+                    let value = c.remove_first_child(t).unwrap();
+                    let assign = IR::assign(t, target, value);
+                    c.replace_with(t, assign);
+                    let info = declaration.get_jsdoc_info(t);
+                    assign.set_jsdoc_info(t, info);
+                }
+                child = next;
+            }
+            t.get_compiler()
+                .report_change_to_enclosing_scope(declaration);
+            return;
+        }
+
+        // Add pre-declarations for all LHS variables that remain local to the defining chunk.
+        // If we are optimizing local accesses (in a for-loop header), we only want to pre-declare
+        // variables if the declaration will be converted to assignments/property accesses and
+        // removed by RemoveGlobalVarCallback, to avoid redeclaration errors (e.g. "var a; let a;").
+        if !self.optimize_local_access.should_optimize()
+            || self.contains_rescoped_or_initialized_vars(t, declaration, is_global_declaration)
+        {
             for &lhs in all_lhs_nodes {
                 let name = lhs.get_string(t);
-                if !(is_global_declaration && self.is_cross_chunk_name(t.get_compiler(), &name))
-                    && !self.is_extern_var(&name, t)
-                {
+                if self.global_var_stays_local_in_defining_chunk(&name, t) {
                     let root = input.get_ast_root(t.get_compiler());
                     let name_node = IR::name(t, name).srcref(t, lhs);
                     self.pre_declarations
@@ -339,8 +458,13 @@ impl RescopeGlobalSymbolsRewriteCallback {
     }
 
     /// Determines whether a variable declaration statement contains any variables that will be
-    /// rescoped (replaced with property accesses) or initialized (replaced with assignments).
-    /// Assumes that optimizeLocalAccess is true.
+    /// rescoped (replaced with property accesses) or initialized (replaced with assignments or
+    /// chained namespace initializers). Assumes that optimizeLocalAccess is true.
+    ///
+    /// In a `for`-loop header, if a declaration contains any such variables, the declaration
+    /// keyword will be removed by `RemoveGlobalVarCallback` and any local variables in it must be
+    /// pre-declared. Outside a `for`-loop header, global `let`/`const` declarations containing any
+    /// such variables are converted to `var`.
     // port: RescopeGlobalSymbolsRewriteCallback#containsRescopedOrInitializedVars
     fn contains_rescoped_or_initialized_vars(
         &self,
@@ -356,9 +480,7 @@ impl RescopeGlobalSymbolsRewriteCallback {
                     .symbol_info
                     .cross_chunk_names_with_write_from_other_chunk()
                     .contains(&c.get_string(t))
-                    || self
-                        .wrapped_reassignable_cross_chunk_names
-                        .contains(&c.get_string(t)))
+                    || self.wrapped_cross_chunk_names.contains(&c.get_string(t)))
             {
                 return true;
             }
@@ -407,21 +529,34 @@ impl RescopeGlobalSymbolsRewriteCallback {
 
         let current_chunk = t.get_chunk();
 
-        if self.optimize_local_access.should_optimize() {
+        if self.wrapped_cross_chunk_names.contains(&name) {
+            // If the symbol is wrapped, record the chunk using the symbol to ensure the wrapper is
+            // initialized before use, and replace the symbol with an access to the wrapper.
+            self.chunks_using_wrapped_reassignable_symbols
+                .entry(name.clone())
+                .or_default()
+                .insert(current_chunk.expect("NullPointerException"));
+            let target = IR::name(t, name.clone());
+            let replacement = IR::getprop(t, target, "_");
+            self.replace_symbol(t.get_compiler(), n, &name, replacement);
+            return;
+        }
+
+        if self.optimize_local_access.should_optimize()
+            && !self
+                .symbol_info
+                .cross_chunk_names_with_write_from_other_chunk()
+                .contains(&name)
+        {
             let defining_chunk = var
                 .get_input(t.get_compiler())
                 .expect("NullPointerException")
                 .get_chunk();
             if current_chunk == defining_chunk {
-                if !self
+                if self
                     .symbol_info
-                    .cross_chunk_names_with_write_from_other_chunk()
+                    .global_names_with_read_in_defining_chunk()
                     .contains(&name)
-                    && !self.wrapped_reassignable_cross_chunk_names.contains(&name)
-                    && self
-                        .symbol_info
-                        .global_names_with_read_in_defining_chunk()
-                        .contains(&name)
                 {
                     // If the cross-chunk variable is defined in this chunk, not re-assigned in any
                     // other chunk, and not rewritten to wrapper access, then we skip the
@@ -435,6 +570,13 @@ impl RescopeGlobalSymbolsRewriteCallback {
                     // Early return to skip replacing the symbol.
                     return;
                 }
+                // If the variable is only initialized in its defining chunk and never read there,
+                // replace it directly with an access on the global namespace symbol instead of
+                // keeping an unused local variable.
+                let target = IR::name(t, self.global_symbol_namespace.clone());
+                let replacement = IR::getprop(t, target, name.clone());
+                self.replace_symbol(t.get_compiler(), n, &name, replacement);
+                return;
             } else if self.optimize_local_access.should_optimize_all_chunks() {
                 // Variables defined in a different chunk are still safe for local aliasing if all
                 // of the following conditions are met.
@@ -448,12 +590,8 @@ impl RescopeGlobalSymbolsRewriteCallback {
                 let defining = defining_chunk.expect("NullPointerException");
                 if !self
                     .symbol_info
-                    .cross_chunk_names_with_write_from_other_chunk()
+                    .global_names_with_inner_scope_write_in_defining_chunk()
                     .contains(&name)
-                    && !self
-                        .symbol_info
-                        .global_names_with_inner_scope_write_in_defining_chunk()
-                        .contains(&name)
                     && t.get_compiler()
                         .get_chunk_graph()
                         .expect("NullPointerException")
@@ -469,23 +607,21 @@ impl RescopeGlobalSymbolsRewriteCallback {
             }
         }
 
-        if self.wrapped_reassignable_cross_chunk_names.contains(&name) {
-            // If the symbol is a wrapper for a reassignable symbol, record the chunk using the
-            // symbol to ensure the wrapper is initialized before use, and replace the symbol with
-            // an access to the wrapper.
-            self.chunks_using_wrapped_reassignable_symbols
-                .entry(name.clone())
-                .or_default()
-                .insert(current_chunk.expect("NullPointerException"));
-            let target = IR::name(t, name.clone());
-            let replacement = IR::getprop(t, target, "_");
-            self.replace_symbol(t.get_compiler(), n, &name, replacement);
-        } else {
-            // Otherwise replace the symbol with an access on the global namespace symbol.
-            let target = IR::name(t, self.global_symbol_namespace.clone());
-            let replacement = IR::getprop(t, target, name.clone());
-            self.replace_symbol(t.get_compiler(), n, &name, replacement);
+        if self
+            .optimize_local_access
+            .should_wrap_reassignable_symbols()
+        {
+            // Java: throw new IllegalStateException(..)
+            panic!(
+                "java.lang.IllegalStateException: Unexpected unaliased cross-chunk symbol under \
+                 ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS: {name}"
+            );
         }
+
+        // Otherwise replace the symbol with an access on the global namespace symbol.
+        let target = IR::name(t, self.global_symbol_namespace.clone());
+        let replacement = IR::getprop(t, target, name.clone());
+        self.replace_symbol(t.get_compiler(), n, &name, replacement);
     }
 
     /// Replaces a symbol with an access to the replacement.
@@ -512,6 +648,12 @@ impl RescopeGlobalSymbolsRewriteCallback {
 
     /// Aliases the local variable's value to the global namespace, so that it can be accessed from
     /// other chunks.
+    ///
+    /// For simple assignments and variable declarations with initializers, this chains the
+    /// assignment to avoid an extra statement (e.g. converts `a = x` to `a = _.a = x` and
+    /// `var a = x` to `var a = _.a = x`). For other writes (e.g. compound assignments,
+    /// destructuring, increments), it inserts a separate assignment statement after the current
+    /// one (e.g. appends `_.a = a;`).
     // port: RescopeGlobalSymbolsRewriteCallback#addGlobalNamespaceAlias
     fn add_global_namespace_alias(
         &self,
@@ -536,6 +678,16 @@ impl RescopeGlobalSymbolsRewriteCallback {
             global_namespace_assign.srcref_tree(compiler, n);
             parent.add_child_to_back(compiler, global_namespace_assign);
             compiler.report_change_to_enclosing_scope(parent);
+        } else if NodeUtil::is_name_declaration(compiler, Some(parent)) {
+            // Optimized path for variable declarations with initializers (e.g. `var a = x`).
+            // We chain the assignment to the global namespace: `var a = _.a = x`.
+            let rhs = n.remove_first_child(compiler).unwrap();
+            let ns = IR::name(compiler, self.global_symbol_namespace.clone());
+            let getprop = IR::getprop(compiler, ns, name.clone());
+            let global_namespace_assign = IR::assign(compiler, getprop, rhs);
+            global_namespace_assign.srcref_tree(compiler, n);
+            n.add_child_to_back(compiler, global_namespace_assign);
+            compiler.report_change_to_enclosing_scope(n);
         } else {
             // Fallback path for other writes (e.g. `a++`, `a += x`, destructuring).
             // In these cases, we cannot easily chain the assignment without changing semantics
@@ -597,11 +749,11 @@ impl RescopeGlobalSymbolsRewriteCallback {
         let chunks = chunk_graph.get_all_chunks().to_vec();
         let default_root_chunk = chunks[0].clone();
 
-        // Compute the chunk in which to define the wrapper for each wrapped reassignable symbol.
+        // Compute the chunk in which to define the wrapper for each wrapped symbol.
         let mut wrapper_assignment_chunks: IndexMap<JsString, Option<JSChunk>> =
             IndexMap::<_, _>::default();
-        if !self.wrapped_reassignable_cross_chunk_names.is_empty() {
-            for name in &self.wrapped_reassignable_cross_chunk_names {
+        if !self.wrapped_cross_chunk_names.is_empty() {
+            for name in &self.wrapped_cross_chunk_names {
                 let using_chunks: Vec<JSChunk> = self
                     .chunks_using_wrapped_reassignable_symbols
                     .get(name)
@@ -650,11 +802,11 @@ impl RescopeGlobalSymbolsRewriteCallback {
         {
             wrapped_reassignable_local_aliases = IndexSet::<_>::default();
 
-            for name in &self.wrapped_reassignable_cross_chunk_names {
+            for name in &self.wrapped_cross_chunk_names {
                 let assignment_chunk = wrapper_assignment_chunks.get(name).cloned().flatten();
                 let using_chunks = self.chunks_using_wrapped_reassignable_symbols.get(name);
                 if Some(chunk) == assignment_chunk.as_ref() {
-                    // Define the wrapper object for the reassignable symbol in this chunk.
+                    // Define the wrapper object for the wrapped symbol in this chunk.
                     if using_chunks.is_some_and(|u| u.contains(chunk)) {
                         // The symbol is used in this chunk, so we also declare a local alias:
                         // `var name = _.name = {};`.

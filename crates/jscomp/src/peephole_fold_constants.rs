@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/jscomp/PeepholeFoldConstants.java.
 
 //! Port of `PeepholeFoldConstants.java`.
@@ -2266,6 +2266,22 @@ impl PeepholeFoldConstants {
         n
     }
 
+    /// Returns true if `right` represents a valid key for folding element reads.
+    /// For string keys, only canonical decimal array index spellings (e.g. "0", "1")
+    /// match. For number keys, any number-typed expression is accepted so callers can
+    /// emit warnings for non-integers or fold out-of-bounds index reads to undefined.
+    // port: PeepholeFoldConstants#isFoldableElementIndexKey
+    fn is_foldable_element_index_key(
+        compiler: &AbstractCompiler,
+        right: NodeId,
+        int_index: i32,
+    ) -> bool {
+        if right.is_string_lit(compiler) {
+            return int_index >= 0 && *right.get_string_ref(compiler) == *int_index.to_string();
+        }
+        NodeUtil::is_numeric_result(compiler, right)
+    }
+
     // port: PeepholeFoldConstants#tryFoldArrayAccess
     fn try_fold_array_access(
         &self,
@@ -2289,13 +2305,17 @@ impl PeepholeFoldConstants {
         }
         let index = index.unwrap();
 
+        // Java's `double.intValue()`: NaN is 0, out-of-range values saturate.
+        let int_index = index as i32;
+        if !Self::is_foldable_element_index_key(compiler, right, int_index) {
+            return n;
+        }
+
         if !JSCompDoubles::is_exact_int32(index) {
             // Ideally this should be caught in the check passes.
             self.report(compiler, &INVALID_GETELEM_INDEX_ERROR, right);
             return n;
         }
-
-        let int_index = index as i32;
         let mut current = left.get_first_child(compiler);
         let mut elem = None;
         let mut i = 0;
@@ -2422,6 +2442,10 @@ impl PeepholeFoldConstants {
         let index = index.unwrap();
 
         let int_index = index as i32;
+        if !Self::is_foldable_element_index_key(compiler, right, int_index) {
+            return n;
+        }
+
         if f64::from(int_index) != index {
             self.report(compiler, &INVALID_GETELEM_INDEX_ERROR, right);
             return n;

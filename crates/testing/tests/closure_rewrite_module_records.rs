@@ -31,7 +31,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   test/com/google/javascript/jscomp/CheckGoogJsImportTest.java,
 //   test/com/google/javascript/jscomp/CheckMissingRequiresTest.java,
 //   test/com/google/javascript/jscomp/ClosureRewriteModuleTest.java,

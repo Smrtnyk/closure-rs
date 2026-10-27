@@ -2,14 +2,14 @@
 
 ## Method
 - **Workspace:** `scripts/unit_make_recording_ws.sh` clones the pristine reference checkout
-  (`$REF_SRC`, `reference/closure-compiler-v20261020` at `e751d6f88` for the default reference
-  `v20261020`; docs/PORTING.md §9) into `$REF_RECORDING_WS`,
+  (`$REF_SRC`, `reference/closure-compiler-v20261025` at `b2f69b38e` for the default reference
+  `v20261025`; docs/PORTING.md §9) into `$REF_RECORDING_WS`,
   copies the untracked `MODULE.bazel.lock`, and applies `oracle/patches/*.patch`. The script
   refuses a patch that touches anything but `test/`, `BUILD.bazel` and `oracle_recording/`.
 - **Jars:** `scripts/unit_bazel_build.sh` builds `build/unit/jars/unit_support_deploy.jar`
   (`//:unit_support`: the compiler, its runtime deps and compiler_tests_lib, with no closure
-  `*Test` class) and `unit_all_tests.jar` (all 432 `*Test.java` files).
-- **Recording:** `scripts/unit_record_all.sh` runs every one of the 432 classes outside Bazel:
+  `*Test` class) and `unit_all_tests.jar` (all 433 `*Test.java` files).
+- **Recording:** `scripts/unit_record_all.sh` runs every one of the 433 classes outside Bazel:
   plain JUnitCore (`UnitRecordingMain`), cwd = the recording workspace,
   `-Dclosurers.unit.record=true`, one JVM per class at `-Xmx2g -Xss8m`, 10 JVMs in parallel
   (`UNIT_RECORD_PARALLEL`). The run is resumable through the per-class stats files; run it
@@ -23,7 +23,7 @@
 - **Summary:** `scripts/unit_report.sh` writes `build/unit/report/{classes.json,table.md}`
   (per-class entries and records, kinds, failures, unrepresentable values).
 
-The corpus holds 25,045 records from 255 of the 432 test classes (kinds compiler_test_case,
+The corpus holds 25,105 records from 255 of the 433 test classes (kinds compiler_test_case,
 type_check and integration). Hooked entries below the outermost one are nested calls, such as
 `compile` inside `test` or `parseAndTypeCheckWithScope` inside `TypeTestBuilder.run`; they are
 counted but, by design, not recorded.
@@ -73,7 +73,7 @@ recording JVM, so each record stores `passTrace`. `UnitRecorder.enter` (outermos
 recorder writes no `passTrace`. No `src/` file is touched; the patch (0002) changes `test/` only.
 
 ## Changing the recorder
-1. Edit the recording workspace (`$REF_RECORDING_WS`, `reference/closure-compiler-v20261020-recording`
+1. Edit the recording workspace (`$REF_RECORDING_WS`, `reference/closure-compiler-v20261025-recording`
    for the default reference, `test/` only).
 2. Regenerate `oracle/patches/0002-recording-hooks.patch` from it (`git diff -- test/`) and check
    that a fresh clone of the pristine reference checkout plus patches 0001 and 0002 is

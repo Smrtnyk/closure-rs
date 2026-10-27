@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/CrossChunkCodeMotionTest.java.
 
@@ -939,6 +939,38 @@ expected(&[
 // m2
 ]),
 ]);
+}
+
+// port: CrossChunkCodeMotionTest#testClassMovement_reflectObjectProperty_classDeclaration
+#[test]
+fn test_class_movement_reflect_object_property_class_declaration() {
+    let mut t = Test::new();
+    // TODO(b/435019132): The expectation is currently wrong. Foo and value should move to m2.
+    t.test_same(vec![srcs(
+        JSChunkGraphBuilder::for_chain()
+            // m1
+            .add_chunk("class Foo {}\nconst value = goog.reflect.objectProperty('x', Foo);\n")
+            // m2
+            .add_chunk("const useValue = value;")
+            .build(),
+    )]);
+}
+
+// port: CrossChunkCodeMotionTest#testClassMovement_reflectObjectProperty_classExpression
+#[test]
+fn test_class_movement_reflect_object_property_class_expression() {
+    let mut t = Test::new();
+    // TODO(b/435019132): The expectation is currently wrong. Foo and value should move to m2.
+    t.test_same(vec![srcs(
+        JSChunkGraphBuilder::for_chain()
+            // m1
+            .add_chunk(
+                "const Foo = class {};\nconst value = goog.reflect.objectProperty('x', Foo);\n",
+            )
+            // m2
+            .add_chunk("const useValue = value;")
+            .build(),
+    )]);
 }
 
 // port: CrossChunkCodeMotionTest#testPureOrBreakMyCodedStaticClassFieldIsMovable

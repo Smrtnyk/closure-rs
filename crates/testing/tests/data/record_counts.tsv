@@ -26,7 +26,7 @@ CheckAccessControlsPolymerTest	5	5	0	0
 CheckAccessControlsTest	233	233	0	0
 CheckArrayWithGoogObjectTest	4	4	0	0
 CheckClosureImportsTest	115	115	0	0
-CheckConformanceTest	420	420	0	0
+CheckConformanceTest	422	422	0	0
 CheckConstPrivatePropertiesTest	57	57	0	0
 CheckConstantCaseNamesTest	40	40	0	0
 CheckDebuggerStatementTest	8	8	0	0
@@ -109,7 +109,7 @@ ConvertToTypedInterfaceTest	299	299	0	0
 CoverageInstrumentationPassTest	0	0	0	0
 CoverageInstrumenterTest	0	0	0	0
 CreateSyntheticBlocksTest	24	24	0	0
-CrossChunkCodeMotionTest	127	127	0	0
+CrossChunkCodeMotionTest	129	129	0	0
 CrossChunkMethodMotionTest	85	85	0	0
 CrossChunkReferenceCollectorTest	46	46	0	0
 DataFlowAnalysisTest	0	0	0	0
@@ -282,7 +282,7 @@ ParsingUtilTest	0	0	0	0
 PartialCompilationTest	0	0	0	0
 PathUtilTest	0	0	0	0
 PeepholeCollectPropertyAssignmentsTest	66	66	0	0
-PeepholeFoldConstantsTest	1584	1584	0	0
+PeepholeFoldConstantsTest	1611	1611	0	0
 PeepholeIntegrationTest	270	270	0	0
 PeepholeMinimizeConditionsTest	372	372	0	0
 PeepholeOptimizationsPassTest	12	12	0	0
@@ -337,8 +337,8 @@ ReplacedStringsDecoderTest	0	0	0	0
 ReportDecoderTest	0	0	0	0
 ReportUntranspilableFeaturesTest	54	54	0	0
 RequireAliasGeneratorTest	0	0	0	0
-RescopeGlobalSymbolsTest	273	273	0	0
-RewriteAsyncFunctionsTest	31	31	0	0
+RescopeGlobalSymbolsTest	299	299	0	0
+RewriteAsyncFunctionsTest	34	34	0	0
 RewriteAsyncIterationTest	29	29	0	0
 RewriteCallerCodeLocationTest	32	32	0	0
 RewriteCatchWithNoBindingTest	4	4	0	0
@@ -425,6 +425,7 @@ ValidityCheckTest	3	3	0	0
 VarCheckTest	226	226	0	0
 VariableMapTest	0	0	0	0
 VariableReferenceCheckTest	311	311	0	0
+VerboseMessageFormatterTest	0	0	0	0
 VirtualFileTest	0	0	0	0
 WarningsGuardTest	0	0	0	0
 WhitespaceWrapGoogModulesTest	1	1	0	0

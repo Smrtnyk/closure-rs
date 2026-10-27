@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/jscomp/NodeTraversal.java,
 //   src/com/google/javascript/jscomp/RescopeGlobalSymbols.java.
 
@@ -32,8 +32,13 @@ use crate::{
         RescopeGlobalSymbolsRewriteCallback, SymbolInformation,
     },
 };
+use closure_rhino::check_state;
 use closure_rhino::fast_hash::IndexSet;
-use closure_rhino::{ir::IR, js_string::JsString, node::NodeId};
+use closure_rhino::{
+    ir::IR,
+    js_string::JsString,
+    node::{Ast, NodeId},
+};
 
 /// Finds all references to global symbols and rewrites them to be property accesses to a special
 /// object with the same name as the global symbol.
@@ -127,6 +132,7 @@ impl CompilerPass for RescopeGlobalSymbols {
         let symbol_info = SymbolInformation::new(
             &find_cross_chunk_names.cross_chunk_names,
             &find_cross_chunk_names.cross_chunk_names_with_write_from_other_chunk,
+            &find_cross_chunk_names.cross_chunk_names_used_in_non_dependent_chunk,
             &find_cross_chunk_names.global_names_with_read_in_defining_chunk,
             &find_cross_chunk_names.global_names_with_inner_scope_write_in_defining_chunk,
             &find_names_referencing_this.maybe_references_this,
@@ -148,7 +154,10 @@ impl CompilerPass for RescopeGlobalSymbols {
         NodeTraversal::traverse(
             compiler,
             root,
-            &mut AbstractShallowStatementCallback::new(RemoveGlobalVarCallback::new()),
+            &mut AbstractShallowStatementCallback::new(RemoveGlobalVarCallback::new(
+                self.optimize_local_access
+                    .should_preserve_local_var_declarations(),
+            )),
         );
 
         rewrite_scope.add_declarations(compiler);
@@ -215,6 +224,10 @@ struct FindCrossChunkNamesCallback {
     /// one. Only populated if trackLocalAccessSets is true.
     cross_chunk_names_with_write_from_other_chunk: IndexSet<JsString>,
 
+    /// Global cross-chunk identifiers that are referenced in a chunk that does not depend on their
+    /// defining chunk. Only populated if trackLocalAccessSets is true.
+    cross_chunk_names_used_in_non_dependent_chunk: IndexSet<JsString>,
+
     /// Global identifiers that are read in the chunk where they are defined. Only populated if
     /// trackLocalAccessSets is true.
     global_names_with_read_in_defining_chunk: IndexSet<JsString>,
@@ -226,11 +239,13 @@ struct FindCrossChunkNamesCallback {
 
 impl FindCrossChunkNamesCallback {
     // port: RescopeGlobalSymbols.FindCrossChunkNamesCallback#FindCrossChunkNamesCallback
+    // (the compiler is the traversal's: NodeTraversal#getCompiler)
     fn new(track_local_access_sets: bool) -> Self {
         Self {
             track_local_access_sets,
             cross_chunk_names: IndexSet::<_>::default(),
             cross_chunk_names_with_write_from_other_chunk: IndexSet::<_>::default(),
+            cross_chunk_names_used_in_non_dependent_chunk: IndexSet::<_>::default(),
             global_names_with_read_in_defining_chunk: IndexSet::<_>::default(),
             global_names_with_inner_scope_write_in_defining_chunk: IndexSet::<_>::default(),
         }
@@ -286,17 +301,31 @@ impl Callback for FindCrossChunkNamesCallback {
             // Compare the chunk where the variable is declared to the current
             // chunk. If they are different, the variable is used across chunks.
             let chunk = input.get_chunk();
-            if chunk != t.get_chunk() {
+            let current_chunk = t.get_chunk();
+            if chunk != current_chunk {
                 self.cross_chunk_names.insert(name.clone());
 
-                // If tracking local access, track names with non-local writes separately. This
-                // includes all L-value names except for declarations without children.
-                if self.track_local_access_sets
-                    && NodeUtil::is_l_value(t, n)
-                    && (!NodeUtil::is_name_declaration(t, parent) || n.has_children(t))
-                {
-                    self.cross_chunk_names_with_write_from_other_chunk
-                        .insert(name);
+                if self.track_local_access_sets {
+                    // If tracking local access, track names with non-local writes separately. This
+                    // includes all L-value names except for declarations without children.
+                    if NodeUtil::is_l_value(t, n)
+                        && (!NodeUtil::is_name_declaration(t, parent) || n.has_children(t))
+                    {
+                        self.cross_chunk_names_with_write_from_other_chunk
+                            .insert(name.clone());
+                    }
+                    if !t
+                        .get_compiler()
+                        .get_chunk_graph()
+                        .expect("NullPointerException")
+                        .depends_on(
+                            current_chunk.as_ref().expect("NullPointerException"),
+                            chunk.as_ref().expect("NullPointerException"),
+                        )
+                    {
+                        self.cross_chunk_names_used_in_non_dependent_chunk
+                            .insert(name);
+                    }
                 }
             } else if self.track_local_access_sets && Some(n) != v.get_name_node(t.get_compiler()) {
                 self.global_names_with_read_in_defining_chunk.insert(name);
@@ -378,13 +407,59 @@ impl Callback for FindNamesReferencingThis {
     }
 }
 
-/// Removes every occurrence of var/let/const that declares a global variable.
-struct RemoveGlobalVarCallback;
+/// Removes `var`/`let`/`const` declarations whose global variables have been rewritten to
+/// property assignments by [`RescopeGlobalSymbolsRewriteCallback`], while preserving `var`
+/// declarations for variables that remain local to the chunk.
+///
+/// When all variables in a declaration are rewritten to namespace assignments:
+///
+/// `var NS.a = 1, NS.b = 2;` becomes `NS.a = 1; NS.b = 2;`
+///
+/// When `preserveLocalVarDeclarations` is true and a declaration mixes local variables with
+/// rewritten namespace assignments, the statement is split in order so local variables retain
+/// their `var` declarations in place:
+///
+/// `var a = NS.a = 1, NS.b = 2, c = 3;` becomes `var a = NS.a = 1; NS.b = 2; var c = 3;`
+///
+/// In `for`-loop headers:
+///
+/// `for (var a = 0, b = 0;;)` becomes `for (NS.a = 0, NS.b = 0;;)`
+///
+/// Rewritten declarations without assignments are optimized away:
+///
+/// `var a = 1, b;` becomes `NS.a = 1`
+struct RemoveGlobalVarCallback {
+    /// Whether `NAME` children remaining in a partially rewritten declaration should be preserved
+    /// in place as `var` declarations.
+    ///
+    /// When `true` (used when `optimizeLocalAccess.shouldPreserveLocalVarDeclarations()` is
+    /// true), variables that stay local to their defining chunk are left as `NAME` nodes (with
+    /// optional initializers) in the declaration by `RescopeGlobalSymbolsRewriteCallback` and must
+    /// be emitted as `var` statements in place. When `false`, all local variables in a partially
+    /// rewritten declaration have already been hoisted to the top of the chunk via
+    /// `preDeclarations` and their initializers converted to `ASSIGN` nodes, so any remaining bare
+    /// `NAME` children are uninitialized and should be dropped.
+    preserve_local_var_declarations: bool,
+}
 
 impl RemoveGlobalVarCallback {
     // port: RescopeGlobalSymbols.RemoveGlobalVarCallback#RemoveGlobalVarCallback
-    fn new() -> Self {
-        Self
+    fn new(preserve_local_var_declarations: bool) -> Self {
+        Self {
+            preserve_local_var_declarations,
+        }
+    }
+
+    // port: RescopeGlobalSymbols.RemoveGlobalVarCallback#hasOnlyNameOrDestructuringChildren
+    fn has_only_name_or_destructuring_children(ast: &Ast, n: NodeId) -> bool {
+        let mut c = n.get_first_child(ast);
+        while let Some(cur) = c {
+            if !cur.is_name(ast) && !cur.is_destructuring_lhs(ast) {
+                return false;
+            }
+            c = cur.get_next(ast);
+        }
+        n.has_children(ast)
     }
 
     // port: RescopeGlobalSymbols.RemoveGlobalVarCallback#joinOnComma
@@ -407,46 +482,87 @@ impl AbstractPostOrderCallbackInterface for RemoveGlobalVarCallback {
         }
         let parent = parent.unwrap();
 
-        let mut commas: Vec<NodeId> = Vec::new();
-        let mut interesting_children: Vec<NodeId> = Vec::new();
-        // Filter out declarations without assignments.
-        // As opposed to regular var nodes, there are always assignments
-        // because the previous traversal in RescopeGlobalSymbolsRewriteCallback creates
-        // them.
-        let mut all_name_or_destructuring = true;
-        let mut c = n.get_first_child(t);
-        while let Some(cur) = c {
-            if !cur.is_name(t) && !cur.is_destructuring_lhs(t) {
-                all_name_or_destructuring = false;
-            }
-            if cur.is_assign(t) || NodeUtil::is_any_for(t, parent) {
-                interesting_children.push(cur);
-            }
-            c = cur.get_next(t);
-        }
-        // If every child of a var declares a name, it must stay in place.
-        // This is the case if none of the declared variables cross chunk
-        // boundaries.
-        if all_name_or_destructuring {
+        // If every child of a non-empty declaration is still a variable binding (NAME or
+        // DESTRUCTURING_LHS) rather than a rewritten assignment (ASSIGN) or property access
+        // (GETPROP), then no variables in the declaration were rewritten into standalone
+        // expressions, and the declaration node must stay in place as-is.
+        if Self::has_only_name_or_destructuring_children(t, n) {
             return;
         }
-        for c in interesting_children {
-            if NodeUtil::is_any_for(t, parent) && parent.get_first_child(t) == Some(n) {
-                let clone = c.clone_tree(t);
+
+        if NodeUtil::is_any_for(t, parent) && parent.get_first_child(t) == Some(n) {
+            // Declaration in a for-loop header (`for (var a = 0, b = 1; ...)` or
+            // `for (var x in/of ...)`). A for-loop initializer or iteration target slot only
+            // accepts a single expression and cannot be split into multiple statements. In a
+            // standard for-loop, join all children into a comma expression
+            // (`for (_.a = 0, b = 1; ...)`). In a for-in or for-of loop, the single rewritten LHS
+            // child (e.g. `_.x` or `[_.a, _.b]`) replaces the declaration directly
+            // (`for (_.x in ...)`). Any local variables declared in the loop header were already
+            // recorded in `preDeclarations` by RescopeGlobalSymbolsRewriteCallback to be hoisted
+            // to the top of the chunk.
+            let mut commas: Vec<NodeId> = Vec::new();
+            let mut c = n.get_first_child(t);
+            while let Some(cur) = c {
+                let clone = cur.clone_tree(t);
                 commas.push(clone);
-            } else {
-                // Var statement outside of for-loop.
-                let clone = c.clone_tree(t);
-                let expr = IR::expr_result(t, clone).srcref(t, c);
-                NodeUtil::mark_new_scopes_changed(t.get_compiler(), expr);
-                expr.insert_before(t, n);
+                c = cur.get_next(t);
+            }
+            if !commas.is_empty() {
+                let comma = Self::join_on_comma(t.get_compiler(), &commas, n);
+                comma.insert_before(t, n);
+            }
+        } else {
+            // Declaration statement outside of a for-loop header.
+            // Group consecutive local variable bindings (NAME) into VAR declarations when
+            // preserveLocalVarDeclarations is enabled, and emit rewritten ASSIGN children as
+            // standalone EXPR_RESULT statements in original declaration order. Any
+            // DESTRUCTURING_LHS children in a rewritten declaration were already converted to
+            // ASSIGN nodes by RescopeGlobalSymbolsRewriteCallback.
+            // Any other children (such as bare GETPROP nodes from uninitialized cross-chunk
+            // declarations, or uninitialized NAME nodes when preserveLocalVarDeclarations is
+            // false) have no side effects and are omitted.
+            let mut current_var: Option<NodeId> = None;
+            let mut c = n.get_first_child(t);
+            while let Some(cur) = c {
+                check_state!(
+                    !cur.is_destructuring_lhs(t),
+                    "Unexpected DESTRUCTURING_LHS child: %s",
+                    cur.to_string(t)
+                );
+                if self.preserve_local_var_declarations && cur.is_name(t) {
+                    match current_var {
+                        None => {
+                            let clone = cur.clone_tree(t);
+                            let var = IR::var(t, clone).srcref(t, n);
+                            let info = n.get_jsdoc_info(t);
+                            var.set_jsdoc_info(t, info);
+                            var.insert_before(t, n);
+                            current_var = Some(var);
+                        }
+                        Some(var) => {
+                            let clone = cur.clone_tree(t);
+                            var.add_child_to_back(t, clone);
+                        }
+                    }
+                } else if cur.is_assign(t) {
+                    // Finalize any in-progress VAR declaration before emitting the assignment
+                    // expression so that initializer evaluation order is preserved across mixed
+                    // declarations.
+                    if let Some(var) = current_var.take() {
+                        NodeUtil::mark_new_scopes_changed(t.get_compiler(), var);
+                    }
+                    let clone = cur.clone_tree(t);
+                    let expr = IR::expr_result(t, clone).srcref(t, cur);
+                    NodeUtil::mark_new_scopes_changed(t.get_compiler(), expr);
+                    expr.insert_before(t, n);
+                }
+                c = cur.get_next(t);
+            }
+            if let Some(var) = current_var {
+                NodeUtil::mark_new_scopes_changed(t.get_compiler(), var);
             }
         }
-        if !commas.is_empty() {
-            let comma = Self::join_on_comma(t.get_compiler(), &commas, n);
-            comma.insert_before(t, n);
-        }
-        // Remove the var/const/let node.
+        // Remove the original var/const/let node.
         n.detach(t);
         NodeUtil::mark_functions_deleted(t.get_compiler(), n);
         t.get_compiler().report_change_to_enclosing_scope(parent);

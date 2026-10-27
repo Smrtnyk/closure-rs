@@ -36,7 +36,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/rhino/StaticScope.java.
 
 use crate::{js_string::JsString, node::NodeId, static_slot::StaticSlot};

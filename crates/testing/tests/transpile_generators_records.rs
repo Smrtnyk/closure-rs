@@ -55,7 +55,7 @@ fn transpile_generators_records_pass() {
     )
     .unwrap();
     assert!(failures.is_empty(), "{}", failures.join("\n"));
-    assert_eq!(records, 156);
+    assert_eq!(records, 159);
     assert_eq!(report.harness_errors, 0);
     for class in CLASSES {
         let counts = &report.classes[class];

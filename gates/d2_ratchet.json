@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "golden": "ref-f1cacf42",
+ "golden": "ref-f2332204",
  "corpus_sha256": "83241746d06f9719eca0e070da251aadce5041d79b8e11d432129b7b81dc81bf",
  "complete": true,
  "filter": {},
- "binary_sha256": "dffbbf21f161897e56db6cef24d71c3b010acbaa46b5d4d4ffd8ca1964e32e1d",
+ "binary_sha256": "57850e5295d033ab0c085a9e5f487b52fa876e419306aca2fb49a57ea6037b3c",
  "counts": {
   "ws": {
    "pass": 2085,

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   test/com/google/javascript/jscomp/NodeUtilTest.java.
 
 use closure_jscomp::{
@@ -628,5 +628,21 @@ mod node_traversal_tests {
             .iter()
             .map(|node| node.get_string(ast))
             .collect()
+    }
+}
+
+mod delegated_helpers_tests {
+    use super::*;
+    use closure_jscomp::coding_conventions::CodingConventions;
+
+    // port: NodeUtilTest.DelegatedHelpersTests#testDelegatedHelpersWithNarrowDependencies
+    #[test]
+    fn test_delegated_helpers_with_narrow_dependencies() {
+        let mut ast = Ast::new();
+        let convention = CodingConventions::get_default();
+        let name_node =
+            NodeUtil::new_qname_with_convention(&mut ast, convention.as_ref(), "foo.bar");
+        assert!(name_node.is_get_prop(&ast));
+        assert_eq!(name_node.get_string(&ast), "bar");
     }
 }

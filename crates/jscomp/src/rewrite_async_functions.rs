@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/jscomp/RewriteAsyncFunctions.java.
 
 //! Port of `RewriteAsyncFunctions.java`.
@@ -397,11 +397,13 @@ impl RewriteAsyncFunctions {
         })
     }
 
+    // outer_async_context is the async context that `this`, `arguments`, etc. refer to at the point
+    // where this function is defined, or None if there is none.
     // port: RewriteAsyncFunctions.FunctionContext#FunctionContext(FunctionContext,Node,String)
     fn new_function_context_with_outer(
         &mut self,
         compiler: &AbstractCompiler,
-        outer: ContextId,
+        outer_async_context: Option<ContextId>,
         context_root_node: NodeId,
         unique_id: String,
     ) -> ContextId {
@@ -410,26 +412,22 @@ impl RewriteAsyncFunctions {
             &context_root_node.to_string(compiler)
         );
         let this = ContextId(self.contexts.len());
-        let outer_async = self
-            .function_context(outer)
-            .async_this_and_arguments_context;
         let async_this_and_arguments_context;
         if context_root_node.is_async_function(compiler) {
             if context_root_node.is_arrow_function(compiler) {
-                // An async arrow function context points to outer.asyncThisAndArgumentsContext
+                // An async arrow function context points to outerAsyncContext
                 // if non-null, otherwise to itself.
-                async_this_and_arguments_context = match outer_async {
+                async_this_and_arguments_context = match outer_async_context {
                     None => Some(this),
-                    Some(outer_async) => Some(outer_async),
+                    Some(outer_async_context) => Some(outer_async_context),
                 };
             } else {
                 // An async non-arrow function context always points to itself
                 async_this_and_arguments_context = Some(this);
             }
         } else if context_root_node.is_arrow_function(compiler) {
-            // A non-async arrow function context always points to
-            // outer.asyncThisAndArgumentsContext
-            async_this_and_arguments_context = outer_async;
+            // A non-async arrow function context always points to outerAsyncContext
+            async_this_and_arguments_context = outer_async_context;
         } else {
             // A non-async, non-arrow function has no async context.
             async_this_and_arguments_context = None;
@@ -441,6 +439,29 @@ impl RewriteAsyncFunctions {
                 async_this_and_arguments_context,
             )),
         })
+    }
+
+    /// Returns the async context that `this`, `arguments`, `new.target`, and `super` refer to in
+    /// this parameter list, or None if they should be left unchanged.
+    ///
+    /// When the function owning this parameter list is itself the async context, the parameter
+    /// list stays on the outer function and is not moved into the generator body, so references
+    /// here (including inside nested arrow functions) must not be aliased.
+    ///
+    /// `function_context` is the parameter list context's `functionContext`.
+    // port: RewriteAsyncFunctions.ParameterListContext#getAsyncContextForParameterList
+    fn get_async_context_for_parameter_list(
+        &self,
+        function_context: ContextId,
+    ) -> Option<ContextId> {
+        let async_context = self
+            .function_context(function_context)
+            .async_this_and_arguments_context;
+        if async_context == Some(function_context) {
+            None
+        } else {
+            async_context
+        }
     }
 
     // port: RewriteAsyncFunctions.LexicalContext#getContextRootNode
@@ -487,9 +508,11 @@ impl RewriteAsyncFunctions {
                     // e.g. `() => something`
                     // function someFunc(callback = () => something) {}
                     let unique_id = Self::unique_id_for(t);
+                    let outer_async_context =
+                        self.get_async_context_for_parameter_list(function_context);
                     self.new_function_context_with_outer(
                         t.get_compiler(),
-                        function_context,
+                        outer_async_context,
                         n,
                         unique_id,
                     )
@@ -502,7 +525,15 @@ impl RewriteAsyncFunctions {
                     context
                 } else if n.is_function(t) {
                     let unique_id = Self::unique_id_for(t);
-                    self.new_function_context_with_outer(t.get_compiler(), context, n, unique_id)
+                    let outer_async_context = self
+                        .function_context(context)
+                        .async_this_and_arguments_context;
+                    self.new_function_context_with_outer(
+                        t.get_compiler(),
+                        outer_async_context,
+                        n,
+                        unique_id,
+                    )
                 } else if n.is_param_list(t) {
                     let unique_id = Self::unique_id_for(t);
                     self.new_parameter_list_context(context, n, unique_id)
@@ -523,10 +554,10 @@ impl RewriteAsyncFunctions {
                 // to do.
             }
             LexicalContextKind::ParameterListContext { function_context } => {
-                let async_context = self
-                    .function_context(function_context)
-                    .async_this_and_arguments_context;
-                if async_context.is_some() && async_context != Some(function_context) {
+                if self
+                    .get_async_context_for_parameter_list(function_context)
+                    .is_some()
+                {
                     // e.g.
                     // async function outer(outerT = this) {
                     //   // `this` in outer parameter list must remain unchanged

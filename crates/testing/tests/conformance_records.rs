@@ -28,7 +28,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   test/com/google/javascript/jscomp/CheckConformanceTest.java.
 // Ported from closure-rs' own Java oracle tooling:
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayMain.java.
@@ -67,11 +67,11 @@ fn replay(class: &str) -> Vec<RecordResult> {
     records
 }
 
-// port: CheckConformanceTest (168 @Test methods, 420 recorded calls)
+// port: CheckConformanceTest (171 @Test methods, 422 recorded calls)
 #[test]
 fn check_conformance_test() {
     let records = replay("CheckConformanceTest");
-    assert_eq!(records.len(), 420);
+    assert_eq!(records.len(), 422);
     for r in &records {
         assert_eq!(
             r.status, "pass",

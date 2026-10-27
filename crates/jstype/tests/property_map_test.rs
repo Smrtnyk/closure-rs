@@ -36,7 +36,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   test/com/google/javascript/rhino/jstype/PropertyMapTest.java.
 
 use closure_jstype::{

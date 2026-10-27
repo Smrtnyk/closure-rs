@@ -2,9 +2,9 @@
   "schema": 1,
   "doc": "corpus/d2/PROFILES.md",
   "reference": {
-    "commit": "e751d6f885cc014007201476ff29af561c0c8bb9",
-    "jar": "build/reference-v20261020/closure-compiler.jar",
-    "jar_sha256": "f1cacf42d8ff15569a2941f8a0dabb1b9289fbaf316aa1e44ea47bb53e906890"
+    "commit": "b2f69b38e313f50d369fffda8d6a6d5e3e78165f",
+    "jar": "build/reference-v20261025/closure-compiler.jar",
+    "jar_sha256": "f2332204e0c0e68e5ab58db87e4c25318b5f08e6d44db66e962eb64c09ea5639"
   },
   "out_dir_template": "build/golden-tmp/{case_id}/{profile}",
   "argv_order": ["profile.flags", "case.extra_flags", "--externs", "--js (inputs, then shims)", "--chunk (chunk profiles)", "output flag"],

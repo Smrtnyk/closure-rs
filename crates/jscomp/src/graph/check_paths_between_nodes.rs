@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit e751d6f:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
 //   src/com/google/javascript/jscomp/graph/CheckPathsBetweenNodes.java.
 
 use super::{
@@ -175,7 +175,6 @@ impl<N, E, NP, EP> CheckPathsBetweenNodes<N, E, NP, EP> {
             {
                 continue;
             }
-            e.set_annotation(graph, Some(Box::new(VisitedEdge)));
             if self.ignore_edge(graph, e) {
                 continue;
             }
@@ -184,6 +183,7 @@ impl<N, E, NP, EP> CheckPathsBetweenNodes<N, E, NP, EP> {
             {
                 continue;
             }
+            e.set_annotation(graph, Some(Box::new(VisitedEdge)));
             let next = e.get_destination(graph);
             if !self.check_all_paths_without_back_edges(graph, next, b) {
                 return false;
@@ -216,7 +216,6 @@ impl<N, E, NP, EP> CheckPathsBetweenNodes<N, E, NP, EP> {
             {
                 continue;
             }
-            e.set_annotation(graph, Some(Box::new(VisitedEdge)));
             if self.ignore_edge(graph, e) {
                 continue;
             }
@@ -225,6 +224,7 @@ impl<N, E, NP, EP> CheckPathsBetweenNodes<N, E, NP, EP> {
             {
                 continue;
             }
+            e.set_annotation(graph, Some(Box::new(VisitedEdge)));
             let next = e.get_destination(graph);
             if self.check_some_paths_without_back_edges(graph, next, b) {
                 return true;
