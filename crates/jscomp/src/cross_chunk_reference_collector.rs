@@ -87,7 +87,10 @@ impl<'a> CrossChunkReferenceCollector<'a> {
     fn run_reference_collector(
         &mut self,
         compiler: &mut AbstractCompiler,
-        collect: impl FnOnce(&mut ReferenceCollector<'_>, &mut AbstractCompiler),
+        collect: impl FnOnce(
+            &mut ReferenceCollector<'_, &mut TopLevelStatementCollectingBehavior>,
+            &mut AbstractCompiler,
+        ),
     ) {
         let mut reference_collector = ReferenceCollector::new_with_hoisted_function_order(
             compiler,

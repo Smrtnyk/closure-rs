@@ -44,8 +44,11 @@ use std::rc::Rc;
 /// Java's inner `CollectorCallback` reads the outer instance's fields; here the traversal state
 /// lives in [`CollectorCallback`] and the scope creator beside it, so a traversal can borrow
 /// both (DESIGN §6: the compiler is not stored).
-pub struct ReferenceCollector<'a> {
-    callback: CollectorCallback<'a>,
+///
+/// Rust-only (performance divergence): the collector is generic over its behavior `B` (Java: a
+/// `Behavior` field), so that the per-node hooks a behavior does not override cost nothing.
+pub struct ReferenceCollector<'a, B: Behavior> {
+    callback: CollectorCallback<'a, B>,
     scope_creator: &'a mut dyn ScopeCreator,
 }
 
@@ -53,7 +56,7 @@ pub struct ReferenceCollector<'a> {
 pub type VarFilter<'a> = Box<dyn Fn(&AbstractCompiler, VarId) -> bool + 'a>;
 
 /// The fields of `ReferenceCollector` that its inner `CollectorCallback` reads and writes.
-pub struct CollectorCallback<'a> {
+pub struct CollectorCallback<'a, B: Behavior> {
     /// Maps a given variable to a collection of references to that name. Note that Var objects
     /// are not stable across multiple traversals (unlike scope root or name).
     reference_map: IndexMap<VarId, ReferenceCollection>,
@@ -62,7 +65,7 @@ pub struct CollectorCallback<'a> {
     block_stack: VecDeque<Rc<BasicBlock>>,
 
     /// Source of behavior at various points in the traversal.
-    behavior: Box<dyn Behavior + 'a>,
+    behavior: B,
 
     /// Only collect references for filtered variables.
     var_filter: VarFilter<'a>,
@@ -105,14 +108,16 @@ impl ExternsReferenceSummary {
     }
 }
 
-impl<'a> ReferenceCollector<'a> {
+impl ReferenceCollector<'_, DoNothingBehavior> {
     pub const DO_NOTHING_BEHAVIOR: DoNothingBehavior = DoNothingBehavior;
+}
 
+impl<'a, B: Behavior> ReferenceCollector<'a, B> {
     /// Constructor initializes block stack.
     // port: ReferenceCollector#ReferenceCollector(AbstractCompiler,Behavior,ScopeCreator)
     pub fn new(
         compiler: &mut AbstractCompiler,
-        behavior: impl Behavior + 'a,
+        behavior: B,
         creator: &'a mut dyn ScopeCreator,
     ) -> Self {
         Self::new_with_filter(compiler, behavior, creator, Box::new(|_, _| true))
@@ -125,7 +130,7 @@ impl<'a> ReferenceCollector<'a> {
     // port: ReferenceCollector#ReferenceCollector(AbstractCompiler,Behavior,ScopeCreator,Predicate)
     pub fn new_with_filter(
         compiler: &mut AbstractCompiler,
-        behavior: impl Behavior + 'a,
+        behavior: B,
         creator: &'a mut dyn ScopeCreator,
         var_filter: VarFilter<'a>,
     ) -> Self {
@@ -141,7 +146,7 @@ impl<'a> ReferenceCollector<'a> {
     // port: ReferenceCollector#ReferenceCollector(AbstractCompiler,Behavior,ScopeCreator,Predicate,boolean)
     pub fn new_with_hoisted_function_order(
         _compiler: &mut AbstractCompiler,
-        behavior: impl Behavior + 'a,
+        behavior: B,
         creator: &'a mut dyn ScopeCreator,
         var_filter: VarFilter<'a>,
         collect_hoisted_functions_in_reference_order: bool,
@@ -150,7 +155,7 @@ impl<'a> ReferenceCollector<'a> {
             callback: CollectorCallback {
                 reference_map: IndexMap::<_, _>::default(),
                 block_stack: VecDeque::new(),
-                behavior: Box::new(behavior),
+                behavior,
                 var_filter,
                 collect_hoisted_functions_in_reference_order,
                 collected_hoisted_functions: IndexSet::<_>::default(),
@@ -233,7 +238,7 @@ impl<'a> ReferenceCollector<'a> {
     }
 }
 
-impl CompilerPass for ReferenceCollector<'_> {
+impl<B: Behavior> CompilerPass for ReferenceCollector<'_, B> {
     /// Convenience method for running this pass over a tree with this class as a callback.
     // port: ReferenceCollector#process(Node,Node)
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
@@ -273,7 +278,7 @@ impl CompilerPass for ReferenceCollector<'_> {
     }
 }
 
-impl ReferenceMap for ReferenceCollector<'_> {
+impl<B: Behavior> ReferenceMap for ReferenceCollector<'_, B> {
     fn get_references(&self, var: VarId) -> Option<&ReferenceCollection> {
         ReferenceCollector::get_references(self, var)
     }
@@ -295,7 +300,7 @@ fn create_traversal_builder<'b>(
     builder
 }
 
-impl CollectorCallback<'_> {
+impl<B: Behavior> CollectorCallback<'_, B> {
     // port: ReferenceCollector#maybeJumpToHoistedFunction
     fn maybe_jump_to_hoisted_function(&mut self, var: VarId, t: &mut NodeTraversal<'_>) {
         let fn_node = var.get_parent_node(t.get_compiler());
@@ -366,15 +371,16 @@ impl CollectorCallback<'_> {
         check_state!(root == last.get_root(), &root.to_string(ast));
     }
 
-    /// Java returns the added `Reference`; here it is named by its var and its index in that var's
-    /// collection (`added_reference`), so it is not copied.
+    /// Java returns the added `Reference`; here it is named by the index of its var's entry in
+    /// `reference_map` (entries are never removed) and its index in that collection
+    /// (`added_reference`), so it is neither copied nor looked up by var again.
     // port: ReferenceCollector#addReference
     fn add_reference(
         &mut self,
         v: VarId,
         n: NodeId,
         t: &mut NodeTraversal<'_>,
-    ) -> Option<(VarId, usize)> {
+    ) -> Option<(usize, usize)> {
         if !(self.var_filter)(t.get_compiler(), v) {
             return None;
         }
@@ -382,11 +388,13 @@ impl CollectorCallback<'_> {
         // Create collection if none already
         let block = self.block_stack.back().expect("getLast").clone();
         let reference = Reference::new(n, t, block);
-        let collection = self.reference_map.entry(v).or_default();
+        let entry = self.reference_map.entry(v);
+        let entry_index = entry.index();
+        let collection = entry.or_default();
 
         // Add this particular reference
         collection.add(reference);
-        Some((v, collection.references.len() - 1))
+        Some((entry_index, collection.references.len() - 1))
     }
 }
 
@@ -455,7 +463,7 @@ fn is_block_boundary(ast: &Ast, n: NodeId, parent: Option<NodeId>) -> bool {
     n.is_case(ast)
 }
 
-impl Callback for CollectorCallback<'_> {
+impl<B: Behavior> Callback for CollectorCallback<'_, B> {
     /// Updates block stack.
     // port: ReferenceCollector.CollectorCallback#shouldTraverse
     fn should_traverse(
@@ -518,8 +526,8 @@ impl Callback for CollectorCallback<'_> {
             }
         }
 
-        let added_reference =
-            added_reference.map(|(v, index)| &self.reference_map[&v].references[index]);
+        let added_reference = added_reference
+            .map(|(entry_index, index)| &self.reference_map[entry_index].references[index]);
         self.behavior
             .after_visit_node(t, n, parent, added_reference);
 
@@ -533,7 +541,7 @@ impl Callback for CollectorCallback<'_> {
     }
 }
 
-impl ScopedCallback for CollectorCallback<'_> {
+impl<B: Behavior> ScopedCallback for CollectorCallback<'_, B> {
     /// Updates block stack and invokes any additional behavior.
     // port: ReferenceCollector.CollectorCallback#enterScope
     fn enter_scope(&mut self, t: &mut NodeTraversal<'_>) {
@@ -628,29 +636,6 @@ pub trait Behavior {
 
 // Rust-only forwarding so callers can lend a behavior they keep using afterwards.
 impl<T: Behavior + ?Sized> Behavior for &mut T {
-    fn before_traverse_node(
-        &mut self,
-        t: &mut NodeTraversal<'_>,
-        n: NodeId,
-        parent: Option<NodeId>,
-    ) {
-        (**self).before_traverse_node(t, n, parent);
-    }
-    fn after_visit_node(
-        &mut self,
-        t: &mut NodeTraversal<'_>,
-        n: NodeId,
-        parent: Option<NodeId>,
-        added_reference: Option<&Reference>,
-    ) {
-        (**self).after_visit_node(t, n, parent, added_reference);
-    }
-    fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, reference_map: &dyn ReferenceMap) {
-        (**self).after_exit_scope(t, reference_map);
-    }
-}
-
-impl<T: Behavior + ?Sized> Behavior for Box<T> {
     fn before_traverse_node(
         &mut self,
         t: &mut NodeTraversal<'_>,
