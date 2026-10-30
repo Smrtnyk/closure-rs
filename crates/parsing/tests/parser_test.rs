@@ -5529,6 +5529,131 @@ fn test_string_line_continuation_warnings_by_mode() {
     let _ = tmp3;
 }
 
+// port: ParserTest#testEscapedLineOrParagraphSeparatorInString
+#[test]
+fn test_escaped_line_or_paragraph_separator_in_string() {
+    let mut h = Harness::new();
+    h.strict_mode = StrictMode::SLOPPY;
+
+    // An escaped <LS>/<PS> is an ES5 line continuation, not the ES2019 JSON superset feature.
+    h.mode = LanguageMode::ECMASCRIPT3;
+    let ls_es3 = h.do_parse(
+        "'one\\\u{2028}two';",
+        &[
+            &requires_language_mode_message(Feature::STRING_CONTINUATION),
+            STRING_CONTINUATIONS_WARNING,
+        ],
+    );
+    assert_eq!(
+        ls_es3
+            .ast
+            .unwrap()
+            .get_first_first_child(&h.ast)
+            .unwrap()
+            .get_string(&h.ast),
+        JsString::from("onetwo")
+    );
+    assert!(ls_es3.features.has(Feature::STRING_CONTINUATION));
+    assert!(
+        !ls_es3
+            .features
+            .has(Feature::UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
+    );
+
+    let ps_es3 = h.do_parse(
+        "'one\\\u{2029}two';",
+        &[
+            &requires_language_mode_message(Feature::STRING_CONTINUATION),
+            STRING_CONTINUATIONS_WARNING,
+        ],
+    );
+    assert_eq!(
+        ps_es3
+            .ast
+            .unwrap()
+            .get_first_first_child(&h.ast)
+            .unwrap()
+            .get_string(&h.ast),
+        JsString::from("onetwo")
+    );
+    assert!(ps_es3.features.has(Feature::STRING_CONTINUATION));
+    assert!(
+        !ps_es3
+            .features
+            .has(Feature::UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
+    );
+
+    h.mode = LanguageMode::ECMASCRIPT5;
+    let ls_es5 = h.do_parse("'one\\\u{2028}two';", &[STRING_CONTINUATIONS_WARNING]);
+    assert_eq!(
+        ls_es5
+            .ast
+            .unwrap()
+            .get_first_first_child(&h.ast)
+            .unwrap()
+            .get_string(&h.ast),
+        JsString::from("onetwo")
+    );
+    assert!(ls_es5.features.has(Feature::STRING_CONTINUATION));
+    assert!(
+        !ls_es5
+            .features
+            .has(Feature::UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
+    );
+
+    let ps_es5 = h.do_parse("'one\\\u{2029}two';", &[STRING_CONTINUATIONS_WARNING]);
+    assert_eq!(
+        ps_es5
+            .ast
+            .unwrap()
+            .get_first_first_child(&h.ast)
+            .unwrap()
+            .get_string(&h.ast),
+        JsString::from("onetwo")
+    );
+    assert!(ps_es5.features.has(Feature::STRING_CONTINUATION));
+    assert!(
+        !ps_es5
+            .features
+            .has(Feature::UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
+    );
+
+    h.mode = LanguageMode::ECMASCRIPT_2015;
+    let ls_es2015 = h.do_parse("'one\\\u{2028}two';", &[STRING_CONTINUATIONS_WARNING]);
+    assert_eq!(
+        ls_es2015
+            .ast
+            .unwrap()
+            .get_first_first_child(&h.ast)
+            .unwrap()
+            .get_string(&h.ast),
+        JsString::from("onetwo")
+    );
+    assert!(ls_es2015.features.has(Feature::STRING_CONTINUATION));
+    assert!(
+        !ls_es2015
+            .features
+            .has(Feature::UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
+    );
+
+    let ps_es2015 = h.do_parse("'one\\\u{2029}two';", &[STRING_CONTINUATIONS_WARNING]);
+    assert_eq!(
+        ps_es2015
+            .ast
+            .unwrap()
+            .get_first_first_child(&h.ast)
+            .unwrap()
+            .get_string(&h.ast),
+        JsString::from("onetwo")
+    );
+    assert!(ps_es2015.features.has(Feature::STRING_CONTINUATION));
+    assert!(
+        !ps_es2015
+            .features
+            .has(Feature::UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
+    );
+}
+
 // port: ParserTest#testStringLineContinuationNormalization
 #[test]
 fn test_string_line_continuation_normalization() {
@@ -5564,6 +5689,19 @@ fn test_string_line_continuation_normalization() {
     assert_eq!(
         n.get_first_first_child(&h.ast).unwrap().get_string(&h.ast),
         JsString::from("one two")
+    );
+
+    // <LS> and <PS> are line terminators too, so a backslash before them is a line continuation.
+    n = h.parse_warning("'one\\\u{2028}two';", &[STRING_CONTINUATIONS_WARNING]);
+    assert_eq!(
+        n.get_first_first_child(&h.ast).unwrap().get_string(&h.ast),
+        JsString::from("onetwo")
+    );
+
+    n = h.parse_warning("'one\\\u{2029}two';", &[STRING_CONTINUATIONS_WARNING]);
+    assert_eq!(
+        n.get_first_first_child(&h.ast).unwrap().get_string(&h.ast),
+        JsString::from("onetwo")
     );
 }
 
@@ -5680,6 +5818,23 @@ fn test_template_literal_with_line_continuation() {
     assert_eq!(
         string_node.unwrap().get_cooked_string(&h.ast),
         Some(JsString::from("string continuation"))
+    );
+
+    n = h.parse_warning(
+        "`string \\\u{2028}continuation`",
+        &[STRING_CONTINUATIONS_WARNING],
+    );
+    string_node = n
+        .get_first_first_child(&h.ast)
+        .unwrap()
+        .get_first_child(&h.ast);
+    assert_eq!(
+        string_node.unwrap().get_cooked_string(&h.ast),
+        Some(JsString::from("string continuation"))
+    );
+    assert_eq!(
+        string_node.unwrap().get_raw_string(&h.ast),
+        JsString::from("string \\\u{2028}continuation")
     );
 }
 
@@ -9245,6 +9400,25 @@ fn test_private_property_invalid_identifier_already_declared_cross_static_getter
         &[&expected_error],
     );
     let _ = tmp4;
+}
+
+// port: ParserTest#testPrivateProperty_namedConstructor_knownBug
+#[test]
+fn test_private_property_named_constructor_known_bug() {
+    let mut h = Harness::new();
+    // Expected behavior: the parser reports "Classes may not have a private element named
+    // '#constructor'" for each source. The spec makes a private element named `#constructor` an
+    // early SyntaxError.
+    //
+    // TODO(b/236744850): A private element named `#constructor` is accepted.
+    // Current behavior: each source parses without an error or a warning, so `parse` passes.
+    // Why it's a bug: natively each source is a SyntaxError, so the whole script fails to load.
+    //   The compiler accepts the code instead of reporting the error.
+    h.parse("class C { #constructor; }");
+    h.parse("class C { #constructor() {} }");
+    h.parse("class C { async #constructor() {} }");
+    h.parse("class C { get #constructor() {} }");
+    h.parse("class C { set #constructor(v) {} }");
 }
 
 // port: ParserTest#testPrivateProperty_classMembersReferencingOtherPrivateField

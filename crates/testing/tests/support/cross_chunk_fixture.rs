@@ -113,3 +113,13 @@ pub fn check(result: Result<(), Throwable>) {
         panic!("{t:?}");
     }
 }
+
+/// Java's `assertThrows(AssertionError.class, ..)` around a harness call: the AssertionError's
+/// message.
+pub fn assertion_message(result: Result<(), Throwable>) -> String {
+    match result {
+        Err(Throwable::Assertion { message }) => message,
+        Err(t) => panic!("expected an AssertionError, got {t:?}"),
+        Ok(()) => panic!("expected an AssertionError"),
+    }
+}

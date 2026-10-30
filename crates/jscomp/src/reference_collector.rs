@@ -67,6 +67,10 @@ pub struct CollectorCallback<'a> {
     /// Only collect references for filtered variables.
     var_filter: VarFilter<'a>,
 
+    /// If true, hoisted function declarations are traversed when the function is first
+    /// referenced. If false, hoisted functions are traversed in statement order.
+    collect_hoisted_functions_in_reference_order: bool,
+
     collected_hoisted_functions: IndexSet<NodeId>,
 
     narrow_scope: Option<ScopeId>,
@@ -120,10 +124,27 @@ impl<'a> ReferenceCollector<'a> {
     /// when you traverse.
     // port: ReferenceCollector#ReferenceCollector(AbstractCompiler,Behavior,ScopeCreator,Predicate)
     pub fn new_with_filter(
+        compiler: &mut AbstractCompiler,
+        behavior: impl Behavior + 'a,
+        creator: &'a mut dyn ScopeCreator,
+        var_filter: VarFilter<'a>,
+    ) -> Self {
+        Self::new_with_hoisted_function_order(
+            compiler, behavior, creator, var_filter,
+            /* collectHoistedFunctionsInReferenceOrder= */ true,
+        )
+    }
+
+    /// Like [`Self::new_with_filter`], but if `collect_hoisted_functions_in_reference_order` is
+    /// false, hoisted function declarations are traversed in statement order instead of when the
+    /// function is first referenced.
+    // port: ReferenceCollector#ReferenceCollector(AbstractCompiler,Behavior,ScopeCreator,Predicate,boolean)
+    pub fn new_with_hoisted_function_order(
         _compiler: &mut AbstractCompiler,
         behavior: impl Behavior + 'a,
         creator: &'a mut dyn ScopeCreator,
         var_filter: VarFilter<'a>,
+        collect_hoisted_functions_in_reference_order: bool,
     ) -> Self {
         Self {
             callback: CollectorCallback {
@@ -131,6 +152,7 @@ impl<'a> ReferenceCollector<'a> {
                 block_stack: VecDeque::new(),
                 behavior: Box::new(behavior),
                 var_filter,
+                collect_hoisted_functions_in_reference_order,
                 collected_hoisted_functions: IndexSet::<_>::default(),
                 narrow_scope: None,
                 may_skip_externs: false,
@@ -201,6 +223,13 @@ impl<'a> ReferenceCollector<'a> {
     // port: ReferenceCollector#getReferences
     pub fn get_references(&self, v: VarId) -> Option<&ReferenceCollection> {
         self.callback.reference_map.get(&v)
+    }
+
+    /// Rust-only: the collected references, for a caller that lends this collector its behavior and
+    /// scope creator only while it runs and keeps the references afterwards
+    /// (`CrossChunkReferenceCollector`).
+    pub fn into_reference_map(self) -> IndexMap<VarId, ReferenceCollection> {
+        self.callback.reference_map
     }
 }
 
@@ -337,10 +366,17 @@ impl CollectorCallback<'_> {
         check_state!(root == last.get_root(), &root.to_string(ast));
     }
 
+    /// Java returns the added `Reference`; here it is named by its var and its index in that var's
+    /// collection (`added_reference`), so it is not copied.
     // port: ReferenceCollector#addReference
-    fn add_reference(&mut self, v: VarId, n: NodeId, t: &mut NodeTraversal<'_>) {
+    fn add_reference(
+        &mut self,
+        v: VarId,
+        n: NodeId,
+        t: &mut NodeTraversal<'_>,
+    ) -> Option<(VarId, usize)> {
         if !(self.var_filter)(t.get_compiler(), v) {
-            return;
+            return None;
         }
 
         // Create collection if none already
@@ -350,6 +386,7 @@ impl CollectorCallback<'_> {
 
         // Add this particular reference
         collection.add(reference);
+        Some((v, collection.references.len() - 1))
     }
 }
 
@@ -365,9 +402,17 @@ fn is_inside(ast: &Ast, n: NodeId, root: NodeId) -> bool {
     false
 }
 
+/// Returns true if `n` is the non-local name in `import {n as x}` or `export {x as n}`, which is not
+/// a reference even though it is a NAME node.
+// port: ReferenceCollector#isNonLocalModuleSpecifierName
+fn is_non_local_module_specifier_name(ast: &Ast, n: NodeId, parent: NodeId) -> bool {
+    (parent.is_import_spec(ast) && Some(n) != parent.get_last_child(ast))
+        || (parent.is_export_spec(ast) && Some(n) != parent.get_first_child(ast))
+}
+
 /// Returns true if this node marks the start of a new basic block
 // port: ReferenceCollector#isBlockBoundary
-pub(crate) fn is_block_boundary(ast: &Ast, n: NodeId, parent: Option<NodeId>) -> bool {
+fn is_block_boundary(ast: &Ast, n: NodeId, parent: Option<NodeId>) -> bool {
     if let Some(parent) = parent {
         match parent.get_token(ast) {
             Token::DO
@@ -419,17 +464,23 @@ impl Callback for CollectorCallback<'_> {
         n: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
-        // We automatically traverse a hoisted function body when that function
-        // is first referenced, so that the reference lists are in the right order.
+        // When collectHoistedFunctionsInReferenceOrder is true, we automatically traverse a hoisted
+        // function body when that function is first referenced, so that the reference lists are
+        // in reference order.
         //
         // TODO(nicksantos): Maybe generalize this to a continuation mechanism
         // like in RemoveUnusedCode.
         #[allow(clippy::collapsible_if)] // Retain Java control flow.
-        if NodeUtil::is_hoisted_function_declaration(node_traversal, n) {
+        if self.collect_hoisted_functions_in_reference_order
+            && NodeUtil::is_hoisted_function_declaration(node_traversal, n)
+        {
             if !self.collected_hoisted_functions.insert(n) {
                 return false;
             }
         }
+
+        self.behavior
+            .before_traverse_node(node_traversal, n, parent);
 
         // If node is a new basic block, put on basic block stack
         if is_block_boundary(node_traversal, n, parent) {
@@ -441,16 +492,10 @@ impl Callback for CollectorCallback<'_> {
     /// For each node, update the block stack and reference collection as appropriate.
     // port: ReferenceCollector.CollectorCallback#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        if n.is_name(t) || n.is_import_star(t) {
-            let p = parent.unwrap();
-            if (p.is_import_spec(t) && Some(n) != p.get_last_child(t))
-                || (p.is_export_spec(t) && Some(n) != p.get_first_child(t))
-            {
-                // The n in `import {n as x}` or `export {x as n}` are not references, even though
-                // they are represented in the AST as NAME nodes.
-                return;
-            }
-
+        let mut added_reference = None;
+        if (n.is_name(t) || n.is_import_star(t))
+            && !is_non_local_module_specifier_name(t, n, parent.unwrap())
+        {
             let scope = t.get_scope();
             let v = scope.get_var_of_node(t.get_compiler(), n);
 
@@ -466,10 +511,17 @@ impl Callback for CollectorCallback<'_> {
             }
 
             if let Some(v) = v {
-                self.add_reference(v, n, t);
-                self.maybe_jump_to_hoisted_function(v, t);
+                added_reference = self.add_reference(v, n, t);
+                if self.collect_hoisted_functions_in_reference_order {
+                    self.maybe_jump_to_hoisted_function(v, t);
+                }
             }
         }
+
+        let added_reference =
+            added_reference.map(|(v, index)| &self.reference_map[&v].references[index]);
+        self.behavior
+            .after_visit_node(t, n, parent, added_reference);
 
         if is_block_boundary(t, n, parent) {
             self.pop_last_block(t, n);
@@ -501,50 +553,25 @@ impl ScopedCallback for CollectorCallback<'_> {
             let root = t.get_scope_root().unwrap();
             self.pop_last_block(t, root);
         }
+        // Java passes the collector itself (`ReferenceCollector.this`, a ReferenceMap); here the
+        // behavior is borrowed from the same object, so a view of its reference map stands in.
         let Self {
             behavior,
             reference_map,
             ..
         } = self;
-        behavior.after_exit_scope(t, &ReferenceMapWrapper::new(reference_map));
+        behavior.after_exit_scope(t, &CollectedReferenceMap { reference_map });
     }
 }
 
-pub struct ReferenceMapWrapper<'m> {
+/// Rust-only: the `ReferenceMap` view of the collector's references that its behavior gets in
+/// `afterExitScope` (see `exit_scope`).
+struct CollectedReferenceMap<'m> {
     reference_map: &'m IndexMap<VarId, ReferenceCollection>,
 }
 
-impl<'m> ReferenceMapWrapper<'m> {
-    // port: ReferenceCollector.ReferenceMapWrapper#ReferenceMapWrapper
-    pub fn new(reference_map: &'m IndexMap<VarId, ReferenceCollection>) -> Self {
-        Self { reference_map }
-    }
-
-    // port: ReferenceCollector.ReferenceMapWrapper#getRawReferenceMap
-    pub fn get_raw_reference_map(&self) -> &'m IndexMap<VarId, ReferenceCollection> {
-        self.reference_map
-    }
-
-    // port: ReferenceCollector.ReferenceMapWrapper#toString
-    pub fn to_string(&self, compiler: &mut AbstractCompiler) -> String {
-        let entries = self
-            .reference_map
-            .iter()
-            .map(|(var, collection)| {
-                format!(
-                    "{}={}",
-                    var.to_string(compiler),
-                    collection.to_string(compiler)
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("{{{entries}}}")
-    }
-}
-
-impl ReferenceMap for ReferenceMapWrapper<'_> {
-    // port: ReferenceCollector.ReferenceMapWrapper#getReferences
+impl ReferenceMap for CollectedReferenceMap<'_> {
+    // port: ReferenceCollector#getReferences
     fn get_references(&self, var: VarId) -> Option<&ReferenceCollection> {
         self.reference_map.get(&var)
     }
@@ -552,7 +579,48 @@ impl ReferenceMap for ReferenceMapWrapper<'_> {
 
 /// Way for callers to add specific behavior during traversal that utilizes the built-up
 /// reference information.
+///
+/// Note: These hooks are called in AST order only when the collector is made with
+/// `collect_hoisted_functions_in_reference_order = false`
+/// ([`ReferenceCollector::new_with_hoisted_function_order`]). When it is true (the default),
+/// hoisted functions are traversed out-of-order upon first reference via
+/// `maybe_jump_to_hoisted_function`:
+///
+/// - Hooks fire for the hoisted function and its body before `after_visit_node` fires for the
+///   referencing `NAME` node.
+/// - No hooks fire when the outer traversal later reaches the hoisted function declaration.
+/// - The function declaration reference added for the hoisted function does not pass through
+///   `after_visit_node`.
+///
+/// Behaviors that rely on strict AST or statement order (such as grouping references by top-level
+/// statement) should ensure `collect_hoisted_functions_in_reference_order` is false.
 pub trait Behavior {
+    /// Called before traversing a node.
+    // port: ReferenceCollector.Behavior#beforeTraverseNode
+    fn before_traverse_node(
+        &mut self,
+        _t: &mut NodeTraversal<'_>,
+        _n: NodeId,
+        _parent: Option<NodeId>,
+    ) {
+    }
+
+    /// Called after visiting a node, passing any reference recorded for `n`.
+    ///
+    /// `added_reference` is set only if a [`Reference`] was recorded for `n`. If the variable for
+    /// `n` was rejected by the `var_filter`, `added_reference` is `None`. See the trait
+    /// documentation for execution order considerations when
+    /// `collect_hoisted_functions_in_reference_order` is true.
+    // port: ReferenceCollector.Behavior#afterVisitNode
+    fn after_visit_node(
+        &mut self,
+        _t: &mut NodeTraversal<'_>,
+        _n: NodeId,
+        _parent: Option<NodeId>,
+        _added_reference: Option<&Reference>,
+    ) {
+    }
+
     /// Called after we finish with a scope.
     // port: ReferenceCollector.Behavior#afterExitScope
     fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, reference_map: &dyn ReferenceMap);
@@ -560,12 +628,46 @@ pub trait Behavior {
 
 // Rust-only forwarding so callers can lend a behavior they keep using afterwards.
 impl<T: Behavior + ?Sized> Behavior for &mut T {
+    fn before_traverse_node(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        n: NodeId,
+        parent: Option<NodeId>,
+    ) {
+        (**self).before_traverse_node(t, n, parent);
+    }
+    fn after_visit_node(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        n: NodeId,
+        parent: Option<NodeId>,
+        added_reference: Option<&Reference>,
+    ) {
+        (**self).after_visit_node(t, n, parent, added_reference);
+    }
     fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, reference_map: &dyn ReferenceMap) {
         (**self).after_exit_scope(t, reference_map);
     }
 }
 
 impl<T: Behavior + ?Sized> Behavior for Box<T> {
+    fn before_traverse_node(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        n: NodeId,
+        parent: Option<NodeId>,
+    ) {
+        (**self).before_traverse_node(t, n, parent);
+    }
+    fn after_visit_node(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        n: NodeId,
+        parent: Option<NodeId>,
+        added_reference: Option<&Reference>,
+    ) {
+        (**self).after_visit_node(t, n, parent, added_reference);
+    }
     fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, reference_map: &dyn ReferenceMap) {
         (**self).after_exit_scope(t, reference_map);
     }

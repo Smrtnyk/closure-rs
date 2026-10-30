@@ -4248,84 +4248,100 @@ mod assorted_tests {
         assert!(!value_16);
         let value_17 = executed_once_test_case(&mut compiler, "1 && (x ? 1 : 2);");
         assert!(!value_17);
-        let value_18 = executed_once_test_case(&mut compiler, "if (x) {}");
+        let value_18 = executed_once_test_case(&mut compiler, "x?.y;");
         assert!(value_18);
-        let value_19 = executed_once_test_case(&mut compiler, "if (true) {x;}");
-        assert!(!value_19);
-        let value_20 = executed_once_test_case(&mut compiler, "if (true) {} else {x;}");
+        let value_19 = executed_once_test_case(&mut compiler, "x?.y.z();");
+        assert!(value_19);
+        let value_20 = executed_once_test_case(&mut compiler, "y?.[x];");
         assert!(!value_20);
-        let value_21 = executed_once_test_case(&mut compiler, "if (1) { if (x) {} }");
+        let value_21 = executed_once_test_case(&mut compiler, "y?.(x);");
         assert!(!value_21);
-        let value_22 = executed_once_test_case(&mut compiler, "for(x;;){}");
-        assert!(value_22);
-        let value_23 = executed_once_test_case(&mut compiler, "for(;x;){}");
+        let value_22 = executed_once_test_case(&mut compiler, "y?.z.w(x);");
+        assert!(!value_22);
+        let value_23 = executed_once_test_case(&mut compiler, "var {y = x} = {};");
         assert!(!value_23);
-        let value_24 = executed_once_test_case(&mut compiler, "for(;;x){}");
+        let value_24 = executed_once_test_case(&mut compiler, "[y = x] = [];");
         assert!(!value_24);
-        let value_25 = executed_once_test_case(&mut compiler, "for(;;){x;}");
+        let value_25 = executed_once_test_case(&mut compiler, "function f(y = x) {}");
         assert!(!value_25);
-        let value_26 = executed_once_test_case(&mut compiler, "if (1) { for(x;;){} }");
-        assert!(!value_26);
-        let value_27 = executed_once_test_case(&mut compiler, "for(x in {}){}");
+        let value_26 = executed_once_test_case(&mut compiler, "if (x) {}");
+        assert!(value_26);
+        let value_27 = executed_once_test_case(&mut compiler, "if (true) {x;}");
         assert!(!value_27);
-        let value_28 = executed_once_test_case(&mut compiler, "for({}.a in x){}");
-        assert!(value_28);
-        let value_29 = executed_once_test_case(&mut compiler, "for({}.a in {}){x}");
+        let value_28 = executed_once_test_case(&mut compiler, "if (true) {} else {x;}");
+        assert!(!value_28);
+        let value_29 = executed_once_test_case(&mut compiler, "if (1) { if (x) {} }");
         assert!(!value_29);
-        let value_30 = executed_once_test_case(&mut compiler, "if (1) { for(x in {}){} }");
-        assert!(!value_30);
-        let value_31 = executed_once_test_case(&mut compiler, "for(x of {}){}");
+        let value_30 = executed_once_test_case(&mut compiler, "for(x;;){}");
+        assert!(value_30);
+        let value_31 = executed_once_test_case(&mut compiler, "for(;x;){}");
         assert!(!value_31);
-        let value_32 = executed_once_test_case(&mut compiler, "for({}.a of x){}");
-        assert!(value_32);
-        let value_33 = executed_once_test_case(&mut compiler, "for({}.a of {}){x}");
+        let value_32 = executed_once_test_case(&mut compiler, "for(;;x){}");
+        assert!(!value_32);
+        let value_33 = executed_once_test_case(&mut compiler, "for(;;){x;}");
         assert!(!value_33);
-        let value_34 = executed_once_test_case(&mut compiler, "if (1) { for(x of {}){} }");
+        let value_34 = executed_once_test_case(&mut compiler, "if (1) { for(x;;){} }");
         assert!(!value_34);
-        let value_35 =
-            executed_once_test_case(&mut compiler, "async function f() { for await(x of {}){} }");
+        let value_35 = executed_once_test_case(&mut compiler, "for(x in {}){}");
         assert!(!value_35);
-        let value_36 = executed_once_test_case(
+        let value_36 = executed_once_test_case(&mut compiler, "for({}.a in x){}");
+        assert!(value_36);
+        let value_37 = executed_once_test_case(&mut compiler, "for({}.a in {}){x}");
+        assert!(!value_37);
+        let value_38 = executed_once_test_case(&mut compiler, "if (1) { for(x in {}){} }");
+        assert!(!value_38);
+        let value_39 = executed_once_test_case(&mut compiler, "for(x of {}){}");
+        assert!(!value_39);
+        let value_40 = executed_once_test_case(&mut compiler, "for({}.a of x){}");
+        assert!(value_40);
+        let value_41 = executed_once_test_case(&mut compiler, "for({}.a of {}){x}");
+        assert!(!value_41);
+        let value_42 = executed_once_test_case(&mut compiler, "if (1) { for(x of {}){} }");
+        assert!(!value_42);
+        let value_43 =
+            executed_once_test_case(&mut compiler, "async function f() { for await(x of {}){} }");
+        assert!(!value_43);
+        let value_44 = executed_once_test_case(
             &mut compiler,
             "async function f() { for await({}.a of x){} }",
         );
-        assert!(value_36);
-        let value_37 = executed_once_test_case(
+        assert!(value_44);
+        let value_45 = executed_once_test_case(
             &mut compiler,
             "async function f() { for await({}.a of {}){x} }",
         );
-        assert!(!value_37);
-        let value_38 = executed_once_test_case(
+        assert!(!value_45);
+        let value_46 = executed_once_test_case(
             &mut compiler,
             "async function f() { if (1) { for await(x of {}){} } }",
         );
-        assert!(!value_38);
-        let value_39 = executed_once_test_case(&mut compiler, "switch (x) {}");
-        assert!(value_39);
-        let value_40 = executed_once_test_case(&mut compiler, "switch (1) {case x:}");
-        assert!(!value_40);
-        let value_41 = executed_once_test_case(&mut compiler, "switch (1) {case 1: x}");
-        assert!(!value_41);
-        let value_42 = executed_once_test_case(&mut compiler, "switch (1) {default: x}");
-        assert!(!value_42);
-        let value_43 = executed_once_test_case(&mut compiler, "if (1) { switch (x) {} }");
-        assert!(!value_43);
-        let value_44 = executed_once_test_case(&mut compiler, "while (x) {}");
-        assert!(!value_44);
-        let value_45 = executed_once_test_case(&mut compiler, "while (1) {x}");
-        assert!(!value_45);
-        let value_46 = executed_once_test_case(&mut compiler, "do {} while (x)");
         assert!(!value_46);
-        let value_47 = executed_once_test_case(&mut compiler, "do {x} while (1)");
-        assert!(!value_47);
-        let value_48 = executed_once_test_case(&mut compiler, "try {x} catch (e) {}");
+        let value_47 = executed_once_test_case(&mut compiler, "switch (x) {}");
+        assert!(value_47);
+        let value_48 = executed_once_test_case(&mut compiler, "switch (1) {case x:}");
         assert!(!value_48);
-        let value_49 = executed_once_test_case(&mut compiler, "try {} catch (e) {x}");
+        let value_49 = executed_once_test_case(&mut compiler, "switch (1) {case 1: x}");
         assert!(!value_49);
-        let value_50 = executed_once_test_case(&mut compiler, "try {} finally {x}");
-        assert!(value_50);
-        let value_51 = executed_once_test_case(&mut compiler, "if (1) { try {} finally {x} }");
+        let value_50 = executed_once_test_case(&mut compiler, "switch (1) {default: x}");
+        assert!(!value_50);
+        let value_51 = executed_once_test_case(&mut compiler, "if (1) { switch (x) {} }");
         assert!(!value_51);
+        let value_52 = executed_once_test_case(&mut compiler, "while (x) {}");
+        assert!(!value_52);
+        let value_53 = executed_once_test_case(&mut compiler, "while (1) {x}");
+        assert!(!value_53);
+        let value_54 = executed_once_test_case(&mut compiler, "do {} while (x)");
+        assert!(!value_54);
+        let value_55 = executed_once_test_case(&mut compiler, "do {x} while (1)");
+        assert!(!value_55);
+        let value_56 = executed_once_test_case(&mut compiler, "try {x} catch (e) {}");
+        assert!(!value_56);
+        let value_57 = executed_once_test_case(&mut compiler, "try {} catch (e) {x}");
+        assert!(!value_57);
+        let value_58 = executed_once_test_case(&mut compiler, "try {} finally {x}");
+        assert!(value_58);
+        let value_59 = executed_once_test_case(&mut compiler, "if (1) { try {} finally {x} }");
+        assert!(!value_59);
     }
 
     // port: NodeUtilTest.AssortedTests#testIsLValue
@@ -6299,6 +6315,42 @@ mod assorted_tests {
         let constructor_member_function_def =
             NodeUtil::get_es6_class_constructor_member_function_def(&compiler, value_2);
         assert!(constructor_member_function_def.is_none());
+    }
+
+    // port: NodeUtilTest.AssortedTests#testHasInstanceElements
+    #[test]
+    fn test_has_instance_elements() {
+        let mut compiler = Compiler::new();
+        let value_1 = parse_first(&mut compiler, Token::CLASS, "class C { x = 1; }");
+        assert!(NodeUtil::has_instance_elements(&compiler, value_1));
+        let value_2 = parse_first(&mut compiler, Token::CLASS, "class C { x; }");
+        assert!(NodeUtil::has_instance_elements(&compiler, value_2));
+        let value_3 = parse_first(&mut compiler, Token::CLASS, "class C { [k] = 1; }");
+        assert!(NodeUtil::has_instance_elements(&compiler, value_3));
+        let value_4 = parse_first(&mut compiler, Token::CLASS, "class C { #x = 1; }");
+        assert!(NodeUtil::has_instance_elements(&compiler, value_4));
+        let value_5 = parse_first(&mut compiler, Token::CLASS, "class C { #m() {} }");
+        assert!(NodeUtil::has_instance_elements(&compiler, value_5));
+        let value_6 = parse_first(&mut compiler, Token::CLASS, "class C { get #a() {} }");
+        assert!(NodeUtil::has_instance_elements(&compiler, value_6));
+        let value_7 = parse_first(&mut compiler, Token::CLASS, "class C {}");
+        assert!(!NodeUtil::has_instance_elements(&compiler, value_7));
+        let value_8 = parse_first(
+            &mut compiler,
+            Token::CLASS,
+            "class C { m() {} constructor() {} }",
+        );
+        assert!(!NodeUtil::has_instance_elements(&compiler, value_8));
+        let value_9 = parse_first(&mut compiler, Token::CLASS, "class C { static x = 1; }");
+        assert!(!NodeUtil::has_instance_elements(&compiler, value_9));
+        let value_10 = parse_first(&mut compiler, Token::CLASS, "class C { static [k] = 1; }");
+        assert!(!NodeUtil::has_instance_elements(&compiler, value_10));
+        let value_11 = parse_first(&mut compiler, Token::CLASS, "class C { static #x = 1; }");
+        assert!(!NodeUtil::has_instance_elements(&compiler, value_11));
+        let value_12 = parse_first(&mut compiler, Token::CLASS, "class C { static #m() {} }");
+        assert!(!NodeUtil::has_instance_elements(&compiler, value_12));
+        let value_13 = parse_first(&mut compiler, Token::CLASS, "class C { static {} }");
+        assert!(!NodeUtil::has_instance_elements(&compiler, value_13));
     }
 
     // port: NodeUtilTest.AssortedTests#testIsGetterOrSetter

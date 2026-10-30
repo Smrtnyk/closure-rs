@@ -54,14 +54,15 @@ pub struct RescopeGlobalSymbolsRewriteCallback {
     /// wrappedCrossChunkNames.
     local_aliases_for_unwrapped_cross_chunk_names: IndexMap<JSChunk, IndexSet<JsString>>,
 
-    /// Map from global wrapped symbols to the chunks that use them. Only populated if
-    /// optimizeLocalAccess is ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS. These symbols may be
-    /// reassigned anywhere or referenced in chunks that do not depend on their defining chunk.
-    chunks_using_wrapped_reassignable_symbols: IndexMap<JsString, IndexSet<JSChunk>>,
+    /// Map from cross-chunk global symbols to the chunks that reference them. Only populated if
+    /// optimizeLocalAccess.shouldWrapReassignableSymbols() is true. This is used to determine which
+    /// chunks to define wrapper objects in and when a symbol on the global namespace can be safely
+    /// deleted after its last local alias is set.
+    chunks_using_cross_chunk_symbols: IndexMap<JsString, IndexSet<JSChunk>>,
 
     /// Global symbols that are reassignable or referenced in a chunk that does not depend on their
-    /// defining chunk, and will be wrapped in an object. Only populated if optimizeLocalAccess is
-    /// ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS.
+    /// defining chunk, and will be wrapped in an object. Only populated if
+    /// optimizeLocalAccess.shouldWrapReassignableSymbols() is true.
     wrapped_cross_chunk_names: IndexSet<JsString>,
 }
 
@@ -153,7 +154,7 @@ impl RescopeGlobalSymbolsRewriteCallback {
             symbol_info,
             pre_declarations: Vec::new(),
             local_aliases_for_unwrapped_cross_chunk_names: IndexMap::<_, _>::default(),
-            chunks_using_wrapped_reassignable_symbols: IndexMap::<_, _>::default(),
+            chunks_using_cross_chunk_symbols: IndexMap::<_, _>::default(),
             wrapped_cross_chunk_names: IndexSet::<_>::default(),
         };
         this.wrapped_cross_chunk_names = this.collect_wrapped_cross_chunk_names(compiler);
@@ -528,14 +529,18 @@ impl RescopeGlobalSymbolsRewriteCallback {
         }
 
         let current_chunk = t.get_chunk();
-
-        if self.wrapped_cross_chunk_names.contains(&name) {
-            // If the symbol is wrapped, record the chunk using the symbol to ensure the wrapper is
-            // initialized before use, and replace the symbol with an access to the wrapper.
-            self.chunks_using_wrapped_reassignable_symbols
+        if self
+            .optimize_local_access
+            .should_wrap_reassignable_symbols()
+        {
+            self.chunks_using_cross_chunk_symbols
                 .entry(name.clone())
                 .or_default()
-                .insert(current_chunk.expect("NullPointerException"));
+                .insert(current_chunk.clone().expect("NullPointerException"));
+        }
+
+        if self.wrapped_cross_chunk_names.contains(&name) {
+            // Replace the symbol with an access to the wrapper.
             let target = IR::name(t, name.clone());
             let replacement = IR::getprop(t, target, "_");
             self.replace_symbol(t.get_compiler(), n, &name, replacement);
@@ -755,7 +760,7 @@ impl RescopeGlobalSymbolsRewriteCallback {
         if !self.wrapped_cross_chunk_names.is_empty() {
             for name in &self.wrapped_cross_chunk_names {
                 let using_chunks: Vec<JSChunk> = self
-                    .chunks_using_wrapped_reassignable_symbols
+                    .chunks_using_cross_chunk_symbols
                     .get(name)
                     .map(|s| s.iter().cloned().collect())
                     .unwrap_or_default();
@@ -769,31 +774,105 @@ impl RescopeGlobalSymbolsRewriteCallback {
         }
 
         // Prepend local aliases and wrapper assignments to each chunk.
+        let cleanup_helper_name = self.get_cleanup_helper_property_name();
+        let mut needs_cleanup_helper = false;
         for chunk in chunks {
-            self.declare_local_aliases_and_wrappers_for_chunk(
+            if self.declare_local_aliases_and_wrappers_for_chunk(
                 compiler,
                 &chunk,
                 &wrapper_assignment_chunks,
-            );
+                &cleanup_helper_name,
+            ) {
+                needs_cleanup_helper = true;
+            }
+        }
+        if needs_cleanup_helper {
+            self.declare_cleanup_helper(compiler, &cleanup_helper_name);
         }
     }
 
+    // port: RescopeGlobalSymbolsRewriteCallback#getCleanupHelperPropertyName
+    fn get_cleanup_helper_property_name(&self) -> JsString {
+        let mut name = JsString::from("_");
+        let suffix = JsString::from(DISAMBIGUATION_SUFFIX);
+        while self.chunks_using_cross_chunk_symbols.contains_key(&name) {
+            name = name.concat(&suffix);
+        }
+        name
+    }
+
+    /// Declares a helper function on the global namespace object in the root chunk to delete
+    /// symbol entries by comma-separated name list, e.g.:
+    ///
+    /// ```text
+    /// _._ = function(a) { for (let b of a.split(',')) { delete _[b]; } };
+    /// ```
+    // port: RescopeGlobalSymbolsRewriteCallback#declareCleanupHelper
+    fn declare_cleanup_helper(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        cleanup_helper_name: &JsString,
+    ) {
+        let script = compiler.get_node_for_code_insertion(None);
+        let param_name = if self.global_symbol_namespace == "a" {
+            "b"
+        } else {
+            "a"
+        };
+        let loop_var = if param_name != "b" && self.global_symbol_namespace != "b" {
+            "b"
+        } else {
+            "c"
+        };
+        let param = IR::name(compiler, param_name);
+        let split = IR::getprop(compiler, param, "split");
+        let comma = IR::string(compiler, ",");
+        let split_call = IR::call(compiler, split, &[comma]);
+        let ns = IR::name(compiler, self.global_symbol_namespace.clone());
+        let loop_name = IR::name(compiler, loop_var);
+        let getelem = IR::getelem(compiler, ns, loop_name);
+        let delprop = IR::delprop(compiler, getelem);
+        let delete_stmt = IR::expr_result(compiler, delprop);
+        let loop_decl_name = IR::name(compiler, loop_var);
+        let loop_decl = IR::r#let(compiler, loop_decl_name);
+        let loop_body = IR::block_with_child(compiler, delete_stmt);
+        let for_of =
+            compiler.new_node_with_children3(Token::FOR_OF, loop_decl, split_call, loop_body);
+        let fn_name = IR::name(compiler, "");
+        let fn_param = IR::name(compiler, param_name);
+        let param_list = IR::param_list(compiler, &[fn_param]);
+        let fn_body = IR::block_with_child(compiler, for_of);
+        let helper_fn = IR::function(compiler, fn_name, param_list, fn_body);
+        let helper_ns = IR::name(compiler, self.global_symbol_namespace.clone());
+        let helper_target = IR::getprop(compiler, helper_ns, cleanup_helper_name.clone());
+        let helper_assign = IR::assign(compiler, helper_target, helper_fn);
+        let helper_decl = IR::expr_result(compiler, helper_assign);
+        let insertion_point = script.get_first_child(compiler);
+        Self::add_declaration(compiler, script, insertion_point, helper_decl);
+        NodeUtil::mark_new_scopes_changed(compiler, helper_fn);
+        NodeUtil::add_feature_to_script(compiler, script, Feature::FOR_OF);
+        NodeUtil::add_feature_to_script(compiler, script, Feature::LET_DECLARATIONS);
+        compiler.report_change_to_enclosing_scope(script);
+    }
+
     /// Declares all local aliases and wrapper assignments that need to be prepended to the given
-    /// chunk.
+    /// chunk. Returns true if the chunk emitted a call to the cleanup helper.
     // port: RescopeGlobalSymbolsRewriteCallback#declareLocalAliasesAndWrappersForChunk
     fn declare_local_aliases_and_wrappers_for_chunk(
         &mut self,
         compiler: &mut AbstractCompiler,
         chunk: &JSChunk,
         wrapper_assignment_chunks: &IndexMap<JsString, Option<JSChunk>>,
-    ) {
+        cleanup_helper_name: &JsString,
+    ) -> bool {
         let inputs = chunk.get_inputs();
         if inputs.is_empty() {
-            return;
+            return false;
         }
         let script = inputs[0].get_ast_root(compiler);
         let insertion_point = script.get_first_child(compiler);
         let mut changed = false;
+        let mut used_cleanup_helper = false;
 
         let mut wrapped_reassignable_local_aliases: IndexSet<JsString> = IndexSet::<_>::default();
         if self
@@ -804,7 +883,7 @@ impl RescopeGlobalSymbolsRewriteCallback {
 
             for name in &self.wrapped_cross_chunk_names {
                 let assignment_chunk = wrapper_assignment_chunks.get(name).cloned().flatten();
-                let using_chunks = self.chunks_using_wrapped_reassignable_symbols.get(name);
+                let using_chunks = self.chunks_using_cross_chunk_symbols.get(name);
                 if Some(chunk) == assignment_chunk.as_ref() {
                     // Define the wrapper object for the wrapped symbol in this chunk.
                     if using_chunks.is_some_and(|u| u.contains(chunk)) {
@@ -839,7 +918,7 @@ impl RescopeGlobalSymbolsRewriteCallback {
         // Combine all local aliases into a single destructuring assignment
         // (e.g. `var {a, b, c} = _;`) if output is ES2015+, otherwise declare
         // individual local aliases (e.g. `var a = _.a;`).
-        let local_aliases: Vec<JsString> = self
+        let all_local_aliases: Vec<JsString> = self
             .local_aliases_for_unwrapped_cross_chunk_names
             .get(chunk)
             .into_iter()
@@ -847,11 +926,32 @@ impl RescopeGlobalSymbolsRewriteCallback {
             .cloned()
             .chain(wrapped_reassignable_local_aliases.iter().cloned())
             .collect();
-        if !local_aliases.is_empty() {
-            if compiler
-                .get_options()
-                .get_output_feature_set()
-                .contains(Feature::OBJECT_DESTRUCTURING)
+        if !all_local_aliases.is_empty() {
+            let mut aliases_to_keep: Vec<JsString> = Vec::new();
+            let mut aliases_to_delete: Vec<JsString> = Vec::new();
+            for name in all_local_aliases {
+                if self
+                    .optimize_local_access
+                    .should_delete_globals_on_last_access()
+                    && self.can_delete_from_global_namespace(compiler, chunk, &name)
+                {
+                    aliases_to_delete.push(name);
+                } else {
+                    aliases_to_keep.push(name);
+                }
+            }
+            // Place aliasesToDelete contiguously at the end of the destructuring assignment so
+            // that the comma-separated symbol list in `_._('x,y')` is an exact substring
+            // immediately following `var {..., x, y} = _;`, minimizing compressed binary size.
+            let local_aliases: Vec<JsString> = aliases_to_keep
+                .iter()
+                .chain(aliases_to_delete.iter())
+                .cloned()
+                .collect();
+            let output_features = compiler.get_options().get_output_feature_set();
+            if output_features.contains(Feature::OBJECT_DESTRUCTURING)
+                && output_features.contains(Feature::FOR_OF)
+                && output_features.contains(Feature::LET_DECLARATIONS)
             {
                 let object_pattern = IR::object_pattern(compiler, &[]);
                 for name in &local_aliases {
@@ -864,13 +964,42 @@ impl RescopeGlobalSymbolsRewriteCallback {
                 let decl = IR::var_with_value(compiler, object_pattern, ns);
                 Self::add_declaration(compiler, script, insertion_point, decl);
                 NodeUtil::add_feature_to_script(compiler, script, Feature::OBJECT_DESTRUCTURING);
+                if !aliases_to_delete.is_empty() {
+                    let ns = IR::name(compiler, self.global_symbol_namespace.clone());
+                    let callee = IR::getprop(compiler, ns, cleanup_helper_name.clone());
+                    let mut joined = JsString::from("");
+                    let comma = JsString::from(",");
+                    for (i, name) in aliases_to_delete.iter().enumerate() {
+                        if i > 0 {
+                            joined = joined.concat(&comma);
+                        }
+                        joined = joined.concat(name);
+                    }
+                    let names = IR::string(compiler, joined);
+                    let call = IR::call(compiler, callee, &[names]);
+                    let cleanup_call = IR::expr_result(compiler, call);
+                    Self::add_declaration(compiler, script, insertion_point, cleanup_call);
+                    used_cleanup_helper = true;
+                }
             } else {
-                for name in &local_aliases {
+                for name in &aliases_to_keep {
                     let lhs = IR::name(compiler, name.clone());
                     let ns = IR::name(compiler, self.global_symbol_namespace.clone());
                     let getprop = IR::getprop(compiler, ns, name.clone());
                     let decl = IR::var_with_value(compiler, lhs, getprop);
                     Self::add_declaration(compiler, script, insertion_point, decl);
+                }
+                for name in &aliases_to_delete {
+                    let lhs = IR::name(compiler, name.clone());
+                    let ns = IR::name(compiler, self.global_symbol_namespace.clone());
+                    let getprop = IR::getprop(compiler, ns, name.clone());
+                    let decl = IR::var_with_value(compiler, lhs, getprop);
+                    Self::add_declaration(compiler, script, insertion_point, decl);
+                    let ns = IR::name(compiler, self.global_symbol_namespace.clone());
+                    let getprop = IR::getprop(compiler, ns, name.clone());
+                    let delprop = IR::delprop(compiler, getprop);
+                    let delete_stmt = IR::expr_result(compiler, delprop);
+                    Self::add_declaration(compiler, script, insertion_point, delete_stmt);
                 }
             }
             changed = true;
@@ -879,6 +1008,38 @@ impl RescopeGlobalSymbolsRewriteCallback {
         if changed {
             compiler.report_change_to_enclosing_scope(script);
         }
+        used_cleanup_helper
+    }
+
+    /// Returns true if `name` can be safely deleted from the global symbol namespace in
+    /// `current_chunk` right after its local alias is initialized, i.e. when all other chunks that
+    /// reference `name` are transitive dependencies (parent chunks) of `current_chunk`.
+    // port: RescopeGlobalSymbolsRewriteCallback#canDeleteFromGlobalNamespace
+    fn can_delete_from_global_namespace(
+        &self,
+        compiler: &AbstractCompiler,
+        current_chunk: &JSChunk,
+        name: &JsString,
+    ) -> bool {
+        if compiler
+            .get_coding_convention()
+            .is_exported(name, /* local= */ false)
+        {
+            return false;
+        }
+        let Some(using_chunks) = self.chunks_using_cross_chunk_symbols.get(name) else {
+            return false;
+        };
+        if !using_chunks.contains(current_chunk) {
+            return false;
+        }
+        let chunk_graph = compiler.get_chunk_graph().expect("NullPointerException");
+        for other_chunk in using_chunks {
+            if other_chunk != current_chunk && !chunk_graph.depends_on(current_chunk, other_chunk) {
+                return false;
+            }
+        }
+        true
     }
 
     // port: RescopeGlobalSymbolsRewriteCallback#addDeclaration

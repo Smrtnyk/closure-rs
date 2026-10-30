@@ -782,6 +782,104 @@ fn test_field() {
     );
 }
 
+// port: RemoveUnusedCodeClassPropertiesTest#testPrivateFieldReadOnThis_knownBug
+#[test]
+fn test_private_field_read_on_this_known_bug() {
+    let mut f = Fixture::new();
+    // Expected behavior: the code is unchanged. Unlike `this.x;`, `this.#x;` doesn't declare a
+    // field: it reads `#x`, which throws a TypeError if `this` has no `#x`. So `#x` is used.
+    //
+    // TODO(b/236744850): `this.#x;` is removed like an unused field declaration.
+    // Current behavior: `this.#x;` is treated like the declaration `this.x;`, so `#x` looks
+    //   unused, and both `#x = 1;` and `this.#x;` are removed.
+    // Why it's a bug: natively `C.prototype.check.call({})` throws a TypeError, because `{}` has
+    //   no `#x`; with this output, it returns undefined.
+    // In a full build: `CheckSideEffects` wraps a `this.#x;` statement from the source in
+    //   `JSCOMPILER_PRESERVE`, so this pass sees such a statement only when another optimization
+    //   creates it.
+    f.test(
+        r#"class C {
+  #x = 1;
+  check() { this.#x; }
+}
+new C().check();
+"#,
+        r#"class C {
+  check() {}
+}
+new C().check();
+"#,
+    );
+}
+
+// port: RemoveUnusedCodeClassPropertiesTest#testUnreadPrivateMethodAssignment_wontFix
+#[test]
+fn test_unread_private_method_assignment_wont_fix() {
+    let mut f = Fixture::new();
+    // Won't fix (b/236744850): A write to a private method that is never read is removed.
+    // Native behavior: `this.#m = 1` always throws a TypeError, because a private method can't be
+    // assigned.
+    // Current behavior: `#m` is never read, so `#m() {}` and `this.#m = 1` are removed, like an
+    //   unused method and an assignment to it.
+    // Why it's a bug: natively `new C().w()` throws a TypeError; with this output, it returns
+    //   undefined.
+    // Why we won't fix it: the program already throws natively, so it is already broken. When
+    //   private methods are lowered, the compiler reports this assignment as an error.
+    f.test(
+        r#"class C {
+  #m() {}
+  w() { this.#m = 1; }
+}
+new C().w();
+"#,
+        r#"class C {
+  w() {}
+}
+new C().w();
+"#,
+    );
+}
+
+// port: RemoveUnusedCodeClassPropertiesTest#testUnusedPrivateMethodOfObjectInitializedTwice_wontFix
+#[test]
+fn test_unused_private_method_of_object_initialized_twice_wont_fix() {
+    let mut f = Fixture::new();
+    // Won't fix (b/236744850): An unused private method is removed, so initializing the same object
+    // twice no longer throws.
+    // Native behavior: the constructor of `C` adds `#m` to the object that it initializes, and
+    // adding `#m` to the same object again throws a TypeError. `A` returns its argument, so both
+    // `new C(o)` initialize `o`.
+    // Current behavior: `#m` is never read, so `#m() {}` is removed, like an unused method.
+    // Why it's a bug: natively the second `new C(o)` throws a TypeError; with this output, it
+    //   returns `o`.
+    // Why we won't fix it: the program already throws natively, so it is already broken. To keep
+    //   the error, `RemoveUnusedCode` would have to keep at least one private member in each
+    //   subclass, because any base class constructor can return an existing object.
+    f.test(
+        r#"class A {
+  constructor(obj) { return obj; }
+}
+class C extends A {
+  #m() {}
+  constructor(obj) { super(obj); }
+}
+const o = {};
+new C(o);
+new C(o);
+"#,
+        r#"class A {
+  constructor(obj) { return obj; }
+}
+class C extends A {
+  constructor(obj) { super(obj); }
+}
+const o = {};
+new C(o);
+new C(o);
+"#,
+    );
+}
+
 // port: RemoveUnusedCodeClassPropertiesTest#testStaticFieldReferencingClassName
 #[test]
 fn test_static_field_referencing_class_name() {

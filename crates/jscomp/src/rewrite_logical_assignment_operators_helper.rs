@@ -59,7 +59,17 @@ impl RewriteLogicalAssignmentOperatorsHelper {
             t.get_compiler().report_change_to_enclosing_scope(body);
         }
 
-        let enclosing_statement = NodeUtil::get_enclosing_statement(t, logical_assignment);
+        let mut enclosing_statement = NodeUtil::get_enclosing_statement(t, logical_assignment);
+        // A LABEL must have exactly one statement child, so any temporaries must be declared before
+        // the outermost label of a labeled statement (e.g. `label: while (o.p ??= 1) {}`).
+        while enclosing_statement
+            .unwrap()
+            .get_parent(t)
+            .unwrap()
+            .is_label(t)
+        {
+            enclosing_statement = enclosing_statement.unwrap().get_parent(t);
+        }
 
         let mut left = check_not_null!(logical_assignment.remove_first_child(t));
         let right = logical_assignment.get_last_child(t).unwrap().detach(t);

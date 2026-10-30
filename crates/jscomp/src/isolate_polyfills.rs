@@ -409,11 +409,14 @@ impl CompilerPass for IsolatePolyfills {
         let injected_polyfills = Self::find_all_injected_polyfills(compiler);
 
         let mut polyfill_usages: Vec<PolyfillUsage> = Vec::new();
-        PolyfillUsageFinder::new(Arc::clone(&self.polyfills)).traverse_including_guarded(
+        let should_disambiguate_properties =
+            compiler.get_options().should_disambiguate_properties();
+        PolyfillUsageFinder::new(
             compiler,
-            root,
-            &mut |_, usage| polyfill_usages.push(usage),
-        );
+            Arc::clone(&self.polyfills),
+            should_disambiguate_properties,
+        )
+        .traverse_including_guarded(compiler, root, &mut |_, usage| polyfill_usages.push(usage));
 
         let mut visited_nodes: IndexSet<NodeId> = IndexSet::<_>::default();
         for usage in &polyfill_usages {

@@ -1015,3 +1015,47 @@ fn test_inline_of_empty_method_with_rest_parameter() {
         ),
     );
 }
+
+// port: InlineSimpleMethodsTest#testNoInlineOfGetterThatReadsPrivateField_knownBug
+#[test]
+fn test_no_inline_of_getter_that_reads_private_field_known_bug() {
+    let mut t = Test::new();
+    // Expected behavior: `InlineSimpleMethods` leaves this code unchanged. `this.#a` is valid only
+    // inside the body of `C`, so `new C().getA()` can't be replaced by `new C().#a`.
+    let js = concat!(
+        "class C {\n",
+        "  #a = 1;\n",
+        "  getA() { return this.#a; }\n",
+        "}\n",
+        "var x = new C().getA();\n"
+    );
+    // TODO(b/236744850): `getA()` is inlined, although it reads a private field.
+    // Current behavior: `var x = new C().getA();` becomes `var x = new C().#a;`. So
+    //   `testSame(js)` fails.
+    // Why it's a bug: `new C().#a` outside the body of `C` is a SyntaxError, so the whole script
+    //   fails to load.
+    let ex = t.test_same_assertion_message(js);
+    assert!(ex.contains("var x = (new C()).#a;"), "{ex}");
+}
+
+// port: InlineSimpleMethodsTest#testNoInlineOfPrivateMethodCall_knownBug
+#[test]
+fn test_no_inline_of_private_method_call_known_bug() {
+    let mut t = Test::new();
+    // Expected behavior: `InlineSimpleMethods` leaves this code unchanged. `o.#m()` throws a
+    // TypeError if `o` has no `#m`, so it can't be replaced by `2`, the value that `#m` returns.
+    let js = concat!(
+        "class C {\n",
+        "  #m() { return 2; }\n",
+        "  callM(o) { return o.#m(); }\n",
+        "}\n"
+    );
+    // TODO(b/236744850): `o.#m()` is replaced by the value that `#m` returns.
+    // Current behavior: `return o.#m();` becomes `return 2;`. So `testSame(js)` fails.
+    // Why it's a bug: natively `new C().callM({})` throws a TypeError, because `{}` has no `#m`;
+    //   the compiled code returns 2 instead.
+    let ex = t.test_same_assertion_message(js);
+    // The Rust NodeSubject message shows the expected and the actual JS whole; Java's shows their
+    // line diff (see `js_text_diff`).
+    assert!(js_text_diff(&ex).contains("+    return 2;"), "{ex}");
+}

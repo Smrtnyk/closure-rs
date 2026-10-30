@@ -1438,6 +1438,37 @@ fn test_no_rewrite_defined_using_class_member_prototype_method_using_super() {
     ))]);
 }
 
+// port: DevirtualizeMethodsTest#testNoRewrite_privateMethod_knownBug
+#[test]
+fn test_no_rewrite_private_method_known_bug() {
+    let mut t = Test::new();
+    // Expected behavior: `DevirtualizeMethods` leaves this code unchanged. `#m` is valid only
+    // inside the body of `Foo`, so neither `#m` nor `bar`, which calls `this.#m()`, can be moved
+    // out of `Foo` into a global function.
+    let js = concat!(
+        "class Foo {\n",
+        "  #m() { return 5; }\n",
+        "  bar() { return this.#m(); }\n",
+        "}\n",
+        "new Foo().bar();\n"
+    );
+    // TODO(b/236744850): `#m` and `bar` are moved out of `Foo`.
+    // Current behavior: `#m` and `bar` become `var JSCompiler_StaticMethods_#m = function(...)`
+    //   and `var JSCompiler_StaticMethods_bar = function(...)` before an empty `class Foo {}`, and
+    //   `new Foo().bar()` becomes `JSCompiler_StaticMethods_bar(new Foo())`. So `testSame(js)`
+    //   fails.
+    // Why it's a bug: `JSCompiler_StaticMethods_#m` is not a valid name, so the output is a
+    //   SyntaxError, and the whole script fails to load.
+    // In a full build: ADVANCED variable renaming gives `JSCompiler_StaticMethods_#m` a valid
+    //   name, so the output loads, but `bar` no longer throws a TypeError for a receiver without
+    //   `#m`. The SyntaxError shows with pseudo names.
+    let ex = t.test_same_assertion_message(js);
+    assert!(
+        ex.contains("var JSCompiler_StaticMethods_#m = function("),
+        "{ex}"
+    );
+}
+
 // port: DevirtualizeMethodsTest#testNoRewrite_definedUsingClassMember_constructor
 #[test]
 fn test_no_rewrite_defined_using_class_member_constructor() {

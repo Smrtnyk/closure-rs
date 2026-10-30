@@ -307,10 +307,8 @@ struct CollectorView {
 impl CollectorView {
     // port: UnitRecorder#postCallSnapshot (CrossChunkReferenceCollector state after the pass)
     fn read_state(&mut self, compiler: &mut AbstractCompiler) -> Result<CollectorState, Throwable> {
-        if !self.collector.get_block_stack().is_empty()
-            || self.collector.has_top_level_statement_draft()
-        {
-            return Err(bad("collector left a block or draft statement behind"));
+        if self.collector.has_top_level_statement_draft() {
+            return Err(bad("collector left a draft statement behind"));
         }
         let mut references_by_node: IndexMap<NodeId, DslValue> = IndexMap::<_, _>::default();
         let mut reference = |r: &Reference| -> DslValue {
@@ -331,7 +329,7 @@ impl CollectorView {
             vars.push((var, name.to_string_lossy(), var_view(compiler, var)));
         }
         let mut references = vec![];
-        let symbols: Vec<VarId> = self.collector.get_all_symbols().collect();
+        let symbols: Vec<VarId> = self.collector.get_all_collected_symbols().collect();
         for var in symbols {
             let collection = self.collector.get_references(var).unwrap().clone();
             let refs = collection.iter().map(&mut reference).collect::<Vec<_>>();

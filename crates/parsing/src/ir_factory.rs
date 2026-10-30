@@ -3622,7 +3622,8 @@ impl<'a> IRFactory<'a> {
                 c if c == u16::from(b'r') => result.push(u16::from(b'\r')),
                 c if c == u16::from(b't') => result.push(u16::from(b'\t')),
                 c if c == u16::from(b'v') => result.push(u16::from(b'\x0b')),
-                c if c == u16::from(b'\n') => {
+                c if c == u16::from(b'\n') || c == 0x2028 || c == 0x2029 => {
+                    // line continuation, skip the line break
                     self.maybe_warn_for_feature_token(token, Feature::STRING_CONTINUATION);
                     self.error_reporter.warning(
                         STRING_CONTINUATION_WARNING,

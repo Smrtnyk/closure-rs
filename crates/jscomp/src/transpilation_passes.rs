@@ -169,11 +169,13 @@ pub static REWRITE_POLYFILLS: LazyLock<PassFactory> = LazyLock::new(|| {
             let isolate_polyfills = compiler.get_options().get_isolate_polyfills();
             let inject_polyfills_newer_than =
                 compiler.get_options().get_inject_polyfills_newer_than();
+            let disambiguate_properties = compiler.get_options().should_disambiguate_properties();
             Box::new(crate::rewrite_polyfills::RewritePolyfills::new(
                 compiler,
                 inject_polyfills,
                 isolate_polyfills,
                 inject_polyfills_newer_than,
+                disambiguate_properties,
             ))
         }))
         .build()

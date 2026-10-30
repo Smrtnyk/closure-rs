@@ -33,6 +33,21 @@ pub const I_TEMPLATE_ARRAY_ID: ColorId = ColorId::from_unsigned_int(0x46ab3f0eu3
 pub const ITERATOR_ID: ColorId = ColorId::from_unsigned_int(0x417ed2abu32 as i32);
 pub const ASYNC_ITERATOR_ITERABLE_ID: ColorId = ColorId::from_unsigned_int(0xcb382e0au32 as i32);
 pub const PROMISE_ID: ColorId = ColorId::from_unsigned_int(0x39581abfu32 as i32);
+
+// Deterministic ColorIds produced by JSTypeColorIdHasher for global externs collection types.
+pub const ARRAY_PROTOTYPE_ID: ColorId = ColorId::from_unsigned(0x64c23e6d334e56f7u64 as i64);
+pub const READONLY_ARRAY_PROTOTYPE_ID: ColorId =
+    ColorId::from_unsigned(0x3589d35cec22a47fu64 as i64);
+pub const I_TEMPLATE_ARRAY_PROTOTYPE_ID: ColorId =
+    ColorId::from_unsigned(0x7a40cd76f33e9198u64 as i64);
+pub const MAP_ID: ColorId = ColorId::from_unsigned(0x33a2e1724e099aa4u64 as i64);
+pub const MAP_PROTOTYPE_ID: ColorId = ColorId::from_unsigned(0x6d01d1a4e84831d6u64 as i64);
+pub const READONLY_MAP_ID: ColorId = ColorId::from_unsigned(0x03a6d92ab09bc918u64 as i64);
+pub const READONLY_MAP_PROTOTYPE_ID: ColorId = ColorId::from_unsigned(0x158c76decaa1fa9eu64 as i64);
+pub const SET_ID: ColorId = ColorId::from_unsigned(0x4e48c8722ab53ebdu64 as i64);
+pub const SET_PROTOTYPE_ID: ColorId = ColorId::from_unsigned(0xfe841a0bed231439u64 as i64);
+pub const READONLY_SET_ID: ColorId = ColorId::from_unsigned(0x30860b55852d1f9du64 as i64);
+pub const READONLY_SET_PROTOTYPE_ID: ColorId = ColorId::from_unsigned(0x8d0f691546b43933u64 as i64);
 pub const BIGINT_OBJECT_ID: ColorId = ColorId::from_unsigned_int(0xa9d9ad6du32 as i32);
 pub const BOOLEAN_OBJECT_ID: ColorId = ColorId::from_unsigned_int(0x9205dc06u32 as i32);
 pub const NUMBER_OBJECT_ID: ColorId = ColorId::from_unsigned_int(0x34ba2fb1u32 as i32);
@@ -181,12 +196,23 @@ pub(crate) static STANDARD_OBJECT_IDS: LazyLock<IndexSet<ColorId>> = LazyLock::n
     let mut ids = PRIMITIVE_BOX_IDS.clone();
     ids.extend([
         ARRAY_ID,
+        ARRAY_PROTOTYPE_ID,
         READONLY_ARRAY_ID,
+        READONLY_ARRAY_PROTOTYPE_ID,
         ARGUMENTS_ID,
         ASYNC_ITERATOR_ITERABLE_ID,
         GENERATOR_ID,
         I_TEMPLATE_ARRAY_ID,
+        I_TEMPLATE_ARRAY_PROTOTYPE_ID,
         ITERATOR_ID,
+        MAP_ID,
+        MAP_PROTOTYPE_ID,
+        READONLY_MAP_ID,
+        READONLY_MAP_PROTOTYPE_ID,
+        SET_ID,
+        SET_PROTOTYPE_ID,
+        READONLY_SET_ID,
+        READONLY_SET_PROTOTYPE_ID,
         PROMISE_ID,
     ]);
     ids

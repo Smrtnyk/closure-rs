@@ -143,6 +143,7 @@ static BUILTINS: LazyLock<Builtins> = LazyLock::new(|| {
     groups_by_name.insert("tweakValidation".into(), group.clone());
     fields.insert("TWEAKS", group);
     let mut types: Vec<&'static DiagnosticType> = vec![];
+    types.push(&crate::check_super::RETURN_WITHOUT_CALL_TO_SUPER);
     types.push(&crate::check_super::MISSING_ROOT_LEVEL_CALL_TO_SUPER);
     let group = Arc::new(DiagnosticGroup::new_named("missingCallToSuper", &types));
     groups_by_name.insert("missingCallToSuper".into(), group.clone());

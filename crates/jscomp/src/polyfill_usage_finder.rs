@@ -20,6 +20,7 @@
 //! `PolyfillUsageFinder.java`.
 use crate::{
     abstract_compiler::{AbstractCompiler, LifeCycleStage},
+    colors::{Color, ColorId, color_registry::ColorRegistry, standard_colors},
     compiler_options::LanguageMode,
     guarded_callback::{GuardedCallback, GuardedCallbackSubclass},
     node_traversal::NodeTraversal,
@@ -27,9 +28,13 @@ use crate::{
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
-    check_argument, java_lang::pattern::Pattern, js_string::JsString, node::NodeId, token::Token,
+    check_argument,
+    java_lang::pattern::Pattern,
+    js_string::JsString,
+    node::{Ast, NodeId},
+    token::Token,
 };
-use std::{collections::VecDeque, sync::Arc};
+use std::{cell::RefCell, collections::VecDeque, sync::Arc};
 
 /// Represents a single polyfill: specifically, for a native symbol, a set of native and polyfill
 /// versions, and a library to ensure is injected if the output version is less than the native
@@ -284,12 +289,33 @@ pub type PolyfillConsumer<'a> = dyn FnMut(&mut AbstractCompiler, PolyfillUsage) 
 
 pub struct PolyfillUsageFinder {
     polyfills: Arc<Polyfills>,
+    disambiguate_properties: bool,
+    registry: Option<Arc<ColorRegistry>>,
+
+    // Safe as an instance field because PolyfillUsageFinder is single-threaded,
+    // hasInSupertypesList only re-enters via direct recursion, and every added element is removed
+    // in the finally block before returning, leaving the set empty between top-level calls
+    // (avoiding per-call allocation). The calls nest, so the set is kept as a stack.
+    has_in_supertypes_list_seen_set: RefCell<Vec<Color>>,
 }
 
 impl PolyfillUsageFinder {
     // port: PolyfillUsageFinder#PolyfillUsageFinder
-    pub fn new(polyfills: Arc<Polyfills>) -> Self {
-        Self { polyfills }
+    pub fn new(
+        compiler: &AbstractCompiler,
+        polyfills: Arc<Polyfills>,
+        disambiguate_properties: bool,
+    ) -> Self {
+        Self {
+            polyfills,
+            disambiguate_properties,
+            registry: if compiler.has_optimization_colors() {
+                Some(Arc::clone(compiler.get_color_registry()))
+            } else {
+                None
+            },
+            has_in_supertypes_list_seen_set: RefCell::new(Vec::new()),
+        }
     }
 
     /// Passes all polyfill usages found, in postorder, to the given polyfillConsumer
@@ -572,6 +598,17 @@ impl<'a, 'c> Traverser<'a, 'c> {
                     .should_include(self.is_guarded(JsString::from(".").concat(&property_name)))
             {
                 for polyfill in method_polyfills {
+                    // isDisjointFromIterator check is guarded by the shouldDisambiguateProperties
+                    // flag. (Rust-only: the owner is read only when the check runs.)
+                    if self.outer.disambiguate_properties
+                        && self.outer.is_disjoint_from_iterator(
+                            traversal,
+                            get_prop_node,
+                            get_method_owner(&polyfill.native_symbol).as_deref(),
+                        )
+                    {
+                        continue;
+                    }
                     (self.polyfill_consumer)(
                         traversal.get_compiler(),
                         PolyfillUsage::create_non_explicit(
@@ -623,3 +660,164 @@ fn find_global_prefix(qualified_name: &JsString) -> Option<JsString> {
 
 // port: PolyfillUsageFinder#GLOBAL_NAMES
 const GLOBAL_NAMES: [&str; 4] = ["goog.global.", "window.", "goog$global.", "globalThis."];
+
+// port: PolyfillUsageFinder#STANDARD_COLLECTION_IDS
+const STANDARD_COLLECTION_IDS: [ColorId; 14] = [
+    standard_colors::ARRAY_ID,
+    standard_colors::ARRAY_PROTOTYPE_ID,
+    standard_colors::READONLY_ARRAY_ID,
+    standard_colors::READONLY_ARRAY_PROTOTYPE_ID,
+    standard_colors::I_TEMPLATE_ARRAY_ID,
+    standard_colors::I_TEMPLATE_ARRAY_PROTOTYPE_ID,
+    standard_colors::MAP_ID,
+    standard_colors::MAP_PROTOTYPE_ID,
+    standard_colors::READONLY_MAP_ID,
+    standard_colors::READONLY_MAP_PROTOTYPE_ID,
+    standard_colors::SET_ID,
+    standard_colors::SET_PROTOTYPE_ID,
+    standard_colors::READONLY_SET_ID,
+    standard_colors::READONLY_SET_PROTOTYPE_ID,
+];
+
+// port: PolyfillUsageFinder#getMethodOwner
+fn get_method_owner(native_symbol: &JsString) -> Option<String> {
+    let native_symbol = native_symbol.to_string_lossy();
+    native_symbol
+        .find(".prototype.")
+        .map(|proto_idx| native_symbol[..proto_idx].to_string())
+}
+
+impl PolyfillUsageFinder {
+    // port: PolyfillUsageFinder#isDisjointFromIterator(Node,String)
+    pub fn is_disjoint_from_iterator(
+        &self,
+        ast: &Ast,
+        get_prop_node: NodeId,
+        owner_name: Option<&str>,
+    ) -> bool {
+        // Currently only checks "Iterator" because ES2025 Iterator helper methods (forEach, reduce,
+        // toArray) collide with very common Array/Collection method names, causing significant
+        // binary size regressions when polyfills cannot be pruned.
+        if owner_name != Some("Iterator") {
+            return false;
+        }
+        // Registry can be null in three supported scenarios:
+        // 1. Transpile only builds.
+        // 2. Monolithic builds without type checking.
+        // 3. Precompiled .typedast (stage 2) builds with type-based optimizations disabled.
+        if self.registry.is_none() {
+            return false;
+        }
+        let Some(receiver_color) = get_prop_node.get_first_child(ast).unwrap().get_color(ast)
+        else {
+            return false;
+        };
+        self.is_disjoint_from_iterator_color(&receiver_color)
+    }
+
+    // port: PolyfillUsageFinder#isDisjointFromIterator(Color)
+    pub fn is_disjoint_from_iterator_color(&self, receiver: &Color) -> bool {
+        let iterator_color = self
+            .registry
+            .as_ref()
+            .unwrap()
+            .get(standard_colors::ITERATOR_ID);
+        if *receiver == iterator_color {
+            return false;
+        }
+
+        // This generator check works around a bug in the externs:
+        // In javascript/externs/es6.js, Iterator is declared as
+        // @constructor @implements {IteratorIterable} and Generator is declared as
+        // @interface @extends {IteratorIterable}. Because the externs do not model Generator
+        // as a subtype of Iterator, neither is an ancestor of the other in the
+        // disambiguation graph, so they appear as unrelated siblings. However, in ECMAScript
+        // (ES2025), every Generator object inherits from %IteratorPrototype% at runtime, which
+        // means generator objects are runtime Iterators and support Iterator helper methods (e.g.
+        // toArray, forEach, reduce).
+        //
+        // TODO(b/576327592): Remove this workaround once Generator is related to Iterator in the
+        // externs.
+        if receiver.get_id() == standard_colors::GENERATOR_ID {
+            return false;
+        }
+        if receiver.is_union() {
+            for alt in receiver.get_union_elements() {
+                if !self.is_disjoint_from_iterator_color(alt) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        if receiver.is_primitive() {
+            return true;
+        }
+        // Back off on invalidating colors that cannot be proven disjoint from Iterator via nominal
+        // supertype edges in ColorRegistry:
+        // - UNKNOWN (?/*) and TOP_OBJECT (Object), which can hold any runtime object (including an
+        //   Iterator) without explicit supertype edges in ColorRegistry.
+        // - Structural interfaces (@record) and record types ({...}) (per b/571244650): because
+        //   Iterator.prototype helper methods are declared on Iterator in the externs, a real
+        //   runtime Iterator (e.g. from `arr.values()` or `Iterator.from(x)`, which inherits from
+        //   Iterator.prototype) structurally satisfies a @record such as
+        //   `{forEach: function(...)}`. When passed to a function parameter typed as that @record,
+        //   the `.forEach()` call site only sees the @record receiver color (which has no nominal
+        //   edge from Iterator in ColorRegistry), and `Iterator.from` itself does not inject the
+        //   separate per-method helper polyfills.
+        // - Nominal types invalidated by type mismatches elsewhere in the program.
+        //
+        // However, in large Google3 builds, native collection types (Array, Map, Set) and their
+        // prototypes are frequently marked isInvalidating due to dynamic property access or type
+        // mismatches elsewhere in the codebase. Because their nominal inheritance hierarchy is
+        // sound and provably disjoint from Iterator, we exempt them from isInvalidating backoff so
+        // that calls on Array/Map/Set do not inject polyfills.
+        if receiver.is_invalidating() && !STANDARD_COLLECTION_IDS.contains(&receiver.get_id()) {
+            return false;
+        }
+
+        // Two types are non-disjoint if either is a supertype of the other:
+        // 1. hasInSupertypesList(receiver, iteratorColor): receiver is a subtype of Iterator
+        //    (e.g. `class MyIter extends Iterator`), which inherits Iterator.prototype methods.
+        // 2. hasInSupertypesList(iteratorColor, receiver): receiver is a supertype of Iterator
+        //    (e.g. `IteratorIterable` from `arr.values()`, or `Iterable`), which can hold an
+        //    Iterator instance at runtime.
+        !self.has_in_supertypes_list(receiver, &iterator_color)
+            && !self.has_in_supertypes_list(&iterator_color, receiver)
+    }
+
+    // port: PolyfillUsageFinder#hasInSupertypesList
+    fn has_in_supertypes_list(&self, sub_ctor: &Color, super_ctor: &Color) -> bool {
+        if self
+            .has_in_supertypes_list_seen_set
+            .borrow()
+            .contains(sub_ctor)
+        {
+            return false;
+        }
+        self.has_in_supertypes_list_seen_set
+            .borrow_mut()
+            .push(sub_ctor.clone());
+        let result = (|| {
+            if sub_ctor == super_ctor {
+                return true;
+            }
+            let registry = self.registry.as_ref().unwrap();
+            for immediate_supertype in registry.get_disambiguation_supertypes(sub_ctor) {
+                if immediate_supertype.is_union() {
+                    for alt in immediate_supertype.get_union_elements() {
+                        if self.has_in_supertypes_list(alt, super_ctor) {
+                            return true;
+                        }
+                    }
+                } else if self.has_in_supertypes_list(immediate_supertype, super_ctor) {
+                    return true;
+                }
+            }
+            false
+        })();
+        // finally
+        self.has_in_supertypes_list_seen_set.borrow_mut().pop();
+        result
+    }
+}

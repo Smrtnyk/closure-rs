@@ -1231,7 +1231,9 @@ impl Scanner {
             self.report_error("Unterminated string literal escape sequence", &[]);
             return false;
         }
-        if Self::is_string_line_terminator(self.peek_char()) {
+        // A backslash followed by any LineTerminator, including <LS> and <PS>, is a line
+        // continuation.
+        if Self::is_line_terminator(self.peek_char()) {
             self.skip_line_terminator();
             return true;
         }

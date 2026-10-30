@@ -1674,6 +1674,33 @@ fn test_mutable_values_do_not_move_super() {
     ));
 }
 
+// port: OptimizeParametersTest#testPrivateNameArgumentIsNotMoved_knownBug
+#[test]
+fn test_private_name_argument_is_not_moved_known_bug() {
+    let mut t = Test::new();
+    // Expected behavior: `OptimizeParameters` leaves this code unchanged. `C.#n` is valid only
+    // inside the body of `C`, so it can't be moved into `fn`, which is outside `C`.
+    let js = concat!(
+        "function fn(p1) { return p1; }\n",
+        "class C {\n",
+        "  static #n = 1;\n",
+        "  // Expected: `fn(C.#n)` stays, although every call passes the same `C.#n`.\n",
+        "  static a() { return fn(C.#n); }\n",
+        "  static b() { return fn(C.#n); }\n",
+        "}\n"
+    );
+    // TODO(b/236744850): `C.#n` is moved out of `C`.
+    // Current behavior: `fn` becomes `function fn() { var p1 = C.#n; return p1; }` and both
+    //   calls become `fn()`, so `testSame(js)` fails.
+    // Why it's a bug: `C.#n` outside the body of `C` is a SyntaxError, so the whole script
+    //   fails to load.
+    // In a full build: with property collapsing, as in ADVANCED builds, `CollapseProperties`
+    //   crashes on `static #n` before this pass runs; without that crash, this pass makes the
+    //   output a SyntaxError.
+    let ex = t.test_same_assertion_message(js);
+    assert!(ex.contains("var p1 = C.#n;"), "{ex}");
+}
+
 // port: OptimizeParametersTest#testShadows
 #[test]
 fn test_shadows() {

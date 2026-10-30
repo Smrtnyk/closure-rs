@@ -620,6 +620,7 @@ fn es6_transpilation_integration_test_get_processor(
             .set_internal_factory(Arc::new(|c| {
                 Box::new(RewritePolyfills::new(
                     c, /* injectPolyfills= */ true, /* isolatePolyfills= */ false, None,
+                    /* disambiguateProperties= */ false,
                 ))
             }))
             .build(),

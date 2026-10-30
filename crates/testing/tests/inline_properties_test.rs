@@ -1155,3 +1155,30 @@ fn test_property_written_through_renamed_name() {
         "new C().foo;\n"
     ));
 }
+
+// port: InlinePropertiesTest#testPrivateClassField_knownBug
+#[test]
+fn test_private_class_field_known_bug() {
+    let mut t = Test::new();
+    // Expected behavior: `InlineProperties` leaves `o.#a` alone. Reading `o.#a` throws a
+    // TypeError if `o` has no `#a`, so it can't be replaced by the initial value `1`.
+    //
+    // TODO(b/236744850): `o.#a` is replaced by its initial value.
+    // Current behavior: `return o.#a;` becomes `return 1;`.
+    // Why it's a bug: natively `C.read({})` throws a TypeError, because `{}` has no `#a`; the
+    //   compiled code returns 1 instead.
+    t.test(
+        concat!(
+            "class C {\n",
+            "  #a = 1;\n",
+            "  static read(/** !C */ o) { return o.#a; }\n",
+            "}\n"
+        ),
+        concat!(
+            "class C {\n",
+            "  #a = 1;\n",
+            "  static read(o) { return 1; }\n",
+            "}\n"
+        ),
+    );
+}

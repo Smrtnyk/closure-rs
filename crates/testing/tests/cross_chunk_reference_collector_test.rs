@@ -192,6 +192,14 @@ fn assert_contains_exactly(actual: &[Reference], expected: &[&Reference]) {
     }
 }
 
+// assertThat(actual).containsExactly(expected...).inOrder() for References
+fn assert_contains_exactly_in_order(actual: &[Reference], expected: &[&Reference]) {
+    assert_eq!(actual.len(), expected.len());
+    for (a, e) in actual.iter().zip(expected) {
+        assert!(same_reference(a, e), "unexpected reference {a:?}");
+    }
+}
+
 // port: CrossChunkReferenceCollectorTest#testVarInBlock
 #[test]
 fn test_var_in_block() {
@@ -378,6 +386,113 @@ function f(x1, y1) { // only f and z globals referenced
     assert_contains_exactly(
         function_declaration.get_non_declaration_references(),
         &[&z_references[1]],
+    );
+}
+
+// port: CrossChunkReferenceCollectorTest#testHoistedFunctionReferencedBeforeDeclaration_bodyReferencesStayWithDeclaration
+#[test]
+fn test_hoisted_function_referenced_before_declaration_body_references_stay_with_declaration() {
+    let mut t = Test::new();
+    t.test_same(
+        "var z = 1;
+f();
+function f() {
+  return z;
+}
+",
+    );
+
+    let global_variable_names_map = t.global_variable_names_map();
+    let refs = |name: &str| -> Vec<Reference> {
+        t.references(global_variable_names_map[&JsString::from(name)])
+            .iter()
+            .cloned()
+            .collect()
+    };
+    let z_references = refs("z");
+    let f_references = refs("f");
+
+    let top_level_statements = t.top_level_statements();
+    assert_eq!(top_level_statements.len(), 3);
+
+    // f();
+    let call_statement = &top_level_statements[1];
+    assert!(!call_statement.is_declaration_statement());
+    assert_contains_exactly(
+        call_statement.get_non_declaration_references(),
+        &[&f_references[0]],
+    );
+
+    // function f() { return z; }
+    let function_declaration = &top_level_statements[2];
+    assert_same_reference(
+        function_declaration.get_declared_name_reference(),
+        &f_references[1],
+    );
+    assert_contains_exactly(
+        function_declaration.get_non_declaration_references(),
+        &[&z_references[1]],
+    );
+}
+
+// port: CrossChunkReferenceCollectorTest#testDestructuringWithDefaultValueOrderMatchesExecutionOrder
+#[test]
+fn test_destructuring_with_default_value_order_matches_execution_order() {
+    let mut t = Test::new();
+    t.test_same(
+        "var b = 1;
+var c = {};
+const {a = b} = c;
+",
+    );
+
+    let statements = t.top_level_statements();
+    assert_eq!(statements.len(), 3);
+
+    // const {a = b} = c;
+    let destructuring_statement = &statements[2];
+    assert!(!destructuring_statement.is_declaration_statement());
+
+    let global_variable_names_map = t.global_variable_names_map();
+    let a_refs = t.references(global_variable_names_map[&JsString::from("a")]);
+    let b_refs = t.references(global_variable_names_map[&JsString::from("b")]);
+    let c_refs = t.references(global_variable_names_map[&JsString::from("c")]);
+
+    // Traversal obeys destructuring and default value execution order:
+    // the destructured expression `c` is evaluated first, then the default value `b`,
+    // and finally the target `a`.
+    assert_contains_exactly_in_order(
+        destructuring_statement.get_non_declaration_references(),
+        &[
+            &c_refs.references[1],
+            &b_refs.references[1],
+            &a_refs.references[0],
+        ],
+    );
+}
+
+// port: CrossChunkReferenceCollectorTest#testExportedVariablesAreExcluded
+#[test]
+fn test_exported_variables_are_excluded() {
+    let mut t = Test::new();
+    t.test_same("var _exported = 1; var y = _exported;");
+
+    let global_variable_names_map = t.global_variable_names_map();
+    assert!(!global_variable_names_map.contains_key(&JsString::from("_exported")));
+    assert!(global_variable_names_map.contains_key(&JsString::from("y")));
+
+    let top_level_statements = t.top_level_statements();
+    assert_eq!(top_level_statements.len(), 2);
+
+    // var _exported = 1; (not a declaration statement for movable globals)
+    assert!(!top_level_statements[0].is_declaration_statement());
+
+    // var y = _exported; (y is declared, but _exported is not collected as a movable reference)
+    assert!(top_level_statements[1].is_declaration_statement());
+    assert!(
+        top_level_statements[1]
+            .get_non_declaration_references()
+            .is_empty()
     );
 }
 

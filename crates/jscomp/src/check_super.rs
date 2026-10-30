@@ -26,19 +26,31 @@ use crate::{
 };
 use closure_rhino::{check_argument, check_not_null, check_state, node::NodeId, token::Token};
 
+// For a derived class constructor that has neither a `super()` call nor a `return` with a value,
+// so it always throws. This can't be suppressed.
 // port: CheckSuper#MISSING_CALL_TO_SUPER
 pub static MISSING_CALL_TO_SUPER: DiagnosticType = DiagnosticType::error(
     "JSC_MISSING_CALL_TO_SUPER",
     "constructor is missing a call to super()",
 );
 
-// For a derived class constructor that has a `super()` call or returns a value, but might still
-// return without calling `super()`. Unlike MISSING_CALL_TO_SUPER, this can be suppressed, since
-// the constructor might intentionally return a different object.
+// For a derived class constructor that returns a value without a `super()` call anywhere. Unlike
+// MISSING_CALL_TO_SUPER, this can be suppressed, since the constructor might intentionally return
+// a different object.
+// port: CheckSuper#RETURN_WITHOUT_CALL_TO_SUPER
+pub static RETURN_WITHOUT_CALL_TO_SUPER: DiagnosticType = DiagnosticType::error(
+    "JSC_RETURN_WITHOUT_CALL_TO_SUPER",
+    "constructor returns a value without calling super()",
+);
+
+// For a derived class with instance fields or private members whose constructor calls `super()`,
+// but not exactly once in a root-level statement before any `return`, so there is no single place
+// to initialize the instance elements when they are transpiled.
 // port: CheckSuper#MISSING_ROOT_LEVEL_CALL_TO_SUPER
 pub static MISSING_ROOT_LEVEL_CALL_TO_SUPER: DiagnosticType = DiagnosticType::error(
     "JSC_MISSING_ROOT_LEVEL_CALL_TO_SUPER",
-    "constructor must unconditionally call super() in a root-level statement before any return",
+    "constructor of a class with instance fields or private members must call super() \
+     unconditionally once in a root-level statement before any return",
 );
 
 // port: CheckSuper#THIS_BEFORE_SUPER
@@ -211,6 +223,7 @@ impl CheckSuper {
         t: &mut NodeTraversal<'_>,
         super_node: NodeId,
     ) {
+        let context_node = self.contexts[context].get_context_node();
         match &mut self.contexts[context].kind {
             // port: CheckSuper.SuperPropertyAccessAllowedContext#visitSuperConstructorCall
             ContextKind::SuperPropertyAccessAllowed => {
@@ -247,6 +260,18 @@ impl CheckSuper {
             ContextKind::Constructor(constructor) => {
                 if constructor.first_super_call.is_none() {
                     constructor.first_super_call = Some(super_node);
+                } else {
+                    constructor.has_multiple_super_calls = true;
+                }
+                let call = super_node.get_parent(t).unwrap();
+                if constructor.root_level_super_call.is_none()
+                    && NodeUtil::get_enclosing_statement(t, call)
+                        .unwrap()
+                        .get_parent(t)
+                        == Some(NodeUtil::get_function_body(t, context_node))
+                    && NodeUtil::is_executed_exactly_once(t, call)
+                {
+                    constructor.root_level_super_call = Some(super_node);
                 }
             }
             // port: CheckSuper.ConstructorArrowContext#visitSuperConstructorCall
@@ -258,7 +283,17 @@ impl CheckSuper {
                 // Tell the constructor context about this `super()` call in order to avoid
                 // confusing and likely redundant error messages such as "missing super call" or
                 // "`this` accessed before super()".
-                self.visit_super_constructor_call(constructor_context, t, super_node);
+                let ContextKind::Constructor(constructor) =
+                    &mut self.contexts[constructor_context].kind
+                else {
+                    unreachable!("a ConstructorArrowContext refers to a ConstructorContext")
+                };
+                if constructor.first_super_call.is_none() {
+                    constructor.first_super_call = Some(super_node);
+                }
+                if constructor.root_level_super_call.is_none() {
+                    constructor.root_level_super_call = Some(super_node);
+                }
             }
         }
     }
@@ -341,6 +376,9 @@ impl CheckSuper {
                 if return_node.has_children(t) {
                     constructor.returns_a_value = true;
                 }
+                if constructor.root_level_super_call.is_none() {
+                    constructor.returns_before_root_level_super_call = true;
+                }
             }
             _ => {
                 // Ignored except in constructor methods.
@@ -362,14 +400,30 @@ impl CheckSuper {
                         t.report(first_super_call, &INVALID_SUPER_CALL, &[]);
                     }
                 } else {
-                    // There is a parent class, so a call to `super()` is required unless the
-                    // constructor returns a value.
-                    if constructor.first_super_call.is_none() && !constructor.returns_a_value {
+                    // There is a parent class, so a call to `super()` is required. Like TypeScript
+                    // (TS2377), we require it even when the constructor returns a value.
+                    if constructor.first_super_call.is_none() {
                         // The context node is the function itself , but ErrorToFixMapper expects
                         // the error to be reported on the MEMBER_FUNCTION_DEF that is its parent.
                         t.report(
                             context_node.get_parent(t).unwrap(),
-                            &MISSING_CALL_TO_SUPER,
+                            if constructor.returns_a_value {
+                                &RETURN_WITHOUT_CALL_TO_SUPER
+                            } else {
+                                &MISSING_CALL_TO_SUPER
+                            },
+                            &[],
+                        );
+                    } else if constructor.has_instance_elements
+                        && (constructor.root_level_super_call.is_none()
+                            || constructor.returns_before_root_level_super_call
+                            || constructor.has_multiple_super_calls)
+                    {
+                        // The instance elements are initialized right after `super()` returns, so
+                        // like TypeScript (TS2401), require a single place to initialize them.
+                        t.report(
+                            context_node.get_parent(t).unwrap(),
+                            &MISSING_ROOT_LEVEL_CALL_TO_SUPER,
                             &[],
                         );
                     }
@@ -519,10 +573,18 @@ enum ContextKind {
 
 struct ConstructorContext {
     has_parent_class: bool,
+    has_instance_elements: bool,
     // Will be set to the first `super()` call that appears lexically, if any.
     first_super_call: Option<NodeId>,
-    // Call to super() isn't required if the constructor returns a value.
+    // Will be set to the first `super()` call that is executed exactly once by a statement directly
+    // in the constructor body, if any.
+    root_level_super_call: Option<NodeId>,
+    // Whether the constructor contains more than one `super()` call.
+    has_multiple_super_calls: bool,
+    // Whether the constructor returns a value.
     returns_a_value: bool,
+    // Whether a `return` appears before `root_level_super_call`.
+    returns_before_root_level_super_call: bool,
     this_accessed_before_super: Option<NodeId>,
     super_property_accessed_before_super_call: Option<NodeId>,
 }
@@ -587,12 +649,17 @@ impl Context {
         );
         let class_node = NodeUtil::get_enclosing_class(t, context_node).unwrap();
         let has_parent_class = !class_node.get_second_child(t).unwrap().is_empty(t);
+        let has_instance_elements = NodeUtil::has_instance_elements(t, class_node);
         Self::new(
             context_node,
             ContextKind::Constructor(ConstructorContext {
                 has_parent_class,
+                has_instance_elements,
                 first_super_call: None,
+                root_level_super_call: None,
+                has_multiple_super_calls: false,
                 returns_a_value: false,
+                returns_before_root_level_super_call: false,
                 this_accessed_before_super: None,
                 super_property_accessed_before_super_call: None,
             }),

@@ -20,15 +20,15 @@
 //! CrossChunkCodeMotion.
 
 use crate::abstract_compiler::AbstractCompiler;
-use crate::basic_block::BasicBlock;
 use crate::compiler_pass::CompilerPass;
 use crate::cross_chunk_method_motion::CrossChunkMethodMotion;
 use crate::js_chunk::JSChunk;
-use crate::node_traversal::{Callback, NodeTraversal, ScopedCallback};
+use crate::node_traversal::NodeTraversal;
 use crate::node_util::NodeUtil;
 use crate::reference::Reference;
 use crate::reference_collection::ReferenceCollection;
-use crate::reference_collector;
+use crate::reference_collector::{Behavior, ReferenceCollector};
+use crate::reference_map::ReferenceMap;
 use crate::scope::ScopeId;
 use crate::scope_creator::ScopeCreator;
 use crate::var::VarId;
@@ -37,64 +37,79 @@ use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use closure_rhino::{check_not_null, check_state};
-use std::rc::Rc;
 
 /// Collects global variable references for use by CrossChunkCodeMotion.
+///
+/// Java's `referenceCollector` field is made in the constructor and keeps the scope creator and the
+/// inner `TopLevelStatementCollectingBehavior`, which writes the collector's `varsByName`,
+/// `topLevelStatements`, `statementCounter` and `topLevelStatementDraft`. Here those four fields
+/// live in the behavior, and the `ReferenceCollector` borrows it and the scope creator while
+/// `process` runs; its references are kept afterwards (`reference_map`).
 pub struct CrossChunkReferenceCollector<'a> {
-    /// Maps global variable name to the corresponding Var object.
-    vars_by_name: IndexMap<JsString, VarId>,
+    /// The fields the behavior writes (see above).
+    behavior: TopLevelStatementCollectingBehavior,
 
-    /// Maps a given variable to a collection of references to that name. Note that Var objects
-    /// are not stable across multiple traversals (unlike scope root or name).
+    /// Rust-only: the references `referenceCollector` collected (Java reads them from it).
     reference_map: IndexMap<VarId, ReferenceCollection>,
 
-    /// The stack of basic blocks and scopes the current traversal is in.
-    block_stack: Vec<Rc<BasicBlock>>,
-
-    /// List of all top-level statements in the order they appear in the AST.
-    top_level_statements: Vec<TopLevelStatement>,
-
-    /// Taken out of its slot while the traversal borrows this callback (Rust-only).
-    scope_creator: Option<Box<dyn ScopeCreator + 'a>>,
-
-    statement_counter: i32,
-    top_level_statement_draft: Option<TopLevelStatementDraft>,
+    scope_creator: Box<dyn ScopeCreator + 'a>,
 }
 
 impl<'a> CrossChunkReferenceCollector<'a> {
-    /// Constructor initializes block stack.
+    /// Constructor initializes reference collector.
     // port: CrossChunkReferenceCollector#CrossChunkReferenceCollector
     pub fn new(creator: Box<dyn ScopeCreator + 'a>) -> Self {
         Self {
-            vars_by_name: IndexMap::<_, _>::default(),
+            behavior: TopLevelStatementCollectingBehavior {
+                vars_by_name: IndexMap::<_, _>::default(),
+                top_level_statements: Vec::new(),
+                statement_counter: 0,
+                top_level_statement_draft: None,
+            },
             reference_map: IndexMap::<_, _>::default(),
-            block_stack: Vec::new(),
-            top_level_statements: Vec::new(),
-            scope_creator: Some(creator),
-            statement_counter: 0,
-            top_level_statement_draft: None,
+            scope_creator: creator,
         }
     }
 
+    // port: CrossChunkReferenceCollector#shouldCollectVar
+    fn should_collect_var(compiler: &AbstractCompiler, v: VarId) -> bool {
+        // Only global, non-exported names can be moved
+        v.is_global(compiler)
+            && !compiler
+                .get_coding_convention()
+                .is_exported(&v.get_name(compiler), /* local= */ false)
+    }
+
+    /// Rust-only: Java's `referenceCollector`, made by the constructor
+    /// (`new ReferenceCollector(compiler, new TopLevelStatementCollectingBehavior(), creator,
+    /// this::shouldCollectVar, /* collectHoistedFunctionsInReferenceOrder= */ false)`), runs
+    /// `collect` and leaves its references in `reference_map`.
+    fn run_reference_collector(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        collect: impl FnOnce(&mut ReferenceCollector<'_>, &mut AbstractCompiler),
+    ) {
+        let mut reference_collector = ReferenceCollector::new_with_hoisted_function_order(
+            compiler,
+            &mut self.behavior,
+            &mut *self.scope_creator,
+            Box::new(Self::should_collect_var),
+            /* collectHoistedFunctionsInReferenceOrder= */ false,
+        );
+        collect(&mut reference_collector, compiler);
+        self.reference_map = reference_collector.into_reference_map();
+    }
+
+    /// Collects references and top-level statements from the given root.
     // port: CrossChunkReferenceCollector#process(Node)
     pub fn process_root(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
         check_state!(
-            self.top_level_statements.is_empty(),
+            self.behavior.top_level_statements.is_empty(),
             "process() called more than once"
         );
-        let mut scope_creator = self.scope_creator.take().unwrap();
-        NodeTraversal::builder()
-            .set_compiler(compiler)
-            .set_callback(self)
-            .set_scope_creator(&mut *scope_creator)
-            .traverse(root);
-        self.scope_creator = Some(scope_creator);
-    }
-
-    /// Gets the variables that were referenced in this callback.
-    // port: CrossChunkReferenceCollector#getAllSymbols
-    pub fn get_all_symbols(&self) -> impl Iterator<Item = VarId> + '_ {
-        self.reference_map.keys().copied()
+        self.run_reference_collector(compiler, |reference_collector, compiler| {
+            reference_collector.process(compiler, root);
+        });
     }
 
     /// Gets the reference collection for the given variable.
@@ -103,103 +118,15 @@ impl<'a> CrossChunkReferenceCollector<'a> {
         self.reference_map.get(&v)
     }
 
-    // port: CrossChunkReferenceCollector#getGlobalVariableNamesMap
-    pub fn get_global_variable_names_map(&self) -> IndexMap<JsString, VarId> {
-        self.vars_by_name.clone()
+    /// Rust-only: `referenceCollector.getAllSymbols()`, the variables that were referenced (unit
+    /// replay field dump).
+    pub fn get_all_collected_symbols(&self) -> impl Iterator<Item = VarId> + '_ {
+        self.reference_map.keys().copied()
     }
 
-    // port: CrossChunkReferenceCollector#initializeDraftStatement
-    fn initialize_draft_statement(
-        &mut self,
-        compiler: &AbstractCompiler,
-        chunk: Option<JSChunk>,
-        statement_node: NodeId,
-    ) -> TopLevelStatementDraft {
-        let original_order = self.statement_counter;
-        self.statement_counter += 1;
-        let mut draft = TopLevelStatementDraft::new(original_order, chunk, statement_node);
-        // Determine whether this statement declares a name or not.
-        // If so, save its name node and value node, if any.
-        if NodeUtil::is_name_declaration(compiler, Some(statement_node)) {
-            // variable declaration
-            draft.declared_name_node = statement_node.get_first_child(compiler);
-            draft.declared_value_node = statement_node.get_first_first_child(compiler);
-        } else if statement_node.is_class(compiler) {
-            draft.declared_name_node = statement_node.get_first_child(compiler);
-            draft.declared_value_node = Some(statement_node);
-        } else if statement_node.is_function(compiler) {
-            // function declaration
-            draft.declared_name_node = statement_node.get_first_child(compiler);
-            draft.declared_value_node = Some(statement_node);
-        } else if statement_node.is_expr_result(compiler) {
-            let expr = check_not_null!(statement_node.get_first_child(compiler));
-            if expr.is_assign(compiler) {
-                let lhs = check_not_null!(expr.get_first_child(compiler));
-                let rhs = check_not_null!(expr.get_second_child(compiler));
-                if lhs.is_name(compiler) {
-                    // `varName = value;`
-                    draft.declared_name_node = Some(lhs);
-                    draft.declared_value_node = Some(rhs);
-                } else if lhs.is_get_prop(compiler)
-                    || Self::is_potentially_moveable_get_elem(compiler, lhs)
-                {
-                    let mut name_node = check_not_null!(lhs.get_first_child(compiler));
-                    while name_node.is_get_prop(compiler) {
-                        name_node = check_not_null!(name_node.get_first_child(compiler));
-                    }
-                    if name_node.is_name(compiler) {
-                        // `varName.some.property = value;`
-                        // OR
-                        // `varName[someProperty] = value;`
-                        draft.declared_name_node = Some(name_node);
-                        draft.declared_value_node = Some(rhs);
-                    }
-                }
-            } else if expr.is_call(compiler) {
-                let mut name_node = None;
-                let mut value_node = None;
-                let relationship = compiler
-                    .get_coding_convention()
-                    .get_classes_defined_by_call(compiler, expr);
-                if let Some(relationship) = relationship {
-                    // Check for $jscomp.inherits(SubC, SuperC), goog.inherits(Sub, SuperC), etc.
-                    let declared_name = relationship.subclass_name.clone();
-                    let mut call_arg = expr.get_second_child(compiler);
-                    while let Some(arg) = call_arg {
-                        // We're assuming that the child class must be an argument to the function
-                        // that establishes its inheritance, which is true for `goog.inherits()`
-                        // and `$jscomp.inherits()`
-                        // TODO(bradfordcsmith): handle cases like
-                        // `goog.inherits(x.ChildClass, SuperClass)`
-                        if arg.is_name(compiler) && declared_name == arg.get_string(compiler) {
-                            name_node = Some(arg);
-                            break;
-                        }
-                        call_arg = arg.get_next(compiler);
-                    }
-                } else if NodeUtil::is_object_define_properties_definition(compiler, expr) {
-                    // Check for $jscomp$global.Object.defineProperties.
-                    let target_object = expr.get_second_child(compiler).unwrap();
-
-                    // Get the global var being referenced in the first parameter of
-                    // Object.defineProperties. Can be 'Foo' or 'Foo.prototype'.
-                    name_node = if target_object.is_name(compiler) {
-                        Some(target_object)
-                    } else {
-                        target_object.get_first_child(compiler)
-                    };
-
-                    // Second parameter of defineProperties is the value node.
-                    value_node = target_object.get_next(compiler);
-                }
-
-                if name_node.is_some() {
-                    draft.declared_name_node = name_node;
-                    draft.declared_value_node = value_node;
-                }
-            }
-        }
-        draft
+    // port: CrossChunkReferenceCollector#getGlobalVariableNamesMap
+    pub fn get_global_variable_names_map(&self) -> IndexMap<JsString, VarId> {
+        self.behavior.vars_by_name.clone()
     }
 
     // port: CrossChunkReferenceCollector#isPotentiallyMoveableGetElem
@@ -225,45 +152,20 @@ impl<'a> CrossChunkReferenceCollector<'a> {
         name.is_name(ast) && name.get_string_ref(ast) == "Symbol"
     }
 
-    // port: CrossChunkReferenceCollector#pop
-    fn pop<T>(list: &mut Vec<T>) -> T {
-        list.pop().unwrap()
-    }
-
-    // port: CrossChunkReferenceCollector#peek
-    fn peek<T: Clone>(list: &[T]) -> T {
-        list.last().unwrap().clone()
-    }
-
-    // port: CrossChunkReferenceCollector#addReferenceToCollection
-    fn add_reference_to_collection(&mut self, v: VarId, reference: Reference) {
-        // Create collection if none already
-        let reference_info = self.reference_map.entry(v).or_default();
-
-        // Add this particular reference
-        reference_info.add(reference);
-    }
-
     // port: CrossChunkReferenceCollector#getTopLevelStatements
     pub fn get_top_level_statements(&self) -> &[TopLevelStatement] {
-        &self.top_level_statements
-    }
-
-    /// Rust-only read of the private `blockStack` field (the unit replay dumps the test's
-    /// `testedCollector` field by field, as Java reflection does).
-    pub fn get_block_stack(&self) -> &[Rc<BasicBlock>] {
-        &self.block_stack
+        &self.behavior.top_level_statements
     }
 
     /// Rust-only read of the private `statementCounter` field (unit replay field dump).
     pub fn get_statement_counter(&self) -> i32 {
-        self.statement_counter
+        self.behavior.statement_counter
     }
 
     /// Rust-only: whether the private `topLevelStatementDraft` field is set (unit replay field
     /// dump).
     pub fn has_top_level_statement_draft(&self) -> bool {
-        self.top_level_statement_draft.is_some()
+        self.behavior.top_level_statement_draft.is_some()
     }
 
     /// Determines whether the given value is eligible to be moved across chunks.
@@ -464,31 +366,137 @@ impl<'a> CrossChunkReferenceCollector<'a> {
 }
 
 impl CompilerPass for CrossChunkReferenceCollector<'_> {
-    /// Convenience method for running this pass over a tree with this class as a callback.
+    /// Collects references and top-level statements from the given externs and root.
     // port: CrossChunkReferenceCollector#process(Node,Node)
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
         check_state!(
-            self.top_level_statements.is_empty(),
+            self.behavior.top_level_statements.is_empty(),
             "process() called more than once"
         );
-        let mut scope_creator = self.scope_creator.take().unwrap();
-        NodeTraversal::builder()
-            .set_compiler(compiler)
-            .set_callback(self)
-            .set_scope_creator(&mut *scope_creator)
-            .traverse_roots(externs, root);
-        self.scope_creator = Some(scope_creator);
+        self.run_reference_collector(compiler, |reference_collector, compiler| {
+            CompilerPass::process(reference_collector, compiler, externs, root);
+        });
     }
 }
 
-impl Callback for CrossChunkReferenceCollector<'_> {
-    // port: CrossChunkReferenceCollector#shouldTraverse
-    fn should_traverse(
+/// Java's inner class `TopLevelStatementCollectingBehavior` together with the fields of the
+/// collector it writes.
+// port: CrossChunkReferenceCollector.TopLevelStatementCollectingBehavior
+struct TopLevelStatementCollectingBehavior {
+    /// Maps global variable name to the corresponding Var object.
+    vars_by_name: IndexMap<JsString, VarId>,
+
+    /// List of all top-level statements in the order they appear in the AST.
+    top_level_statements: Vec<TopLevelStatement>,
+
+    statement_counter: i32,
+    top_level_statement_draft: Option<TopLevelStatementDraft>,
+}
+
+impl TopLevelStatementCollectingBehavior {
+    // port: CrossChunkReferenceCollector#initializeDraftStatement
+    fn initialize_draft_statement(
+        &mut self,
+        compiler: &AbstractCompiler,
+        chunk: Option<JSChunk>,
+        statement_node: NodeId,
+    ) -> TopLevelStatementDraft {
+        let original_order = self.statement_counter;
+        self.statement_counter += 1;
+        let mut draft = TopLevelStatementDraft::new(original_order, chunk, statement_node);
+        // Determine whether this statement declares a name or not.
+        // If so, save its name node and value node, if any.
+        if NodeUtil::is_name_declaration(compiler, Some(statement_node)) {
+            // variable declaration
+            draft.declared_name_node = statement_node.get_first_child(compiler);
+            draft.declared_value_node = statement_node.get_first_first_child(compiler);
+        } else if statement_node.is_class(compiler) {
+            draft.declared_name_node = statement_node.get_first_child(compiler);
+            draft.declared_value_node = Some(statement_node);
+        } else if statement_node.is_function(compiler) {
+            // function declaration
+            draft.declared_name_node = statement_node.get_first_child(compiler);
+            draft.declared_value_node = Some(statement_node);
+        } else if statement_node.is_expr_result(compiler) {
+            let expr = check_not_null!(statement_node.get_first_child(compiler));
+            if expr.is_assign(compiler) {
+                let lhs = check_not_null!(expr.get_first_child(compiler));
+                let rhs = check_not_null!(expr.get_second_child(compiler));
+                if lhs.is_name(compiler) {
+                    // `varName = value;`
+                    draft.declared_name_node = Some(lhs);
+                    draft.declared_value_node = Some(rhs);
+                } else if lhs.is_get_prop(compiler)
+                    || CrossChunkReferenceCollector::is_potentially_moveable_get_elem(compiler, lhs)
+                {
+                    let mut name_node = check_not_null!(lhs.get_first_child(compiler));
+                    while name_node.is_get_prop(compiler) {
+                        name_node = check_not_null!(name_node.get_first_child(compiler));
+                    }
+                    if name_node.is_name(compiler) {
+                        // `varName.some.property = value;`
+                        // OR
+                        // `varName[someProperty] = value;`
+                        draft.declared_name_node = Some(name_node);
+                        draft.declared_value_node = Some(rhs);
+                    }
+                }
+            } else if expr.is_call(compiler) {
+                let mut name_node = None;
+                let mut value_node = None;
+                let relationship = compiler
+                    .get_coding_convention()
+                    .get_classes_defined_by_call(compiler, expr);
+                if let Some(relationship) = relationship {
+                    // Check for $jscomp.inherits(SubC, SuperC), goog.inherits(Sub, SuperC), etc.
+                    let declared_name = relationship.subclass_name.clone();
+                    let mut call_arg = expr.get_second_child(compiler);
+                    while let Some(arg) = call_arg {
+                        // We're assuming that the child class must be an argument to the function
+                        // that establishes its inheritance, which is true for `goog.inherits()`
+                        // and `$jscomp.inherits()`
+                        // TODO(bradfordcsmith): handle cases like
+                        // `goog.inherits(x.ChildClass, SuperClass)`
+                        if arg.is_name(compiler) && declared_name == arg.get_string(compiler) {
+                            name_node = Some(arg);
+                            break;
+                        }
+                        call_arg = arg.get_next(compiler);
+                    }
+                } else if NodeUtil::is_object_define_properties_definition(compiler, expr) {
+                    // Check for $jscomp$global.Object.defineProperties.
+                    let target_object = expr.get_second_child(compiler).unwrap();
+
+                    // Get the global var being referenced in the first parameter of
+                    // Object.defineProperties. Can be 'Foo' or 'Foo.prototype'.
+                    name_node = if target_object.is_name(compiler) {
+                        Some(target_object)
+                    } else {
+                        target_object.get_first_child(compiler)
+                    };
+
+                    // Second parameter of defineProperties is the value node.
+                    value_node = target_object.get_next(compiler);
+                }
+
+                if name_node.is_some() {
+                    draft.declared_name_node = name_node;
+                    draft.declared_value_node = value_node;
+                }
+            }
+        }
+        draft
+    }
+}
+
+impl Behavior for TopLevelStatementCollectingBehavior {
+    // port: CrossChunkReferenceCollector.TopLevelStatementCollectingBehavior#beforeTraverseNode
+    fn before_traverse_node(
         &mut self,
         t: &mut NodeTraversal<'_>,
         n: NodeId,
         parent: Option<NodeId>,
-    ) -> bool {
+    ) {
         if let Some(parent) = parent
             && NodeUtil::is_top_level(t, parent)
         {
@@ -501,88 +509,48 @@ impl Callback for CrossChunkReferenceCollector<'_> {
             let draft = self.initialize_draft_statement(t.get_compiler(), chunk, n);
             self.top_level_statement_draft = Some(draft);
         }
-        // If node is a new basic block, put on basic block stack
-        if reference_collector::is_block_boundary(t, n, parent) {
-            let block = BasicBlock::new(t, Some(Self::peek(&self.block_stack)), n);
-            self.block_stack.push(block);
-        }
-        true
     }
 
-    /// For each node, update the block stack and reference collection as appropriate.
-    // port: CrossChunkReferenceCollector#visit
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        if let Some(draft) = &self.top_level_statement_draft {
-            if n == draft.statement_node {
-                let draft = self.top_level_statement_draft.take().unwrap();
-                self.top_level_statements
-                    .push(TopLevelStatement::new(draft));
-            } else if n.is_name(t) {
-                let var_name = n.get_string(t);
-                let scope = t.get_scope();
-                let v = scope.get_var(t.get_compiler(), var_name.clone());
-
-                if let Some(v) = v {
-                    let compiler = t.get_compiler();
-                    // Only global, non-exported names can be moved
-                    if v.is_global(compiler)
-                        && !compiler
-                            .get_coding_convention()
-                            .is_exported(&v.get_name(compiler), /* local= */ false)
-                    {
-                        if let Some(existing) = self.vars_by_name.get(&var_name) {
-                            check_state!(existing.equals(t.get_compiler(), v));
-                        } else {
-                            self.vars_by_name.insert(var_name, v);
-                        }
-                        let reference = Reference::new(n, t, Self::peek(&self.block_stack));
-                        let draft = self.top_level_statement_draft.as_mut().unwrap();
-                        if Some(reference.get_node()) == draft.declared_name_node {
-                            draft.declared_name_reference = Some(reference.clone());
-                        } else {
-                            draft.non_declaration_references.push(reference.clone());
-                        }
-                        self.add_reference_to_collection(v, reference);
-                    }
-                }
+    // port: CrossChunkReferenceCollector.TopLevelStatementCollectingBehavior#afterVisitNode
+    fn after_visit_node(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        n: NodeId,
+        _parent: Option<NodeId>,
+        added_reference: Option<&Reference>,
+    ) {
+        let Some(draft) = &self.top_level_statement_draft else {
+            return;
+        };
+        if n == draft.statement_node {
+            let draft = self.top_level_statement_draft.take().unwrap();
+            self.top_level_statements
+                .push(TopLevelStatement::new(draft));
+        } else if let Some(added_reference) = added_reference
+            && n.is_name(t)
+        {
+            let var_name = n.get_string(t);
+            let v = added_reference
+                .get_symbol(t.get_compiler())
+                .expect("Reference#getSymbol");
+            if let Some(existing) = self.vars_by_name.get(&var_name) {
+                check_state!(existing.equals(t.get_compiler(), v));
+            } else {
+                self.vars_by_name.insert(var_name, v);
+            }
+            let draft = self.top_level_statement_draft.as_mut().unwrap();
+            if Some(added_reference.get_node()) == draft.declared_name_node {
+                draft.declared_name_reference = Some(added_reference.clone());
+            } else {
+                draft
+                    .non_declaration_references
+                    .push(added_reference.clone());
             }
         }
-        if reference_collector::is_block_boundary(t, n, parent) {
-            Self::pop(&mut self.block_stack);
-        }
     }
 
-    fn as_scoped_callback(&mut self) -> Option<&mut dyn ScopedCallback> {
-        Some(self)
-    }
-}
-
-impl ScopedCallback for CrossChunkReferenceCollector<'_> {
-    /// Updates block stack and invokes any additional behavior.
-    // port: CrossChunkReferenceCollector#enterScope
-    fn enter_scope(&mut self, t: &mut NodeTraversal<'_>) {
-        let n = t.get_scope_root().unwrap();
-        let parent = if self.block_stack.is_empty() {
-            None
-        } else {
-            Some(Self::peek(&self.block_stack))
-        };
-        // Don't add all ES6 scope roots to blockStack, only those that are also scopes according
-        // to the ES5 scoping rules. Other nodes that ought to be considered the root of a
-        // BasicBlock are added in shouldTraverse() and removed in visit().
-        if t.is_hoist_scope() {
-            let block = BasicBlock::new(t, parent, n);
-            self.block_stack.push(block);
-        }
-    }
-
-    /// Updates block stack and invokes any additional behavior.
-    // port: CrossChunkReferenceCollector#exitScope
-    fn exit_scope(&mut self, t: &mut NodeTraversal<'_>) {
-        if t.is_hoist_scope() {
-            Self::pop(&mut self.block_stack);
-        }
-    }
+    // port: CrossChunkReferenceCollector.TopLevelStatementCollectingBehavior#afterExitScope
+    fn after_exit_scope(&mut self, _t: &mut NodeTraversal<'_>, _reference_map: &dyn ReferenceMap) {}
 }
 
 /// Represents a top-level statement and the references to global names it contains.

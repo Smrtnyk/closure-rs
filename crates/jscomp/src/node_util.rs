@@ -532,6 +532,24 @@ impl NodeUtil {
             Self::is_es6_constructor_member_function_def(ast, *member_function_def)
         })
     }
+    /// Returns whether the class has instance elements: non-static fields or private members, which
+    /// InitializeInstanceElements installs on `this` when the constructor's `super()` call returns
+    /// (or when a base class constructor starts).
+    // port: NodeUtil#hasInstanceElements
+    pub fn has_instance_elements(ast: &Ast, class_node: NodeId) -> bool {
+        let mut member = Self::get_class_members(ast, class_node).get_first_child(ast);
+        while let Some(m) = member {
+            if !m.is_static_member(ast)
+                && (m.is_member_field_def(ast)
+                    || m.is_computed_field_def(ast)
+                    || m.is_private_identifier(ast))
+            {
+                return true;
+            }
+            member = m.get_next(ast);
+        }
+        false
+    }
     // port: NodeUtil#isImmutableValue
     pub fn is_immutable_value(ast: &Ast, n: NodeId) -> bool {
         match n.get_token(ast) {
@@ -4505,7 +4523,10 @@ impl NodeUtil {
                 | Token::COALESCE
                 | Token::ASSIGN_OR
                 | Token::ASSIGN_AND
-                | Token::ASSIGN_COALESCE => {
+                | Token::ASSIGN_COALESCE
+                | Token::OPTCHAIN_GETELEM
+                | Token::OPTCHAIN_CALL
+                | Token::DEFAULT_VALUE => {
                     if parent.get_first_child(ast) != Some(n) {
                         return false;
                     }

@@ -1260,6 +1260,7 @@ impl DefaultPassConfig {
                 let remove_unused_polyfills = options.get_force_library_injection_list().is_empty()
                     && options.get_inject_polyfills_newer_than().is_none();
                 let assume_getters_are_pure = options.get_assume_getters_are_pure();
+                let disambiguate_properties = options.should_disambiguate_properties();
                 Box::new(
                     crate::remove_unused_code::RemoveUnusedCode::builder(compiler)
                         .remove_local_vars(remove_local_vars)
@@ -1272,6 +1273,7 @@ impl DefaultPassConfig {
                         )
                         .remove_unused_polyfills(remove_unused_polyfills)
                         .assume_getters_are_pure(assume_getters_are_pure)
+                        .disambiguate_properties(disambiguate_properties)
                         .build(),
                 )
             }))
