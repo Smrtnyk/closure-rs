@@ -920,6 +920,10 @@ impl<'a> NodeTraversal<'a> {
                     .downcast_ref::<&str>()
                     .map(|s| (*s).to_string())
             })
+            // A precondition without a message (`check_state!(c)`, Java `checkState(c)`) panics
+            // with an empty message; Java's exception has a null message, which the string
+            // concatenation below prints as "null".
+            .filter(|cause| !cause.is_empty())
             .unwrap_or_else(|| "null".to_string());
         let mut message = cause.clone();
         if self.current_script.is_some() {
