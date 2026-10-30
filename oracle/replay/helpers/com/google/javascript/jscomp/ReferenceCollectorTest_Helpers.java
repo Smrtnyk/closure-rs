@@ -37,7 +37,22 @@
  * callbacks only assert (Truth / NodeSubject); a failed assertion surfaces as the replayed
  * outcome, exactly as in the test. (ReferenceCollectorTest$16, in
  * testProcessScopeThatsNotABasicBlock, is not a testBehavior call and has no record.)
- * DSL names: ReferenceCollectorTest_Helpers.Anon<N>, ReferenceCollectorTest_Helpers.Lambda_<testMethod>
+ * Added from closure-compiler commit 8ac03b6, where getProcessor (lines 53-61) passes the test's
+ * new varFilter and collectHoistedFunctionsInReferenceOrder fields to the five-argument constructor:
+ *   Anon17 = ReferenceCollectorTest$17 (testBehavior_hoistedFunctionsInReferenceOrder_true):
+ *     anonymous class body, lines 640-649; its captured local list visitedReferenceNames (line 629)
+ *     becomes a field
+ *   Anon18 = ReferenceCollectorTest$18 (testBehavior_hoistedFunctionsInReferenceOrder_false):
+ *     anonymous class body, lines 675-684; visitedReferenceNames (line 664) becomes a field
+ *   Anon19 = ReferenceCollectorTest$19
+ *     (testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter): anonymous class body,
+ *     lines 708-721; nonNullReferenceNames and filteredOutNames (lines 697-698) become fields
+ *   VarFilter_testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter = the varFilter
+ *     lambda of that test (line 700), as a Predicate<Var>
+ * The three tests assert on those lists after testBehavior returns; those post-call assertions are
+ * ported as Rust unit tests (corpus/unit/RUST_UNIT_TESTS.md).
+ * DSL names: ReferenceCollectorTest_Helpers.Anon<N>, ReferenceCollectorTest_Helpers.Lambda_<testMethod>,
+ * ReferenceCollectorTest_Helpers.VarFilter_<testMethod>
  */
 package com.google.javascript.jscomp;
 
@@ -45,9 +60,14 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.javascript.rhino.testing.NodeSubject.assertNode;
 
+import com.google.common.base.Predicate;
 import com.google.common.truth.Correspondence;
 import com.google.javascript.jscomp.ReferenceCollector.Behavior;
+import com.google.javascript.rhino.Node;
 import com.google.javascript.rhino.Token;
+import java.util.ArrayList;
+import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 final class ReferenceCollectorTest_Helpers {
   private static final Correspondence<Reference, Boolean> IS_DECLARATION =
@@ -413,6 +433,71 @@ final class ReferenceCollectorTest_Helpers {
             ReferenceCollection x = rm.getReferences(xVar);
             assertThat(x.isAssignedOnceInLifetime()).isTrue();
           }
+    }
+  }
+
+  /** ReferenceCollectorTest$17 (testBehavior_hoistedFunctionsInReferenceOrder_true): body lines 640-649. */
+  static final class Anon17 implements Behavior {
+    private final List<String> visitedReferenceNames = new ArrayList<>();
+
+          @Override
+          public void afterVisitNode(
+              NodeTraversal t, Node n, @Nullable Node parent, @Nullable Reference addedReference) {
+            if (addedReference != null) {
+              visitedReferenceNames.add(addedReference.getNode().getString());
+            }
+          }
+
+          @Override
+          public void afterExitScope(NodeTraversal t, ReferenceMap referenceMap) {}
+  }
+
+  /** ReferenceCollectorTest$18 (testBehavior_hoistedFunctionsInReferenceOrder_false): body lines 675-684. */
+  static final class Anon18 implements Behavior {
+    private final List<String> visitedReferenceNames = new ArrayList<>();
+
+          @Override
+          public void afterVisitNode(
+              NodeTraversal t, Node n, @Nullable Node parent, @Nullable Reference addedReference) {
+            if (addedReference != null) {
+              visitedReferenceNames.add(addedReference.getNode().getString());
+            }
+          }
+
+          @Override
+          public void afterExitScope(NodeTraversal t, ReferenceMap referenceMap) {}
+  }
+
+  /**
+   * ReferenceCollectorTest$19 (testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter):
+   * body lines 708-721.
+   */
+  static final class Anon19 implements Behavior {
+    private final List<String> nonNullReferenceNames = new ArrayList<>();
+    private final List<String> filteredOutNames = new ArrayList<>();
+
+          @Override
+          public void afterVisitNode(
+              NodeTraversal t, Node n, @Nullable Node parent, @Nullable Reference addedReference) {
+            if (n.isName()) {
+              if (addedReference != null) {
+                nonNullReferenceNames.add(n.getString());
+              } else {
+                filteredOutNames.add(n.getString());
+              }
+            }
+          }
+
+          @Override
+          public void afterExitScope(NodeTraversal t, ReferenceMap referenceMap) {}
+  }
+
+  /** The varFilter lambda of testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter (line 700). */
+  static final class VarFilter_testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter
+      implements Predicate<Var> {
+    @Override
+    public boolean apply(Var v) {
+      return !v.getName().equals("z");
     }
   }
 }
