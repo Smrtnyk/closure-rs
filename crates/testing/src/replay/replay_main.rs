@@ -295,11 +295,28 @@ fn reproduces_precondition(record: &JsonValue, result: &ReplayResult) -> bool {
         ]
         .iter()
         .any(|class| want.get("exceptionClass") == Some(&JsonValue::str(class)))
-        && truncate_message(
-            result.outcome.get("message").unwrap_or(&JsonValue::Null),
-            4000,
-        )
-        .gson_equals(want.get("message").unwrap_or(&JsonValue::Null))
+        && precondition_message_matches(want, result)
+}
+fn precondition_message_matches(want: &JsonValue, result: &ReplayResult) -> bool {
+    let got = truncate_message(
+        result.outcome.get("message").unwrap_or(&JsonValue::Null),
+        4000,
+    );
+    let want_message = want.get("message").unwrap_or(&JsonValue::Null);
+    if got.gson_equals(want_message) {
+        return true;
+    }
+    // A `checkState(c)` / `checkArgument(c)` without a message throws with a null message; the
+    // port's `check_state!(c)` / `check_argument!(c)` panic with an empty one. A null
+    // NullPointerException message can also come from the JVM itself, so it stays exact.
+    *want_message == JsonValue::Null
+        && got == JsonValue::str("")
+        && [
+            "java.lang.IllegalStateException",
+            "java.lang.IllegalArgumentException",
+        ]
+        .iter()
+        .any(|class| want.get("exceptionClass") == Some(&JsonValue::str(class)))
 }
 /// The message of a recorded `java.lang.AssertionError` that a compiler panic reproduces: the
 /// port renders `throw new AssertionError(message)` in compiler code as a panic with the message

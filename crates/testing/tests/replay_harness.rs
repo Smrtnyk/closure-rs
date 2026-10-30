@@ -1076,6 +1076,18 @@ fn precondition_panics_require_exact_recorded_class_category_and_message() {
     assert!(compare(&normal, &ReplayResult::panic("Java message")).is_some());
     let null = outcome("java.lang.NullPointerException", JsonValue::Null, false);
     assert!(compare(&null, &ReplayResult::panic("")).is_some());
+    // A message-less checkState / checkArgument: Java's null message, the port's empty panic.
+    for class in [
+        "java.lang.IllegalStateException",
+        "java.lang.IllegalArgumentException",
+    ] {
+        let null = outcome(class, JsonValue::Null, false);
+        let caught = ReplayResult::catch_precondition_run(&null, || panic!("")).unwrap();
+        assert_eq!(compare(&null, &caught), None);
+        assert!(compare(&null, &ReplayResult::panic("Java message")).is_some());
+        let empty = outcome(class, JsonValue::str(""), false);
+        assert_eq!(compare(&empty, &ReplayResult::panic("")), None);
+    }
 
     let opaque = outcome(
         "java.lang.IllegalStateException",

@@ -147,7 +147,9 @@ an assertion outcome; explicit Java exception mappings compare class and truncat
 A caught Rust panic reproduces a recorded non-assertion exception only for
 `java.lang.IllegalStateException`, `java.lang.IllegalArgumentException`,
 `java.lang.NullPointerException` or `java.lang.ClassCastException`, and only when its message
-matches after the recorder's exact 4,000 UTF-16-unit truncation (including its suffix).
+matches after the recorder's exact 4,000 UTF-16-unit truncation (including its suffix). A null
+`IllegalStateException` or `IllegalArgumentException` message (a `checkState` / `checkArgument`
+without one) matches the empty message of `check_state!(c)` / `check_argument!(c)`.
 A panic with the message `AssertionError: <message>` (the port's `throw new AssertionError(..)` in
 compiler code) reproduces a recorded assertion outcome with exactly that message.
 Diagnostics and post-state must still match. Typed Throwables still require the same Java class;
