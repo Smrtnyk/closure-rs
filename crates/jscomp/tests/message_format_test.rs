@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/DiagnosticType.java.
 
 use closure_jscomp::platform::Platform;
@@ -63,7 +63,7 @@ fn message_format_parity() {
             rows += 1;
         }
     }
-    assert_eq!(rows, 5355);
+    assert_eq!(rows, 5362);
 }
 // port: Formatter.FormatSpecifier#print(double,Locale) (JVM differential table)
 #[test]

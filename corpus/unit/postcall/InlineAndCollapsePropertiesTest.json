@@ -3,6 +3,18 @@
  "class": "com.google.javascript.jscomp.InlineAndCollapsePropertiesTest",
  "methods": [
   {
+   "method": "testClassStaticPrivateField_knownBug",
+   "status": "unclassified",
+   "pending": "rust_unit_test (category exception) once crates/ has a Rust port '// port: InlineAndCollapsePropertiesTest#testClassStaticPrivateField_knownBug' of the check and the fragment line exists: assertThrows(IllegalStateException.class, () -> testSame(js)) and then ex.getStackTrace()[1].getMethodName() isEqualTo \"checkForReceiverAffectedByCollapse\": a Java stack frame of the thrown exception (its message is null), which no record key holds (record 249). No Rust port of this method exists at v20261028.",
+   "note": "Source lines 4264-4284 (1 record; b/236744850 knownBug, new in v20261028)."
+  },
+  {
+   "method": "testClassStaticPrivateMethod_knownBug",
+   "status": "unclassified",
+   "pending": "rust_unit_test (category exception) once crates/ has a Rust port '// port: InlineAndCollapsePropertiesTest#testClassStaticPrivateMethod_knownBug' of the check and the fragment line exists: assertThrows(AssertionError.class, () -> testSame(js)) and hasMessageThat().contains(\"+var C$#m = function() {\") and contains(\"+var C$getM = function() {\"): the asserted value is the message of the Truth AssertionError the CompilerTestCase harness throws (a 'Node tree inequality' JS diff), a Java test-framework exception that no snapshot key holds and that a non-Java harness does not reproduce (it reports its own assertion failure at the same check). (record 223). No Rust port of this method exists at v20261028.",
+   "note": "Source lines 4286-4308 (1 record; b/236744850 knownBug, new in v20261028)."
+  },
+  {
    "method": "testCollapseKeepsSourceInfoForAliases",
    "status": "rust_unit_test",
    "reason": "asserts source file name, line and column (lineno/charno) of the output AST nodes after collapsing; source positions are not recorded by any postCall key, test field or postcondition (no source map is generated in this test) and the AST comparison ignores them",

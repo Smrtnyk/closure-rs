@@ -28,7 +28,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/RemoveUnusedCode.java.
 // Ported from Guava 33.4.6-jre (https://github.com/google/guava):
 //   com/google/common/collect/AbstractMapBasedMultimap.java,
@@ -140,7 +140,9 @@ pub struct RemoveUnusedCode {
 
     guarded_usages: IndexSet<NodeId>,
 
-    polyfills_from_table: Arc<Polyfills>,
+    // Java's `polyfillsFromTable` field is read only by the constructor, which hands it to the
+    // finder.
+    polyfill_usage_finder: PolyfillUsageFinder,
 
     scope_creator: SyntacticScopeCreator<'static>,
 
@@ -149,6 +151,7 @@ pub struct RemoveUnusedCode {
     remove_unused_object_define_properties_definitions: bool,
     remove_unused_polyfills: bool,
     assume_getters_are_pure: bool,
+    disambiguate_properties: bool,
 
     // Allocated & cleaned up by process()
     removal_log: Option<Box<dyn LogFile>>,
@@ -173,6 +176,11 @@ impl RemoveUnusedCode {
                 "com.google.javascript.jscomp.RemoveUnusedCode",
                 "js/polyfills.txt",
             )));
+        let polyfill_usage_finder = PolyfillUsageFinder::new(
+            compiler,
+            polyfills_from_table,
+            builder.disambiguate_properties,
+        );
         let mut this = Self {
             ast_analyzer,
             remove_local_vars: builder.remove_local_vars,
@@ -189,7 +197,7 @@ impl RemoveUnusedCode {
             all_function_param_scopes: Vec::new(),
             polyfills: JavaHashMultimap::create(),
             guarded_usages: IndexSet::<_>::default(),
-            polyfills_from_table,
+            polyfill_usage_finder,
             scope_creator,
             remove_unused_prototype_properties: builder.remove_unused_prototype_properties,
             remove_unused_this_properties: builder.remove_unused_this_properties,
@@ -197,6 +205,7 @@ impl RemoveUnusedCode {
                 .remove_unused_object_define_properties_definitions,
             remove_unused_polyfills: builder.remove_unused_polyfills,
             assume_getters_are_pure: builder.assume_getters_are_pure,
+            disambiguate_properties: builder.disambiguate_properties,
             removal_log: None,
             unremovable_log: None,
             removables: Vec::new(),
@@ -226,6 +235,7 @@ pub struct Builder<'a> {
     remove_unused_object_define_properties_definitions: bool,
     remove_unused_polyfills: bool,
     assume_getters_are_pure: bool,
+    disambiguate_properties: bool,
 }
 
 impl<'a> Builder<'a> {
@@ -241,6 +251,7 @@ impl<'a> Builder<'a> {
             remove_unused_object_define_properties_definitions: false,
             remove_unused_polyfills: false,
             assume_getters_are_pure: false,
+            disambiguate_properties: false,
         }
     }
 
@@ -289,6 +300,12 @@ impl<'a> Builder<'a> {
     // port: RemoveUnusedCode.Builder#assumeGettersArePure
     pub fn assume_getters_are_pure(mut self, value: bool) -> Self {
         self.assume_getters_are_pure = value;
+        self
+    }
+
+    // port: RemoveUnusedCode.Builder#disambiguateProperties
+    pub fn disambiguate_properties(mut self, value: bool) -> Self {
+        self.disambiguate_properties = value;
         self
     }
 
@@ -462,7 +479,7 @@ impl RemoveUnusedCode {
 
         // Accumulate guarded usages of polyfills before removal starts.
         let mut guarded = Vec::new();
-        PolyfillUsageFinder::new(Arc::clone(&self.polyfills_from_table)).traverse_only_guarded(
+        self.polyfill_usage_finder.traverse_only_guarded(
             compiler,
             root,
             &mut |_compiler: &mut AbstractCompiler, polyfill_usage: PolyfillUsage| {
@@ -4574,8 +4591,19 @@ impl RemoveUnusedCode {
                 }
             }
             // port: RemoveUnusedCode.PrototypePropertyPolyfillInfo#considerPossibleReferenceInternal
-            PolyfillInfoKind::PrototypeProperty { .. } => {
+            PolyfillInfoKind::PrototypeProperty {
+                ref polyfill_owner_name,
+            } => {
                 if NodeUtil::is_normal_or_opt_chain_get_prop(compiler, possibly_referencing_node) {
+                    if self.disambiguate_properties
+                        && self.polyfill_usage_finder.is_disjoint_from_iterator(
+                            compiler,
+                            possibly_referencing_node,
+                            Some(polyfill_owner_name),
+                        )
+                    {
+                        return;
+                    }
                     // Prototype properties are simply not removable.
                     info.is_removable = false;
                 }

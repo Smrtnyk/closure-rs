@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/RewritePolyfills.java.
 
 //! Injects polyfill libraries to ensure that ES6+ library functions are available. Port of
@@ -58,6 +58,7 @@ pub struct RewritePolyfills {
     isolate_polyfills: bool,
     libraries: Option<IndexSet<String>>,
     inject_polyfills_newer_than: Option<LanguageMode>,
+    disambiguate_properties: bool,
 }
 
 impl RewritePolyfills {
@@ -65,12 +66,13 @@ impl RewritePolyfills {
     ///     input. if false, no polyfills are injected.
     /// @param isolatePolyfills if true, adds externs for library functions used by
     ///     `IsolatePolyfills` to prevent their deletion.
-    // port: RewritePolyfills#RewritePolyfills(AbstractCompiler,boolean,boolean,LanguageMode)
+    // port: RewritePolyfills#RewritePolyfills(AbstractCompiler,boolean,boolean,LanguageMode,boolean)
     pub fn new(
         compiler: &mut AbstractCompiler,
         inject_polyfills: bool,
         isolate_polyfills: bool,
         inject_polyfills_newer_than: Option<LanguageMode>,
+        disambiguate_properties: bool,
     ) -> Self {
         Self::new_with_manager(
             compiler.get_runtime_js_lib_manager(),
@@ -81,18 +83,20 @@ impl RewritePolyfills {
             inject_polyfills,
             isolate_polyfills,
             inject_polyfills_newer_than,
+            disambiguate_properties,
         )
     }
 
     /// For unit testing, allows instantiating RewritePolyfills with a different
     /// RuntimeJsLibManager than `AbstractCompiler#getRuntimeJsLibManager`
-    // port: RewritePolyfills#RewritePolyfills(AbstractCompiler,RuntimeJsLibManager,Polyfills,boolean,boolean,LanguageMode)
+    // port: RewritePolyfills#RewritePolyfills(AbstractCompiler,RuntimeJsLibManager,Polyfills,boolean,boolean,LanguageMode,boolean)
     pub fn new_for_testing(
         runtime_js_lib_manager: RuntimeJsLibManager,
         polyfills: Polyfills,
         inject_polyfills: bool,
         isolate_polyfills: bool,
         inject_polyfills_newer_than: Option<LanguageMode>,
+        disambiguate_properties: bool,
     ) -> Self {
         Self::new_with_manager(
             Arc::new(Mutex::new(runtime_js_lib_manager)),
@@ -100,6 +104,7 @@ impl RewritePolyfills {
             inject_polyfills,
             isolate_polyfills,
             inject_polyfills_newer_than,
+            disambiguate_properties,
         )
     }
 
@@ -109,6 +114,7 @@ impl RewritePolyfills {
         inject_polyfills: bool,
         isolate_polyfills: bool,
         inject_polyfills_newer_than: Option<LanguageMode>,
+        disambiguate_properties: bool,
     ) -> Self {
         Self {
             runtime_js_lib_manager,
@@ -117,6 +123,7 @@ impl RewritePolyfills {
             isolate_polyfills,
             libraries: None,
             inject_polyfills_newer_than,
+            disambiguate_properties,
         }
     }
 
@@ -278,7 +285,11 @@ impl CompilerPass for RewritePolyfills {
         }
         if self.inject_polyfills {
             self.libraries = Some(IndexSet::<_>::default());
-            let finder = PolyfillUsageFinder::new(Arc::clone(&self.polyfills));
+            let finder = PolyfillUsageFinder::new(
+                compiler,
+                Arc::clone(&self.polyfills),
+                self.disambiguate_properties,
+            );
             finder.traverse_excluding_guarded(compiler, root, &mut |compiler, usage| {
                 self.inject(compiler, usage)
             });

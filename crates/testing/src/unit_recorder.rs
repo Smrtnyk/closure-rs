@@ -30,7 +30,7 @@
  */
 // Ported from closure-rs' own Java oracle tooling:
 //   UnitRecorder.java (oracle/patches/0002-recording-hooks.patch).
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/Compiler.java.
 
 //! UnitRecorder's error and post-call projections, recomputed from live state.

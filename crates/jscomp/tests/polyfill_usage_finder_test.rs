@@ -13,17 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   test/com/google/javascript/jscomp/PolyfillUsageFinderTest.java.
 
 //! Port of PolyfillUsageFinderTest.java: unit tests for PolyfillUsageFinder.
 use closure_jscomp::{
     Compiler,
+    colors::{Color, ColorId, ColorRegistry, standard_colors},
     compiler_options::CompilerOptions,
     polyfill_usage_finder::{Kind, Polyfill, PolyfillUsage, PolyfillUsageFinder, Polyfills},
     source_file::SourceFile,
 };
+use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
+    ir::IR,
     node::{Ast, NodeId},
     token::Token,
 };
@@ -235,6 +238,559 @@ fn opt_chain_coverage_test() {
     }
 }
 
+// port: PolyfillUsageFinderTest#createFinderWithRegistry
+fn create_finder_with_registry(registry: ColorRegistry) -> PolyfillUsageFinder {
+    let mut compiler = new_test_compiler();
+    set_test_color_registry(&mut compiler, registry);
+    PolyfillUsageFinder::new(
+        &compiler,
+        Arc::new(Polyfills::from_table(
+            "Iterator.prototype.toArray es_next es3 es6/iterator/toarray",
+        )),
+        /* disambiguate_properties= */ true,
+    )
+}
+
+/// `ColorRegistry.builder().setDefaultNativeColorsForTesting().build()`.
+fn default_native_registry() -> ColorRegistry {
+    ColorRegistry::builder()
+        .set_default_native_colors_for_testing()
+        .build()
+}
+
+/// `Color.singleBuilder().setId(id).build()`.
+fn single(id: ColorId) -> Color {
+    Color::single_builder().set_id(id).build()
+}
+
+/// `Color.createUnion(ImmutableSet.of(..))`.
+fn union(elements: &[&Color]) -> Color {
+    Color::create_union(
+        &elements
+            .iter()
+            .map(|c| (*c).clone())
+            .collect::<IndexSet<Color>>(),
+    )
+}
+
+// port: PolyfillUsageFinderTest#isDisjointFromIterator_unknownAndTopObject_returnsFalse
+#[test]
+fn is_disjoint_from_iterator_unknown_and_top_object_returns_false() {
+    let registry = default_native_registry();
+    let finder = create_finder_with_registry(registry);
+
+    assert!(!finder.is_disjoint_from_iterator_color(&standard_colors::UNKNOWN));
+    assert!(!finder.is_disjoint_from_iterator_color(&standard_colors::TOP_OBJECT));
+    assert!(!finder.is_disjoint_from_iterator_color(&standard_colors::TOP_FUNCTION));
+}
+
+// port: PolyfillUsageFinderTest#isDisjointFromIterator_sameColor_returnsFalse
+#[test]
+fn is_disjoint_from_iterator_same_color_returns_false() {
+    let registry = default_native_registry();
+    let iterator = registry.get(standard_colors::ITERATOR_ID);
+    let finder = create_finder_with_registry(registry);
+
+    assert!(!finder.is_disjoint_from_iterator_color(&iterator));
+}
+
+// port: PolyfillUsageFinderTest#isDisjointFromIterator_unrelatedColors_returnsTrue
+#[test]
+fn is_disjoint_from_iterator_unrelated_colors_returns_true() {
+    let registry = default_native_registry();
+    let array = registry.get(standard_colors::ARRAY_ID);
+    let finder = create_finder_with_registry(registry);
+    let custom_foo = single(ColorId::from_ascii("Foo"));
+
+    assert!(finder.is_disjoint_from_iterator_color(&array));
+    assert!(finder.is_disjoint_from_iterator_color(&custom_foo));
+}
+
+// port: PolyfillUsageFinderTest#isDisjointFromIterator_generatorAndIterator_returnsFalse
+#[test]
+fn is_disjoint_from_iterator_generator_and_iterator_returns_false() {
+    let registry = default_native_registry();
+    let generator = registry.get(standard_colors::GENERATOR_ID);
+    let finder = create_finder_with_registry(registry);
+
+    // Generator is a sibling of Iterator in externs, but inherits from %IteratorPrototype%
+    // at runtime in ES2025, so Generator and Iterator are known not to be disjoint.
+    assert!(!finder.is_disjoint_from_iterator_color(&generator));
+}
+
+// port: PolyfillUsageFinderTest#isDisjointFromIterator_subtypesAndSupertypes_returnsFalse
+#[test]
+fn is_disjoint_from_iterator_subtypes_and_supertypes_returns_false() {
+    let iterator = single(standard_colors::ITERATOR_ID);
+    let sub_iterator = single(ColorId::from_ascii("SubIter"));
+    let sub_sub_iterator = single(ColorId::from_ascii("SubSub"));
+    let super_iterable = single(ColorId::from_ascii("SuperIt"));
+    let unrelated = single(ColorId::from_ascii("Unrel"));
+
+    let registry = ColorRegistry::builder()
+        .set_default_native_colors_for_testing()
+        .add_disambiguation_edge(sub_iterator.clone(), iterator.clone())
+        .add_disambiguation_edge(sub_sub_iterator.clone(), sub_iterator.clone())
+        .add_disambiguation_edge(iterator.clone(), super_iterable.clone())
+        .build();
+    let finder = create_finder_with_registry(registry);
+
+    // Direct subtype: SubIterator extends Iterator
+    assert!(!finder.is_disjoint_from_iterator_color(&sub_iterator));
+
+    // Indirect subtype: SubSubIterator extends SubIterator extends Iterator
+    assert!(!finder.is_disjoint_from_iterator_color(&sub_sub_iterator));
+
+    // Supertype: Iterator extends SuperIterable (receiver is supertype)
+    assert!(!finder.is_disjoint_from_iterator_color(&super_iterable));
+
+    // Unrelated type with no edges
+    assert!(finder.is_disjoint_from_iterator_color(&unrelated));
+}
+
+// port: PolyfillUsageFinderTest#isDisjointFromIterator_branchingAndSiblingHierarchies
+#[test]
+fn is_disjoint_from_iterator_branching_and_sibling_hierarchies() {
+    let iterator = single(standard_colors::ITERATOR_ID);
+    let sub_iterator_a = single(ColorId::from_ascii("SubItA"));
+    let sub_iterator_b = single(ColorId::from_ascii("SubItB"));
+    let base_class = single(ColorId::from_ascii("Base"));
+    let child_class = single(ColorId::from_ascii("Child"));
+
+    let registry = ColorRegistry::builder()
+        .set_default_native_colors_for_testing()
+        .add_disambiguation_edge(sub_iterator_a.clone(), iterator.clone())
+        .add_disambiguation_edge(sub_iterator_b.clone(), iterator.clone())
+        .add_disambiguation_edge(child_class.clone(), base_class.clone())
+        .build();
+    let finder = create_finder_with_registry(registry);
+
+    // Siblings under Iterator are both not disjoint from Iterator
+    assert!(!finder.is_disjoint_from_iterator_color(&sub_iterator_a));
+    assert!(!finder.is_disjoint_from_iterator_color(&sub_iterator_b));
+
+    // Separate class hierarchy is disjoint from Iterator
+    assert!(finder.is_disjoint_from_iterator_color(&child_class));
+    assert!(finder.is_disjoint_from_iterator_color(&base_class));
+}
+
+// port: PolyfillUsageFinderTest#isDisjointFromIterator_cyclesInSupertypeGraph_terminatesGracefully
+#[test]
+fn is_disjoint_from_iterator_cycles_in_supertype_graph_terminates_gracefully() {
+    let iterator = single(standard_colors::ITERATOR_ID);
+    let class_a = single(ColorId::from_ascii("ClassA"));
+    let class_b = single(ColorId::from_ascii("ClassB"));
+
+    // Cycle A <-> B with no connection to Iterator
+    let registry_with_cycle = ColorRegistry::builder()
+        .set_default_native_colors_for_testing()
+        .add_disambiguation_edge(class_a.clone(), class_b.clone())
+        .add_disambiguation_edge(class_b.clone(), class_a.clone())
+        .build();
+    let finder_with_cycle = create_finder_with_registry(registry_with_cycle);
+
+    assert!(finder_with_cycle.is_disjoint_from_iterator_color(&class_a));
+    assert!(finder_with_cycle.is_disjoint_from_iterator_color(&class_b));
+
+    // Cycle A <-> B where B also extends Iterator
+    let registry_with_cycle_and_iterator = ColorRegistry::builder()
+        .set_default_native_colors_for_testing()
+        .add_disambiguation_edge(class_a.clone(), class_b.clone())
+        .add_disambiguation_edge(class_b.clone(), class_a.clone())
+        .add_disambiguation_edge(class_b.clone(), iterator.clone())
+        .build();
+    let finder_with_cycle_and_iterator =
+        create_finder_with_registry(registry_with_cycle_and_iterator);
+
+    assert!(!finder_with_cycle_and_iterator.is_disjoint_from_iterator_color(&class_a));
+    assert!(!finder_with_cycle_and_iterator.is_disjoint_from_iterator_color(&class_b));
+}
+
+// port: PolyfillUsageFinderTest#isDisjointFromIterator_unionSupertypesInHierarchy
+#[test]
+fn is_disjoint_from_iterator_union_supertypes_in_hierarchy() {
+    let iterator = single(standard_colors::ITERATOR_ID);
+    let class_foo = single(ColorId::from_ascii("Foo"));
+    let class_bar = single(ColorId::from_ascii("Bar"));
+    let class_sub1 = single(ColorId::from_ascii("Sub1"));
+    let class_sub2 = single(ColorId::from_ascii("Sub2"));
+
+    let union_with_iterator = union(&[&class_foo, &iterator]);
+    let union_without_iterator = union(&[&class_foo, &class_bar]);
+
+    let registry = ColorRegistry::builder()
+        .set_default_native_colors_for_testing()
+        .add_disambiguation_edge(class_sub1.clone(), union_with_iterator)
+        .add_disambiguation_edge(class_sub2.clone(), union_without_iterator)
+        .build();
+    let finder = create_finder_with_registry(registry);
+
+    // Sub1 has a union supertype that includes Iterator
+    assert!(!finder.is_disjoint_from_iterator_color(&class_sub1));
+
+    // Sub2 has a union supertype that only includes disjoint types
+    assert!(finder.is_disjoint_from_iterator_color(&class_sub2));
+}
+
+// port: PolyfillUsageFinderTest#isDisjointFromIterator_primitives_returnsTrue
+#[test]
+fn is_disjoint_from_iterator_primitives_returns_true() {
+    let registry = default_native_registry();
+    let finder = create_finder_with_registry(registry);
+
+    // Primitives are disjoint from Iterator
+    assert!(finder.is_disjoint_from_iterator_color(&standard_colors::STRING));
+    assert!(finder.is_disjoint_from_iterator_color(&standard_colors::NUMBER));
+    assert!(finder.is_disjoint_from_iterator_color(&standard_colors::BOOLEAN));
+    assert!(finder.is_disjoint_from_iterator_color(&standard_colors::BIGINT));
+    assert!(finder.is_disjoint_from_iterator_color(&standard_colors::SYMBOL));
+    assert!(finder.is_disjoint_from_iterator_color(&standard_colors::NULL_OR_VOID));
+}
+
+// port: PolyfillUsageFinderTest#isDisjointFromIterator_nullAndUndefinedUnions
+#[test]
+fn is_disjoint_from_iterator_null_and_undefined_unions() {
+    let registry = default_native_registry();
+    let iterator = registry.get(standard_colors::ITERATOR_ID);
+    let array = registry.get(standard_colors::ARRAY_ID);
+    let finder = create_finder_with_registry(registry);
+
+    let nullable_array = union(&[&array, &standard_colors::NULL_OR_VOID]);
+    let nullable_iterator = union(&[&iterator, &standard_colors::NULL_OR_VOID]);
+
+    // Nullable/undef Array is still disjoint from Iterator after subtraction
+    assert!(finder.is_disjoint_from_iterator_color(&nullable_array));
+
+    // Nullable/undef Iterator is not disjoint from Iterator
+    assert!(!finder.is_disjoint_from_iterator_color(&nullable_iterator));
+}
+
+// port: PolyfillUsageFinderTest#isDisjointFromIterator_unionReceivers
+#[test]
+fn is_disjoint_from_iterator_union_receivers() {
+    let iterator = single(standard_colors::ITERATOR_ID);
+    let sub_iterator = single(ColorId::from_ascii("SubIter"));
+    let class_foo = single(ColorId::from_ascii("Foo"));
+    let class_bar = single(ColorId::from_ascii("Bar"));
+
+    let registry = ColorRegistry::builder()
+        .set_default_native_colors_for_testing()
+        .add_disambiguation_edge(sub_iterator.clone(), iterator.clone())
+        .build();
+    let finder = create_finder_with_registry(registry);
+
+    // All elements disjoint -> disjoint
+    let union_all_disjoint = union(&[&class_foo, &class_bar]);
+    assert!(finder.is_disjoint_from_iterator_color(&union_all_disjoint));
+
+    // One element is Iterator -> not disjoint
+    let union_with_iterator = union(&[&class_foo, &iterator]);
+    assert!(!finder.is_disjoint_from_iterator_color(&union_with_iterator));
+
+    // One element is SubIterator -> not disjoint
+    let union_with_sub_iterator = union(&[&class_foo, &sub_iterator]);
+    assert!(!finder.is_disjoint_from_iterator_color(&union_with_sub_iterator));
+
+    // One element is UNKNOWN -> not disjoint
+    let union_with_unknown = union(&[&class_foo, &standard_colors::UNKNOWN]);
+    assert!(!finder.is_disjoint_from_iterator_color(&union_with_unknown));
+
+    // One element is TOP_OBJECT -> not disjoint
+    let union_with_top_object = union(&[&class_foo, &standard_colors::TOP_OBJECT]);
+    assert!(!finder.is_disjoint_from_iterator_color(&union_with_top_object));
+}
+
+// port: PolyfillUsageFinderTest#isDisjointFromIterator_invalidatingColors_structuralRecordsVsNativeArrays
+#[test]
+fn is_disjoint_from_iterator_invalidating_colors_structural_records_vs_native_arrays() {
+    let registry = default_native_registry();
+    let finder = create_finder_with_registry(registry);
+
+    let invalidating = |id: ColorId, invalidating: bool| {
+        Color::single_builder()
+            .set_id(id)
+            .set_invalidating(invalidating)
+            .build()
+    };
+    let structural_record = invalidating(ColorId::from_ascii("Struct"), true);
+    let normal_class = invalidating(ColorId::from_ascii("Normal"), false);
+
+    let invalidating_array = invalidating(standard_colors::ARRAY_ID, true);
+    let invalidating_readonly_array = invalidating(standard_colors::READONLY_ARRAY_ID, true);
+    let invalidating_template_array = invalidating(standard_colors::I_TEMPLATE_ARRAY_ID, true);
+
+    let invalidating_map = invalidating(standard_colors::MAP_ID, true);
+    let invalidating_map_prototype = invalidating(standard_colors::MAP_PROTOTYPE_ID, true);
+    let invalidating_readonly_map = invalidating(standard_colors::READONLY_MAP_ID, true);
+    let invalidating_set = invalidating(standard_colors::SET_ID, true);
+    let invalidating_set_prototype = invalidating(standard_colors::SET_PROTOTYPE_ID, true);
+    let invalidating_readonly_set = invalidating(standard_colors::READONLY_SET_ID, true);
+
+    // Structural interface / record: isInvalidating causes disjoint to return false (b/571244650)
+    assert!(!finder.is_disjoint_from_iterator_color(&structural_record));
+
+    // Normal non-invalidating class: is disjoint
+    assert!(finder.is_disjoint_from_iterator_color(&normal_class));
+
+    // Native Array/Map/Set types marked invalidating are exempted
+    assert!(finder.is_disjoint_from_iterator_color(&invalidating_array));
+    assert!(finder.is_disjoint_from_iterator_color(&invalidating_readonly_array));
+    assert!(finder.is_disjoint_from_iterator_color(&invalidating_template_array));
+    assert!(finder.is_disjoint_from_iterator_color(&invalidating_map));
+    assert!(finder.is_disjoint_from_iterator_color(&invalidating_map_prototype));
+    assert!(finder.is_disjoint_from_iterator_color(&invalidating_readonly_map));
+    assert!(finder.is_disjoint_from_iterator_color(&invalidating_set));
+    assert!(finder.is_disjoint_from_iterator_color(&invalidating_set_prototype));
+    assert!(finder.is_disjoint_from_iterator_color(&invalidating_readonly_set));
+}
+
+// port: PolyfillUsageFinderTest#isDisjointFromIterator_nodeAndOwnerChecks
+#[test]
+fn is_disjoint_from_iterator_node_and_owner_checks() {
+    let registry = default_native_registry();
+    let array = registry.get(standard_colors::ARRAY_ID);
+    let iterator = registry.get(standard_colors::ITERATOR_ID);
+
+    let finder_with_registry = create_finder_with_registry(registry);
+
+    let compiler_without_registry = new_test_compiler();
+    let finder_without_registry = PolyfillUsageFinder::new(
+        &compiler_without_registry,
+        Arc::new(Polyfills::from_table(
+            "Iterator.prototype.toArray es_next es3 es6/iterator/toarray",
+        )),
+        /* disambiguate_properties= */ true,
+    );
+
+    let mut ast = Ast::new();
+    let receiver_node = IR::name(&mut ast, "x");
+    let get_prop_node = IR::getprop(&mut ast, receiver_node, "toArray");
+
+    // Receiver has Array color, owner is Iterator -> disjoint
+    receiver_node.set_color(&mut ast, Some(array.clone()));
+    assert!(finder_with_registry.is_disjoint_from_iterator(&ast, get_prop_node, Some("Iterator")));
+
+    // Receiver has Iterator color, owner is Iterator -> not disjoint
+    receiver_node.set_color(&mut ast, Some(iterator));
+    assert!(!finder_with_registry.is_disjoint_from_iterator(&ast, get_prop_node, Some("Iterator")));
+
+    // Receiver has null color -> not disjoint
+    receiver_node.set_color(&mut ast, None);
+    assert!(!finder_with_registry.is_disjoint_from_iterator(&ast, get_prop_node, Some("Iterator")));
+
+    // Owner is null or not Iterator -> not disjoint
+    receiver_node.set_color(&mut ast, Some(array.clone()));
+    assert!(!finder_with_registry.is_disjoint_from_iterator(&ast, get_prop_node, None));
+    assert!(!finder_with_registry.is_disjoint_from_iterator(&ast, get_prop_node, Some("Array")));
+    assert!(!finder_with_registry.is_disjoint_from_iterator(
+        &ast,
+        get_prop_node,
+        Some("UnknownType")
+    ));
+
+    // Compiler without registry -> always not disjoint
+    receiver_node.set_color(&mut ast, Some(array));
+    assert!(!finder_without_registry.is_disjoint_from_iterator(
+        &ast,
+        get_prop_node,
+        Some("Iterator")
+    ));
+}
+
+// port: PolyfillUsageFinderTest#isDisjointFromIterator_receiverWithNullColor_returnsFalse
+#[test]
+fn is_disjoint_from_iterator_receiver_with_null_color_returns_false() {
+    let registry = default_native_registry();
+    let finder = create_finder_with_registry(registry);
+
+    let mut ast = Ast::new();
+    let receiver_node = IR::name(&mut ast, "x");
+    assert!(receiver_node.get_color(&ast).is_none());
+    let get_prop_node = IR::getprop(&mut ast, receiver_node, "toArray");
+
+    assert!(!finder.is_disjoint_from_iterator(&ast, get_prop_node, Some("Iterator")));
+}
+
+// port: PolyfillUsageFinderTest#traverse_withColorRegistry_filtersDisjointUsages
+#[test]
+fn traverse_with_color_registry_filters_disjoint_usages() {
+    let registry = default_native_registry();
+    let array = registry.get(standard_colors::ARRAY_ID);
+    let iterator = registry.get(standard_colors::ITERATOR_ID);
+
+    let mut finder = TestPolyfillUsageFinder::builder()
+        .with_polyfill_table_lines(
+            "Iterator.prototype.toArray es_next es3 es6/iterator/toarray\n\
+             Array.prototype.fill es6 es3 es6/array/fill\n",
+        )
+        .with_disambiguate_properties(true)
+        .for_source_lines(
+            "arr.toArray(); // 1: receiver is Array, disjoint from Iterator -> filtered!\n\
+             iter.toArray(); // 2: receiver is Iterator -> kept!\n\
+             untyped.toArray(); // 3: untyped -> kept!\n\
+             arr.fill(0); // 4: owner is Array (not Iterator) -> kept!\n",
+        )
+        .with_color_registry(registry)
+        .build();
+
+    // Annotate AST nodes with colors
+    let root_node = finder.get_root_node();
+    let arr_nodes = find_all_nodes(&finder.compiler, root_node, |ast, n| {
+        n.is_name(ast) && n.get_string(ast) == "arr"
+    });
+    assert_eq!(arr_nodes.len(), 2);
+    for arr_node in arr_nodes {
+        arr_node.set_color(&mut finder.compiler, Some(array.clone()));
+    }
+    find_first_node(&finder.compiler, root_node, |ast, n| {
+        n.is_name(ast) && n.get_string(ast) == "iter"
+    })
+    .expect("NullPointerException")
+    .set_color(&mut finder.compiler, Some(iterator));
+
+    let usages = finder.get_unguarded_usages();
+    let ast: &Ast = &finder.compiler;
+
+    // Should include: iter.toArray (line 2), untyped.toArray (line 3), arr.fill (line 4)
+    // Should NOT include: arr.toArray (line 1)
+    assert_eq!(usages.len(), 3);
+
+    PolyfillUsageSubject::assert_polyfill_usage(ast, &usages[0])
+        .has_name("toArray")
+        .has_node_that()
+        .has_lineno(2);
+
+    PolyfillUsageSubject::assert_polyfill_usage(ast, &usages[1])
+        .has_name("toArray")
+        .has_node_that()
+        .has_lineno(3);
+
+    PolyfillUsageSubject::assert_polyfill_usage(ast, &usages[2])
+        .has_name("fill")
+        .has_node_that()
+        .has_lineno(4);
+}
+
+// port: PolyfillUsageFinderTest#traverse_withColorRegistry_disambiguatePropertiesDisabled_doesNotFilterUsages
+#[test]
+fn traverse_with_color_registry_disambiguate_properties_disabled_does_not_filter_usages() {
+    let registry = default_native_registry();
+    let array = registry.get(standard_colors::ARRAY_ID);
+
+    let mut finder = TestPolyfillUsageFinder::builder()
+        .with_polyfill_table_lines("Iterator.prototype.toArray es_next es3 es6/iterator/toarray\n")
+        .with_disambiguate_properties(false)
+        .for_source_lines("arr.toArray();\n")
+        .with_color_registry(registry)
+        .build();
+
+    let root_node = finder.get_root_node();
+    find_first_node(&finder.compiler, root_node, |ast, n| {
+        n.is_name(ast) && n.get_string(ast) == "arr"
+    })
+    .expect("NullPointerException")
+    .set_color(&mut finder.compiler, Some(array));
+
+    let usages = finder.get_unguarded_usages();
+    let ast: &Ast = &finder.compiler;
+    assert_eq!(usages.len(), 1);
+    PolyfillUsageSubject::assert_polyfill_usage(ast, &usages[0]).has_name("toArray");
+}
+
+// port: PolyfillUsageFinderTest#traverse_withoutColorRegistry_doesNotFilterUsages
+#[test]
+fn traverse_without_color_registry_does_not_filter_usages() {
+    let registry = default_native_registry();
+    let array = registry.get(standard_colors::ARRAY_ID);
+
+    let mut finder = TestPolyfillUsageFinder::builder()
+        .with_polyfill_table_lines("Iterator.prototype.toArray es_next es3 es6/iterator/toarray\n")
+        .for_source_lines("arr.toArray();\n")
+        .build(); // No color registry
+
+    // Even if arr has a color, without ColorRegistry on compiler it should not filter
+    let root_node = finder.get_root_node();
+    find_first_node(&finder.compiler, root_node, |ast, n| {
+        n.is_name(ast) && n.get_string(ast) == "arr"
+    })
+    .expect("NullPointerException")
+    .set_color(&mut finder.compiler, Some(array));
+
+    let usages = finder.get_unguarded_usages();
+    let ast: &Ast = &finder.compiler;
+    assert_eq!(usages.len(), 1);
+    PolyfillUsageSubject::assert_polyfill_usage(ast, &usages[0]).has_name("toArray");
+}
+
+// port: PolyfillUsageFinderTest#findFirstNode
+fn find_first_node(
+    ast: &Ast,
+    root: NodeId,
+    predicate: impl Fn(&Ast, NodeId) -> bool + Copy,
+) -> Option<NodeId> {
+    if predicate(ast, root) {
+        return Some(root);
+    }
+    let mut child = root.get_first_child(ast);
+    while let Some(c) = child {
+        let found = find_first_node(ast, c, predicate);
+        if found.is_some() {
+            return found;
+        }
+        child = c.get_next(ast);
+    }
+    None
+}
+
+// port: PolyfillUsageFinderTest#findAllNodes
+fn find_all_nodes(
+    ast: &Ast,
+    root: NodeId,
+    predicate: impl Fn(&Ast, NodeId) -> bool + Copy,
+) -> Vec<NodeId> {
+    let mut builder = Vec::new();
+    find_all_nodes_internal(ast, root, predicate, &mut builder);
+    builder
+}
+
+// port: PolyfillUsageFinderTest#findAllNodesInternal
+fn find_all_nodes_internal(
+    ast: &Ast,
+    root: NodeId,
+    predicate: impl Fn(&Ast, NodeId) -> bool + Copy,
+    builder: &mut Vec<NodeId>,
+) {
+    if predicate(ast, root) {
+        builder.push(root);
+    }
+    let mut child = root.get_first_child(ast);
+    while let Some(c) = child {
+        find_all_nodes_internal(ast, c, predicate, builder);
+        child = c.get_next(ast);
+    }
+}
+
+/// Java's `new TestCompiler()`. Java's `TestCompiler` subclass of `Compiler` overrides
+/// `hasOptimizationColors()` and `getColorRegistry()` to answer from a test registry; Rust's
+/// `Compiler` can't be subclassed, so the test registry is stored in the compiler itself by
+/// [`set_test_color_registry`], and a `TestCompiler` is a plain `Compiler`.
+// port: PolyfillUsageFinderTest.TestCompiler#TestCompiler
+fn new_test_compiler() -> Compiler {
+    Compiler::new()
+}
+
+/// Stores `registry` as the compiler's color registry, so `hasOptimizationColors()` is true and
+/// `getColorRegistry()` returns it. `Compiler::set_color_registry` requires the runtime library
+/// typed ASTs, so they are initialized first (with default options if the compiler has none).
+// port: PolyfillUsageFinderTest.TestCompiler#setTestColorRegistry
+fn set_test_color_registry(compiler: &mut Compiler, registry: ColorRegistry) {
+    if compiler.get_options_opt().is_none() {
+        compiler.init_options(CompilerOptions::new());
+    }
+    compiler.init_runtime_library_typed_asts(None);
+    compiler.set_color_registry(Arc::new(registry));
+}
+
 /// Uses {@link PolyfillUsageFinder} to find polyfill usages in source code for testing.
 struct TestPolyfillUsageFinder {
     polyfill_usage_finder: PolyfillUsageFinder,
@@ -248,6 +804,8 @@ struct Builder {
     compiler: Option<Compiler>,
     polyfill_usage_finder: Option<PolyfillUsageFinder>,
     root_node: Option<NodeId>,
+    color_registry: Option<ColorRegistry>,
+    disambiguate_properties: bool,
 }
 
 impl TestPolyfillUsageFinder {
@@ -263,6 +821,11 @@ impl TestPolyfillUsageFinder {
             root_node: builder.root_node.unwrap(),
             compiler: builder.compiler.unwrap(),
         }
+    }
+
+    // port: PolyfillUsageFinderTest.TestPolyfillUsageFinder#getRootNode
+    fn get_root_node(&self) -> NodeId {
+        self.root_node
     }
 
     // port: PolyfillUsageFinderTest.TestPolyfillUsageFinder#getUnguardedUsages
@@ -306,6 +869,18 @@ impl Builder {
         self
     }
 
+    // port: PolyfillUsageFinderTest.TestPolyfillUsageFinder.Builder#withColorRegistry
+    fn with_color_registry(mut self, color_registry: ColorRegistry) -> Self {
+        self.color_registry = Some(color_registry);
+        self
+    }
+
+    // port: PolyfillUsageFinderTest.TestPolyfillUsageFinder.Builder#withDisambiguateProperties
+    fn with_disambiguate_properties(mut self, disambiguate_properties: bool) -> Self {
+        self.disambiguate_properties = disambiguate_properties;
+        self
+    }
+
     // port: PolyfillUsageFinderTest.TestPolyfillUsageFinder.Builder#forSourceLines
     fn for_source_lines(mut self, src: &str) -> Self {
         let src_file = SourceFile::builder()
@@ -315,7 +890,7 @@ impl Builder {
         let mut options = CompilerOptions::new();
         // Don't include `"use strict";` when printing the AST as source text
         options.set_emit_use_strict(false);
-        let mut compiler = Compiler::new();
+        let mut compiler = new_test_compiler();
         compiler.init(
             &[Arc::new(
                 TestExternsBuilder::new().build_externs_file("externs.js"),
@@ -332,9 +907,14 @@ impl Builder {
     // port: PolyfillUsageFinderTest.TestPolyfillUsageFinder.Builder#build
     fn build(mut self) -> TestPolyfillUsageFinder {
         assert!(self.compiler.is_some());
-        self.polyfill_usage_finder = Some(PolyfillUsageFinder::new(Arc::new(
-            self.polyfills_table.take().unwrap(),
-        )));
+        if let Some(color_registry) = self.color_registry.take() {
+            set_test_color_registry(self.compiler.as_mut().unwrap(), color_registry);
+        }
+        self.polyfill_usage_finder = Some(PolyfillUsageFinder::new(
+            self.compiler.as_ref().unwrap(),
+            Arc::new(self.polyfills_table.take().unwrap()),
+            self.disambiguate_properties,
+        ));
         TestPolyfillUsageFinder::new(self)
     }
 }

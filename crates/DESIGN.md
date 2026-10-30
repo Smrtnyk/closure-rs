@@ -513,3 +513,7 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   the file it is mapping and the original path it last resolved, so that mapping a printed
   node through the input map takes none of the compiler's locks (Java looks the map up by file
   name for every node).
+- `jscomp/reference_collector.rs`: `ReferenceCollector` is generic over its behavior (Java: a
+  `Behavior` field), so the per-node `beforeTraverseNode` / `afterVisitNode` hooks that a behavior
+  does not override cost no call; `addReference` names the added reference by its index in the
+  reference map, so `afterVisitNode` receives it without a second lookup by var.

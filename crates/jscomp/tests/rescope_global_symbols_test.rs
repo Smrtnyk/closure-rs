@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   test/com/google/javascript/jscomp/RescopeGlobalSymbolsTest.java.
 
 #[path = "support/pass_test_case.rs"]
@@ -2335,6 +2335,111 @@ fn test_all_chunks_with_wrapped_mutables_mixed_wrapped_and_unwrapped_local_alias
         expected_many(&[
             "var b = _.b = {}; var a; a = _.a = 1; a + 1; var f = function() { return b._; };",
             "var {a, b} = _; var c; b._ = 2; c = 3; a + b._ + c;",
+        ]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testDeleteGlobalsOnLastAccess_chain
+#[test]
+fn test_delete_globals_on_last_access_chain() {
+    let mut t = T::new();
+    t.optimize_local_access = OptimizeLocalAccess::DELETE_GLOBALS_ON_LAST_ACCESS;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var a = 1; a + 1; var b = 1; b + 1; var c = 1; c + 1;")
+                .add_chunk("a; b; c;")
+                .add_chunk("b;")
+                .build(),
+        ),
+        expected_many(&[
+            &[
+                "_._ = function(a) { for (let b of a.split(',')) { delete _[b]; } };",
+                " var a = _.a = 1; a + 1; var b = _.b = 1; b + 1; var c = _.c = 1; c + 1;",
+            ]
+            .concat(),
+            "var {b, a, c} = _; _._('a,c'); a; b; c;",
+            "var {b} = _; _._('b'); b;",
+        ]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testDeleteGlobalsOnLastAccess_es5
+#[test]
+fn test_delete_globals_on_last_access_es5() {
+    let mut t = T::new();
+    t.optimize_local_access = OptimizeLocalAccess::DELETE_GLOBALS_ON_LAST_ACCESS;
+    t.assume_cross_chunk_names = false;
+    t.base.accepted_language = LanguageMode::ECMASCRIPT5;
+    t.base.language_out = LanguageMode::ECMASCRIPT5;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("var a = 1; a + 1; var b = 1; b + 1;")
+                .add_chunk("a; b;")
+                .add_chunk("b;")
+                .build(),
+        ),
+        expected_many(&[
+            "var a = _.a = 1; a + 1; var b = _.b = 1; b + 1;",
+            "var b = _.b; var a = _.a; delete _.a; a; b;",
+            "var b = _.b; delete _.b; b;",
+        ]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testDeleteGlobalsOnLastAccess_siblingChunksNotDeleted
+#[test]
+fn test_delete_globals_on_last_access_sibling_chunks_not_deleted() {
+    let mut t = T::new();
+    t.optimize_local_access = OptimizeLocalAccess::DELETE_GLOBALS_ON_LAST_ACCESS;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_tree()
+                .add_chunk("var a = 1; a + 1; var b = 1; b + 1;")
+                .add_chunk("a; b;")
+                .add_chunk("a;")
+                .build(),
+        ),
+        expected_many(&[
+            &[
+                "_._ = function(a) { for (let b of a.split(',')) { delete _[b]; } };",
+                " var a = _.a = 1; a + 1; var b = _.b = 1; b + 1;",
+            ]
+            .concat(),
+            "var {a, b} = _; _._('b'); a; b;",
+            "var {a} = _; a;",
+        ]),
+    );
+}
+
+// port: RescopeGlobalSymbolsTest#testDeleteGlobalsOnLastAccess_wrappedAndEarlyUsages
+#[test]
+fn test_delete_globals_on_last_access_wrapped_and_early_usages() {
+    let mut t = T::new();
+    t.optimize_local_access = OptimizeLocalAccess::DELETE_GLOBALS_ON_LAST_ACCESS;
+    t.assume_cross_chunk_names = false;
+    t.test(
+        srcs_chunks(
+            JSChunkGraphBuilder::for_chain()
+                .add_chunk("function f() { return a; } var b = 1; b + 1;")
+                .add_chunk("var a = 1; a + 1; b = 2; b;")
+                .build(),
+        ),
+        expected_many(&[
+            &[
+                "_._ = function(a) { for (let b of a.split(',')) { delete _[b]; } };",
+                " var b = _.b = {}; var a = _.a = {}; var f = function() { return a._; };",
+                " b._ = 1; b._ + 1;",
+            ]
+            .concat(),
+            &[
+                "var {b, a} = _; _._('b,a');",
+                " a._ = 1; a._ + 1; b._ = 2; b._;",
+            ]
+            .concat(),
         ]),
     );
 }

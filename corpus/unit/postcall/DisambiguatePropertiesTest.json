@@ -1,0 +1,12 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.disambiguate.DisambiguatePropertiesTest",
+ "methods": [
+  {
+   "method": "privateNamesAreNotDisambiguated_knownBug",
+   "status": "unclassified",
+   "pending": "rust_unit_test (category exception) once crates/ has a Rust port '// port: DisambiguatePropertiesTest#privateNamesAreNotDisambiguated_knownBug' of the check and the fragment line exists: assertThrows(AssertionError.class, () -> testSame(js)) and hasMessageThat().contains(\"JSC$1_#x = 1;\"): the asserted value is the message of the Truth AssertionError the CompilerTestCase harness throws (a 'Node tree inequality' JS diff), a Java test-framework exception that no snapshot key holds and that a non-Java harness does not reproduce (it reports its own assertion failure at the same check). (record 20; postCall carries compiler.accessorSummary, allowableFeatures, moduleMapBoundNames, moduleMetadataByPath and typeMismatchesError, no pass key). No Rust port of this method exists at v20261028.",
+   "note": "Source lines 1303-1329 (1 record; b/236744850 knownBug, new in v20261028)."
+  }
+ ]
+}

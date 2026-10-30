@@ -1,5 +1,5 @@
 {
-  "source": "test/com/google/javascript/jscomp/RewritePolyfillsTest.java getProcessor (lines 72-81): new RewritePolyfills(compiler, createRuntimeJsLibManager(compiler), Polyfills.fromTable(Joiner.on(\"\\n\").join(polyfillTable)), injectPolyfills, isolatePolyfills, injectPolyfillsNewerThan). createRuntimeJsLibManager (lines 91-103) builds a RuntimeJsLibManager whose resource-provider lambda reads the field injectableLibraries and pre-injects every library in the field injectBeforePass; it is copied verbatim as helper RewritePolyfillsTest_Helpers.CreateRuntimeJsLibManager with both fields restored from testFields. setUp (lines 61-70) and getOptions (lines 83-89) only reset the fields and set harness state and options, which come from the record.",
+  "source": "test/com/google/javascript/jscomp/RewritePolyfillsTest.java getProcessor (lines 75-84): new RewritePolyfills(compiler, createRuntimeJsLibManager(compiler), Polyfills.fromTable(Joiner.on(\"\\n\").join(polyfillTable)), injectPolyfills, isolatePolyfills, injectPolyfillsNewerThan, disambiguateProperties). createRuntimeJsLibManager (lines 94-106) builds a RuntimeJsLibManager whose resource-provider lambda reads the field injectableLibraries and pre-injects every library in the field injectBeforePass; it is copied verbatim as helper RewritePolyfillsTest_Helpers.CreateRuntimeJsLibManager with both fields restored from testFields. setUp (lines 63-72) and getOptions (lines 86-92) only reset the fields and set harness state and options, which come from the record.",
   "cases": [
     {
       "when": {},
@@ -55,6 +55,9 @@
           },
           {
             "field": "injectPolyfillsNewerThan"
+          },
+          {
+            "field": "disambiguateProperties"
           }
         ]
       }

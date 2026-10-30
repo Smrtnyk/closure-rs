@@ -35,7 +35,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/Es6ForOfConverter.java,
 //   src/com/google/javascript/jscomp/Es6RewriteBlockScopedDeclaration.java,
 //   src/com/google/javascript/jscomp/Es6RewriteBlockScopedFunctionDeclaration.java,
@@ -620,6 +620,7 @@ fn es6_transpilation_integration_test_get_processor(
             .set_internal_factory(Arc::new(|c| {
                 Box::new(RewritePolyfills::new(
                     c, /* injectPolyfills= */ true, /* isolatePolyfills= */ false, None,
+                    /* disambiguateProperties= */ false,
                 ))
             }))
             .build(),

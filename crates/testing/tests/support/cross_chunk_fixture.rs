@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java.
 
 //! The CompilerTestCase vocabulary the CrossChunk*Test ports use (`srcs`, `expected`, `externs`
@@ -111,5 +111,15 @@ pub fn externs(texts: &[&dyn JavaString]) -> TestPart {
 pub fn check(result: Result<(), Throwable>) {
     if let Err(t) = result {
         panic!("{t:?}");
+    }
+}
+
+/// Java's `assertThrows(AssertionError.class, ..)` around a harness call: the AssertionError's
+/// message.
+pub fn assertion_message(result: Result<(), Throwable>) -> String {
+    match result {
+        Err(Throwable::Assertion { message }) => message,
+        Err(t) => panic!("expected an AssertionError, got {t:?}"),
+        Ok(()) => panic!("expected an AssertionError"),
     }
 }

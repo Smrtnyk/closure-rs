@@ -75,6 +75,30 @@
    ]
   },
   {
+   "method": "testHoistedFunctionReferencedBeforeDeclaration_bodyReferencesStayWithDeclaration",
+   "status": "captured",
+   "note": "Every asserted value (the top-level statements and their isDeclarationStatement, declared name reference and non-declaration references in order, as '<var>#<index>' into that var's ReferenceCollection; the global var names of getGlobalVariableNamesMap and their references) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares. Source lines 240-270 (1 record).",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testDestructuringWithDefaultValueOrderMatchesExecutionOrder",
+   "status": "captured",
+   "note": "Every asserted value (the top-level statements and their isDeclarationStatement, declared name reference and non-declaration references in order, as '<var>#<index>' into that var's ReferenceCollection; the global var names of getGlobalVariableNamesMap and their references) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares. Source lines 272-299 (1 record).",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
+   "method": "testExportedVariablesAreExcluded",
+   "status": "captured",
+   "note": "Every asserted value (the top-level statements and their isDeclarationStatement, declared name reference and non-declaration references in order, as '<var>#<index>' into that var's ReferenceCollection; the global var names of getGlobalVariableNamesMap and their references) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares. Source lines 301-318 (1 record).",
+   "via": [
+    "postCall.pass.crossChunkReferences"
+   ]
+  },
+  {
    "method": "testVarDeclarationStatement",
    "status": "captured",
    "note": "Review round 4: every asserted value (TopLevelStatement isMovableDeclaration, originalOrder, declared name reference, non-declaration references, declared value node/number; global var names and their ReferenceCollection isAssignedOnceInLifetime/isWellDefined; each reference's BasicBlock root) is encoded by postCall.pass.crossChunkReferences (FORMAT.md post-call snapshot table), which replay compares",

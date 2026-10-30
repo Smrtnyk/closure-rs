@@ -318,10 +318,20 @@ Methods of `com.google.javascript.jscomp.CreateSyntheticBlocksTest` that, after 
 
 - CreateSyntheticBlocksTest#testSyntheticBlock_doesNotCreateNewScope: CreateSyntheticBlocks on `startMarker();var x=1;endMarker()` (with the processor's Normalize, peephole and Denormalize passes) leaves a SCRIPT whose only child is a BLOCK marked synthetic (Node.isSyntheticBlock), and NodeUtil.createsBlockScope returns false for that block (test lines 179-189; record 20)
 
+## CrossChunkMethodMotionTest (post-call assertions, gate 0.2 (a))
+
+Methods of `com.google.javascript.jscomp.CrossChunkMethodMotionTest` whose assertions after the hooked call inspect Java-internal state; their records stay in the corpus (input, expected output and diagnostics replay) and the post-call checks below are ported as Rust unit tests next to the pass.
+
+The `_knownBug` methods (b/236744850) wrap the hooked call in `assertThrows(AssertionError.class, ...)` and check the message of the harness's Truth `Node tree inequality` diff; the Rust ports check the Rust harness's assertion message for the same text.
+
+- CrossChunkMethodMotionTest#doNotMoveClassMethodContainingPrivateName_knownBug: testSame on the two-chunk input fails because `getX`, which reads `this.#x`, is moved out of `Foo`; the assertion message contains `Foo.prototype.getX = JSCompiler_unstubMethod(0, function() {`
+- CrossChunkMethodMotionTest#doNotMovePrivateClassMethod_knownBug: testSame on the two-chunk input fails because the private method `#m` of `Foo` is moved to the second chunk; the assertion message contains `Foo.prototype.#m = JSCompiler_unstubMethod(0, function() {});`
+
 ## DevirtualizeMethodsTest (post-call assertions, gate 0.2 (a))
 
 Methods of `com.google.javascript.jscomp.DevirtualizeMethodsTest` whose assertions after the hooked call inspect Java-internal state; their records stay in the corpus (input, expected output and diagnostics replay) and the post-call checks below are ported as Rust unit tests next to the pass.
 
+- DevirtualizeMethodsTest#testNoRewrite_privateMethod_knownBug: testSame fails because the private method `#m` and `bar` are moved out of `Foo` into global functions (b/236744850); the harness's assertion message contains `var JSCompiler_StaticMethods_#m = function(`
 - DevirtualizeMethodsTest#testRewritePrototypeMethodsWithCorrectColors: after rewriting A.prototype.{foo,bar,baz} to JSCompiler_StaticMethods_*, the rewritten call results keep their colors (NUMBER, NUMBER, NULL_OR_VOID) and the callee NAMEs have color TOP_FUNCTION (input and expected output are in the record; the colors are not)
 
 ## Es6ConvertSuperTest (post-call assertions, gate 0.2 (a))
@@ -396,6 +406,15 @@ Methods of `com.google.javascript.jscomp.InlineAndCollapsePropertiesTest` whose 
 
 - InlineAndCollapsePropertiesTest#testCollapseKeepsSourceInfoForAliases: after collapsing a.use / a.b into a$use / a$b, the four output statements and their NAME/FUNCTION/OBJECTLIT children carry the source file name and the original line/column of the statements they came from (lines 2-5, columns as in the original input)
 
+## InlineSimpleMethodsTest (post-call assertions, gate 0.2 (a))
+
+Methods of `com.google.javascript.jscomp.InlineSimpleMethodsTest` whose assertions after the hooked call inspect Java-internal state; their records stay in the corpus (input, expected output and diagnostics replay) and the post-call checks below are ported as Rust unit tests next to the pass.
+
+The `_knownBug` methods (b/236744850) wrap the hooked call in `assertThrows(AssertionError.class, ...)` and check the message of the harness's Truth `Node tree inequality` diff; the Rust ports check the Rust harness's assertion message for the same text.
+
+- InlineSimpleMethodsTest#testNoInlineOfGetterThatReadsPrivateField_knownBug: testSame fails because `new C().getA()` is inlined to a read of the private field; the assertion message contains `var x = (new C()).#a;`
+- InlineSimpleMethodsTest#testNoInlineOfPrivateMethodCall_knownBug: testSame fails because `o.#m()` is replaced by the value `#m` returns; the assertion message contains `+    return 2;`
+
 ## IntegrationTest
 
 Post-call assertions of IntegrationTest (kind `integration`, gate 0.2 (a)). Integration records carry no `postCall` snapshot. The first group asserts only on values the record holds in `observed` or `outcome` (replay compares those JSON-equal), but the postcall via schema has no entry for them. The second group asserts on compiler state that no record holds. Port each as a Rust integration test: compile the record's input with its options and assert the listed fact.
@@ -454,6 +473,14 @@ Methods of `com.google.javascript.jscomp.OptimizeCallsTest` whose follow-up asse
 - OptimizeCallsTest#testReferenceCollection_reflectedProps: for the goog.reflect.objectProperty input of the record, the property reference list of m holds a MEMBER_FUNCTION_DEF node and then the CALL node, in order.
 - OptimizeCallsTest#testIsAllowedReference_taggedTemplateLiteral: for the tagged-template input of the record, the name references of obj exist and at least one of them is not an allowed reference under OptimizeCalls.isAllowedReference (the obj.tag`template` use).
 
+## OptimizeParametersTest (post-call assertions, gate 0.2 (a))
+
+Methods of `com.google.javascript.jscomp.OptimizeParametersTest` whose assertions after the hooked call inspect Java-internal state; their records stay in the corpus (input, expected output and diagnostics replay) and the post-call checks below are ported as Rust unit tests next to the pass.
+
+The `_knownBug` methods (b/236744850) wrap the hooked call in `assertThrows(AssertionError.class, ...)` and check the message of the harness's Truth `Node tree inequality` diff; the Rust ports check the Rust harness's assertion message for the same text.
+
+- OptimizeParametersTest#testPrivateNameArgumentIsNotMoved_knownBug: testSame fails because the constant argument `C.#n` is moved into `fn`; the assertion message contains `var p1 = C.#n;`
+
 ## OptionalChainTypeCheckTest
 
 Post-call assertions of OptionalChainTypeCheckTest (test/com/google/javascript/jscomp/OptionalChainTypeCheckTest.java, bb8c8e7) that inspect JSType objects on output AST nodes. The record is a `type_check` `observed_only` record, so its post-call state is never captured; port it as a Rust unit test of the type checker.
@@ -507,13 +534,17 @@ Methods of `com.google.javascript.jscomp.ReferenceCollectorTest` whose assertion
 - ReferenceCollectorTest#optChain: asserts Reference.getBasicBlock().getRoot() (BasicBlock graph objects) inside the Behavior callback; postCall.pass.referenceMap encodes each reference's node and declaration/lvalue flags but not its BasicBlock, so replay does not check it
 - ReferenceCollectorTest#testBasicBlocks: asserts Reference.getBasicBlock().getRoot() (BasicBlock graph objects) inside the Behavior callback; postCall.pass.referenceMap encodes each reference's node and declaration/lvalue flags but not its BasicBlock, so replay does not check it
 - ReferenceCollectorTest#testBasicBlocksInConditionals: asserts Reference.getBasicBlock().getRoot() (BasicBlock graph objects) inside the Behavior callback; postCall.pass.referenceMap encodes each reference's node and declaration/lvalue flags but not its BasicBlock, so replay does not check it
+- ReferenceCollectorTest#testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter: with a varFilter rejecting `z`, the test Behavior's afterVisitNode sees a non-null addedReference exactly for the NAME `x` and a null one exactly for the NAME `z`
+- ReferenceCollectorTest#testBehavior_hoistedFunctionsInReferenceOrder_false: with collectHoistedFunctionsInReferenceOrder false, the names of the non-null addedReferences that afterVisitNode sees are exactly `f, z, f, z`, in that order (pure AST order)
+- ReferenceCollectorTest#testBehavior_hoistedFunctionsInReferenceOrder_true: with collectHoistedFunctionsInReferenceOrder true, the names of the non-null addedReferences that afterVisitNode sees are exactly `z, f, z`, in that order (the call `f()` jumps into the hoisted function; its declaration reference is added without an afterVisitNode call)
 - ReferenceCollectorTest#testThis: asserts ReferenceCollection.isEscaped() inside the Behavior callback; postCall.pass.referenceMap encodes isAssignedOnceInLifetime, isWellDefined and per-reference declaration/lvalue flags but not isEscaped, so replay does not check it
 
 ## RemoveUnusedCodeTest (post-call assertions, gate 0.2 (a))
 
-Methods of `com.google.javascript.jscomp.RemoveUnusedCodeTest` that the static post-call scan flags (the scan treats hook-reaching helpers as hooked calls). In each of them the only statements after a hooked call that the scan takes for assertions are calls of the test-local builder `PolyfillRemovalTester.addPolyfill`, whose `checkArgument(!polyfills.contains(polyfill), "duplicate polyfill added: >%s<", polyfill)` (RemoveUnusedCodeTest.java:2448-2454) guards the tester's own `LinkedHashSet<String> polyfills` against duplicates before that set is joined into the next hooked call's input. The guard reads no compiler state; every hooked call is a record whose input, expected output and diagnostics replay. The records' `postCall` holds `compiler.accessorSummary` and `compiler.externProperties` and no pass key, none of which is the test-local list. The records are excluded from gate (a) counting; the guard is test-construction logic, kept here so that a Rust port of the polyfill-removal tests builds its inputs with the same no-duplicate rule.
+Methods of `com.google.javascript.jscomp.RemoveUnusedCodeTest` that the static post-call scan flags (the scan treats hook-reaching helpers as hooked calls). In each of them the only statements after a hooked call that the scan takes for assertions are calls of the test-local builder `PolyfillRemovalTester.addPolyfill`, whose `checkArgument(!polyfills.contains(polyfill), "duplicate polyfill added: >%s<", polyfill)` (RemoveUnusedCodeTest.java:2448-2454) guards the tester's own `LinkedHashSet<String> polyfills` against duplicates before that set is joined into the next hooked call's input. In `testRemoveUnusedPolyfills_iteratorPrototypeMethod_typed` they are instead the builder's expectation setters `expectSource`, `expectPolyfillsRemoved` and `expectNoPolyfillsRemoved` (with the `checkArgument` guards of `expectPolyfillRemoved`, RemoveUnusedCodeTest.java:2570-2583), which likewise only fill the tester's own fields for the next hooked call. The guards read no compiler state; every hooked call is a record whose input, expected output and diagnostics replay. The records' `postCall` holds compiler-level keys only (`compiler.accessorSummary`, `compiler.externProperties`, and in the typed method also `compiler.allowableFeatures` and `compiler.typeMismatchesError`) and no pass key, none of which is the test-local list. The records are excluded from gate (a) counting; the guard is test-construction logic, kept here so that a Rust port of the polyfill-removal tests builds its inputs with the same no-duplicate rule.
 
 - RemoveUnusedCodeTest#testRemoveUnusedPolyfills_guardedGlobals: `tester.addPolyfill(promisePolyfill)` between hooked calls must not add a polyfill string the tester already holds (test-local input construction; 3 records)
+- RemoveUnusedCodeTest#testRemoveUnusedPolyfills_iteratorPrototypeMethod_typed: the tester chains between hooked calls set their expectations with `expectSource`/`expectPolyfillsRemoved`/`expectNoPolyfillsRemoved`; `expectPolyfillRemoved` must only name a polyfill the tester holds and must not name it twice (test-local input construction; 12 records)
 - RemoveUnusedCodeTest#testRemoveUnusedPolyfills_prototypeProperty_untyped: `tester.addPolyfill(stringIncludesPolyfill).addPolyfill(arrayIncludesPolyfill)` between hooked calls must not add a polyfill string the tester already holds (test-local input construction; 15 records)
 - RemoveUnusedCodeTest#testRemoveUnusedPolyfills_staticProperty_untyped: `tester.addPolyfill(setDotFromPolyfill)` between hooked calls must not add a polyfill string the tester already holds (test-local input construction; 7 records)
 

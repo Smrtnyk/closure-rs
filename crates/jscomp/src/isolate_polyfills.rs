@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/IsolatePolyfills.java.
 
 //! Rewrites potential polyfill usages to use the hidden JSCompiler polyfills instead of the global.
@@ -409,11 +409,14 @@ impl CompilerPass for IsolatePolyfills {
         let injected_polyfills = Self::find_all_injected_polyfills(compiler);
 
         let mut polyfill_usages: Vec<PolyfillUsage> = Vec::new();
-        PolyfillUsageFinder::new(Arc::clone(&self.polyfills)).traverse_including_guarded(
+        let should_disambiguate_properties =
+            compiler.get_options().should_disambiguate_properties();
+        PolyfillUsageFinder::new(
             compiler,
-            root,
-            &mut |_, usage| polyfill_usages.push(usage),
-        );
+            Arc::clone(&self.polyfills),
+            should_disambiguate_properties,
+        )
+        .traverse_including_guarded(compiler, root, &mut |_, usage| polyfill_usages.push(usage));
 
         let mut visited_nodes: IndexSet<NodeId> = IndexSet::<_>::default();
         for usage in &polyfill_usages {

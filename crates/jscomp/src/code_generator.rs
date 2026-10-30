@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/CodeGenerator.java.
 
 #![allow(
@@ -2898,8 +2898,11 @@ pub trait CodeGeneration<'a> {
     fn escape_unrecognized_characters(&self, s: &JsString) -> JsString {
         // TODO(yitingwang) Move this method to a suitable place
         let mut sb = Vec::new();
+        // Output index of a backslash that starts an escape sequence, or -1.
+        let mut escape_start: Option<usize> = None;
         for i in 0..s.length() {
             let c = s.char_at(i);
+            let start = sb.len();
             match c {
                 // From the SingleEscapeCharacter grammar production.
                 BACKSPACE | FORM_FEED | NEWLINE | CARRIAGE_RETURN | TAB | BACKSLASH
@@ -2932,6 +2935,18 @@ pub trait CodeGeneration<'a> {
                         append_hex(&mut sb, c);
                     }
                 }
+            }
+            if let Some(escape_start_index) = escape_start {
+                // If the escaped character was escaped again, the backslash would now escape the
+                // first character of the new sequence (`\</script` would print as
+                // `\\x3c/script`). Drop it: a NonEscapeCharacter cooks to itself, so `\<` and
+                // `\x3c` have the same value.
+                if sb.len() - start > 1 {
+                    sb.remove(escape_start_index);
+                }
+                escape_start = None;
+            } else if c == BACKSLASH {
+                escape_start = Some(start);
             }
         }
         JsString::from_units(sb)

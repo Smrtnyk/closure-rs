@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/DiagnosticGroups.java.
 
 #![allow(clippy::vec_init_then_push)] // Preserve Java statement order and borrowing branches.
@@ -143,6 +143,7 @@ static BUILTINS: LazyLock<Builtins> = LazyLock::new(|| {
     groups_by_name.insert("tweakValidation".into(), group.clone());
     fields.insert("TWEAKS", group);
     let mut types: Vec<&'static DiagnosticType> = vec![];
+    types.push(&crate::check_super::RETURN_WITHOUT_CALL_TO_SUPER);
     types.push(&crate::check_super::MISSING_ROOT_LEVEL_CALL_TO_SUPER);
     let group = Arc::new(DiagnosticGroup::new_named("missingCallToSuper", &types));
     groups_by_name.insert("missingCallToSuper".into(), group.clone());

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/PeepholeFoldConstants.java.
 
 //! Port of `PeepholeFoldConstants.java`.
@@ -2519,7 +2519,21 @@ impl PeepholeFoldConstants {
         let mut c = left.get_first_child(compiler);
         while let Some(cur) = c {
             match cur.get_token(compiler) {
-                Token::SETTER_DEF => {}
+                Token::SETTER_DEF => {
+                    if cur.get_string(compiler) == *name {
+                        // A setter definition overrides any preceding property definition.
+                        // If the preceding definition was a getter, ECMAScript combines them into
+                        // an accessor with both getter and setter, retaining the getter. If it was
+                        // a data property, the setter replaces it, leaving [[Get]] as undefined
+                        // (void 0).
+                        // If there was no preceding definition, we do not fold because the
+                        // property might be defined on the prototype chain.
+                        if key.is_some() && !Self::is_getter_prop(compiler, key) {
+                            key = Some(cur);
+                            value = Some(NodeUtil::new_undefined_node(compiler, Some(cur)));
+                        }
+                    }
+                }
                 Token::OBJECT_SPREAD => {
                     // Reset the search because spread could overwrite any previous result.
                     key = None;
@@ -2531,11 +2545,16 @@ impl PeepholeFoldConstants {
                     if !prop.is_string_lit(compiler) {
                         return n;
                     }
-                    if prop.get_string(compiler) == *name
-                        && !cur.get_boolean_prop(compiler, NodeId::COMPUTED_PROP_SETTER)
-                    {
-                        key = Some(cur);
-                        value = cur.get_second_child(compiler);
+                    if prop.get_string(compiler) == *name {
+                        if cur.get_boolean_prop(compiler, NodeId::COMPUTED_PROP_SETTER) {
+                            if key.is_some() && !Self::is_getter_prop(compiler, key) {
+                                key = Some(cur);
+                                value = Some(NodeUtil::new_undefined_node(compiler, Some(cur)));
+                            }
+                        } else {
+                            key = Some(cur);
+                            value = cur.get_second_child(compiler);
+                        }
                     }
                 }
                 Token::GETTER_DEF | Token::STRING_KEY | Token::MEMBER_FUNCTION_DEF => {
@@ -2565,15 +2584,22 @@ impl PeepholeFoldConstants {
         // Check to see if there are any side-effects to this object-literal.
         //
         // We remove the value we're going to use because its side-effects will be preserved.
-        let temp_value = IR::null_node(compiler);
-        value.replace_with(compiler, temp_value);
-        let has_side_effect_besides_value = self.may_have_side_effects(compiler, left);
-        temp_value.replace_with(compiler, value);
-        if has_side_effect_besides_value {
+        // When value is a newly created synthetic node (e.g. NodeUtil.newUndefinedNode from
+        // an overridden setter), it is not yet attached to left and has no parent. In that
+        // case, left can be checked for side effects directly without temporarily replacing value.
+        if value.get_parent(compiler).is_some() {
+            let temp_value = IR::null_node(compiler);
+            value.replace_with(compiler, temp_value);
+            let has_side_effect_besides_value = self.may_have_side_effects(compiler, left);
+            temp_value.replace_with(compiler, value);
+            if has_side_effect_besides_value {
+                return n;
+            }
+        } else if self.may_have_side_effects(compiler, left) {
             return n;
         }
 
-        let key_is_getter = NodeUtil::is_get_or_set_key(compiler, key);
+        let key_is_getter = Self::is_getter_prop(compiler, Some(key));
         let n_is_invoked = NodeUtil::is_invocation_target(compiler, n);
 
         if key_is_getter || n_is_invoked {
@@ -2591,7 +2617,11 @@ impl PeepholeFoldConstants {
             }
         }
 
-        value.detach(compiler);
+        // Detach value if it was part of left; synthetic nodes (e.g. newUndefinedNode) are
+        // unattached.
+        if value.get_parent(compiler).is_some() {
+            value.detach(compiler);
+        }
 
         let parent = n.get_parent(compiler).unwrap();
 
@@ -2639,6 +2669,15 @@ impl PeepholeFoldConstants {
             IR::bigint(ast, val)
         };
         tree.srcref_tree(ast, srcref)
+    }
+
+    // port: PeepholeFoldConstants#isGetterProp
+    fn is_getter_prop(ast: &Ast, key: Option<NodeId>) -> bool {
+        key.is_some_and(|key| {
+            key.is_getter_def(ast)
+                || (key.is_computed_prop(ast)
+                    && key.get_boolean_prop(ast, NodeId::COMPUTED_PROP_GETTER))
+        })
     }
 
     // port: PeepholeFoldConstants#isSafeToFlattenObjectLitSpread

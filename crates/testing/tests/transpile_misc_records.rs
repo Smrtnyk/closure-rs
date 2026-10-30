@@ -33,7 +33,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   test/com/google/javascript/jscomp/Es6ForOfConverterTest.java,
 //   test/com/google/javascript/jscomp/Es6RewriteBlockScopedDeclarationTest.java,
 //   test/com/google/javascript/jscomp/Es6RewriteBlockScopedFunctionDeclarationTest.java,
@@ -199,7 +199,7 @@ fn es2021_integration_test() {
 // port: ES2022IntegrationTest (27 @Test methods, 32 recorded calls)
 #[test]
 fn es2022_integration_test() {
-    assert_records("ES2022IntegrationTest", 32);
+    assert_records("ES2022IntegrationTest", 40);
 }
 
 // port: OptionalChainingIntegrationTest (5 @Test methods, 6 recorded calls)

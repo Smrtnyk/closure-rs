@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   test/com/google/javascript/jscomp/GlobalNamespaceTest.java.
 
 //! Port of GlobalNamespaceTest (JUnit). Every helper compiles through `Compiler#compile` with

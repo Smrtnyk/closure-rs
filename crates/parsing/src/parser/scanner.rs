@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/parsing/parser/Scanner.java.
 
 use std::{cell::RefCell, rc::Rc, sync::Arc};
@@ -1231,7 +1231,9 @@ impl Scanner {
             self.report_error("Unterminated string literal escape sequence", &[]);
             return false;
         }
-        if Self::is_string_line_terminator(self.peek_char()) {
+        // A backslash followed by any LineTerminator, including <LS> and <PS>, is a line
+        // continuation.
+        if Self::is_line_terminator(self.peek_char()) {
             self.skip_line_terminator();
             return true;
         }

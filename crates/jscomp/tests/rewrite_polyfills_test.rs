@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   test/com/google/javascript/jscomp/RewritePolyfillsTest.java.
 
 //! Port of RewritePolyfillsTest.java: unit tests for the RewritePolyfills compiler pass.
@@ -24,6 +24,8 @@ use closure_jscomp::{
     js::runtime_js_lib_manager::{RuntimeJsLibManager, RuntimeLibraryMode},
     polyfill_usage_finder::Polyfills,
     rewrite_polyfills::{INSUFFICIENT_OUTPUT_VERSION_ERROR, RewritePolyfills},
+    type_check::{INEXISTENT_PROPERTY, POSSIBLE_INEXISTENT_PROPERTY},
+    type_validator::TYPE_MISMATCH_WARNING,
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_testing::{
@@ -64,6 +66,7 @@ struct RewritePolyfillsTest {
     isolate_polyfills: bool,
     inject_polyfills: bool,
     inject_polyfills_newer_than: Option<LanguageMode>,
+    disambiguate_properties: bool,
 }
 
 impl RewritePolyfillsTest {
@@ -82,6 +85,7 @@ impl RewritePolyfillsTest {
             isolate_polyfills: false,
             inject_polyfills: true,
             inject_polyfills_newer_than: None,
+            disambiguate_properties: false,
         }
     }
 
@@ -146,6 +150,7 @@ impl CompilerTestCaseHooks for RewritePolyfillsTest {
                 self.inject_polyfills,
                 self.isolate_polyfills,
                 self.inject_polyfills_newer_than,
+                self.disambiguate_properties,
             ),
         )))))
     }
@@ -868,9 +873,265 @@ fn test_iterator_polyfill() {
     let mut f = Fixture::new();
     f.add_library("Iterator", "es_next", "es3", Some("es6/iterator"));
     f.add_library("Iterator.from", "es_next", "es3", Some("es6/iterator/from"));
+    f.add_library(
+        "Iterator.prototype.every",
+        "es_next",
+        "es3",
+        Some("es6/iterator/every"),
+    );
+    f.add_library(
+        "Iterator.prototype.find",
+        "es_next",
+        "es3",
+        Some("es6/iterator/find"),
+    );
+    f.add_library(
+        "Iterator.prototype.forEach",
+        "es_next",
+        "es3",
+        Some("es6/iterator/foreach"),
+    );
+    f.add_library(
+        "Iterator.prototype.reduce",
+        "es_next",
+        "es3",
+        Some("es6/iterator/reduce"),
+    );
+    f.add_library(
+        "Iterator.prototype.some",
+        "es_next",
+        "es3",
+        Some("es6/iterator/some"),
+    );
+    f.add_library(
+        "Iterator.prototype.toArray",
+        "es_next",
+        "es3",
+        Some("es6/iterator/toarray"),
+    );
     f.set_language(ES_2020, ES3);
     f.test_injects("Iterator;", &["es6/iterator"]);
     f.test_injects("class MyIter extends Iterator {}", &["es6/iterator"]);
     f.test_injects("Iterator.from(x);", &["es6/iterator", "es6/iterator/from"]);
+    f.test_injects("x.every(fn);", &["es6/iterator/every"]);
+    f.test_injects("x.find(fn);", &["es6/iterator/find"]);
+    f.test_injects("x.forEach(fn);", &["es6/iterator/foreach"]);
+    f.test_injects("x.reduce(fn, 0);", &["es6/iterator/reduce"]);
+    f.test_injects("x.some(fn);", &["es6/iterator/some"]);
+    f.test_injects("x.toArray();", &["es6/iterator/toarray"]);
     f.test_does_not_inject("");
+}
+
+impl Fixture {
+    /// The type-check setup shared by the `testIteratorPolyfill_typedReceiver*` tests:
+    /// `enableTypeCheck(); replaceTypesWithColors(); disableCompareJsDoc();` and the ignored
+    /// `INEXISTENT_PROPERTY`, `POSSIBLE_INEXISTENT_PROPERTY` and `TYPE_MISMATCH_WARNING` warnings.
+    fn enable_typed_receiver_checks(&mut self) {
+        self.h.enable_type_check().unwrap();
+        self.h.replace_types_with_colors().unwrap();
+        self.h.disable_compare_js_doc().unwrap();
+        self.h.ignore_warnings(&[&INEXISTENT_PROPERTY]).unwrap();
+        self.h
+            .ignore_warnings(&[&POSSIBLE_INEXISTENT_PROPERTY])
+            .unwrap();
+        self.h.ignore_warnings(&[&TYPE_MISMATCH_WARNING]).unwrap();
+    }
+}
+
+// port: RewritePolyfillsTest#testIteratorPolyfill_typedReceiver
+#[test]
+fn test_iterator_polyfill_typed_receiver() {
+    let mut f = Fixture::new();
+    f.t.disambiguate_properties = true;
+    f.add_library("Iterator", "es_next", "es3", Some("es6/iterator"));
+    f.add_library(
+        "Iterator.prototype.every",
+        "es_next",
+        "es3",
+        Some("es6/iterator/every"),
+    );
+    f.add_library(
+        "Iterator.prototype.find",
+        "es_next",
+        "es3",
+        Some("es6/iterator/find"),
+    );
+    f.add_library(
+        "Iterator.prototype.some",
+        "es_next",
+        "es3",
+        Some("es6/iterator/some"),
+    );
+    f.add_library(
+        "Iterator.prototype.toArray",
+        "es_next",
+        "es3",
+        Some("es6/iterator/toarray"),
+    );
+
+    f.set_language(ES_2020, ES3);
+    f.enable_typed_receiver_checks();
+
+    // 1. Receiver is a concrete class (Array) disjoint from Iterator: DO NOT inject
+    f.test_does_not_inject("const arr = [1, 2, 3]; arr.toArray();");
+    f.test_does_not_inject("const arr = [1, 2, 3]; arr.some(fn); arr.every(fn); arr.find(fn);");
+
+    // 2. Receiver is a union of concrete classes disjoint from Iterator: DO NOT inject
+    f.test_does_not_inject(
+        r#"class Foo {}
+class Bar {}
+/** @type {!Foo|!Bar} */ let col;
+col.toArray();
+"#,
+    );
+
+    // 3. Receiver is an unrelated custom class: DO NOT inject
+    f.test_does_not_inject(
+        r#"class Foo { toArray() {} }
+const f = new Foo();
+f.toArray();
+"#,
+    );
+
+    // 4. Receiver is an Iterator: DO inject
+    f.test_injects(
+        "/** @type {!Iterator<number>} */ let iter; iter.toArray();",
+        &["es6/iterator/toarray"],
+    );
+
+    // 5. Receiver is a subclass of Iterator: DO inject
+    f.test_injects(
+        r#"class MyIterator extends Iterator {}
+const iter = new MyIterator();
+iter.toArray();
+"#,
+        &["es6/iterator", "es6/iterator/toarray"],
+    );
+
+    // 6. Receiver is unknown (? or any): DO inject
+    f.test_injects(
+        "/** @type {?} */ let x; x.toArray();",
+        &["es6/iterator/toarray"],
+    );
+
+    // 7. Receiver is Object (top object): DO inject
+    f.test_injects(
+        "/** @type {!Object} */ let obj; obj.toArray();",
+        &["es6/iterator/toarray"],
+    );
+
+    // 8. Receiver is a union containing an unknown/potential Iterator: DO inject
+    f.test_injects(
+        r#"/** @type {!Array<number>|!Iterator<number>} */ let u;
+u.toArray();
+"#,
+        &["es6/iterator/toarray"],
+    );
+
+    // 9. Receiver is nullable Array with optional chaining: DO NOT inject
+    f.test_does_not_inject("/** @type {?Array<number>} */ let arr; arr?.toArray();");
+
+    // 10. Receiver is a primitive (e.g. number): DO NOT inject
+    f.test_does_not_inject("let n = 42; n.toArray();");
+
+    // 11. Receiver is a structural interface (@record): DO inject
+    f.test_injects(
+        r#"/** @record */
+function Structural() {}
+/** @type {function(): void} */
+Structural.prototype.toArray;
+/** @type {!Structural} */ let s;
+s.toArray();
+"#,
+        &["es6/iterator/toarray"],
+    );
+
+    // 12. Receiver is an anonymous record / structural interface: DO inject
+    f.test_injects(
+        r#"/** @type {{toArray: function()}} */
+let s;
+s.toArray();
+"#,
+        &["es6/iterator/toarray"],
+    );
+
+    // 13. Receiver is an Array even if marked invalidating via type mismatch: DO NOT inject
+    f.test_does_not_inject(
+        r#"/** @type {string} */ const s = [1, 2];
+const arr = [1, 2, 3];
+arr.toArray();
+"#,
+    );
+
+    // 14. Receiver is a Generator: DO inject (generators inherit from %IteratorPrototype% at
+    // runtime)
+    f.test_injects(
+        r#"function* gen() {}
+gen().toArray();
+"#,
+        &["es6/iterator/toarray"],
+    );
+
+    // 15. Receiver is an IteratorIterable (supertype of Iterator): DO inject
+    f.test_injects(
+        r#"const arr = [1, 2, 3];
+arr.values().toArray();
+"#,
+        &["es6/iterator/toarray"],
+    );
+    f.test_injects(
+        r#"const map = new Map();
+map.keys().toArray();
+"#,
+        &["es6/iterator/toarray"],
+    );
+
+    // 16. Receiver is an Iterable (supertype of Iterator via interface ancestor): DO inject
+    f.test_injects(
+        "/** @type {!Iterable<number>} */ let it; it.toArray();",
+        &["es6/iterator/toarray"],
+    );
+
+    // 17. Receiver is Iterator.prototype (prototype object color): DO inject
+    f.test_injects(
+        r#"const arr = [1, 2, 3];
+Iterator.prototype.toArray.call(arr);
+"#,
+        &["es6/iterator", "es6/iterator/toarray"],
+    );
+
+    // 18. Receiver is super: DO inject
+    f.test_injects(
+        r#"class MyIter extends Iterator {
+  toArray() {
+    return super.toArray();
+  }
+}
+"#,
+        &["es6/iterator", "es6/iterator/toarray"],
+    );
+}
+
+// port: RewritePolyfillsTest#testIteratorPolyfill_typedReceiver_disambiguatePropertiesDisabled_injects
+#[test]
+fn test_iterator_polyfill_typed_receiver_disambiguate_properties_disabled_injects() {
+    let mut f = Fixture::new();
+    f.t.disambiguate_properties = false;
+    f.add_library("Iterator", "es_next", "es3", Some("es6/iterator"));
+    f.add_library(
+        "Iterator.prototype.toArray",
+        "es_next",
+        "es3",
+        Some("es6/iterator/toarray"),
+    );
+
+    f.set_language(ES_2020, ES3);
+    f.enable_typed_receiver_checks();
+
+    // When disambiguateProperties is disabled, even though optimization colors are present on the
+    // AST, we do not prune polyfills based on type disjointness:
+    f.test_injects(
+        "const arr = [1, 2, 3]; arr.toArray();",
+        &["es6/iterator/toarray"],
+    );
 }

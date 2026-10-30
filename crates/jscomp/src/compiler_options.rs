@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/CompilerOptions.java.
 
 use crate::{
@@ -594,6 +594,11 @@ pub enum OptimizeLocalAccess {
     /// remain local to their defining chunk instead of hoisting uninitialized `var` declarations
     /// to the top of the chunk.
     ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED,
+    /// In addition to [`Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED`], delete
+    /// entries from the global symbol namespace right after the last local alias is set, when all
+    /// other usages are in parent chunks and thus the symbol is guaranteed not to be accessed
+    /// anymore.
+    DELETE_GLOBALS_ON_LAST_ACCESS,
 }
 impl OptimizeLocalAccess {
     pub const VALUES: &'static [Self] = &[
@@ -602,6 +607,7 @@ impl OptimizeLocalAccess {
         Self::ALL_CHUNKS,
         Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS,
         Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED,
+        Self::DELETE_GLOBALS_ON_LAST_ACCESS,
     ];
     // port: CompilerOptions.OptimizeLocalAccess#valueOf
     pub fn value_of(name: &str) -> Option<Self> {
@@ -626,6 +632,11 @@ impl OptimizeLocalAccess {
     // port: CompilerOptions.OptimizeLocalAccess#shouldPreserveLocalVarDeclarations
     pub fn should_preserve_local_var_declarations(self) -> bool {
         self as u8 >= Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED as u8
+    }
+
+    // port: CompilerOptions.OptimizeLocalAccess#shouldDeleteGlobalsOnLastAccess
+    pub fn should_delete_globals_on_last_access(self) -> bool {
+        self == Self::DELETE_GLOBALS_ON_LAST_ACCESS
     }
 }
 impl fmt::Display for OptimizeLocalAccess {

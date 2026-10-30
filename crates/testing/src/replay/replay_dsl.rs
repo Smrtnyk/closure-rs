@@ -32,7 +32,7 @@
 //   UnitRecorder.java (oracle/patches/0002-recording-hooks.patch),
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/CompilerOptions.java.
 
 //! Port of ReplayDsl: left-to-right evaluation with per-record identity and lexical scope.

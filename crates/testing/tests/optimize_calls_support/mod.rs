@@ -16,7 +16,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/NodeUtil.java,
 //   src/com/google/javascript/jscomp/SourceFile.java,
 //   src/com/google/javascript/jscomp/testing/CodeSubTree.java,
@@ -60,6 +60,63 @@ pub fn check(result: Result<(), Throwable>) {
     if let Err(t) = result {
         panic!("{t:?}");
     }
+}
+
+/// Java's `assertThrows(AssertionError.class, ..)` around a harness call: the AssertionError's
+/// message.
+pub fn assertion_message(result: Result<(), Throwable>) -> String {
+    match result {
+        Err(Throwable::Assertion { message }) => message,
+        Err(t) => panic!("expected an AssertionError, got {t:?}"),
+        Ok(()) => panic!("expected an AssertionError"),
+    }
+}
+
+/// The text diff Java's `NodeSubject` puts in its message (Truth's `TextDiffFactsBuilder`: each
+/// line of the expected and actual JS prefixed with ` `, `-` or `+`), rebuilt from the Rust
+/// `NodeSubject` message, which shows the expected and the actual JS of a "JS diff" whole. Lines
+/// are matched by a longest common subsequence; the hunk headers and the context limit of the
+/// Java diff are not rebuilt, so this is for `contains` checks on changed lines.
+pub fn js_text_diff(message: &str) -> String {
+    let (_, rest) = message
+        .split_once("JS diff\nexpected:\n")
+        .expect("no JS diff in the message");
+    let (expected, actual) = rest
+        .split_once("\nactual:\n")
+        .expect("no actual JS in the message");
+    assert!(
+        !actual.contains("JS diff\n"),
+        "more than one JS diff in the message"
+    );
+    let e: Vec<&str> = expected.split('\n').collect();
+    let a: Vec<&str> = actual.split('\n').collect();
+    // lcs[i][j]: length of a longest common subsequence of e[i..] and a[j..].
+    let mut lcs = vec![vec![0usize; a.len() + 1]; e.len() + 1];
+    for i in (0..e.len()).rev() {
+        for j in (0..a.len()).rev() {
+            lcs[i][j] = if e[i] == a[j] {
+                lcs[i + 1][j + 1] + 1
+            } else {
+                lcs[i + 1][j].max(lcs[i][j + 1])
+            };
+        }
+    }
+    let (mut i, mut j) = (0, 0);
+    let mut out = Vec::new();
+    while i < e.len() || j < a.len() {
+        if i < e.len() && j < a.len() && e[i] == a[j] {
+            out.push(format!(" {}", e[i]));
+            i += 1;
+            j += 1;
+        } else if i < e.len() && (j == a.len() || lcs[i + 1][j] >= lcs[i][j + 1]) {
+            out.push(format!("-{}", e[i]));
+            i += 1;
+        } else {
+            out.push(format!("+{}", a[j]));
+            j += 1;
+        }
+    }
+    out.join("\n")
 }
 
 /// `CompilerTestCase.DEFAULT_EXTERNS + extra`.
@@ -127,6 +184,10 @@ impl<H: CompilerTestCaseHooks> Fixture<H> {
     // port: CompilerTestCase#testSame(TestPart...)
     pub fn test_same_parts(&mut self, parts: Vec<TestPart>) {
         check(self.harness.test_same(&mut self.hooks, parts));
+    }
+    /// `assertThrows(AssertionError.class, () -> testSame(js))`: the AssertionError's message.
+    pub fn test_same_assertion_message(&mut self, js: &str) -> String {
+        assertion_message(self.harness.test_same_string(&mut self.hooks, js))
     }
 }
 

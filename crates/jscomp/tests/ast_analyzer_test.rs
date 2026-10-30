@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   test/com/google/javascript/jscomp/AstAnalyzerTest.java.
 
 //! Port of `AstAnalyzerTest.java`.
@@ -1084,6 +1084,35 @@ fn may_have_side_effects_cases() -> Vec<AnalysisCase> {
             .expect(true)
             .js("Symbol()")
             .assume_builtins_pure(false),
+        // Expected behavior: the private reads `o.#x`, `o?.#x`, and `this.#x` have side effects,
+        // but `#x in o` doesn't. A private read throws a TypeError if the object has no `#x`,
+        // also on `this` (as in `C.prototype.m.call(other)`), and code uses that as a brand
+        // check. `#x in o` throws only if `o` is not an object, like `'x' in o`, which has no
+        // side effects either.
+        //
+        // TODO(b/236744850): Private member reads are treated as free of side effects.
+        // Current behavior: `mayHaveSideEffects` returns false for the 3 reads below. It also
+        //   returns false for the last case, `#x in o`, which is correct.
+        // Why it's a bug: passes remove the brand checks. For example, `PeepholeRemoveDeadCode`
+        //   removes `if (o.#x) {}`, so
+        //   `try { if (o.#x) {} return true; } catch (e) { return false; }` returns true for
+        //   any `o`.
+        kase()
+            .expect(false)
+            .token(Token::GETPROP)
+            .js("class C { #x; m(o) { o.#x; } }"),
+        kase()
+            .expect(false)
+            .token(Token::OPTCHAIN_GETPROP)
+            .js("class C { #x; m(o) { o?.#x; } }"),
+        kase()
+            .expect(false)
+            .token(Token::GETPROP)
+            .js("class C { #x; m() { this.#x; } }"),
+        kase()
+            .expect(false)
+            .token(Token::IN)
+            .js("class C { #x; m(o) { #x in o; } }"),
     ]
 }
 

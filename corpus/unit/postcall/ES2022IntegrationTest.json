@@ -1,0 +1,35 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.integration.ES2022IntegrationTest",
+ "methods": [
+  {
+   "method": "privateClassMembers_nativeOutputWithAdvancedOptimizations_knownBug",
+   "status": "unclassified",
+   "pending": "rust_unit_test (category exception) once crates/ has a Rust port '// port: ES2022IntegrationTest#privateClassMembers_nativeOutputWithAdvancedOptimizations_knownBug' of the check and the fragment line exists: assertThrows(IllegalStateException.class, () -> test(options, js, expected)) and then ex.getStackTrace()[1].getMethodName() isEqualTo \"checkForReceiverAffectedByCollapse\": a Java stack frame of the thrown exception (its message is null), which no record key holds (record 0, integration api test). No Rust port of this method exists at v20261028.",
+   "note": "Source lines 1385-1423 (1 record; b/236744850 knownBug, new in v20261028)."
+  },
+  {
+   "method": "privateClassMembers_superReadWithConstReflectExterns_knownBug",
+   "status": "unclassified",
+   "pending": "rust_unit_test (category exception) once crates/ has a Rust port '// port: ES2022IntegrationTest#privateClassMembers_superReadWithConstReflectExterns_knownBug' of the check and the fragment line exists: assertThrows(RuntimeException.class, () -> compile(options, src)), hasMessageThat().contains(\"Validity check failed for es6NormalizeClasses\") (in the recorded exception, compared by replay) and hasCauseThat().hasCauseThat().hasMessageThat().contains(\"Should be const but not marked as const\"): the cause chain is a Java exception graph the record does not keep, as in AdvancedOptimizationsIntegrationTest#testRequireAndEncourageInlining_complexCase (record 28, integration api compile). No Rust port of this method exists at v20261028.",
+   "note": "Source lines 1053-1093 (1 record; b/236744850 knownBug, new in v20261028)."
+  },
+  {
+   "method": "privateClassMembers_weakMapPolyfillInjection_wontFix",
+   "status": "captured",
+   "via": [
+    "observed.output"
+   ],
+   "note": "Source lines 1357-1383 (records 38 and 39, integration api compile). After each compile() the test asserts getRuntimeJsLibManager().getInjectedLibraries() contains es6/privatemap and es6/weakmap (ES5 out: containsAtLeast; ES2021 out: contains each). The options keep the default runtime library mode (inject), so each injected library's code is part of compiler.toSource(): both records' observed.output hold the $jscomp.PrivateMap code and the $jscomp.polyfill(\"WeakMap\", ...) code, and replay compares observed.output JSON-equal; a different injected-library set changes the output. Unlike the RECORD_ONLY tests (for example AdvancedOptimizationsIntegrationTest#testArrayValuesIsPolyfilledForEs2015Out), the libraries are printed."
+  },
+  {
+   "method": "publicClassFields_derivedConstructorReturnsObjectWithoutSuperCall",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.warnings"
+   ],
+   "note": "Source lines 406-430 (record 10, integration api compile). After compile() the test asserts checkUnexpectedErrorsOrWarnings(compiler, 1) (errors + warnings count is 1) and that the first error's type key is JSC_RETURN_WITHOUT_CALL_TO_SUPER. That state is the record's observed.errors (exactly that one error) and observed.warnings (empty); Java replay compares every recorded observed key JSON-equal and the record must pass, which gate (a) verifies for the claim."
+  }
+ ]
+}

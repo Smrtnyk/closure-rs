@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   test/com/google/javascript/jscomp/ijs/ConvertToTypedInterfaceTest.java.
 
 //! The Rust port of ConvertToTypedInterfaceTest, ExtraRequireRemoverTest and
@@ -48,7 +48,7 @@ fn ijs_test_classes_replay() {
     )
     .unwrap();
     let c = &report.classes["ConvertToTypedInterfaceTest"];
-    assert_eq!((c.records, c.pass), (299, 299));
+    assert_eq!((c.records, c.pass), (300, 300));
     let c = &report.classes["ExtraRequireRemoverTest"];
     assert_eq!((c.records, c.pass), (14, 14));
     let c = &report.classes["SuggestConstTypesTest"];

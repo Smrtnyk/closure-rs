@@ -1098,6 +1098,14 @@
         "postCall.pass.ambiguatedPropertyMap"
       ],
       "note": "Not flagged by the scan; its records have replay post state 'unclassified' only because the write-only test field lastPass (the AmbiguateProperties instance getProcessor built) changed. The method asserts nothing on lastPass. The pass's only result accessor, getRenamingMap() (field renamingMap), is compared by replay as postCall.pass.ambiguatedPropertyMap; the rest of the lastPass dump is pass-internal working state (Property objects with BitSets of color ids, Node refs, the compiler ref) that no test reads."
+    },
+    {
+      "method": "testSingleClass_withPrivateMembers_notAmbiguated_knownBug",
+      "status": "captured",
+      "via": [
+        "postCall.pass.ambiguatedPropertyMap"
+      ],
+      "note": "Not flagged by the scan (new in v20261028, b/236744850 knownBug); its record (index 81) has replay post state 'unclassified' only because the write-only test field lastPass (the AmbiguateProperties instance getProcessor built) changed. The method asserts nothing after its one test() call; the pass's result accessor (field renamingMap) is compared by replay as postCall.pass.ambiguatedPropertyMap (file note)."
     }
   ]
 }

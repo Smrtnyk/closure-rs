@@ -272,9 +272,45 @@ pub static JAR_ENTRIES: &[ArchiveEntry] = &[
         content: EntryContent::Directory,
     },
     ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/iterator/every.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/iterator/every.js"
+        )),
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/iterator/find.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/iterator/find.js"
+        )),
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/iterator/foreach.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/iterator/foreach.js"
+        )),
+    },
+    ArchiveEntry {
         name: "com/google/javascript/jscomp/js/es6/iterator/from.js",
         content: EntryContent::File(include_bytes!(
             "../data/com/google/javascript/jscomp/js/es6/iterator/from.js"
+        )),
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/iterator/reduce.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/iterator/reduce.js"
+        )),
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/iterator/some.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/iterator/some.js"
+        )),
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/iterator/toarray.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/iterator/toarray.js"
         )),
     },
     ArchiveEntry {
@@ -929,6 +965,12 @@ pub static JAR_ENTRIES: &[ArchiveEntry] = &[
         name: "com/google/javascript/jscomp/js/es6/util/iteratorclose.js",
         content: EntryContent::File(include_bytes!(
             "../data/com/google/javascript/jscomp/js/es6/util/iteratorclose.js"
+        )),
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/util/iteratordo.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/util/iteratordo.js"
         )),
     },
     ArchiveEntry {

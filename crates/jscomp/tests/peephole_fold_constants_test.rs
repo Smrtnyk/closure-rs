@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/PeepholeFoldConstantsTest.java.
 
@@ -2542,8 +2542,9 @@ fn test_fold_object_literal_ref1() {
     // setters by themselves don't provide a definition
     t.test_same("({}).a");
     t.test_same("({set a(b) {}}).a");
-    // sets don't hide other definitions.
-    t.test("({a:1,set a(b) {}}).a", "1");
+    // In ECMAScript, a setter replaces any preceding data property definition, leaving [[Get]] as
+    // undefined.
+    t.test("({a:1,set a(b) {}}).a", "void 0");
     // get is transformed to a call (gets don't have self referential names)
     t.test("({get a() {}}).a", "(function (){})()");
     // sets don't hide other definitions.
@@ -2553,6 +2554,44 @@ fn test_fold_object_literal_ref1() {
         "var x = ({a:function(){return 1}}).a",
         "var x = function(){return 1}",
     );
+    t.test("var x = ({ a: 1, set a(v) {} }).a", "var x = void 0");
+    t.test("var x = ({ a: 1, set ['a'](v) {} }).a", "var x = void 0");
+    t.test("({ a: 1, ['a'](v) {}, ['a'](w) {} }).a", "(function(w){})");
+    t.test(
+        "({ a: 1, set ['a'](u) {}, ['a'](v) {} }).a",
+        "(function(v){})",
+    );
+    t.test_same("({ [foo()]: 1, a: 1, set a(v) {} }).a");
+    t.test_same("({ foo: bar(), a: 1, set a(v) {} }).a");
+    t.test(
+        "var x = ({ get a() { return 1; } }).a",
+        "var x = (function() { return 1; })()",
+    );
+    t.test(
+        "var x = ({ get a() { return 1; }, set a(v) {} }).a",
+        "var x = (function() { return 1; })()",
+    );
+    t.test(
+        "var x = ({ get ['a']() { return 1; }, set ['a'](v) {} }).a",
+        "var x = (function() { return 1; })()",
+    );
+    t.test(
+        "var x = ({ get ['a']() { return 1; }, set a(v) {} }).a",
+        "var x = (function() { return 1; })()",
+    );
+    t.test(
+        "var x = ({ get a() { return 1; }, set ['a'](v) {} }).a",
+        "var x = (function() { return 1; })()",
+    );
+    t.test(
+        "var x = ({ a: 1, get a() { return 2; }, set a(v) {} }).a",
+        "var x = (function() { return 2; })()",
+    );
+    t.test(
+        "var x = ({ get a() { return 2; }, a: 1, set a(v) {} }).a",
+        "var x = void 0",
+    );
+
     t.test("var x = ({a:1}).a", "var x = 1");
     t.test("var x = ({a:1, a:2}).a", "var x = 2");
     t.test("var x = ({a:1, a:foo()}).a", "var x = foo()");
@@ -2620,10 +2659,8 @@ fn test_fold_object_literal_ref1() {
 #[test]
 fn test_setter_def_ignored_in_object_literal_property_folding() {
     let mut t = PeepholeFoldConstantsTest::new();
-    // Pre-fix: SETTER_DEF and computed setters do not clear previously tracked data properties,
-    // incorrectly folding the access to the superseded data property value.
-    t.test("var x = ({ a: 1, set a(v) {} }).a;", "var x = 1;");
-    t.test("var x = ({ a: 1, set ['a'](v) {} }).a;", "var x = 1;");
+    t.test("var x = ({ a: 1, set a(v) {} }).a;", "var x = void 0;");
+    t.test("var x = ({ a: 1, set ['a'](v) {} }).a;", "var x = void 0;");
     t.test("var x = ({ a: 1, set b(v) {} }).a;", "var x = 1;");
     t.test("var x = ({ set a(v) {}, a: 2 }).a;", "var x = 2;");
 }

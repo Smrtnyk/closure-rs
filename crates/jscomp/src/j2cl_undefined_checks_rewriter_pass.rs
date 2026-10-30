@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/J2clUndefinedChecksRewriterPass.java.
 
 //! Port of `J2clUndefinedChecksRewriterPass.java` as a named, gated no-op (J2CL is out of scope, docs/PORTING.md §2).

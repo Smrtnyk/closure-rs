@@ -29,7 +29,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/IsolatePolyfills.java,
 //   src/com/google/javascript/jscomp/PolyfillUsageFinder.java,
 //   src/com/google/javascript/jscomp/RewritePolyfills.java,
@@ -83,7 +83,7 @@ pub fn entry(signature: &str) -> Option<Entry> {
         "com.google.javascript.jscomp.PolyfillUsageFinder$Polyfills#fromTable(java.lang.String)" => {
             polyfills_from_table
         }
-        "com.google.javascript.jscomp.RewritePolyfills#<init>(com.google.javascript.jscomp.AbstractCompiler,com.google.javascript.jscomp.js.RuntimeJsLibManager,com.google.javascript.jscomp.PolyfillUsageFinder$Polyfills,boolean,boolean,com.google.javascript.jscomp.CompilerOptions$LanguageMode)" => {
+        "com.google.javascript.jscomp.RewritePolyfills#<init>(com.google.javascript.jscomp.AbstractCompiler,com.google.javascript.jscomp.js.RuntimeJsLibManager,com.google.javascript.jscomp.PolyfillUsageFinder$Polyfills,boolean,boolean,com.google.javascript.jscomp.CompilerOptions$LanguageMode,boolean)" => {
             rewrite_polyfills
         }
         "com.google.javascript.jscomp.IsolatePolyfills#<init>(com.google.javascript.jscomp.AbstractCompiler,com.google.javascript.jscomp.PolyfillUsageFinder$Polyfills)" => {
@@ -181,7 +181,7 @@ fn polyfills_from_table(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslValue,
     Ok(native(POLYFILLS, Polyfills::from_table(&string(table)?)))
 }
 
-// port: RewritePolyfills#RewritePolyfills(AbstractCompiler,RuntimeJsLibManager,Polyfills,boolean,boolean,LanguageMode)
+// port: RewritePolyfills#RewritePolyfills(AbstractCompiler,RuntimeJsLibManager,Polyfills,boolean,boolean,LanguageMode,boolean)
 fn rewrite_polyfills(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslValue, Throwable> {
     let [
         DslValue::Compiler(_),
@@ -190,6 +190,7 @@ fn rewrite_polyfills(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslValue, Th
         DslValue::Bool(inject_polyfills),
         DslValue::Bool(isolate_polyfills),
         inject_polyfills_newer_than,
+        DslValue::Bool(disambiguate_properties),
     ] = args.as_slice()
     else {
         return Err(bad());
@@ -204,6 +205,7 @@ fn rewrite_polyfills(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslValue, Th
         *inject_polyfills,
         *isolate_polyfills,
         inject_polyfills_newer_than,
+        *disambiguate_properties,
     )))
 }
 

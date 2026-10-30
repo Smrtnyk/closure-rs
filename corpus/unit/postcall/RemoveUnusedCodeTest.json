@@ -10,6 +10,14 @@
    "category": "test-local-object"
   },
   {
+   "method": "testRemoveUnusedPolyfills_iteratorPrototypeMethod_typed",
+   "status": "rust_unit_test",
+   "reason": "the statements the scan takes for post-call assertions (22) are the PolyfillRemovalTester builder calls expectSource(...) and expectPolyfillsRemoved(...)/expectNoPolyfillsRemoved() of the 11 tester chains after the first hooked call; they set the test-local expectations (expectedSource, polyfillsExpectedToBeRemoved) that the chain's next hooked test() call turns into its expected output, and expectPolyfillRemoved's checkArgument guards (RemoveUnusedCodeTest.java:2570-2583: the polyfill is in the tester's list and is not expected removed twice) read only the tester's own sets; they inspect no compiler state. The records' postCall keys (compiler.accessorSummary, compiler.allowableFeatures, compiler.externProperties, compiler.typeMismatchesError; no pass key) do not hold those sets, and every hooked call is a record whose output replay compares",
+   "fragment": "corpus/unit/rust_unit_tests/RemoveUnusedCodeTest.md",
+   "category": "test-local-object",
+   "note": "Source lines 3060-3232 (12 records)."
+  },
+  {
    "method": "testRemoveUnusedPolyfills_prototypeProperty_untyped",
    "status": "rust_unit_test",
    "reason": "the only statements the scan takes for post-call assertions are calls of PolyfillRemovalTester.addPolyfill, whose checkArgument(!polyfills.contains(polyfill)) (RemoveUnusedCodeTest.java:2448-2454) guards the test-local polyfill list (a LinkedHashSet of the local tester object, used to build the next call's input) against duplicates; it inspects no compiler state; the records' postCall keys (compiler.accessorSummary, compiler.externProperties; no pass key) do not hold that list, and every hooked call is a record whose output replay compares",
@@ -24,5 +32,5 @@
    "category": "test-local-object"
   }
  ],
- "note": "re-checked by classify batch 13: the methods' only post-call statements are addPolyfill guards on test-local input construction."
+ "note": "re-checked by classify batch 13: the methods' only post-call statements are addPolyfill guards on test-local input construction; testRemoveUnusedPolyfills_iteratorPrototypeMethod_typed (v20261028): its only post-call statements are PolyfillRemovalTester expectation setters (expectSource, expectPolyfillsRemoved, expectNoPolyfillsRemoved) for the next hooked call."
 }

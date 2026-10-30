@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   test/com/google/javascript/jscomp/CodePrinterTest.java.
 
 #![allow(unused_mut)]
@@ -1011,6 +1011,13 @@ fn test_break_template_literals() {
         JsString::from("`<!-- I am a string -->`"),
         JsString::from("`\\x3c!-- I am a string --\\x3e`"),
     );
+
+    // An escaped `<` is broken without leaving its backslash in front of the new escape.
+    t.assert_print(
+        JsString::from("`\\</script>`"),
+        JsString::from("`\\x3c/script>`"),
+    );
+    t.assert_print(JsString::from("`\\<!--`"), JsString::from("`\\x3c!--`"));
 }
 // port: CodePrinterTest#testBreakUntrustedTemplateLiterals
 #[test]
@@ -1028,6 +1035,10 @@ fn test_break_untrusted_template_literals() {
     );
     t.assert_print(
         JsString::from("`<=&>`"),
+        JsString::from("`\\x3c\\x3d\\x26\\x3e`"),
+    );
+    t.assert_print(
+        JsString::from("`\\<\\=\\&\\>`"),
         JsString::from("`\\x3c\\x3d\\x26\\x3e`"),
     );
 }
@@ -2629,6 +2640,43 @@ fn test_private_class_properties_usage() {
         "class C{static #f;static #m(){const t=this;#f in t}}",
     ));
 }
+// port: CodePrinterTest#testPrivateClassProperties_nonLatinNames_knownBug
+#[test]
+fn test_private_class_properties_non_latin_names_known_bug() {
+    let mut t = CodePrinterTestBase::new();
+    // Expected behavior: each input prints unchanged. Private names are never quoted, because a
+    // quoted name is a public property name. Non-Latin characters in method and field names are
+    // escaped, as in other identifiers.
+    //
+    // TODO(b/236744850): Private method and getter names with non-Latin characters are quoted.
+    // Current behavior: `#\u00f1(){}` prints as `"#\u00f1"(){}`, and `get #\u00fc(){return 1}`
+    //   prints as `get "#\u00fc"(){return 1}`.
+    // Why it's a bug: the quoted names declare public members, not the private `#\u00f1` and
+    //   `#\u00fc`. Then a use like `this.#\u00f1()` in the class is a SyntaxError, because
+    //   `#\u00f1` is no longer declared.
+    t.assert_print(
+        JsString::from("class C{#\\u00f1(){}}"),
+        JsString::from("class C{\"#\\u00f1\"(){}}"),
+    );
+    t.assert_print(
+        JsString::from("class C{get #\\u00fc(){return 1}}"),
+        JsString::from("class C{get \"#\\u00fc\"(){return 1}}"),
+    );
+    // TODO(b/236744850): Non-Latin characters in field names are not escaped.
+    // Current behavior: `#\u00e9=1;` and `\u00e9=1;` print with the character U+00E9 itself
+    //   instead of the escape `\u00e9`.
+    // Why it's a bug: other identifiers are always printed in ASCII. The command-line compiler
+    //   writes its output in US-ASCII by default, which turns U+00E9 into `?`, and `#?=1;` and
+    //   `?=1;` are SyntaxErrors.
+    t.assert_print(
+        JsString::from("class C{#\\u00e9=1;}"),
+        JsString::from("class C{#\u{e9}=1;}"),
+    );
+    t.assert_print(
+        JsString::from("class C{\\u00e9=1;}"),
+        JsString::from("class C{\u{e9}=1;}"),
+    );
+}
 // port: CodePrinterTest#testSuper
 #[test]
 fn test_super() {
@@ -3111,6 +3159,18 @@ fn test_template_literal() {
     t.assert_print_same(JsString::from("`\\\"`"));
     t.assert_print_same(JsString::from("`\\'`"));
     t.assert_print_same(JsString::from("`\\``"));
+
+    // A character escaped with a backslash that has to be escaped again.
+    t.assert_print(JsString::from("`\\\u{e9}`"), JsString::from("`\\u00e9`"));
+    t.assert_print(
+        JsString::from("`\\\u{1f600}`"),
+        JsString::from("`\\ud83d\\ude00`"),
+    );
+    t.assert_print(
+        JsString::from("`\\\\\u{e9}`"),
+        JsString::from("`\\\\\\u00e9`"),
+    );
+
     t.assert_print_same(JsString::from("foo`\\unicode`"));
     t.assert_print_same(JsString::from("String.raw`a\\ b`"));
     t.assert_print_same(JsString::from("`Hello ${x?`Alice`:`Bob`}?`"));

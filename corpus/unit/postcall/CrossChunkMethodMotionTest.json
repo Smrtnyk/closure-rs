@@ -1,0 +1,22 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.CrossChunkMethodMotionTest",
+ "methods": [
+  {
+   "method": "doNotMoveClassMethodContainingPrivateName_knownBug",
+   "status": "rust_unit_test",
+   "reason": "assertThrows(AssertionError.class, () -> testSame(srcs)) then hasMessageThat().contains(\"Foo.prototype.getX = JSCompiler_unstubMethod(0, function() {\"): the asserted value is the message of the Truth AssertionError the CompilerTestCase harness throws when the output differs from the expected code (a 'Node tree inequality' JS diff), a Java test-framework exception; a non-Java harness reports its own assertion failure at the same check and does not reproduce the Truth text, and no snapshot key holds it. The record's postCall carries compiler.accessorSummary and compiler.allowableFeatures and no pass-level key. The Rust port checks the Rust harness's assertion message for the same substring.",
+   "fragment": "corpus/unit/rust_unit_tests/CrossChunkMethodMotionTest.md",
+   "category": "exception",
+   "note": "Source lines 320-348 (1 record; b/236744850 knownBug)."
+  },
+  {
+   "method": "doNotMovePrivateClassMethod_knownBug",
+   "status": "rust_unit_test",
+   "reason": "assertThrows(AssertionError.class, () -> testSame(srcs)) then hasMessageThat().contains(\"Foo.prototype.#m = JSCompiler_unstubMethod(0, function() {});\"): the asserted value is the message of the Truth AssertionError the CompilerTestCase harness throws when the output differs from the expected code (a 'Node tree inequality' JS diff), a Java test-framework exception; a non-Java harness reports its own assertion failure at the same check and does not reproduce the Truth text, and no snapshot key holds it. The record's postCall carries compiler.accessorSummary and compiler.allowableFeatures and no pass-level key. The Rust port checks the Rust harness's assertion message for the same substring.",
+   "fragment": "corpus/unit/rust_unit_tests/CrossChunkMethodMotionTest.md",
+   "category": "exception",
+   "note": "Source lines 350-389 (1 record; b/236744850 knownBug)."
+  }
+ ]
+}

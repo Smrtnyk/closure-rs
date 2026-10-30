@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/RemoveUnusedCodeTest.java.
 
@@ -23,9 +23,13 @@
 //! These test cases for `RemoveUnusedCode` focus on removal of variables and do not enable the
 //! options for removing individual properties, fields, or methods. See the other
 //! `RemoveUnusedCode*Test` classes for that kind of code removal. The tests run on the native
-//! CompilerTestCase port of crates/testing. The 5 `*_typed` tests call `enableTypeCheck()` (real
-//! TypeCheck, type-check).
-use closure_jscomp::{compiler_pass::CompilerPass, remove_unused_code::RemoveUnusedCode};
+//! CompilerTestCase port of crates/testing. The 6 `*_typed` tests and
+//! `testRemoveUnusedPolyfills_iteratorPrototypeMethod_disambiguatePropertiesDisabled` call
+//! `enableTypeCheck()` (real TypeCheck, type-check).
+use closure_jscomp::{
+    compiler_pass::CompilerPass, remove_unused_code::RemoveUnusedCode,
+    type_check::INEXISTENT_PROPERTY,
+};
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{js_string::JsString, node::NodeId};
 use closure_testing::{
@@ -86,6 +90,7 @@ struct RemoveUnusedCodeTest {
     ctx: Ctx,
     remove_global: bool,
     preserve_function_expression_names: bool,
+    disambiguate_properties: bool,
 }
 
 impl CompilerTestCaseHooks for RemoveUnusedCodeTest {
@@ -93,6 +98,7 @@ impl CompilerTestCaseHooks for RemoveUnusedCodeTest {
     fn get_processor(&mut self, _compiler: CompilerHandle) -> Result<DslValue, Throwable> {
         let remove_global = self.remove_global;
         let preserve_function_expression_names = self.preserve_function_expression_names;
+        let disambiguate_properties = self.disambiguate_properties;
         Ok(DslValue::Pass(Rc::new(RefCell::new(Box::new(
             move |compiler: &mut Compiler, externs: NodeId, root: NodeId| {
                 RemoveUnusedCode::builder(compiler)
@@ -100,6 +106,7 @@ impl CompilerTestCaseHooks for RemoveUnusedCodeTest {
                     .remove_globals(remove_global)
                     .remove_unused_polyfills(true)
                     .preserve_function_expression_names(preserve_function_expression_names)
+                    .disambiguate_properties(disambiguate_properties)
                     .build()
                     .process(compiler, externs, root);
             },
@@ -141,6 +148,7 @@ impl Fixture {
             ),
             remove_global: true,
             preserve_function_expression_names: false,
+            disambiguate_properties: false,
         };
         Self { h, t }
     }
@@ -982,6 +990,80 @@ class Foo extends Bar {
   }
 };
 new Foo;
+"#,
+    );
+}
+
+// port: RemoveUnusedCodeTest#testUnusedPrivateFieldRead_knownBug
+#[test]
+fn test_unused_private_field_read_known_bug() {
+    let mut f = Fixture::new();
+    // Expected behavior: the unused constant `unused` is removed, but the read `o.#b` is kept as
+    // `o.#b;`, so `isC` keeps its parameter `o`. Reading `o.#b` throws a TypeError if `o` has no
+    // `#b`, and `isC` relies on that.
+    //
+    // TODO(b/236744850): The brand check `o.#b` is removed.
+    // Current behavior: `const unused = o.#b;` is removed entirely, and then the unused parameter
+    //   `o` too.
+    // Why it's a bug: natively `C.isC({})` returns false, because `o.#b` throws a TypeError for
+    //   `{}`; the compiled `C.isC({})` returns true.
+    f.test(
+        r#"class C {
+  #b;
+  static isC(o) {
+    try {
+      const unused = o.#b;
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+}
+alert(C.isC({}));
+"#,
+        r#"class C {
+  #b;
+  static isC() {
+    try {
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+}
+alert(C.isC({}));
+"#,
+    );
+}
+
+// port: RemoveUnusedCodeTest#testPrivateFieldWriteToUnusedObjectLiteral_wontFix
+#[test]
+fn test_private_field_write_to_unused_object_literal_wont_fix() {
+    let mut f = Fixture::new();
+    // Won't fix (b/236744850): A private field write to an unused object literal is removed.
+    // Native behavior: `o.#x = 1` always throws a TypeError, because an object literal never has
+    // the private field `#x`.
+    // Current behavior: `o` is never read, so `const o = {};` and `o.#x = 1;` are removed, like an
+    //   unused variable and an assignment to one of its properties.
+    // Why it's a bug: natively `C.f()` throws a TypeError; with this output, it returns undefined.
+    // Why we won't fix it: the program already throws natively, so it is already broken.
+    //   `RemoveUnusedCode` removes property writes only on an unused variable that holds a new
+    //   object, and for an object literal, a private field write always throws.
+    f.test(
+        r#"class C {
+  #x;
+  static f() {
+    const o = {};
+    o.#x = 1;
+  }
+}
+alert(C.f());
+"#,
+        r#"class C {
+  #x;
+  static f() {}
+}
+alert(C.f());
 "#,
     );
 }
@@ -4432,6 +4514,33 @@ console.log(arr)
     );
 }
 
+// port: RemoveUnusedCodeTest#testPrivateFieldUsedOnlyInBrandCheck_knownBug
+#[test]
+fn test_private_field_used_only_in_brand_check_known_bug() {
+    let mut f = Fixture::new();
+    // Expected behavior: `RemoveUnusedCode` leaves this code unchanged. In `#brand in o`, `#brand`
+    // is a private name of `C`, not a variable, and the brand check is a use of the field.
+    let js = r#"class C {
+  // Expected: kept, because `#brand in o` uses it. Without it, `#brand in o` is a
+  // SyntaxError.
+  #brand;
+  static isC(o) { return #brand in o; }
+}
+alert(C.isC({}));
+"#;
+    // TODO(b/236744850): `RemoveUnusedCode` crashes on `#brand in o`.
+    // Current behavior: `testSame(js)` throws a NullPointerException, because `#brand` is looked
+    //   up as a variable, and there is none.
+    // Why it's a bug: the compiler crashes on valid code.
+    // In a full build: the crash shows up once `VarCheck` skips private names. Before that,
+    //   `VarCheck` reports `#brand` as undeclared, and with that check off it declares `#brand`
+    //   as a global, so this pass deletes `#brand;` instead, which is a SyntaxError.
+    // assertThrows(NullPointerException.class, ...): the NullPointerException of a failed
+    // `checkNotNull` is a panic in Rust.
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f.test_same(js)))
+        .expect_err("expected a NullPointerException");
+}
+
 // port: RemoveUnusedCodeTest#testRemoveUnusedPolyfills_global_typed
 #[test]
 fn test_remove_unused_polyfills_global_typed() {
@@ -4475,4 +4584,216 @@ fn test_remove_unused_polyfills_global_with_prototype_polyfill_typed() {
     f.h.enable_type_check().unwrap();
     // We no longer use type information to make polyfill removal decisions.
     remove_unused_polyfills_global_with_prototype_polyfill_untyped(&mut f);
+}
+
+// port: RemoveUnusedCodeTest#testRemoveUnusedPolyfills_iteratorPrototypeMethod_typed
+#[test]
+fn test_remove_unused_polyfills_iterator_prototype_method_typed() {
+    let mut f = Fixture::new();
+    f.t.disambiguate_properties = true;
+    f.h.enable_type_check().unwrap();
+    f.h.replace_types_with_colors().unwrap();
+    f.h.ignore_warnings(&[&INEXISTENT_PROPERTY]).unwrap();
+    let for_each_polyfill =
+        "$jscomp.polyfill('Iterator.prototype.forEach', function() {}, 'es_next', 'es3');";
+    let mut tester = PolyfillRemovalTester::new();
+    tester
+        .add_externs(
+            &TestExternsBuilder::new()
+                .add_extra(&[JsString::from(JSCOMP_POLYFILL)])
+                .add_console()
+                .add_array()
+                .add_iterable()
+                .build()
+                .to_string(),
+        )
+        .add_polyfill(for_each_polyfill);
+
+    // [1, 2].forEach() has receiver type Array, not Iterator, so Iterator.prototype.forEach is
+    // removed!
+    tester.expect_polyfills_removed_test(&mut f, "[1, 2].forEach(() => {});", &[for_each_polyfill]);
+
+    // Receiver is an unrelated custom class disjoint from Iterator: polyfill is removed!
+    tester
+        .input_source(
+            r#"class Foo { forEach(fn) { return fn; } }
+console.log(new Foo().forEach(() => {}));
+"#,
+        )
+        .expect_source(
+            r#"class Foo { forEach(fn) { return fn; } }
+console.log(new Foo().forEach(() => {}));
+"#,
+        )
+        .expect_polyfills_removed(&[for_each_polyfill])
+        .test(&mut f);
+
+    // Receiver is a union of concrete classes disjoint from Iterator: polyfill is removed!
+    tester
+        .input_source(
+            r#"class Foo { forEach(fn) { return fn; } }
+class Bar { forEach(fn) { return fn; } }
+/** @type {!Foo|!Bar} */ let col;
+console.log(col.forEach(() => {}));
+"#,
+        )
+        .expect_source(
+            r#"let col;
+console.log(col.forEach(() => {}));
+"#,
+        )
+        .expect_polyfills_removed(&[for_each_polyfill])
+        .test(&mut f);
+
+    // When called on an Iterator, the polyfill is retained!
+    tester
+        .input_source(
+            "/** @type {!Iterator<number>} */ let iter; console.log(iter.forEach(() => {}));",
+        )
+        .expect_source("let iter;\nconsole.log(iter.forEach(() => {}));")
+        .expect_no_polyfills_removed()
+        .test(&mut f);
+
+    // Receiver is a subclass of Iterator: polyfill is retained!
+    tester
+        .input_source(
+            r#"class MyIterator extends Iterator {}
+const iter = new MyIterator();
+console.log(iter.forEach(() => {}));
+"#,
+        )
+        .expect_source(
+            r#"class MyIterator extends Iterator {}
+const iter = new MyIterator();
+console.log(iter.forEach(() => {}));
+"#,
+        )
+        .expect_no_polyfills_removed()
+        .test(&mut f);
+
+    // Receiver is unknown (? or any): polyfill is retained!
+    tester
+        .input_source("/** @type {?} */ let x; console.log(x.forEach(() => {}));")
+        .expect_source("let x;\nconsole.log(x.forEach(() => {}));")
+        .expect_no_polyfills_removed()
+        .test(&mut f);
+
+    // Receiver is Object: polyfill is retained!
+    tester
+        .input_source("/** @type {!Object} */ let obj; console.log(obj.forEach(() => {}));")
+        .expect_source("let obj;\nconsole.log(obj.forEach(() => {}));")
+        .expect_no_polyfills_removed()
+        .test(&mut f);
+
+    // Receiver is a union containing an Iterator: polyfill is retained!
+    tester
+        .input_source(
+            r#"/** @type {!Array<number>|!Iterator<number>} */ let u;
+console.log(u.forEach(() => {}));
+"#,
+        )
+        .expect_source(
+            r#"let u;
+console.log(u.forEach(() => {}));
+"#,
+        )
+        .expect_no_polyfills_removed()
+        .test(&mut f);
+
+    // Receiver is a structural interface (@record): polyfill is retained!
+    tester
+        .input_source(
+            r#"/** @record */
+function Structural() {}
+/** @type {function(!Function): void} */
+Structural.prototype.forEach;
+/** @type {!Structural} */ let s;
+console.log(s.forEach(() => {}));
+"#,
+        )
+        .expect_source(
+            r#"let s;
+console.log(s.forEach(() => {}));
+"#,
+        )
+        .expect_no_polyfills_removed()
+        .test(&mut f);
+
+    // Receiver is an anonymous record / structural interface: polyfill is retained!
+    tester
+        .input_source(
+            r#"/** @type {{forEach: function(!Function)}} */ let s;
+console.log(s.forEach(() => {}));
+"#,
+        )
+        .expect_source(
+            r#"let s;
+console.log(s.forEach(() => {}));
+"#,
+        )
+        .expect_no_polyfills_removed()
+        .test(&mut f);
+
+    // Receiver is a Generator: polyfill is retained!
+    tester
+        .input_source(
+            r#"/** @type {!Generator<number>} */ let gen;
+console.log(gen.forEach(() => {}));
+"#,
+        )
+        .expect_source(
+            r#"let gen;
+console.log(gen.forEach(() => {}));
+"#,
+        )
+        .expect_no_polyfills_removed()
+        .test(&mut f);
+
+    // Receiver is a generator function invocation: polyfill is retained!
+    tester
+        .input_source(
+            r#"function* gen() { yield 1; }
+console.log(gen().forEach(() => {}));
+"#,
+        )
+        .expect_source(
+            r#"function* gen() { yield 1; }
+console.log(gen().forEach(() => {}));
+"#,
+        )
+        .expect_no_polyfills_removed()
+        .test(&mut f);
+}
+
+// port: RemoveUnusedCodeTest#testRemoveUnusedPolyfills_iteratorPrototypeMethod_disambiguatePropertiesDisabled
+#[test]
+fn test_remove_unused_polyfills_iterator_prototype_method_disambiguate_properties_disabled() {
+    let mut f = Fixture::new();
+    f.t.disambiguate_properties = false;
+    f.h.enable_type_check().unwrap();
+    f.h.replace_types_with_colors().unwrap();
+    f.h.ignore_warnings(&[&INEXISTENT_PROPERTY]).unwrap();
+    let for_each_polyfill =
+        "$jscomp.polyfill('Iterator.prototype.forEach', function() {}, 'es_next', 'es3');";
+    let mut tester = PolyfillRemovalTester::new();
+    tester
+        .add_externs(
+            &TestExternsBuilder::new()
+                .add_extra(&[JsString::from(JSCOMP_POLYFILL)])
+                .add_console()
+                .add_array()
+                .add_iterable()
+                .build()
+                .to_string(),
+        )
+        .add_polyfill(for_each_polyfill);
+
+    // When disambiguateProperties is disabled, even though optimization colors are present on the
+    // AST, we cannot prove [1, 2].forEach() is disjoint from Iterator.prototype.forEach, so the
+    // polyfill is retained!
+    tester
+        .input_source("[1, 2].forEach(() => {});")
+        .expect_source("[1, 2].forEach(() => {});")
+        .expect_no_polyfills_removed()
+        .test(&mut f);
 }

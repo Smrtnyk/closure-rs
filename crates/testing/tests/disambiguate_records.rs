@@ -29,7 +29,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   test/com/google/javascript/jscomp/disambiguate/AmbiguatePropertiesTest.java,
 //   test/com/google/javascript/jscomp/disambiguate/ColorFindPropertyReferencesTest.java,
 //   test/com/google/javascript/jscomp/disambiguate/ColorGraphBuilderTest.java,
@@ -94,13 +94,13 @@ fn assert_records(class: &str, expected: usize, passing: usize) {
 // port: AmbiguatePropertiesTest (139 recorded calls)
 #[test]
 fn ambiguate_properties_test() {
-    assert_records("AmbiguatePropertiesTest", 139, 139);
+    assert_records("AmbiguatePropertiesTest", 140, 140);
 }
 
 // port: DisambiguatePropertiesTest (39 recorded calls)
 #[test]
 fn disambiguate_properties_test() {
-    assert_records("DisambiguatePropertiesTest", 39, 39);
+    assert_records("DisambiguatePropertiesTest", 40, 40);
 }
 
 /// The holder ColorFindPropertyReferencesTest_Helpers; testFieldsAfter compares

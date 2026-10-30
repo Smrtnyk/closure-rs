@@ -35,7 +35,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   test/com/google/javascript/rhino/jstype/BooleanLiteralSetTest.java.
 
 use closure_jstype::boolean_literal_set::BooleanLiteralSet::{self, BOTH, EMPTY, FALSE, TRUE};

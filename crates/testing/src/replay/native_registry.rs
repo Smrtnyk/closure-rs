@@ -41,7 +41,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit b2f69b3:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
 //   src/com/google/javascript/jscomp/AngularPass.java,
 //   src/com/google/javascript/jscomp/ChangeTracker.java,
 //   src/com/google/javascript/jscomp/ClosureCodeRemoval.java,
@@ -358,7 +358,7 @@ fn harness_prereqs_entry(signature: &str) -> Option<Entry> {
         "com.google.javascript.jscomp.GatherExternPropertiesTest_Helpers$ExpectExterns#<init>(java.lang.String[])" => {
             gep::expect_externs
         }
-        "com.google.javascript.jscomp.ReferenceCollector#<init>(com.google.javascript.jscomp.AbstractCompiler,com.google.javascript.jscomp.ReferenceCollector$Behavior,com.google.javascript.jscomp.ScopeCreator)" => {
+        "com.google.javascript.jscomp.ReferenceCollector#<init>(com.google.javascript.jscomp.AbstractCompiler,com.google.javascript.jscomp.ReferenceCollector$Behavior,com.google.javascript.jscomp.ScopeCreator,com.google.common.base.Predicate,boolean)" => {
             rc::reference_collector
         }
         "com.google.javascript.jscomp.GatherGetterAndSetterProperties#<init>(com.google.javascript.jscomp.AbstractCompiler)" => {
