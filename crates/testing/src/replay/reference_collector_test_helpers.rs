@@ -206,9 +206,7 @@ impl VarFilterKind {
     fn filter(self) -> VarFilter<'static> {
         match self {
             Self::AlwaysTrue => Box::new(|_, _| true),
-            Self::RejectingZ => {
-                Box::new(|compiler, v| AbstractVar::get_name(v, compiler) != "z")
-            }
+            Self::RejectingZ => Box::new(|compiler, v| AbstractVar::get_name(v, compiler) != "z"),
         }
     }
 }
