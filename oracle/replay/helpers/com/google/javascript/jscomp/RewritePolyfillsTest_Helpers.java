@@ -8,10 +8,10 @@
  *     injectableLibraries at injection time, so it must see the holder field, as it sees the test
  *     field).
  * The generated inner class only exposes that private method to the descriptor, which builds the
- * rest of getProcessor (lines 72-81) itself:
+ * rest of getProcessor (lines 75-84 at closure-compiler commit 8ac03b6) itself:
  *   new RewritePolyfills(compiler, createRuntimeJsLibManager(compiler),
  *       Polyfills.fromTable(Joiner.on("\n").join(polyfillTable)), injectPolyfills,
- *       isolatePolyfills, injectPolyfillsNewerThan)
+ *       isolatePolyfills, injectPolyfillsNewerThan, disambiguateProperties)
  * DSL name: RewritePolyfillsTest_Helpers.CreateRuntimeJsLibManager (method "create").
  */
 package com.google.javascript.jscomp;
