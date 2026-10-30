@@ -358,7 +358,7 @@ fn harness_prereqs_entry(signature: &str) -> Option<Entry> {
         "com.google.javascript.jscomp.GatherExternPropertiesTest_Helpers$ExpectExterns#<init>(java.lang.String[])" => {
             gep::expect_externs
         }
-        "com.google.javascript.jscomp.ReferenceCollector#<init>(com.google.javascript.jscomp.AbstractCompiler,com.google.javascript.jscomp.ReferenceCollector$Behavior,com.google.javascript.jscomp.ScopeCreator)" => {
+        "com.google.javascript.jscomp.ReferenceCollector#<init>(com.google.javascript.jscomp.AbstractCompiler,com.google.javascript.jscomp.ReferenceCollector$Behavior,com.google.javascript.jscomp.ScopeCreator,com.google.common.base.Predicate,boolean)" => {
             rc::reference_collector
         }
         "com.google.javascript.jscomp.GatherGetterAndSetterProperties#<init>(com.google.javascript.jscomp.AbstractCompiler)" => {

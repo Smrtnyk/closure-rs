@@ -61,6 +61,7 @@ use closure_jscomp::{
     syntactic_scope_creator::SyntacticScopeCreator, var::VarId,
 };
 use closure_rhino::fast_hash::IndexMap;
+use closure_rhino::js_string::JsString;
 use closure_rhino::node::NodeId;
 use std::{cell::RefCell, rc::Rc};
 
@@ -104,11 +105,24 @@ fn node_ref(compiler: &AbstractCompiler, n: Option<NodeId>) -> DslValue {
 /// `com.google.javascript.jscomp.Var` (fields of AbstractVar in declaration order).
 struct VarView {
     fields: IndexMap<String, DslValue>,
+    name: JsString,
+    scope_root: NodeId,
 }
 impl NativeObject for VarView {
     // port: Object#getClass
     fn class_name(&self) -> &str {
         "com.google.javascript.jscomp.Var"
+    }
+    // port: AbstractVar#getName / AbstractVar#getScopeRoot
+    fn call(&mut self, method: &str, args: Vec<DslValue>) -> Result<DslValue, Throwable> {
+        match (method, args.len()) {
+            ("getName", 0) => Ok(DslValue::String(self.name.clone())),
+            ("getScopeRoot", 0) => Ok(DslValue::Node(self.scope_root)),
+            _ => Err(Throwable::Unported(format!(
+                "{}#{method}",
+                self.class_name()
+            ))),
+        }
     }
     // port: ReplayValues#findField (AbstractVar fields)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
@@ -145,10 +159,14 @@ impl NativeObject for BasicBlockView {
     }
 }
 
-/// `com.google.javascript.jscomp.Reference`, read through `getNode` and `getBasicBlock`.
+/// `com.google.javascript.jscomp.Reference`, read through `getNode`, `getBasicBlock`,
+/// `isDeclaration`, `isInitializingDeclaration` and `isLvalue`.
 struct ReferenceView {
     node: NodeId,
     basic_block: DslValue,
+    is_declaration: bool,
+    is_initializing_declaration: bool,
+    is_lvalue: bool,
 }
 impl NativeObject for ReferenceView {
     // port: Object#getClass
@@ -160,6 +178,11 @@ impl NativeObject for ReferenceView {
         match (method, args.len()) {
             ("getNode", 0) => Ok(DslValue::Node(self.node)),
             ("getBasicBlock", 0) => Ok(self.basic_block.clone()),
+            ("isDeclaration", 0) => Ok(DslValue::Bool(self.is_declaration)),
+            ("isInitializingDeclaration", 0) => {
+                Ok(DslValue::Bool(self.is_initializing_declaration))
+            }
+            ("isLvalue", 0) => Ok(DslValue::Bool(self.is_lvalue)),
             _ => Err(Throwable::Unported(format!(
                 "{}#{method}",
                 self.class_name()
@@ -292,9 +315,119 @@ impl NativeObject for TopLevelStatementView {
 #[derive(Default)]
 struct CollectorState {
     vars: Vec<(VarId, String, DslValue)>,
-    references: Vec<(VarId, DslValue)>,
+    /// The `referenceCollector`'s reference map in collection order: each var's view (the
+    /// varsByName view when the var is there) and its reference collection.
+    references: Vec<(VarId, DslValue, DslValue)>,
     top_level_statements: Vec<DslValue>,
     statement_counter: i32,
+    reference_collector: Option<DslValue>,
+}
+
+/// `com.google.javascript.jscomp.ReferenceCollector`: the collector's `referenceCollector` field,
+/// read through its fields, `getAllSymbols` and `getReferences` (UnitRecorder's
+/// pass.referenceMap producer).
+struct ReferenceCollectorView {
+    compiler: CompilerHandle,
+    references: Vec<(DslValue, DslValue)>,
+}
+impl NativeObject for ReferenceCollectorView {
+    // port: Object#getClass
+    fn class_name(&self) -> &str {
+        "com.google.javascript.jscomp.ReferenceCollector"
+    }
+    // port: ReferenceCollector#getAllSymbols / ReferenceCollector#getReferences
+    fn call(&mut self, method: &str, args: Vec<DslValue>) -> Result<DslValue, Throwable> {
+        match (method, args.as_slice()) {
+            ("getAllSymbols", []) => Ok(DslValue::List(
+                self.references.iter().map(|(v, _)| v.clone()).collect(),
+            )),
+            ("getReferences", [DslValue::Native(var)]) => Ok(self
+                .references
+                .iter()
+                .find(|(v, _)| matches!(v, DslValue::Native(o) if Rc::ptr_eq(o, var)))
+                .map_or(DslValue::Null, |(_, refs)| refs.clone())),
+            _ => Err(Throwable::Unported(format!(
+                "{}#{method}",
+                self.class_name()
+            ))),
+        }
+    }
+    // port: ReplayValues#findField (ReferenceCollector fields in declaration order, as
+    // CrossChunkReferenceCollector's constructor makes it)
+    fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
+        Ok(IndexMap::<_, _>::from_iter([
+            (
+                "referenceMap".to_string(),
+                DslValue::Map(self.references.clone()),
+            ),
+            (
+                "blockStack".to_string(),
+                DslValue::Typed {
+                    class: "java.util.ArrayDeque".into(),
+                    value: Box::new(DslValue::List(vec![])),
+                },
+            ),
+            (
+                "behavior".to_string(),
+                java_ref(
+                    "com.google.javascript.jscomp.CrossChunkReferenceCollector$TopLevelStatementCollectingBehavior",
+                ),
+            ),
+            (
+                "scopeCreator".to_string(),
+                native(ScopeCreatorView {
+                    compiler: self.compiler.clone(),
+                }),
+            ),
+            (
+                "compiler".to_string(),
+                DslValue::Compiler(self.compiler.clone()),
+            ),
+            (
+                "varFilter".to_string(),
+                java_ref("com.google.javascript.jscomp.CrossChunkReferenceCollector$$Lambda"),
+            ),
+            (
+                "collectHoistedFunctionsInReferenceOrder".to_string(),
+                DslValue::Bool(false),
+            ),
+            (
+                "callback".to_string(),
+                java_ref("com.google.javascript.jscomp.ReferenceCollector$CollectorCallback"),
+            ),
+            (
+                "collectedHoistedFunctions".to_string(),
+                DslValue::Set(vec![]),
+            ),
+            ("narrowScope".to_string(), DslValue::Null),
+        ]))
+    }
+    // port: ReplayDsl#invoke (receiver cast)
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+// port: UnitRecorder#postCallSnapshot (one Reference, shared by node between the views)
+fn reference_view(
+    references_by_node: &mut IndexMap<NodeId, DslValue>,
+    compiler: &AbstractCompiler,
+    r: &Reference,
+) -> DslValue {
+    references_by_node
+        .entry(r.get_node())
+        .or_insert_with(|| {
+            native(ReferenceView {
+                node: r.get_node(),
+                basic_block: r.get_basic_block().map_or(DslValue::Null, |b| {
+                    native(BasicBlockView { root: b.get_root() })
+                }),
+                is_declaration: r.is_declaration(compiler),
+                is_initializing_declaration: r.is_initializing_declaration(compiler),
+                is_lvalue: r.is_lvalue(compiler),
+            })
+        })
+        .clone()
 }
 
 /// The `CrossChunkReferenceCollector` that getProcessor returns (and stores in testedCollector).
@@ -311,19 +444,6 @@ impl CollectorView {
             return Err(bad("collector left a draft statement behind"));
         }
         let mut references_by_node: IndexMap<NodeId, DslValue> = IndexMap::<_, _>::default();
-        let mut reference = |r: &Reference| -> DslValue {
-            references_by_node
-                .entry(r.get_node())
-                .or_insert_with(|| {
-                    native(ReferenceView {
-                        node: r.get_node(),
-                        basic_block: r.get_basic_block().map_or(DslValue::Null, |b| {
-                            native(BasicBlockView { root: b.get_root() })
-                        }),
-                    })
-                })
-                .clone()
-        };
         let mut vars = vec![];
         for (name, var) in self.collector.get_global_variable_names_map() {
             vars.push((var, name.to_string_lossy(), var_view(compiler, var)));
@@ -332,9 +452,17 @@ impl CollectorView {
         let symbols: Vec<VarId> = self.collector.get_all_collected_symbols().collect();
         for var in symbols {
             let collection = self.collector.get_references(var).unwrap().clone();
-            let refs = collection.iter().map(&mut reference).collect::<Vec<_>>();
+            let refs = collection
+                .iter()
+                .map(|r| reference_view(&mut references_by_node, compiler, r))
+                .collect::<Vec<_>>();
+            let view = vars
+                .iter()
+                .find(|(v, ..)| *v == var)
+                .map_or_else(|| var_view(compiler, var), |(.., view)| view.clone());
             references.push((
                 var,
+                view,
                 native(ReferenceCollectionView {
                     references: refs,
                     is_assigned_once_in_lifetime: collection.is_assigned_once_in_lifetime(compiler),
@@ -347,6 +475,20 @@ impl CollectorView {
             let is_movable_declaration = self.collector.get_top_level_statements()[i]
                 .is_movable_declaration(compiler, &self.collector);
             let t = &self.collector.get_top_level_statements()[i];
+            let non_declaration_references = t
+                .get_non_declaration_references()
+                .iter()
+                .map(|r| reference_view(&mut references_by_node, compiler, r))
+                .collect();
+            let declared_name_reference = if t.is_declaration_statement() {
+                reference_view(
+                    &mut references_by_node,
+                    compiler,
+                    t.get_declared_name_reference(),
+                )
+            } else {
+                DslValue::Null
+            };
             top_level_statements.push(native(TopLevelStatementView {
                 original_order: t.get_original_order(),
                 chunk: t.get_chunk().map_or(DslValue::Null, |_| {
@@ -354,26 +496,26 @@ impl CollectorView {
                 }),
                 statement_node: t.get_statement_node(),
                 statement_node_ref: node_ref(compiler, Some(t.get_statement_node())),
-                non_declaration_references: t
-                    .get_non_declaration_references()
-                    .iter()
-                    .map(&mut reference)
-                    .collect(),
-                declared_name_reference: if t.is_declaration_statement() {
-                    reference(t.get_declared_name_reference())
-                } else {
-                    DslValue::Null
-                },
+                non_declaration_references,
+                declared_name_reference,
                 declared_value_node: t.get_declared_value_node(),
                 declared_value_node_ref: node_ref(compiler, t.get_declared_value_node()),
                 is_movable_declaration,
             }));
         }
+        let reference_collector = native(ReferenceCollectorView {
+            compiler: self.compiler.clone(),
+            references: references
+                .iter()
+                .map(|(_, view, refs)| (view.clone(), refs.clone()))
+                .collect(),
+        });
         Ok(CollectorState {
             vars,
             references,
             top_level_statements,
             statement_counter: self.collector.get_statement_counter(),
+            reference_collector: Some(reference_collector),
         })
     }
 
@@ -400,6 +542,8 @@ fn var_view(compiler: &AbstractCompiler, var: VarId) -> DslValue {
         DslValue::Null
     };
     native(VarView {
+        name: var.get_name(compiler),
+        scope_root: var.get_scope_root(compiler),
         fields: IndexMap::<_, _>::from_iter([
             (
                 "AbstractVar.name".to_string(),
@@ -453,8 +597,8 @@ impl NativeObject for CollectorView {
                     self.state
                         .references
                         .iter()
-                        .find(|(v, _)| *v == id)
-                        .map(|(_, r)| r.clone())
+                        .find(|(v, ..)| *v == id)
+                        .map(|(.., r)| r.clone())
                 })
                 .unwrap_or(DslValue::Null)),
             ("getTopLevelStatements", []) => {
@@ -465,14 +609,6 @@ impl NativeObject for CollectorView {
     }
     // port: ReplayValues#findField (CrossChunkReferenceCollector fields in declaration order)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
-        let var_view = |id: VarId| {
-            self.state
-                .vars
-                .iter()
-                .find(|(v, ..)| *v == id)
-                .map(|(.., view)| view.clone())
-                .ok_or_else(|| bad("referenced variable is not a global name"))
-        };
         Ok(IndexMap::<_, _>::from_iter([
             (
                 "varsByName".to_string(),
@@ -487,29 +623,21 @@ impl NativeObject for CollectorView {
                 ),
             ),
             (
-                "referenceMap".to_string(),
-                DslValue::Map(
-                    self.state
-                        .references
-                        .iter()
-                        .map(|(var, refs)| Ok((var_view(*var)?, refs.clone())))
-                        .collect::<Result<_, Throwable>>()?,
-                ),
-            ),
-            ("blockStack".to_string(), DslValue::List(vec![])),
-            (
                 "topLevelStatements".to_string(),
                 DslValue::List(self.state.top_level_statements.clone()),
             ),
             (
-                "scopeCreator".to_string(),
-                native(ScopeCreatorView {
-                    compiler: self.compiler.clone(),
-                }),
-            ),
-            (
                 "compiler".to_string(),
                 DslValue::Compiler(self.compiler.clone()),
+            ),
+            (
+                "referenceCollector".to_string(),
+                self.state.reference_collector.clone().unwrap_or_else(|| {
+                    native(ReferenceCollectorView {
+                        compiler: self.compiler.clone(),
+                        references: vec![],
+                    })
+                }),
             ),
             (
                 "statementCounter".to_string(),

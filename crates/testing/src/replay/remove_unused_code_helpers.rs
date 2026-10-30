@@ -331,7 +331,11 @@ fn process_borrowed(
 fn test_helpers(_ctx: &mut Ctx, _args: Vec<DslValue>) -> Result<DslValue, Throwable> {
     let mut fields = IndexMap::<_, _>::default();
     let mut field_types = IndexMap::<_, _>::default();
-    for name in ["removeGlobal", "preserveFunctionExpressionNames"] {
+    for name in [
+        "removeGlobal",
+        "preserveFunctionExpressionNames",
+        "disambiguateProperties",
+    ] {
         fields.insert(name.to_string(), DslValue::Bool(false));
         field_types.insert(name.to_string(), "boolean".to_string());
     }
@@ -376,6 +380,7 @@ impl CompilerPass for TestHelpersProcessor {
             .remove_globals(self.field("removeGlobal"))
             .remove_unused_polyfills(true)
             .preserve_function_expression_names(self.field("preserveFunctionExpressionNames"))
+            .disambiguate_properties(self.field("disambiguateProperties"))
             .build()
             .process(compiler, externs, root);
     }

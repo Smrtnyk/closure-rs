@@ -45,9 +45,11 @@
 
 //! Port of the replay helper `oracle/replay/helpers/.../ReferenceCollectorTest_Helpers.java`
 //! (DSL names `ReferenceCollectorTest_Helpers.Anon<N>` and
-//! `ReferenceCollectorTest_Helpers.Lambda_<testMethod>`): the ReferenceCollector.Behavior
-//! callbacks ReferenceCollectorTest passes to getProcessor, plus the replay constructor of
-//! `ReferenceCollector(AbstractCompiler, Behavior, ScopeCreator)` that receives them.
+//! `ReferenceCollectorTest_Helpers.Lambda_<testMethod>`, `ReferenceCollectorTest_Helpers.VarFilter_<testMethod>`):
+//! the ReferenceCollector.Behavior callbacks and the varFilter ReferenceCollectorTest passes to
+//! getProcessor, plus the replay constructor of
+//! `ReferenceCollector(AbstractCompiler, Behavior, ScopeCreator, Predicate, boolean)` that
+//! receives them.
 //!
 //! The callbacks only assert. Java throws the first failed assertion out of the traversal; the
 //! Rust Behavior cannot return an error, so it keeps the first failure, skips its later checks
@@ -61,8 +63,9 @@ use closure_jscomp::{
     abstract_var::AbstractVar,
     compiler_pass::CompilerPass,
     node_traversal::NodeTraversal,
+    reference::Reference,
     reference_collection::ReferenceCollection,
-    reference_collector::{Behavior, ReferenceCollector},
+    reference_collector::{Behavior, ReferenceCollector, VarFilter},
     reference_map::ReferenceMap,
     syntactic_scope_creator::SyntacticScopeCreator,
     var::VarId,
@@ -75,10 +78,16 @@ const PREFIX: &str = "com.google.javascript.jscomp.ReferenceCollectorTest_Helper
 
 type Check = fn(&mut NodeTraversal<'_>, &dyn ReferenceMap) -> Result<(), Throwable>;
 
+/// The `afterVisitNode` body of a generated Behavior: it appends names to the behavior's lists
+/// (Java's captured local lists, fields of the generated class).
+type Visit = fn(&mut [Vec<JsString>; 2], &mut NodeTraversal<'_>, NodeId, Option<&Reference>);
+
 /// One generated `static final class ... implements Behavior`.
 pub struct NativeBehavior {
     class: String,
     check: Check,
+    visit: Option<Visit>,
+    lists: [Vec<JsString>; 2],
     failure: Option<Throwable>,
 }
 
@@ -98,6 +107,19 @@ impl NativeObject for NativeBehavior {
 }
 
 impl Behavior for NativeBehavior {
+    // port: ReferenceCollector.Behavior#afterVisitNode
+    fn after_visit_node(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        n: NodeId,
+        _parent: Option<NodeId>,
+        added_reference: Option<&Reference>,
+    ) {
+        if let Some(visit) = self.visit {
+            visit(&mut self.lists, t, n, added_reference);
+        }
+    }
+
     // port: ReferenceCollector.Behavior#afterExitScope
     fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, reference_map: &dyn ReferenceMap) {
         if self.failure.is_none()
@@ -111,6 +133,14 @@ impl Behavior for NativeBehavior {
 // port: ReplayDsl#helper (ReferenceCollectorTest_Helpers nested Behavior constructors)
 pub fn entry(signature: &str) -> Option<crate::replay::registry::Entry> {
     let name = signature.strip_prefix(PREFIX)?.strip_suffix("#<init>()")?;
+    if name == VAR_FILTER_REJECTING_Z {
+        return Some(|_, a| {
+            if !a.is_empty() {
+                return Err(bad());
+            }
+            Ok(DslValue::Native(Rc::new(RefCell::new(NativeVarFilter))))
+        });
+    }
     BEHAVIORS
         .iter()
         .find(|(n, _)| *n == name)
@@ -119,14 +149,68 @@ pub fn entry(signature: &str) -> Option<crate::replay::registry::Entry> {
 
 // port: ReferenceCollectorTest_Helpers.Anon1#Anon1 (and every other generated Behavior)
 fn new_behavior(args: &[DslValue], name: &str, check: Check) -> Result<DslValue, Throwable> {
+    new_visiting_behavior(args, name, check, None)
+}
+
+// port: ReferenceCollectorTest_Helpers.Anon17#Anon17 (and the other Behaviors with afterVisitNode)
+fn new_visiting_behavior(
+    args: &[DslValue],
+    name: &str,
+    check: Check,
+    visit: Option<Visit>,
+) -> Result<DslValue, Throwable> {
     if !args.is_empty() {
         return Err(bad());
     }
     Ok(DslValue::Native(Rc::new(RefCell::new(NativeBehavior {
         class: format!("{PREFIX}{name}"),
         check,
+        visit,
+        lists: [Vec::new(), Vec::new()],
         failure: None,
     }))))
+}
+
+const VAR_FILTER_REJECTING_Z: &str =
+    "VarFilter_testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter";
+
+/// `ReferenceCollectorTest_Helpers.VarFilter_testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter`.
+struct NativeVarFilter;
+
+impl NativeObject for NativeVarFilter {
+    // port: ReplayDsl#invoke (runtime declaring class)
+    fn class_name(&self) -> &str {
+        "com.google.javascript.jscomp.ReferenceCollectorTest_Helpers$VarFilter_testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter"
+    }
+    // port: ReplayValues#findField (native object adapter)
+    fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
+        Ok(IndexMap::<_, _>::default())
+    }
+    // port: ReplayDsl#invoke (receiver cast)
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+/// The `varFilter` argument of the replayed constructor.
+#[derive(Clone, Copy)]
+enum VarFilterKind {
+    /// `Predicates.alwaysTrue()` (recorded as the enum `Predicates$ObjectPredicate.ALWAYS_TRUE`).
+    AlwaysTrue,
+    /// The helper `VarFilter_testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter`.
+    RejectingZ,
+}
+
+impl VarFilterKind {
+    // port: Predicates.ObjectPredicate.ALWAYS_TRUE#apply / ReferenceCollectorTest_Helpers.VarFilter_testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter#apply
+    fn filter(self) -> VarFilter<'static> {
+        match self {
+            Self::AlwaysTrue => Box::new(|_, _| true),
+            Self::RejectingZ => {
+                Box::new(|compiler, v| AbstractVar::get_name(v, compiler) != JsString::from("z"))
+            }
+        }
+    }
 }
 
 /// The `ReferenceCollector` built by getProcessor; the collector borrows its behavior and scope
@@ -135,6 +219,8 @@ fn new_behavior(args: &[DslValue], name: &str, check: Check) -> Result<DslValue,
 /// the compiler is at hand; the collector does not change them afterwards.
 struct NativeReferenceCollector {
     behavior: Rc<RefCell<dyn NativeObject>>,
+    var_filter: VarFilterKind,
+    collect_hoisted_functions_in_reference_order: bool,
     reference_map: Vec<(DslValue, DslValue)>,
 }
 
@@ -181,7 +267,13 @@ impl NativeObject for NativeReferenceCollector {
             .downcast_mut::<NativeBehavior>()
             .ok_or(Throwable::Unported(class))?;
         let mut scope_creator = SyntacticScopeCreator::new();
-        let mut collector = ReferenceCollector::new(compiler, &mut *behavior, &mut scope_creator);
+        let mut collector = ReferenceCollector::new_with_hoisted_function_order(
+            compiler,
+            &mut *behavior,
+            &mut scope_creator,
+            self.var_filter.filter(),
+            self.collect_hoisted_functions_in_reference_order,
+        );
         CompilerPass::process(&mut collector, compiler, externs, root);
         self.reference_map.clear();
         for var in collector.get_all_symbols() {
@@ -322,25 +414,75 @@ impl NativeObject for ReferenceView {
     }
 }
 
-// port: ReferenceCollector#ReferenceCollector(AbstractCompiler,Behavior,ScopeCreator)
+// port: ReferenceCollector#ReferenceCollector(AbstractCompiler,Behavior,ScopeCreator,Predicate,boolean)
 pub fn reference_collector(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslValue, Throwable> {
     let [
         DslValue::Compiler(_),
         DslValue::Native(behavior),
         DslValue::Native(_creator),
+        var_filter,
+        DslValue::Bool(collect_hoisted_functions_in_reference_order),
     ] = args.as_slice()
     else {
         return Err(bad());
     };
+    let var_filter = match var_filter {
+        DslValue::Enum { class, name }
+            if class == "com.google.common.base.Predicates$ObjectPredicate"
+                && name == "ALWAYS_TRUE" =>
+        {
+            VarFilterKind::AlwaysTrue
+        }
+        DslValue::Native(f) if f.borrow_mut().as_any_mut().is::<NativeVarFilter>() => {
+            VarFilterKind::RejectingZ
+        }
+        _ => return Err(bad()),
+    };
     Ok(DslValue::Native(Rc::new(RefCell::new(
         NativeReferenceCollector {
             behavior: behavior.clone(),
+            var_filter,
+            collect_hoisted_functions_in_reference_order:
+                *collect_hoisted_functions_in_reference_order,
             reference_map: vec![],
         },
     ))))
 }
 
-const BEHAVIORS: [(&str, crate::replay::registry::Entry); 27] = [
+// port: ReferenceCollectorTest_Helpers.Anon17#afterVisitNode / Anon18#afterVisitNode
+fn visit_added_reference_names(
+    lists: &mut [Vec<JsString>; 2],
+    t: &mut NodeTraversal<'_>,
+    _n: NodeId,
+    added_reference: Option<&Reference>,
+) {
+    if let Some(added_reference) = added_reference {
+        lists[0].push(added_reference.get_node().get_string(t));
+    }
+}
+
+// port: ReferenceCollectorTest_Helpers.Anon19#afterVisitNode
+fn visit_names_by_filter_result(
+    lists: &mut [Vec<JsString>; 2],
+    t: &mut NodeTraversal<'_>,
+    n: NodeId,
+    added_reference: Option<&Reference>,
+) {
+    if n.is_name(t) {
+        if added_reference.is_some() {
+            lists[0].push(n.get_string(t));
+        } else {
+            lists[1].push(n.get_string(t));
+        }
+    }
+}
+
+// port: ReferenceCollectorTest_Helpers.Anon17#afterExitScope (and Anon18, Anon19): empty
+fn no_check(_t: &mut NodeTraversal<'_>, _rm: &dyn ReferenceMap) -> Result<(), Throwable> {
+    Ok(())
+}
+
+const BEHAVIORS: [(&str, crate::replay::registry::Entry); 30] = [
     ("Anon1", |_, a| new_behavior(&a, "Anon1", anon1)),
     ("Anon2", |_, a| new_behavior(&a, "Anon2", anon2)),
     ("Anon3", |_, a| new_behavior(&a, "Anon3", anon3)),
@@ -356,6 +498,15 @@ const BEHAVIORS: [(&str, crate::replay::registry::Entry); 27] = [
     ("Anon13", |_, a| new_behavior(&a, "Anon13", anon13)),
     ("Anon14", |_, a| new_behavior(&a, "Anon14", anon14)),
     ("Anon15", |_, a| new_behavior(&a, "Anon15", anon15)),
+    ("Anon17", |_, a| {
+        new_visiting_behavior(&a, "Anon17", no_check, Some(visit_added_reference_names))
+    }),
+    ("Anon18", |_, a| {
+        new_visiting_behavior(&a, "Anon18", no_check, Some(visit_added_reference_names))
+    }),
+    ("Anon19", |_, a| {
+        new_visiting_behavior(&a, "Anon19", no_check, Some(visit_names_by_filter_result))
+    }),
     ("Lambda_testIterableRest_declaration", |_, a| {
         new_behavior(
             &a,
