@@ -82,6 +82,12 @@ Int8Array.prototype.toSorted es_next es5 es6/typedarray/tosorted
 Int8Array.prototype.with es_next es5 es6/typedarray/with
 Iterator es_next es3 es6/iterator
 Iterator.from es_next es3 es6/iterator/from
+Iterator.prototype.every es_next es3 es6/iterator/every
+Iterator.prototype.find es_next es3 es6/iterator/find
+Iterator.prototype.forEach es_next es3 es6/iterator/foreach
+Iterator.prototype.reduce es_next es3 es6/iterator/reduce
+Iterator.prototype.some es_next es3 es6/iterator/some
+Iterator.prototype.toArray es_next es3 es6/iterator/toarray
 Map es6 es3 es6/map
 Map.groupBy es_next es3 es6/map
 Math.acosh es6 es3 es6/math/acosh

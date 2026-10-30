@@ -67,6 +67,7 @@ hasModule	es6/modules/runtime
 inherits	es6/util/inherits
 initSymbol	es6/symbol
 iteratorClose	es6/util/iteratorclose
+iteratorDo	es6/util/iteratordo
 iteratorFromArray	es6/util/iteratorfromarray
 iteratorPrototype	es6/symbol
 makeAsyncIterator	es6/util/makeasynciterator
