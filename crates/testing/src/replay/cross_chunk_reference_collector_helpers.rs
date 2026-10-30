@@ -40,6 +40,7 @@
 //   src/com/google/javascript/jscomp/CrossChunkReferenceCollector.java,
 //   src/com/google/javascript/jscomp/Reference.java,
 //   src/com/google/javascript/jscomp/ReferenceCollection.java,
+//   src/com/google/javascript/jscomp/ReferenceCollector.java,
 //   test/com/google/javascript/jscomp/CrossChunkReferenceCollectorTest.java.
 
 //! Port of the unit-corpus helper `CrossChunkReferenceCollectorTest_Helpers.java`

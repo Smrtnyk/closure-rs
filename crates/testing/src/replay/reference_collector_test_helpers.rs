@@ -207,7 +207,7 @@ impl VarFilterKind {
         match self {
             Self::AlwaysTrue => Box::new(|_, _| true),
             Self::RejectingZ => {
-                Box::new(|compiler, v| AbstractVar::get_name(v, compiler) != JsString::from("z"))
+                Box::new(|compiler, v| AbstractVar::get_name(v, compiler) != "z")
             }
         }
     }
