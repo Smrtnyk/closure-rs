@@ -133,7 +133,7 @@ fn angular_pass_test() {
 // port: GenerateExportsTest (53 @Test methods, 79 recorded calls)
 #[test]
 fn generate_exports_test() {
-    assert_records("GenerateExportsTest", 79, 79, &[]);
+    assert_records("GenerateExportsTest", 81, 81, &[]);
 }
 
 // port: ReplaceIdGeneratorsTest (42 @Test methods, 102 recorded calls)

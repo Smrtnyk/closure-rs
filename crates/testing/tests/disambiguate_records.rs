@@ -94,13 +94,13 @@ fn assert_records(class: &str, expected: usize, passing: usize) {
 // port: AmbiguatePropertiesTest (139 recorded calls)
 #[test]
 fn ambiguate_properties_test() {
-    assert_records("AmbiguatePropertiesTest", 139, 139);
+    assert_records("AmbiguatePropertiesTest", 140, 140);
 }
 
 // port: DisambiguatePropertiesTest (39 recorded calls)
 #[test]
 fn disambiguate_properties_test() {
-    assert_records("DisambiguatePropertiesTest", 39, 39);
+    assert_records("DisambiguatePropertiesTest", 40, 40);
 }
 
 /// The holder ColorFindPropertyReferencesTest_Helpers; testFieldsAfter compares

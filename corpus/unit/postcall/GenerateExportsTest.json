@@ -1,0 +1,12 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.GenerateExportsTest",
+ "methods": [
+  {
+   "method": "testCannotExportPrivateClassMembers_knownBug",
+   "status": "unclassified",
+   "pending": "rust_unit_test (category exception) once crates/ has a Rust port '// port: GenerateExportsTest#testCannotExportPrivateClassMembers_knownBug' of the check and the fragment line exists: the method wraps each of its two hooked testError(..., EXPORT_ANNOTATION_NOT_ALLOWED) calls in assertThrows(AssertionError.class, ...) and asserts hasMessageThat().contains(\"but was        : []\"), the message of the Truth AssertionError the harness throws for the missing error, a Java test-framework exception that no snapshot key holds (records 39 and 40; postCall carries only compiler.accessorSummary and compiler.allowableFeatures). No Rust port of this method exists at v20261028.",
+   "note": "Source lines 498-536 (2 records; b/236744850 knownBug, new in v20261028)."
+  }
+ ]
+}

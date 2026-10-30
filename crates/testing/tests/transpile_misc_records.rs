@@ -199,7 +199,7 @@ fn es2021_integration_test() {
 // port: ES2022IntegrationTest (27 @Test methods, 32 recorded calls)
 #[test]
 fn es2022_integration_test() {
-    assert_records("ES2022IntegrationTest", 32);
+    assert_records("ES2022IntegrationTest", 40);
 }
 
 // port: OptionalChainingIntegrationTest (5 @Test methods, 6 recorded calls)

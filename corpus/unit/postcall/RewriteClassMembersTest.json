@@ -17,6 +17,52 @@
    "via": [
     "outcome"
    ]
+  },
+  {
+   "method": "testPrivateFieldAsSuperclass_knownBug",
+   "status": "unclassified",
+   "pending": "rust_unit_test (category exception) once crates/ has a Rust port '// port: RewriteClassMembersTest#testPrivateFieldAsSuperclass_knownBug' of the check and the fragment line exists: assertThrows(RuntimeException.class, () -> test(src, \"\")), hasMessageThat().contains(\"INTERNAL COMPILER ERROR\"), hasCauseThat().isInstanceOf(IllegalStateException.class) and the cause's message contains \"Expected Es6NormalizeClasses to make all extends clauses into qualified names\": the cause class is a Java exception chain the record does not keep (record 258). No Rust port of this method exists at v20261028.",
+   "note": "Source lines 6683-6713 (1 record; b/236744850 knownBug, new in v20261028)."
+  },
+  {
+   "method": "testSuperInPrivateMethodParameterDefault_knownBug",
+   "status": "captured",
+   "via": [
+    "outcome"
+   ],
+   "note": "assertThrows(IllegalStateException.class, () -> test(src, \"\")) then hasMessageThat().contains(\"super property references are only allowed in methods, class static blocks and class fields\"). The record's outcome is that exception (class java.lang.IllegalStateException, assertion false, full message containing the text), which replay compares status, class and message exactly. Source lines 6715-6737 (1 record)."
+  },
+  {
+   "method": "testSuperCompoundAssignmentInPrivateMethod_knownBug",
+   "status": "captured",
+   "via": [
+    "outcome"
+   ],
+   "note": "assertThrows(IllegalStateException.class, () -> test(src, \"\")) then hasMessageThat().contains(\"Invalid child for ASSIGN_ADD node\"). The record's outcome is that exception (class java.lang.IllegalStateException, assertion false, full message containing the text), which replay compares status, class and message exactly. Source lines 6739-6761 (1 record)."
+  },
+  {
+   "method": "testComputedPropertyReferencingPrivateField_knownBug",
+   "status": "unclassified",
+   "pending": "rust_unit_test (category exception) once crates/ has a Rust port '// port: RewriteClassMembersTest#testComputedPropertyReferencingPrivateField_knownBug' of the check and the fragment line exists: assertThrows(RuntimeException.class, () -> test(js, expected)), hasMessageThat().contains(\"INTERNAL COMPILER ERROR\") (in the recorded exception, compared by replay) and hasCauseThat().isInstanceOf(IllegalArgumentException.class): the cause class is a Java exception chain the record does not keep (record 206). No Rust port of this method exists at v20261028.",
+   "note": "Source lines 7332-7377 (1 record; b/236744850 knownBug, new in v20261028)."
+  },
+  {
+   "method": "testLogicalAssignmentToPrivateField_knownBug",
+   "status": "unclassified",
+   "pending": "rust_unit_test (category exception) once crates/ has a Rust port '// port: RewriteClassMembersTest#testLogicalAssignmentToPrivateField_knownBug' of the check and the fragment line exists: assertThrows(AssertionError.class, () -> test(js, expected)) and hasMessageThat().contains(\".#n\"): the asserted value is the message of the Truth AssertionError the CompilerTestCase harness throws (a 'Node tree inequality' JS diff), a Java test-framework exception that no snapshot key holds and that a non-Java harness does not reproduce (it reports its own assertion failure at the same check). (record 12). No Rust port of this method exists at v20261028.",
+   "note": "Source lines 7379-7418 (1 record; b/236744850 knownBug, new in v20261028)."
+  },
+  {
+   "method": "testLogicalAssignmentToPrivateMethod_knownBug",
+   "status": "unclassified",
+   "pending": "rust_unit_test (category exception) once crates/ has a Rust port '// port: RewriteClassMembersTest#testLogicalAssignmentToPrivateMethod_knownBug' of the check and the fragment line exists: assertThrows(AssertionError.class, () -> test(js, expected)) and hasMessageThat().contains(\".#m\"): the asserted value is the message of the Truth AssertionError the CompilerTestCase harness throws (a 'Node tree inequality' JS diff), a Java test-framework exception that no snapshot key holds and that a non-Java harness does not reproduce (it reports its own assertion failure at the same check). (record 130). No Rust port of this method exists at v20261028.",
+   "note": "Source lines 7420-7463 (1 record; b/236744850 knownBug, new in v20261028)."
+  },
+  {
+   "method": "testStaticInitializationWithNativePrivateElements_knownBug",
+   "status": "unclassified",
+   "pending": "rust_unit_test (category exception) once crates/ has a Rust port '// port: RewriteClassMembersTest#testStaticInitializationWithNativePrivateElements_knownBug' of the check and the fragment line exists: after a first test(options, ...) call (record 128, nothing asserted after it), assertThrows(AssertionError.class, () -> test(options, js, expected)) and hasMessageThat().contains(\"+O.d = {read(o) {\"): the asserted value is the message of the Truth AssertionError the CompilerTestCase harness throws (a 'Node tree inequality' JS diff), a Java test-framework exception that no snapshot key holds and that a non-Java harness does not reproduce (it reports its own assertion failure at the same check). (record 129). No Rust port of this method exists at v20261028.",
+   "note": "Source lines 7674-7732 (2 records; b/236744850 knownBug, new in v20261028)."
   }
  ]
 }

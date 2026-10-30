@@ -101,19 +101,19 @@ fn all_records_load_and_round_trip() {
         "record_counts.tsv rows"
     );
     println!("records: {total}, non-empty files: {nonempty}, kinds: {by_kind:?}, apis: {by_api:?}");
-    assert_eq!(total, 25_105);
+    assert_eq!(total, 25_247);
     assert_eq!(nonempty, 255);
-    assert_eq!(by_kind["compiler_test_case"], 21_622);
-    assert_eq!(by_kind["type_check"], 2_729);
-    assert_eq!(by_kind["integration"], 754);
+    assert_eq!(by_kind["compiler_test_case"], 21_755);
+    assert_eq!(by_kind["type_check"], 2_730);
+    assert_eq!(by_kind["integration"], 762);
     let api = |n: &str| by_api.get(n).copied().unwrap_or(0);
-    assert_eq!(api("testInternal"), 21_526);
+    assert_eq!(api("testInternal"), 21_659);
     assert_eq!(api("testExternChanges"), 96);
-    assert_eq!(api("TypeTestBuilder.run"), 2_684);
+    assert_eq!(api("TypeTestBuilder.run"), 2_685);
     assert_eq!(api("parseAndTypeCheckWithScope"), 45);
-    assert_eq!(api("test"), 584);
-    assert_eq!(api("compile"), 48);
-    assert_eq!(api("test_warning"), 83);
+    assert_eq!(api("test"), 586);
+    assert_eq!(api("compile"), 52);
+    assert_eq!(api("test_warning"), 85);
     assert_eq!(api("testNoWarnings"), 27);
     assert_eq!(api("testParseError"), 4);
     assert_eq!(api("test_warnings"), 8);

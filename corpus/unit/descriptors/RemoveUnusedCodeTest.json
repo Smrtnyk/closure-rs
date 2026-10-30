@@ -1,14 +1,14 @@
 {
-  "source": "test/com/google/javascript/jscomp/RemoveUnusedCodeTest.java getProcessor (lines 114-128), anonymous CompilerPass copied verbatim into RemoveUnusedCodeTestHelpers",
+  "source": "test/com/google/javascript/jscomp/RemoveUnusedCodeTest.java getProcessor (lines 118-134), anonymous CompilerPass copied verbatim into RemoveUnusedCodeTestHelpers",
   "cases": [
     {
       "when": {},
       "processor": {
         "helper": "RemoveUnusedCodeTestHelpers.Processor",
-        "outer": ["removeGlobal", "preserveFunctionExpressionNames"],
+        "outer": ["removeGlobal", "preserveFunctionExpressionNames", "disambiguateProperties"],
         "args": [{"compiler": true}]
       }
     }
   ],
-  "note": "removeGlobal and preserveFunctionExpressionNames are read by the anonymous pass at process time from the outer instance; they are restored from testFields as holder fields. The RemoveUnusedCode.Builder is built inside process(), exactly as in the test."
+  "note": "removeGlobal, preserveFunctionExpressionNames and disambiguateProperties are read by the anonymous pass at process time from the outer instance; they are restored from testFields as holder fields. The RemoveUnusedCode.Builder is built inside process(), exactly as in the test."
 }
