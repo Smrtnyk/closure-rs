@@ -60,27 +60,36 @@ fn externs_zip_entries_match_reference_jar() {
     check_archive("externs.zip", EXTERNS_ZIP_ENTRIES);
 }
 
-// port: closure-compiler.jar resource counts (127 externs, 174 runtime libraries)
+// port: closure-compiler.jar resource counts (externs and runtime libraries, counted in fixture
+// jar_manifest.tsv, which scripts/upstream_sync.py step `resources` regenerates)
 #[test]
 fn resource_counts() {
     let count = |entries: &[ArchiveEntry], pred: &dyn Fn(&ArchiveEntry) -> bool| {
         entries.iter().filter(|e| pred(e)).count()
     };
     let is_file = |e: &ArchiveEntry| matches!(e.content, EntryContent::File(_));
-    assert_eq!(EXTERNS_ZIP_ENTRIES.len(), 128);
-    assert_eq!(count(EXTERNS_ZIP_ENTRIES, &is_file), 127);
+    let rows = fixture_rows("jar_manifest.tsv");
+    let manifest_files = |archive: &str, pred: &dyn Fn(&str) -> bool| {
+        rows.iter()
+            .filter(|row| row[0] == archive && !row[2].ends_with('/') && pred(&row[2]))
+            .count()
+    };
+    let is_runtime_library =
+        |name: &str| name.starts_with("com/google/javascript/jscomp/js/") && name.ends_with(".js");
+    let externs = manifest_files("externs.zip", &|_| true);
+    assert!(externs > 0);
+    assert_eq!(count(EXTERNS_ZIP_ENTRIES, &is_file), externs);
+    // Every file of externs.zip is an externs file.
     assert_eq!(
         count(EXTERNS_ZIP_ENTRIES, &|e| e.name.ends_with(".js")
             && is_file(e)),
-        127
+        externs
     );
+    let runtime_libraries = manifest_files("jar", &is_runtime_library);
+    assert!(runtime_libraries > 0);
     assert_eq!(
-        count(JAR_ENTRIES, &|e| {
-            e.name.starts_with("com/google/javascript/jscomp/js/")
-                && e.name.ends_with(".js")
-                && is_file(e)
-        }),
-        174
+        count(JAR_ENTRIES, &|e| is_runtime_library(e.name) && is_file(e)),
+        runtime_libraries
     );
     for name in [
         "com/google/javascript/jscomp/js/polyfills.txt",
@@ -97,7 +106,9 @@ fn resource_counts() {
         .iter()
         .find(|e| e.name == "externs.zip")
         .unwrap();
-    assert!(matches!(zip.content, EntryContent::Zip(entries) if entries.len() == 128));
+    assert!(
+        matches!(zip.content, EntryContent::Zip(entries) if entries.len() == EXTERNS_ZIP_ENTRIES.len())
+    );
 }
 
 // port: InputStreamReader(UTF_8) over every text resource (no replacement characters needed)
