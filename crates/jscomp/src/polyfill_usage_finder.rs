@@ -26,6 +26,7 @@ use crate::{
     node_traversal::NodeTraversal,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
+use closure_resources::resources::resource_loader::ResourceLoader;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument,
@@ -34,7 +35,11 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use std::{cell::RefCell, collections::VecDeque, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::VecDeque,
+    sync::{Arc, LazyLock},
+};
 
 /// Represents a single polyfill: specifically, for a native symbol, a set of native and polyfill
 /// versions, and a library to ensure is injected if the output version is less than the native
@@ -186,6 +191,21 @@ impl Polyfills {
                 .push(polyfill);
         }
         Polyfills::new(methods, statics, by_native_version)
+    }
+
+    /// Rust-only (performance divergence): the jar's polyfill table `js/polyfills.txt` through
+    /// [`Polyfills::from_table`], parsed once per process. The RewritePolyfills, IsolatePolyfills
+    /// and RemoveUnusedCode constructors each load and parse it in Java (the three classes are in
+    /// one package, so it is the same resource); the table never changes and `Polyfills` is not
+    /// modified after it is built.
+    pub fn from_jar_table() -> Arc<Polyfills> {
+        static TABLE: LazyLock<Arc<Polyfills>> = LazyLock::new(|| {
+            Arc::new(Polyfills::from_table(&ResourceLoader::load_text_resource(
+                "com.google.javascript.jscomp.RewritePolyfills",
+                "js/polyfills.txt",
+            )))
+        });
+        Arc::clone(&TABLE)
     }
 
     // port: PolyfillUsageFinder.Polyfills#getPolyfillsNewerThan

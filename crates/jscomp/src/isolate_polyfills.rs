@@ -39,7 +39,6 @@ use crate::{
     syntactic_scope_creator::SyntacticScopeCreator,
 };
 use closure_parsing::parser::feature_set::FeatureSet;
-use closure_resources::resources::resource_loader::ResourceLoader;
 use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{
     ir::IR,
@@ -85,17 +84,18 @@ static FILES_ALLOWED_UNQUALIFIED_POLYFILL_ACCESSES: LazyLock<IndexSet<String>> =
 impl IsolatePolyfills {
     // port: IsolatePolyfills#IsolatePolyfills(AbstractCompiler)
     pub fn new(compiler: &mut AbstractCompiler) -> Self {
-        Self::new_with_polyfills(
-            compiler,
-            Polyfills::from_table(&ResourceLoader::load_text_resource(
-                "com.google.javascript.jscomp.IsolatePolyfills",
-                "js/polyfills.txt",
-            )),
-        )
+        Self::new_with_shared_polyfills(compiler, Polyfills::from_jar_table())
     }
 
     // port: IsolatePolyfills#IsolatePolyfills(AbstractCompiler,Polyfills)
     pub fn new_with_polyfills(compiler: &mut AbstractCompiler, polyfills: Polyfills) -> Self {
+        Self::new_with_shared_polyfills(compiler, Arc::new(polyfills))
+    }
+
+    fn new_with_shared_polyfills(
+        compiler: &mut AbstractCompiler,
+        polyfills: Arc<Polyfills>,
+    ) -> Self {
         let jscomp_lookup_method = IR::name(compiler, "$jscomp$lookupPolyfilledValue");
         let has_property_collapsing_run =
             compiler.get_options().get_property_collapse_level() == PropertyCollapseLevel::ALL;
@@ -105,7 +105,7 @@ impl IsolatePolyfills {
             Self::create_js_comp_polyfills_access(compiler)
         };
         Self {
-            polyfills: Arc::new(polyfills),
+            polyfills,
             jscomp_polyfills_object,
             jscomp_lookup_method,
             used_polyfill_method_lookup: false,

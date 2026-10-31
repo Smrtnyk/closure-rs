@@ -72,7 +72,6 @@ use crate::{
     syntactic_scope_creator::SyntacticScopeCreator,
     var::VarId,
 };
-use closure_resources::resources::resource_loader::ResourceLoader;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_argument, check_not_null, check_state,
@@ -81,7 +80,7 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use std::{collections::VecDeque, sync::Arc};
+use std::collections::VecDeque;
 
 /// Properties that are implicitly used as part of the JS language.
 const IMPLICITLY_USED_PROPERTIES: [&str; 5] =
@@ -171,11 +170,7 @@ impl RemoveUnusedCode {
         let compiler = builder.compiler;
         let ast_analyzer = compiler.get_ast_analyzer();
         let scope_creator = SyntacticScopeCreator::new();
-        let polyfills_from_table =
-            Arc::new(Polyfills::from_table(&ResourceLoader::load_text_resource(
-                "com.google.javascript.jscomp.RemoveUnusedCode",
-                "js/polyfills.txt",
-            )));
+        let polyfills_from_table = Polyfills::from_jar_table();
         let polyfill_usage_finder = PolyfillUsageFinder::new(
             compiler,
             polyfills_from_table,

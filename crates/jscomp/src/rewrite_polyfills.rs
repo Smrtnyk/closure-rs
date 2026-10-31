@@ -35,7 +35,6 @@ use crate::{
     polyfill_usage_finder::{self, Kind, PolyfillUsage, PolyfillUsageFinder, Polyfills},
 };
 use closure_parsing::parser::feature_set::FeatureSet;
-use closure_resources::resources::resource_loader::ResourceLoader;
 use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::{ir::IR, node::NodeId, qualified_name::QualifiedName};
 use std::sync::{Arc, LazyLock, Mutex};
@@ -76,10 +75,7 @@ impl RewritePolyfills {
     ) -> Self {
         Self::new_with_manager(
             compiler.get_runtime_js_lib_manager(),
-            Polyfills::from_table(&ResourceLoader::load_text_resource(
-                "com.google.javascript.jscomp.RewritePolyfills",
-                "js/polyfills.txt",
-            )),
+            Polyfills::from_jar_table(),
             inject_polyfills,
             isolate_polyfills,
             inject_polyfills_newer_than,
@@ -100,7 +96,7 @@ impl RewritePolyfills {
     ) -> Self {
         Self::new_with_manager(
             Arc::new(Mutex::new(runtime_js_lib_manager)),
-            polyfills,
+            Arc::new(polyfills),
             inject_polyfills,
             isolate_polyfills,
             inject_polyfills_newer_than,
@@ -110,7 +106,7 @@ impl RewritePolyfills {
 
     fn new_with_manager(
         runtime_js_lib_manager: Arc<Mutex<RuntimeJsLibManager>>,
-        polyfills: Polyfills,
+        polyfills: Arc<Polyfills>,
         inject_polyfills: bool,
         isolate_polyfills: bool,
         inject_polyfills_newer_than: Option<LanguageMode>,
@@ -118,7 +114,7 @@ impl RewritePolyfills {
     ) -> Self {
         Self {
             runtime_js_lib_manager,
-            polyfills: Arc::new(polyfills),
+            polyfills,
             inject_polyfills,
             isolate_polyfills,
             libraries: None,
