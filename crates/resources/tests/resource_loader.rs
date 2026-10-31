@@ -118,9 +118,11 @@ fn runtime_libs_typedast_through_compiler_class() {
     )
     .unwrap();
     let bytes = stream.read_all_bytes();
-    assert_eq!(bytes.len(), 3_540_605);
-    assert_eq!(
-        sha256_hex(bytes),
-        "894791ed6d0069bbfba7a26410bfe4f2600a3bfe21f989967e10f8c42429b968"
-    );
+    // The size and sha256 of the jar entry in fixture jar_manifest.tsv.
+    let row = fixture_rows("jar_manifest.tsv")
+        .into_iter()
+        .find(|row| row[0] == "jar" && row[2] == "runtime_libs.typedast")
+        .unwrap();
+    assert_eq!(bytes.len().to_string(), row[3]);
+    assert_eq!(sha256_hex(bytes), row[4]);
 }
