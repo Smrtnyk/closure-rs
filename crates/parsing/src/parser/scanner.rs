@@ -1086,9 +1086,12 @@ impl Scanner {
             match self.peek_char() {
                 ch if ch == u16::from(b'`') => return result,
                 ch if ch == u16::from(b'\\') => {
-                    // There might be multiple errors. Take the first one but continue scanning
+                    // There might be multiple errors or warnings. Take the first error, or the first
+                    // warning if there are no errors, but continue scanning.
                     let new_error = self.skip_template_literal_escape_sequence();
-                    if let Some(new_error) = new_error.filter(|_| !result.has_error()) {
+                    if let Some(new_error) = new_error
+                        && (!result.has_message() || (!result.has_error() && new_error.has_error()))
+                    {
                         result = new_error;
                     }
                 }
@@ -1542,8 +1545,12 @@ impl SkipTemplateCharactersResult {
     fn get_position(&self) -> SourcePosition {
         self.position.clone()
     }
+    // port: Scanner.SkipTemplateCharactersResult#hasMessage
+    fn has_message(&self) -> bool {
+        self.error_message.is_some()
+    }
     // port: Scanner.SkipTemplateCharactersResult#hasError
     fn has_error(&self) -> bool {
-        self.error_message.is_some()
+        self.error_level == Some(ErrorLevel::ERROR)
     }
 }
