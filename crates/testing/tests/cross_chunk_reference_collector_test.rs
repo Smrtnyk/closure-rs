@@ -114,7 +114,8 @@ impl Test {
 
     // port: CrossChunkReferenceCollector#getGlobalVariableNamesMap
     fn global_variable_names_map(&self) -> IndexMap<JsString, VarId> {
-        self.collector().get_global_variable_names_map()
+        self.collector()
+            .get_global_variable_names_map(&self.compiler())
     }
     // port: CrossChunkReferenceCollector#getReferences
     fn references(&self, var: VarId) -> ReferenceCollection {

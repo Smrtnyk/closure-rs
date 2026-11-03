@@ -36,13 +36,13 @@ use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
-use closure_rhino::{check_not_null, check_state};
+use closure_rhino::{check_argument, check_not_null, check_state};
 
 /// Collects global variable references for use by CrossChunkCodeMotion.
 ///
 /// Java's `referenceCollector` field is made in the constructor and keeps the scope creator and the
-/// inner `TopLevelStatementCollectingBehavior`, which writes the collector's `varsByName`,
-/// `topLevelStatements`, `statementCounter` and `topLevelStatementDraft`. Here those four fields
+/// inner `TopLevelStatementCollectingBehavior`, which writes the collector's
+/// `topLevelStatements`, `statementCounter` and `topLevelStatementDraft`. Here those three fields
 /// live in the behavior, and the `ReferenceCollector` borrows it and the scope creator while
 /// `process` runs; its references are kept afterwards (`reference_map`).
 pub struct CrossChunkReferenceCollector<'a> {
@@ -61,7 +61,6 @@ impl<'a> CrossChunkReferenceCollector<'a> {
     pub fn new(creator: Box<dyn ScopeCreator + 'a>) -> Self {
         Self {
             behavior: TopLevelStatementCollectingBehavior {
-                vars_by_name: IndexMap::<_, _>::default(),
                 top_level_statements: Vec::new(),
                 statement_counter: 0,
                 top_level_statement_draft: None,
@@ -128,8 +127,22 @@ impl<'a> CrossChunkReferenceCollector<'a> {
     }
 
     // port: CrossChunkReferenceCollector#getGlobalVariableNamesMap
-    pub fn get_global_variable_names_map(&self) -> IndexMap<JsString, VarId> {
-        self.behavior.vars_by_name.clone()
+    pub fn get_global_variable_names_map(
+        &self,
+        compiler: &AbstractCompiler,
+    ) -> IndexMap<JsString, VarId> {
+        let mut builder: IndexMap<JsString, VarId> = IndexMap::<_, _>::default();
+        for v in self.get_all_collected_symbols() {
+            let name = v.get_name(compiler);
+            // ImmutableMap.Builder#buildOrThrow
+            check_argument!(
+                !builder.contains_key(&name),
+                "Multiple entries with same key: %s",
+                name
+            );
+            builder.insert(name, v);
+        }
+        builder
     }
 
     // port: CrossChunkReferenceCollector#isPotentiallyMoveableGetElem
@@ -386,9 +399,6 @@ impl CompilerPass for CrossChunkReferenceCollector<'_> {
 /// collector it writes.
 // port: CrossChunkReferenceCollector.TopLevelStatementCollectingBehavior
 struct TopLevelStatementCollectingBehavior {
-    /// Maps global variable name to the corresponding Var object.
-    vars_by_name: IndexMap<JsString, VarId>,
-
     /// List of all top-level statements in the order they appear in the AST.
     top_level_statements: Vec<TopLevelStatement>,
 
@@ -532,15 +542,6 @@ impl Behavior for TopLevelStatementCollectingBehavior {
         } else if let Some(added_reference) = added_reference
             && n.is_name(t)
         {
-            let var_name = n.get_string(t);
-            let v = added_reference
-                .get_symbol(t.get_compiler())
-                .expect("Reference#getSymbol");
-            if let Some(existing) = self.vars_by_name.get(&var_name) {
-                check_state!(existing.equals(t.get_compiler(), v));
-            } else {
-                self.vars_by_name.insert(var_name, v);
-            }
             let draft = self.top_level_statement_draft.as_mut().unwrap();
             if Some(added_reference.get_node()) == draft.declared_name_node {
                 draft.declared_name_reference = Some(added_reference.clone());

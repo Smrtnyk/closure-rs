@@ -446,7 +446,7 @@ impl CollectorView {
         }
         let mut references_by_node: IndexMap<NodeId, DslValue> = IndexMap::<_, _>::default();
         let mut vars = vec![];
-        for (name, var) in self.collector.get_global_variable_names_map() {
+        for (name, var) in self.collector.get_global_variable_names_map(compiler) {
             vars.push((var, name.to_string_lossy(), var_view(compiler, var)));
         }
         let mut references = vec![];
