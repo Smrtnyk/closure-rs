@@ -50,6 +50,7 @@
 //   test/com/google/javascript/jscomp/Es6TemplateLiteralsTest.java,
 //   test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java,
 //   test/com/google/javascript/jscomp/InstrumentAsyncContextTest.java,
+//   test/com/google/javascript/jscomp/RewriteObjectSpreadTest.java,
 //   test/com/google/javascript/jscomp/RewriteOptionalChainingOperatorTest.java.
 // Ported from closure-rs' own Java oracle tooling:
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java.
