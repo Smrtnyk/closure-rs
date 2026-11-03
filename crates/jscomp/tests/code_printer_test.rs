@@ -4370,7 +4370,6 @@ var $jscomp$scope$3556498$0$STR = '3';
 // port: CodePrinterTest#testNullishCoalesceCastInOr
 #[test]
 fn test_nullish_coalesce_cast_in_or() {
-    // TODO(b/571641705): CodeGenerator omits required parentheses around ?? in CAST-wrapped logical expressions
     let mut t = CodePrinterTestBase::new();
     let ast = &mut t.last_compiler;
     let x = IR::name(ast, JsString::from("x"));
@@ -4379,7 +4378,33 @@ fn test_nullish_coalesce_cast_in_or() {
     let cast = ast.new_node_with_child(Token::CAST, coalesce);
     let z = IR::name(ast, JsString::from("z"));
     let or = IR::or(ast, cast, z);
-    t.assert_print_node(JsString::from("x??y||z"), or);
+    t.assert_print_node(JsString::from("(x??y)||z"), or);
+}
+// port: CodePrinterTest#testNullishCoalesceCastInAnd
+#[test]
+fn test_nullish_coalesce_cast_in_and() {
+    let mut t = CodePrinterTestBase::new();
+    let ast = &mut t.last_compiler;
+    let z = IR::name(ast, JsString::from("z"));
+    let x = IR::name(ast, JsString::from("x"));
+    let y = IR::name(ast, JsString::from("y"));
+    let coalesce = IR::coalesce(ast, x, y);
+    let cast = ast.new_node_with_child(Token::CAST, coalesce);
+    let and = IR::and(ast, z, cast);
+    t.assert_print_node(JsString::from("z&&(x??y)"), and);
+}
+// port: CodePrinterTest#testOrCastInNullishCoalesce
+#[test]
+fn test_or_cast_in_nullish_coalesce() {
+    let mut t = CodePrinterTestBase::new();
+    let ast = &mut t.last_compiler;
+    let x = IR::name(ast, JsString::from("x"));
+    let y = IR::name(ast, JsString::from("y"));
+    let or = IR::or(ast, x, y);
+    let cast = ast.new_node_with_child(Token::CAST, or);
+    let z = IR::name(ast, JsString::from("z"));
+    let coalesce = IR::coalesce(ast, cast, z);
+    t.assert_print_node(JsString::from("(x||y)??z"), coalesce);
 }
 // port: CodePrinterTest#testNullishCoalesceExtends
 #[test]

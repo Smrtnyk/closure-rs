@@ -37,8 +37,8 @@ use closure_rhino::{
     check_state,
     js_identifier::JSIdentifier,
     js_string::JsString,
-    jsdoc_info::{JSDocInfo, Visibility},
-    node::{Ast, NodeId, ObjectProp},
+    jsdoc_info::JSDocInfo,
+    node::{Ast, NodeId},
     non_jsdoc_comment::NonJSDocComment,
     qualified_name::QualifiedName,
     token::Token,
@@ -69,7 +69,7 @@ pub struct CodeGenerator<'a> {
     output_charset_encoder: Option<OutputCharsetEncoder>,
     prefer_single_quotes: bool,
     preserve_type_annotations: bool,
-    print_non_jsdoc_comments: bool,
+    print_non_js_doc_comments: bool,
     /// To distinguish between gents and non-gents mode so that we can turn off checking the sanity of
     /// the source location of comments, and also provide a different mode for comment printing between
     /// those two.
@@ -92,7 +92,7 @@ impl<'a> CodeGenerator<'a> {
             prefer_single_quotes: false,
             trusted_strings: true,
             preserve_type_annotations: false,
-            print_non_jsdoc_comments: false,
+            print_non_js_doc_comments: false,
             gents_mode: false,
             quote_keyword_properties: false,
             use_original_name: false,
@@ -110,7 +110,7 @@ impl<'a> CodeGenerator<'a> {
             prefer_single_quotes: options.should_prefer_single_quotes(),
             trusted_strings: options.assume_trusted_strings(),
             preserve_type_annotations: options.should_preserve_type_annotations(),
-            print_non_jsdoc_comments: options.get_preserve_non_jsdoc_comments(),
+            print_non_js_doc_comments: options.get_preserve_non_jsdoc_comments(),
             gents_mode: options.get_gents_mode(),
             quote_keyword_properties: options.should_quote_keyword_properties(),
             use_original_name,
@@ -183,20 +183,32 @@ impl<'a> CodeGenerator<'a> {
         }
     }
 
-    // port: CodeGenerator#isLogicalANDorLogicalORChildOfNullishCoalesce
-    fn is_logical_andor_logical_or_child_of_nullish_coalesce(ast: &Ast, n: NodeId) -> bool {
+    // port: CodeGenerator#isLogicalAndOrLogicalOrChildOfNullishCoalesce
+    fn is_logical_and_or_logical_or_child_of_nullish_coalesce(&self, ast: &Ast, n: NodeId) -> bool {
+        let expr = self.skip_transparent_casts(ast, n);
         let parent = n.get_parent(ast);
-        let logical_andor_logical_or = n.is_and(ast) || n.is_or(ast);
+        let logical_and_or_logical_or = expr.is_and(ast) || expr.is_or(ast);
         let child_of_nullish_coalesce = parent.is_some_and(|p| p.is_nullish_coalesce(ast));
-        logical_andor_logical_or && child_of_nullish_coalesce
+        logical_and_or_logical_or && child_of_nullish_coalesce
     }
 
-    // port: CodeGenerator#isNullishCoalesceChildOfLogicalANDorLogicalOR
-    fn is_nullish_coalesce_child_of_logical_andor_logical_or(ast: &Ast, n: NodeId) -> bool {
+    // port: CodeGenerator#isNullishCoalesceChildOfLogicalAndOrLogicalOr
+    fn is_nullish_coalesce_child_of_logical_and_or_logical_or(&self, ast: &Ast, n: NodeId) -> bool {
+        let expr = self.skip_transparent_casts(ast, n);
         let parent = n.get_parent(ast);
-        let child_of_logical_andor_logical_or =
+        let child_of_logical_and_or_logical_or =
             parent.is_some_and(|p| p.is_and(ast) || p.is_or(ast));
-        n.is_nullish_coalesce(ast) && child_of_logical_andor_logical_or
+        expr.is_nullish_coalesce(ast) && child_of_logical_and_or_logical_or
+    }
+
+    /// Returns the expression printed for `n`, looking through CAST nodes that are printed
+    /// without their own parentheses (i.e. when type annotations are not preserved).
+    // port: CodeGenerator#skipTransparentCasts
+    fn skip_transparent_casts(&self, ast: &Ast, mut n: NodeId) -> NodeId {
+        while !self.preserve_type_annotations && n.is_cast(ast) {
+            n = n.get_first_child(ast).unwrap();
+        }
+        n
     }
 
     // port: CodeGenerator#identifierEscape
@@ -398,8 +410,8 @@ pub trait CodeGeneration<'a> {
         self.code_generator_mut().cc.end_line();
     }
 
-    // port: CodeGenerator#printJSDocComment
-    fn print_jsdoc_comment(&mut self, ast: &Ast, node: NodeId, js_doc_info: &JSDocInfo) {
+    // port: CodeGenerator#printJsDocComment
+    fn print_js_doc_comment(&mut self, ast: &Ast, node: NodeId, js_doc_info: &JSDocInfo) {
         // In gents mode, we print NonJSDocInfo without special handling, as we already have
         // pre-filtered the comments properly.
         let jsdoc_as_string = if self.code_generator().gents_mode {
@@ -422,8 +434,8 @@ pub trait CodeGeneration<'a> {
         }
     }
 
-    // port: CodeGenerator#printNonJSDocComment
-    fn print_non_jsdoc_comment(
+    // port: CodeGenerator#printNonJsDocComment
+    fn print_non_js_doc_comment(
         &mut self,
         ast: &Ast,
         node: NodeId,
@@ -442,33 +454,33 @@ pub trait CodeGeneration<'a> {
         let non_jsdoc_comment = node.get_non_jsdoc_comment(ast);
         let print_jsdoc = self.code_generator().preserve_type_annotations && js_doc_info.is_some();
         let print_non_jsdoc =
-            self.code_generator().print_non_jsdoc_comments && non_jsdoc_comment.is_some();
+            self.code_generator().print_non_js_doc_comments && non_jsdoc_comment.is_some();
         if print_jsdoc && print_non_jsdoc {
             let js_doc_info = js_doc_info.unwrap();
             let non_jsdoc_comment = non_jsdoc_comment.unwrap();
             if js_doc_info.get_original_comment_position()
                 < non_jsdoc_comment.get_start_position().offset
             {
-                self.print_jsdoc_comment(ast, node, &js_doc_info);
-                self.print_non_jsdoc_comment(ast, node, &non_jsdoc_comment);
+                self.print_js_doc_comment(ast, node, &js_doc_info);
+                self.print_non_js_doc_comment(ast, node, &non_jsdoc_comment);
             } else {
-                self.print_non_jsdoc_comment(ast, node, &non_jsdoc_comment);
-                self.print_jsdoc_comment(ast, node, &js_doc_info);
+                self.print_non_js_doc_comment(ast, node, &non_jsdoc_comment);
+                self.print_js_doc_comment(ast, node, &js_doc_info);
             }
             return;
         }
         if print_jsdoc {
-            self.print_jsdoc_comment(ast, node, &js_doc_info.unwrap());
+            self.print_js_doc_comment(ast, node, &js_doc_info.unwrap());
             return;
         }
         if print_non_jsdoc {
-            self.print_non_jsdoc_comment(ast, node, &non_jsdoc_comment.unwrap());
+            self.print_non_js_doc_comment(ast, node, &non_jsdoc_comment.unwrap());
         }
     }
     /// Returns true when a node has a trailing comment.
     // port: CodeGenerator#hasTrailingCommentOnSameLine
     fn has_trailing_comment_on_same_line(&self, ast: &Ast, node: NodeId) -> bool {
-        if !self.code_generator().print_non_jsdoc_comments {
+        if !self.code_generator().print_non_js_doc_comments {
             return false;
         }
         !node.get_trailing_non_jsdoc_comment_string(ast).is_empty()
@@ -477,7 +489,7 @@ pub trait CodeGeneration<'a> {
     // port: CodeGenerator#printTrailingComment
     fn print_trailing_comment(&mut self, ast: &Ast, node: NodeId) {
         // print any trailing nonJSDoc comment attached to this node
-        if !self.code_generator().print_non_jsdoc_comments {
+        if !self.code_generator().print_non_js_doc_comments {
             return;
         }
         if let Some(non_jsdoc_comment) = node.get_trailing_non_jsdoc_comment(ast) {
@@ -993,12 +1005,7 @@ pub trait CodeGeneration<'a> {
                         self.add_expr(ast, super_class, 1, Context::OTHER);
                     }
 
-                    let mut interfaces =
-                        node.get_prop(ast, NodeId::IMPLEMENTS)
-                            .map(|prop| match prop {
-                                ObjectProp::Node(n) => n,
-                                _ => panic!("ClassCastException"),
-                            });
+                    let mut interfaces = node.get_implements(ast);
                     if (interfaces.is_some()) {
                         self.add(&("implements").into());
                         let mut child = interfaces.unwrap().get_first_child(ast).unwrap();
@@ -2287,16 +2294,7 @@ pub trait CodeGeneration<'a> {
 
     // port: CodeGenerator#maybeAddAccessibilityModifier
     fn maybe_add_accessibility_modifier(&mut self, ast: &Ast, n: NodeId) {
-        if let Some(access) = n.get_prop(ast, NodeId::ACCESS_MODIFIER) {
-            let access = match access {
-                ObjectProp::Opaque(value) => value
-                    .as_ref()
-                    .as_any()
-                    .downcast_ref::<Visibility>()
-                    .copied()
-                    .expect("ClassCastException"),
-                _ => panic!("ClassCastException"),
-            };
+        if let Some(access) = n.get_access_modifier(ast) {
             self.add(&(format!("{} ", format!("{access:?}").to_ascii_lowercase())).into());
         }
     }
@@ -2312,11 +2310,7 @@ pub trait CodeGeneration<'a> {
 
     // port: CodeGenerator#maybeAddGenericTypes
     fn maybe_add_generic_types(&mut self, ast: &Ast, n: NodeId) {
-        if let Some(generics) = n.get_prop(ast, NodeId::GENERIC_TYPE_LIST) {
-            let generics = match generics {
-                ObjectProp::Node(n) => n,
-                _ => panic!("ClassCastException"),
-            };
+        if let Some(generics) = n.get_generic_type(ast) {
             self.add_node(ast, generics);
         }
     }
@@ -2478,8 +2472,12 @@ pub trait CodeGeneration<'a> {
             // ExponentiationExpression cannot expand to
             // UnaryExpression ** ExponentiationExpression
             true
-        } else if CodeGenerator::is_logical_andor_logical_or_child_of_nullish_coalesce(ast, n)
-            || CodeGenerator::is_nullish_coalesce_child_of_logical_andor_logical_or(ast, n)
+        } else if self
+            .code_generator()
+            .is_logical_and_or_logical_or_child_of_nullish_coalesce(ast, n)
+            || self
+                .code_generator()
+                .is_nullish_coalesce_child_of_logical_and_or_logical_or(ast, n)
         {
             // precedence is not enough here since using && or || with ?? without parentheses
             // is a syntax error as ?? expands directly to |
@@ -2654,7 +2652,7 @@ pub trait CodeGeneration<'a> {
         }
     }
 
-    // port: CodeGenerator#addNonJsDoc_nonTrailing
+    // port: CodeGenerator#addNonJsDocNonTrailing
     fn add_non_js_doc_non_trailing(
         &mut self,
         ast: &Ast,
