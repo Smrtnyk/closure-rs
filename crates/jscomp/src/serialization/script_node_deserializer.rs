@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/serialization/ScriptNodeDeserializer.java.
 
 //! Port of serialization/ScriptNodeDeserializer.java.
@@ -521,9 +521,8 @@ impl Runner<'_> {
             .owner
             .create_source_info_template(ast, &self.owner.source_file);
         let script_node = self.visit(ast, &parsed, &mut context_stack, Some(template));
-        script_node.put_prop(
+        script_node.set_feature_set(
             ast,
-            NodeId::FEATURE_SET,
             Some(ObjectProp::Opaque(Arc::new(
                 self.feature_collector.all_features(),
             ))),

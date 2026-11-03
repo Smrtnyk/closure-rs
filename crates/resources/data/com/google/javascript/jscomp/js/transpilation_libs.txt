@@ -17,6 +17,10 @@ FORCE_POLYFILL_PROMISE_WHEN_NO_UNHANDLED_REJECTION,util/defines
 INSTRUMENT_ASYNC_CONTEXT,util/defines
 ISOLATE_POLYFILLS,util/defines
 IS_SYMBOL_NATIVE,util/shouldpolyfill
+ITERATOR_STATE_COMPLETED,es6/util/lazyiterator
+ITERATOR_STATE_EXECUTING,es6/util/lazyiterator
+ITERATOR_STATE_SUSPENDED_START,es6/util/lazyiterator
+ITERATOR_STATE_SUSPENDED_YIELD,es6/util/lazyiterator
 MapEntry,es6/map
 POLYFILL_PREFIX,util/polyfill
 PrivateMap,es6/privatemap
@@ -46,6 +50,7 @@ checkIsValidIterator,es6/set_extensions
 checkStringArgs,util/checkstringargs
 clearModules,es6/modules/runtime
 construct,es6/util/construct
+createLazyIterator,es6/util/lazyiterator
 createTemplateTagFirstArg,es6/util/createtemplatetagfirstarg
 createTemplateTagFirstArgWithRaw,es6/util/createtemplatetagfirstarg
 defineProperty,util/defineproperty
@@ -57,7 +62,9 @@ generator,es6/generator_engine
 getConstructImplementation,es6/util/construct
 getCurrentModulePath,es6/modules/runtime
 getGlobal,util/global
+getIteratorFlattenable,es6/util/getiteratorflattenable
 getIteratorPrototype,es6/util/getiteratorprototype
+getLazyIteratorState,es6/util/lazyiterator
 getRestArguments,es6/util/restarguments
 getSmallerAndLargerSets,es6/set_extensions
 getSuperPropertyDescriptor_,es6_dart_runtime
@@ -66,9 +73,15 @@ hasModule,es6/modules/runtime
 inherits,es6/util/inherits
 initSymbol,es6/symbol
 iteratorClose,es6/util/iteratorclose
+iteratorCloseAbrupt,es6/util/lazyiterator
+iteratorCloseNormal,es6/util/lazyiterator
 iteratorDo,es6/util/iteratordo
 iteratorFromArray,es6/util/iteratorfromarray
+iteratorMapOrFilter,es6/util/iteratormaporfilter
 iteratorPrototype,es6/symbol
+iteratorResult,es6/util/lazyiterator
+iteratorTakeOrDrop,es6/util/iteratortakeordrop
+lazyIteratorPrototype,es6/util/lazyiterator
 makeAsyncIterator,es6/util/makeasynciterator
 makeIterator,es6/util/makeiterator
 objectCreate,util/objectcreate
@@ -90,6 +103,7 @@ stringPadding,util/stringpadding
 superGet,es6_dart_runtime
 superSet,es6_dart_runtime
 toIntegerOrInfinity,util/tointegerorinfinity
+toIteratorLimit,es6/util/toiteratorlimit
 toObject,util/toobject
 typedArrayAt,es6/typedarray/at
 typedArrayCopyWithin,es6/typedarray/copywithin
@@ -100,3 +114,4 @@ typedArrayToReversed,es6/typedarray/toreversed
 typedArrayToSorted,es6/typedarray/tosorted
 typedArrayWith,es6/typedarray/with
 underscoreProtoCanBeSet,es6/util/setprototypeof
+validateIteratorCallback,es6/util/validateiteratorcallback

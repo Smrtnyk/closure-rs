@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/RewriteObjectSpread.java.
 
 //! Port of `RewriteObjectSpread.java`.
@@ -44,6 +44,7 @@ fn transpiled_features() -> FeatureSet {
 pub struct RewriteObjectSpread {
     ast_factory: AstFactory,
     namespace: TranspilationNamespace,
+    use_jscomp_assign: bool,
 }
 
 impl RewriteObjectSpread {
@@ -52,6 +53,10 @@ impl RewriteObjectSpread {
         Self {
             ast_factory: compiler.create_ast_factory(),
             namespace: TranspilationNamespace::get(compiler),
+            use_jscomp_assign: !compiler
+                .get_options()
+                .get_output_feature_set()
+                .contains(FeatureSet::ES2015),
         }
     }
 
@@ -74,15 +79,25 @@ impl RewriteObjectSpread {
     fn visit_object_with_spread(&self, compiler: &mut AbstractCompiler, obj: NodeId) {
         check_argument!(obj.is_object_lit(compiler));
 
-        // Add an empty target object literal so changes made by Object.assign will not affect any
-        // other variables.
-        let target = self.ast_factory.create_object_lit(compiler, &[]);
-        let result = self.ast_factory.create_object_dot_assign_call(
-            compiler,
-            &self.namespace,
-            AstFactory::type_node(obj),
-            &[target],
-        );
+        // Add an empty target object literal so changes made by Object.assign / $jscomp.assign will
+        // not affect any other variables.
+        let result = if self.use_jscomp_assign {
+            let target = self.ast_factory.create_object_lit(compiler, &[]);
+            self.ast_factory.create_jscomp_assign_call(
+                compiler,
+                &self.namespace,
+                AstFactory::type_node(obj),
+                &[target],
+            )
+        } else {
+            let target = self.ast_factory.create_object_lit(compiler, &[]);
+            self.ast_factory.create_object_dot_assign_call(
+                compiler,
+                &self.namespace,
+                AstFactory::type_node(obj),
+                &[target],
+            )
+        };
 
         // An indicator whether the current last thing in the param list is an object literal to
         // which properties may be added.  Initialized to null since nothing should be added to the

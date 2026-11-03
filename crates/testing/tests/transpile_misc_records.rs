@@ -33,7 +33,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   test/com/google/javascript/jscomp/Es6ForOfConverterTest.java,
 //   test/com/google/javascript/jscomp/Es6RewriteBlockScopedDeclarationTest.java,
 //   test/com/google/javascript/jscomp/Es6RewriteBlockScopedFunctionDeclarationTest.java,
@@ -138,10 +138,10 @@ fn es7_rewrite_exponential_operator_test() {
     assert_records("Es7RewriteExponentialOperatorTest", 9);
 }
 
-// port: RewriteObjectSpreadTest (2 @Test methods, 9 recorded calls)
+// port: RewriteObjectSpreadTest (3 @Test methods, 10 recorded calls)
 #[test]
 fn rewrite_object_spread_test() {
-    assert_records("RewriteObjectSpreadTest", 9);
+    assert_records("RewriteObjectSpreadTest", 10);
 }
 
 // port: RewriteOptionalChainingOperatorTest (4 @Test methods, one of them the parameterized
@@ -190,10 +190,10 @@ fn es6_transpilation_integration_test() {
     assert_records("Es6TranspilationIntegrationTest", 185);
 }
 
-// port: ES2021IntegrationTest (19 @Test methods, 19 recorded calls)
+// port: ES2021IntegrationTest (25 @Test methods, 25 recorded calls)
 #[test]
 fn es2021_integration_test() {
-    assert_records("ES2021IntegrationTest", 19);
+    assert_records("ES2021IntegrationTest", 25);
 }
 
 // port: ES2022IntegrationTest (27 @Test methods, 32 recorded calls)

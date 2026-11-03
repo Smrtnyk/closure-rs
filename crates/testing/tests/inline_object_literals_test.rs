@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   test/com/google/javascript/jscomp/InlineObjectLiteralsTest.java.
 
 //! Port of InlineObjectLiteralsTest (CompilerTestCase over the crates/testing port).
@@ -189,7 +189,7 @@ fn test_no_crash_inlining_object_literal_conditional_assignment_to_object_es2017
     let src = "{let a;if(Math.random()){a={x:''};console.log(a.x)}};";
     let expected = concat!(
         "{\n",
-        "  var JSCompiler_object_inline_x_0;\n",
+        "  let JSCompiler_object_inline_x_0;\n",
         "  if (Math.random()) {\n",
         "    JSCompiler_object_inline_x_0 = '', true;\n",
         "    console.log(JSCompiler_object_inline_x_0);\n",
@@ -219,7 +219,7 @@ fn test_no_crash_inlining_object_literal_unconditional_assignment_to_object_es20
     let src = "{let a; a={x:\"\"};console.log(a.x);}";
     let expected = concat!(
         "{\n",
-        "  var JSCompiler_object_inline_x_0;\n",
+        "  let JSCompiler_object_inline_x_0;\n",
         "  JSCompiler_object_inline_x_0 = \"\", true;\n",
         "  console.log(JSCompiler_object_inline_x_0);\n",
         "}\n"
@@ -301,8 +301,8 @@ fn test_object6_let() {
         "for (let i = 0; i < 5; i++) { let a = {i:i,x:x}; f(a.i, a.x); }",
         concat!(
             "for (let i = 0; i < 5; i++) {\n",
-            "  var JSCompiler_object_inline_i_0=i;\n",
-            "  var JSCompiler_object_inline_x_1=x;\n",
+            "  let JSCompiler_object_inline_i_0=i;\n",
+            "  let JSCompiler_object_inline_x_1=x;\n",
             "  f(JSCompiler_object_inline_i_0,JSCompiler_object_inline_x_1)\n",
             "}\n"
         ),
@@ -338,8 +338,8 @@ fn test_object_switch() {
         ),
         concat!(
             "let x;\n",
-            "var JSCompiler_object_inline_i_0;\n",
-            "var JSCompiler_object_inline_x_1;\n",
+            "let JSCompiler_object_inline_i_0;\n",
+            "let JSCompiler_object_inline_x_1;\n",
             " switch (x) {\n",
             "   case 'h':\n",
             "    if (Math.random() > .5) {\n",
@@ -366,8 +366,8 @@ fn test_object_switch() {
         ),
         concat!(
             "let x;\n",
-            "var JSCompiler_object_inline_i_0;\n",
-            "var JSCompiler_object_inline_x_1;\n",
+            "let JSCompiler_object_inline_i_0;\n",
+            "let JSCompiler_object_inline_x_1;\n",
             " switch (x) {\n",
             " case 'h':\n",
             " case 'i':\n",
@@ -394,8 +394,8 @@ fn test_object_switch() {
         ),
         concat!(
             "let x;\n",
-            "var JSCompiler_object_inline_i_0;\n",
-            "var JSCompiler_object_inline_x_1;\n",
+            "let JSCompiler_object_inline_i_0;\n",
+            "let JSCompiler_object_inline_x_1;\n",
             " switch (x) {\n",
             " case 'h':\n",
             "  if (Math.random() > .5) {\n",
@@ -422,8 +422,8 @@ fn test_object_switch() {
             "}\n"
         ),
         concat!(
-            "var JSCompiler_object_inline_i_0;\n",
-            "var JSCompiler_object_inline_x_1;\n",
+            "let JSCompiler_object_inline_i_0;\n",
+            "let JSCompiler_object_inline_x_1;\n",
             "let x;\n",
             " switch (x) {\n",
             " case 'h':\n",
@@ -804,8 +804,8 @@ fn test_inline_object_with_let() {
     t.test_local(
         "let a = {x:x(), y:y()}; f(a.x, a.y);",
         concat!(
-            "var JSCompiler_object_inline_x_0=x();\n",
-            "var JSCompiler_object_inline_y_1=y();\n",
+            "let JSCompiler_object_inline_x_0=x();\n",
+            "let JSCompiler_object_inline_y_1=y();\n",
             "f(JSCompiler_object_inline_x_0, JSCompiler_object_inline_y_1);\n"
         ),
     );
@@ -818,8 +818,8 @@ fn test_inline_object_with_const() {
     t.test_local(
         "const a = {x:x(), y:y()}; f(a.x, a.y);",
         concat!(
-            "var JSCompiler_object_inline_x_0=x();\n",
-            "var JSCompiler_object_inline_y_1=y();\n",
+            "let JSCompiler_object_inline_x_0=x();\n",
+            "let JSCompiler_object_inline_y_1=y();\n",
             "f(JSCompiler_object_inline_x_0, JSCompiler_object_inline_y_1);\n"
         ),
     );
@@ -1217,7 +1217,6 @@ fn test_object1_opt_chain_continues() {
 #[test]
 fn test_class_field_per_iteration_let_capture() {
     let mut t = Test::new();
-    // TODO(b/572003863): let/const object literal in a loop body is split into function-scoped vars
     t.harness
         .set_language_out(language_mode("ECMASCRIPT_2022"))
         .unwrap();
@@ -1230,7 +1229,7 @@ fn test_class_field_per_iteration_let_capture() {
         ),
         concat!(
             "for (let i = 0; i < 2; i++) {\n",
-            "  var JSCompiler_object_inline_a_0 = i;\n",
+            "  let JSCompiler_object_inline_a_0 = i;\n",
             "  arr.push(class {\n",
             "    x = JSCompiler_object_inline_a_0;\n",
             "  });\n",
@@ -1243,7 +1242,6 @@ fn test_class_field_per_iteration_let_capture() {
 #[test]
 fn test_class_field_per_iteration_let_capture_arrow_control() {
     let mut t = Test::new();
-    // TODO(b/572003863): let/const object literal in a loop body is split into function-scoped vars
     t.harness
         .set_language_out(language_mode("ECMASCRIPT_2022"))
         .unwrap();
@@ -1256,9 +1254,96 @@ fn test_class_field_per_iteration_let_capture_arrow_control() {
         ),
         concat!(
             "for (let i = 0; i < 2; i++) {\n",
-            "  var JSCompiler_object_inline_a_0 = i;\n",
+            "  let JSCompiler_object_inline_a_0 = i;\n",
             "  arr.push(() => {\n",
             "    return JSCompiler_object_inline_a_0;\n",
+            "  });\n",
+            "}\n"
+        ),
+    );
+}
+
+// port: InlineObjectLiteralsTest#testClassField_perIterationConstAndComputedFieldCapture
+#[test]
+fn test_class_field_per_iteration_const_and_computed_field_capture() {
+    let mut t = Test::new();
+    t.harness
+        .set_language_out(language_mode("ECMASCRIPT_2022"))
+        .unwrap();
+    t.test_local(
+        concat!(
+            "for (let i = 0; i < 2; i++) {\n",
+            "  const o = {a: i};\n",
+            "  arr.push(class { x = o.a; [k] = o.a; });\n",
+            "}\n"
+        ),
+        concat!(
+            "for (let i = 0; i < 2; i++) {\n",
+            "  let JSCompiler_object_inline_a_0 = i;\n",
+            "  arr.push(class {\n",
+            "    x = JSCompiler_object_inline_a_0;\n",
+            "    [k] = JSCompiler_object_inline_a_0;\n",
+            "  });\n",
+            "}\n"
+        ),
+    );
+}
+
+// port: InlineObjectLiteralsTest#testPerIterationConstMutatedAndAddedPropertyCapture
+#[test]
+fn test_per_iteration_const_mutated_and_added_property_capture() {
+    let mut t = Test::new();
+    t.harness
+        .set_language_out(language_mode("ECMASCRIPT_2022"))
+        .unwrap();
+    t.test_local(
+        concat!(
+            "for (const i of items) {\n",
+            "  const o = {a: i};\n",
+            "  o.a = i + 1;\n",
+            "  o.b = i + 2;\n",
+            "  arr.push(function() { return o.a + o.b; });\n",
+            "}\n"
+        ),
+        concat!(
+            "for (const i of items) {\n",
+            "  let JSCompiler_object_inline_a_0 = i;\n",
+            "  let JSCompiler_object_inline_b_1;\n",
+            "  JSCompiler_object_inline_a_0 = i + 1;\n",
+            "  JSCompiler_object_inline_b_1 = i + 2;\n",
+            "  arr.push(function() {\n",
+            "    return JSCompiler_object_inline_a_0 + JSCompiler_object_inline_b_1;\n",
+            "  });\n",
+            "}\n"
+        ),
+    );
+}
+
+// port: InlineObjectLiteralsTest#testPerIterationUninitializedLetCapture
+#[test]
+fn test_per_iteration_uninitialized_let_capture() {
+    let mut t = Test::new();
+    t.harness
+        .set_language_out(language_mode("ECMASCRIPT_2022"))
+        .unwrap();
+    t.test_local(
+        concat!(
+            "for (let i = 0; i < 2; i++) {\n",
+            "  let o;\n",
+            "  if (c) {\n",
+            "    o = {a: i};\n",
+            "  }\n",
+            "  arr.push(class { x = o.a; });\n",
+            "}\n"
+        ),
+        concat!(
+            "for (let i = 0; i < 2; i++) {\n",
+            "  let JSCompiler_object_inline_a_0;\n",
+            "  if (c) {\n",
+            "    JSCompiler_object_inline_a_0 = i, true;\n",
+            "  }\n",
+            "  arr.push(class {\n",
+            "    x = JSCompiler_object_inline_a_0;\n",
             "  });\n",
             "}\n"
         ),

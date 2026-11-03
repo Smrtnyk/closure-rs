@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/FunctionArgumentInjector.java.
 
 //! Port of `com.google.javascript.jscomp.FunctionArgumentInjector`.

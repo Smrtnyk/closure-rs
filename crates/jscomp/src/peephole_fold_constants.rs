@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/PeepholeFoldConstants.java.
 
 //! Port of `PeepholeFoldConstants.java`.
@@ -1011,11 +1011,15 @@ impl PeepholeFoldConstants {
                     }
                 }
                 Token::MOD => {
-                    // BigInteger#mod throws an ArithmeticException for a modulus that is not
-                    // positive; Java does not catch it here.
-                    let modulo = big_integer::r#mod(l_val, r_val)
-                        .unwrap_or_else(|e| panic!("java.lang.ArithmeticException: {}", e.0));
-                    return Some(Self::bigint_node(compiler, modulo, n));
+                    // Use BigInteger.remainder instead of BigInteger.mod because BigInteger.mod()
+                    // always returns a non-negative result, whereas JS % keeps the sign of the
+                    // dividend.
+                    if *r_val != BigInt::ZERO {
+                        let remainder = big_integer::remainder(l_val, r_val).unwrap();
+                        return Some(Self::bigint_node(compiler, remainder, n));
+                    } else {
+                        return None;
+                    }
                 }
                 Token::BITAND => return Some(Self::bigint_node(compiler, l_val & r_val, n)),
                 Token::BITOR => return Some(Self::bigint_node(compiler, l_val | r_val, n)),

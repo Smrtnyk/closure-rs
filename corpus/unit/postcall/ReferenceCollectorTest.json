@@ -71,6 +71,13 @@
    "note": "Review round 4: asserts only isAssignedOnceInLifetime, isWellDefined and per-reference isDeclaration (IS_DECLARATION) of ReferenceCollection objects; t.getScope().is*Scope() calls are conditions, not assertions. postCall.pass.referenceMap (getAllSymbols()) encodes exactly these and replay compares it"
   },
   {
+   "method": "testClassField_referencingGlobalVariable_escapeIffInstanceFields",
+   "status": "rust_unit_test",
+   "reason": "asserts ReferenceCollection.isEscaped() of instance-field, static-field and computed-key references inside the Behavior callback; postCall.pass.referenceMap does not encode isEscaped, so replay does not check it (the replay helper Lambda_testClassField_referencingGlobalVariable_escapeIffInstanceFields runs the same assertions)",
+   "fragment": "corpus/unit/rust_unit_tests/ReferenceCollectorTest.md",
+   "category": "graph"
+  },
+  {
    "method": "testClass_withInstantiation",
    "status": "captured",
    "via": [

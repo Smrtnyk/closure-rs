@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   test/com/google/javascript/jscomp/OptimizeParametersTest.java.
 
 //! Port of OptimizeParametersTest (CompilerTestCase over the crates/testing port).
@@ -2314,6 +2314,143 @@ fn test_no_rewrite_tagged_method_call() {
         "};\n",
         "obj.f`tagged`;\n"
     ));
+}
+
+// port: OptimizeParametersTest#testNoRewriteTagged_computedMethodCall
+#[test]
+fn test_no_rewrite_tagged_computed_method_call() {
+    let mut t = Test::new();
+    t.test_same(concat!(
+        "class K {\n",
+        "  m() {\n",
+        "    return this;\n",
+        "  }\n",
+        "}\n",
+        "const k = new K();\n",
+        "alert((0, k['m'])`x` === void 0);\n",
+        "alert(k['m']`x` === k);\n"
+    ));
+}
+
+// port: OptimizeParametersTest#testRewriteTagged_preservesFreeCallOnMethod
+#[test]
+fn test_rewrite_tagged_preserves_free_call_on_method() {
+    let mut t = Test::new();
+    t.test(
+        concat!(
+            "class K {\n",
+            "  m() {\n",
+            "    return this;\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "alert((0, k.m)`x` === void 0);\n"
+        ),
+        concat!(
+            "class K {\n",
+            "  m() {\n",
+            "    [];\n",
+            "    return this;\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "alert((0, k.m)() === void 0);\n"
+        ),
+    );
+
+    t.test(
+        concat!(
+            "class K {\n",
+            "  m() {\n",
+            "    return this;\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "(0, k.m)`x${1}${alert()}`;\n",
+            "k.m();\n"
+        ),
+        concat!(
+            "class K {\n",
+            "  m() {\n",
+            "    return this;\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "(0, k.m)(alert());\n",
+            "k.m();\n"
+        ),
+    );
+
+    t.test(
+        concat!(
+            "class K {\n",
+            "  m() {\n",
+            "    return this;\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "alert((0, k?.m)`x` === void 0);\n"
+        ),
+        concat!(
+            "class K {\n",
+            "  m() {\n",
+            "    [];\n",
+            "    return this;\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "alert((0, k?.m)() === void 0);\n"
+        ),
+    );
+}
+
+// port: OptimizeParametersTest#testRewriteTagged_preservesBoundThisOnMethod
+#[test]
+fn test_rewrite_tagged_preserves_bound_this_on_method() {
+    let mut t = Test::new();
+    t.test(
+        concat!(
+            "class K {\n",
+            "  m() {\n",
+            "    return this;\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "alert(k.m`x` === k);\n"
+        ),
+        concat!(
+            "class K {\n",
+            "  m() {\n",
+            "    [];\n",
+            "    return this;\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "alert(k.m() === k);\n"
+        ),
+    );
+
+    t.test(
+        concat!(
+            "class K {\n",
+            "  m() {\n",
+            "    return this;\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "alert((k?.m)`x` === k);\n"
+        ),
+        concat!(
+            "class K {\n",
+            "  m() {\n",
+            "    [];\n",
+            "    return this;\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "alert((k?.m)() === k);\n"
+        ),
+    );
 }
 
 // port: OptimizeParametersTest#testSuperInvocation_preventsParamInlining_whenImplicit

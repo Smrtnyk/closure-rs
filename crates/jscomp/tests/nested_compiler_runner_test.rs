@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   test/com/google/javascript/jscomp/NestedCompilerRunnerTest.java.
 
 //! Port of `NestedCompilerRunnerTest.java` (all 10 tests).
@@ -36,7 +36,7 @@ use closure_jscomp::{
 use closure_parsing::parser::feature_set::FeatureSet;
 use closure_rhino::{
     ir::IR,
-    node::{NodeId, ObjectProp, Prop},
+    node::{NodeId, ObjectProp},
     static_source_file::{SourceKind, StaticSourceFile},
     testing::node_subject::assert_node,
 };
@@ -84,9 +84,8 @@ impl Fixture {
         script.set_static_source_file(c, Some(file as Arc<dyn StaticSourceFile>));
         script.set_is_in_closure_unaware_subtree(c, true);
         let features = NodeUtil::get_feature_set_of_script(c, parsed);
-        script.put_prop(
+        script.set_feature_set(
             c,
-            Prop::FEATURE_SET,
             Some(ObjectProp::Opaque(Arc::new(
                 features.unwrap_or(FeatureSet::BARE_MINIMUM),
             ))),

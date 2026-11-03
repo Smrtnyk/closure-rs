@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/Es6RewriteDestructuring.java.
 
 //! Port of `Es6RewriteDestructuring.java`.
@@ -66,6 +66,7 @@ pub struct Es6RewriteDestructuring {
     rewrite_mode: ObjectDestructuringRewriteMode,
     ast_factory: AstFactory,
     namespace: TranspilationNamespace,
+    use_jscomp_assign: bool,
 
     features_to_trigger_running_pass: FeatureSet,
     features_to_mark_as_removed: FeatureSet,
@@ -131,6 +132,10 @@ impl Es6RewriteDestructuring {
         let rewrite_mode = builder.rewrite_mode;
         let ast_factory = compiler.create_ast_factory();
         let namespace = TranspilationNamespace::get(compiler);
+        let use_jscomp_assign = !compiler
+            .get_options()
+            .get_output_feature_set()
+            .contains(FeatureSet::ES2015);
 
         let features_to_trigger_running_pass;
         let features_to_mark_as_removed;
@@ -160,6 +165,7 @@ impl Es6RewriteDestructuring {
             rewrite_mode,
             ast_factory,
             namespace,
+            use_jscomp_assign,
             features_to_trigger_running_pass,
             features_to_mark_as_removed,
             pattern_nesting_stack: VecDeque::new(),
@@ -708,23 +714,27 @@ impl Es6RewriteDestructuring {
                 // invoked during Object.assign.
                 // TODO(b/116532470): see if casting this to a more specific type fixes
                 // disambiguation
-                let object_assign =
-                    self.ast_factory
-                        .create_qname(compiler, &self.namespace, "Object.assign");
-                let assign_call = self.ast_factory.create_call(
-                    compiler,
-                    object_assign,
-                    AstFactory::type_(standard_colors::TOP_OBJECT.clone()),
-                    &[],
-                );
                 let object_lit = self.ast_factory.create_object_lit(compiler, &[]);
-                assign_call.add_child_to_back(compiler, object_lit);
                 let temp_ref = self.create_temp_var_name_node(
                     compiler,
                     temp_var_name.clone(),
                     temp_var_type.clone(),
                 );
-                assign_call.add_child_to_back(compiler, temp_ref);
+                let assign_call = if self.use_jscomp_assign {
+                    self.ast_factory.create_jscomp_assign_call(
+                        compiler,
+                        &self.namespace,
+                        AstFactory::type_(standard_colors::TOP_OBJECT.clone()),
+                        &[object_lit, temp_ref],
+                    )
+                } else {
+                    self.ast_factory.create_object_dot_assign_call(
+                        compiler,
+                        &self.namespace,
+                        AstFactory::type_(standard_colors::TOP_OBJECT.clone()),
+                        &[object_lit, temp_ref],
+                    )
+                };
 
                 let rest_temp_var_name = rest_temp_var_name.clone().unwrap();
                 let rest_temp_name = self.create_temp_var_name_node(

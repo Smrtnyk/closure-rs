@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/NodeUtil.java,
 //   test/com/google/javascript/jscomp/parsing/ParserTest.java.
 
@@ -6199,6 +6199,47 @@ fn test_octal_literals() {
     let _ = tmp3;
 }
 
+// port: ParserTest#testLargeRadixLiteralsRoundOnce
+#[test]
+fn test_large_radix_literals_round_once() {
+    let mut h = Harness::new();
+    // 443538294610663463 needs 59 bits, so it cannot be accumulated digit by digit without
+    // rounding at every step. Its nearest double is 443538294610663488; rounding at each step
+    // instead lands on the neighboring double 443538294610663424.
+    let expected = 443538294610663488.0;
+    h.mode = LanguageMode::ECMASCRIPT_2015;
+    let n = parse_number_literal(&mut h, "0x627c3ba9e8d1827;");
+    assert!(n.is_number(&h.ast));
+    assert_eq!(n.get_double(&h.ast), expected);
+    let n = parse_number_literal(&mut h, "0o30476073523643214047;");
+    assert!(n.is_number(&h.ast));
+    assert_eq!(n.get_double(&h.ast), expected);
+    let n = parse_number_literal(
+        &mut h,
+        "0b11000100111110000111011101010011110100011010001100000100111;",
+    );
+    assert!(n.is_number(&h.ast));
+    assert_eq!(n.get_double(&h.ast), expected);
+
+    h.strict_mode = StrictMode::SLOPPY;
+    let legacy_octal = h.parse_warning(
+        "030476073523643214047;",
+        &["Octal integer literals are not supported in strict mode."],
+    );
+    let legacy_octal = legacy_octal
+        .get_only_child(&h.ast) // EXPR_RESULT
+        .get_only_child(&h.ast); // NUMBER
+    assert!(legacy_octal.is_number(&h.ast));
+    assert_eq!(legacy_octal.get_double(&h.ast), expected);
+}
+
+// port: ParserTest#parseNumberLiteral
+fn parse_number_literal(h: &mut Harness, source: &str) -> NodeId {
+    h.parse(source) // SCRIPT
+        .get_only_child(&h.ast) // EXPR_RESULT
+        .get_only_child(&h.ast) // NUMBER
+}
+
 // port: ParserTest#testOctalEscapes
 #[test]
 fn test_octal_escapes() {
@@ -7326,6 +7367,47 @@ fn test_es2018_lift_illegal_escape_sequence_restriction_on_tagged_templates() {
     let _ = tmp5;
     let tmp6 = h.parse_error("var bad = `\\unicode`;", &["Hex digit expected"]);
     let _ = tmp6;
+}
+
+// port: ParserTest#testTemplateLiteralWithUnnecessaryEscapeFollowedByInvalidEscape
+#[test]
+fn test_template_literal_with_unnecessary_escape_followed_by_invalid_escape() {
+    let mut h = Harness::new();
+    // b/576212117 (GitHub issue #4355): Unnecessary escape must not mask invalid escapes
+    // Tagged templates: invalid escape is allowed per ES2018, cooked string is null
+    let n = h.parse("tag`\\a\\uc1`");
+    let tagged_template_lit = n.get_first_first_child(&h.ast).unwrap();
+    assert_eq!(
+        tagged_template_lit.get_token(&h.ast),
+        Token::TAGGED_TEMPLATELIT
+    );
+    let template_lit = tagged_template_lit.get_second_child(&h.ast).unwrap();
+    assert_eq!(template_lit.get_token(&h.ast), Token::TEMPLATELIT);
+    let template_lit_string = template_lit.get_first_child(&h.ast).unwrap();
+    assert_eq!(
+        template_lit_string.get_token(&h.ast),
+        Token::TEMPLATELIT_STRING
+    );
+    assert_eq!(template_lit_string.get_cooked_string(&h.ast), None);
+    assert_eq!(
+        template_lit_string.get_raw_string(&h.ast),
+        JsString::from("\\a\\uc1")
+    );
+
+    h.parse("tag`\\a\\xg`");
+    h.parse("tag`\\a\\u{zz}`");
+    h.parse("tag`\\q\\uc1`");
+    h.parse("String.raw`{\\rtf1\\adeflang1025\\ansi\\ansicpg1252\\uc1`");
+
+    // Multiple portions
+    h.parse("tag`\\a\\uc1${0}\\b\\uc2`");
+
+    // Untagged templates: parse error must be reported
+    h.parse_error("var s = `\\a\\uc1`;", &["Hex digit expected"]);
+    h.parse_error("var s = `\\a\\xg`;", &["Hex digit expected"]);
+    h.parse_error("var s = `\\a\\u{zz}`;", &["Hex digit expected"]);
+    h.parse_error("var s = `\\a\\1`;", &["Invalid escape sequence"]);
+    h.parse_error("var s = `\\a\\u{}`;", &["Empty unicode escape"]);
 }
 
 // port: ParserTest#testInvalidEscape

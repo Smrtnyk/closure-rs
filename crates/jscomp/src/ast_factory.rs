@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/AstFactory.java.
 
 //! Port of `AstFactory.java`: creates AST nodes and subtrees.
@@ -1977,6 +1977,27 @@ impl AstFactory {
         }
 
         result
+    }
+
+    /// Creates a call to $jscomp.assign that returns the specified type.
+    // port: AstFactory#createJscompAssignCall
+    pub fn create_jscomp_assign_call<C, S>(
+        &self,
+        cx: &mut C,
+        scope: &S,
+        return_type: Type,
+        args: &[NodeId],
+    ) -> NodeId
+    where
+        C: AstFactoryContext + ?Sized,
+        S: AstFactoryStaticScope<C> + ?Sized,
+    {
+        let jscomp_assign = self.get_js_lib_field("$jscomp.assign");
+        let callee = self.create_qname_for_field(cx, scope, jscomp_assign.as_ref());
+        let call = self.create_call(cx, callee, return_type, args);
+        let ast = cx.get_type_registry_and_ast_mut().1;
+        call.put_boolean_prop(ast, Prop::FREE_CALL, true);
+        call
     }
 
     // port: AstFactory#createNewNode

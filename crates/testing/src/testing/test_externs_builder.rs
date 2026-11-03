@@ -28,7 +28,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/testing/TestExternsBuilder.java.
 // Ported from closure-rs' own Java oracle tooling:
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java.
@@ -112,6 +112,12 @@ $jscomp.arrayFromIterator = function(iterator) {};
  * @return {!Promise<?>}
  */
 $jscomp.asyncExecutePromiseGeneratorFunction = function(generatorFunction) {};
+/**
+ * @param {!Object} target
+ * @param {...?Object} var_args
+ * @return {!Object}
+ */
+$jscomp.assign = function(target, var_args) {};
 /**
 * @type {!Global}
 */

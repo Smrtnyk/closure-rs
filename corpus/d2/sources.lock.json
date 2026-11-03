@@ -3,13 +3,13 @@
  "doc": "corpus/d2/FORMAT.md; fetched and verified by scripts/fetch_d2.sh",
  "generated_by": "corpus/d2/validate/finalize.py (D2 corpus validation)",
  "reference": {
-  "commit": "8ac03b6088d6346346ef0bdbb7487c6fc2f48c4c",
-  "jar": "build/reference-v20261028/closure-compiler.jar",
-  "jar_sha256": "9e1b1cf85372c97c16e428c468b687fbaea75faac64f187373495d09eb68f81c"
+  "commit": "977e2cfbb93843d87325fbf94e67cc761773684c",
+  "jar": "build/reference-v20261102/closure-compiler.jar",
+  "jar_sha256": "ddef697f34c244983d738939a339b0cc7a9ce328f23f92f9833e1d6dee5f7c37"
  },
  "golden": {
-  "root": "corpus-cache/d2/_golden/ref-9e1b1cf8",
-  "jar_sha256": "9e1b1cf85372c97c16e428c468b687fbaea75faac64f187373495d09eb68f81c"
+  "root": "corpus-cache/d2/_golden/ref-ddef697f",
+  "jar_sha256": "ddef697f34c244983d738939a339b0cc7a9ce328f23f92f9833e1d6dee5f7c37"
  },
  "cases": {
   "path": "corpus/d2/cases.jsonl",

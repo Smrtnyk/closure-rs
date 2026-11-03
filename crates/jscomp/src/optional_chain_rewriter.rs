@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/OptionalChainRewriter.java.
 
 //! Port of `OptionalChainRewriter.java`: rewrites a single optional chain as one or more nested
@@ -430,7 +430,7 @@ impl OptionalChainRewriter {
         let temp_var_name = self.declare_temp_var_name(compiler, sub_expr);
         let placeholder = IR::empty(compiler);
         sub_expr.replace_with(compiler, placeholder);
-        sub_expr.remove_prop(compiler, Prop::DIRECT_EVAL);
+        sub_expr.remove_direct_eval_prop(compiler);
         let replacement = self
             .ast_factory
             .create_assign_to_name(compiler, temp_var_name, sub_expr)

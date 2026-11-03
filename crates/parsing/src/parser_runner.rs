@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/parsing/ParserRunner.java.
 
 //! Port of `com.google.javascript.jscomp.parsing.ParserRunner`.
@@ -113,7 +113,7 @@ impl ParserRunner {
             ir_factory::IRFactory,
             parser::{parser::Parser, source_file::SourceFile, util::Reporter},
         };
-        use closure_rhino::node::{NodeId, ObjectProp};
+        use closure_rhino::node::ObjectProp;
         use std::{cell::RefCell, rc::Rc, sync::Arc};
         let source_name = source_file.get_name().to_owned();
         let file = Arc::new(SourceFile::new(source_name, source_string));
@@ -161,11 +161,7 @@ impl ParserRunner {
                 )?;
                 let node = factory.get_result_node();
                 features = features.union(factory.get_features());
-                node.put_prop(
-                    ast,
-                    NodeId::FEATURE_SET,
-                    Some(ObjectProp::Opaque(Arc::new(features))),
-                );
+                node.set_feature_set(ast, Some(ObjectProp::Opaque(Arc::new(features))));
                 root = Some(node);
                 if config.js_doc_parsing_mode().should_parse_descriptions() {
                     comments = p.get_comments();

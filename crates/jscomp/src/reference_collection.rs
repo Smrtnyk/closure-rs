@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/ReferenceCollection.java.
 
 //! Port of `ReferenceCollection.java`.
@@ -79,18 +79,38 @@ impl ReferenceCollection {
         true
     }
 
-    /// Whether the variable is escaped into an inner function.
+    /// Whether the variable is escaped into an inner function or deferred class field initializer.
     // port: ReferenceCollection#isEscaped
     pub fn is_escaped(&self, compiler: &AbstractCompiler) -> bool {
-        let mut hoist_scope: Option<ScopeId> = None;
+        let mut closure_scope: Option<ScopeId> = None;
         for r in &self.references {
-            if hoist_scope.is_none() {
-                hoist_scope = r.get_scope().unwrap().get_closest_hoist_scope(compiler);
-            } else if hoist_scope != r.get_scope().unwrap().get_closest_hoist_scope(compiler) {
+            let ref_closure_scope = Self::get_enclosing_closure_scope(compiler, r.get_scope());
+            if closure_scope.is_none() {
+                closure_scope = ref_closure_scope;
+            } else if closure_scope != ref_closure_scope {
                 return true;
             }
         }
         false
+    }
+
+    // port: ReferenceCollection#getEnclosingClosureScope
+    fn get_enclosing_closure_scope(
+        compiler: &AbstractCompiler,
+        scope: Option<ScopeId>,
+    ) -> Option<ScopeId> {
+        let mut s = scope;
+        while let Some(scope) = s {
+            if scope.is_hoist_scope(compiler)
+                || ((scope.is_member_field_def_scope(compiler)
+                    || scope.is_computed_field_def_rhs_scope(compiler))
+                    && !scope.get_root_node(compiler).is_static_member(compiler))
+            {
+                return Some(scope);
+            }
+            s = scope.get_parent(compiler);
+        }
+        None
     }
 
     /// Whether `this` is rebound in any reference's scope before reaching the declaration's hoist

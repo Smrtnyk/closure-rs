@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/CompilerInput.java.
 
 #![allow(clippy::collapsible_if)] // Preserve Java statement order and borrowing branches.
@@ -659,7 +659,7 @@ impl DepsFinder {
     fn visit_tree(&mut self, compiler: &AbstractCompiler, n: NodeId) {
         self.visit_subtree(compiler, n, None);
         assert!(n.is_script(compiler));
-        if let Some(ObjectProp::Opaque(features)) = n.get_prop(compiler, Prop::FEATURE_SET) {
+        if let Some(ObjectProp::Opaque(features)) = n.get_feature_set(compiler) {
             let features = features.as_any().downcast_ref::<FeatureSet>().unwrap();
             let version = features.version();
             if version != "es3" {
@@ -715,7 +715,7 @@ impl DepsFinder {
                             ));
                             return;
                         }
-                        "requireType" => {
+                        "requireType" | "forwardDeclare" => {
                             if !argument.is_string_lit(compiler) {
                                 return;
                             }

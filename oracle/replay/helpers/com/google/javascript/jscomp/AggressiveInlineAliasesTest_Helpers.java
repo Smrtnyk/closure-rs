@@ -1,8 +1,8 @@
 /*
  * closure-rs unit-corpus helper (corpus/unit/DSL.md "helper"). Copied from
  * test/com/google/javascript/jscomp/AggressiveInlineAliasesTest.java (closure-compiler commit
- * bb8c8e7):
- *   validateGlobalNamespace(GlobalNamespace):   lines 3341-3398 (javadoc and method), VERBATIM.
+ * 977e2cf):
+ *   validateGlobalNamespace(GlobalNamespace):   lines 3716-3783 (javadoc and method), VERBATIM.
  * Generated (not from the test):
  *   - the holder class, which stands in for the test instance that `this::validateGlobalNamespace`
  *     (getProcessor, line 60) binds;
@@ -79,6 +79,15 @@ final class AggressiveInlineAliasesTest_Helpers {
       assertWithMessage("%s: canCollapseOrInlineChildNames()", fullName)
           .that(actualName.canCollapseOrInlineChildNames())
           .isEqualTo(expectedName.canCollapseOrInlineChildNames());
+      if (expectedName.getDeclaration() == null) {
+        assertWithMessage("%s: getDeclaration()", fullName)
+            .that(actualName.getDeclaration())
+            .isNull();
+      } else {
+        assertWithMessage("%s: getDeclaration().getNode()", fullName)
+            .that(actualName.getDeclaration().getNode())
+            .isEqualTo(expectedName.getDeclaration().getNode());
+      }
     }
     // Verify that no names in the actual name forest are not present in the expected name forest
     for (Name actualName : passGlobalNamespace.getNameForest()) {

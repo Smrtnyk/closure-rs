@@ -1,6 +1,6 @@
 # Whole-program cases: library tests on Java's output
 
-Each whole-program case's `test_command` (`node corpus/d2/shims/<id>/run.mjs {output}`) was run against the golden Java output of every profile of the case (`corpus/d2/validate/wp_test.py`, node v24.18.0). For a chunk profile (`chunks2`, `chunks3`), `{output}` is the chunk outputs concatenated in chunk order with a newline between them (`c0.js`, `c1.js`[, `c2.js`]), i.e. the chunks loaded as consecutive scripts.
+Each whole-program case's `test_command` (`node corpus/d2/shims/<id>/run.mjs {output}`) was run against the golden Java output of every profile of the case (`corpus/d2/validate/wp_test.py`, node v26.13.0). For a chunk profile (`chunks2`, `chunks3`), `{output}` is the chunk outputs concatenated in chunk order with a newline between them (`c0.js`, `c1.js`[, `c2.js`]), i.e. the chunks loaded as consecutive scripts.
 
 A case's `test_profiles` lists the profiles whose Java output passes the library's own tests. Only those profiles carry the test requirement (D2: Rust output must pass too). Profiles whose Java output fails keep the byte-for-byte output comparison but have no test requirement.
 

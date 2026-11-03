@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/ConvertChunksToESModules.java,
 //   src/com/google/javascript/jscomp/NodeTraversal.java.
 
@@ -111,9 +111,8 @@ impl ConvertChunksToESModules {
                 if first_input.is_none() {
                     first_input = Some(input.clone());
                     script_features = script_features.union(FeatureSet::ES2015_MODULES);
-                    ast_root.put_prop(
+                    ast_root.set_feature_set(
                         compiler,
-                        Prop::FEATURE_SET,
                         Some(ObjectProp::Opaque(Arc::new(script_features))),
                     );
                     let module_body = compiler.new_node(Token::MODULE_BODY);
@@ -131,9 +130,8 @@ impl ConvertChunksToESModules {
                         NodeUtil::get_feature_set_of_script(compiler, ast_root)
                             .expect("NullPointerException"),
                     );
-                    ast_root.put_prop(
+                    ast_root.set_feature_set(
                         compiler,
-                        Prop::FEATURE_SET,
                         Some(ObjectProp::Opaque(Arc::new(combined_feature_set))),
                     );
                     let module_body = first_input_ast_root.get_first_child(compiler);

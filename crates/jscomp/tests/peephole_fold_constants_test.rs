@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/PeepholeFoldConstantsTest.java.
 
@@ -1591,6 +1591,12 @@ fn test_fold_big_int_arithmetic() {
     t.test("x = 2n * 3n", "x = 6n");
     t.test("x = 6n / 2n", "x = 3n");
     t.test("x = 3n % 2n", "x = 1n");
+    t.test("x = -5n % 3n", "x = -2n");
+    t.test("x = 5n % -3n", "x = 2n");
+    t.test("x = -5n % -3n", "x = -2n");
+    t.test_same("x = 1n % 0n");
+    t.test("x = 0n % -3n", "x = 0n");
+    t.test_same("x = 0n % 0n");
     t.test("x = 2n ** 3n", "x = 8n");
     // The compiler is not designed to fold expressions with an exponent > 2147483647
     t.test("x = 1n ** 2147483647n", "x = 1n");

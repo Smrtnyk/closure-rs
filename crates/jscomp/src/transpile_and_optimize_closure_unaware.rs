@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/TranspileAndOptimizeClosureUnaware.java.
 
 //! Port of `TranspileAndOptimizeClosureUnaware.java`.
@@ -45,7 +45,7 @@ use closure_parsing::feature_collector::FeatureCollector;
 use closure_rhino::{
     check_state,
     jsdoc_info::PerFileClosureUnawareMode,
-    node::{NodeId, ObjectProp, Prop},
+    node::{NodeId, ObjectProp},
     static_source_file::StaticSourceFile,
 };
 use std::sync::{Arc, Mutex};
@@ -106,9 +106,8 @@ impl TranspileAndOptimizeClosureUnaware {
             let shadow_script = shadow_ast.script();
             let mut collector = FeatureCollector::default();
             collector.visit_script(original, shadow_script);
-            shadow_script.put_prop(
+            shadow_script.set_feature_set(
                 original,
-                Prop::FEATURE_SET,
                 Some(ObjectProp::Opaque(Arc::new(collector.all_features()))),
             );
         }

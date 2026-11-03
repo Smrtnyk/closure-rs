@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   test/com/google/javascript/jscomp/deps/JsFileRegexParserTest.java.
 
 use super::*;
@@ -147,11 +147,11 @@ fn test_parse_goog_module_with_require_type() {
     let (mut parser, error_manager) = set_up();
     let _ = &error_manager;
 
-    let contents = "goog.module('yes1');\nvar yes2=goog.requireType('yes2');\nvar C=goog.requireType(\"a.b.C\");\nconst {\n  D,\n  E\n}=goog.requireType(\"a.b.d\");\n";
+    let contents = "goog.module('yes1');\nvar yes2=goog.requireType('yes2');\nvar C=goog.requireType(\"a.b.C\");\nconst {\n  D,\n  E\n}=goog.requireType(\"a.b.d\");\nlet F=goog.forwardDeclare(\"a.b.F\");\n";
 
     let expected = SimpleDependencyInfo::builder(CLOSURE_PATH, SRC_PATH)
         .set_provides(vec!["yes1"])
-        .set_type_requires(vec!["yes2", "a.b.C", "a.b.d"])
+        .set_type_requires(vec!["yes2", "a.b.C", "a.b.d", "a.b.F"])
         .set_load_flags(IndexMap::<_, _>::from_iter([(
             "module".into(),
             "goog".into(),
@@ -168,11 +168,12 @@ fn test_parse_script_with_require_type() {
     let (mut parser, error_manager) = set_up();
     let _ = &error_manager;
 
-    let contents = "goog.provide('yes1');\ngoog.requireType('a.b.C');\n";
+    let contents =
+        "goog.provide('yes1');\ngoog.requireType('a.b.C');\ngoog.forwardDeclare('a.b.D');\n";
 
     let expected = SimpleDependencyInfo::builder(CLOSURE_PATH, SRC_PATH)
         .set_provides(vec!["yes1"])
-        .set_type_requires(vec!["a.b.C"])
+        .set_type_requires(vec!["a.b.C", "a.b.D"])
         .build();
 
     let result = parser.parse_file(SRC_PATH, CLOSURE_PATH, contents);

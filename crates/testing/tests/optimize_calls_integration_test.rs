@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/CompilerPass.java,
 //   test/com/google/javascript/jscomp/OptimizeCallsIntegrationTest.java.
 
@@ -199,6 +199,89 @@ fn test_convert_tagged_template_literal_to_a_normal_call_then_optimized() {
             "// Tagged template literal gets converted to a normal call\n",
             "f();\n",
             "f();\n"
+        ),
+    );
+}
+
+// port: OptimizeCallsIntegrationTest#testConvertTaggedTemplateLiteralToNormalCall_preservesFreeCallOnMethod
+#[test]
+fn test_convert_tagged_template_literal_to_normal_call_preserves_free_call_on_method() {
+    let mut t = Test::new();
+    t.test_parts(vec![
+        externs(
+            &TestExternsBuilder::new()
+                .add_console()
+                .build()
+                .to_string_lossy(),
+        ),
+        srcs(concat!(
+            "class K {\n",
+            "  m(strings) {\n",
+            "    return this;\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "console.log((0, k.m)`x` === void 0);\n"
+        )),
+        expected(concat!(
+            "class K {\n",
+            "  m() {\n",
+            "    [];\n",
+            "    return this;\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "console.log((0, k.m)() === void 0);\n"
+        )),
+    ]);
+
+    t.test(
+        concat!(
+            "class K {\n",
+            "  m(strings, val) {\n",
+            "    return [this, val];\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "use((0, k.m)`x${1}`);\n",
+            "use(k.m`y${2}`);\n",
+            "use(k.m());\n"
+        ),
+        concat!(
+            "class K {\n",
+            "  m(val) {\n",
+            "    return [this, val];\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "use((0, k.m)(1));\n",
+            "use(k.m(2));\n",
+            "use(k.m());\n"
+        ),
+    );
+
+    t.test(
+        concat!(
+            "class K {\n",
+            "  m(strings, val) {\n",
+            "    return [this, val];\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "use((0, k?.m)`x${1}`);\n",
+            "use((k?.m)`y${2}`);\n",
+            "use(k.m());\n"
+        ),
+        concat!(
+            "class K {\n",
+            "  m(val) {\n",
+            "    return [this, val];\n",
+            "  }\n",
+            "}\n",
+            "const k = new K();\n",
+            "use((0, k?.m)(1));\n",
+            "use((k?.m)(2));\n",
+            "use(k.m());\n"
         ),
     );
 }

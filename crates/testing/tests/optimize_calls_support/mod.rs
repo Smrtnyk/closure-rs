@@ -16,7 +16,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/NodeUtil.java,
 //   src/com/google/javascript/jscomp/SourceFile.java,
 //   src/com/google/javascript/jscomp/testing/CodeSubTree.java,

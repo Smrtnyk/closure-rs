@@ -191,20 +191,14 @@ fn report_overflow() -> BigIntegerParseError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ArithmeticException(pub &'static str);
 
-/// `BigInteger#mod(BigInteger)`: the non-negative residue; throws for a modulus that is not
-/// positive.
-// port: BigInteger#mod
-pub fn r#mod(this: &BigInt, m: &BigInt) -> Result<BigInt, ArithmeticException> {
-    if m.sign() != Sign::Plus {
-        return Err(ArithmeticException("BigInteger: modulus not positive"));
+/// `BigInteger#remainder(BigInteger)`: the truncated remainder, with the sign of the dividend;
+/// throws for a zero divisor.
+// port: BigInteger#remainder
+pub fn remainder(this: &BigInt, val: &BigInt) -> Result<BigInt, ArithmeticException> {
+    if val.sign() == Sign::NoSign {
+        return Err(ArithmeticException("BigInteger divide by zero"));
     }
-
-    let result = this % m;
-    Ok(if result.sign() != Sign::Minus {
-        result
-    } else {
-        result + m
-    })
+    Ok(this % val)
 }
 
 /// `BigInteger#intValueExact()`.

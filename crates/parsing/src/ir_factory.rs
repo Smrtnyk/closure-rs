@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/parsing/IRFactory.java.
 
 //! IRFactory transforms the external AST to the internal AST.
@@ -3758,7 +3758,7 @@ impl<'a> IRFactory<'a> {
                     for c in 2..length {
                         v = v * 2.0 + Self::binary_digit(value.char_at(c)) as f64;
                     }
-                    Ok(v)
+                    Self::round_large_radix_literal(v, &value.substring_from(2), 2)
                 }
                 c if c == u16::from(b'o') || c == u16::from(b'O') => {
                     self.maybe_warn_for_feature_token(token, Feature::OCTAL_LITERALS);
@@ -3766,14 +3766,14 @@ impl<'a> IRFactory<'a> {
                     for c in 2..length {
                         v = v * 8.0 + Self::octal_digit(value.char_at(c)) as f64;
                     }
-                    Ok(v)
+                    Self::round_large_radix_literal(v, &value.substring_from(2), 8)
                 }
                 c if c == u16::from(b'x') || c == u16::from(b'X') => {
                     let mut v = 0.0;
                     for c in 2..length {
                         v = v * 16.0 + Self::hex_digit(value.char_at(c)) as f64;
                     }
-                    Ok(v)
+                    Self::round_large_radix_literal(v, &value.substring_from(2), 16)
                 }
                 c if (u16::from(b'0')..=u16::from(b'7')).contains(&c) => {
                     let mut v = 0.0;
@@ -3806,7 +3806,7 @@ impl<'a> IRFactory<'a> {
                             Self::charno_token(token),
                         );
                     }
-                    Ok(v)
+                    Self::round_large_radix_literal(v, &value.substring_from(1), 8)
                 }
                 c if c == u16::from(b'8') || c == u16::from(b'9') => {
                     self.error_reporter.error(
@@ -3882,6 +3882,22 @@ impl<'a> IRFactory<'a> {
                 .filter(|&u| u != u16::from(b'_'))
                 .collect::<Vec<_>>(),
         )
+    }
+    /// Returns the value of a binary, octal, or hex integer literal whose digits were accumulated
+    /// into `v` one at a time.
+    ///
+    /// That accumulation is exact while the value stays below 2^53. Past that, every step rounds
+    /// and the error compounds, so the literal can land on a neighbor of the correctly rounded
+    /// double. For those, parse the full integer and round it once, matching `normalizeBigInt`.
+    // port: IRFactory#roundLargeRadixLiteral
+    fn round_large_radix_literal(v: f64, digits: &JsString, radix: i32) -> P<f64> {
+        if v < 9007199254740992.0 {
+            Ok(v)
+        } else {
+            closure_rhino::java_lang::parse_big_integer(digits, radix)
+                .map(|b| closure_rhino::java_lang::big_integer::double_value(&b))
+                .map_err(big_integer_error)
+        }
     }
     // port: IRFactory#binarydigit
     fn binary_digit(c: u16) -> i32 {

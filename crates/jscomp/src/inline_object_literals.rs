@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/InlineObjectLiterals.java.
 
 use crate::{
@@ -29,6 +29,7 @@ use crate::{
     syntactic_scope_creator::SyntacticScopeCreator,
     var::VarId,
 };
+use closure_parsing::parser::feature_set::Feature;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_state, ir::IR, js_string::JsString, node::NodeId, token::Token, token_stream::TokenStream,
@@ -498,15 +499,14 @@ impl InliningBehavior {
         // ASSIGN, then there's an EXPR_STATEMENT above it, if it's a
         // VAR then it should be directly replaced.
         let mut vnode;
+        let is_block_scoped = v.is_let(compiler) || v.is_const(compiler);
         let defined = reference_info.is_well_defined(compiler)
             && NodeUtil::is_name_declaration(compiler, Some(init.unwrap().get_parent(compiler)));
         if defined {
             let init = init.unwrap();
             vnode = init.get_parent(compiler);
             Self::fill_initial_values(compiler, init, &mut initvals);
-        } else if v.get_parent_node(compiler).unwrap().is_let(compiler)
-            || v.get_parent_node(compiler).unwrap().is_const(compiler)
-        {
+        } else if is_block_scoped {
             // Find the beginning of the current scope.
             let scope_root = v.get_scope(compiler).get_root_node(compiler);
             // Assuming scopeRoot is a BLOCK, then we want to insert at the top of the block,
@@ -537,15 +537,30 @@ impl InliningBehavior {
             vnode.to_string(compiler)
         );
 
+        if is_block_scoped && !varmap.is_empty() {
+            let script = NodeUtil::get_enclosing_script(compiler, vnode);
+            if let Some(script) = script {
+                NodeUtil::add_feature_to_script(compiler, script, Feature::LET_DECLARATIONS);
+            }
+        }
+
         for (key, value) in &varmap {
             let val = initvals.get(key).copied().flatten();
-            let new_var_node = NodeUtil::new_var_node(compiler, value.clone(), val);
+            let lhs = IR::name(compiler, value.clone());
+            let declaration_type = if is_block_scoped {
+                Token::LET
+            } else {
+                Token::VAR
+            };
+            let new_var_node;
             match val {
                 None => {
-                    // is this right?
+                    new_var_node = IR::declaration(compiler, lhs, declaration_type);
                     new_var_node.srcref_tree_if_missing(compiler, vnode);
                 }
                 Some(val) => {
+                    new_var_node = IR::declaration_with_value(compiler, lhs, val, declaration_type);
+                    new_var_node.srcref_tree_if_missing(compiler, val);
                     let scope = v.get_scope(compiler);
                     self.record_stale_var_references_in_tree(compiler, val, scope);
                 }

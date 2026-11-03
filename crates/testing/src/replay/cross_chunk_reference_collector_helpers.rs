@@ -34,7 +34,7 @@
 //   UnitRecorder.java (oracle/patches/0002-recording-hooks.patch),
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/AbstractVar.java,
 //   src/com/google/javascript/jscomp/BasicBlock.java,
 //   src/com/google/javascript/jscomp/CrossChunkReferenceCollector.java,
@@ -446,7 +446,7 @@ impl CollectorView {
         }
         let mut references_by_node: IndexMap<NodeId, DslValue> = IndexMap::<_, _>::default();
         let mut vars = vec![];
-        for (name, var) in self.collector.get_global_variable_names_map() {
+        for (name, var) in self.collector.get_global_variable_names_map(compiler) {
             vars.push((var, name.to_string_lossy(), var_view(compiler, var)));
         }
         let mut references = vec![];
@@ -611,18 +611,6 @@ impl NativeObject for CollectorView {
     // port: ReplayValues#findField (CrossChunkReferenceCollector fields in declaration order)
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
         Ok(IndexMap::<_, _>::from_iter([
-            (
-                "varsByName".to_string(),
-                DslValue::Map(
-                    self.state
-                        .vars
-                        .iter()
-                        .map(|(_, name, view)| {
-                            (DslValue::String(name.as_str().into()), view.clone())
-                        })
-                        .collect(),
-                ),
-            ),
             (
                 "topLevelStatements".to_string(),
                 DslValue::List(self.state.top_level_statements.clone()),

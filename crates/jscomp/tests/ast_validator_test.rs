@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/AstValidator.java,
 //   src/com/google/javascript/jscomp/CompilerOptions.java,
 //   test/com/google/javascript/jscomp/AstValidatorTest.java,
@@ -782,9 +782,8 @@ fn test_valid_feature_in_script() {
     n.srcref_tree(&mut t.ast, n);
     t.expect_invalid(n, Check::SCRIPT);
 
-    n.put_prop(
+    n.set_feature_set(
         &mut t.ast,
-        Prop::FEATURE_SET,
         Some(ObjectProp::Opaque(Arc::new(
             FeatureSet::BARE_MINIMUM.with(Feature::LET_DECLARATIONS),
         ))),

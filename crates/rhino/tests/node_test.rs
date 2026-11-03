@@ -35,7 +35,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   test/com/google/javascript/rhino/NodeTest.java.
 
 use closure_rhino::{
@@ -44,10 +44,10 @@ use closure_rhino::{
     js_type_expression::JSTypeExpression,
     jscomp_colors::standard_colors as sc,
     jscomp_serialization::node_property::NodeProperty,
-    jsdoc_info::JSDocInfo,
+    jsdoc_info::{JSDocInfo, Visibility},
     node::{
-        Ast, JsDocComparison, NodeId, RecursionMode, SideEffectComparison, SideEffectFlags,
-        TypeComparison,
+        Ast, JsDocComparison, NodeId, ObjectProp, RecursionMode, SideEffectComparison,
+        SideEffectFlags, TypeComparison,
     },
     testing::assert_node,
     token::Token,
@@ -1703,4 +1703,62 @@ fn test_replace_with_propagates_srcref_if_missing() {
     assert_eq!(child.get_lineno(&ast), -1);
     assert_eq!(child.get_charno(&ast), -1);
     assert!(child.get_source_file_name(&ast).is_none());
+}
+
+/// Java's `new Object()`: an opaque value compared by identity.
+#[derive(Debug)]
+struct TestObject;
+impl std::fmt::Display for TestObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("java.lang.Object")
+    }
+}
+
+/// `assertThat(actual).isSameInstanceAs(expected)` for opaque object properties.
+fn assert_same_opaque(actual: Option<ObjectProp>, expected: &Arc<TestObject>) {
+    match actual {
+        Some(ObjectProp::Opaque(value)) => {
+            let value = value.as_any().downcast_ref::<TestObject>().unwrap();
+            assert!(std::ptr::eq(value, expected.as_ref()));
+        }
+        other => panic!("expected the same object, got {other:?}"),
+    }
+}
+
+// port: NodeTest#testObjectValuedProps
+#[test]
+fn test_object_valued_props() {
+    let mut ast = Ast::new();
+    let n = ast.new_node(Token::NAME);
+
+    let reflected = Arc::new(TestObject);
+    n.set_reflected_object(&mut ast, ObjectProp::Opaque(reflected.clone()));
+    assert_same_opaque(n.get_reflected_object(&ast), &reflected);
+
+    let generic_type = ast.new_node(Token::NAME);
+    n.set_generic_type(&mut ast, generic_type);
+    assert_eq!(n.get_generic_type(&ast), Some(generic_type));
+
+    let implements_node = ast.new_node(Token::NAME);
+    n.set_implements(&mut ast, implements_node);
+    assert_eq!(n.get_implements(&ast), Some(implements_node));
+
+    n.set_construct_signature(&mut ast, true);
+    assert!(n.get_construct_signature(&ast));
+    n.set_construct_signature(&mut ast, false);
+    assert!(!n.get_construct_signature(&ast));
+
+    let access = Visibility::PRIVATE;
+    n.set_access_modifier(&mut ast, access);
+    assert_eq!(n.get_access_modifier(&ast), Some(access));
+
+    let features = Arc::new(TestObject);
+    n.set_feature_set(&mut ast, Some(ObjectProp::Opaque(features.clone())));
+    assert_same_opaque(n.get_feature_set(&ast), &features);
+
+    let eval_node = IR::name(&mut ast, "eval");
+    eval_node.put_boolean_prop(&mut ast, NodeId::DIRECT_EVAL, true);
+    assert!(eval_node.get_boolean_prop(&ast, NodeId::DIRECT_EVAL));
+    eval_node.remove_direct_eval_prop(&mut ast);
+    assert!(!eval_node.get_boolean_prop(&ast, NodeId::DIRECT_EVAL));
 }

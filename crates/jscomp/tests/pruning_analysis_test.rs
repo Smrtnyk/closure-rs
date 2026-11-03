@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   test/com/google/javascript/jscomp/PruningAnalysisTest.java.
 
 //! Port of PruningAnalysisTest.java.
@@ -155,14 +155,13 @@ fn test_weak_dependencies_included() {
 }
 
 #[test]
-// port: PruningAnalysisTest#testForwardDeclare_notIncluded
-fn test_forward_declare_not_included() {
+// port: PruningAnalysisTest#testForwardDeclare_included
+fn test_forward_declare_included() {
     let mut compiler = set_up();
-    // goog.forwardDeclare is NOT captured by JsFileRegexParser as a dependency.
     let root1 = create_input(
         &compiler,
         "root1.js",
-        "goog.provide('root1'); goog.forwardDeclare('missing');",
+        "goog.provide('root1'); goog.forwardDeclare('fwdDeclared'); goog.forwardDeclare('missing');",
     );
     let fwd_declared = create_input(&compiler, "fwdDeclared.js", "goog.provide('fwdDeclared');");
 
@@ -170,7 +169,7 @@ fn test_forward_declare_not_included() {
 
     assert_eq!(
         entry(result.entry_point_dependency_count(), "root1.js"),
-        Some(1)
+        Some(2)
     );
 }
 

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/serialization/TypedAstDeserializer.java.
 
 //! Port of serialization/TypedAstDeserializer.java: deserializes a list of TypedAst protos into
@@ -495,9 +495,8 @@ impl TypedAstDeserializer<'_> {
             let stub_script = IR::script(compiler);
             let file: Arc<dyn StaticSourceFile> = file.clone();
             stub_script.set_static_source_file(compiler, Some(file));
-            stub_script.put_prop(
+            stub_script.set_feature_set(
                 compiler,
-                NodeId::FEATURE_SET,
                 Some(ObjectProp::Opaque(Arc::new(FeatureSet::BARE_MINIMUM))),
             );
             stub_script

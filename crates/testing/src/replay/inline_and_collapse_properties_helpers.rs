@@ -32,7 +32,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/CompilerPass.java,
 //   src/com/google/javascript/jscomp/Es6NormalizeClasses.java,
 //   src/com/google/javascript/jscomp/InlineAndCollapseProperties.java,
@@ -614,6 +614,27 @@ fn validate_global_namespace(
             actual_name.can_collapse_or_inline_child_names(actual, compiler),
             expected_name.can_collapse_or_inline_child_names(expected, compiler),
         )?;
+        match expected_name.get_declaration(expected) {
+            None => assert_equal(
+                &format!("{message}: getDeclaration()"),
+                actual_name.get_declaration(actual).is_none(),
+                true,
+            )?,
+            Some(expected_declaration) => {
+                let actual_declaration = actual_name
+                    .get_declaration(actual)
+                    // Java: a null getDeclaration() is dereferenced
+                    .ok_or_else(|| Throwable::Exception {
+                        class: "java.lang.NullPointerException".into(),
+                        message: None,
+                    })?;
+                assert_equal(
+                    &format!("{message}: getDeclaration().getNode()"),
+                    actual_declaration.get_node(actual),
+                    expected_declaration.get_node(expected),
+                )?;
+            }
+        }
     }
     // Verify that no names in the actual name forest are not present in the expected name forest
     let actual_names = pass_global_namespace.get_name_forest(compiler).to_vec();

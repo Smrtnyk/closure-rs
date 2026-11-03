@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/CrossChunkReferenceCollector.java,
 //   src/com/google/javascript/jscomp/ReferenceCollection.java,
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
@@ -114,7 +114,8 @@ impl Test {
 
     // port: CrossChunkReferenceCollector#getGlobalVariableNamesMap
     fn global_variable_names_map(&self) -> IndexMap<JsString, VarId> {
-        self.collector().get_global_variable_names_map()
+        self.collector()
+            .get_global_variable_names_map(&self.compiler())
     }
     // port: CrossChunkReferenceCollector#getReferences
     fn references(&self, var: VarId) -> ReferenceCollection {

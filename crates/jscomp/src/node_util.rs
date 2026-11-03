@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/NodeUtil.java.
 
 #![allow(clippy::match_like_matches_macro)] // Retain Java switch bodies.
@@ -2468,6 +2468,20 @@ impl NodeUtil {
             }
             _ => Self::is_assignment_op(ast, parent) && parent.get_first_child(ast) == Some(n),
         }
+    }
+    /// Returns whether `n` is an L-value write to a variable or property (including initialized
+    /// declarations, assignments, increments/decrements, destructuring patterns, and enhanced
+    /// `for`-loop headers, but excluding uninitialized variable declarations such as `var a;`).
+    // port: NodeUtil#isLValueWrite
+    pub fn is_l_value_write(ast: &Ast, n: NodeId) -> bool {
+        if !Self::is_l_value(ast, n) {
+            return false;
+        }
+        let parent = n.get_parent(ast).unwrap();
+        let grandparent = parent.get_parent(ast);
+        !Self::is_name_declaration(ast, Some(parent))
+            || n.has_children(ast)
+            || grandparent.is_some_and(|grandparent| Self::is_enhanced_for(ast, grandparent))
     }
     // port: NodeUtil#isDeclarationLValue
     pub fn is_declaration_l_value(ast: &Ast, n: NodeId) -> bool {
@@ -5232,16 +5246,14 @@ impl NodeUtil {
     // port: NodeUtil#getFeatureSetOfScript
     pub fn get_feature_set_of_script(ast: &Ast, script_node: NodeId) -> Option<FeatureSet> {
         check_state!(script_node.is_script(ast), "%s", script_node.to_string(ast));
-        script_node
-            .get_prop(ast, Prop::FEATURE_SET)
-            .map(|prop| match prop {
-                ObjectProp::Opaque(prop) => *prop
-                    .as_ref()
-                    .as_any()
-                    .downcast_ref::<FeatureSet>()
-                    .expect("ClassCastException"),
-                _ => panic!("ClassCastException"),
-            })
+        script_node.get_feature_set(ast).map(|prop| match prop {
+            ObjectProp::Opaque(prop) => *prop
+                .as_ref()
+                .as_any()
+                .downcast_ref::<FeatureSet>()
+                .expect("ClassCastException"),
+            _ => panic!("ClassCastException"),
+        })
     }
     // port: NodeUtil#addFeatureToScript
     pub fn add_feature_to_script(
@@ -5258,11 +5270,7 @@ impl NodeUtil {
         let new_features = current_features
             .unwrap_or(FeatureSet::BARE_MINIMUM)
             .with(feature);
-        script_node.put_prop(
-            compiler,
-            Prop::FEATURE_SET,
-            Some(ObjectProp::Opaque(Arc::new(new_features))),
-        );
+        script_node.set_feature_set(compiler, Some(ObjectProp::Opaque(Arc::new(new_features))));
         if feature != Feature::MODULES {
             check_state!(
                 compiler.get_allowable_features().contains(feature),
@@ -5277,9 +5285,8 @@ impl NodeUtil {
     fn remove_feature_from_script(ast: &mut Ast, script_node: NodeId, feature: Feature) {
         let current_features = Self::get_feature_set_of_script(ast, script_node)
             .map(|features| features.without(feature));
-        script_node.put_prop(
+        script_node.set_feature_set(
             ast,
-            Prop::FEATURE_SET,
             current_features.map(|features| ObjectProp::Opaque(Arc::new(features))),
         );
     }
@@ -5290,9 +5297,8 @@ impl NodeUtil {
         feature_set: FeatureSet,
     ) {
         if let Some(current_features) = Self::get_feature_set_of_script(ast, script_node) {
-            script_node.put_prop(
+            script_node.set_feature_set(
                 ast,
-                Prop::FEATURE_SET,
                 Some(ObjectProp::Opaque(Arc::new(
                     current_features.without(feature_set),
                 ))),

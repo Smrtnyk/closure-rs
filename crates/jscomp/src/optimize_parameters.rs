@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/OptimizeParameters.java.
 
 use crate::{
@@ -30,7 +30,7 @@ use closure_rhino::{
     check_not_null, check_state,
     ir::IR,
     js_string::JsString,
-    node::{Ast, NodeId, SideEffectFlags},
+    node::{Ast, NodeId, Prop, SideEffectFlags},
     token::Token,
 };
 
@@ -727,8 +727,10 @@ impl OptimizeParameters {
         let template_literal = callee.get_next(compiler).unwrap();
         let first_arg = IR::arraylit(compiler, &[]).srcref(compiler, template_literal);
         callee.detach(compiler);
-        let call_node =
-            NodeUtil::new_call_node(compiler, callee, &[first_arg]).srcref(compiler, ttl_node);
+        let call_node = IR::call(compiler, callee, &[first_arg]).srcref(compiler, ttl_node);
+        let free_call = ttl_node.get_boolean_prop(compiler, Prop::FREE_CALL)
+            || !NodeUtil::is_normal_or_opt_chain_get(compiler, callee);
+        call_node.put_boolean_prop(compiler, Prop::FREE_CALL, free_call);
         let mut tl_child = template_literal.get_first_child(compiler);
         while let Some(child) = tl_child {
             if child.is_template_lit_sub(compiler) {

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/J2clSourceUtils.java.
 
 //! Port of `J2clSourceUtils.java`.
@@ -48,5 +48,11 @@ impl J2clSourceUtils {
             return false;
         };
         Self::is_j2cl_source_node(ast, script_node)
+    }
+
+    // port: J2clSourceUtils#isJ2clHeaderSource
+    pub fn is_j2cl_header_source(source_file_name: Option<&str>) -> bool {
+        source_file_name
+            .is_some_and(|name| name.ends_with(".java.js") && !name.ends_with(".impl.java.js"))
     }
 }

@@ -13,12 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   test/com/google/javascript/jscomp/CompilerOptionsTest.java.
 
+use closure_jscomp::abstract_compiler::AbstractCompiler;
 use closure_jscomp::compiler_options::{BrowserFeaturesetYear, CompilerOptions, LanguageMode};
+use closure_jscomp::compiler_pass::CompilerPass;
+use closure_jscomp::custom_pass_execution_time::CustomPassExecutionTime;
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
-use closure_rhino::{node::Ast, token::Token};
+use closure_rhino::fast_hash::IndexSet;
+use closure_rhino::{
+    node::{Ast, NodeId},
+    token::Token,
+};
+use std::sync::{Arc, Mutex};
 // port: CompilerOptionsTest#testBrowserFeaturesetYearOptionSetsLanguageOut
 #[test]
 fn test_browser_featureset_year_option_sets_language_out() {
@@ -282,4 +290,159 @@ fn test_requires_types_for_optimization() {
     options.set_remove_abstract_methods(false);
     options.set_remove_closure_asserts(true);
     assert!(options.requires_types_for_optimization());
+}
+
+// port: CompilerOptionsTest#testCollectionFieldsPreserveInsertionOrder
+#[test]
+fn test_collection_fields_preserve_insertion_order() {
+    let mut options = CompilerOptions::new();
+
+    let mut types = IndexSet::<String>::default();
+    types.insert("typeB".to_string());
+    types.insert("typeA".to_string());
+    types.insert("typeC".to_string());
+    options.set_strip_types(types);
+    assert_eq!(
+        options.get_strip_types().iter().collect::<Vec<_>>(),
+        ["typeB", "typeA", "typeC"]
+    );
+
+    let mut suffixes = IndexSet::<String>::default();
+    suffixes.insert("suffixB".to_string());
+    suffixes.insert("suffixA".to_string());
+    suffixes.insert("suffixC".to_string());
+    options.set_strip_name_suffixes(suffixes);
+    assert_eq!(
+        options.get_strip_name_suffixes().iter().collect::<Vec<_>>(),
+        ["suffixB", "suffixA", "suffixC"]
+    );
+
+    let mut prefixes = IndexSet::<String>::default();
+    prefixes.insert("prefixB".to_string());
+    prefixes.insert("prefixA".to_string());
+    prefixes.insert("prefixC".to_string());
+    options.set_strip_name_prefixes(prefixes);
+    assert_eq!(
+        options.get_strip_name_prefixes().iter().collect::<Vec<_>>(),
+        ["prefixB", "prefixA", "prefixC"]
+    );
+
+    let pass1: Arc<Mutex<dyn CompilerPass + Send>> = Arc::new(Mutex::new(NoOpPass));
+    let pass2: Arc<Mutex<dyn CompilerPass + Send>> = Arc::new(Mutex::new(NoOpPass));
+    options.add_custom_pass(CustomPassExecutionTime::BEFORE_CHECKS, pass1.clone());
+    options.add_custom_pass(CustomPassExecutionTime::BEFORE_CHECKS, pass2.clone());
+    let passes = options.get_custom_passes_at(CustomPassExecutionTime::BEFORE_CHECKS);
+    assert_eq!(passes.len(), 2);
+    assert!(Arc::ptr_eq(&passes[0], &pass1));
+    assert!(Arc::ptr_eq(&passes[1], &pass2));
+}
+
+/// The lambdas `(externs, root) -> {}` of testCollectionFieldsPreserveInsertionOrder.
+struct NoOpPass;
+impl CompilerPass for NoOpPass {
+    fn process(&mut self, _compiler: &mut AbstractCompiler, _externs: NodeId, _root: NodeId) {}
+}
+
+// port: CompilerOptionsTest#testToStringDeterministicFormat
+#[test]
+fn test_to_string_deterministic_format() {
+    let new_options = || {
+        let mut options = CompilerOptions::new();
+        options.set_define_to_boolean_literal("defineA", true);
+        options.set_define_to_boolean_literal("defineB", false);
+        options.set_strip_types(["typeA", "typeB"].map(String::from).into_iter().collect());
+        options.set_strip_name_suffixes(
+            ["suffixA", "suffixB"]
+                .map(String::from)
+                .into_iter()
+                .collect(),
+        );
+        options.set_strip_name_prefixes(
+            ["prefixA", "prefixB"]
+                .map(String::from)
+                .into_iter()
+                .collect(),
+        );
+        options
+            .set_id_generator_names(["idGenA", "idGenB"].map(String::from).into_iter().collect());
+        options
+    };
+    let options1 = new_options();
+    let options2 = new_options();
+
+    let s1 = options1.to_string();
+    let s2 = options2.to_string();
+
+    assert!(s1.starts_with("CompilerOptions{"));
+    assert!(s1.ends_with('}'));
+    assert!(!s1.contains('@')); // No identity hash codes
+    assert_eq!(s1, s2);
+
+    let expected = concat!(
+        "CompilerOptions{aliasStringsMode=NONE, ambiguateProperties=false, angularPass=false,",
+        " assumeGettersArePure=true,",
+        " assumePropertiesAreStaticallyAnalyzable=true, assumeStrictThis=false,",
+        " browserResolverPrefixReplacements={}, checkDeterminism=false,",
+        " checkSuspiciousCode=false, checkSymbols=false, checkTypes=false, checksOnly=false,",
+        " chunksToPrintAfterEachPassRegexList=[], closurePass=false,",
+        " coalesceVariableNames=false, collapseAnonymousFunctions=false,",
+        " collapseObjectLiterals=false, collapseProperties=NONE,",
+        " collapseVariableDeclarations=false, colorizeErrorOutput=false,",
+        " computeFunctionSideEffects=false, conformanceConfigs=[],",
+        " conformanceRemoveRegexFromPath=Optional.of(^((.*/)?google3/)?(/?(blaze|bazel)-out/[^/]+/(bin|genfiles)/)?),",
+        " conformanceReportingMode=IGNORE_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG,",
+        " continueAfterErrors=false, convertToDottedProperties=false,",
+        " crossChunkCodeMotion=false, crossChunkCodeMotionNoStubMethods=false,",
+        " crossChunkMethodMotion=false, deadAssignmentElimination=false,",
+        " defineReplacements={defineA=TRUE, defineB=FALSE},",
+        " dependencyOptions=DependencyOptions[mode=NONE, entryPoints=[]], devMode=OFF,",
+        " devirtualizeMethods=false, disambiguateProperties=false,",
+        " emitUseStrict=Optional.absent(), enableModuleRewriting=true, environment=BROWSER,",
+        " errorFormat=FULL, es6ModuleTranspilation=COMPILE,",
+        " es6SubclassTranspilation=CONCISE_UNSAFE, exportLocalPropertyDefinitions=true,",
+        " exportTestFunctions=false, extractPrototypeMemberDeclarations=OFF,",
+        " filesToPrintAfterEachPassRegexList=[], flowSensitiveInlineVariables=false,",
+        " foldConstants=false, forceLibraryInjection=[], gatherCssNames=false,",
+        " generateExports=true, generatePseudoNames=false, generateTypedExterns=false,",
+        " idGenerators={idGenA=INCONSISTENT, idGenB=INCONSISTENT}, incrementalCheckMode=OFF,",
+        " inferConsts=true, inferTypes=false, inlineConstantVars=false,",
+        " inlineFunctionsLevel=NONE, inlineGetters=false, inlineLocalVariables=false,",
+        " inlineProperties=false, inlineVariables=false, inputDelimiter=// Input %num%,",
+        " inputSourceMaps={}, instrumentForCoverageOnly=false,",
+        " instrumentForCoverageOption=NONE, isolatePolyfills=false, j2clMinifierEnabled=true,",
+        " j2clPassMode=AUTO, labelRenaming=false, languageIn=ECMASCRIPT_NEXT,",
+        " languageOutIsDefaultStrict=Optional.absent(), lineBreak=false,",
+        " lineLengthThreshold=500, markAsCompiled=false, maxFunctionSizeAfterInlining=-1,",
+        " moduleRoots=[./], nameGenerator=com.google.javascript.jscomp.DefaultNameGenerator,",
+        " numParallelThreads=1, optimizeCalls=false, optimizeESClassConstructors=false,",
+        " optimizeLocalAccessForGlobalSymbolNamespace=DISABLED,",
+        " outputFeatureSet=Optional.absent(), outputJs=NORMAL, outputJsStringUsage=false,",
+        " parentChunkCanSeeSymbolsDeclaredInChildren=false,",
+        " parseJsDocDocumentation=TYPES_ONLY, pathEscaper=ESCAPE, polymerPass=false,",
+        " preferSingleQuotes=false, preferStableNames=false,",
+        " preserveDetailedSourceInfo=false, preserveGoogProvidesAndRequires=false,",
+        " preserveNonJSDocComments=false, preserveTypeAnnotations=false, prettyPrint=false,",
+        " printConfig=false, printInputDelimiter=false, printSourceAfterEachPass=false,",
+        " processCommonJSModules=false, productionInstrumentationArrayName=,",
+        " propertiesThatMustDisambiguate=[], propertyRenaming=OFF,",
+        " propertyRenamingOnlyCompilationMode=false, protectHiddenSideEffects=false,",
+        " qnameUsesToPrintAfterEachPassRegexList=[], quoteKeywordProperties=false,",
+        " removeAbstractMethods=false, removeClosureAsserts=false, removeJ2clAsserts=true,",
+        " removeUnusedClassProperties=false, removeUnusedLocalVars=false,",
+        " removeUnusedPrototypeProperties=false, removeUnusedVars=false,",
+        " renamePrefixNamespaceAssumeCrossChunkNames=false, replaceIdGenerators=true,",
+        " replaceMessagesWithChromeI18n=false, replaceStringsFunctionDescriptions=[],",
+        " replaceStringsPlaceholderToken=, reserveRawExports=false,",
+        " rewriteFunctionExpressions=false,",
+        " rewriteGlobalDeclarationsForTryCatchWrapping=false,",
+        " rewriteModulesBeforeTypechecking=false, rewritePolyfills=false,",
+        " runtimeLibraryMode=INJECT, skipNonTranspilationPasses=false,",
+        " smartNameRemoval=false, sourceMapDetailLevel=ALL, sourceMapFormat=DEFAULT,",
+        " sourceMapLocationMappings=[], strictMessageReplacement=false,",
+        " stripNamePrefixes=[prefixA, prefixB], stripNameSuffixes=[suffixA, suffixB],",
+        " stripTypes=[typeA, typeB], summaryDetailLevel=1, tracer=OFF, trustedStrings=false,",
+        " tweakProcessing=OFF, useTypesForLocalOptimization=false, variableRenaming=OFF,",
+        " warningsGuard=, wrapGoogModulesForWhitespaceOnly=true}",
+    );
+    assert_eq!(s1, expected);
 }
