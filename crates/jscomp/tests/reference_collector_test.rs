@@ -318,3 +318,61 @@ var z = 2;
     assert_eq!(*non_null_reference_names.borrow(), ["x"]);
     assert_eq!(*filtered_out_names.borrow(), ["z"]);
 }
+
+/// The `Behavior` lambda of `testClassField_referencingGlobalVariable_escapeIffInstanceFields`.
+#[derive(Clone, Default)]
+struct ClassFieldEscapeBehavior {
+    checked: Rc<RefCell<bool>>,
+}
+impl Behavior for ClassFieldEscapeBehavior {
+    // port: ReferenceCollectorTest#testClassField_referencingGlobalVariable_escapeIffInstanceFields (Behavior#afterExitScope)
+    fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, rm: &dyn ReferenceMap) {
+        let scope = t.get_scope();
+        if scope.is_global(t.get_compiler()) {
+            let mut references = |name: &str| {
+                let var = scope
+                    .get_var(t.get_compiler(), JsString::from(name))
+                    .unwrap();
+                rm.get_references(var).unwrap().clone()
+            };
+            let instance1 = references("instance1");
+            let instance2 = references("instance2");
+            let static1 = references("static1");
+            let static2 = references("static2");
+            let computed_key_ref = references("computedKeyRef");
+
+            let compiler = t.get_compiler();
+            assert!(instance1.is_escaped(compiler));
+            assert!(instance2.is_escaped(compiler));
+            assert!(!static1.is_escaped(compiler));
+            assert!(!static2.is_escaped(compiler));
+            assert!(!computed_key_ref.is_escaped(compiler));
+            *self.checked.borrow_mut() = true;
+        }
+    }
+}
+
+// port: ReferenceCollectorTest#testClassField_referencingGlobalVariable_escapeIffInstanceFields
+#[test]
+fn test_class_field_referencing_global_variable_escape_iff_instance_fields() {
+    let behavior = ClassFieldEscapeBehavior::default();
+    let checked = behavior.checked.clone();
+    let mut test = set_up(behavior);
+    test_behavior(
+        &mut test,
+        "const instance1 = 0;
+const instance2 = 1;
+const static1 = 2;
+const static2 = 3;
+const computedKeyRef = 4;
+class Foo {
+  instance1 = instance1;
+  ['instance2'] = instance2;
+  static static1 = static1;
+  static ['static2'] = static2;
+  [computedKeyRef] = 0;
+}
+",
+    );
+    assert!(*checked.borrow());
+}
