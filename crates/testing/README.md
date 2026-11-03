@@ -59,7 +59,7 @@ Per record file (one Java test class):
    matches. These are ports of `ReplayDsl#selectCase` / `#selectCaseOrNull` / `#matches` /
    `#path`, run on the raw record JSON. They keep Java's `String.split("\\.")` (trailing empty
    segments dropped) and Gson 2.9.1 `JsonElement.equals` (parsed numbers compare as doubles). All
-   21,755 `compiler_test_case` records select a case (`tests/cross_checks.rs`).
+   21,835 `compiler_test_case` records select a case (`tests/cross_checks.rs`).
 3. **Options**: start from the real `CompilerOptions::new()` (its defaults are checked against every field
    captured in `options_defaults.json`), replace each key present in `Record::options` (an
    `@class` names a subclass), apply the case's `options.skip` / `options.then`
@@ -106,9 +106,9 @@ that need them.
   round-trip; the counts per kind and per API are checked; `call` numbering per method is checked;
   the per-class table must equal `tests/data/record_counts.tsv`, which
   `tests/data/gen_record_counts.py` writes independently with Python's `json` module.
-- `tests/descriptors_load.rs`: all 255 descriptors (378 cases) load and round-trip, and their stems
+- `tests/descriptors_load.rs`: all 255 descriptors (379 cases) load and round-trip, and their stems
   equal the non-empty record files; `options_defaults.json` (204 fields) and `expected_pipeline`
-  (21,755 lines) load and round-trip.
+  (21,835 lines) load and round-trip.
 - `tests/cross_checks.rs`: case selection for every record; descriptor `unrepresentable` entries
   name existing records; `expected_pipeline` is keyed one-to-one onto the `compiler_test_case`
   records; the 9 lone-surrogate lines keep their surrogates through the typed model and the writer.

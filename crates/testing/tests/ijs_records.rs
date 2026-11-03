@@ -50,7 +50,7 @@ fn ijs_test_classes_replay() {
     let c = &report.classes["ConvertToTypedInterfaceTest"];
     assert_eq!((c.records, c.pass), (300, 300));
     let c = &report.classes["ExtraRequireRemoverTest"];
-    assert_eq!((c.records, c.pass), (14, 14));
+    assert_eq!((c.records, c.pass), (16, 16));
     let c = &report.classes["SuggestConstTypesTest"];
     assert_eq!((c.records, c.pass), (2, 2));
     assert_eq!(report.harness_errors, 0);
