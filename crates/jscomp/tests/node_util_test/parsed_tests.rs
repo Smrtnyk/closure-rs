@@ -4481,6 +4481,50 @@ mod assorted_tests {
         assert_not_l_value_named_x(&compiler, x.unwrap());
     }
 
+    // port: NodeUtilTest.AssortedTests#testIsLValueWrite
+    #[test]
+    fn test_is_l_value_write() {
+        let mut compiler = Compiler::new();
+        let x = get_name_node_from(&mut compiler, "var x = 1;", "x");
+        assert!(NodeUtil::is_l_value_write(&compiler, x));
+        let x = get_name_node_from(&mut compiler, "let x = 1;", "x");
+        assert!(NodeUtil::is_l_value_write(&compiler, x));
+        let x = get_name_node_from(&mut compiler, "const x = 1;", "x");
+        assert!(NodeUtil::is_l_value_write(&compiler, x));
+        let x = get_name_node_from(&mut compiler, "x = 1;", "x");
+        assert!(NodeUtil::is_l_value_write(&compiler, x));
+        let x = get_name_node_from(&mut compiler, "x += 1;", "x");
+        assert!(NodeUtil::is_l_value_write(&compiler, x));
+        let x = get_name_node_from(&mut compiler, "x++;", "x");
+        assert!(NodeUtil::is_l_value_write(&compiler, x));
+        let x = get_name_node_from(&mut compiler, "++x;", "x");
+        assert!(NodeUtil::is_l_value_write(&compiler, x));
+        let x = get_name_node_from(&mut compiler, "var [x] = arr;", "x");
+        assert!(NodeUtil::is_l_value_write(&compiler, x));
+        let x = get_name_node_from(&mut compiler, "([x] = arr);", "x");
+        assert!(NodeUtil::is_l_value_write(&compiler, x));
+        let x = get_name_node_from(&mut compiler, "for (var x of arr) {}", "x");
+        assert!(NodeUtil::is_l_value_write(&compiler, x));
+        let x = get_name_node_from(&mut compiler, "for (let x in obj) {}", "x");
+        assert!(NodeUtil::is_l_value_write(&compiler, x));
+        let x = get_name_node_from(&mut compiler, "for (x of arr) {}", "x");
+        assert!(NodeUtil::is_l_value_write(&compiler, x));
+
+        let x = get_name_node_from(&mut compiler, "var x;", "x");
+        assert!(!NodeUtil::is_l_value_write(&compiler, x));
+        let x = get_name_node_from(&mut compiler, "let x;", "x");
+        assert!(!NodeUtil::is_l_value_write(&compiler, x));
+        let x = get_name_node_from(&mut compiler, "for (var x; ; ) {}", "x");
+        assert!(!NodeUtil::is_l_value_write(&compiler, x));
+        let x = get_name_node_from(&mut compiler, "var a = x;", "x");
+        assert!(!NodeUtil::is_l_value_write(&compiler, x));
+        // Detached declaration node where parent.getParent() is null.
+        let name = IR::name(&mut compiler, "x");
+        let var = IR::var(&mut compiler, name);
+        let x = var.get_first_child(&compiler).unwrap();
+        assert!(!NodeUtil::is_l_value_write(&compiler, x));
+    }
+
     // port: NodeUtilTest.AssortedTests#testIsDeclarationLValue
     #[test]
     fn test_is_declaration_l_value() {

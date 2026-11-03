@@ -443,6 +443,8 @@ pub mod replace_toggles;
 pub mod rewrite_catch_with_no_binding;
 // chunk-output: --rename_prefix_namespace and --chunk_output_type=ES_MODULES.
 pub mod rescope_global_symbols;
+pub mod rescope_global_symbols_info;
+pub mod rescope_global_symbols_rename_helper;
 pub mod rescope_global_symbols_rewrite_callback;
 pub mod rewrite_global_declarations_for_try_catch_wrapping;
 pub mod rewrite_new_dot_target;

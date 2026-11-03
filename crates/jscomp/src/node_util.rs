@@ -2469,6 +2469,20 @@ impl NodeUtil {
             _ => Self::is_assignment_op(ast, parent) && parent.get_first_child(ast) == Some(n),
         }
     }
+    /// Returns whether `n` is an L-value write to a variable or property (including initialized
+    /// declarations, assignments, increments/decrements, destructuring patterns, and enhanced
+    /// `for`-loop headers, but excluding uninitialized variable declarations such as `var a;`).
+    // port: NodeUtil#isLValueWrite
+    pub fn is_l_value_write(ast: &Ast, n: NodeId) -> bool {
+        if !Self::is_l_value(ast, n) {
+            return false;
+        }
+        let parent = n.get_parent(ast).unwrap();
+        let grandparent = parent.get_parent(ast);
+        !Self::is_name_declaration(ast, Some(parent))
+            || n.has_children(ast)
+            || grandparent.is_some_and(|grandparent| Self::is_enhanced_for(ast, grandparent))
+    }
     // port: NodeUtil#isDeclarationLValue
     pub fn is_declaration_l_value(ast: &Ast, n: NodeId) -> bool {
         let is_l_value = Self::is_l_value(ast, n);

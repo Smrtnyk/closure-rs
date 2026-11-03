@@ -28,9 +28,9 @@ use crate::{
         NodeTraversal,
     },
     node_util::NodeUtil,
-    rescope_global_symbols_rewrite_callback::{
-        RescopeGlobalSymbolsRewriteCallback, SymbolInformation,
-    },
+    rescope_global_symbols_info::RescopeGlobalSymbolsInfo,
+    rescope_global_symbols_rename_helper::HelperBuilder,
+    rescope_global_symbols_rewrite_callback::RescopeGlobalSymbolsRewriteCallback,
 };
 use closure_rhino::check_state;
 use closure_rhino::fast_hash::IndexSet;
@@ -112,10 +112,18 @@ impl CompilerPass for RescopeGlobalSymbols {
             ),
         );
 
+        let mut rename_helper_builder = HelperBuilder::new(
+            self.global_symbol_namespace.clone(),
+            self.optimize_local_access,
+        );
+
         // Find global names that are used in more than one chunk. Those that
         // are have to be rewritten.
-        let mut find_cross_chunk_names =
-            FindCrossChunkNamesCallback::new(self.optimize_local_access.should_optimize());
+        let mut find_cross_chunk_names = FindCrossChunkNamesCallback::new(
+            self.assume_cross_chunk_names,
+            self.optimize_local_access.should_optimize(),
+            &mut rename_helper_builder,
+        );
 
         // And find names that may refer to functions that reference this.
         let mut find_names_referencing_this = FindNamesReferencingThis::new();
@@ -129,23 +137,29 @@ impl CompilerPass for RescopeGlobalSymbols {
             ],
         );
 
-        let symbol_info = SymbolInformation::new(
+        let extern_names = NodeUtil::collect_extern_variable_names(compiler, externs);
+
+        let symbol_info = RescopeGlobalSymbolsInfo::new(
+            self.global_symbol_namespace.clone(),
+            &extern_names,
             &find_cross_chunk_names.cross_chunk_names,
             &find_cross_chunk_names.cross_chunk_names_with_write_from_other_chunk,
             &find_cross_chunk_names.cross_chunk_names_used_in_non_dependent_chunk,
             &find_cross_chunk_names.global_names_with_read_in_defining_chunk,
             &find_cross_chunk_names.global_names_with_inner_scope_write_in_defining_chunk,
+            &find_cross_chunk_names
+                .global_names_with_unsafe_write_for_local_alias_in_defining_chunk,
             &find_names_referencing_this.maybe_references_this,
         );
+        drop(find_cross_chunk_names);
+
+        let rename_helper = rename_helper_builder.build(&symbol_info);
 
         // Rewrite all references to be property accesses of the single symbol.
         let mut rewrite_scope = RescopeGlobalSymbolsRewriteCallback::new(
-            compiler,
-            self.global_symbol_namespace.clone(),
-            self.assume_cross_chunk_names,
             self.optimize_local_access,
-            externs,
             symbol_info,
+            rename_helper,
         );
         NodeTraversal::traverse(compiler, root, &mut rewrite_scope);
 
@@ -216,7 +230,8 @@ impl AbstractPostOrderCallbackInterface
 
 /// Find all global names that are used in more than one chunk. The following compiler
 /// transformations can ignore the globals that are not.
-struct FindCrossChunkNamesCallback {
+struct FindCrossChunkNamesCallback<'a> {
+    assume_cross_chunk_names: bool,
     track_local_access_sets: bool,
     cross_chunk_names: IndexSet<JsString>,
 
@@ -235,24 +250,90 @@ struct FindCrossChunkNamesCallback {
     /// Global identifiers that are written to from a nested scope (i.e. not the global scope) in
     /// their defining chunk. Only populated if trackLocalAccessSets is true.
     global_names_with_inner_scope_write_in_defining_chunk: IndexSet<JsString>,
+
+    /// Global identifiers that have an L-value write in their defining chunk that cannot be safely
+    /// mirrored by `RescopeGlobalSymbolsRewriteCallback#addGlobalNamespaceAlias` (such as a
+    /// destructuring assignment in an expression context or a `for-in`/`for-of` loop header).
+    /// Only populated if trackLocalAccessSets is true.
+    global_names_with_unsafe_write_for_local_alias_in_defining_chunk: IndexSet<JsString>,
+
+    rename_helper_builder: &'a mut HelperBuilder,
 }
 
-impl FindCrossChunkNamesCallback {
+impl<'a> FindCrossChunkNamesCallback<'a> {
     // port: RescopeGlobalSymbols.FindCrossChunkNamesCallback#FindCrossChunkNamesCallback
     // (the compiler is the traversal's: NodeTraversal#getCompiler)
-    fn new(track_local_access_sets: bool) -> Self {
+    fn new(
+        assume_cross_chunk_names: bool,
+        track_local_access_sets: bool,
+        rename_helper_builder: &'a mut HelperBuilder,
+    ) -> Self {
         Self {
+            assume_cross_chunk_names,
             track_local_access_sets,
             cross_chunk_names: IndexSet::<_>::default(),
             cross_chunk_names_with_write_from_other_chunk: IndexSet::<_>::default(),
             cross_chunk_names_used_in_non_dependent_chunk: IndexSet::<_>::default(),
             global_names_with_read_in_defining_chunk: IndexSet::<_>::default(),
             global_names_with_inner_scope_write_in_defining_chunk: IndexSet::<_>::default(),
+            global_names_with_unsafe_write_for_local_alias_in_defining_chunk:
+                IndexSet::<_>::default(),
+            rename_helper_builder,
         }
+    }
+
+    /// Returns whether the `NAME` node `n` reads the variable's value (either as a non-L-value
+    /// reference or as the target of a read-modify-write operation such as `a += 1` or `a++`).
+    // port: RescopeGlobalSymbols.FindCrossChunkNamesCallback#isReadReference
+    fn is_read_reference(ast: &Ast, n: NodeId) -> bool {
+        if !NodeUtil::is_l_value(ast, n) {
+            return true;
+        }
+        let parent = n.get_parent(ast).unwrap();
+        NodeUtil::is_compound_assignment_op(ast, parent) || parent.is_inc(ast) || parent.is_dec(ast)
+    }
+
+    /// Returns whether an L-value write `n` in its defining chunk can be safely mirrored to the
+    /// global namespace or wrapper object by
+    /// `RescopeGlobalSymbolsRewriteCallback#addGlobalNamespaceAlias`.
+    ///
+    /// `addGlobalNamespaceAlias` rewrites assignments (`a = x`, `a += x`), initialized
+    /// declarations (`var a = x`), and increments/decrements (`++a`, `a++`) in place as
+    /// expressions, which works in any expression context. For destructuring writes, it appends a
+    /// separate `_.a._ = _a;` statement after the enclosing statement, which is only sound when
+    /// the write is a top-level destructuring assignment statement or a non-for-loop destructuring
+    /// declaration.
+    // port: RescopeGlobalSymbols.FindCrossChunkNamesCallback#isWriteSafeForLocalAliasMirroring
+    fn is_write_safe_for_local_alias_mirroring(ast: &Ast, n: NodeId, parent: NodeId) -> bool {
+        if (NodeUtil::is_assignment_op(ast, parent) && parent.get_first_child(ast) == Some(n))
+            || parent.is_inc(ast)
+            || parent.is_dec(ast)
+        {
+            return true;
+        }
+        if NodeUtil::is_name_declaration(ast, Some(parent)) {
+            return !NodeUtil::is_enhanced_for(ast, parent.get_parent(ast).unwrap());
+        }
+        if NodeUtil::is_lhs_by_destructuring(ast, n) {
+            let root_target = NodeUtil::get_root_target(ast, n);
+            let root_target_parent = root_target.get_parent(ast).unwrap();
+            if root_target_parent.is_destructuring_lhs(ast) {
+                let declaration = root_target_parent.get_parent(ast).unwrap();
+                return NodeUtil::is_statement_block(ast, declaration.get_parent(ast).unwrap());
+            }
+            if root_target_parent.is_assign(ast)
+                && root_target_parent.get_first_child(ast) == Some(root_target)
+            {
+                let expr_result = root_target_parent.get_parent(ast).unwrap();
+                return expr_result.is_expr_result(ast)
+                    && NodeUtil::is_statement_block(ast, expr_result.get_parent(ast).unwrap());
+            }
+        }
+        false
     }
 }
 
-impl Callback for FindCrossChunkNamesCallback {
+impl Callback for FindCrossChunkNamesCallback<'_> {
     // port: NodeTraversal.AbstractPostOrderCallback#shouldTraverse
     fn should_traverse(
         &mut self,
@@ -272,6 +353,7 @@ impl Callback for FindCrossChunkNamesCallback {
             {
                 return;
             }
+            self.rename_helper_builder.record_existing_name(&name);
             let s = t.get_scope();
             let v = s.get_var(t.get_compiler(), name.clone());
             let Some(v) = v else {
@@ -281,13 +363,20 @@ impl Callback for FindCrossChunkNamesCallback {
                 return;
             }
 
+            if self.assume_cross_chunk_names
+                || t.get_compiler()
+                    .get_coding_convention()
+                    .is_exported(&name, /* local= */ false)
+            {
+                self.cross_chunk_names.insert(name.clone());
+            }
+
             let input = v.get_input(t.get_compiler());
 
             if self.track_local_access_sets
                 && !t.in_global_scope()
                 && (input.is_none() || input.as_ref().unwrap().get_chunk() == t.get_chunk())
-                && NodeUtil::is_l_value(t, n)
-                && (!NodeUtil::is_name_declaration(t, parent) || n.has_children(t))
+                && NodeUtil::is_l_value_write(t, n)
             {
                 self.global_names_with_inner_scope_write_in_defining_chunk
                     .insert(name.clone());
@@ -308,9 +397,7 @@ impl Callback for FindCrossChunkNamesCallback {
                 if self.track_local_access_sets {
                     // If tracking local access, track names with non-local writes separately. This
                     // includes all L-value names except for declarations without children.
-                    if NodeUtil::is_l_value(t, n)
-                        && (!NodeUtil::is_name_declaration(t, parent) || n.has_children(t))
-                    {
+                    if NodeUtil::is_l_value_write(t, n) {
                         self.cross_chunk_names_with_write_from_other_chunk
                             .insert(name.clone());
                     }
@@ -327,8 +414,17 @@ impl Callback for FindCrossChunkNamesCallback {
                             .insert(name);
                     }
                 }
-            } else if self.track_local_access_sets && Some(n) != v.get_name_node(t.get_compiler()) {
-                self.global_names_with_read_in_defining_chunk.insert(name);
+            } else if self.track_local_access_sets {
+                if Self::is_read_reference(t, n) {
+                    self.global_names_with_read_in_defining_chunk
+                        .insert(name.clone());
+                }
+                if NodeUtil::is_l_value_write(t, n)
+                    && !Self::is_write_safe_for_local_alias_mirroring(t, n, parent.unwrap())
+                {
+                    self.global_names_with_unsafe_write_for_local_alias_in_defining_chunk
+                        .insert(name);
+                }
             }
         }
     }

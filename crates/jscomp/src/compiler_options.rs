@@ -592,7 +592,9 @@ pub enum OptimizeLocalAccess {
     /// In addition to [`Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS`], preserve `var`
     /// declarations with initializers in place (e.g. `var a = _.a = 1;`) for variables that
     /// remain local to their defining chunk instead of hoisting uninitialized `var` declarations
-    /// to the top of the chunk.
+    /// to the top of the chunk, and keep a disambiguated local alias (e.g. `var _a = _.a._ = 1;`)
+    /// in the defining chunk for wrapped reassignable symbols that are read in their defining
+    /// chunk and not written in other chunks.
     ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED,
     /// In addition to [`Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED`], delete
     /// entries from the global symbol namespace right after the last local alias is set, when all
@@ -631,6 +633,16 @@ impl OptimizeLocalAccess {
 
     // port: CompilerOptions.OptimizeLocalAccess#shouldPreserveLocalVarDeclarations
     pub fn should_preserve_local_var_declarations(self) -> bool {
+        self as u8 >= Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED as u8
+    }
+
+    // port: CompilerOptions.OptimizeLocalAccess#shouldRewriteCompoundAndIncrementWritesInPlace
+    pub fn should_rewrite_compound_and_increment_writes_in_place(self) -> bool {
+        self as u8 >= Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED as u8
+    }
+
+    // port: CompilerOptions.OptimizeLocalAccess#shouldKeepLocalAliasForWrappedReassignables
+    pub fn should_keep_local_alias_for_wrapped_reassignables(self) -> bool {
         self as u8 >= Self::ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED as u8
     }
 
