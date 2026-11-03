@@ -37,6 +37,7 @@
 use crate::{
     abstract_compiler::AbstractCompiler,
     compiler_pass::CompilerPass,
+    j2cl_source_utils::J2clSourceUtils,
     node_traversal::{Callback, NodeTraversal},
     node_util::NodeUtil,
 };
@@ -191,11 +192,14 @@ impl ExtraRequireRemover {
         let call_parent = call.get_parent(compiler).unwrap();
         if call_parent.is_expr_result(compiler) {
             // all unaliased imports in goog.module are not pruned regardless of if they are used
-            // or not
+            // or not, except in J2CL header files where they only exist for load ordering.
             if !call
                 .get_grandparent(compiler)
                 .unwrap()
                 .is_module_body(compiler)
+                || J2clSourceUtils::is_j2cl_header_source(
+                    call.get_source_file_name(compiler).as_deref(),
+                )
             {
                 compiler.report_change_to_enclosing_scope(call_parent);
                 call_parent.detach(compiler);

@@ -49,4 +49,10 @@ impl J2clSourceUtils {
         };
         Self::is_j2cl_source_node(ast, script_node)
     }
+
+    // port: J2clSourceUtils#isJ2clHeaderSource
+    pub fn is_j2cl_header_source(source_file_name: Option<&str>) -> bool {
+        source_file_name
+            .is_some_and(|name| name.ends_with(".java.js") && !name.ends_with(".impl.java.js"))
+    }
 }

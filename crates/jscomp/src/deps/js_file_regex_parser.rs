@@ -62,7 +62,7 @@ pub struct JsFileRegexParser {
 impl JsFileRegexParser {
     const GOOG_PROVIDE_REQUIRE_PATTERN: &'static str = concat!(
         r"(?:^|;)(?:[\p{L}\p{Nl}\p{Nd}$_,:{}\s]+=)?\s*",
-        r"goog\.(?<func>provide|module|require|requireType|addDependency|declareModuleId)",
+        r"goog\.(?<func>provide|module|require|requireType|forwardDeclare|addDependency|declareModuleId)",
         r"\s*\(\s*(?<args>.*?)\s*\)"
     );
     const ES6_MODULE_PATTERN: &'static str = concat!(
@@ -216,7 +216,7 @@ impl JsFileRegexParser {
             let is_module = !is_declare_module_namespace && first_char == b'm';
             let is_provide = first_char == b'p';
             let mut provides_namespace = is_provide || is_module || is_declare_module_namespace;
-            let is_require = first_char == b'r';
+            let is_require = first_char == b'r' || first_char == b'f';
             if is_module && !self.seen_load_module {
                 provides_namespace = self.set_module_type(ModuleType::GOOG_MODULE);
             }
@@ -228,7 +228,7 @@ impl JsFileRegexParser {
                     .base
                     .parse_js_string(self.goog_matcher.group_named_units("args").unwrap())?;
                 if is_require {
-                    if method_name == "requireType" {
+                    if method_name == "requireType" || method_name == "forwardDeclare" {
                         self.type_requires.push(arg);
                     } else if arg != "goog" {
                         self.requires.push(Require::goog_require_symbol(&arg));
@@ -272,6 +272,7 @@ impl LineParser for JsFileRegexParser {
         }
         let line_has_provides_or_requires_words = line.index_of("provide") >= 0
             || line.index_of("require") >= 0
+            || line.index_of("forwardDeclare") >= 0
             || line.index_of("module") >= 0
             || line.index_of("addDependency") >= 0
             || line.index_of("declareModuleId") >= 0;

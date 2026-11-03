@@ -715,7 +715,7 @@ impl DepsFinder {
                             ));
                             return;
                         }
-                        "requireType" => {
+                        "requireType" | "forwardDeclare" => {
                             if !argument.is_string_lit(compiler) {
                                 return;
                             }

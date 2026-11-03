@@ -147,11 +147,11 @@ fn test_parse_goog_module_with_require_type() {
     let (mut parser, error_manager) = set_up();
     let _ = &error_manager;
 
-    let contents = "goog.module('yes1');\nvar yes2=goog.requireType('yes2');\nvar C=goog.requireType(\"a.b.C\");\nconst {\n  D,\n  E\n}=goog.requireType(\"a.b.d\");\n";
+    let contents = "goog.module('yes1');\nvar yes2=goog.requireType('yes2');\nvar C=goog.requireType(\"a.b.C\");\nconst {\n  D,\n  E\n}=goog.requireType(\"a.b.d\");\nlet F=goog.forwardDeclare(\"a.b.F\");\n";
 
     let expected = SimpleDependencyInfo::builder(CLOSURE_PATH, SRC_PATH)
         .set_provides(vec!["yes1"])
-        .set_type_requires(vec!["yes2", "a.b.C", "a.b.d"])
+        .set_type_requires(vec!["yes2", "a.b.C", "a.b.d", "a.b.F"])
         .set_load_flags(IndexMap::<_, _>::from_iter([(
             "module".into(),
             "goog".into(),
@@ -168,11 +168,12 @@ fn test_parse_script_with_require_type() {
     let (mut parser, error_manager) = set_up();
     let _ = &error_manager;
 
-    let contents = "goog.provide('yes1');\ngoog.requireType('a.b.C');\n";
+    let contents =
+        "goog.provide('yes1');\ngoog.requireType('a.b.C');\ngoog.forwardDeclare('a.b.D');\n";
 
     let expected = SimpleDependencyInfo::builder(CLOSURE_PATH, SRC_PATH)
         .set_provides(vec!["yes1"])
-        .set_type_requires(vec!["a.b.C"])
+        .set_type_requires(vec!["a.b.C", "a.b.D"])
         .build();
 
     let result = parser.parse_file(SRC_PATH, CLOSURE_PATH, contents);
