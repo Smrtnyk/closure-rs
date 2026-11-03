@@ -633,6 +633,36 @@
     },
     {
       "when": {
+        "method": "testClassField_referencingGlobalVariable_escapeIffInstanceFields"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Lambda_testClassField_referencingGlobalVariable_escapeIffInstanceFields"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          },
+          {
+            "field": "varFilter"
+          },
+          {
+            "field": "collectHoistedFunctionsInReferenceOrder"
+          }
+        ]
+      }
+    },
+    {
+      "when": {
         "method": "testImport1"
       },
       "processor": {
