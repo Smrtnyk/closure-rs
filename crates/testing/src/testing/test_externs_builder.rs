@@ -113,6 +113,12 @@ $jscomp.arrayFromIterator = function(iterator) {};
  */
 $jscomp.asyncExecutePromiseGeneratorFunction = function(generatorFunction) {};
 /**
+ * @param {!Object} target
+ * @param {...?Object} var_args
+ * @return {!Object}
+ */
+$jscomp.assign = function(target, var_args) {};
+/**
 * @type {!Global}
 */
 var globalThis;

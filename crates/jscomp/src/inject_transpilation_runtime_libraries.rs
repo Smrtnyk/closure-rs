@@ -186,17 +186,7 @@ impl CompilerPass for InjectTranspilationRuntimeLibraries {
             || must_be_compiled_away.contains(Feature::OBJECT_PATTERN_REST))
             && !output_features.contains(FeatureSet::ES2015)
         {
-            // We need `Object.assign` to transpile `obj = {a, ...rest};` or
-            // `const {a, ...rest} = obj;`, but the output language level doesn't indicate that it
-            // is guaranteed to be present, so we'll include our polyfill.
-            // Use "ensureLibraryInjected" instead of "injectLibForField" because we're injecting
-            // the polyfill
-            // for Object.assign, which is thus not an actual $jscomp.* method we can lookup.
-            self.runtime_libs.lock().unwrap().ensure_library_injected(
-                compiler,
-                "es6/object/assign",
-                /* force= */ false,
-            );
+            self.inject_lib_for_field(compiler, "$jscomp.assign");
         }
 
         if must_be_compiled_away.contains(Feature::CLASS_GETTER_SETTER) {

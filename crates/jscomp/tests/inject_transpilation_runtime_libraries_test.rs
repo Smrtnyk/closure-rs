@@ -96,20 +96,38 @@ fn test_empty_injected() {
     assert!(injected.is_empty(), "{injected:?} is empty");
 }
 
-// port: InjectTranspilationRuntimeLibrariesTest#testMakeIteratorAndObjectAssignInjectedForObjectPatternRest
+// port: InjectTranspilationRuntimeLibrariesTest#testMakeIteratorAndAssignInjectedForObjectPatternRest
 #[test]
-fn test_make_iterator_and_object_assign_injected_for_object_pattern_rest() {
+fn test_make_iterator_and_assign_injected_for_object_pattern_rest() {
     let mut t = InjectTranspilationRuntimeLibrariesTest::setup();
     let injected = t.parse_and_run_injection_pass("const {a, ...rest} = something();");
-    assert_contains_exactly(&injected, &["es6/util/makeiterator", "es6/object/assign"]);
+    assert_contains_exactly(&injected, &["es6/util/makeiterator", "es6/util/assign"]);
 }
 
-// port: InjectTranspilationRuntimeLibrariesTest#testObjectAssignInjectedForObjectSpread
+// port: InjectTranspilationRuntimeLibrariesTest#testMakeIteratorAndAssignInjectedForObjectPatternRest_es6Out_doesNotInjectAssign
 #[test]
-fn test_object_assign_injected_for_object_spread() {
+fn test_make_iterator_and_assign_injected_for_object_pattern_rest_es6_out_does_not_inject_assign() {
+    let mut t = InjectTranspilationRuntimeLibrariesTest::setup();
+    t.language_out = LanguageMode::ECMASCRIPT_2015;
+    let injected = t.parse_and_run_injection_pass("const {a, ...rest} = something();");
+    assert_contains_exactly(&injected, &["es6/util/makeiterator"]);
+}
+
+// port: InjectTranspilationRuntimeLibrariesTest#testAssignInjectedForObjectSpread_es5Out
+#[test]
+fn test_assign_injected_for_object_spread_es5_out() {
     let mut t = InjectTranspilationRuntimeLibrariesTest::setup();
     let injected = t.parse_and_run_injection_pass("const obj = {a, ...rest};");
-    assert_contains_exactly(&injected, &["es6/object/assign"]);
+    assert_contains_exactly(&injected, &["es6/util/assign"]);
+}
+
+// port: InjectTranspilationRuntimeLibrariesTest#testAssignInjectedForObjectSpread_es6Out_doesNotInjectAssign
+#[test]
+fn test_assign_injected_for_object_spread_es6_out_does_not_inject_assign() {
+    let mut t = InjectTranspilationRuntimeLibrariesTest::setup();
+    t.language_out = LanguageMode::ECMASCRIPT_2015;
+    let injected = t.parse_and_run_injection_pass("const obj = {a, ...rest};");
+    assert!(injected.is_empty(), "{injected:?} is empty");
 }
 
 // port: InjectTranspilationRuntimeLibrariesTest#testForOf_injectsMakeIterator
