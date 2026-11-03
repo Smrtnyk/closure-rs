@@ -721,8 +721,9 @@ impl RescopeGlobalSymbolsRewriteCallback {
             let stmt_parent = stmt.get_parent(compiler).unwrap();
             compiler.report_change_to_enclosing_scope(stmt_parent);
         } else {
+            // Java: throw new IllegalStateException(..)
             panic!(
-                "java.lang.IllegalStateException: Unexpected unsafe write to local alias: {}",
+                "Unexpected unsafe write to local alias: {}",
                 n.to_string(compiler)
             );
         }
