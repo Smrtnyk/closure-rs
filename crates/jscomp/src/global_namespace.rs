@@ -2926,14 +2926,8 @@ impl Name {
     }
 
     // port: GlobalNamespace.Name#isConstructor
-    pub fn is_constructor(self, gn: &GlobalNamespace, ast: &Ast) -> bool {
-        let decl_node = check_not_null!(gn.name_data(self).declaration)
-            .get_node(gn)
-            .unwrap();
-        let rvalue_node = NodeUtil::get_r_value_of_l_value(ast, decl_node);
-        let jsdoc = NodeUtil::get_best_jsdoc_info(ast, decl_node);
-        rvalue_node.is_some_and(|rvalue_node| rvalue_node.is_function(ast))
-            && jsdoc.is_some_and(|jsdoc| jsdoc.is_constructor())
+    pub fn is_constructor(self, gn: &GlobalNamespace) -> bool {
+        self.get_boolean_property(gn, NameProp::CONSTRUCTOR_TYPE)
     }
 
     /// Determines whether this name is a prefix of at least one class or enum name. Because

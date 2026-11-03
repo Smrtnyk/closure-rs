@@ -753,6 +753,7 @@ impl AggressiveInlineAliases {
                     ))
             {
                 // The alias is well-formed, so do the inlining now.
+                let mut read_nodes: IndexSet<AstChange> = IndexSet::<_>::default();
                 let size = alias_refs.references.len();
                 // It's initialized on either the first or second reference.
                 let first_read = if alias_refs.references[0].is_initializing_declaration(compiler) {
@@ -762,19 +763,23 @@ impl AggressiveInlineAliases {
                 };
                 for i in first_read..size {
                     let alias_ref = &alias_refs.references[i];
-                    new_nodes.insert(
+                    read_nodes.insert(
                         self.replace_alias_reference(compiler, namespace, alias, alias_ref),
                     );
                 }
 
-                // just set the original alias to null.
-                self.try_replacing_aliasing_assignment(
+                // Replace the aliasing assignment before scanning readNodes so that any new
+                // reference at the initialization site is scanned into GlobalNamespace before
+                // subsequent reads.
+                self.replace_aliasing_assignment(
                     compiler,
                     namespace,
                     alias,
                     name,
                     alias_lhs_node,
+                    &mut new_nodes,
                 );
+                new_nodes.extend(read_nodes);
 
                 // Inlining the variable may have introduced new references
                 // to descendants of {@code name}. So those need to be collected now.
@@ -782,7 +787,7 @@ impl AggressiveInlineAliases {
                 return;
             }
 
-            if name.is_constructor(namespace, compiler) {
+            if name.is_constructor(namespace) {
                 // TODO(lharker): the main reason this was added is because method decomposition
                 // inside generators introduces some constructor aliases that weren't getting
                 // inlined. If we find another (safer) way to avoid aliasing in method
@@ -845,7 +850,7 @@ impl AggressiveInlineAliases {
             }
         }
 
-        let mut new_nodes: IndexSet<AstChange> = IndexSet::<_>::default();
+        let mut read_nodes: IndexSet<AstChange> = IndexSet::<_>::default();
         let mut already_seen_initial_alias = false;
         let mut found_non_replaceable_alias = false;
         // Do a second iteration through all the alias references, and replace any inlinable
@@ -878,23 +883,26 @@ impl AggressiveInlineAliases {
                 // BasicBlock, the aliasing assignment takes place before the reference, and the
                 // alias is never reassigned.
                 self.code_changed = true;
-                new_nodes
+                read_nodes
                     .insert(self.replace_alias_reference(compiler, namespace, alias, alias_ref));
             } else {
                 found_non_replaceable_alias = true;
             }
         }
 
+        let mut new_nodes: IndexSet<AstChange> = IndexSet::<_>::default();
         // We removed all references to the alias, so remove the original aliasing assignment.
         if !found_non_replaceable_alias {
-            self.try_replacing_aliasing_assignment(
+            self.replace_aliasing_assignment(
                 compiler,
                 namespace,
                 alias,
                 aliasing_name,
                 alias_lhs_node,
+                &mut new_nodes,
             );
         }
+        new_nodes.extend(read_nodes);
 
         if self.code_changed {
             // Inlining the variable may have introduced new references
@@ -905,34 +913,45 @@ impl AggressiveInlineAliases {
     }
 
     /// Replaces the rhs of an aliasing assignment with null, unless the assignment result is used
-    /// in a complex expression.
-    // port: InlineAndCollapseProperties.AggressiveInlineAliases#tryReplacingAliasingAssignment
-    fn try_replacing_aliasing_assignment(
+    /// in a complex expression, in which case it replaces the entire assignment with the rhs.
+    // port: InlineAndCollapseProperties.AggressiveInlineAliases#replaceAliasingAssignment
+    fn replace_aliasing_assignment(
         &mut self,
         compiler: &mut AbstractCompiler,
         namespace: &mut GlobalNamespace,
         alias: Ref,
         alias_name: Name,
         alias_lhs_node: NodeId,
-    ) -> bool {
+        new_nodes: &mut IndexSet<AstChange>,
+    ) {
         // either VAR/CONST/LET or ASSIGN.
         let assignment = alias_lhs_node.get_parent(compiler).unwrap();
         if !NodeUtil::is_name_declaration(compiler, Some(assignment))
             && NodeUtil::is_expression_result_used(compiler, assignment)
         {
-            // e.g. don't change "if (alias = someVariable)" to "if (alias = null)"
-            // TODO(lharker): instead replace the entire assignment with the RHS - "alias = x"
-            // becomes "x"
-            return false;
+            // e.g. change "if (alias = someVariable)" to "if (someVariable)", or
+            // "(alias = someVariable).prop" to "someVariable.prop"
+            check_state!(
+                assignment.is_assign(compiler),
+                "%s",
+                assignment.to_string(compiler)
+            );
+            let assignment_parent = assignment.get_parent(compiler).unwrap();
+            let rhs = alias.get_node(namespace).unwrap().detach(compiler);
+            assignment.replace_with(compiler, rhs);
+            new_nodes.insert(AstChange::RefBasedAstChange(RefBasedAstChange::new(
+                alias, rhs,
+            )));
+            compiler.report_change_to_enclosing_scope(assignment_parent);
+        } else {
+            let alias_node = alias.get_node(namespace).unwrap();
+            let alias_parent = alias_node.get_parent(compiler).unwrap();
+            let null_node = IR::null_node(compiler);
+            alias_node.replace_with(compiler, null_node);
+            compiler.report_change_to_enclosing_scope(alias_parent);
         }
-        let alias_node = alias.get_node(namespace).unwrap();
-        let alias_parent = alias_node.get_parent(compiler).unwrap();
-        let null_node = IR::null_node(compiler);
-        alias_node.replace_with(compiler, null_node);
         alias_name.remove_ref(namespace, compiler, alias);
         self.code_changed = true;
-        compiler.report_change_to_enclosing_scope(alias_parent);
-        true
     }
 
     /// Returns an AstChange representing the new node(s) added to the AST.
@@ -993,7 +1012,7 @@ impl AggressiveInlineAliases {
             // more aggressively in global scope.
             // We do this because constructor properties are always collapsed,
             // so we want to inline the aliases also to avoid breakages.
-            || (alias_parent.is_name(compiler) && name.is_constructor(namespace, compiler))
+            || (alias_parent.is_name(compiler) && name.is_constructor(namespace))
         {
             let lvalue = if alias_parent.is_name(compiler) {
                 alias_parent
@@ -1029,7 +1048,7 @@ impl AggressiveInlineAliases {
 
             // Rewrite all references to the aliasing name, except for the initialization & any
             // cross-chunk references if they exist.
-            let mut new_nodes = self.rewrite_alias_references(
+            let mut read_nodes = self.rewrite_alias_references(
                 compiler,
                 namespace,
                 aliasing_name,
@@ -1042,8 +1061,9 @@ impl AggressiveInlineAliases {
                 aliasing_name,
                 alias.get_node(namespace).unwrap(),
                 0,
-                &mut new_nodes,
+                &mut read_nodes,
             );
+            let mut new_nodes: IndexSet<AstChange> = IndexSet::<_>::default();
 
             if alias_inlinability.should_remove_declaration() {
                 // Rewrite the initialization of the alias.
@@ -1065,7 +1085,7 @@ impl AggressiveInlineAliases {
                     // Remove the ref to 'aliasing.name' entirely
                     aliasing_name.remove_ref(namespace, compiler, alias_initialization);
                     // Force GlobalNamespace to revisit the new reference to 'aliased.name' and
-                    // update its internal state.
+                    // update its internal state before scanning subsequent read references.
                     new_nodes.insert(AstChange::RefBasedAstChange(RefBasedAstChange::new(
                         alias,
                         alias.get_node(namespace).unwrap(),
@@ -1088,6 +1108,7 @@ impl AggressiveInlineAliases {
                 name.remove_ref(namespace, compiler, alias);
             }
 
+            new_nodes.extend(read_nodes);
             // Inlining the variable may have introduced new references
             // to descendants of {@code name}. So those need to be collected now.
             namespace.scan_new_nodes(compiler, &new_nodes);
@@ -1391,11 +1412,27 @@ impl AbstractPostOrderCallbackInterface for RewriteSimpleDestructuringAliases {
             return;
         }
 
-        let insertion_point = n;
+        let mut insertion_point = n;
 
         let destructuring_lhs = n.get_first_child(t).unwrap();
         let object_pattern = destructuring_lhs.get_first_child(t).unwrap();
-        let rhs = destructuring_lhs.get_last_child(t).unwrap();
+        let mut rhs = destructuring_lhs.get_last_child(t).unwrap();
+        if !rhs.is_name(t) && object_pattern.has_more_than_one_child(t) {
+            let input = t.get_input().cloned().expect("NullPointerException: input");
+            let unique_id = t
+                .get_compiler()
+                .get_unique_id_supplier()
+                .get_unique_id(&input);
+            let temp_name = IR::name(t, format!("destructuring${unique_id}"));
+            temp_name.srcref(t, rhs);
+            temp_name.put_boolean_prop(t, Prop::IS_CONSTANT_NAME, true);
+            let detached_rhs = rhs.detach(t);
+            let temp_const_node = IR::const_node(t, temp_name, detached_rhs);
+            temp_const_node.srcref(t, object_pattern);
+            temp_const_node.insert_after(t, insertion_point);
+            insertion_point = temp_const_node;
+            rhs = temp_name.clone_node(t);
+        }
         let _unused_new_insertion_point =
             Self::expand_object_pattern(t, insertion_point, object_pattern, rhs);
         n.detach(t);
@@ -1537,12 +1574,15 @@ fn references_collapsible_property(
     aliased_name: Name,
 ) -> bool {
     for r#ref in alias_refs.references.iter() {
-        let Some(ref_parent) = r#ref.get_node().get_parent(compiler) else {
+        let Some(mut parent) = r#ref.get_node().get_parent(compiler) else {
             continue;
         };
-        if NodeUtil::is_normal_or_opt_chain_get_prop(compiler, ref_parent) {
+        if parent.is_assign(compiler) {
+            parent = parent.get_parent(compiler).unwrap();
+        }
+        if NodeUtil::is_normal_or_opt_chain_get_prop(compiler, parent) {
             // e.g. if the reference is "alias.b.someProp", this will be "b".
-            let property_name = ref_parent.get_string(compiler);
+            let property_name = parent.get_string(compiler);
             // e.g. if the aliased name is "originalName", this will be "originalName.b".
             let original_property_name = JsString::from(format!(
                 "{}.{}",
