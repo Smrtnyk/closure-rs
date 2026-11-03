@@ -5232,16 +5232,14 @@ impl NodeUtil {
     // port: NodeUtil#getFeatureSetOfScript
     pub fn get_feature_set_of_script(ast: &Ast, script_node: NodeId) -> Option<FeatureSet> {
         check_state!(script_node.is_script(ast), "%s", script_node.to_string(ast));
-        script_node
-            .get_prop(ast, Prop::FEATURE_SET)
-            .map(|prop| match prop {
-                ObjectProp::Opaque(prop) => *prop
-                    .as_ref()
-                    .as_any()
-                    .downcast_ref::<FeatureSet>()
-                    .expect("ClassCastException"),
-                _ => panic!("ClassCastException"),
-            })
+        script_node.get_feature_set(ast).map(|prop| match prop {
+            ObjectProp::Opaque(prop) => *prop
+                .as_ref()
+                .as_any()
+                .downcast_ref::<FeatureSet>()
+                .expect("ClassCastException"),
+            _ => panic!("ClassCastException"),
+        })
     }
     // port: NodeUtil#addFeatureToScript
     pub fn add_feature_to_script(
@@ -5258,11 +5256,7 @@ impl NodeUtil {
         let new_features = current_features
             .unwrap_or(FeatureSet::BARE_MINIMUM)
             .with(feature);
-        script_node.put_prop(
-            compiler,
-            Prop::FEATURE_SET,
-            Some(ObjectProp::Opaque(Arc::new(new_features))),
-        );
+        script_node.set_feature_set(compiler, Some(ObjectProp::Opaque(Arc::new(new_features))));
         if feature != Feature::MODULES {
             check_state!(
                 compiler.get_allowable_features().contains(feature),
@@ -5277,9 +5271,8 @@ impl NodeUtil {
     fn remove_feature_from_script(ast: &mut Ast, script_node: NodeId, feature: Feature) {
         let current_features = Self::get_feature_set_of_script(ast, script_node)
             .map(|features| features.without(feature));
-        script_node.put_prop(
+        script_node.set_feature_set(
             ast,
-            Prop::FEATURE_SET,
             current_features.map(|features| ObjectProp::Opaque(Arc::new(features))),
         );
     }
@@ -5290,9 +5283,8 @@ impl NodeUtil {
         feature_set: FeatureSet,
     ) {
         if let Some(current_features) = Self::get_feature_set_of_script(ast, script_node) {
-            script_node.put_prop(
+            script_node.set_feature_set(
                 ast,
-                Prop::FEATURE_SET,
                 Some(ObjectProp::Opaque(Arc::new(
                     current_features.without(feature_set),
                 ))),

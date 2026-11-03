@@ -30,7 +30,7 @@ use closure_jscomp::{
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
-    node::{NodeId, ObjectProp, Prop},
+    node::{NodeId, ObjectProp},
     token::Token,
 };
 use closure_testing::{
@@ -447,16 +447,14 @@ fn test_add_feature_to_enclosing_script() {
     let compiler = t.harness.get_last_compiler().unwrap();
     let compiler = compiler.borrow();
     let script = compiler.get_script_node("testcode").unwrap();
-    let feature_set = script
-        .get_prop(&compiler, Prop::FEATURE_SET)
-        .map(|prop| match prop {
-            ObjectProp::Opaque(prop) => *prop
-                .as_ref()
-                .as_any()
-                .downcast_ref::<FeatureSet>()
-                .expect("ClassCastException"),
-            _ => panic!("ClassCastException"),
-        });
+    let feature_set = script.get_feature_set(&compiler).map(|prop| match prop {
+        ObjectProp::Opaque(prop) => *prop
+            .as_ref()
+            .as_any()
+            .downcast_ref::<FeatureSet>()
+            .expect("ClassCastException"),
+        _ => panic!("ClassCastException"),
+    });
     assert_eq!(
         feature_set,
         Some(FeatureSet::BARE_MINIMUM.with_features(&[

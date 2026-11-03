@@ -659,7 +659,7 @@ impl DepsFinder {
     fn visit_tree(&mut self, compiler: &AbstractCompiler, n: NodeId) {
         self.visit_subtree(compiler, n, None);
         assert!(n.is_script(compiler));
-        if let Some(ObjectProp::Opaque(features)) = n.get_prop(compiler, Prop::FEATURE_SET) {
+        if let Some(ObjectProp::Opaque(features)) = n.get_feature_set(compiler) {
             let features = features.as_any().downcast_ref::<FeatureSet>().unwrap();
             let version = features.version();
             if version != "es3" {

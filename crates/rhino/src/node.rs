@@ -56,7 +56,7 @@ use crate::js_type_expression::JSTypeExpression;
 use crate::jscomp_base::JSCompDoubles;
 use crate::jscomp_colors::Color;
 use crate::jscomp_serialization::node_property::NodeProperty;
-use crate::jsdoc_info::JSDocInfo;
+use crate::jsdoc_info::{JSDocInfo, Visibility};
 use crate::jstype::TypeId;
 use crate::non_jsdoc_comment::NonJSDocComment;
 use crate::prop_translator::PropTranslator;
@@ -1692,6 +1692,76 @@ impl NodeId {
                 ObjectProp::Node(n) => n,
                 _ => panic!("ClassCastException"),
             })
+    }
+    // port: Node#getReflectedObject
+    pub fn get_reflected_object(self, ast: &Ast) -> Option<ObjectProp> {
+        self.get_prop(ast, Prop::REFLECTED_OBJECT)
+    }
+    // port: Node#setReflectedObject
+    pub fn set_reflected_object(self, ast: &mut Ast, object: ObjectProp) {
+        self.put_prop(ast, Prop::REFLECTED_OBJECT, Some(object));
+    }
+    // port: Node#getGenericType
+    pub fn get_generic_type(self, ast: &Ast) -> Option<NodeId> {
+        self.get_prop(ast, Prop::GENERIC_TYPE).map(|v| match v {
+            ObjectProp::Node(n) => n,
+            _ => panic!("ClassCastException"),
+        })
+    }
+    // port: Node#setGenericType
+    pub fn set_generic_type(self, ast: &mut Ast, node: NodeId) {
+        self.put_prop(ast, Prop::GENERIC_TYPE, Some(ObjectProp::Node(node)));
+    }
+    // port: Node#getImplements
+    pub fn get_implements(self, ast: &Ast) -> Option<NodeId> {
+        self.get_prop(ast, Prop::IMPLEMENTS).map(|v| match v {
+            ObjectProp::Node(n) => n,
+            _ => panic!("ClassCastException"),
+        })
+    }
+    // port: Node#setImplements
+    pub fn set_implements(self, ast: &mut Ast, node: NodeId) {
+        self.put_prop(ast, Prop::IMPLEMENTS, Some(ObjectProp::Node(node)));
+    }
+    // port: Node#getConstructSignature
+    pub fn get_construct_signature(self, ast: &Ast) -> bool {
+        self.get_boolean_prop(ast, Prop::CONSTRUCT_SIGNATURE)
+    }
+    // port: Node#setConstructSignature
+    pub fn set_construct_signature(self, ast: &mut Ast, value: bool) {
+        self.put_boolean_prop(ast, Prop::CONSTRUCT_SIGNATURE, value);
+    }
+    // port: Node#getAccessModifier
+    pub fn get_access_modifier(self, ast: &Ast) -> Option<Visibility> {
+        self.get_prop(ast, Prop::ACCESS_MODIFIER).map(|v| match v {
+            ObjectProp::Opaque(value) => value
+                .as_ref()
+                .as_any()
+                .downcast_ref::<Visibility>()
+                .copied()
+                .expect("ClassCastException"),
+            _ => panic!("ClassCastException"),
+        })
+    }
+    // port: Node#setAccessModifier
+    pub fn set_access_modifier(self, ast: &mut Ast, visibility: Visibility) {
+        self.put_prop(
+            ast,
+            Prop::ACCESS_MODIFIER,
+            Some(ObjectProp::Opaque(Arc::new(visibility))),
+        );
+    }
+    // port: Node#getFeatureSet
+    pub fn get_feature_set(self, ast: &Ast) -> Option<ObjectProp> {
+        self.get_prop(ast, Prop::FEATURE_SET)
+    }
+    // port: Node#setFeatureSet
+    pub fn set_feature_set(self, ast: &mut Ast, feature_set: Option<ObjectProp>) {
+        self.put_prop(ast, Prop::FEATURE_SET, feature_set);
+    }
+    // port: Node#removeDirectEvalProp
+    pub fn remove_direct_eval_prop(self, ast: &mut Ast) {
+        self.remove_prop(ast, Prop::DIRECT_EVAL);
     }
     // port: Node#setJSTypeBeforeCast
     pub fn set_jstype_before_cast(self, ast: &mut Ast, t: Option<TypeId>) {

@@ -430,7 +430,7 @@ impl OptionalChainRewriter {
         let temp_var_name = self.declare_temp_var_name(compiler, sub_expr);
         let placeholder = IR::empty(compiler);
         sub_expr.replace_with(compiler, placeholder);
-        sub_expr.remove_prop(compiler, Prop::DIRECT_EVAL);
+        sub_expr.remove_direct_eval_prop(compiler);
         let replacement = self
             .ast_factory
             .create_assign_to_name(compiler, temp_var_name, sub_expr)

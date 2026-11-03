@@ -782,9 +782,8 @@ fn test_valid_feature_in_script() {
     n.srcref_tree(&mut t.ast, n);
     t.expect_invalid(n, Check::SCRIPT);
 
-    n.put_prop(
+    n.set_feature_set(
         &mut t.ast,
-        Prop::FEATURE_SET,
         Some(ObjectProp::Opaque(Arc::new(
             FeatureSet::BARE_MINIMUM.with(Feature::LET_DECLARATIONS),
         ))),

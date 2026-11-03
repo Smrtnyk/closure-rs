@@ -521,9 +521,8 @@ impl Runner<'_> {
             .owner
             .create_source_info_template(ast, &self.owner.source_file);
         let script_node = self.visit(ast, &parsed, &mut context_stack, Some(template));
-        script_node.put_prop(
+        script_node.set_feature_set(
             ast,
-            NodeId::FEATURE_SET,
             Some(ObjectProp::Opaque(Arc::new(
                 self.feature_collector.all_features(),
             ))),
