@@ -874,10 +874,22 @@ fn test_iterator_polyfill() {
     f.add_library("Iterator", "es_next", "es3", Some("es6/iterator"));
     f.add_library("Iterator.from", "es_next", "es3", Some("es6/iterator/from"));
     f.add_library(
+        "Iterator.prototype.drop",
+        "es_next",
+        "es3",
+        Some("es6/iterator/drop"),
+    );
+    f.add_library(
         "Iterator.prototype.every",
         "es_next",
         "es3",
         Some("es6/iterator/every"),
+    );
+    f.add_library(
+        "Iterator.prototype.filter",
+        "es_next",
+        "es3",
+        Some("es6/iterator/filter"),
     );
     f.add_library(
         "Iterator.prototype.find",
@@ -886,10 +898,22 @@ fn test_iterator_polyfill() {
         Some("es6/iterator/find"),
     );
     f.add_library(
+        "Iterator.prototype.flatMap",
+        "es_next",
+        "es3",
+        Some("es6/iterator/flatmap"),
+    );
+    f.add_library(
         "Iterator.prototype.forEach",
         "es_next",
         "es3",
         Some("es6/iterator/foreach"),
+    );
+    f.add_library(
+        "Iterator.prototype.map",
+        "es_next",
+        "es3",
+        Some("es6/iterator/map"),
     );
     f.add_library(
         "Iterator.prototype.reduce",
@@ -904,6 +928,12 @@ fn test_iterator_polyfill() {
         Some("es6/iterator/some"),
     );
     f.add_library(
+        "Iterator.prototype.take",
+        "es_next",
+        "es3",
+        Some("es6/iterator/take"),
+    );
+    f.add_library(
         "Iterator.prototype.toArray",
         "es_next",
         "es3",
@@ -913,11 +943,16 @@ fn test_iterator_polyfill() {
     f.test_injects("Iterator;", &["es6/iterator"]);
     f.test_injects("class MyIter extends Iterator {}", &["es6/iterator"]);
     f.test_injects("Iterator.from(x);", &["es6/iterator", "es6/iterator/from"]);
+    f.test_injects("x.drop(1);", &["es6/iterator/drop"]);
     f.test_injects("x.every(fn);", &["es6/iterator/every"]);
+    f.test_injects("x.filter(fn);", &["es6/iterator/filter"]);
     f.test_injects("x.find(fn);", &["es6/iterator/find"]);
+    f.test_injects("x.flatMap(fn);", &["es6/iterator/flatmap"]);
     f.test_injects("x.forEach(fn);", &["es6/iterator/foreach"]);
+    f.test_injects("x.map(fn);", &["es6/iterator/map"]);
     f.test_injects("x.reduce(fn, 0);", &["es6/iterator/reduce"]);
     f.test_injects("x.some(fn);", &["es6/iterator/some"]);
+    f.test_injects("x.take(1);", &["es6/iterator/take"]);
     f.test_injects("x.toArray();", &["es6/iterator/toarray"]);
     f.test_does_not_inject("");
 }
@@ -945,10 +980,22 @@ fn test_iterator_polyfill_typed_receiver() {
     f.t.disambiguate_properties = true;
     f.add_library("Iterator", "es_next", "es3", Some("es6/iterator"));
     f.add_library(
+        "Iterator.prototype.drop",
+        "es_next",
+        "es3",
+        Some("es6/iterator/drop"),
+    );
+    f.add_library(
         "Iterator.prototype.every",
         "es_next",
         "es3",
         Some("es6/iterator/every"),
+    );
+    f.add_library(
+        "Iterator.prototype.filter",
+        "es_next",
+        "es3",
+        Some("es6/iterator/filter"),
     );
     f.add_library(
         "Iterator.prototype.find",
@@ -957,10 +1004,28 @@ fn test_iterator_polyfill_typed_receiver() {
         Some("es6/iterator/find"),
     );
     f.add_library(
+        "Iterator.prototype.flatMap",
+        "es_next",
+        "es3",
+        Some("es6/iterator/flatmap"),
+    );
+    f.add_library(
+        "Iterator.prototype.map",
+        "es_next",
+        "es3",
+        Some("es6/iterator/map"),
+    );
+    f.add_library(
         "Iterator.prototype.some",
         "es_next",
         "es3",
         Some("es6/iterator/some"),
+    );
+    f.add_library(
+        "Iterator.prototype.take",
+        "es_next",
+        "es3",
+        Some("es6/iterator/take"),
     );
     f.add_library(
         "Iterator.prototype.toArray",
@@ -974,7 +1039,9 @@ fn test_iterator_polyfill_typed_receiver() {
 
     // 1. Receiver is a concrete class (Array) disjoint from Iterator: DO NOT inject
     f.test_does_not_inject("const arr = [1, 2, 3]; arr.toArray();");
-    f.test_does_not_inject("const arr = [1, 2, 3]; arr.some(fn); arr.every(fn); arr.find(fn);");
+    f.test_does_not_inject(
+        "const arr = [1, 2, 3]; arr.some(fn); arr.every(fn); arr.find(fn); arr.map(fn); arr.filter(fn); arr.flatMap(fn); arr.take(1); arr.drop(1);",
+    );
 
     // 2. Receiver is a union of concrete classes disjoint from Iterator: DO NOT inject
     f.test_does_not_inject(
