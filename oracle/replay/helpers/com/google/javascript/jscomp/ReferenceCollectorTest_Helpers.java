@@ -51,6 +51,9 @@
  *     lambda of that test (line 700), as a Predicate<Var>
  * The three tests assert on those lists after testBehavior returns; those post-call assertions are
  * ported as Rust unit tests (corpus/unit/RUST_UNIT_TESTS.md).
+ * Added from closure-compiler commit 977e2cf:
+ *   Lambda_testClassField_referencingGlobalVariable_escapeIffInstanceFields = the Behavior lambda in
+ *     testClassField_referencingGlobalVariable_escapeIffInstanceFields: lambda body, lines 195-208
  * DSL names: ReferenceCollectorTest_Helpers.Anon<N>, ReferenceCollectorTest_Helpers.Lambda_<testMethod>,
  * ReferenceCollectorTest_Helpers.VarFilter_<testMethod>
  */
@@ -344,6 +347,31 @@ final class ReferenceCollectorTest_Helpers {
 
             assertThat(x.isAssignedOnceInLifetime()).isTrue();
             assertThat(x.isWellDefined()).isTrue();
+          }
+    }
+  }
+
+  /**
+   * Lambda Behavior of testClassField_referencingGlobalVariable_escapeIffInstanceFields
+   * (`(NodeTraversal t, ReferenceMap rm) -> {` at line 194): body lines 195-208.
+   */
+  static final class Lambda_testClassField_referencingGlobalVariable_escapeIffInstanceFields
+      implements Behavior {
+    @Override
+    public void afterExitScope(NodeTraversal t, ReferenceMap rm) {
+          if (t.getScope().isGlobal()) {
+            ReferenceCollection instance1 = rm.getReferences(t.getScope().getVar("instance1"));
+            ReferenceCollection instance2 = rm.getReferences(t.getScope().getVar("instance2"));
+            ReferenceCollection static1 = rm.getReferences(t.getScope().getVar("static1"));
+            ReferenceCollection static2 = rm.getReferences(t.getScope().getVar("static2"));
+            ReferenceCollection computedKeyRef =
+                rm.getReferences(t.getScope().getVar("computedKeyRef"));
+
+            assertThat(instance1.isEscaped()).isTrue();
+            assertThat(instance2.isEscaped()).isTrue();
+            assertThat(static1.isEscaped()).isFalse();
+            assertThat(static2.isEscaped()).isFalse();
+            assertThat(computedKeyRef.isEscaped()).isFalse();
           }
     }
   }
