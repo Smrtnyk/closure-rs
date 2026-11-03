@@ -19,10 +19,10 @@ It is a faithful port, not a redesign: the Java code is ported as it is, the out
 identical, and the port does not "improve" the optimizer or its output. A difference from the Java
 compiler at the pinned commit is a porting defect.
 
-**Reference:** `github.com/google/closure-compiler` release `v20261028`, commit
-`8ac03b6088d6346346ef0bdbb7487c6fc2f48c4c` (2026-10-28), the release published on npm as
-`google-closure-compiler@20261028.0.0` (registry tag `v20261028` in `scripts/references.tsv`).
-`scripts/fetch_reference.sh` fetches it into `reference/closure-compiler-v20261028` (gitignored);
+**Reference:** `github.com/google/closure-compiler` release `v20261102`, commit
+`977e2cfbb93843d87325fbf94e67cc761773684c` (2026-11-02), the release published on npm as
+`google-closure-compiler@20261102.0.0` (registry tag `v20261102` in `scripts/references.tsv`).
+`scripts/fetch_reference.sh` fetches it into `reference/closure-compiler-v20261102` (gitignored);
 `oracle/REFERENCE.md` describes how the reference jar is built. The pin moves only when the port
 is synced with upstream (§9), and only to an upstream release that is published on npm.
 
