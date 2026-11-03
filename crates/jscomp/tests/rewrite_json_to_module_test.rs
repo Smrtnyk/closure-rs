@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   test/com/google/javascript/jscomp/RewriteJsonToModuleTest.java.
 
 //! Port of RewriteJsonToModuleTest. CompilerTestCase's `test(srcs, expected)` is reproduced with

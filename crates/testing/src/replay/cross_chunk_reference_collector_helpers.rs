@@ -34,7 +34,7 @@
 //   UnitRecorder.java (oracle/patches/0002-recording-hooks.patch),
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 8ac03b6:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
 //   src/com/google/javascript/jscomp/AbstractVar.java,
 //   src/com/google/javascript/jscomp/BasicBlock.java,
 //   src/com/google/javascript/jscomp/CrossChunkReferenceCollector.java,
