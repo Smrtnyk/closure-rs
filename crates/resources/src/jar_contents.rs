@@ -272,15 +272,33 @@ pub static JAR_ENTRIES: &[ArchiveEntry] = &[
         content: EntryContent::Directory,
     },
     ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/iterator/drop.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/iterator/drop.js"
+        )),
+    },
+    ArchiveEntry {
         name: "com/google/javascript/jscomp/js/es6/iterator/every.js",
         content: EntryContent::File(include_bytes!(
             "../data/com/google/javascript/jscomp/js/es6/iterator/every.js"
         )),
     },
     ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/iterator/filter.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/iterator/filter.js"
+        )),
+    },
+    ArchiveEntry {
         name: "com/google/javascript/jscomp/js/es6/iterator/find.js",
         content: EntryContent::File(include_bytes!(
             "../data/com/google/javascript/jscomp/js/es6/iterator/find.js"
+        )),
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/iterator/flatmap.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/iterator/flatmap.js"
         )),
     },
     ArchiveEntry {
@@ -296,6 +314,12 @@ pub static JAR_ENTRIES: &[ArchiveEntry] = &[
         )),
     },
     ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/iterator/map.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/iterator/map.js"
+        )),
+    },
+    ArchiveEntry {
         name: "com/google/javascript/jscomp/js/es6/iterator/reduce.js",
         content: EntryContent::File(include_bytes!(
             "../data/com/google/javascript/jscomp/js/es6/iterator/reduce.js"
@@ -305,6 +329,12 @@ pub static JAR_ENTRIES: &[ArchiveEntry] = &[
         name: "com/google/javascript/jscomp/js/es6/iterator/some.js",
         content: EntryContent::File(include_bytes!(
             "../data/com/google/javascript/jscomp/js/es6/iterator/some.js"
+        )),
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/iterator/take.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/iterator/take.js"
         )),
     },
     ArchiveEntry {
@@ -950,6 +980,12 @@ pub static JAR_ENTRIES: &[ArchiveEntry] = &[
         )),
     },
     ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/util/getiteratorflattenable.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/util/getiteratorflattenable.js"
+        )),
+    },
+    ArchiveEntry {
         name: "com/google/javascript/jscomp/js/es6/util/getiteratorprototype.js",
         content: EntryContent::File(include_bytes!(
             "../data/com/google/javascript/jscomp/js/es6/util/getiteratorprototype.js"
@@ -980,6 +1016,24 @@ pub static JAR_ENTRIES: &[ArchiveEntry] = &[
         )),
     },
     ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/util/iteratormaporfilter.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/util/iteratormaporfilter.js"
+        )),
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/util/iteratortakeordrop.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/util/iteratortakeordrop.js"
+        )),
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/util/lazyiterator.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/util/lazyiterator.js"
+        )),
+    },
+    ArchiveEntry {
         name: "com/google/javascript/jscomp/js/es6/util/makeasynciterator.js",
         content: EntryContent::File(include_bytes!(
             "../data/com/google/javascript/jscomp/js/es6/util/makeasynciterator.js"
@@ -1001,6 +1055,18 @@ pub static JAR_ENTRIES: &[ArchiveEntry] = &[
         name: "com/google/javascript/jscomp/js/es6/util/setprototypeof.js",
         content: EntryContent::File(include_bytes!(
             "../data/com/google/javascript/jscomp/js/es6/util/setprototypeof.js"
+        )),
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/util/toiteratorlimit.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/util/toiteratorlimit.js"
+        )),
+    },
+    ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/util/validateiteratorcallback.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/util/validateiteratorcallback.js"
         )),
     },
     ArchiveEntry {
