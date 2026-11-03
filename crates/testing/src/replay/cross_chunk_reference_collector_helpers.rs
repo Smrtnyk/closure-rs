@@ -612,18 +612,6 @@ impl NativeObject for CollectorView {
     fn fields(&self) -> Result<IndexMap<String, DslValue>, Throwable> {
         Ok(IndexMap::<_, _>::from_iter([
             (
-                "varsByName".to_string(),
-                DslValue::Map(
-                    self.state
-                        .vars
-                        .iter()
-                        .map(|(_, name, view)| {
-                            (DslValue::String(name.as_str().into()), view.clone())
-                        })
-                        .collect(),
-                ),
-            ),
-            (
                 "topLevelStatements".to_string(),
                 DslValue::List(self.state.top_level_statements.clone()),
             ),

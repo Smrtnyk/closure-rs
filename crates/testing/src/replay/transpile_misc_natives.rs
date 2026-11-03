@@ -174,6 +174,14 @@ pub fn register(registry: &mut Registry) {
         rewrite_object_spread,
     );
     registry.register(
+        "com.google.javascript.jscomp.RewriteObjectSpreadTest_Helpers$GetProcessor#<init>()",
+        rewrite_object_spread_test_get_processor_holder,
+    );
+    registry.register(
+        "com.google.javascript.jscomp.RewriteObjectSpreadTest_Helpers$GetProcessor#getProcessor(com.google.javascript.jscomp.Compiler)",
+        rewrite_object_spread_test_get_processor,
+    );
+    registry.register(
         "com.google.javascript.jscomp.RewriteOptionalChainingOperator#<init>(com.google.javascript.jscomp.AbstractCompiler,com.google.javascript.jscomp.OptionalChainRewriter$TmpVarNameCreator)",
         rewrite_optional_chaining_operator,
     );
@@ -519,6 +527,55 @@ fn es6_for_of_converter_test_get_processor(
             .set_name("es6ForOfConverter")
             .set_internal_factory(Arc::new(|compiler| {
                 Box::new(Es6ForOfConverter::new(compiler))
+            }))
+            .build(),
+    );
+    let pass: Box<dyn CompilerPass> = Box::new(optimizer);
+    Ok(DslValue::Pass(Rc::new(RefCell::new(pass))))
+}
+
+const REWRITE_OBJECT_SPREAD_TEST_GET_PROCESSOR: &str =
+    "com.google.javascript.jscomp.RewriteObjectSpreadTest_Helpers$GetProcessor";
+
+// port: RewriteObjectSpreadTest_Helpers.GetProcessor#GetProcessor
+fn rewrite_object_spread_test_get_processor_holder(
+    _ctx: &mut Ctx,
+    _args: Vec<DslValue>,
+) -> Result<DslValue, Throwable> {
+    Ok(DslValue::Object(Rc::new(RefCell::new(Object {
+        class: REWRITE_OBJECT_SPREAD_TEST_GET_PROCESSOR.into(),
+        fields: IndexMap::<_, _>::default(),
+        field_types: IndexMap::<_, _>::default(),
+    }))))
+}
+
+// port: RewriteObjectSpreadTest_Helpers.GetProcessor#getProcessor
+fn rewrite_object_spread_test_get_processor(
+    _ctx: &mut Ctx,
+    args: Vec<DslValue>,
+) -> Result<DslValue, Throwable> {
+    let [DslValue::Object(_), DslValue::Compiler(compiler)] = args.as_slice() else {
+        return Err(Throwable::HarnessError(
+            "RewriteObjectSpreadTest_Helpers$GetProcessor#getProcessor arguments".into(),
+        ));
+    };
+    let mut optimizer = PhaseOptimizer::new(&compiler.borrow(), None);
+    // makePassFactory(
+    //     "injectTranspilationRuntimeLibraries", InjectTranspilationRuntimeLibraries::new)
+    optimizer.add_one_time_pass(
+        PassFactory::builder()
+            .set_name("injectTranspilationRuntimeLibraries")
+            .set_internal_factory(Arc::new(|c| {
+                Box::new(InjectTranspilationRuntimeLibraries::new(c))
+            }))
+            .build(),
+    );
+    // makePassFactory("rewriteObjectSpread", RewriteObjectSpread::new)
+    optimizer.add_one_time_pass(
+        PassFactory::builder()
+            .set_name("rewriteObjectSpread")
+            .set_internal_factory(Arc::new(|compiler| {
+                Box::new(RewriteObjectSpread::new(compiler))
             }))
             .build(),
     );

@@ -480,7 +480,7 @@ fn no_check(_t: &mut NodeTraversal<'_>, _rm: &dyn ReferenceMap) -> Result<(), Th
     Ok(())
 }
 
-const BEHAVIORS: [(&str, crate::replay::registry::Entry); 30] = [
+const BEHAVIORS: [(&str, crate::replay::registry::Entry); 31] = [
     ("Anon1", |_, a| new_behavior(&a, "Anon1", anon1)),
     ("Anon2", |_, a| new_behavior(&a, "Anon2", anon2)),
     ("Anon3", |_, a| new_behavior(&a, "Anon3", anon3)),
@@ -546,6 +546,16 @@ const BEHAVIORS: [(&str, crate::replay::registry::Entry); 30] = [
                 &a,
                 "Lambda_testNamedClassExpression_assignedToConst_andInstantiated",
                 lambda_test_named_class_expression_assigned_to_const_and_instantiated,
+            )
+        },
+    ),
+    (
+        "Lambda_testClassField_referencingGlobalVariable_escapeIffInstanceFields",
+        |_, a| {
+            new_behavior(
+                &a,
+                "Lambda_testClassField_referencingGlobalVariable_escapeIffInstanceFields",
+                lambda_test_class_field_referencing_global_variable_escape_iff_instance_fields,
             )
         },
     ),
@@ -906,6 +916,28 @@ fn global_foo_assigned_once_and_well_defined(
         let x = refs(t, rm, "Foo")?;
         assert_bool(assigned_once(t, x), true)?;
         assert_bool(well_defined(t, x), true)?;
+    }
+    Ok(())
+}
+
+// port: ReferenceCollectorTest_Helpers.Lambda_testClassField_referencingGlobalVariable_escapeIffInstanceFields#afterExitScope
+fn lambda_test_class_field_referencing_global_variable_escape_iff_instance_fields(
+    t: &mut NodeTraversal<'_>,
+    rm: &dyn ReferenceMap,
+) -> Result<(), Throwable> {
+    let scope = t.get_scope();
+    if scope.is_global(t.get_compiler()) {
+        let instance1 = refs(t, rm, "instance1")?;
+        let instance2 = refs(t, rm, "instance2")?;
+        let static1 = refs(t, rm, "static1")?;
+        let static2 = refs(t, rm, "static2")?;
+        let computed_key_ref = refs(t, rm, "computedKeyRef")?;
+
+        assert_bool(instance1.is_escaped(t.get_compiler()), true)?;
+        assert_bool(instance2.is_escaped(t.get_compiler()), true)?;
+        assert_bool(static1.is_escaped(t.get_compiler()), false)?;
+        assert_bool(static2.is_escaped(t.get_compiler()), false)?;
+        assert_bool(computed_key_ref.is_escaped(t.get_compiler()), false)?;
     }
     Ok(())
 }
