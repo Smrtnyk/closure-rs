@@ -1,0 +1,22 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.RescopeGlobalSymbolsTest",
+ "methods": [
+  {
+   "method": "testAllChunksWithWrappingAndInitAssignment_unsafeWriteToLocalAliasThrows",
+   "status": "captured",
+   "via": [
+    "outcome"
+   ],
+   "note": "each of the three test(...) calls inside assertThrows throws; the method then asserts the RuntimeException's cause is an IllegalStateException whose message contains 'Unexpected unsafe write to local alias: NAME a'. The records' outcome holds the exception (RuntimeException, the internal compiler error text that ends with the cause's message); replay compares the outcome's status, class and message exactly"
+  },
+  {
+   "method": "testLocalAccessOptimization_uninitializedDeclarationWriteThrows",
+   "status": "captured",
+   "via": [
+    "outcome"
+   ],
+   "note": "the test(...) call inside assertThrows throws; the method then asserts the RuntimeException's cause is an IllegalStateException whose message contains 'Expected initialized declaration for NAME a'. The record's outcome holds the exception (RuntimeException, the internal compiler error text that ends with the cause's message); replay compares the outcome's status, class and message exactly"
+  }
+ ]
+}
