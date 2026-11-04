@@ -14,7 +14,9 @@ Subcommands (each resumable: a finished unit leaves <unit>.done.json and is skip
               processor replaced by a no-op (--noop-processor); a class whose records all still
               pass (no assertion-type failure) is vacuous; its records without replay-checked post-call
               state or postconditions become notCaptured (mechanical rule, no free-text escape)
-  report      (a)-(e) verdicts -> gates/reports/gate_0_2.{md,json}
+  report      (a)-(e) verdicts and the ratchet against gates/gate_0_2_ratchet.json (unit_gate02_ratchet.py)
+              -> gates/reports/gate_0_2.{md,json}; options --ratchet, --update-baseline [--grow]
+              (gates/gate_0_2.sh describes them and the exit status)
 
 Heap: at most PARALLEL (8) JVMs at -Xmx2g run at once (16 GB < 20 GB host budget); phases are
 sequential.  Work dir: build/gate02/.
@@ -34,7 +36,10 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
-from paths import ROOT, REF_SRC, REF_RECORDING_WS  # noqa: E402  the main checkout, the reference (scripts/paths.py)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from paths import ROOT, REF_SRC, REF_RECORDING_WS, REF_TAG  # noqa: E402  the main checkout, the reference (scripts/paths.py)
+from unit_ratchet_rebase import record_keys  # noqa: E402  the record identity across re-recordings
+import unit_gate02_ratchet as ratchet  # noqa: E402
 W = f"{ROOT}/build/gate02"
 REC = f"{ROOT}/corpus/unit/records"
 DESC = f"{ROOT}/corpus/unit/descriptors"
@@ -80,6 +85,7 @@ TRACE_SCOPE_SCRIPT = f"{ROOT}/scripts/unit_trace_scope.py"
 TRACE_SCOPE = f"{W}/tools/trace_scope.txt"
 ASM_EXPORT = "--add-exports=java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED"
 POSTCALL = f"{ROOT}/corpus/unit/postcall"
+RATCHET_BASELINE = f"{ROOT}/gates/gate_0_2_ratchet.json"
 RUST_FRAG = f"{ROOT}/corpus/unit/rust_unit_tests"
 EXCLUSION_CAP = 0.03
 # docs/PORTING.md §2: out-of-scope source directories (gate (d) ranks only in-scope passes; (c) lists only
@@ -2018,7 +2024,9 @@ def d_survivor_cause(r, passes, failed_any, construction, post=None):
     return "output-only"
 
 
-def cmd_report():
+def cmd_report(opts=()):
+    """opts: --ratchet (the exit status follows the ratchet), --update-baseline [--grow] (rewrite
+    gates/gate_0_2_ratchet.json from this report; unit_gate02_ratchet.update)."""
     prep = jload(f"{W}/prep.json")
     counts = prep["recordCounts"]
     r6 = jload(f"{W}/rule6.json")
@@ -2234,6 +2242,7 @@ def cmd_report():
     # ---------------- (a)
     a_rows, a_tot, a_pass, a_fail, a_excl, a_missing, a_fail_list = [], 0, 0, 0, 0, [], []
     a_not_captured = 0
+    a_excluded = {}  # class -> {index: reason} (the ratchet's a.excluded)
     a_trace_unverified = 0
     for c in record_classes():
         done = f"{W}/replay/{c}.done.json"
@@ -2255,6 +2264,8 @@ def cmd_report():
             a_tot += n
             continue
         f_nonexcl = [i for i in fails if i not in excl]
+        a_excluded[c] = {i: ("descriptor-marked" if i in marked.get(c, {}) else
+                             "post-call not captured" if i in nc else "no verifiable passTrace") for i in excl}
         a_tot += n - len(excl)
         a_excl += len(excl)
         a_fail += len(f_nonexcl)
@@ -2572,6 +2583,7 @@ def cmd_report():
                             "attribution": compute_pass_map.__doc__.strip()}
     # ---------------- (e)
     e_cls = {}
+    e_records = {}  # class -> {index: kinds} (the ratchet's e.unrepresentable)
     union = 0
     listed_only = 0
     sec_counts = {}
@@ -2590,6 +2602,9 @@ def cmd_report():
                 listed_only += 1
             if u or secs or i in excl or i in ncap:
                 union += 1
+                e_records.setdefault(c, {})[i] = ", ".join(
+                    k for k, v in (("recorder-level", u), ("placeholder", secs), ("descriptor-marked", i in excl),
+                                   ("post-call not captured", i in ncap)) if v)
                 ent = e_cls.setdefault(c, {"records": 0, "recorderLevel": 0, "descriptorMarked": 0,
                                            "postCallNotCaptured": 0, "sections": {}, "reasons": {}})
                 ent["records"] += 1
@@ -2638,11 +2653,143 @@ def cmd_report():
     then = jload(f"{W}/stamp.json")
     rep["stamp"] = {"atPrep": then, "atReport": now, "match": now == then}
     rep["ok"] = all(rep["criteria"][k].get("ok") for k in "abcde") and now == then
+    # ---------------- ratchet against gates/gate_0_2_ratchet.json (gates/lib/unit_gate02_ratchet.py)
+    def first(xs, n=3):
+        return f"{len(xs)}, first: " + "; ".join(json.dumps(x) if isinstance(x, dict) else str(x) for x in xs[:n])[:400]
+    hard = [("replay failures", a_fail == 0, f"{a_fail} counted records fail replay, first: " + "; ".join(
+                f"{x['class']}[{x.get('index', '*')}] {x['why'][:150]}" for x in a_fail_list[:3])),
+            ("classes not replayed", not a_missing, first(a_missing, 10)),
+            ("rule 6", r6["ok"], "an original *Test class is on the replay class path (criteria.a.rule6)"),
+            ("postcall schema errors", pca["schemaErrorCount"] == 0, first(pca["schemaErrors"])),
+            ("no-op replays incomplete", not noop_missing, first(noop_missing, 10)),
+            ("vacuityNoopClass errors", not vnc_errors, first(vnc_errors)),
+            ("postcondition-count mismatches", not pc_mismatch, first(pc_mismatch)),
+            ("processor leaf mismatches", not proc_mismatch, first(proc_mismatch, 2)),
+            ("missing processor dumps", not proc_missing, first(proc_missing, 10)),
+            ("missing or incomplete trace files", not trace_missing, first(trace_missing, 10)),
+            ("passTrace mismatches", not trace_mismatch, first(trace_mismatch, 2)),
+            ("(d) incomplete mutation units", not d_incomplete, first(d_incomplete, 10)),
+            ("(d) ranked passes", len(d_rows) == 30, f"{len(d_rows)} ranked passes measured, 30 required")]
+    keys = {c: [ratchet.record_key(*k) for k in record_keys(REC, c)] for c in counts}
+    st = ratchet.empty_state()
+    st["strictPassing"] = [k for k in "abcde" if rep["criteria"][k].get("ok")]
+    for r in pca_rows:
+        if r["status"] in ("unclassified", "claim_invalid"):
+            st["a"]["unclassifiedMethods"][ratchet.method_key(r["recordClass"], r["method"])] = (
+                "classification claim does not hold" if r["status"] == "claim_invalid" else
+                "explicit unclassified entry" if r["reason"].startswith("explicit: ") else "no postcall entry")
+    for x in post_unclassified:
+        st["a"]["postStateUnclassified"][keys[x["class"]][x["index"]]] = x["why"][:120] or "unclassified post state"
+    for sec, by_class in (("a", a_excluded), ("e", e_records)):
+        sub = "excluded" if sec == "a" else "unrepresentable"
+        for c, m in by_class.items():
+            for i, why in m.items():
+                st[sec][sub][keys[c][i]] = why
+    units = d_rows + g_rows
+    labels = [r["label"] for r in units]
+    if len(set(labels)) != len(labels):
+        raise ValueError(f"(d) unit labels are not unique: {sorted(l for l in labels if labels.count(l) > 1)}")
+    st["d"]["failingUnits"] = {r["label"]: ratchet.d_entry(r) for r in units if not r["ok"]}
+    corpus = {"records": {k for ks in keys.values() for k in ks}, "dUnits": set(labels),
+              "methods": {ratchet.method_key(r["class"], r["method"]) for c in counts for r in iter_records(c)}}
+    base, base_err = None, None
+    try:
+        base = ratchet.load(RATCHET_BASELINE)
+        if base is None:
+            base_err = "no baseline file"
+    except (ValueError, OSError) as e:
+        base_err = f"unreadable baseline: {e}"
+    res = ratchet.check(base or ratchet.empty_state(), st, hard, now != then, corpus)
+    # Without a baseline there is nothing to compare with (--update-baseline --grow creates one).
+    shown = res if base else {"failures": [], "resolved": [], "gone": [], "notes": []}
+    rr = {"baseline": RATCHET_BASELINE, "holds": res["holds"] if base else None, "error": base_err,
+          "failures": shown["failures"], "resolved": shown["resolved"], "gone": shown["gone"], "notes": shown["notes"],
+          "dTolerance": ratchet.TOLERANCE_TEXT,
+          "current": {"strictPassing": st["strictPassing"], "unclassifiedMethods": len(st["a"]["unclassifiedMethods"]),
+                      "postStateUnclassified": len(st["a"]["postStateUnclassified"]),
+                      "excluded": len(st["a"]["excluded"]), "unrepresentable": len(st["e"]["unrepresentable"]),
+                      "dFailingUnits": len(st["d"]["failingUnits"])}}
+    if "--ratchet" in opts:
+        rc = 2 if base is None else (0 if res["holds"] else 1)
+    else:
+        rc = 0 if rep["ok"] else 1
+    if "--update-baseline" in opts:
+        if base_err and base_err != "no baseline file":
+            rr["update"] = {"applied": False, "changes": [base_err]}
+            rc = 2
+        elif base is None and "--grow" not in opts:
+            rr["update"] = {"applied": False, "changes": ["no baseline file: --grow creates it from this report"]}
+            rc = 2
+        else:
+            new, changes = ratchet.update(base, st, res, "--grow" in opts)
+            rr["update"] = {"applied": new is not None, "grow": "--grow" in opts, "changes": changes}
+            if new is not None:
+                ratchet.write(RATCHET_BASELINE, ratchet.document(new, tot_records, REF_TAG))
+            rc = 0 if new is not None else 1
+    rep["ratchet"] = rr
     rep = repo_relative(rep)  # the committed report names no machine paths
     jdump(f"{ROOT}/gates/reports/gate_0_2.json", rep)
     write_md(rep)
     log("report written; ok =", rep["ok"], {k: rep["criteria"][k].get("ok") for k in "abcde"})
-    return 0 if rep["ok"] else 1
+    log_ratchet(rep["ratchet"])
+    return rc
+
+
+def log_ratchet(rr):
+    if rr["holds"] is None:
+        log(f"ratchet not evaluated: {rr['error']} ({rr['baseline']})")
+    else:
+        log(f"ratchet {'HOLDS' if rr['holds'] else 'FAILS'} against {rr['baseline']}: {len(rr['failures'])} "
+            f"failures, {len(rr['resolved'])} resolved, {len(rr['gone'])} gone")
+    for f in rr["failures"]:
+        print(f"  FAIL {f['detail']}", flush=True)
+    for k in ("resolved", "gone"):
+        for x in rr[k][:50]:
+            print(f"  {k} {x}", flush=True)
+        if len(rr[k]) > 50:
+            print(f"  ... {len(rr[k]) - 50} more {k} (gates/reports/gate_0_2.json ratchet.{k})", flush=True)
+    for x in rr["notes"]:
+        print(f"  note {x}", flush=True)
+    u = rr.get("update")
+    if u:
+        log(f"baseline {'updated' if u['applied'] else 'NOT updated'}{' (--grow)' if u.get('grow') else ''}: "
+            f"{len(u['changes'])} {'changes' if u['applied'] else 'reasons'}")
+        for x in u["changes"]:
+            print(f"  {x}", flush=True)
+
+
+def ratchet_verdict(rr):
+    return f"not evaluated ({rr['error']})" if rr["holds"] is None else ("HOLDS" if rr["holds"] else "FAILS")
+
+
+def ratchet_md(rr):
+    cur = rr["current"]
+    L = ["", "## Ratchet", "",
+         f"The state behind the criteria compared with the committed baseline `{rr['baseline']}` "
+         "(gates/lib/unit_gate02_ratchet.py): it fails on a replay or other always-required check that fails, a "
+         "criterion of the baseline's `strictPassing` that fails, an unclassified method, unclassified post state, "
+         "excluded or unrepresentable record that the baseline does not list, a (d) unit that fails without being "
+         f"listed (or with a new fault), and a listed (d) unit whose rate drops by more than {rr['dTolerance']}. "
+         f"Verdict: **{ratchet_verdict(rr)}**.", "",
+         f"Now: criteria passing {', '.join(f'({k})' for k in cur['strictPassing']) or 'none'}; unclassified "
+         f"post-call-assertion methods {cur['unclassifiedMethods']}; records with unclassified post state "
+         f"{cur['postStateUnclassified']}; excluded records {cur['excluded']}; unrepresentable records "
+         f"{cur['unrepresentable']}; failing (d) units {cur['dFailingUnits']}.", ""]
+    if rr["failures"]:
+        L += [f"Failures ({len(rr['failures'])}):", ""] + [f"- {f['detail']}" for f in rr["failures"]] + [""]
+    for k, what in (("resolved", "no longer failing, still in the corpus"), ("gone", "no longer recorded or measured")):
+        if rr[k]:
+            L += [f"Baseline entries {what} ({k}, {len(rr[k])}; not failures, `--update-baseline` drops them):", ""]
+            L += [f"- {x}" for x in rr[k][:200]] + ([f"- ... {len(rr[k]) - 200} more"] if len(rr[k]) > 200 else []) + [""]
+    if rr["notes"]:
+        L += ["Notes:", ""] + [f"- {x}" for x in rr["notes"]] + [""]
+    u = rr.get("update")
+    if u:
+        L += [f"Baseline update{' (--grow)' if u.get('grow') else ''}: {'applied' if u['applied'] else 'refused'}.", ""]
+        L += [f"- {x}" for x in u["changes"]] + [""]
+    while L[-1] == "":
+        L.pop()
+    return L
 
 
 def write_md(rep):
@@ -2650,6 +2797,7 @@ def write_md(rep):
     L = ["# Gate 0.2 (unit corpus validity, docs/PORTING.md §4.2)", "",
          f"Generated {rep['generated']} by `gates/gate_0_2.sh` (`gates/lib/unit_gate02.py`). Work dir `build/gate02/`.", "",
          f"**Overall: {'PASS' if rep['ok'] else 'FAIL'}**", "",
+         f"**Ratchet: {ratchet_verdict(rep['ratchet'])}** (against `{rep['ratchet']['baseline']}`, see \"Ratchet\" below)", "",
          f"Result stamp (records, descriptors, hook stats, jars, JaCoCo jars, JVM flags, replay and helper sources, gate phase code): "
          f"`{rep['stamp']['atReport']['inputsSha256']}`; identical to the stamp the phases ran under: {rep['stamp']['match']}.", "",
          "| Criterion | Result | Measured |", "|---|---|---|"]
@@ -2667,6 +2815,7 @@ def write_md(rep):
     ng = d.get("groupsReaching90", 0)
     L.append(f"| (d) class-level no-op mutation >= 90% of change-expecting records per pass and per group | {'PASS' if d['ok'] else 'FAIL'} | {nd}/{len(d['passes'])} passes, {ng}/{d.get('groupsWithChangeExpecting', 0)} groups with change-expecting records reach 90% |")
     L.append(f"| (e) unrepresentable <= 3% | {'PASS' if e['ok'] else 'FAIL'} | {e['withUnrepresentable']}/{e['records']} = {e['fraction']:.2%} |")
+    L += ratchet_md(rep["ratchet"])
     L += ["", "## (a) Replay", "",
           f"Every record-bearing class ({len(a['perClass'])} classes) was replayed through `ReplayMain` with the same JVM flags as "
           "`scripts/unit_replay.sh` (no coverage agent), cwd = the recording workspace. Records marked unrepresentable in a "
@@ -2834,8 +2983,23 @@ def write_md(rep):
         f.write("\n".join(L) + "\n")
 
 
+REPORT_OPTS = ("--ratchet", "--update-baseline", "--grow")
+
 if __name__ == "__main__":
-    cmd = sys.argv[1]
+    cmd, opts = sys.argv[1], sys.argv[2:]
     fn = {"prep": cmd_prep, "replay": cmd_replay, "cov-orig": cmd_cov_orig, "cov-replay": cmd_cov_replay,
           "mutate": cmd_mutate, "noop": cmd_noop, "report": cmd_report}[cmd]
-    sys.exit(fn() or 0)
+    bad = [o for o in opts if cmd != "report" or o not in REPORT_OPTS]
+    if bad or ("--grow" in opts and "--update-baseline" not in opts):
+        print(f"unit_gate02.py {cmd}: bad options {opts} (report takes {', '.join(REPORT_OPTS)}; "
+              "--grow needs --update-baseline)", file=sys.stderr)
+        sys.exit(2)
+    if cmd != "report":
+        sys.exit(fn() or 0)
+    # A report that cannot be computed (missing phase results, a malformed input) is a setup error.
+    try:
+        sys.exit(fn(opts))
+    except Exception:  # noqa
+        import traceback
+        traceback.print_exc()
+        sys.exit(2)
