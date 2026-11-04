@@ -1210,8 +1210,12 @@ Left for a person or agent (docs/PORTING.md §9, §7):
      {work}/d2-worklist.txt (D2 pairs) list what the new reference breaks before porting.
   3. Re-run after porting: --only license-headers (headers of newly ported files), gates/ci.sh,
      gates/unit_rust.sh --update and gates/d2_rust.py (new ratchets), gates/gate_0_1.sh with
-     CLOSURE_RS_REF={tag} (the oracle against the jar), gates/gate_0_2.sh, targeted probes and a
-     differential fuzz run against the new reference.
+     CLOSURE_RS_REF={tag} (the oracle against the jar), the gate 0.2 ratchet on this recording
+     (UNIT_JARS_DIR={work}/unit/jars UNIT_RECORDING_STATS={work}/unit/recording/stats
+     UNIT_TEST_CLASSES={work}/unit/all_test_classes.txt gates/gate_0_2.sh --ratchet must exit 0;
+     then, with the same variables, --update-baseline drops what it lists as resolved or gone;
+     docs/PORTING.md §9),
+     targeted probes and a differential fuzz run against the new reference.
   4. When everything matches: --only switch-default (read its diff), then the counts the docs
      quote (records in corpus/unit/RECORDING.md) and the pull request."""
 
