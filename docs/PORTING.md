@@ -153,8 +153,16 @@ Closure's Java tests are recorded **at runtime**, not parsed statically:
    the Rust harness: it parses the expected source and compares structurally, including JSDoc
    when `compareJsDoc` is set.
 
-The records replay green through a JSON-driven Java harness (`gates/gate_0_2.sh`), and the Rust
-harness in `crates/testing` replays every record natively (`gates/unit_rust.sh`).
+The records replay green through a JSON-driven Java harness, and the Rust harness in
+`crates/testing` replays every record natively (`gates/unit_rust.sh`). `gates/gate_0_2.sh` runs
+the Java replay and also measures the corpus itself (criteria (a)-(e) in its header): the record
+count against the hook's call count, the replay's coverage against the original suite's, whether
+a no-op of each pass makes its records fail, and how many records hold values the corpus cannot
+represent. The corpus does not meet all of them yet: the post-call assertions of some test
+methods are not classified, more than 3% of the records are excluded or unrepresentable, and in
+some passes and pass groups fewer than 90% of the records fail under the no-op. The committed
+baseline `gates/gate_0_2_ratchet.json` lists that state by test method, record and pass, and the
+gate's ratchet (`gates/gate_0_2.sh --ratchet`) fails when the corpus gets worse than it.
 `corpus/unit/FORMAT.md`, `RECORDING.md`, `HARNESS.md`, `REPLAY.md` and `DSL.md` describe the
 format, the recording, both harnesses and the per-pass replay parameters.
 
@@ -377,10 +385,33 @@ that needs judgement:
    port, and what a new Java behaviour (a crash fixed or added upstream) changes in the corpora.
 3. Verify as in §4: `--only license-headers` again for newly ported files, `gates/ci.sh`, the new
    ratchets (`gates/unit_rust.sh --update`, `gates/d2_rust.py`), `gates/gate_0_1.sh` with
-   `CLOSURE_RS_REF=<tag>` (the oracle against the jar), `gates/gate_0_2.sh`, targeted probes for
-   the upstream changes and a differential fuzz run against the new reference.
+   `CLOSURE_RS_REF=<tag>` (the oracle against the jar), the gate 0.2 ratchet (below), targeted
+   probes for the upstream changes and a differential fuzz run against the new reference.
 4. `--only switch-default`, then read its diff and update the counts the docs quote (records in
    `corpus/unit/RECORDING.md`).
+
+**Gate 0.2 in a sync.** A sync passes the gate 0.2 ratchet; the strict criteria (a)-(e) are
+reported but do not decide (§4.2). The gate reads the records, descriptors and
+`corpus/unit/postcall/` of its checkout (the main one; `CLOSURE_RS_ROOT` names a worktree) and
+needs the recording they come from, which the sync leaves in its work directory:
+
+```sh
+u=$PWD/build/upstream-sync/<tag>/unit
+export UNIT_JARS_DIR=$u/jars UNIT_RECORDING_STATS=$u/recording/stats UNIT_TEST_CLASSES=$u/all_test_classes.txt
+setsid nohup gates/gate_0_2.sh --ratchet > build/logs/gate_0_2.log 2>&1 &
+```
+
+It exits 0 when the ratchet holds and 1 when it fails, and then lists what got worse: a replay
+failure; a criterion that passed before and fails now; a test method whose post-call assertions
+are not classified (a new upstream test is classified in `corpus/unit/postcall/`,
+`corpus/unit/FORMAT.md`); an excluded or unrepresentable record the baseline does not list; a
+(d) pass or group that newly falls below 90%, or a listed one whose rate drops by more than the
+tolerance in the script's header. Baseline entries that no longer fail are listed as resolved,
+those upstream deleted as gone; neither fails the ratchet. `gates/gate_0_2.sh --update-baseline`
+(with the same variables) then drops them from `gates/gate_0_2_ratchet.json` and keeps what
+improved; it never takes in a new failure. The updated baseline goes into the sync's pull
+request. `--update-baseline --grow` takes the current state as the baseline and lists every
+addition; it is for a loss the pull request explains, not for a new test that can be classified.
 
 **The reference registry.** `scripts/references.tsv` lists every pinned reference: per tag its
 commit, the uberjar's sha256 (`-` until the jar is built and pinned), and its paths relative to
@@ -422,6 +453,7 @@ By hand, a sync (each step names the scripts the command runs):
 4. Ports the Java diff between the old and the new pin (§7), and refreshes the license headers
    (`scripts/license_headers.py --apply`).
 5. Verifies the result as in §4: every unit record and D2 pair that matched before still matches
-   (`scripts/unit_ratchet_rebase.py`, `gates/d2_rust.py check --rebase`), then moves the
-   registry's `default` row to the new tag. The first npm release after the sync starts a new
-   major version, `<YYYYMMDD>.0.0` ([README: Versioning](../README.md#versioning)).
+   (`scripts/unit_ratchet_rebase.py`, `gates/d2_rust.py check --rebase`) and the gate 0.2
+   ratchet holds (above), then moves the registry's `default` row to the new tag. The first npm
+   release after the sync starts a new major version, `<YYYYMMDD>.0.0`
+   ([README: Versioning](../README.md#versioning)).
