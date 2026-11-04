@@ -25,6 +25,12 @@
 #       or post-call assertions not captured) <= 3%
 # Phases (each resumable; finished units are skipped): prep, replay, cov-orig, cov-replay, mutate,
 # noop, report.  Usage: gates/gate_0_2.sh [phase ...]   (default: all phases in order)
+# Inputs: the records, descriptors and corpus/unit/postcall/ of the checkout, and the recording they
+# come from: $UNIT_JARS_DIR (default build/unit/jars), $UNIT_RECORDING_STATS (default
+# build/unit/recording/stats) and $UNIT_TEST_CLASSES (default build/unit/all_test_classes.txt). An
+# upstream sync's recording is in build/upstream-sync/<tag>/unit/ (jars/, recording/stats/,
+# all_test_classes.txt). The checkout is the main one, also from a worktree ($CLOSURE_RS_ROOT
+# overrides it, scripts/paths.sh).
 # Results are stamped with the sha256 of the records, descriptors, hook stats, jars, JaCoCo jars,
 # replay and helper sources, JVM flags and the gate's own phase code (PHASE_CODE); prep archives stale
 # results to build/gate02/stale-<time>/, and report refuses ok=true if the stamp changed since prep.

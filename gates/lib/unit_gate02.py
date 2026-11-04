@@ -38,8 +38,11 @@ from paths import ROOT, REF_SRC, REF_RECORDING_WS  # noqa: E402  the main checko
 W = f"{ROOT}/build/gate02"
 REC = f"{ROOT}/corpus/unit/records"
 DESC = f"{ROOT}/corpus/unit/descriptors"
-STATS = os.environ.get("UNIT_RECORDING_STATS") or f"{ROOT}/build/unit/recording-v5/stats"  # stats of the current recording
-JARS = f"{ROOT}/build/unit/jars"
+# The recording the records come from, with the defaults of scripts/unit_record_all.sh (a sync's is
+# under build/upstream-sync/<tag>/unit/): its hook stats, its jars and its test class list.
+STATS = os.path.abspath(os.environ.get("UNIT_RECORDING_STATS") or f"{ROOT}/build/unit/recording/stats")
+JARS = os.path.abspath(os.environ.get("UNIT_JARS_DIR") or f"{ROOT}/build/unit/jars")
+TEST_CLASSES = os.path.abspath(os.environ.get("UNIT_TEST_CLASSES") or f"{ROOT}/build/unit/all_test_classes.txt")
 SUPPORT = f"{JARS}/unit_support_deploy.jar"
 ALLTESTS = f"{JARS}/unit_all_tests.jar"
 WS = REF_RECORDING_WS
@@ -869,7 +872,7 @@ def compute_stamp():
     g.update(PROBE_JAVA.encode())
     g.update(json.dumps([TYPECHECK_KEY, TYPECHECK_UNIT]).encode())
     g.update(json.dumps(sorted(WRAPPERS)).encode())
-    with open(f"{ROOT}/build/unit/all_test_classes.txt", "rb") as f:
+    with open(TEST_CLASSES, "rb") as f:
         g.update(f.read())
     parts["phaseCodeSha256"] = g.hexdigest()
     h.update(parts["phaseCodeSha256"].encode())
@@ -1043,7 +1046,7 @@ def cmd_cov_orig():
     d = f"{W}/cov/orig"
     os.makedirs(f"{d}/rec", exist_ok=True)
     os.makedirs(f"{d}/stats", exist_ok=True)
-    with open(f"{ROOT}/build/unit/all_test_classes.txt") as f:
+    with open(TEST_CLASSES) as f:
         classes = [l.strip() for l in f if l.strip()]
     # biggest test sources first
     def size(c):
@@ -2335,7 +2338,7 @@ def cmd_report():
     # ---------------- (c)
     c_res = {"ok": False}
     try:
-        with open(f"{ROOT}/build/unit/all_test_classes.txt") as f:
+        with open(TEST_CLASSES) as f:
             allc = [l.strip().rsplit(".", 1)[1] for l in f if l.strip()]
         o_missing = [n for n in allc if not os.path.exists(f"{W}/cov/orig/{n}.exec")]
         r_missing = [c for c in record_classes() if not os.path.exists(f"{W}/cov/replay/{c}.exec")]
@@ -2381,7 +2384,7 @@ def cmd_report():
             ratio = (rc_ / hc) if hc else 0.0
             whole_ratio = (rc_ / oc) if oc else 0.0
             harness_fq = set()
-            with open(f"{ROOT}/build/unit/all_test_classes.txt") as f_:
+            with open(TEST_CLASSES) as f_:
                 all_fq = [l.strip() for l in f_ if l.strip()]
             nonh = [fq for fq in all_fq if fq.rsplit(".", 1)[1] not in harness and not fq.startswith(OUT_OF_SCOPE_PKGS)]
             listed = set()
@@ -2430,7 +2433,7 @@ def cmd_report():
                      "top30Loss": [{"file": p, "origCovered": orig_h.get(p, (0, 0))[0], "replayCovered": repl.get(p, (0, 0))[0],
                                     "loss": l, "lines": sum(orig.get(p) or repl.get(p))} for l, p in
                                    sorted(((orig_h.get(p_, (0, 0))[0] - repl.get(p_, (0, 0))[0], p_) for p_ in ins), reverse=True)[:30]],
-                     "agent": prep["agent"], "cli": prep["cli"], "agentOptions": AGENT_OPTS,
+                     "agent": prep["agent"], "cli": prep["cli"], "agentOptions": AGENT_OPTS, "origSuiteClasses": len(allc),
                      "replayFailuresUnderAgent": cov_fail, "origSuiteNonPassingTests": orig_fail}
     except Exception as e:  # noqa
         c_res = {"ok": False, "error": repr(e)}
@@ -2742,7 +2745,7 @@ def write_md(rep):
         L += [f"JaCoCo {c['agent']['version']} from Maven Central: agent `{c['agent']['url']}` sha256 `{c['agent']['sha256']}`; "
               f"CLI `{c['cli']['url']}` sha256 `{c['cli']['sha256']}`. Agent options (identical in both runs): `{c['agentOptions']}`. "
               "Both runs are plain `java -javaagent:...` outside Bazel, one JVM per test class, same JVM flags, cwd = recording workspace, "
-              "classes from `unit_support_deploy.jar`. Original suite = all 432 `*Test` classes via `UnitRecordingMain` with the "
+              f"classes from `unit_support_deploy.jar`. Original suite = all {c['origSuiteClasses']} `*Test` classes via `UnitRecordingMain` with the "
               "recording hook off. Lines are counted for source files that exist under the pristine `src/`.", "",
           f"Scope (gate 0.2 (c) 'in-scope src/'): the verdict counts only source files that are in scope under §2, "
           f"the same test (d) ranks passes with: the directories {', '.join(c['scope']['excludedDirs'])} and the files whose simple name starts with "
