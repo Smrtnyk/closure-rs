@@ -87,6 +87,7 @@ static MODE: LazyLock<Mode> =
     });
 
 /// What `PhaseOptimizer.NamedPass#process` does with one run of a pass.
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Decision {
     /// Create and run the pass.
     Run,
@@ -99,7 +100,10 @@ pub(crate) enum Decision {
 /// Rust-only (performance divergence): whether the pass named `name` must run now (see the module
 /// documentation). Evaluated before every run of the pass.
 pub(crate) fn decide(name: &str, compiler: &AbstractCompiler) -> Decision {
-    let mode = *MODE;
+    decide_in(*MODE, name, compiler)
+}
+
+fn decide_in(mode: Mode, name: &str, compiler: &AbstractCompiler) -> Decision {
     if mode == Mode::Off || may_have_work(name, compiler) {
         return Decision::Run;
     }
@@ -116,9 +120,12 @@ pub(crate) fn decide(name: &str, compiler: &AbstractCompiler) -> Decision {
 /// The gate registry: false only when the pass named `name` provably has nothing to do. The proof
 /// of each gate is the comment above its arm: (1) the factory, (2) every traversal and callback of
 /// `process`, (3) every diagnostic, (4) every piece of compiler state written. "Needs goog" means
-/// that a branch acts only on a NAME `goog` (a call or qualified name rooted in it, a goog.module
-/// or goog.provide file, which the parser and GatherModuleMetadata recognise by such a call), so
-/// it does nothing in an arena that never held the string `goog`.
+/// that a branch acts only on Closure Library code: a NAME `goog` (a call or qualified name rooted
+/// in it, a goog.module or goog.provide file, which the parser and GatherModuleMetadata recognise
+/// by such a call), so it does nothing in an arena that never held the string `goog`. A file can
+/// also be Closure code without that string: through a @provideGoog JSDoc (its input then
+/// provides `goog`) or an ES import or export of a `goog:` module specifier. `goog` below is true
+/// in those cases too, so every goog gate opens for them without a proof per pass.
 fn may_have_work(name: &str, compiler: &AbstractCompiler) -> bool {
     let options = compiler.get_options();
     // A compilation restored from a TypedAST has colors and properties that were not made from
@@ -127,7 +134,9 @@ fn may_have_work(name: &str, compiler: &AbstractCompiler) -> bool {
         return true;
     }
     let seen = |watched: WatchedName| compiler.has_seen_name(watched);
-    let goog = seen(WatchedName::Goog);
+    let goog = seen(WatchedName::Goog)
+        || seen(WatchedName::GoogColonPrefix)
+        || compiler.has_seen_jsdoc_bit(Bit::PROVIDE_GOOG);
     match name {
         // removeCastNodes (remove_cast_nodes.rs). (1) `RemoveCastNodes::new`: unit struct.
         // (2) one post-order traversal of externs and sources (L1); `visit` acts only on a CAST
@@ -324,4 +333,278 @@ pub(crate) fn run_verified(
         );
     }
     compiler.restore_presence_summary_for_verification(summary);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compiler::Compiler;
+    use crate::compiler_pass::CompilerPass;
+    use crate::pass_factory::PassFactory;
+    use crate::phase_optimizer::PhaseOptimizer;
+    use closure_rhino::ir::IR;
+    use closure_rhino::jsdoc_info::JSDocInfo;
+    use std::sync::Mutex;
+
+    /// A compiler with options and a tree `ROOT(ROOT(SCRIPT), ROOT(SCRIPT))`; returns it with the
+    /// externs root, the sources root and the source script.
+    fn setup() -> (Compiler, NodeId, NodeId, NodeId) {
+        let mut compiler = Compiler::new();
+        compiler.init_compiler_options_if_testing();
+        let externs_script = IR::script(&mut compiler);
+        let script = IR::script(&mut compiler);
+        let externs = IR::root(&mut compiler, &[externs_script]);
+        let root = IR::root(&mut compiler, &[script]);
+        IR::root(&mut compiler, &[externs, root]);
+        (compiler, externs, root, script)
+    }
+
+    const GATED: [&str; 14] = [
+        "removeCastNodes",
+        "checkSuper",
+        "checkTypeImportCodeReferences",
+        "checkGoogRequires",
+        "closureCheckModule",
+        "closureGoogScopeAliases",
+        "closureRewriteModule",
+        "rewriteCallerCodeLocation",
+        "closureProvidesRequires",
+        "replaceMessages",
+        "closureReplaceGetCssName",
+        "generateExports",
+        "replaceToggles",
+        "closureOptimizePrimitives",
+    ];
+
+    /// The gated passes whose gate is open in `compiler`.
+    fn open_gates(compiler: &Compiler) -> Vec<&'static str> {
+        GATED
+            .into_iter()
+            .filter(|name| may_have_work(name, compiler))
+            .collect()
+    }
+
+    /// The passes a goog idiom opens (checkGoogRequires and closureCheckModule are also open while
+    /// there is no module metadata map, as in `setup`).
+    const GOOG_GATES: [&str; 10] = [
+        "checkTypeImportCodeReferences",
+        "checkGoogRequires",
+        "closureCheckModule",
+        "closureGoogScopeAliases",
+        "closureRewriteModule",
+        "rewriteCallerCodeLocation",
+        "closureProvidesRequires",
+        "replaceMessages",
+        "closureReplaceGetCssName",
+        "replaceToggles",
+    ];
+    const NO_METADATA: [&str; 2] = ["checkGoogRequires", "closureCheckModule"];
+
+    /// Makes nodes in a compiler's arena.
+    type MakeNodes = fn(&mut Compiler);
+
+    #[test]
+    fn gates_are_closed_without_triggers_and_ungated_passes_run() {
+        let (compiler, ..) = setup();
+        assert_eq!(open_gates(&compiler), NO_METADATA);
+        assert!(may_have_work("inlineVariables", &compiler));
+        for rejected in [
+            "rewriteGoogJsImports",
+            "closurePrimitives",
+            "closureCodeRemoval",
+            "j2clChecksPass",
+            "stripSideEffectProtection",
+            "replaceIdGenerators",
+        ] {
+            assert!(may_have_work(rejected, &compiler), "{rejected}");
+        }
+    }
+
+    #[test]
+    fn goog_idioms_open_the_goog_gates() {
+        // A detached node is enough: the summary covers every node ever made in the arena.
+        for make in [
+            (|c: &mut Compiler| {
+                IR::name(c, "goog");
+            }) as MakeNodes,
+            |c| {
+                IR::string(c, "goog:foo.Bar");
+            },
+            |c| {
+                let n = IR::name(c, "x");
+                n.set_original_name(c, Some("goog".into()));
+            },
+            |c| {
+                let mut builder = JSDocInfo::builder();
+                builder.record_provide_goog();
+                let script = IR::script(c);
+                script.set_jsdoc_info(c, builder.build());
+            },
+        ] {
+            let (mut compiler, ..) = setup();
+            make(&mut compiler);
+            let open = open_gates(&compiler);
+            for name in GOOG_GATES {
+                assert!(open.contains(&name), "{name} is closed");
+            }
+        }
+    }
+
+    #[test]
+    fn each_gate_opens_for_its_own_trigger() {
+        let cases: [(&str, MakeNodes); 8] = [
+            ("removeCastNodes", |c| {
+                let x = IR::name(c, "x");
+                IR::cast(c, x, None);
+            }),
+            ("checkSuper", |c| {
+                c.new_node(Token::SUPER);
+            }),
+            ("checkSuper", |c| {
+                c.new_node(Token::CLASS_MEMBERS);
+            }),
+            ("replaceMessages", |c| {
+                IR::name(c, "MSG_HELLO");
+            }),
+            ("replaceMessages", |c| {
+                IR::string(c, "i18n.declareIcuTemplate");
+            }),
+            ("generateExports", |c| {
+                let mut builder = JSDocInfo::builder();
+                builder.record_export();
+                let n = IR::name(c, "x");
+                n.set_jsdoc_info(c, builder.build());
+            }),
+            ("replaceToggles", |c| {
+                IR::name(c, "CLOSURE_TOGGLE_ORDINALS");
+            }),
+            ("closureOptimizePrimitives", |c| {
+                IR::name(c, "goog$object$create");
+            }),
+        ];
+        for (name, make) in cases {
+            let (mut compiler, ..) = setup();
+            make(&mut compiler);
+            let mut expected: Vec<&str> = NO_METADATA.to_vec();
+            if !expected.contains(&name) {
+                expected.push(name);
+            }
+            let mut open = open_gates(&compiler);
+            open.sort_unstable();
+            expected.sort_unstable();
+            assert_eq!(open, expected, "{name}");
+        }
+    }
+
+    #[test]
+    fn a_typed_ast_compilation_runs_every_pass() {
+        let (mut compiler, ..) = setup();
+        compiler
+            .get_options_mut()
+            .set_merged_precompiled_libraries(true);
+        assert_eq!(open_gates(&compiler), GATED);
+    }
+
+    #[test]
+    fn modes() {
+        let (mut compiler, ..) = setup();
+        let decisions = |compiler: &Compiler| {
+            [Mode::On, Mode::Off, Mode::Verify, Mode::Log]
+                .map(|mode| decide_in(mode, "removeCastNodes", compiler))
+        };
+        assert_eq!(
+            decisions(&compiler),
+            [
+                Decision::Skip,
+                Decision::Run,
+                Decision::Verify,
+                Decision::Skip
+            ]
+        );
+        let x = IR::name(&mut compiler, "x");
+        IR::cast(&mut compiler, x, None);
+        assert_eq!(
+            decisions(&compiler),
+            [Decision::Run, Decision::Run, Decision::Run, Decision::Run]
+        );
+        // An ungated pass always runs.
+        assert_eq!(
+            decide_in(Mode::On, "inlineVariables", &compiler),
+            Decision::Run
+        );
+    }
+
+    #[test]
+    fn verified_run_that_changes_nothing_keeps_the_summary() {
+        let (mut compiler, externs, root, _) = setup();
+        // A pass that only makes a detached pattern node (as ClosureRewriteModule does).
+        run_verified("p", &mut compiler, externs, root, |c| {
+            let goog = IR::name(c, "goog");
+            IR::getprop(c, goog, "module");
+        });
+        assert!(!compiler.has_seen_name(WatchedName::Goog));
+    }
+
+    fn verify_message(change: fn(&mut Compiler, NodeId)) -> String {
+        let (mut compiler, externs, root, script) = setup();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            run_verified("somePass", &mut compiler, externs, root, |c| {
+                change(c, script)
+            });
+        }));
+        let error = result.expect_err("verify mode did not see the change");
+        error.downcast_ref::<String>().cloned().unwrap_or_default()
+    }
+
+    #[test]
+    fn verified_run_that_changes_something_panics() {
+        let changes: [fn(&mut Compiler, NodeId); 4] = [
+            |c, script| {
+                let x = IR::name(c, "x");
+                let statement = IR::expr_result(c, x);
+                script.add_child_to_back(c, statement);
+            },
+            |c, script| {
+                script.set_original_name(c, Some("x".into()));
+            },
+            |c, script| {
+                script.put_boolean_prop(c, closure_rhino::node::Prop::IS_NAMESPACE, true);
+            },
+            |c, _| {
+                c.get_change_tracker().increment_change_stamp();
+            },
+        ];
+        for change in changes {
+            let message = verify_message(change);
+            assert!(message.contains("pass somePass changed"), "{message}");
+        }
+    }
+
+    #[test]
+    fn phase_optimizer_skips_a_pass_whose_gate_is_closed() {
+        let runs = Arc::new(Mutex::new(0));
+        let factory = {
+            let runs = runs.clone();
+            PassFactory::builder()
+                .set_name("removeCastNodes")
+                .set_internal_factory(Arc::new(move |_| {
+                    let runs = runs.clone();
+                    Box::new(move |_: &mut Compiler, _, _| *runs.lock().unwrap() += 1)
+                }))
+                .build()
+        };
+        let (mut compiler, externs, root, _) = setup();
+        let run_once = |compiler: &mut Compiler| {
+            let mut optimizer = PhaseOptimizer::new(compiler, None);
+            optimizer.add_one_time_pass(factory.clone());
+            optimizer.process(compiler, externs, root);
+        };
+        run_once(&mut compiler);
+        let skipped = matches!(*MODE, Mode::On | Mode::Log);
+        assert_eq!(*runs.lock().unwrap(), if skipped { 0 } else { 1 });
+        let x = IR::name(&mut compiler, "x");
+        IR::cast(&mut compiler, x, None);
+        run_once(&mut compiler);
+        assert_eq!(*runs.lock().unwrap(), if skipped { 1 } else { 2 });
+    }
 }

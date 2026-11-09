@@ -510,6 +510,9 @@ pub enum WatchedName {
     Goog,
     /// Starts with `goog$` (a collapsed `goog` property, such as `goog$object$create`).
     GoogDollarPrefix,
+    /// Starts with `goog:` (the module specifier of an ES import of a Closure namespace, such as
+    /// `goog:foo.Bar`).
+    GoogColonPrefix,
     /// Starts with `module$contents$goog$` (a rewritten goog.module of Closure Library).
     ModuleContentsGoogPrefix,
     /// Starts with `MSG_` (a message name).
@@ -562,8 +565,12 @@ fn watched_name_bits(s: &JsString) -> u16 {
         0x67 /* g */ => {
             if is_exactly(s, "goog", const { ascii_hash_code("goog") }) {
                 bits |= WatchedName::Goog.bit();
-            } else if units_start_with(u, "goog$") {
-                bits |= WatchedName::GoogDollarPrefix.bit();
+            } else if n > 4 && units_start_with(u, "goog") {
+                match u[4] {
+                    0x24 /* $ */ => bits |= WatchedName::GoogDollarPrefix.bit(),
+                    0x3a /* : */ => bits |= WatchedName::GoogColonPrefix.bit(),
+                    _ => {}
+                }
             }
         }
         0x6d /* m */ => {
