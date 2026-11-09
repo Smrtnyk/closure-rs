@@ -1019,6 +1019,10 @@ impl JSDocInfo {
     fn check_bit(&self, bit: Bit) -> bool {
         self.property_bits & bit.mask() != 0
     }
+    /// Rust-only: the flags (one `Bit::mask` each), for the node arena's presence summary.
+    pub(crate) fn property_bits(&self) -> u64 {
+        self.property_bits
+    }
     // port: JSDocInfo#asMap
     fn as_map(&self) -> BTreeMap<u32, PropertyValue> {
         PROPERTIES
