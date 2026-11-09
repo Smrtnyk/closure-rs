@@ -521,3 +521,8 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `jscomp/polyfill_usage_finder.rs` `Polyfills::from_jar_table`: the jar's polyfill table is parsed
   once per process and shared (Java: the RewritePolyfills, IsolatePolyfills and RemoveUnusedCode
   constructors each load and parse `js/polyfills.txt`).
+- `jscomp/node_traversal.rs` `WalkBranch`, `traverse_branch_static`: `traverseBranch` is compiled
+  for each callback type and calls `shouldTraverse` and `visit` directly (Java: through the
+  Callback interface for every node); the entry points and the handlers of functions, classes,
+  scripts, modules and destructuring keep a `dyn Callback` and enter that walk with one virtual
+  call.
