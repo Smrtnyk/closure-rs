@@ -135,12 +135,13 @@ fn may_have_work(name: &str, compiler: &AbstractCompiler) -> bool {
         "removeCastNodes" => compiler.has_seen_token(Token::CAST),
 
         // checkSuper (check_super.rs). (1) empty context lists. (2) one traversal of the sources
-        // (L1). A constructor context needs a constructor of a class (`is_es6_constructor`); in
-        // every other context `visit_this` and `visit_return` do nothing and `visit` reports only
-        // on a SUPER node. (3) every report needs a SUPER node or a constructor context; the
-        // `check_state!`s hold for any tree (the ROOT context is pushed and popped once). (4) none.
+        // (L1). A constructor context needs a constructor in CLASS_MEMBERS (`is_es6_constructor`);
+        // in every other context `visit_this` and `visit_return` do nothing and `visit` reports
+        // only on a SUPER node. (3) every report needs a SUPER node or a constructor context; the
+        // `check_state!`s hold for any valid tree (the ROOT context is pushed and popped once;
+        // methods sit in object literals or class members). (4) none.
         "checkSuper" => {
-            compiler.has_seen_token(Token::SUPER) || compiler.has_seen_token(Token::CLASS)
+            compiler.has_seen_token(Token::SUPER) || compiler.has_seen_token(Token::CLASS_MEMBERS)
         }
 
         // checkTypeImportCodeReferences (check_type_import_code_references.rs). (1) unit struct.
