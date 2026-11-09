@@ -402,6 +402,7 @@ crates/jscomp/src/output_charset_encoder.rs	d0aa628f22a2875f	Apache-2.0	closure:
 crates/jscomp/src/parallel_parse.rs	44c5d8cc55065a81	Apache-2.0	closure:src/com/google/javascript/jscomp/CompilerInput.java
 crates/jscomp/src/pass_config.rs	4651194a18b2ce3f	Apache-2.0	closure:src/com/google/javascript/jscomp/PassConfig.java
 crates/jscomp/src/pass_factory.rs	fd9da0b75ca3d5aa	Apache-2.0	closure:src/com/google/javascript/jscomp/PassFactory.java
+crates/jscomp/src/pass_gates.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/pass_list_builder.rs	46191cb524e9551c	Apache-2.0	closure:src/com/google/javascript/jscomp/PassListBuilder.java
 crates/jscomp/src/pass_names.rs	a616ca86d09a36c6	Apache-2.0	closure:src/com/google/javascript/jscomp/PassNames.java
 crates/jscomp/src/peephole_collect_property_assignments.rs	59640696743cdc75	Apache-2.0	closure:src/com/google/javascript/jscomp/PeepholeCollectPropertyAssignments.java

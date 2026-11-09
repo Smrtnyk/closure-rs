@@ -3219,6 +3219,11 @@ impl Compiler {
     pub fn set_css_names(&mut self, names: Option<closure_rhino::fast_hash::IndexSet<String>>) {
         self.css_names = names;
     }
+    /// Rust-only: whether `setCssNames` stored a set (read by the pass gate of
+    /// closureReplaceGetCssName, which stores `None` when it gathers no names).
+    pub(crate) fn has_css_names(&self) -> bool {
+        self.css_names.is_some()
+    }
     // port: Compiler#setIdGeneratorMap
     pub fn set_id_generator_map(&mut self, map: String) {
         self.id_generator_map = Some(map);

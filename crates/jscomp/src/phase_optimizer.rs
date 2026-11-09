@@ -19,8 +19,8 @@
 use crate::{
     abstract_compiler::AbstractCompiler, change_tracker::ChangeTracker,
     change_verifier::ChangeVerifier, code_change_handler::CodeChangeHandler,
-    compiler_pass::CompilerPass, node_util::NodeUtil, pass_factory::PassFactory, pass_names,
-    performance_tracker::PerformanceTracker, platform::Platform,
+    compiler_pass::CompilerPass, node_util::NodeUtil, pass_factory::PassFactory, pass_gates,
+    pass_names, performance_tracker::PerformanceTracker, platform::Platform,
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::NodeId;
@@ -242,9 +242,22 @@ impl NamedPass {
         }
         let mut tracer = crate::tracer::Tracer::new(Some("Compiler"), Some(&self.name));
         compiler.before_pass(&self.name);
-        self.factory
-            .create(compiler)
-            .process(compiler, externs, root);
+        // Rust-only (performance divergence): Java always creates and runs the pass; here a pass
+        // that provably has nothing to do is neither created nor run (pass_gates.rs).
+        match pass_gates::decide(&self.name, compiler) {
+            pass_gates::Decision::Run => self
+                .factory
+                .create(compiler)
+                .process(compiler, externs, root),
+            pass_gates::Decision::Skip => {}
+            pass_gates::Decision::Verify => {
+                pass_gates::run_verified(&self.name, compiler, externs, root, |compiler| {
+                    self.factory
+                        .create(compiler)
+                        .process(compiler, externs, root)
+                })
+            }
+        }
         compiler.after_pass(&self.name);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let trace_runtime = tracer.stop();

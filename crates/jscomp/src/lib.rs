@@ -110,6 +110,7 @@ pub mod compiler_pass;
 pub mod compiler_state_proto;
 pub mod concretize_static_inheritance_for_inlining;
 pub mod pass_factory;
+pub mod pass_gates;
 pub mod pass_list_builder;
 pub use compiler::Compiler;
 pub mod coalesce_variable_names;
