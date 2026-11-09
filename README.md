@@ -123,8 +123,8 @@ cargo build --release --bin closure-rs   # target/release/closure-rs
 built profile-guided by `scripts/pgo_build.sh`; the profile changes only the speed, never the output:
 
 ```bash
-scripts/fetch_bench.sh --project d3-12 --project lodash-es --project three
-python3 scripts/run_bench.py --job '^(d3-12/.*/ADVANCED|lodash-es/.*|three/.*)$' --write-args pgo-training
+scripts/fetch_bench.sh --project d3-12 --project lodash-es --project three --project fabric-srcmap
+python3 scripts/run_bench.py --job '^(d3-12/.*/ADVANCED|lodash-es/.*|three/.*|fabric-srcmap/ADVANCED)$' --write-args pgo-training
 scripts/pgo_build.sh --training pgo-training   # needs the rustup component llvm-tools
 ```
 
