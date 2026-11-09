@@ -501,6 +501,153 @@ impl PropRemapper<'_> {
         done
     }
 }
+/// Rust-only (performance divergence): a name, prefix or suffix of a node string that
+/// `Ast::has_seen_name` reports on. Java has no such record; it lets the compiler skip a pass
+/// whose every effect needs one of these strings in the tree (`closure_jscomp::pass_gates`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WatchedName {
+    /// Exactly `goog`.
+    Goog,
+    /// Starts with `goog$` (a collapsed `goog` property, such as `goog$object$create`).
+    GoogDollarPrefix,
+    /// Starts with `goog:` (the module specifier of an ES import of a Closure namespace, such as
+    /// `goog:foo.Bar`).
+    GoogColonPrefix,
+    /// Starts with `module$contents$goog$` (a rewritten goog.module of Closure Library).
+    ModuleContentsGoogPrefix,
+    /// Starts with `MSG_` (a message name).
+    MsgPrefix,
+    /// Starts with `$jscomp$scope$` (a name made by goog.scope rewriting).
+    JscompScopePrefix,
+    /// Ends with `declareIcuTemplate` (JsMessageVisitor's ICU message function).
+    DeclareIcuTemplateSuffix,
+    /// Exactly `CLOSURE_TOGGLE_ORDINALS`.
+    ClosureToggleOrdinals,
+}
+impl WatchedName {
+    const fn bit(self) -> u16 {
+        1 << self as u16
+    }
+}
+/// Java's `String#hashCode` of an ASCII literal, at compile time.
+const fn ascii_hash_code(s: &str) -> i32 {
+    let bytes = s.as_bytes();
+    let mut h = 0i32;
+    let mut i = 0;
+    while i < bytes.len() {
+        h = h.wrapping_mul(31).wrapping_add(bytes[i] as i32);
+        i += 1;
+    }
+    h
+}
+/// Whether the code units `u` start with the ASCII text `p`.
+#[inline]
+fn units_start_with(u: &[u16], p: &str) -> bool {
+    u.len() >= p.len() && p.bytes().zip(u).all(|(b, &c)| c == u16::from(b))
+}
+/// Whether `s` is the ASCII text `e` (compared by the cached hash code first).
+#[inline]
+fn is_exactly(s: &JsString, e: &str, e_hash: i32) -> bool {
+    s.hash_code() == e_hash && s.length() == e.len() && units_start_with(s.as_units(), e)
+}
+/// The `WatchedName` bits of a node string. Constant time: the first code unit selects the
+/// candidates, the suffix is tested only for strings ending in its last unit.
+#[inline]
+fn watched_name_bits(s: &JsString) -> u16 {
+    const DECLARE_ICU_TEMPLATE: &str = "declareIcuTemplate";
+    let u = s.as_units();
+    let n = u.len();
+    if n < 4 {
+        return 0;
+    }
+    let mut bits = 0;
+    match u[0] {
+        0x67 /* g */ => {
+            if is_exactly(s, "goog", const { ascii_hash_code("goog") }) {
+                bits |= WatchedName::Goog.bit();
+            } else if n > 4 && units_start_with(u, "goog") {
+                match u[4] {
+                    0x24 /* $ */ => bits |= WatchedName::GoogDollarPrefix.bit(),
+                    0x3a /* : */ => bits |= WatchedName::GoogColonPrefix.bit(),
+                    _ => {}
+                }
+            }
+        }
+        0x6d /* m */ => {
+            if units_start_with(u, "module$contents$goog$") {
+                bits |= WatchedName::ModuleContentsGoogPrefix.bit();
+            }
+        }
+        0x4d /* M */ => {
+            if units_start_with(u, "MSG_") {
+                bits |= WatchedName::MsgPrefix.bit();
+            }
+        }
+        0x24 /* $ */ => {
+            if units_start_with(u, "$jscomp$scope$") {
+                bits |= WatchedName::JscompScopePrefix.bit();
+            }
+        }
+        0x43 /* C */ => {
+            if is_exactly(
+                s,
+                "CLOSURE_TOGGLE_ORDINALS",
+                const { ascii_hash_code("CLOSURE_TOGGLE_ORDINALS") },
+            ) {
+                bits |= WatchedName::ClosureToggleOrdinals.bit();
+            }
+        }
+        _ => {}
+    }
+    if u[n - 1] == 0x65 /* e */
+        && n >= DECLARE_ICU_TEMPLATE.len()
+        && units_start_with(&u[n - DECLARE_ICU_TEMPLATE.len()..], DECLARE_ICU_TEMPLATE)
+    {
+        bits |= WatchedName::DeclareIcuTemplateSuffix.bit();
+    }
+    bits
+}
+// `PresenceSummary::tokens` has one bit per token.
+const _: () = assert!((Token::PLACEHOLDER3 as usize) < 192);
+/// Rust-only (performance divergence): a record of what has ever existed in an arena, kept so
+/// that the compiler can skip a pass that only reacts to names, tokens or JSDoc flags the code
+/// does not contain (`closure_jscomp::pass_gates`; Java runs every pass).
+///
+/// Invariant: if a node of the arena, attached or detached, has or ever had token T, the summary
+/// says T was seen; if its string, a template literal string (cooked or raw) or its original name
+/// is or ever was a `WatchedName`, the summary says that name was seen; if a JSDocInfo with a
+/// flag set is or ever was in its property list, the summary says that flag was seen. The record
+/// only grows: it is a superset of the arena's contents, never exact. It is kept by every write
+/// of a token, string, original name or property list in this file and merged in by
+/// `append_preparsed`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PresenceSummary {
+    tokens: [u64; 3],
+    names: u16,
+    jsdoc_bits: u64,
+}
+impl PresenceSummary {
+    #[inline]
+    fn note_token(&mut self, token: Token) {
+        let t = token as usize;
+        self.tokens[t >> 6] |= 1u64 << (t & 63);
+    }
+    #[inline]
+    fn note_string(&mut self, s: &JsString) {
+        self.names |= watched_name_bits(s);
+    }
+    #[inline]
+    fn note_jsdoc(&mut self, info: &JSDocInfo) {
+        self.jsdoc_bits |= info.property_bits();
+    }
+    fn merge(&mut self, other: &Self) {
+        for (a, b) in self.tokens.iter_mut().zip(other.tokens) {
+            *a |= b;
+        }
+        self.names |= other.names;
+        self.jsdoc_bits |= other.jsdoc_bits;
+    }
+}
 #[derive(Default, Debug)]
 pub struct Ast {
     nodes: Vec<NodeData>,
@@ -533,6 +680,9 @@ pub struct Ast {
     /// Rust-only (performance divergence): the nodes whose children, token or string changed since
     /// the last `take_changed_nodes`, in order, without immediate repeats.
     changed_nodes: Vec<NodeId>,
+    /// Rust-only (performance divergence): what has ever been in this arena (see
+    /// `PresenceSummary`).
+    presence: PresenceSummary,
 }
 impl Index<NodeId> for Ast {
     type Output = NodeData;
@@ -612,6 +762,9 @@ impl Ast {
     /// entries.
     fn set_props(&mut self, n: NodeId, head: Option<Arc<PropListItem>>) {
         let (mask, jsdoc) = prop_list_summary(head.as_ref());
+        if let Some(info) = &jsdoc {
+            self.presence.note_jsdoc(info);
+        }
         self.prop_masks[n.0.get() as usize - 1] = mask;
         self.jsdocs[n.0.get() as usize - 1] = jsdoc;
         self[n].prop_list_head = head;
@@ -644,6 +797,112 @@ impl Ast {
     pub fn node_count(&self) -> u32 {
         u32::try_from(self.nodes.len()).unwrap()
     }
+    /// Rust-only (performance divergence): whether a node of this arena has, or ever had, token
+    /// `token` (see `PresenceSummary`; false means certainly never).
+    pub fn has_seen_token(&self, token: Token) -> bool {
+        let t = token as usize;
+        self.presence.tokens[t >> 6] & (1u64 << (t & 63)) != 0
+    }
+    /// Rust-only (performance divergence): whether a string, template literal string or original
+    /// name of a node of this arena is, or ever was, `name` (see `PresenceSummary`; false means
+    /// certainly never).
+    pub fn has_seen_name(&self, name: WatchedName) -> bool {
+        self.presence.names & name.bit() != 0
+    }
+    /// Rust-only (performance divergence): whether a JSDocInfo with flag `bit` is, or ever was,
+    /// in the property list of a node of this arena (see `PresenceSummary`; false means certainly
+    /// never).
+    pub fn has_seen_jsdoc_bit(&self, bit: crate::jsdoc_info::Bit) -> bool {
+        self.presence.jsdoc_bits & bit.mask() != 0
+    }
+    /// Rust-only: the presence summary, for the verification mode of the pass gates only.
+    pub fn presence_summary(&self) -> PresenceSummary {
+        self.presence
+    }
+    /// Rust-only: puts back a summary taken by `presence_summary` before a pass ran, for the
+    /// verification mode of the pass gates only. That mode runs a pass the gates would skip and
+    /// checks that the trees did not change; the pass may still have made detached nodes it then
+    /// dropped (such as nodes to match against), which the normal mode never makes, and the
+    /// summary must then go on as in the normal mode.
+    pub fn restore_presence_summary_for_verification(&mut self, summary: PresenceSummary) {
+        self.presence = summary;
+    }
+    /// Rust-only: feeds everything stored for the tree below `root` into `state`, for the
+    /// verification mode of the pass gates only: per node its token, payload (string, number,
+    /// template literal strings), source position, original name, type or color and property list
+    /// (each item, the identity and contents of each object, and the type expressions of each
+    /// JSDocInfo, which are trees of their own), and the shape of the tree.
+    pub fn hash_tree_for_verification(&self, root: NodeId, state: &mut impl std::hash::Hasher) {
+        use std::hash::Hash;
+        let mut stack = vec![root];
+        while let Some(n) = stack.pop() {
+            n.hash(state);
+            let links = &self[L(n)];
+            links.token.hash(state);
+            links.parent.hash(state);
+            match &self[n].kind {
+                NodeKind::Node => 0u8.hash(state),
+                NodeKind::Number { number } => number.to_bits().hash(state),
+                NodeKind::BigInt { bigint } => bigint.hash(state),
+                NodeKind::String { str } => str.as_units().hash(state),
+                NodeKind::TemplateLiteralSubstring(strings) => {
+                    strings.cooked.as_ref().map(JsString::as_units).hash(state);
+                    strings.raw.as_units().hash(state);
+                }
+            }
+            let cold = &self[C(n)];
+            cold.lineno_charno.hash(state);
+            cold.length.hash(state);
+            cold.original_name
+                .as_ref()
+                .map(JsString::as_units)
+                .hash(state);
+            match &self[T(n)].jstype_or_color {
+                None => 0u8.hash(state),
+                Some(JSTypeOrColor::JSType(t)) => (1u8, t).hash(state),
+                Some(JSTypeOrColor::Color(c)) => (2u8, c).hash(state),
+            }
+            let head = self[n].prop_list_head.as_ref();
+            head.map(|h| Arc::as_ptr(h) as usize).hash(state);
+            let mut item = head.map(|h| &**h);
+            while let Some(i) = item {
+                i.prop_type.hash(state);
+                match &i.value {
+                    PropValue::Int(v) => (0u8, v).hash(state),
+                    PropValue::Object(ObjectProp::NonJSDocComment(c)) => {
+                        (1u8, Arc::as_ptr(c) as usize, format!("{c:?}")).hash(state)
+                    }
+                    PropValue::Object(ObjectProp::JSDocInfo(info)) => {
+                        (2u8, Arc::as_ptr(info) as usize, format!("{info:?}")).hash(state);
+                        stack.extend(info.get_type_nodes());
+                    }
+                    PropValue::Object(ObjectProp::StaticSourceFile(f)) => {
+                        (3u8, Arc::as_ptr(f) as *const () as usize, f.get_name()).hash(state)
+                    }
+                    PropValue::Object(ObjectProp::InputId(id)) => {
+                        (4u8, Arc::as_ptr(id) as usize, format!("{id:?}")).hash(state)
+                    }
+                    PropValue::Object(ObjectProp::Node(node)) => (5u8, node).hash(state),
+                    PropValue::Object(ObjectProp::JSType(t)) => (6u8, t).hash(state),
+                    PropValue::Object(ObjectProp::Opaque(o)) => {
+                        (7u8, Arc::as_ptr(o) as *const () as usize, o.to_string()).hash(state)
+                    }
+                }
+                item = i.next.as_deref();
+            }
+            // The children, first child on top.
+            let first_child_index = stack.len();
+            let mut child = links.first;
+            let mut count = 0u32;
+            while let Some(c) = child {
+                stack.push(c);
+                count += 1;
+                child = self[L(c)].next;
+            }
+            count.hash(state);
+            stack[first_child_index..].reverse();
+        }
+    }
     /// Rust-only (performance divergence): moves the nodes of `other`, a `new_for_preparse` arena
     /// holding one parsed input, to the end of this arena; see `new_for_preparse`. Returns how the
     /// ids of `other` map to ids of this arena.
@@ -657,6 +916,8 @@ impl Ast {
                 .preparse_bound_first_use
                 .filter(|_| self.implicit_template_bound.is_none()),
         };
+        // The preparse arena kept its own summary of these nodes.
+        self.presence.merge(&other.presence);
         let Ast {
             nodes,
             links,
@@ -719,6 +980,7 @@ impl Ast {
             )
             .unwrap(),
         );
+        self.presence.note_token(token);
         self.links.push(NodeLinks {
             token,
             parent: None,
@@ -844,11 +1106,23 @@ impl Ast {
         raw: impl Into<JsString>,
     ) -> NodeId {
         let n = self.new_node(Token::TEMPLATELIT_STRING);
-        self[n].kind = NodeKind::TemplateLiteralSubstring(Box::new(TemplateLiteralStrings {
-            cooked: cooked.map(RhinoStringPool::add_or_get),
-            raw: RhinoStringPool::add_or_get(raw),
-        }));
+        self.set_template_lit_strings(
+            n,
+            TemplateLiteralStrings {
+                cooked: cooked.map(RhinoStringPool::add_or_get),
+                raw: RhinoStringPool::add_or_get(raw),
+            },
+        );
         n
+    }
+    /// Rust-only: stores the strings of a template literal substring node, the one place that
+    /// writes them (so that the presence summary sees them).
+    fn set_template_lit_strings(&mut self, n: NodeId, strings: TemplateLiteralStrings) {
+        if let Some(cooked) = &strings.cooked {
+            self.presence.note_string(cooked);
+        }
+        self.presence.note_string(&strings.raw);
+        self[n].kind = NodeKind::TemplateLiteralSubstring(Box::new(strings));
     }
     // port: TemplateLiteralSubstringNode#TemplateLiteralSubstringNode(LazyInternedStringList, int, int)
     // port: Node#newTemplateLitString(LazyInternedStringList, int, int)
@@ -859,14 +1133,17 @@ impl Ast {
         raw_offset: i32,
     ) -> NodeId {
         let n = self.new_node(Token::TEMPLATELIT_STRING);
-        self[n].kind = NodeKind::TemplateLiteralSubstring(Box::new(TemplateLiteralStrings {
-            cooked: if cooked_offset_or_negative_one == -1 {
-                None
-            } else {
-                Some(pool.get(cooked_offset_or_negative_one))
+        self.set_template_lit_strings(
+            n,
+            TemplateLiteralStrings {
+                cooked: if cooked_offset_or_negative_one == -1 {
+                    None
+                } else {
+                    Some(pool.get(cooked_offset_or_negative_one))
+                },
+                raw: pool.get(raw_offset),
             },
-            raw: pool.get(raw_offset),
-        }));
+        );
         n
     }
 }
@@ -985,6 +1262,7 @@ impl NodeId {
     }
     // port: Node#setToken
     pub fn set_token(self, ast: &mut Ast, token: Token) {
+        ast.presence.note_token(token);
         ast[L(self)].token = token;
         ast.note_changed(self);
         if let Some(parent) = ast[L(self)].parent {
@@ -1845,8 +2123,19 @@ impl NodeId {
     // port: Node#setString
     pub fn set_string(self, ast: &mut Ast, s: impl Into<JsString>) {
         ast.note_changed(self);
-        match &mut ast[self].kind {
-            NodeKind::String { str } => *str = RhinoStringPool::add_or_get(s),
+        Self::store_string(ast, self, RhinoStringPool::add_or_get(s));
+    }
+    /// Rust-only: stores the string of a string node, the one place that writes it (so that the
+    /// presence summary sees it).
+    fn store_string(ast: &mut Ast, n: NodeId, s: JsString) {
+        let Ast {
+            nodes, presence, ..
+        } = ast;
+        match &mut nodes[n.0.get() as usize - 1].kind {
+            NodeKind::String { str } => {
+                presence.note_string(&s);
+                *str = s;
+            }
             _ => panic!("ClassCastException"),
         }
     }
@@ -1858,10 +2147,7 @@ impl NodeId {
         offset: i32,
     ) {
         ast.note_changed(self);
-        match &mut ast[self].kind {
-            NodeKind::String { str } => *str = pool.get(offset),
-            _ => panic!("ClassCastException"),
-        }
+        Self::store_string(ast, self, pool.get(offset));
     }
     // port: Node#getRawString
     pub fn get_raw_string(self, ast: &Ast) -> JsString {
@@ -2296,7 +2582,16 @@ impl NodeId {
     }
     // port: Node#setOriginalName
     pub fn set_original_name(self, ast: &mut Ast, s: Option<JsString>) {
-        ast[C(self)].original_name = s.map(RhinoStringPool::add_or_get);
+        Self::store_original_name(ast, self, s.map(RhinoStringPool::add_or_get));
+    }
+    /// Rust-only: stores the original name of a node; with `store_string`, the writes of node
+    /// strings that the presence summary sees. (`copy_base_node_fields`, `srcref` and `srcref_if_missing`
+    /// methods copy the original name of another node of the arena, which it has seen already.)
+    fn store_original_name(ast: &mut Ast, n: NodeId, s: Option<JsString>) {
+        if let Some(s) = &s {
+            ast.presence.note_string(s);
+        }
+        ast[C(n)].original_name = s;
     }
     // port: Node#setOriginalNameFromStringPool
     pub fn set_original_name_from_string_pool(
@@ -2305,11 +2600,12 @@ impl NodeId {
         pool: &LazyInternedStringList,
         offset: i32,
     ) {
-        ast[C(self)].original_name = Some(pool.get(offset));
+        Self::store_original_name(ast, self, Some(pool.get(offset)));
     }
     // port: Node#setOriginalNameFromName
     pub fn set_original_name_from_name(self, ast: &mut Ast, name: NodeId) {
-        ast[C(self)].original_name = Some(name.get_string(ast));
+        let name = name.get_string(ast);
+        Self::store_original_name(ast, self, Some(name));
     }
     // port: Node#isIndexable
     pub fn is_indexable(self, ast: &Ast) -> bool {
@@ -3113,7 +3409,7 @@ impl NodeId {
             NodeKind::BigInt { bigint } => ast.new_big_int(bigint),
             NodeKind::String { str } => {
                 let n = ast.new_string_node(token);
-                ast[n].kind = NodeKind::String { str };
+                Self::store_string(ast, n, str);
                 n
             }
             NodeKind::TemplateLiteralSubstring(strings) => {

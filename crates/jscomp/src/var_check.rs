@@ -20,6 +20,7 @@
 
 use crate::abstract_compiler::AbstractCompiler;
 use crate::check_level::CheckLevel;
+use crate::closure_coding_convention::matches_qualified_name_pattern;
 use crate::compiler_input::CompilerInput;
 use crate::compiler_pass::CompilerPass;
 use crate::diagnostic_type::DiagnosticType;
@@ -38,6 +39,7 @@ use closure_rhino::static_source_file::SourceKind;
 use closure_rhino::token::Token;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::LazyLock;
 
 // port: VarCheck#UNDEFINED_VAR_ERROR
 pub static UNDEFINED_VAR_ERROR: DiagnosticType =
@@ -463,12 +465,8 @@ impl CompilerPass for VarCheck {
         // remove duplicate VAR declarations, which will make
         // externs look like they have assigns.
         if !self.validity_check {
-            // Java's static googForwardDeclare node, built in this compilation's arena.
-            let goog = IR::name(compiler, "goog");
-            let goog_forward_declare = IR::getprop(compiler, goog, "forwardDeclare");
             let mut name_ref_in_externs_check = NameRefInExternsCheck {
                 undefined_names_from_externs: &mut self.undefined_names_from_externs,
-                goog_forward_declare,
             };
             NodeTraversal::builder()
                 .set_compiler(compiler)
@@ -543,9 +541,18 @@ impl ScopedCallback for VarCheck {
 /// getting renamed, but no longer have any effect.
 struct NameRefInExternsCheck<'a> {
     undefined_names_from_externs: &'a mut IndexSet<JsString>,
-    // port: VarCheck#googForwardDeclare
-    goog_forward_declare: NodeId,
 }
+
+// port: VarCheck#googForwardDeclare
+/// Rust-only: Java's static node lives in an arena of its own (as CheckClosureImports' node
+/// constants do), not in the compilation's, so that a compilation's arena only holds nodes of its
+/// code; it is matched with `Node#matchesQualifiedName(Node)` across the two arenas.
+static GOOG_FORWARD_DECLARE: LazyLock<(Ast, NodeId)> = LazyLock::new(|| {
+    let mut ast = Ast::new();
+    let goog = IR::name(&mut ast, "goog");
+    let node = IR::getprop(&mut ast, goog, "forwardDeclare");
+    (ast, node)
+});
 
 impl Callback for NameRefInExternsCheck<'_> {
     // port: VarCheck.NameRefInExternsCheck#shouldTraverse
@@ -592,7 +599,12 @@ impl Callback for NameRefInExternsCheck<'_> {
                         if var.is_some() {
                             return;
                         }
-                        if parent.matches_qualified_name_node(t, self.goog_forward_declare) {
+                        if matches_qualified_name_pattern(
+                            t,
+                            parent,
+                            &GOOG_FORWARD_DECLARE.0,
+                            GOOG_FORWARD_DECLARE.1,
+                        ) {
                             // Allow using `goog.forwardDeclare` in the externs without an externs
                             // definition of goog.
                             return;

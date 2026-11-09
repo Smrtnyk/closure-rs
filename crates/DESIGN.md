@@ -526,3 +526,12 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   Callback interface for every node); the entry points and the handlers of functions, classes,
   scripts, modules and destructuring keep a `dyn Callback` and enter that walk with one virtual
   call.
+- `jscomp/pass_gates.rs` (hook in `phase_optimizer.rs` `NamedPass::process`), `rhino/node.rs`
+  `PresenceSummary`: a pass whose every effect needs a name, token or JSDoc flag that the arena
+  never held (Closure Library idioms, `MSG_` names, CAST nodes, `@export`, ...) is neither created
+  nor run (Java runs every pass); the arena keeps a monotone record of the tokens, watched names
+  and JSDoc flags it ever held, each gate carries its proof, and VarCheck's `goog.forwardDeclare`
+  pattern lives in an arena of its own so that it does not enter every record.
+  `CLOSURE_RS_PASS_GATES=off` runs every pass, `=verify` checks every run a gate would skip
+  against a fingerprint of the compilation, `=log` names the skipped runs on stderr. An upstream
+  sync that changes a gated pass, or what its trigger means, must re-check that pass's gate.

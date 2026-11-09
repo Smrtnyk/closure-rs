@@ -381,6 +381,8 @@ that needs judgement:
 
 1. Port the Java changes (§7) from `porting-worklist.md` and `upstream.diff`: the Rust files, the
    unit descriptors of new record classes, the Rust ports of new tests in classes without records.
+   A change to a pass that `crates/jscomp/src/pass_gates.rs` gates, or to what its trigger means,
+   must re-check that pass's gate.
 2. Triage `unit-worklist.json` and `d2-worklist.txt`: what the new reference breaks before the
    port, and what a new Java behaviour (a crash fixed or added upstream) changes in the corpora.
 3. Verify as in §4: `--only license-headers` again for newly ported files, `gates/ci.sh`, the new

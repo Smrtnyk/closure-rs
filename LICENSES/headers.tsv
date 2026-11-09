@@ -402,6 +402,7 @@ crates/jscomp/src/output_charset_encoder.rs	d0aa628f22a2875f	Apache-2.0	closure:
 crates/jscomp/src/parallel_parse.rs	44c5d8cc55065a81	Apache-2.0	closure:src/com/google/javascript/jscomp/CompilerInput.java
 crates/jscomp/src/pass_config.rs	4651194a18b2ce3f	Apache-2.0	closure:src/com/google/javascript/jscomp/PassConfig.java
 crates/jscomp/src/pass_factory.rs	fd9da0b75ca3d5aa	Apache-2.0	closure:src/com/google/javascript/jscomp/PassFactory.java
+crates/jscomp/src/pass_gates.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/pass_list_builder.rs	46191cb524e9551c	Apache-2.0	closure:src/com/google/javascript/jscomp/PassListBuilder.java
 crates/jscomp/src/pass_names.rs	a616ca86d09a36c6	Apache-2.0	closure:src/com/google/javascript/jscomp/PassNames.java
 crates/jscomp/src/peephole_collect_property_assignments.rs	59640696743cdc75	Apache-2.0	closure:src/com/google/javascript/jscomp/PeepholeCollectPropertyAssignments.java
@@ -1147,6 +1148,7 @@ crates/rhino/tests/jsdoc_info_test.rs	20ac92f28a3a2740	(MPL-1.1 OR GPL-2.0-or-la
 crates/rhino/tests/linked_identity_hash_map_test.rs	ab695e271475598f	Apache-2.0	closure:test/com/google/javascript/jscomp/base/LinkedIdentityHashMapTest.java
 crates/rhino/tests/linked_identity_hash_set_test.rs	7d18c035f58d6003	Apache-2.0	closure:test/com/google/javascript/jscomp/base/LinkedIdentityHashSetTest.java
 crates/rhino/tests/node_test.rs	0419c8828494c838	(MPL-1.1 OR GPL-2.0-or-later)	closure:test/com/google/javascript/rhino/NodeTest.java
+crates/rhino/tests/presence_summary_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/tests/qualified_name_test.rs	1e219649dce05c0a	(MPL-1.1 OR GPL-2.0-or-later)	closure:test/com/google/javascript/rhino/QualifiedNameTest.java
 crates/rhino/tests/rhino_string_pool_test.rs	66b07978c4c07fdc	(MPL-1.1 OR GPL-2.0-or-later)	closure:test/com/google/javascript/rhino/RhinoStringPoolTest.java
 crates/rhino/tests/support/dtoa_records.rs	322fc2ba37b98b96	Apache-2.0	-
