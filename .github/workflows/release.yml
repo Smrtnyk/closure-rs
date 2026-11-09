@@ -33,8 +33,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Inputs of the build jobs: three benchmark projects of bench/projects.json, fetched at their
-  # pinned commits (about 11 MB), and compiler flags for them: pgo-training/, the training
+  # Inputs of the build jobs: four benchmark projects of bench/projects.json, fetched at their
+  # pinned commits (about 13 MB), and compiler flags for them: pgo-training/, the training
   # compiles of the profile-guided build (scripts/pgo_build.sh), and platform-outputs/, the
   # compiles that every platform's binary must turn into the same bytes
   # (scripts/platform_outputs.py).
@@ -46,11 +46,13 @@ jobs:
       - name: Fetch the projects and write their compiler flags
         run: |
           for attempt in 1 2 3; do
-            scripts/fetch_bench.sh --project d3-12 --project lodash-es --project three && break
+            scripts/fetch_bench.sh --project d3-12 --project lodash-es --project three \
+              --project fabric-srcmap && break
             [ "$attempt" -lt 3 ] || exit 1
             sleep $((attempt * 20))
           done
-          python3 scripts/run_bench.py --job '^(d3-12/.*/ADVANCED|lodash-es/.*|three/.*)$' \
+          python3 scripts/run_bench.py \
+            --job '^(d3-12/.*/ADVANCED|lodash-es/.*|three/.*|fabric-srcmap/ADVANCED)$' \
             --write-args pgo-training
           python3 scripts/run_bench.py --job '^(d3-12/.*|lodash-es/.*|three/.*)$' \
             --write-args platform-outputs
@@ -63,6 +65,7 @@ jobs:
             bench-cache/d3-12/
             bench-cache/lodash-es/
             bench-cache/three/
+            bench-cache/fabric-srcmap/
           if-no-files-found: error
 
   build:

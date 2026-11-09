@@ -352,8 +352,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   faster compiles at the cost of a higher peak memory.
 - `Cargo.toml` `[profile.release]`: fat LTO and one codegen unit.
 - `scripts/pgo_build.sh`, `.github/workflows/release.yml`: the released binaries are built with a
-  profile (PGO) from training compiles of the d3-12, lodash-es and three benchmark projects
-  (`scripts/run_bench.py --write-args`), for less CPU time. Pushes and pull requests build without
+  profile (PGO) from training compiles of the d3-12, lodash-es, three and fabric-srcmap benchmark
+  projects (`scripts/run_bench.py --write-args`; the last one covers a bundle compiled with an
+  input source map), for less CPU time. Pushes and pull requests build without
   a profile; the output is the same either way.
 - `jscomp/parallel_parse.rs`: inputs are parsed on up to 8 worker threads into arenas of their
   own (`Ast::new_for_preparse`) while the compiler runs; `CompilerInput#parse` moves a finished
