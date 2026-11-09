@@ -114,7 +114,7 @@ pub struct NodeTraversal<'a> {
     chunk_of_input: Option<Option<JSChunk>>,
 }
 
-pub trait Callback {
+pub trait Callback: WalkBranch {
     // port: NodeTraversal.Callback#shouldTraverse
     fn should_traverse(
         &mut self,
@@ -130,6 +130,22 @@ pub trait Callback {
     // of ScopedCallback return Some(self); ordinary callbacks retain None.
     fn as_scoped_callback(&mut self) -> Option<&mut dyn ScopedCallback> {
         None
+    }
+}
+
+/// Rust-only (performance divergence): enters the per-node walk (`traverseBranch`) compiled for
+/// the callback's own type. Java's walk calls `shouldTraverse` and `visit` through the Callback
+/// interface for every node; the walk compiled for one callback type calls them directly, so short
+/// ones are inlined. Code that holds a `dyn Callback` (the entry points and the handlers of
+/// functions, classes, scripts, modules and destructuring, which exist once) enters that walk
+/// with this one virtual call. Implemented for every [`Callback`], never by hand.
+pub trait WalkBranch {
+    fn walk_branch(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>);
+}
+impl<C: Callback> WalkBranch for C {
+    #[inline]
+    fn walk_branch(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
+        t.traverse_branch_static(n, parent, self);
     }
 }
 
@@ -1453,9 +1469,31 @@ impl<'a> NodeTraversal<'a> {
         }
     }
 
+    /// Rust-only (performance divergence): the calls of Java's `traverseBranch` come here. With a
+    /// callback of known type this is `traverse_branch_static` of that type; with a
+    /// `dyn Callback` it is one virtual call into that walk (`WalkBranch`).
+    #[inline(always)]
+    fn traverse_branch<C: Callback + ?Sized>(
+        &mut self,
+        n: NodeId,
+        parent: Option<NodeId>,
+        callback: &mut C,
+    ) {
+        callback.walk_branch(self, n, parent);
+    }
+
     // port: NodeTraversal#traverseBranch
+    // Rust-only (performance divergence): compiled for each callback type (`WalkBranch`), and not
+    // inlined into `walk_branch`, so that each type has one copy. The handlers it calls take the
+    // callback as a trait object and exist once.
     #[allow(clippy::collapsible_match)] // Retain Java control flow.
-    fn traverse_branch(&mut self, n: NodeId, parent: Option<NodeId>, callback: &mut dyn Callback) {
+    #[inline(never)]
+    fn traverse_branch_static<C: Callback>(
+        &mut self,
+        n: NodeId,
+        parent: Option<NodeId>,
+        callback: &mut C,
+    ) {
         match n.get_token(self) {
             Token::SCRIPT => {
                 self.handle_script(n, parent, callback);
