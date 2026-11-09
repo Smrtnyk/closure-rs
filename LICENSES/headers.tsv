@@ -1148,6 +1148,7 @@ crates/rhino/tests/jsdoc_info_test.rs	20ac92f28a3a2740	(MPL-1.1 OR GPL-2.0-or-la
 crates/rhino/tests/linked_identity_hash_map_test.rs	ab695e271475598f	Apache-2.0	closure:test/com/google/javascript/jscomp/base/LinkedIdentityHashMapTest.java
 crates/rhino/tests/linked_identity_hash_set_test.rs	7d18c035f58d6003	Apache-2.0	closure:test/com/google/javascript/jscomp/base/LinkedIdentityHashSetTest.java
 crates/rhino/tests/node_test.rs	0419c8828494c838	(MPL-1.1 OR GPL-2.0-or-later)	closure:test/com/google/javascript/rhino/NodeTest.java
+crates/rhino/tests/presence_summary_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/tests/qualified_name_test.rs	1e219649dce05c0a	(MPL-1.1 OR GPL-2.0-or-later)	closure:test/com/google/javascript/rhino/QualifiedNameTest.java
 crates/rhino/tests/rhino_string_pool_test.rs	66b07978c4c07fdc	(MPL-1.1 OR GPL-2.0-or-later)	closure:test/com/google/javascript/rhino/RhinoStringPoolTest.java
 crates/rhino/tests/support/dtoa_records.rs	322fc2ba37b98b96	Apache-2.0	-
