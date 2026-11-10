@@ -132,6 +132,14 @@ fn test_get_built_in_type_generator() {
     let native = registry.get_native_type(JSTypeNative::GENERATOR_TYPE);
     TypeSubject::assert_type(type_).is_equal_to(&mut registry, &ast, native);
 }
+// port: JSTypeRegistryTest#testGeneratorExtendsIterator
+#[test]
+fn test_generator_extends_iterator() {
+    let (ast, mut registry) = set_up();
+    let generator = registry.get_native_type(JSTypeNative::GENERATOR_TYPE);
+    let iterator = registry.get_native_type(JSTypeNative::ITERATOR_TYPE);
+    assert!(generator.is_subtype_of(&mut registry, &ast, iterator));
+}
 // port: JSTypeRegistryTest#testGetBuiltInType_async_iterable
 #[test]
 fn test_get_built_in_type_async_iterable() {

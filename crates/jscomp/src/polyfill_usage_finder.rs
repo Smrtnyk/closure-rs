@@ -746,21 +746,6 @@ impl PolyfillUsageFinder {
             return false;
         }
 
-        // This generator check works around a bug in the externs:
-        // In javascript/externs/es6.js, Iterator is declared as
-        // @constructor @implements {IteratorIterable} and Generator is declared as
-        // @interface @extends {IteratorIterable}. Because the externs do not model Generator
-        // as a subtype of Iterator, neither is an ancestor of the other in the
-        // disambiguation graph, so they appear as unrelated siblings. However, in ECMAScript
-        // (ES2025), every Generator object inherits from %IteratorPrototype% at runtime, which
-        // means generator objects are runtime Iterators and support Iterator helper methods (e.g.
-        // toArray, forEach, reduce).
-        //
-        // TODO(b/576327592): Remove this workaround once Generator is related to Iterator in the
-        // externs.
-        if receiver.get_id() == standard_colors::GENERATOR_ID {
-            return false;
-        }
         if receiver.is_union() {
             for alt in receiver.get_union_elements() {
                 if !self.is_disjoint_from_iterator_color(alt) {

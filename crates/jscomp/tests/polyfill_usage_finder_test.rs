@@ -313,8 +313,8 @@ fn is_disjoint_from_iterator_generator_and_iterator_returns_false() {
     let generator = registry.get(standard_colors::GENERATOR_ID);
     let finder = create_finder_with_registry(registry);
 
-    // Generator is a sibling of Iterator in externs, but inherits from %IteratorPrototype%
-    // at runtime in ES2025, so Generator and Iterator are known not to be disjoint.
+    // Generator extends Iterator in externs and native types, and inherits from
+    // %IteratorPrototype% at runtime in ES2025, so Generator and Iterator are not disjoint.
     assert!(!finder.is_disjoint_from_iterator_color(&generator));
 }
 
