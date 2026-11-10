@@ -54,6 +54,17 @@
  * Added from closure-compiler commit 977e2cf:
  *   Lambda_testClassField_referencingGlobalVariable_escapeIffInstanceFields = the Behavior lambda in
  *     testClassField_referencingGlobalVariable_escapeIffInstanceFields: lambda body, lines 195-208
+ Changed at closure-compiler commit 51d8099, where the new
+ * testBehavior_hoistedFunctionsInReferenceOrder_declaredBeforeFirstCall makes the anonymous classes
+ * after it one number higher:
+ *   Anon18 = ReferenceCollectorTest$18
+ *     (testBehavior_hoistedFunctionsInReferenceOrder_declaredBeforeFirstCall): anonymous class body,
+ *     lines 709-734; visitedReferenceNames (line 699) becomes a field
+ *   Anon19 = ReferenceCollectorTest$19 (testBehavior_hoistedFunctionsInReferenceOrder_false), the
+ *     former Anon18: lines 750-759
+ *   Anon20 = ReferenceCollectorTest$20
+ *     (testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter), the former Anon19: lines
+ *     783-796; its varFilter lambda is at line 776
  * DSL names: ReferenceCollectorTest_Helpers.Anon<N>, ReferenceCollectorTest_Helpers.Lambda_<testMethod>,
  * ReferenceCollectorTest_Helpers.VarFilter_<testMethod>
  */
@@ -480,8 +491,43 @@ final class ReferenceCollectorTest_Helpers {
           public void afterExitScope(NodeTraversal t, ReferenceMap referenceMap) {}
   }
 
-  /** ReferenceCollectorTest$18 (testBehavior_hoistedFunctionsInReferenceOrder_false): body lines 675-684. */
+  /**
+   * ReferenceCollectorTest$18 (testBehavior_hoistedFunctionsInReferenceOrder_declaredBeforeFirstCall):
+   * body lines 709-734 at 51d8099.
+   */
   static final class Anon18 implements Behavior {
+    private final List<String> visitedReferenceNames = new ArrayList<>();
+
+          @Override
+          public void afterVisitNode(
+              NodeTraversal t, Node n, @Nullable Node parent, @Nullable Reference addedReference) {
+            if (addedReference != null) {
+              visitedReferenceNames.add(addedReference.getNode().getString());
+            }
+          }
+
+          @Override
+          public void afterExitScope(NodeTraversal t, ReferenceMap referenceMap) {
+            if (t.getScope().isGlobal()) {
+              ReferenceCollection z = referenceMap.getReferences(t.getScope().getVar("z"));
+              // TODO(b/581117790): Even with collectHoistedFunctionsInReferenceOrder = true,
+              // shouldTraverse() traverses `function f()` immediately on first AST encounter when
+              // `f` has not been referenced yet, recording the read of `z` inside `f()` before
+              // `let z;` rather than deferring traversal of `f()` until its first reference at
+              // `f();`.
+              assertThat(z)
+                  .comparingElementsUsing(IS_DECLARATION)
+                  .containsExactly(false, true)
+                  .inOrder();
+            }
+          }
+  }
+
+  /**
+   * ReferenceCollectorTest$19 (testBehavior_hoistedFunctionsInReferenceOrder_false): body lines
+   * 750-759 at 51d8099 (ReferenceCollectorTest$18, lines 675-684, before).
+   */
+  static final class Anon19 implements Behavior {
     private final List<String> visitedReferenceNames = new ArrayList<>();
 
           @Override
@@ -497,10 +543,10 @@ final class ReferenceCollectorTest_Helpers {
   }
 
   /**
-   * ReferenceCollectorTest$19 (testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter):
-   * body lines 708-721.
+   * ReferenceCollectorTest$20 (testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter):
+   * body lines 783-796 at 51d8099 (ReferenceCollectorTest$19, lines 708-721, before).
    */
-  static final class Anon19 implements Behavior {
+  static final class Anon20 implements Behavior {
     private final List<String> nonNullReferenceNames = new ArrayList<>();
     private final List<String> filteredOutNames = new ArrayList<>();
 
@@ -520,7 +566,7 @@ final class ReferenceCollectorTest_Helpers {
           public void afterExitScope(NodeTraversal t, ReferenceMap referenceMap) {}
   }
 
-  /** The varFilter lambda of testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter (line 700). */
+  /** The varFilter lambda of testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter (line 776 at 51d8099). */
   static final class VarFilter_testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter
       implements Predicate<Var> {
     @Override

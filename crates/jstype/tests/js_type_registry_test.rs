@@ -35,7 +35,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   test/com/google/javascript/rhino/jstype/JSTypeRegistryTest.java.
 
 use closure_jstype::{
@@ -131,6 +131,14 @@ fn test_get_built_in_type_generator() {
     let type_ = registry.get_global_type(&ast, "Generator").unwrap();
     let native = registry.get_native_type(JSTypeNative::GENERATOR_TYPE);
     TypeSubject::assert_type(type_).is_equal_to(&mut registry, &ast, native);
+}
+// port: JSTypeRegistryTest#testGeneratorExtendsIterator
+#[test]
+fn test_generator_extends_iterator() {
+    let (ast, mut registry) = set_up();
+    let generator = registry.get_native_type(JSTypeNative::GENERATOR_TYPE);
+    let iterator = registry.get_native_type(JSTypeNative::ITERATOR_TYPE);
+    assert!(generator.is_subtype_of(&mut registry, &ast, iterator));
 }
 // port: JSTypeRegistryTest#testGetBuiltInType_async_iterable
 #[test]

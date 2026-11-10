@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   test/com/google/javascript/jscomp/CodePrinterTest.java.
 
 #![allow(unused_mut)]
@@ -2640,42 +2640,17 @@ fn test_private_class_properties_usage() {
         "class C{static #f;static #m(){const t=this;#f in t}}",
     ));
 }
-// port: CodePrinterTest#testPrivateClassProperties_nonLatinNames_knownBug
+// port: CodePrinterTest#testPrivateClassProperties_nonLatinNames
 #[test]
-fn test_private_class_properties_non_latin_names_known_bug() {
+fn test_private_class_properties_non_latin_names() {
     let mut t = CodePrinterTestBase::new();
     // Expected behavior: each input prints unchanged. Private names are never quoted, because a
     // quoted name is a public property name. Non-Latin characters in method and field names are
     // escaped, as in other identifiers.
-    //
-    // TODO(b/236744850): Private method and getter names with non-Latin characters are quoted.
-    // Current behavior: `#\u00f1(){}` prints as `"#\u00f1"(){}`, and `get #\u00fc(){return 1}`
-    //   prints as `get "#\u00fc"(){return 1}`.
-    // Why it's a bug: the quoted names declare public members, not the private `#\u00f1` and
-    //   `#\u00fc`. Then a use like `this.#\u00f1()` in the class is a SyntaxError, because
-    //   `#\u00f1` is no longer declared.
-    t.assert_print(
-        JsString::from("class C{#\\u00f1(){}}"),
-        JsString::from("class C{\"#\\u00f1\"(){}}"),
-    );
-    t.assert_print(
-        JsString::from("class C{get #\\u00fc(){return 1}}"),
-        JsString::from("class C{get \"#\\u00fc\"(){return 1}}"),
-    );
-    // TODO(b/236744850): Non-Latin characters in field names are not escaped.
-    // Current behavior: `#\u00e9=1;` and `\u00e9=1;` print with the character U+00E9 itself
-    //   instead of the escape `\u00e9`.
-    // Why it's a bug: other identifiers are always printed in ASCII. The command-line compiler
-    //   writes its output in US-ASCII by default, which turns U+00E9 into `?`, and `#?=1;` and
-    //   `?=1;` are SyntaxErrors.
-    t.assert_print(
-        JsString::from("class C{#\\u00e9=1;}"),
-        JsString::from("class C{#\u{e9}=1;}"),
-    );
-    t.assert_print(
-        JsString::from("class C{\\u00e9=1;}"),
-        JsString::from("class C{\u{e9}=1;}"),
-    );
+    t.assert_print_same(JsString::from("class C{#\\u00f1(){}}"));
+    t.assert_print_same(JsString::from("class C{get #\\u00fc(){return 1}}"));
+    t.assert_print_same(JsString::from("class C{#\\u00e9=1;}"));
+    t.assert_print_same(JsString::from("class C{\\u00e9=1;}"));
 }
 // port: CodePrinterTest#testSuper
 #[test]

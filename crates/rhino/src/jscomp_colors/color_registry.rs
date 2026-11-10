@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/colors/ColorRegistry.java.
 
 use super::{Color, ColorId, standard_colors};
@@ -121,6 +121,14 @@ impl Builder {
         for id in REQUIRED_IDS.iter() {
             self.set_native_color(Color::single_builder().set_id(*id).build());
         }
+        // In ES2025 and externs, Generator extends Iterator (inheriting from %IteratorPrototype%).
+        // In real compilations this subtyping edge is populated by ColorPool from the type system;
+        // for testing, we record it explicitly so that passes checking native subtyping (such as
+        // PolyfillUsageFinder or property disambiguation) reflect that Generator is an Iterator
+        // subtype.
+        let generator = self.native_colors[&standard_colors::GENERATOR_ID].clone();
+        let iterator = self.native_colors[&standard_colors::ITERATOR_ID].clone();
+        self.add_disambiguation_edge(generator, iterator);
         self
     }
     // port: ColorRegistry.Builder#build

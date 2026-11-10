@@ -1,0 +1,17 @@
+{
+  "source": "test/com/google/javascript/jscomp/ClosureExportTypeClassifierTest.java getProcessor (lines 359-365), 51d8099",
+  "cases": [
+    {
+      "when": {},
+      "processor": {
+        "new": "com.google.javascript.jscomp.GatherModuleMetadata",
+        "args": [
+          {"compiler": true},
+          {"bool": false},
+          {"enum": "com.google.javascript.jscomp.deps.ModuleLoader$ResolutionMode", "name": "BROWSER"}
+        ]
+      }
+    }
+  ],
+  "note": "getProcessor returns the lambda (externs, root) -> new GatherModuleMetadata(compiler, /* processCommonJsModules= */ false, ResolutionMode.BROWSER).process(externs, root); the pass is built before process here, which is the same because its constructor has no side effects, and --mutate-noop reaches it. setUp (lines 353-357) calls setLanguageOut(ECMASCRIPT5), replayed from harness.fields. The test is parameterized: each case makes one testSame call (records testExportType[<case>]) and then classifies the goog.module 'm' with ClosureExportTypeClassifier.classify on its module metadata's root node; that post-call assertion is classified in corpus/unit/postcall/ClosureExportTypeClassifierTest.json."
+}

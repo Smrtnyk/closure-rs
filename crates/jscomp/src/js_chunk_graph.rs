@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/JSChunkGraph.java.
 
 #![allow(clippy::needless_late_init)]
@@ -669,6 +669,11 @@ impl JSChunkGraph {
                 .collect();
             for view in sorter.get_sorted_weak_dependencies_of(&roots) {
                 let input = view.input;
+                if input.is_extern() {
+                    // Extern inputs will be hoisted into externsRoot after manageDependencies; do
+                    // not overwrite SourceKind.EXTERN or place them in the weak chunk.
+                    continue;
+                }
                 assert!(input.get_chunk().is_none());
                 input
                     .get_source_file()

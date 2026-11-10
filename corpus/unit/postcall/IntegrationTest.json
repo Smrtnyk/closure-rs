@@ -67,6 +67,16 @@
    "note": "Review round 3 reclassification (was rust_unit_test; the reason names observed state replay compares): integration record: the asserted value (compiler.toSource() equals the exact expected text (pseudo-named testSuite export)) is in the record's observed.output, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions, so it cannot be declared captured; harness request filed to accept observed.output as a via for integration records."
   },
   {
+   "method": "testGenerateIjsWithHoistedExternsInChunks",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.warnings",
+    "observed.chunkOutputs"
+   ],
+   "note": "After compile (GENERATE_IJS, two chunks) the test checks that there are no errors or warnings (checkUnexpectedErrorsOrWarnings, 0) and asserts compiler.toSource(JSChunk) of the first and second chunk of compiler.getChunks(). observed.chunkOutputs holds toSource of every chunk by name, observed.errors and observed.warnings the diagnostics. Source lines 4356-4388 (1 record)."
+  },
+  {
    "method": "testGetOriginalQualifiedNameAfterEs6RewriteClasses",
    "status": "rust_unit_test",
    "reason": "asserts on Node.getOriginalQualifiedName()/getOriginalName() of a GETPROP in the compiled AST (original-name properties of output AST nodes); integration records have no postCall snapshot, so nothing replay compares holds it.",

@@ -42,7 +42,7 @@ CheckGoogJsImportTest	21	21	0	0
 CheckGoogModuleTypeScriptNameTest	5	5	0	0
 CheckInterfacesTest	34	34	0	0
 CheckJSDocStyleTest	232	232	0	0
-CheckJsDocTest	297	297	0	0
+CheckJsDocTest	303	303	0	0
 CheckMissingRequiresTest	120	120	0	0
 CheckMissingReturnTest	139	139	0	0
 CheckMissingSemicolonTest	21	21	0	0
@@ -71,7 +71,8 @@ ClosureBundlerTest	0	0	0	0
 ClosureCheckModuleTest	110	110	0	0
 ClosureCodeRemovalTest	22	22	0	0
 ClosureCodingConventionTest	0	0	0	0
-ClosureIntegrationTest	90	0	90	0
+ClosureExportTypeClassifierTest	75	75	0	0
+ClosureIntegrationTest	91	0	91	0
 ClosureOptimizePrimitivesTest	42	42	0	0
 ClosurePrimitivesIntegrationTest	4	0	4	0
 ClosureReverseAbstractInterpreterTest	0	0	0	0
@@ -202,9 +203,9 @@ InlineObjectLiteralsTest	104	104	0	0
 InlinePropertiesTest	56	56	0	0
 InlineSimpleMethodsTest	83	83	0	0
 InlineVariablesConstantsTest	31	31	0	0
-InlineVariablesTest	276	276	0	0
+InlineVariablesTest	282	282	0	0
 InstrumentAsyncContextTest	49	49	0	0
-IntegrationTest	342	0	342	0
+IntegrationTest	345	0	345	0
 InvalidatingTypesTest	0	0	0	0
 IsolatePolyfillsTest	57	57	0	0
 J2clAssertRemovalPassTest	3	3	0	0
@@ -287,7 +288,7 @@ PeepholeIntegrationTest	270	270	0	0
 PeepholeMinimizeConditionsTest	372	372	0	0
 PeepholeOptimizationsPassTest	12	12	0	0
 PeepholeRemoveDeadCodeTest	627	627	0	0
-PeepholeReplaceKnownMethodsTest	850	850	0	0
+PeepholeReplaceKnownMethodsTest	859	859	0	0
 PeepholeSubstituteAlternateSyntaxTest	255	255	0	0
 PerformanceTrackerTest	0	0	0	0
 PhaseOptimizerTest	0	0	0	0
@@ -313,7 +314,7 @@ PureFunctionIdentifierTest	477	477	0	0
 QualifiedNameTest	0	0	0	0
 RandomNameGeneratorTest	0	0	0	0
 RecordTypeTest	0	0	0	0
-ReferenceCollectorTest	34	34	0	0
+ReferenceCollectorTest	35	35	0	0
 RegExpTreeTest	0	0	0	0
 RemoveCastNodesTest	2	2	0	0
 RemovePropertyRenamingCallsTest	2	2	0	0

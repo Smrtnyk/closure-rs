@@ -2,8 +2,8 @@ closure-rs
 ==========
 
 closure-rs is a Rust port of the Closure Compiler (https://github.com/google/closure-compiler),
-translated from its Java sources at release v20261102, commit
-977e2cfbb93843d87325fbf94e67cc761773684c (2026-11-02; npm google-closure-compiler 20261102.0.0).
+translated from its Java sources at release v20261108, commit
+51d8099391498ee0fd730c24bff9d983ccc4aac8 (2026-11-06; npm google-closure-compiler 20261108.0.0).
 It is an independent project and is not affiliated with, endorsed by, or published by Google.
 
 Besides Closure Compiler itself, closure-rs translates parts of the Java libraries Closure Compiler

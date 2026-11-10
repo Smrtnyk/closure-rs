@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/NodeTraversal.java,
 //   src/com/google/javascript/jscomp/ijs/ConvertToTypedInterface.java,
 //   src/com/google/javascript/jscomp/ijs/ProcessConstJsdocCallback.java.
@@ -159,6 +159,8 @@ impl ConvertToTypedInterface {
         let source_file_name = script_node.get_source_file_name(compiler);
         if AbstractCompiler::is_fill_file_name(source_file_name.as_deref().unwrap_or_default()) {
             script_node.detach(compiler);
+            compiler.report_change_to_change_scope(script_node);
+            script_node.set_deleted(compiler, true);
             return;
         }
 
@@ -239,10 +241,9 @@ impl CompilerPass for ConvertToTypedInterface {
     fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
         let mut script = root.get_first_child(compiler);
         while let Some(s) = script {
+            let next = s.get_next(compiler);
             self.process_file(compiler, s);
-            // As in Java, the next sibling is read after processFile (a detached fill file has
-            // none, which ends the loop).
-            script = s.get_next(compiler);
+            script = next;
         }
     }
 }

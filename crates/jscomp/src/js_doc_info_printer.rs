@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/JSDocInfoPrinter.java.
 
 #![allow(clippy::collapsible_if)] // Retain Java nested conditionals.
@@ -375,6 +375,10 @@ impl JSDocInfoPrinter {
         }
         if info.is_ng_inject() {
             parts.push(units("@ngInject"));
+        }
+
+        if info.is_legacy_named_ts_export() {
+            parts.push(units("@legacyNamedTsExport"));
         }
 
         for ts_type in info.get_ts_types() {

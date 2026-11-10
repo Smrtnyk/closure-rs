@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/PeepholeReplaceKnownMethods.java.
 
 //! Port of `PeepholeReplaceKnownMethods.java`.
@@ -366,6 +366,10 @@ impl PeepholeReplaceKnownMethods {
                         && (arg < 0.0 || (arg == 0.0 && (arg.to_bits() as i64) < 0))
                     {
                         replacement = Some(-0.0);
+                    } else if arg == arg.floor() {
+                        // Already an integer. Math.round(double) saturates at the long range, so
+                        // it would turn e.g. 1e20 into 2^63.
+                        replacement = Some(arg);
                     } else {
                         replacement = Some(math::round(arg) as f64);
                     }
@@ -1811,9 +1815,11 @@ impl PeepholeReplaceKnownMethods {
         let mut limit = string_value.length() as i32 + 1;
 
         if let Some(arg1) = arg1 {
-            if arg1.is_string_lit(compiler) {
-                separator = Some(arg1.get_string(compiler));
-            } else if !arg1.is_null(compiler) {
+            if arg1.is_string_lit(compiler) || arg1.is_null(compiler) {
+                // Only `undefined` means "no separator"; any other value is converted with
+                // ToString, so `str.split(null)` splits on the text "null".
+                separator = NodeUtil::get_string_value(compiler, arg1);
+            } else {
                 return n;
             }
 

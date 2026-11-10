@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/parsing/JsDocInfoParser.java.
 
 //! Port of com.google.javascript.jscomp.parsing.JsDocInfoParser.
@@ -789,6 +789,12 @@ impl<'a> JsDocInfoParser<'a> {
                 }
                 return self.eat_until_eol_if_not_annotation();
             }
+            Annotation::LEGACY_NAMED_TS_EXPORT => {
+                if !self.jsdoc_builder.record_legacy_named_ts_export() {
+                    self.add_parser_warning(ast, Msg::JSDOC_LEGACY_TS_EXPORT);
+                }
+                return self.eat_until_eol_if_not_annotation();
+            }
             Annotation::NO_COLLAPSE => {
                 if !self.jsdoc_builder.record_no_collapse() {
                     self.add_parser_warning(ast, Msg::JSDOC_NOCOLLAPSE);
@@ -965,7 +971,11 @@ impl<'a> JsDocInfoParser<'a> {
                         token = self.next();
                         if token == JsDocToken::EQUALS {
                             token = self.next();
-                            if token == JsDocToken::STRING {
+                            if token != JsDocToken::RIGHT_SQUARE
+                                && token != JsDocToken::EOL
+                                && token != JsDocToken::EOC
+                                && token != JsDocToken::EOF
+                            {
                                 token = self.next();
                             }
                         }

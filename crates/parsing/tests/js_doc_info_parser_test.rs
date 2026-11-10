@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/NodeUtil.java,
 //   test/com/google/javascript/jscomp/parsing/JsDocInfoParserTest.java.
 
@@ -2612,6 +2612,25 @@ fn test_parse_no_dts2() {
         JsDocParsing::INCLUDE_DESCRIPTIONS_NO_WHITESPACE,
         &[JsString::from("extra @nodts tag")],
     );
+}
+
+// port: JsDocInfoParserTest#testParseLegacyNamedTsExport
+#[test]
+fn test_parse_legacy_named_ts_export() {
+    let mut f = set_up();
+    let doc = f.parse(JsString::from("@legacyNamedTsExport*/"), &[]);
+    assert!(doc.unwrap().is_legacy_named_ts_export());
+}
+
+// port: JsDocInfoParserTest#testParseLegacyNamedTsExport_duplicate
+#[test]
+fn test_parse_legacy_named_ts_export_duplicate() {
+    let mut f = set_up();
+    let doc = f.parse(
+        JsString::from("@legacyNamedTsExport\n@legacyNamedTsExport*/"),
+        &[JsString::from("extra @legacyNamedTsExport tag")],
+    );
+    assert!(doc.unwrap().is_legacy_named_ts_export());
 }
 
 // port: JsDocInfoParserTest#testBugAnnotation
@@ -10925,6 +10944,81 @@ fn test_unsupported_js_doc_syntax1() {
     };
     assert_eq!(
         ((info.clone()).unwrap()).get_description_for_parameter(JsString::from("accessLevel")),
+        Some(JsString::from("The user level"))
+    );
+}
+
+// port: JsDocInfoParserTest#testUnsupportedJsDocSyntaxWithDelimiterDefaultValue
+#[test]
+fn test_unsupported_js_doc_syntax_with_delimiter_default_value() {
+    let mut f = set_up();
+    for default_value in ["(", ")"] {
+        let info = f.parse_with_documentation(
+            JsString::from(format!(
+                "@param {{string}} [accessLevel={default_value}] The user level */"
+            )),
+            true,
+            &[],
+        );
+        assert_eq!(info.clone().unwrap().get_parameter_count(), 1);
+        {
+            let arg0 = {
+                let arg0 = f.types.string_type;
+                f.types.create_optional_type(arg0)
+            };
+            let arg1 = info
+                .clone()
+                .unwrap()
+                .get_parameter_type(JsString::from("accessLevel"))
+                .unwrap();
+            f.types.assert_type_equals_expression(arg0, &arg1)
+        };
+        assert_eq!(
+            info.unwrap()
+                .get_description_for_parameter(JsString::from("accessLevel")),
+            Some(JsString::from("The user level"))
+        );
+    }
+}
+
+// port: JsDocInfoParserTest#testUnsupportedJsDocSyntaxWithDelimiterDefaultValue_missingClosingBracket
+#[test]
+fn test_unsupported_js_doc_syntax_with_delimiter_default_value_missing_closing_bracket() {
+    let mut f = set_up();
+    for default_value in ["(", ")"] {
+        f.parse(
+            JsString::from(format!("@param {{string}} [accessLevel={default_value} */")),
+            &[JsString::from("Bad type annotation. missing closing ]")
+                .concat(&JsString::from(BAD_TYPE_WIKI_LINK))],
+        );
+    }
+}
+
+// port: JsDocInfoParserTest#testUnsupportedJsDocSyntaxWithEmptyDefaultValue
+#[test]
+fn test_unsupported_js_doc_syntax_with_empty_default_value() {
+    let mut f = set_up();
+    let info = f.parse_with_documentation(
+        JsString::from("@param {string} [accessLevel=] The user level */"),
+        true,
+        &[],
+    );
+    assert_eq!(info.clone().unwrap().get_parameter_count(), 1);
+    {
+        let arg0 = {
+            let arg0 = f.types.string_type;
+            f.types.create_optional_type(arg0)
+        };
+        let arg1 = info
+            .clone()
+            .unwrap()
+            .get_parameter_type(JsString::from("accessLevel"))
+            .unwrap();
+        f.types.assert_type_equals_expression(arg0, &arg1)
+    };
+    assert_eq!(
+        info.unwrap()
+            .get_description_for_parameter(JsString::from("accessLevel")),
         Some(JsString::from("The user level"))
     );
 }

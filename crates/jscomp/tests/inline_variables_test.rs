@@ -29,7 +29,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/InlineVariablesTest.java.
 // Ported from closure-rs' own Java oracle tooling:
@@ -3079,6 +3079,98 @@ fn test_field_declared_const_assigned_inside_instance_field_initializer_local() 
   alert(1);
   return new C();
 }
+"#,
+    );
+}
+
+// port: InlineVariablesTest#testNeverAssignedLetAndVar_referencedInEarlierHoistedFunction
+#[test]
+fn test_never_assigned_let_and_var_referenced_in_earlier_hoisted_function() {
+    let mut t = InlineVariablesTest::set_up();
+    // Baseline: when declared lexically before `isDebugMode`, never-assigned `let` folds to
+    // `void 0`.
+    t.test(
+        r#"let googDebugOverride;
+function isDebugMode() {
+  return googDebugOverride ?? false;
+}
+use(isDebugMode());
+use(isDebugMode());
+"#,
+        r#"function isDebugMode() {
+  return void 0 ?? false;
+}
+use(isDebugMode());
+use(isDebugMode());
+"#,
+    );
+
+    // TODO(b/581117790): InlineVariables fails to inline never-assigned `let` or `var` to `void 0`
+    // when a hoisted function declared earlier in AST order reads it, even when the function is
+    // only called after the declaration (because ReferenceCollector visits `isDebugMode` before
+    // `googDebugOverride`, causing StandardVarExpert#hasValidDeclaration to reject
+    // `references.get(0)`).
+    t.test_same(
+        r#"function isDebugMode() {
+  return googDebugOverride ?? false;
+}
+let googDebugOverride;
+use(isDebugMode());
+use(isDebugMode());
+"#,
+    );
+    t.test_same(
+        r#"function isDebugMode() {
+  return googDebugOverride ?? false;
+}
+var googDebugOverride;
+use(isDebugMode());
+use(isDebugMode());
+"#,
+    );
+
+    // Soundness guard: calling `isDebugMode()` before `let googDebugOverride;` executes throws a
+    // TDZ ReferenceError at runtime and must not be folded to `void 0`.
+    t.test_same(
+        r#"function isDebugMode() {
+  return googDebugOverride ?? false;
+}
+use(isDebugMode());
+use(isDebugMode());
+let googDebugOverride;
+"#,
+    );
+}
+
+// port: InlineVariablesTest#testHoistedFunctionDeclaredBeforeInitializedVar
+#[test]
+fn test_hoisted_function_declared_before_initialized_var() {
+    let mut t = InlineVariablesTest::set_up();
+    // Mirror of `testHoistedFunction6` with hoisted functions placed at the top of the scope.
+    // TODO(b/581117790): Because ReferenceCollector traverses `b` and `a` at their declaration
+    // sites rather than at `a()`, `debug` is not considered well-defined and fails to inline `1`.
+    t.test_same(
+        r#"function b() { return debug; }
+function a() { return b(); }
+var debug = 1;
+a();
+a();
+"#,
+    );
+}
+
+// port: InlineVariablesTest#testNeverAssignedVar_referencedInEarlierArrowFunction
+#[test]
+fn test_never_assigned_var_referenced_in_earlier_arrow_function() {
+    let mut t = InlineVariablesTest::set_up();
+    // TODO(b/581117790): `var` has no temporal dead zone, so a never-assigned `var` is
+    // unconditionally `undefined` throughout its hoist scope, but StandardVarExpert assumes
+    // `references.get(0)` is the declaration and fails to inline `void 0`.
+    t.test_same(
+        r#"const isDebugMode = () => googDebugOverride ?? false;
+var googDebugOverride;
+use(isDebugMode());
+use(isDebugMode());
 "#,
     );
 }

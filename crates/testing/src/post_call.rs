@@ -45,6 +45,7 @@ const COMPILER_PLAIN: &[&str] = &[
     "injectedLibraries",
     "allowableFeatures",
     "moduleMapBoundNames",
+    "googModuleExportTypes",
 ];
 
 /// `postCall.pass` keys (result producers) whose values are tagged [`Value`]s.
@@ -89,6 +90,8 @@ pub enum PostCallValue {
     Strings(Vec<JsString>),
     /// `moduleMapBoundNames`: module path -> bound local names.
     ModuleMapBoundNames(IndexMap<String, Vec<JsString>>),
+    /// `googModuleExportTypes`: goog namespace -> `ClosureExportTypeClassifier.TsExportType` name.
+    GoogModuleExportTypes(IndexMap<String, JsString>),
     /// `pass.idGeneratorMappings` (`getSerializedIdMappings()`) and `postcondition.externExport`
     /// (null when the result has none).
     Text(Option<JsString>),
@@ -507,6 +510,9 @@ fn plain_from_json(key: &str, v: &JsonValue, path: &str) -> ModelResult<PostCall
             PostCallValue::Strings(js_list(v, path)?)
         }
         "moduleMapBoundNames" => PostCallValue::ModuleMapBoundNames(map_of(v, path, js_list)?),
+        "googModuleExportTypes" => {
+            PostCallValue::GoogModuleExportTypes(map_of(v, path, as_js_string)?)
+        }
         "pass.idGeneratorMappings" | "externExport" => {
             PostCallValue::Text(as_opt_js_string(v, path)?)
         }
@@ -551,6 +557,9 @@ impl PostCallValue {
                     .map(|(k, x)| (k.clone(), js_list_to_json(x)))
                     .collect(),
             ),
+            PostCallValue::GoogModuleExportTypes(m) => {
+                JsonValue::Object(m.iter().map(|(k, x)| (k.clone(), js(x))).collect())
+            }
             PostCallValue::Text(t) => opt_js(t),
             PostCallValue::ReferenceMap(l) => arr(l, ReferenceMapSymbol::to_json),
             PostCallValue::CrossChunkReferences(c) => c.to_json(),

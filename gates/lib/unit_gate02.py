@@ -1360,7 +1360,7 @@ def _postcall_key(rec, via):
 
 # Integration records may claim the observed state replay compares JSON-equal
 # (FORMAT.md "corpus/unit/postcall/<Class>.json").
-OBSERVED_VIA = ("observed.errors", "observed.warnings", "observed.output")
+OBSERVED_VIA = ("observed.errors", "observed.warnings", "observed.output", "observed.chunkOutputs")
 # A rust_unit_test reason containing one of these is rejected (lower-case match).
 RUT_REJECT_MARKERS = ("not java-internal", "not a java-internal", "interim", "provisional",
                       # Reasons that say the value is capturable or already replayed, or

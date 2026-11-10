@@ -422,9 +422,9 @@ const NATIVE_EXPECTATIONS: &[(JSTypeNative, &str, &str, &str, Option<&str>)] = &
     ),
     (
         JSTypeNative::GENERATOR_FUNCTION_TYPE,
-        "function(this:Generator): ?",
-        "function(this:Generator): ?",
-        "function(this:Generator): ?",
+        "function(new:Generator): ?",
+        "function(new:Generator): ?",
+        "function(new:Generator): ?",
         Some("Generator"),
     ),
     (

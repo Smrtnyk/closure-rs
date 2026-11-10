@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/ijs/ClassUtil.java.
 
 //! Port of `com.google.javascript.jscomp.ijs.ClassUtil`: static utility methods for dealing with
@@ -51,6 +51,11 @@ impl ClassUtil {
     // port: ClassUtil#getClassNameOfThisProp
     fn get_class_name_of_this_prop(ast: &Ast, getprop: NodeId) -> Option<JsString> {
         if !getprop.is_get_prop(ast) || !getprop.get_first_child(ast).unwrap().is_this(ast) {
+            return None;
+        }
+        if getprop.is_private_identifier(ast) {
+            // `C.prototype.#x` would be a SyntaxError, because a private name is valid only inside
+            // the class body.
             return None;
         }
         let function = NodeUtil::get_enclosing_function(ast, getprop)?;

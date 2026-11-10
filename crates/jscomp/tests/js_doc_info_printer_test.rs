@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   test/com/google/javascript/jscomp/JSDocInfoPrinterTest.java.
 
 #![allow(unused_mut)]
@@ -1237,6 +1237,22 @@ fn test_ng_inject() {
     builder.record_ng_inject(true);
     let mut info = builder.build_and_reset().unwrap();
     assert_eq!(js_doc_info_printer.print(&ast, &info), "/** @ngInject */ ");
+}
+
+// port: JSDocInfoPrinterTest#testLegacyNamedTsExport
+#[test]
+fn test_legacy_named_ts_export() {
+    let ast = Ast::default();
+    let mut builder = JSDocInfo::builder();
+    builder.parse_documentation();
+    let js_doc_info_printer = JSDocInfoPrinter::new_with_print_desc(false, true);
+
+    assert!(builder.record_legacy_named_ts_export());
+    let info = builder.build_and_reset().unwrap();
+    assert_eq!(
+        js_doc_info_printer.print(&ast, &info),
+        "/** @legacyNamedTsExport */ "
+    );
 }
 
 // port: JSDocInfoPrinterTest#testTsType

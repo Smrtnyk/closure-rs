@@ -118,11 +118,37 @@ pub fn replay(
                     .to_vec(),
             ))
         };
-        result.observed = crate::replay::replay_values::object([
+        let mut observed = vec![
             ("errors", errors(&c.get_errors())),
             ("warnings", errors(&c.get_warnings())),
             ("output", output),
-        ]);
+        ];
+        // observed.chunkOutputs (FORMAT.md "observed"): {chunk name: toSource(chunk)} for every
+        // chunk, when the compilation has two or more chunks besides the weak chunk.
+        if c.get_root().is_some()
+            && let Some(chunks) = c.get_chunks()
+            && chunks
+                .iter()
+                .filter(|chunk| chunk.get_name() != closure_jscomp::js_chunk::WEAK_CHUNK_NAME)
+                .count()
+                >= 2
+        {
+            let mut outputs = IndexMap::<_, _>::default();
+            for chunk in &chunks {
+                let source = c.to_source_for_chunk(chunk);
+                outputs.insert(
+                    chunk.get_name(),
+                    JsonValue::String(crate::json::JsString(source.as_units().to_vec())),
+                );
+            }
+            observed.push(("chunkOutputs", JsonValue::Object(outputs)));
+        }
+        result.observed = JsonValue::Object(
+            observed
+                .into_iter()
+                .map(|(key, value)| (key.to_owned(), value))
+                .collect(),
+        );
     }
     Ok(result)
 }

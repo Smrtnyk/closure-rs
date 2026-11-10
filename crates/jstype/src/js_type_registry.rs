@@ -36,7 +36,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/rhino/jstype/JSTypeRegistry.java.
 
 // Preserve Java branch structure and API arity.
@@ -2386,26 +2386,35 @@ impl JSTypeRegistry {
         self.generator_return_template = Some(builtin_167);
         let builtin_168 = self.create_template_type(ast, "TNext");
         let generator_next_template = builtin_168;
-        let builtin_169 = self.native_interface(
-            ast,
-            "Generator",
-            &[
-                self.generator_value_template.unwrap(),
-                self.generator_return_template.unwrap(),
-                generator_next_template,
-            ],
-        );
+        let builtin_169 = self.native_constructor_builder("Generator");
+        let builtin_169 = builtin_169.with_parameters(vec![]);
+        let builtin_169_template_keys = vec![
+            self.generator_value_template.unwrap(),
+            self.generator_return_template.unwrap(),
+            generator_next_template,
+        ];
+        let builtin_169 = builtin_169.with_template_keys(self, ast, builtin_169_template_keys);
+        let builtin_169 = builtin_169.build(self, ast);
         let generator_function_type = builtin_169;
         let builtin_170 = self.create_templatized_type(
             ast,
-            iterator_iterable_type,
+            iterator_type,
             &[
                 self.generator_value_template.unwrap(),
                 self.generator_return_template.unwrap(),
                 generator_next_template,
             ],
         );
-        generator_function_type.set_extended_interfaces(self, ast, vec![builtin_170]);
+        let iterator_of_generator = builtin_170;
+        let builtin_171 = PrototypeObjectTypeBuilder::new()
+            .set_name("Generator.prototype")
+            .set_native(true)
+            .set_implicit_prototype(Some(iterator_of_generator))
+            .build(self, ast);
+        let generator_prototype = builtin_171;
+        generator_function_type.set_prototype(self, ast, Some(generator_prototype), None);
+        let builtin_172 = generator_function_type.get_instance_type(self).unwrap();
+        builtin_172.merge_supertype_template_types(self, ast, iterator_of_generator);
         self.register_native_type(
             JSTypeNative::GENERATOR_FUNCTION_TYPE,
             generator_function_type,

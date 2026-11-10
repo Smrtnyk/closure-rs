@@ -1,0 +1,15 @@
+{
+ "v": 1,
+ "class": "com.google.javascript.jscomp.ClosureExportTypeClassifierTest",
+ "methods": [
+  {
+   "method": "testExportType",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.googModuleExportTypes",
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "After the hooked testSame of each parameterized case the test looks up the goog.module 'm' in getLastCompiler().getModuleMetadataMap().getModulesByGoogNamespace() (isNotNull) and asserts ClosureExportTypeClassifier.classify(m.rootNode(), \"m\"). postCall.compiler.googModuleExportTypes holds that classification for every goog.module of the map, and postCall.compiler.moduleMetadataByPath the module's metadata with its namespace. Source lines 367-376 (75 records, one per case)."
+  }
+ ]
+}

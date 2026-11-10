@@ -35,7 +35,7 @@
 //   oracle/replay/helpers/com/google/javascript/jscomp/ReferenceCollectorTest_Helpers.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/AbstractVar.java,
 //   src/com/google/javascript/jscomp/Reference.java,
 //   src/com/google/javascript/jscomp/ReferenceCollection.java,
@@ -447,7 +447,7 @@ pub fn reference_collector(_ctx: &mut Ctx, args: Vec<DslValue>) -> Result<DslVal
     ))))
 }
 
-// port: ReferenceCollectorTest_Helpers.Anon17#afterVisitNode / Anon18#afterVisitNode
+// port: ReferenceCollectorTest_Helpers.Anon17#afterVisitNode / Anon18#afterVisitNode / Anon19#afterVisitNode
 fn visit_added_reference_names(
     lists: &mut [Vec<JsString>; 2],
     t: &mut NodeTraversal<'_>,
@@ -459,7 +459,7 @@ fn visit_added_reference_names(
     }
 }
 
-// port: ReferenceCollectorTest_Helpers.Anon19#afterVisitNode
+// port: ReferenceCollectorTest_Helpers.Anon20#afterVisitNode
 fn visit_names_by_filter_result(
     lists: &mut [Vec<JsString>; 2],
     t: &mut NodeTraversal<'_>,
@@ -475,12 +475,27 @@ fn visit_names_by_filter_result(
     }
 }
 
-// port: ReferenceCollectorTest_Helpers.Anon17#afterExitScope (and Anon18, Anon19): empty
+// port: ReferenceCollectorTest_Helpers.Anon17#afterExitScope (and Anon19, Anon20): empty
 fn no_check(_t: &mut NodeTraversal<'_>, _rm: &dyn ReferenceMap) -> Result<(), Throwable> {
     Ok(())
 }
 
-const BEHAVIORS: [(&str, crate::replay::registry::Entry); 31] = [
+// port: ReferenceCollectorTest_Helpers.Anon18#afterExitScope
+fn anon18(t: &mut NodeTraversal<'_>, rm: &dyn ReferenceMap) -> Result<(), Throwable> {
+    let scope = t.get_scope();
+    if scope.is_global(t.get_compiler()) {
+        let z = refs(t, rm, "z")?;
+        // TODO(b/581117790): Even with collectHoistedFunctionsInReferenceOrder = true,
+        // shouldTraverse() traverses `function f()` immediately on first AST encounter when
+        // `f` has not been referenced yet, recording the read of `z` inside `f()` before
+        // `let z;` rather than deferring traversal of `f()` until its first reference at
+        // `f();`.
+        declarations_are(t, z, &[false, true])?;
+    }
+    Ok(())
+}
+
+const BEHAVIORS: [(&str, crate::replay::registry::Entry); 32] = [
     ("Anon1", |_, a| new_behavior(&a, "Anon1", anon1)),
     ("Anon2", |_, a| new_behavior(&a, "Anon2", anon2)),
     ("Anon3", |_, a| new_behavior(&a, "Anon3", anon3)),
@@ -500,10 +515,13 @@ const BEHAVIORS: [(&str, crate::replay::registry::Entry); 31] = [
         new_visiting_behavior(&a, "Anon17", no_check, Some(visit_added_reference_names))
     }),
     ("Anon18", |_, a| {
-        new_visiting_behavior(&a, "Anon18", no_check, Some(visit_added_reference_names))
+        new_visiting_behavior(&a, "Anon18", anon18, Some(visit_added_reference_names))
     }),
     ("Anon19", |_, a| {
-        new_visiting_behavior(&a, "Anon19", no_check, Some(visit_names_by_filter_result))
+        new_visiting_behavior(&a, "Anon19", no_check, Some(visit_added_reference_names))
+    }),
+    ("Anon20", |_, a| {
+        new_visiting_behavior(&a, "Anon20", no_check, Some(visit_names_by_filter_result))
     }),
     ("Lambda_testIterableRest_declaration", |_, a| {
         new_behavior(

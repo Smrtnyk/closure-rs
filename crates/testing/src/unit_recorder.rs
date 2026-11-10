@@ -30,7 +30,7 @@
  */
 // Ported from closure-rs' own Java oracle tooling:
 //   UnitRecorder.java (oracle/patches/0002-recording-hooks.patch).
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/Compiler.java.
 
 //! UnitRecorder's error and post-call projections, recomputed from live state.
@@ -355,6 +355,7 @@ pub fn post_call_snapshot(
             "packageJsonMainEntries",
             "typedPercent",
             "moduleMapBoundNames",
+            "googModuleExportTypes",
         ] {
             match compiler_snapshot_value(&mut c.borrow_mut(), key) {
                 Ok(Some(value)) => {
@@ -362,7 +363,9 @@ pub fn post_call_snapshot(
                         "typeMismatches" | "injectedLibraries" => {
                             value.as_array().is_some_and(|a| !a.is_empty())
                         }
-                        "moduleMapBoundNames" => value.as_object().is_some_and(|o| !o.is_empty()),
+                        "moduleMapBoundNames" | "googModuleExportTypes" => {
+                            value.as_object().is_some_and(|o| !o.is_empty())
+                        }
                         "packageJsonMainEntries" => value
                             .get("map")
                             .and_then(JsonValue::as_array)
@@ -825,6 +828,31 @@ fn compiler_snapshot_value(
                     })
                     .collect(),
             )
+        }),
+        // getModuleMetadataMap().getModulesByGoogNamespace() -> ClosureExportTypeClassifier
+        // .classify(rootNode, namespace).name() for the goog.modules whose root is a SCRIPT with a
+        // MODULE_BODY first child (the classifier's precondition).
+        "googModuleExportTypes" => c.get_module_metadata_map().cloned().map(|mm| {
+            let mut types = IndexMap::<_, _>::default();
+            for (namespace, m) in mm.get_modules_by_goog_namespace() {
+                let Some(root) = m.root_node() else {
+                    continue;
+                };
+                if m.is_goog_module()
+                    && root.is_script(c)
+                    && root
+                        .get_first_child(c)
+                        .is_some_and(|first| first.is_module_body(c))
+                {
+                    let namespace = namespace.to_string();
+                    let export_type =
+                        closure_jscomp::closure_export_type_classifier::ClosureExportTypeClassifier::classify(
+                            c, root, &namespace,
+                        );
+                    types.insert(namespace, JsonValue::str(&format!("{export_type:?}")));
+                }
+            }
+            JsonValue::Object(types)
         }),
         "externExport" => c.get_result().extern_export.map(|s| JsonValue::str(&s)),
         _ => {

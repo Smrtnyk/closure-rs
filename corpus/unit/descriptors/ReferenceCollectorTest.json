@@ -923,6 +923,36 @@
             ]
           },
           {
+            "field": "varFilter"
+          },
+          {
+            "field": "collectHoistedFunctionsInReferenceOrder"
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "testFields.behavior.object": "com.google.javascript.jscomp.ReferenceCollectorTest$20"
+      },
+      "processor": {
+        "new": "com.google.javascript.jscomp.ReferenceCollector",
+        "args": [
+          {
+            "compiler": true
+          },
+          {
+            "helper": "ReferenceCollectorTest_Helpers.Anon20"
+          },
+          {
+            "new": "com.google.javascript.jscomp.SyntacticScopeCreator",
+            "args": [
+              {
+                "compiler": true
+              }
+            ]
+          },
+          {
             "helper": "ReferenceCollectorTest_Helpers.VarFilter_testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter"
           },
           {
@@ -960,5 +990,5 @@
       }
     }
   ],
-  "note": "The behavior field holds an anonymous Behavior class (recorded as {object: ReferenceCollectorTest$N}) or a lambda (recorded as unrepresentable). Both are copied verbatim into ReferenceCollectorTest_Helpers: anonymous classes are selected by their recorded class name, lambdas by the test method (each lambda test makes exactly one testBehavior call, so the method identifies the lambda). The last case covers a null/decodable behavior field (none recorded). The varFilter field is recorded as the enum Predicates$ObjectPredicate.ALWAYS_TRUE (Predicates.alwaysTrue()) except in testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter, whose lambda is the helper VarFilter_<testMethod>; that test is the only user of ReferenceCollectorTest$19. The SyntacticScopeCreator is created after the behavior is evaluated, unlike the test's local; neither constructor has side effects. Fix-2 (2026-10-07), gate 0.2 (a)/(e) plan: every assertion of this test runs inside the processor, in the Behavior callback's afterExitScope, and every record is a testSame record (no change, no diagnostics). With the processor replaced by a no-op the callbacks never run, so all 30 records pass, and the review-round-2 vacuity rule moves them to notCaptured. Nothing in the record changes when the pass is skipped: testFieldsAfter is empty in all 30 records, and postCall has only compiler.accessorSummary. The static post-call scan flags no method, so there is nothing to classify in corpus/unit/postcall/. The plan, requested in the fix-2 report: a recorder postCall producer pass.referenceMap for ReferenceCollector (per collected variable: name, declaring scope root position, and each reference's token, position, isDeclaration, isInitializingDeclaration and isLvalue, plus isAssignedOnceInLifetime and isWellDefined). That is exactly what the callbacks assert, and it is empty under a no-op."
+  "note": "The behavior field holds an anonymous Behavior class (recorded as {object: ReferenceCollectorTest$N}) or a lambda (recorded as unrepresentable). Both are copied verbatim into ReferenceCollectorTest_Helpers: anonymous classes are selected by their recorded class name, lambdas by the test method (each lambda test makes exactly one testBehavior call, so the method identifies the lambda). The last case covers a null/decodable behavior field (none recorded). The varFilter field is recorded as the enum Predicates$ObjectPredicate.ALWAYS_TRUE (Predicates.alwaysTrue()) except in testBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter, whose lambda is the helper VarFilter_<testMethod>; that test is the only user of ReferenceCollectorTest$20 (ReferenceCollectorTest$19 before v20261108, whose new testBehavior_hoistedFunctionsInReferenceOrder_declaredBeforeFirstCall made the anonymous classes after it, ReferenceCollectorTest$18 and $19, one number higher). The SyntacticScopeCreator is created after the behavior is evaluated, unlike the test's local; neither constructor has side effects. Fix-2 (2026-10-07), gate 0.2 (a)/(e) plan: every assertion of this test runs inside the processor, in the Behavior callback's afterExitScope, and every record is a testSame record (no change, no diagnostics). With the processor replaced by a no-op the callbacks never run, so all 30 records pass, and the review-round-2 vacuity rule moves them to notCaptured. Nothing in the record changes when the pass is skipped: testFieldsAfter is empty in all 30 records, and postCall has only compiler.accessorSummary. The static post-call scan flags no method, so there is nothing to classify in corpus/unit/postcall/. The plan, requested in the fix-2 report: a recorder postCall producer pass.referenceMap for ReferenceCollector (per collected variable: name, declaring scope root position, and each reference's token, position, isDeclaration, isInitializingDeclaration and isLvalue, plus isAssignedOnceInLifetime and isWellDefined). That is exactly what the callbacks assert, and it is empty under a no-op."
 }

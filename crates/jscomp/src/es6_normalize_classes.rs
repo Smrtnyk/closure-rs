@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/Es6NormalizeClasses.java.
 
 //! Port of `Es6NormalizeClasses.java`.
@@ -539,14 +539,6 @@ impl Es6NormalizeClasses {
         }
         t.get_scope_root().unwrap()
     }
-
-    /// Returns true if the node represents a private member declaration (field, method, or
-    /// accessor) with a private identifier starting with '#'.
-    // port: Es6NormalizeClasses#isPrivateMember
-    fn is_private_member(ast: &Ast, n: NodeId) -> bool {
-        n.is_private_identifier(ast)
-            || (n.has_children(ast) && n.get_first_child(ast).unwrap().is_private_identifier(ast))
-    }
 }
 
 impl CompilerPass for Es6NormalizeClasses {
@@ -620,7 +612,10 @@ impl Callback for Es6NormalizeClasses {
                     // of AST traversal order.
                     let mut member = class_members.get_first_child(t);
                     while let Some(m) = member {
-                        if Self::is_private_member(t, m) {
+                        // Private class members have PRIVATE_IDENTIFIER set on the member node
+                        // itself (whereas a computed member like `[this.#key] = 1` has a private
+                        // identifier inside its first child).
+                        if m.is_private_identifier(t) {
                             record.record_private_member(t, m);
                         }
                         member = m.get_next(t);

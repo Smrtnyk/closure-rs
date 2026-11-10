@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/CheckJSDoc.java,
 //   src/com/google/javascript/jscomp/NodeTraversal.java.
 
@@ -1037,6 +1037,36 @@ impl CheckJSDoc {
             );
         }
     }
+
+    // port: CheckJSDoc#validateLegacyNamedTsExport
+    /// Checks that @legacyNamedTsExport is only used on a goog.module or goog.provide call.
+    fn validate_legacy_named_ts_export(
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        info: Option<&JSDocInfo>,
+    ) {
+        let Some(info) = info else {
+            return;
+        };
+        if !info.is_legacy_named_ts_export() {
+            return;
+        }
+        let parent = n.get_parent(compiler);
+        if !n.is_call(compiler)
+            || !(NodeUtil::is_goog_module_call(compiler, parent.unwrap())
+                || NodeUtil::is_goog_provide_call(compiler, parent.unwrap()))
+        {
+            Self::report(
+                compiler,
+                n,
+                &MISPLACED_ANNOTATION,
+                &[
+                    "@legacyNamedTsExport",
+                    "must be on a goog.module or goog.provide call",
+                ],
+            );
+        }
+    }
 }
 
 impl Default for CheckJSDoc {
@@ -1095,6 +1125,7 @@ impl Callback for CheckJSDoc {
         Self::validate_ts_type(compiler, n, info);
         self.validate_js_doc_type_names(compiler, info);
         Self::validate_is_used_via_dot_constructor(compiler, n, info);
+        Self::validate_legacy_named_ts_export(compiler, n, info);
     }
 }
 

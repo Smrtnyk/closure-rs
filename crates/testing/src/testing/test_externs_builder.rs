@@ -28,7 +28,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/testing/TestExternsBuilder.java.
 // Ported from closure-rs' own Java oracle tooling:
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java.
@@ -261,10 +261,12 @@ Iterator.from = function(iterable) {};
  */
 Iterator.prototype.next;
 /**
+ * @override
  * @type {((function(T=): !IIterableResult<T>)|undefined)}
  */
 Iterator.prototype.return;
 /**
+ * @override
  * @type {((function(?=): !IIterableResult<T>)|undefined)}
  */
 Iterator.prototype.throw;
@@ -334,9 +336,12 @@ Iterator.prototype.every;
 Iterator.prototype.find;
 
 /**
- * @interface
- * @extends {IteratorIterable<T, ?, *>}
+ * @constructor
+ * @abstract
+ * @extends {Iterator<T, ?, *>}
  * @template T, TReturn, TNext
+ * @return {?} Needed because parseTestCode treats synthetic externs as
+ *     non-extern code and infers void return for empty function bodies.
  */
 function Generator() {}
 /**
@@ -346,11 +351,13 @@ function Generator() {}
  */
 Generator.prototype.next = function(opt_value) {};
 /**
+ * @override
  * @param {T=} value
  * @return {!IIterableResult<T>}
  */
 Generator.prototype.return = function(value) {};
 /**
+ * @override
  * @param {?=} exception
  * @return {!IIterableResult<T>}
  */

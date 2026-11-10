@@ -26,6 +26,7 @@ use crate::value::{
     DiagnosticGroupRef, DiagnosticTypeRef, FieldDump, SourceFile, Value, field_dump_from_json,
     field_dump_to_json,
 };
+use closure_rhino::fast_hash::IndexMap;
 
 /// FORMAT.md "Top-level fields" `kind`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -809,6 +810,9 @@ pub struct Observed {
     /// Integration: `compiler.toSource()`; `Some(None)` when it was null.
     #[allow(clippy::option_option)]
     pub output: Option<Option<JsString>>,
+    /// Integration: chunk name -> `compiler.toSource(chunk)` for every chunk of `getChunks()`,
+    /// when the compilation has two or more chunks besides the weak chunk.
+    pub chunk_outputs: Option<IndexMap<String, JsString>>,
     /// Integration: informational, never compared.
     pub compiler_class: Option<String>,
 }
@@ -825,12 +829,18 @@ impl Observed {
             .opt("output")
             .map(|x| as_opt_js_string(x, &p))
             .transpose()?;
+        let p = o.sub("chunkOutputs");
+        let chunk_outputs = o
+            .opt("chunkOutputs")
+            .map(|x| crate::reader::map_of(x, &p, crate::reader::as_js_string))
+            .transpose()?;
         let compiler_class = o.opt_string("compilerClass")?;
         o.finish()?;
         Ok(Observed {
             errors,
             warnings,
             output,
+            chunk_outputs,
             compiler_class,
         })
     }
@@ -840,6 +850,12 @@ impl Observed {
             .put("errors", arr(&self.errors, JSErrorDump::to_json))
             .put("warnings", arr(&self.warnings, JSErrorDump::to_json))
             .put_opt("output", self.output.as_ref().map(opt_js))
+            .put_opt(
+                "chunkOutputs",
+                self.chunk_outputs.as_ref().map(|m| {
+                    JsonValue::Object(m.iter().map(|(k, v)| (k.clone(), js(v))).collect())
+                }),
+            )
             .put_opt("compilerClass", self.compiler_class.as_deref().map(st))
             .build()
     }
