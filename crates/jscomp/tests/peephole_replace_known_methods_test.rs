@@ -911,6 +911,11 @@ fn test_fold_string_split() {
     t.fold("x = 'a b c d e'.split(' ', 1)", "x = ['a']");
     t.fold("x = 'a b c d e'.split(' ', 3)", "x = ['a','b','c']");
     t.fold("x = 'a b c d e'.split(null, 1)", "x = ['a b c d e']");
+    // A null separator is converted with ToString, so it splits on the text "null".
+    t.fold("x = 'anullb'.split(null)", "x = ['a','b']");
+    t.fold("x = 'null'.split(null)", "x = ['','']");
+    t.fold("x = 'anullbnullc'.split(null, 2)", "x = ['a','b']");
+    t.fold_same("x = 'anullb'.split(undefined)");
     t.fold("x = 'aaaaa'.split('a')", "x = ['', '', '', '', '', '']");
     t.fold("x = 'xyx'.split('x')", "x = ['', 'y', '']");
     // Empty separator
@@ -1142,6 +1147,12 @@ fn test_fold_math_functions_round() {
     t.fold("x = Math.round(-0.0)", "x = -0.0");
     t.fold("x = Math.round(0.0)", "x = 0");
     t.fold("x = Math.round(-0.51)", "x = -1");
+    t.fold("x = Math.round(1e20)", "x = 1e20");
+    t.fold("x = Math.round(-1e20)", "x = -1e20");
+    t.fold("x = Math.round(9.3e18)", "x = 9.3e18");
+    t.fold("x = Math.round(1e300)", "x = 1e300");
+    // (Number.MAX_SAFE_INTEGER / 2) = (2^52 - 0.5): largest non-integral double before ULP >= 1.0.
+    t.fold("x = Math.round(4503599627370495.5)", "x = 4503599627370496");
 }
 
 // port: PeepholeReplaceKnownMethodsTest#testFoldMathFunctions_sign
