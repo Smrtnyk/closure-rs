@@ -10948,6 +10948,81 @@ fn test_unsupported_js_doc_syntax1() {
     );
 }
 
+// port: JsDocInfoParserTest#testUnsupportedJsDocSyntaxWithDelimiterDefaultValue
+#[test]
+fn test_unsupported_js_doc_syntax_with_delimiter_default_value() {
+    let mut f = set_up();
+    for default_value in ["(", ")"] {
+        let info = f.parse_with_documentation(
+            JsString::from(format!(
+                "@param {{string}} [accessLevel={default_value}] The user level */"
+            )),
+            true,
+            &[],
+        );
+        assert_eq!(info.clone().unwrap().get_parameter_count(), 1);
+        {
+            let arg0 = {
+                let arg0 = f.types.string_type;
+                f.types.create_optional_type(arg0)
+            };
+            let arg1 = info
+                .clone()
+                .unwrap()
+                .get_parameter_type(JsString::from("accessLevel"))
+                .unwrap();
+            f.types.assert_type_equals_expression(arg0, &arg1)
+        };
+        assert_eq!(
+            info.unwrap()
+                .get_description_for_parameter(JsString::from("accessLevel")),
+            Some(JsString::from("The user level"))
+        );
+    }
+}
+
+// port: JsDocInfoParserTest#testUnsupportedJsDocSyntaxWithDelimiterDefaultValue_missingClosingBracket
+#[test]
+fn test_unsupported_js_doc_syntax_with_delimiter_default_value_missing_closing_bracket() {
+    let mut f = set_up();
+    for default_value in ["(", ")"] {
+        f.parse(
+            JsString::from(format!("@param {{string}} [accessLevel={default_value} */")),
+            &[JsString::from("Bad type annotation. missing closing ]")
+                .concat(&JsString::from(BAD_TYPE_WIKI_LINK))],
+        );
+    }
+}
+
+// port: JsDocInfoParserTest#testUnsupportedJsDocSyntaxWithEmptyDefaultValue
+#[test]
+fn test_unsupported_js_doc_syntax_with_empty_default_value() {
+    let mut f = set_up();
+    let info = f.parse_with_documentation(
+        JsString::from("@param {string} [accessLevel=] The user level */"),
+        true,
+        &[],
+    );
+    assert_eq!(info.clone().unwrap().get_parameter_count(), 1);
+    {
+        let arg0 = {
+            let arg0 = f.types.string_type;
+            f.types.create_optional_type(arg0)
+        };
+        let arg1 = info
+            .clone()
+            .unwrap()
+            .get_parameter_type(JsString::from("accessLevel"))
+            .unwrap();
+        f.types.assert_type_equals_expression(arg0, &arg1)
+    };
+    assert_eq!(
+        info.unwrap()
+            .get_description_for_parameter(JsString::from("accessLevel")),
+        Some(JsString::from("The user level"))
+    );
+}
+
 // port: JsDocInfoParserTest#testPreserveWhitespace6
 #[test]
 fn test_preserve_whitespace6() {

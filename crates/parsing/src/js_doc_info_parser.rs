@@ -971,7 +971,11 @@ impl<'a> JsDocInfoParser<'a> {
                         token = self.next();
                         if token == JsDocToken::EQUALS {
                             token = self.next();
-                            if token == JsDocToken::STRING {
+                            if token != JsDocToken::RIGHT_SQUARE
+                                && token != JsDocToken::EOL
+                                && token != JsDocToken::EOC
+                                && token != JsDocToken::EOF
+                            {
                                 token = self.next();
                             }
                         }
