@@ -29,8 +29,8 @@ directory.
   does not know. A key FORMAT.md does not document is a load error, not a silent loss. Value tags
   (`value::Value`) follow FORMAT.md "Value encoding", including the neutral encodings, protobuf
   messages, Guava tables, `typedScope` and `captures`. An unknown or ambiguous tag is an error.
-- **Round trip.** `Record::to_json(Record::from_json(x)) == x` holds for all 25,334 records (JSON
-  equality, so key order does not matter). The same holds for all 255 descriptors, for
+- **Round trip.** `Record::to_json(Record::from_json(x)) == x` holds for all 25,435 records (JSON
+  equality, so key order does not matter). The same holds for all 256 descriptors, for
   `options_defaults.json` and for every `expected_pipeline` line. A harness can therefore trust
   that the typed model carries the whole record.
 - **Descriptor notes.** Keys that DSL.md calls notes for humans (`note`, `unrepresentableAudit`,
@@ -102,13 +102,13 @@ that need them.
 `cargo test -p closure-testing` (the crate and its gzip decoder are built with
 `opt-level = 3` in the dev profile; the structural runner test also replays the full corpus):
 
-- `tests/records_load.rs`: all 25,334 records in 433 files (255 non-empty) load with 0 errors and
+- `tests/records_load.rs`: all 25,435 records in 434 files (256 non-empty) load with 0 errors and
   round-trip; the counts per kind and per API are checked; `call` numbering per method is checked;
   the per-class table must equal `tests/data/record_counts.tsv`, which
   `tests/data/gen_record_counts.py` writes independently with Python's `json` module.
-- `tests/descriptors_load.rs`: all 255 descriptors (379 cases) load and round-trip, and their stems
+- `tests/descriptors_load.rs`: all 256 descriptors (381 cases) load and round-trip, and their stems
   equal the non-empty record files; `options_defaults.json` (204 fields) and `expected_pipeline`
-  (21,835 lines) load and round-trip.
+  (21,932 lines) load and round-trip.
 - `tests/cross_checks.rs`: case selection for every record; descriptor `unrepresentable` entries
   name existing records; `expected_pipeline` is keyed one-to-one onto the `compiler_test_case`
   records; the 9 lone-surrogate lines keep their surrogates through the typed model and the writer.
@@ -241,7 +241,7 @@ subjects are outside the replay comparison path and are not ported.
 `tests/replay_harness.rs` checks diagnostics on real JSErrors, duplicate pairing/order, Java hash
 replacement, string normalization, all option defaults, warning-guard order, value decoding,
 DSL evaluation and TSV resolution, recorder dumps, outcome comparison and neutral post-state
-comparison. `tests/unit_replay_runner.rs` classifies every one of the 25,334 records exactly once,
+comparison. `tests/unit_replay_runner.rs` classifies every one of the 25,435 records exactly once,
 checks accounting and zero harness errors, and round-trips the report; it makes no assertion about
 pass/fail counts. Rhino NodeSubject tests exercise semantic properties, subclass payloads,
 declared types, shadows, JSDoc flags, serializer cleanup and failure prefixes.
