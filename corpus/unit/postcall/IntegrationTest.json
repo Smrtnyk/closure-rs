@@ -68,11 +68,13 @@
   },
   {
    "method": "testGenerateIjsWithHoistedExternsInChunks",
-   "status": "rust_unit_test",
-   "reason": "after compile (GENERATE_IJS, two chunks) asserts compiler.toSource(JSChunk) of the compiler's first and second chunk from compiler.getChunks(): the first chunk prints the @externs input hoisted out of it (and skips its fill file), the second the type summary of `var x`. Integration records have no postCall snapshot, and the record's whole-program output is compiler.toSource(), which prints every extern and then every script, so it holds neither the per-chunk split nor where the hoisted externs input is printed. The no-errors-or-warnings check is compared by replay; the per-chunk sources are asserted by the Rust port.",
-   "fragment": "corpus/unit/rust_unit_tests/IntegrationTest.md",
-   "category": "graph",
-   "note": "Source lines 4356-4388 (1 record)."
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.warnings",
+    "observed.chunkOutputs"
+   ],
+   "note": "After compile (GENERATE_IJS, two chunks) the test checks that there are no errors or warnings (checkUnexpectedErrorsOrWarnings, 0) and asserts compiler.toSource(JSChunk) of the first and second chunk of compiler.getChunks(). observed.chunkOutputs holds toSource of every chunk by name, observed.errors and observed.warnings the diagnostics. Source lines 4356-4388 (1 record)."
   },
   {
    "method": "testGetOriginalQualifiedNameAfterEs6RewriteClasses",

@@ -18,9 +18,9 @@
 //   test/com/google/javascript/jscomp/integration/IntegrationTest.java,
 //   test/com/google/javascript/jscomp/integration/IntegrationTestCase.java.
 
-//! Port of the IntegrationTest tests whose assertions after the hooked `compile` read compiler
-//! state that no record holds (corpus/unit/rust_unit_tests/IntegrationTest.md). The other tests
-//! of the class replay from corpus/unit/records (alpha_integration_records.rs).
+//! Port of IntegrationTest tests that assert after the hooked `compile` on the compiler itself.
+//! Their records replay from corpus/unit/records (alpha_integration_records.rs); this port runs the
+//! same assertions directly on the Rust compiler.
 use closure_jscomp::{
     compiler_options::{CompilerOptions, DevMode, IncrementalCheckMode, LanguageMode},
     google_coding_convention::GoogleCodingConvention,

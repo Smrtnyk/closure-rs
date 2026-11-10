@@ -245,12 +245,6 @@ Methods of `com.google.javascript.jscomp.AstValidatorTest` that, after the hooke
 - AstValidatorTest#testSuperInvalidIfTypeInfoIsMissing: after parseValidScript (testSame), the type information of the SUPER node of the output AST is erased (Node.setJSType(null)); AstValidator.validateScript on the output SCRIPT node must report a violation (test lines 1312-1330)
 - AstValidatorTest#testSwitchStatement: after parseValidScript (testSame), a hand-built BLOCK is inserted as the first child of the first CASE node of the output AST; AstValidator.validateScript on the output SCRIPT node must report a violation (test lines 1726-1753)
 
-## ClosureExportTypeClassifierTest (post-call assertions, gate 0.2 (a))
-
-Method of `com.google.javascript.jscomp.ClosureExportTypeClassifierTest` (parameterized, one record per case) that, after the hooked `testSame`, calls the Java API `ClosureExportTypeClassifier.classify` on the root node of the goog.module's metadata; no snapshot holds its result, so the check is ported as a Rust test (crates/jscomp/tests/closure_export_type_classifier_test.rs).
-
-- ClosureExportTypeClassifierTest#testExportType: for each of the 75 cases, the goog.module 'm' has module metadata and ClosureExportTypeClassifier.classify of its root node gives the expected NAMED or DEFAULT export type
-
 ## ClosureIntegrationTest (post-call assertions)
 
 IntegrationTestCase subclass with 12 methods that assert on the compiler after the hooked call. The 11 `compile()` methods assert diagnostics or output that the record holds in `observed` (errors, warnings, output) and Java replay compares exactly; they are classified `captured` (via `observed.*`) in corpus/unit/postcall/ClosureIntegrationTest.json and are not listed here. `testGetOriginalQualifiedNameAfterEs6RewriteClasses` checks Node original-name properties, which no replayed value holds, and is a Rust unit test.
@@ -425,7 +419,6 @@ The `_knownBug` methods (b/236744850) wrap the hooked call in `assertThrows(Asse
 
 Post-call assertions of IntegrationTest (kind `integration`, gate 0.2 (a)). Integration records carry no `postCall` snapshot. The first group asserts only on values the record holds in `observed` or `outcome` (replay compares those JSON-equal), but the postcall via schema has no entry for them. The second group asserts on compiler state that no record holds. Port each as a Rust integration test: compile the record's input with its options and assert the listed fact.
 
-- IntegrationTest#testGenerateIjsWithHoistedExternsInChunks: with GENERATE_IJS and two chunks, compiler.toSource of the first chunk prints the hoisted `@externs` input (not the chunk's fill file) and of the second chunk the type summary of `var x`, with no errors or warnings (crates/testing/tests/integration_test.rs)
 - IntegrationTest#testGetOriginalQualifiedNameAfterEs6RewriteClasses: the GETPROP callee in module$contents$a_Bar.prototype.foo has original qualified name 'Foo.method' and original name 'method' after Es6RewriteClasses (reads Node.getOriginalQualifiedName()/getOriginalName() of a GETPROP in the compiled AST (original-name properties of output AST nodes))
 
 ## J2clPassTest (post-call assertions, gate 0.2 (a))
