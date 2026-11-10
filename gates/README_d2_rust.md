@@ -40,7 +40,9 @@ Pairs: every case of `corpus/d2/cases.jsonl` (the final corpus) x
 - argv = `case_args.compiler_args(case, profile)` with the default out_dir
   `build/golden-tmp/<case>/<profile>`, exactly the golden argv (checked against the golden
   file's `compiler_args`); the binary is run as `BIN <argv...>`;
-- env = `child_env()` of `gates/lib/run_reference.py` (fixed), stdin `/dev/null`, own session;
+- env = `child_env()` of `gates/lib/run_reference.py` (fixed; only `CLOSURE_RS_PASS_GATES` is
+  passed on when it is set, so that `CLOSURE_RS_PASS_GATES=verify gates/d2_rust.py run ...`
+  checks the pass gates, crates/DESIGN.md), stdin `/dev/null`, own session;
   on timeout the whole process group is killed;
 - the out_dir is created empty before the run and removed afterwards;
 - compared with `corpus-cache/d2/_golden/$REF_GOLDEN_TAG/<case>/<profile>.json` (`ref-<first 8

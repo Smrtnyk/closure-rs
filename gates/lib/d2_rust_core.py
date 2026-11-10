@@ -32,6 +32,16 @@ CASES_FILE = "corpus/d2/cases.jsonl"  # the final corpus (corpus/d2/FORMAT.md)
 GOLDEN_TAG = run_reference.REF_TAG
 GOLDEN_ROOT = run_reference.GOLDEN_ROOT  # repo-relative, under the data root
 DEFAULT_TIMEOUT_S = run_reference.DEFAULT_TIMEOUT_S
+
+
+def rust_child_env() -> dict[str, str]:
+    """The fixed child environment of the golden runs, plus CLOSURE_RS_PASS_GATES when it is set:
+    `verify` makes the binary check every pass run a gate would skip (crates/DESIGN.md), and a
+    pair whose check fails panics, so it fails here."""
+    env = run_reference.child_env()
+    if os.environ.get("CLOSURE_RS_PASS_GATES"):
+        env["CLOSURE_RS_PASS_GATES"] = os.environ["CLOSURE_RS_PASS_GATES"]
+    return env
 RATCHET_SCHEMA = 1
 CONTEXT_BYTES = 40
 MAX_EXAMPLES = 5
@@ -409,7 +419,7 @@ def run_pair(pair: dict, *, binary: str, run_root: str, data_root: str, profiles
     _make_out_dir(out_abs)
     t0 = time.monotonic()
     try:
-        proc = subprocess.Popen([binary, *cargs], cwd=run_root, env=run_reference.child_env(),
+        proc = subprocess.Popen([binary, *cargs], cwd=run_root, env=rust_child_env(),
                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, start_new_session=True)
     except OSError as e:
