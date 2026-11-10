@@ -669,6 +669,11 @@ impl JSChunkGraph {
                 .collect();
             for view in sorter.get_sorted_weak_dependencies_of(&roots) {
                 let input = view.input;
+                if input.is_extern() {
+                    // Extern inputs will be hoisted into externsRoot after manageDependencies; do
+                    // not overwrite SourceKind.EXTERN or place them in the weak chunk.
+                    continue;
+                }
                 assert!(input.get_chunk().is_none());
                 input
                     .get_source_file()

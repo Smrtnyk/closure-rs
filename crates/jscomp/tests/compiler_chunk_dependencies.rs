@@ -759,3 +759,49 @@ fn test_transitive_weak_sources() {
     );
     assert_files(&chunks[0], std::slice::from_ref(&strong1));
 }
+
+// port: JSChunkGraphTest#testWeaklyReachableExternSourcesNotMovedToWeakChunk
+#[test]
+fn test_weakly_reachable_extern_sources_not_moved_to_weak_chunk() {
+    let mut compiler = Compiler::new();
+    let chunks = make_deps();
+    let direct_weak_extern = Arc::new(SourceFile::from_code_with_kind(
+        "directWeakExtern",
+        "goog.provide('directWeakExtern');",
+        SourceKind::EXTERN,
+    ));
+    let transitive_weak_extern = Arc::new(SourceFile::from_code_with_kind(
+        "transitiveWeakExtern",
+        "goog.provide('transitiveWeakExtern');",
+        SourceKind::EXTERN,
+    ));
+    let weak1 = Arc::new(SourceFile::from_code(
+        "weak1",
+        "goog.provide('weak1'); goog.require('transitiveWeakExtern');",
+    ));
+    let strong1 = Arc::new(SourceFile::from_code(
+        "strong1",
+        "goog.requireType('weak1'); goog.requireType('directWeakExtern');",
+    ));
+    chunks[0].add_source_file(direct_weak_extern.clone());
+    chunks[0].add_source_file(transitive_weak_extern.clone());
+    chunks[0].add_source_file(weak1.clone());
+    chunks[0].add_source_file(strong1.clone());
+    for input in chunks[0].get_inputs() {
+        input.set_compiler(&compiler);
+    }
+    let graph = JSChunkGraph::new(chunks.to_vec()).unwrap();
+    graph
+        .manage_dependencies(
+            &mut compiler,
+            &DependencyOptions::prune_for_entry_points([ModuleIdentifier::for_file("strong1")]),
+        )
+        .unwrap();
+    assert_files(
+        &graph.get_chunk_by_name(WEAK_CHUNK_NAME).unwrap(),
+        std::slice::from_ref(&weak1),
+    );
+    assert_files(&chunks[0], std::slice::from_ref(&strong1));
+    assert_eq!(direct_weak_extern.get_kind(), SourceKind::EXTERN);
+    assert_eq!(transitive_weak_extern.get_kind(), SourceKind::EXTERN);
+}

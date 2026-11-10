@@ -2858,8 +2858,10 @@ impl Compiler {
         }
     }
     // port: Compiler#hoistIfExtern
+    /// Hoists a compiler input to externs if it was marked as an extern. Return whether or not the
+    /// given input was hoisted.
     fn hoist_if_extern(&mut self, input: &CompilerInput) -> bool {
-        if input.get_has_externs_annotation(self) {
+        if input.is_extern() {
             let root = input.get_ast_root(self);
             self.externs_root.unwrap().add_child_to_back(self, root);
             self.script_node_by_filename
