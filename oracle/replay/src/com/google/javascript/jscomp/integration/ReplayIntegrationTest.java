@@ -76,6 +76,28 @@ public final class ReplayIntegrationTest extends IntegrationTestCase {
       obs.add("errors", ReplayBridge.errors(t.lastCompiler.getErrors()));
       obs.add("warnings", ReplayBridge.errors(t.lastCompiler.getWarnings()));
       obs.addProperty("output", t.lastCompiler.getRoot() == null ? null : t.lastCompiler.toSource());
+      // observed.chunkOutputs, as UnitRecorder's integration hook records it (FORMAT.md "observed").
+      try {
+        if (t.lastCompiler.getRoot() != null && t.lastCompiler.getChunks() != null) {
+          java.util.List<com.google.javascript.jscomp.JSChunk> chunks = new java.util.ArrayList<>();
+          int named = 0;
+          for (com.google.javascript.jscomp.JSChunk c : t.lastCompiler.getChunks()) {
+            chunks.add(c);
+            if (!c.getName().equals(com.google.javascript.jscomp.JSChunk.WEAK_CHUNK_NAME)) {
+              named++;
+            }
+          }
+          if (named >= 2) {
+            JsonObject co = new JsonObject();
+            for (com.google.javascript.jscomp.JSChunk c : chunks) {
+              co.addProperty(c.getName(), t.lastCompiler.toSource(c));
+            }
+            obs.add("chunkOutputs", co);
+          }
+        }
+      } catch (RuntimeException e) {
+        obs.addProperty("chunkOutputsError", e.toString());
+      }
     }
     res.add("observed", obs);
     return res;

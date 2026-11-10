@@ -36,7 +36,7 @@ internals (for example a `LinkedHashMultimap` in `options.customPasses`, or JSTy
 | `testFieldsAfter` | CompilerTestCase only: the `testFields` entries whose dump changed during the hooked call (field name → value after the call); `{}` when none changed. Same encoding and depth as `testFields`; its unrepresentable values are listed with path prefix `testAfter.`. Replay must check it or classify it (see "Post-call state"). |
 | `options` | `CompilerOptions` diff against `new CompilerOptions()` (field name → value); `@class` if a subclass. When captured: see "Options capture point". |
 | `processor` | CompilerTestCase only: `{class, fields}` of what `getProcessor` returned (first repetition), fields dumped to object depth 2 (so a wrapper's wrapped pass dumps its own fields); `null` if the processor never ran (e.g. parse error). Its unrepresentable values are listed with path prefix `processor.`. |
-| `observed` | what actually happened: `errors`, `warnings` (lists of JSError dumps); integration also `output` (`compiler.toSource()`) and `compilerClass` |
+| `observed` | what actually happened: `errors`, `warnings` (lists of JSError dumps); integration also `output` (`compiler.toSource()`), `chunkOutputs` (per-chunk `compiler.toSource(chunk)`, multi-chunk compilations only) and `compilerClass` |
 | `outcome` | `{status: "normal"}` or `{status: "exception", exceptionClass, message, assertion}` — the exception that left the hooked call. Ground truth for replay (tests wrapped in `assertThrows` show up here). See "Outcome contract". |
 | `unrepresentable` | list of `{path, reason}` for **every** `{"unrepresentable":…}` placeholder in the record, in every section (`test`, `testAfter`, `harness`, `harnessAfterGetOptions`, `processor`, `options`, `expected`), except values nested inside a lambda's `captures` (the lambda itself is listed). Path grammar: see "Unrepresentable paths". The processor and `testFieldsAfter`/`fieldsAfterGetOptions` dumps are listed too. |
 | `testFieldsAfterError` | only when dumping the post-call fields threw: the exception's `toString()` |
@@ -55,6 +55,11 @@ are in `build/unit/recording/stats/<Name>.json` (`entries`, `outermost`, `record
   `line` = 1-based line, `charno` = 0-based column, `length` = source length of the node;
   each is -1 when unknown.
 - integration only: `output` (`compiler.toSource()`), `compilerClass` (informational, never compared).
+- integration only: `chunkOutputs`, an object chunk name -> `compiler.toSource(chunk)` for every
+  chunk of `Compiler.getChunks()`, in that order, taken after `output`; present only when the
+  compiler has a root and two or more chunks besides the weak chunk (`JSChunk.WEAK_CHUNK_NAME`), or
+  `chunkOutputsError` (the exception's `toString()`) when it threw. Replay compares it like every
+  other `observed` key.
 
 ## Options capture point
 `options` is `compiler.getOptions()` dumped at the **first entry of the processor** (right before
@@ -439,6 +444,7 @@ encoding. `compiler` is read from the compiler the record's `observed` comes fro
 | `packageJsonMainEntries` | `Compiler.getModuleLoader().getPackageJsonMainEntries()` | map string -> string (the loader's map order); present only when non-empty |
 | `typedPercent` | `Compiler.getErrorManager().getTypedPercent()` | `{"double": Double.toString}`; present only when non-zero |
 | `moduleMapBoundNames` | `Compiler.getModuleMap().getModulesByPath()` -> `Module.boundNames().keySet()` | object module path -> list of bound local names in `boundNames()` order; present only when the module map is set and non-empty |
+| `googModuleExportTypes` | `Compiler.getModuleMetadataMap().getModulesByGoogNamespace()` -> `ClosureExportTypeClassifier.classify(metadata.rootNode(), namespace)` | object goog namespace -> `TsExportType` name (`DEFAULT` or `NAMED`), in the map's order, for the goog.modules (`isGoogModule()`) whose root node is a SCRIPT with a MODULE_BODY first child (the classifier's precondition); present only when non-empty |
 
 `pass` holds the results of **result producers**: pass objects reachable from the processor (its
 instance fields to object depth 2, list and array items included) and then from the roots (the
@@ -526,7 +532,7 @@ file stem (`corpus/unit/records/<Class>.jsonl.gz`).
   `postcondition` section, "Postcondition data", is part of the `postCall` object replay compares by
   JSON equality), `testFieldsAfter.<field>`,
   `postconditions`, `outcome`, or, for `integration` records only, `observed.errors`,
-  `observed.warnings` or `observed.output`. For `pass` keys the `pass.` prefix of the snapshot key may be written or left
+  `observed.warnings`, `observed.output` or `observed.chunkOutputs`. For `pass` keys the `pass.` prefix of the snapshot key may be written or left
   out (`postCall.pass.variableMap` and `postCall.pass.pass.variableMap` both name
   `postCall.pass["pass.variableMap"]`). Gate (a) checks, for **every** record of the method: the record passes in (a);
   each `postCall.*` entry is present in the record's `postCall` (replay compared it); each

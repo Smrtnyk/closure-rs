@@ -1,5 +1,5 @@
 diff --git a/test/com/google/javascript/jscomp/CompilerTestCase.java b/test/com/google/javascript/jscomp/CompilerTestCase.java
-index 087d277..88b4eee 100644
+index 087d277..6af0b3d 100644
 --- a/test/com/google/javascript/jscomp/CompilerTestCase.java
 +++ b/test/com/google/javascript/jscomp/CompilerTestCase.java
 @@ -942,9 +942,50 @@ public abstract class CompilerTestCase {
@@ -578,10 +578,10 @@ index 0851d93..3733b32 100644
  }
 diff --git a/test/com/google/javascript/jscomp/UnitRecorder.java b/test/com/google/javascript/jscomp/UnitRecorder.java
 new file mode 100644
-index 0000000..71df20b
+index 0000000..a32bbcf
 --- /dev/null
 +++ b/test/com/google/javascript/jscomp/UnitRecorder.java
-@@ -0,0 +1,1485 @@
+@@ -0,0 +1,1510 @@
 +/*
 + * closure-rs unit-corpus recording hook (oracle/patches/0002-recording-hooks.patch).
 + * Inactive unless the system property closurers.unit.record is set (so Bazel runs are unaffected).
@@ -1691,6 +1691,31 @@ index 0000000..71df20b
 +      } catch (RuntimeException e) {
 +        comp.addProperty("moduleMapBoundNamesError", e.getClass().getName());
 +      }
++      // googModuleExportTypes: {goog namespace: ClosureExportTypeClassifier.classify(root,
++      // namespace) as the TsExportType name} for the entries of getModuleMetadataMap()
++      // .getModulesByGoogNamespace(), in that map's order, that are goog.modules whose root node is
++      // a SCRIPT with a MODULE_BODY first child (the classifier's precondition); present only when
++      // non-empty.
++      try {
++        com.google.javascript.jscomp.modules.ModuleMetadataMap mm = compiler.getModuleMetadataMap();
++        if (mm != null) {
++          JsonObject types = new JsonObject();
++          for (Map.Entry<String, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata> e :
++              mm.getModulesByGoogNamespace().entrySet()) {
++            com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata m = e.getValue();
++            com.google.javascript.rhino.Node root = m.rootNode();
++            if (m.isGoogModule() && root != null && root.isScript() && root.hasChildren()
++                && root.getFirstChild().isModuleBody()) {
++              types.addProperty(e.getKey(), ClosureExportTypeClassifier.classify(root, e.getKey()).name());
++            }
++          }
++          if (types.size() > 0) {
++            comp.add("googModuleExportTypes", types);
++          }
++        }
++      } catch (RuntimeException e) {
++        comp.addProperty("googModuleExportTypesError", e.getClass().getName());
++      }
 +    }
 +    snap.add("compiler", comp);
 +    JsonObject pass = new JsonObject();
@@ -2208,7 +2233,7 @@ index 0000000..4d58505
 +  }
 +}
 diff --git a/test/com/google/javascript/jscomp/integration/IntegrationTestCase.java b/test/com/google/javascript/jscomp/integration/IntegrationTestCase.java
-index e539941..53afbd5 100644
+index e539941..765ec2b 100644
 --- a/test/com/google/javascript/jscomp/integration/IntegrationTestCase.java
 +++ b/test/com/google/javascript/jscomp/integration/IntegrationTestCase.java
 @@ -180,27 +180,42 @@ abstract class IntegrationTestCase {
@@ -2497,7 +2522,7 @@ index e539941..53afbd5 100644
    }
  
    /**
-@@ -377,4 +467,58 @@ abstract class IntegrationTestCase {
+@@ -377,4 +467,82 @@ abstract class IntegrationTestCase {
  
      return compiler.getRoot().getLastChild();
    }
@@ -2553,6 +2578,30 @@ index e539941..53afbd5 100644
 +      obs.addProperty("output", lastCompiler.getRoot() == null ? null : lastCompiler.toSource());
 +    } catch (RuntimeException e) {
 +      obs.addProperty("observeError", e.toString());
++    }
++    try {
++      // observed.chunkOutputs (FORMAT.md "observed"): {chunk name: compiler.toSource(chunk)} for
++      // every chunk of getChunks(), in order, when the compilation has two or more chunks besides
++      // the weak chunk.
++      if (lastCompiler.getRoot() != null && lastCompiler.getChunks() != null) {
++        java.util.List<com.google.javascript.jscomp.JSChunk> chunks = new java.util.ArrayList<>();
++        int named = 0;
++        for (com.google.javascript.jscomp.JSChunk c : lastCompiler.getChunks()) {
++          chunks.add(c);
++          if (!c.getName().equals(com.google.javascript.jscomp.JSChunk.WEAK_CHUNK_NAME)) {
++            named++;
++          }
++        }
++        if (named >= 2) {
++          com.google.gson.JsonObject co = new com.google.gson.JsonObject();
++          for (com.google.javascript.jscomp.JSChunk c : chunks) {
++            co.addProperty(c.getName(), lastCompiler.toSource(c));
++          }
++          obs.add("chunkOutputs", co);
++        }
++      }
++    } catch (RuntimeException e) {
++      obs.addProperty("chunkOutputsError", e.toString());
 +    }
 +  }
  }
