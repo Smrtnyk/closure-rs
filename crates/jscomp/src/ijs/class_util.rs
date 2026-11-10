@@ -53,6 +53,11 @@ impl ClassUtil {
         if !getprop.is_get_prop(ast) || !getprop.get_first_child(ast).unwrap().is_this(ast) {
             return None;
         }
+        if getprop.is_private_identifier(ast) {
+            // `C.prototype.#x` would be a SyntaxError, because a private name is valid only inside
+            // the class body.
+            return None;
+        }
         let function = NodeUtil::get_enclosing_function(ast, getprop)?;
         let class_name = Self::get_member_function_class_name(ast, function);
         match class_name {

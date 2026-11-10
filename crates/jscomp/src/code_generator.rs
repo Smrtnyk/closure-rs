@@ -1146,9 +1146,15 @@ pub trait CodeGeneration<'a> {
                         let mut body = fn_.get_last_child(ast);
 
                         // Add the property name.
-                        if (!node.is_quoted_string_key(ast)
-                            && (JSIdentifier::is_js_identifier(&name)
-                                || node.is_private_identifier(ast))
+                        if (node.is_private_identifier(ast)) {
+                            // Never quote a private name (falling through to `addJsString` when
+                            // `!isLatin(name)` would turn `#π() {}` into a quoted public method
+                            // `"\u03c0"() {}`). Non-Latin characters are Unicode-escaped via
+                            // `addIdentifier`.
+                            self.add_identifier(name);
+                            self.maybe_add_generic_types(ast, fn_.get_first_child(ast).unwrap());
+                        } else if (!node.is_quoted_string_key(ast)
+                            && JSIdentifier::is_js_identifier(&name)
                             // do not encode literally any non-literal characters that were
                             // Unicode escaped.
                             && NodeUtil::is_latin(&name))
@@ -1181,8 +1187,8 @@ pub trait CodeGeneration<'a> {
                     let mut init = None;
                     match type_ {
                         Token::MEMBER_FIELD_DEF => {
-                            let property_name = node.get_string(ast);
-                            self.add(&(property_name));
+                            // Escape non-Latin characters as in other identifiers.
+                            self.add_identifier(node.get_string(ast));
                             init = first;
                         }
                         Token::COMPUTED_FIELD_DEF => {
