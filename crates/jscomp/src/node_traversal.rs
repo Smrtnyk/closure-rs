@@ -594,6 +594,53 @@ impl<'a, C: ModuleCallback> AbstractModuleCallback<'a, C> {
     }
 }
 
+/// Rust-only (performance divergence): per token (by ordinal), how `traverseBranch` treats it, so
+/// that the walk classifies a node with one lookup instead of two switches. `HAS_HANDLER`: a token
+/// it hands to a handler; `MAY_CREATE_BLOCK_SCOPE`: a token for which `createsBlockScope` can be
+/// true (it is false for all others).
+static TRAVERSAL_TOKEN_CLASS: [u8; 256] = {
+    let mut class = [0u8; 256];
+    let handled = [
+        Token::SCRIPT,
+        Token::FUNCTION,
+        Token::MODULE_BODY,
+        Token::CLASS,
+        Token::CLASS_MEMBERS,
+        Token::DEFAULT_VALUE,
+        Token::DESTRUCTURING_LHS,
+    ];
+    let mut i = 0;
+    while i < handled.len() {
+        class[handled[i] as usize] |= HAS_HANDLER;
+        i += 1;
+    }
+    let scoped = [
+        Token::BLOCK,
+        Token::FOR,
+        Token::FOR_IN,
+        Token::FOR_OF,
+        Token::FOR_AWAIT_OF,
+        Token::SWITCH_BODY,
+        Token::CLASS,
+    ];
+    let mut i = 0;
+    while i < scoped.len() {
+        class[scoped[i] as usize] |= MAY_CREATE_BLOCK_SCOPE;
+        i += 1;
+    }
+    class
+};
+const HAS_HANDLER: u8 = 1;
+const MAY_CREATE_BLOCK_SCOPE: u8 = 2;
+/// The class of `token`; a token beyond the table is in both classes, so it takes the general path.
+#[inline(always)]
+fn traversal_token_class(token: Token) -> u8 {
+    TRAVERSAL_TOKEN_CLASS
+        .get(token as usize)
+        .copied()
+        .unwrap_or(HAS_HANDLER | MAY_CREATE_BLOCK_SCOPE)
+}
+
 static GOOG_MODULE: LazyLock<QualifiedName> = LazyLock::new(|| QualifiedName::of("goog.module"));
 
 impl<C: ModuleCallback> Callback for AbstractModuleCallback<'_, C> {
@@ -1494,40 +1541,51 @@ impl<'a> NodeTraversal<'a> {
         parent: Option<NodeId>,
         callback: &mut C,
     ) {
-        match n.get_token(self) {
-            Token::SCRIPT => {
-                self.handle_script(n, parent, callback);
-                return;
-            }
-            Token::FUNCTION => {
-                self.handle_function(n, parent, callback);
-                return;
-            }
-            Token::MODULE_BODY => {
-                self.handle_module(n, parent, callback);
-                return;
-            }
-            Token::CLASS => {
-                self.handle_class(n, parent, callback);
-                return;
-            }
-            Token::CLASS_MEMBERS => {
-                self.handle_class_members(n, parent, callback);
-                return;
-            }
-            Token::DEFAULT_VALUE | Token::DESTRUCTURING_LHS => {
-                if self.obey_destructuring_and_default_value_execution_order {
-                    self.handle_destructuring_or_default_value(n, parent, callback);
+        let token = n.get_token(self);
+        // Rust-only (performance divergence): the tokens without a handler, most of them, pass the
+        // dispatch with one table lookup.
+        if traversal_token_class(token) & HAS_HANDLER != 0 {
+            match token {
+                Token::SCRIPT => {
+                    self.handle_script(n, parent, callback);
                     return;
                 }
+                Token::FUNCTION => {
+                    self.handle_function(n, parent, callback);
+                    return;
+                }
+                Token::MODULE_BODY => {
+                    self.handle_module(n, parent, callback);
+                    return;
+                }
+                Token::CLASS => {
+                    self.handle_class(n, parent, callback);
+                    return;
+                }
+                Token::CLASS_MEMBERS => {
+                    self.handle_class_members(n, parent, callback);
+                    return;
+                }
+                Token::DEFAULT_VALUE | Token::DESTRUCTURING_LHS => {
+                    if self.obey_destructuring_and_default_value_execution_order {
+                        self.handle_destructuring_or_default_value(n, parent, callback);
+                        return;
+                    }
+                }
+                _ => {}
             }
-            _ => {}
         }
         self.current_node = Some(n);
         if !callback.should_traverse(self, n, parent) {
             return;
         }
-        let creates_block_scope = self.creates_block_scope(n);
+        // Rust-only (performance divergence): `createsBlockScope` is asked only for the tokens of
+        // the MAY_CREATE_BLOCK_SCOPE class; it is false for all others.
+        let creates_block_scope = traversal_token_class(n.get_token(self)) & MAY_CREATE_BLOCK_SCOPE
+            != 0
+            && self.creates_block_scope(n);
+        // The table must list every token `createsBlockScope` can be true for.
+        debug_assert_eq!(creates_block_scope, self.creates_block_scope(n));
         let previous_hoist_scope_root = self.current_hoist_scope_root;
         if creates_block_scope {
             self.push_scope(n, callback);

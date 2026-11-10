@@ -535,3 +535,6 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `CLOSURE_RS_PASS_GATES=off` runs every pass, `=verify` checks every run a gate would skip
   against a fingerprint of the compilation, `=log` names the skipped runs on stderr. An upstream
   sync that changes a gated pass, or what its trigger means, must re-check that pass's gate.
+- `jscomp/node_traversal.rs` `TRAVERSAL_TOKEN_CLASS`: `traverseBranch` classifies a node's token
+  with one table lookup; tokens without a handler skip the dispatch switch, and `createsBlockScope`
+  is asked only for the tokens that can create a block scope (Java: a switch and a call per node).
