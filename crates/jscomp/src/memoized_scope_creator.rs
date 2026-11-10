@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/MemoizedScopeCreator.java.
 
 use crate::{abstract_compiler::AbstractCompiler, scope::ScopeId, scope_creator::ScopeCreator};

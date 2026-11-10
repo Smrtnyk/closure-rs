@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
 //   src/com/google/javascript/jscomp/type/ClosureReverseAbstractInterpreter.java.
 
 //! A reverse abstract interpreter (RAI) for specific closure patterns such as `goog.isObject`.

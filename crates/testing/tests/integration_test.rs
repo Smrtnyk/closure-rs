@@ -1,5 +1,6 @@
 /*
  * Copyright 2009 The Closure Compiler Authors.
+ * Copyright 2012 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,8 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 977e2cf:
-//   test/com/google/javascript/jscomp/integration/IntegrationTest.java.
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
+//   test/com/google/javascript/jscomp/integration/IntegrationTest.java,
+//   test/com/google/javascript/jscomp/integration/IntegrationTestCase.java.
 
 //! Port of the IntegrationTest tests whose assertions after the hooked `compile` read compiler
 //! state that no record holds (corpus/unit/rust_unit_tests/IntegrationTest.md). The other tests
