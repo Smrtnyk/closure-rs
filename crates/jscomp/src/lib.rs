@@ -279,6 +279,7 @@ pub mod check_type_import_code_references;
 pub mod check_unreachable_code;
 pub mod closure_check_module;
 pub mod closure_code_removal;
+pub mod closure_export_type_classifier;
 pub mod closure_optimize_primitives;
 pub mod closure_primitive_errors;
 pub mod closure_rewrite_module;
