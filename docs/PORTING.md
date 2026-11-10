@@ -382,7 +382,8 @@ that needs judgement:
 1. Port the Java changes (§7) from `porting-worklist.md` and `upstream.diff`: the Rust files, the
    unit descriptors of new record classes, the Rust ports of new tests in classes without records.
    A change to a pass that `crates/jscomp/src/pass_gates.rs` gates, or to what its trigger means,
-   must re-check that pass's gate.
+   must re-check that pass's gate; `CLOSURE_RS_PASS_GATES=verify gates/d2_rust.py run ...` checks
+   every gate on the D2 corpus (the runner passes that one variable on to the binary).
 2. Triage `unit-worklist.json` and `d2-worklist.txt`: what the new reference breaks before the
    port, and what a new Java behaviour (a crash fixed or added upstream) changes in the corpora.
 3. Verify as in §4: `--only license-headers` again for newly ported files, `gates/ci.sh`, the new
@@ -394,12 +395,14 @@ that needs judgement:
 
 **Gate 0.2 in a sync.** A sync passes the gate 0.2 ratchet; the strict criteria (a)-(e) are
 reported but do not decide (§4.2). The gate reads the records, descriptors and
-`corpus/unit/postcall/` of its checkout (the main one; `CLOSURE_RS_ROOT` names a worktree) and
-needs the recording they come from, which the sync leaves in its work directory:
+`corpus/unit/postcall/` of its checkout (the main one; `CLOSURE_RS_ROOT` names a worktree), the
+pristine upstream tests of the reference (`REF_SRC`, so `CLOSURE_RS_REF=<tag>` until
+`--only switch-default`) and the recording the records come from, which the sync leaves in its
+work directory:
 
 ```sh
 u=$PWD/build/upstream-sync/<tag>/unit
-export UNIT_JARS_DIR=$u/jars UNIT_RECORDING_STATS=$u/recording/stats UNIT_TEST_CLASSES=$u/all_test_classes.txt
+export CLOSURE_RS_REF=<tag> UNIT_JARS_DIR=$u/jars UNIT_RECORDING_STATS=$u/recording/stats UNIT_TEST_CLASSES=$u/all_test_classes.txt
 setsid nohup gates/gate_0_2.sh --ratchet > build/logs/gate_0_2.log 2>&1 &
 ```
 
