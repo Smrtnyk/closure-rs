@@ -2614,6 +2614,25 @@ fn test_parse_no_dts2() {
     );
 }
 
+// port: JsDocInfoParserTest#testParseLegacyNamedTsExport
+#[test]
+fn test_parse_legacy_named_ts_export() {
+    let mut f = set_up();
+    let doc = f.parse(JsString::from("@legacyNamedTsExport*/"), &[]);
+    assert!(doc.unwrap().is_legacy_named_ts_export());
+}
+
+// port: JsDocInfoParserTest#testParseLegacyNamedTsExport_duplicate
+#[test]
+fn test_parse_legacy_named_ts_export_duplicate() {
+    let mut f = set_up();
+    let doc = f.parse(
+        JsString::from("@legacyNamedTsExport\n@legacyNamedTsExport*/"),
+        &[JsString::from("extra @legacyNamedTsExport tag")],
+    );
+    assert!(doc.unwrap().is_legacy_named_ts_export());
+}
+
 // port: JsDocInfoParserTest#testBugAnnotation
 #[test]
 fn test_bug_annotation() {

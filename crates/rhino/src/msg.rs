@@ -82,6 +82,7 @@ pub enum Msg {
     JSDOC_INCOMPAT_TYPE,
     JSDOC_INCOMPAT_INLINING,
     JSDOC_INTERFACE_CONSTRUCTOR,
+    JSDOC_LEGACY_TS_EXPORT,
     JSDOC_LENDS_INCOMPATIBLE,
     JSDOC_LENDS_MISSING,
     JSDOC_LOCALEFILE,
@@ -208,6 +209,7 @@ impl Msg {
                 "@requireInlining, @encourageInlining, and @noinline are mutually exclusive."
             }
             Self::JSDOC_INTERFACE_CONSTRUCTOR => "cannot be both an interface and a constructor.",
+            Self::JSDOC_LEGACY_TS_EXPORT => "extra @legacyNamedTsExport tag",
             Self::JSDOC_LENDS_INCOMPATIBLE => "@lends tag incompatible with other annotations.",
             Self::JSDOC_LENDS_MISSING => "missing object name in @lends tag.",
             Self::JSDOC_LOCALEFILE => "extra @localeFile tag",

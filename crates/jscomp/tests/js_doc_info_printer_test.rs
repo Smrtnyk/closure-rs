@@ -1239,6 +1239,22 @@ fn test_ng_inject() {
     assert_eq!(js_doc_info_printer.print(&ast, &info), "/** @ngInject */ ");
 }
 
+// port: JSDocInfoPrinterTest#testLegacyNamedTsExport
+#[test]
+fn test_legacy_named_ts_export() {
+    let ast = Ast::default();
+    let mut builder = JSDocInfo::builder();
+    builder.parse_documentation();
+    let js_doc_info_printer = JSDocInfoPrinter::new_with_print_desc(false, true);
+
+    assert!(builder.record_legacy_named_ts_export());
+    let info = builder.build_and_reset().unwrap();
+    assert_eq!(
+        js_doc_info_printer.print(&ast, &info),
+        "/** @legacyNamedTsExport */ "
+    );
+}
+
 // port: JSDocInfoPrinterTest#testTsType
 #[test]
 fn test_ts_type() {

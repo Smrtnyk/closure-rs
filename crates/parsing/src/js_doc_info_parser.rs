@@ -789,6 +789,12 @@ impl<'a> JsDocInfoParser<'a> {
                 }
                 return self.eat_until_eol_if_not_annotation();
             }
+            Annotation::LEGACY_NAMED_TS_EXPORT => {
+                if !self.jsdoc_builder.record_legacy_named_ts_export() {
+                    self.add_parser_warning(ast, Msg::JSDOC_LEGACY_TS_EXPORT);
+                }
+                return self.eat_until_eol_if_not_annotation();
+            }
             Annotation::NO_COLLAPSE => {
                 if !self.jsdoc_builder.record_no_collapse() {
                     self.add_parser_warning(ast, Msg::JSDOC_NOCOLLAPSE);

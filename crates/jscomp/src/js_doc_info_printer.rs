@@ -377,6 +377,10 @@ impl JSDocInfoPrinter {
             parts.push(units("@ngInject"));
         }
 
+        if info.is_legacy_named_ts_export() {
+            parts.push(units("@legacyNamedTsExport"));
+        }
+
         for ts_type in info.get_ts_types() {
             parts.push(prefixed("@tsType ", &ts_type));
         }

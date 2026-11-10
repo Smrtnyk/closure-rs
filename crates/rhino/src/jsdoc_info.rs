@@ -126,6 +126,9 @@ pub enum Bit {
     WIZ_CALLBACK,
     LOG_TYPE_IN_COMPILER,
     CLOSURE_UNAWARE_CONFIG,
+    // Overrides the syntactic classification of a goog.module/goog.provide namespace as named
+    // exports for TypeScript.
+    LEGACY_NAMED_TS_EXPORT,
 }
 impl Bit {
     // port: Bit#Bit
@@ -180,6 +183,7 @@ impl Bit {
             Self::WIZ_CALLBACK => "wizCallback",
             Self::LOG_TYPE_IN_COMPILER => "logTypeInCompiler",
             Self::CLOSURE_UNAWARE_CONFIG => "closureUnawareConfig",
+            Self::LEGACY_NAMED_TS_EXPORT => "legacyNamedTsExport",
         }
     }
 }
@@ -229,6 +233,7 @@ const BITS: &[Bit] = &[
     Bit::WIZ_CALLBACK,
     Bit::LOG_TYPE_IN_COMPILER,
     Bit::CLOSURE_UNAWARE_CONFIG,
+    Bit::LEGACY_NAMED_TS_EXPORT,
 ];
 pub const VISIBILITY: Property = Property::new("visibility", 0, PropertyKind::Plain);
 pub const TYPE: Property = Property::new("type", 1, PropertyKind::Type);
@@ -1291,6 +1296,15 @@ impl JSDocInfo {
     // port: JSDocInfo#isNoDts
     pub fn is_no_dts(&self) -> bool {
         self.check_bit(Bit::NODTS)
+    }
+    // port: JSDocInfo#isLegacyNamedTsExport
+    /// Returns whether the `@legacyNamedTsExport` annotation is present on this JSDocInfo.
+    ///
+    /// On a goog.module or goog.provide call, this overrides the syntactic classification of the
+    /// namespace as a set of named exports for TypeScript, for code where it can't match Clutz's
+    /// type-based classification. It has no effect elsewhere.
+    pub fn is_legacy_named_ts_export(&self) -> bool {
+        self.check_bit(Bit::LEGACY_NAMED_TS_EXPORT)
     }
     // port: JSDocInfo#isNoCollapse
     pub fn is_no_collapse(&self) -> bool {
@@ -2651,6 +2665,12 @@ impl Builder {
     // port: JSDocInfo.Builder#recordNoDts
     pub fn record_no_dts(&mut self) -> bool {
         self.populate_bit(Bit::NODTS, true)
+    }
+    // port: JSDocInfo.Builder#recordLegacyNamedTsExport
+    /// Records that the JSDocInfo being built should have its `isLegacyNamedTsExport()` flag set
+    /// to `true`. Returns `true` if the flag was recorded and `false` if it was already recorded.
+    pub fn record_legacy_named_ts_export(&mut self) -> bool {
+        self.populate_bit(Bit::LEGACY_NAMED_TS_EXPORT, true)
     }
     // port: JSDocInfo.Builder#recordNoCollapse
     pub fn record_no_collapse(&mut self) -> bool {

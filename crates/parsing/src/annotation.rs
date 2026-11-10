@@ -54,6 +54,7 @@ pub enum Annotation {
     INTERFACE,
     JSX,
     JSX_FRAGMENT,
+    LEGACY_NAMED_TS_EXPORT,
     LENDS,
     LICENSE, // same as preserve
     LOG_TYPE_IN_COMPILER,
@@ -164,6 +165,11 @@ static RECOGNIZED_ANNOTATIONS: LazyLock<IndexMap<JsString, Annotation>> = LazyLo
     put(&mut m, "inheritDoc", Annotation::INHERIT_DOC);
     put(&mut m, "interface", Annotation::INTERFACE);
     put(&mut m, "record", Annotation::RECORD);
+    put(
+        &mut m,
+        "legacyNamedTsExport",
+        Annotation::LEGACY_NAMED_TS_EXPORT,
+    );
     put(&mut m, "lends", Annotation::LENDS);
     put(&mut m, "license", Annotation::LICENSE);
     put(
