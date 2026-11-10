@@ -241,6 +241,77 @@ function f() {
     assert_eq!(*visited_reference_names.borrow(), ["z", "f", "z"]);
 }
 
+/// The anonymous `Behavior` of `testBehavior_hoistedFunctionsInReferenceOrder_declaredBeforeFirstCall`.
+#[derive(Clone, Default)]
+struct DeclaredBeforeFirstCallBehavior {
+    visited_reference_names: Rc<RefCell<Vec<String>>>,
+    checked: Rc<RefCell<bool>>,
+}
+impl Behavior for DeclaredBeforeFirstCallBehavior {
+    // port: ReferenceCollectorTest#testBehavior_hoistedFunctionsInReferenceOrder_declaredBeforeFirstCall (Behavior#afterVisitNode)
+    fn after_visit_node(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        _n: NodeId,
+        _parent: Option<NodeId>,
+        added_reference: Option<&Reference>,
+    ) {
+        if let Some(added_reference) = added_reference {
+            self.visited_reference_names.borrow_mut().push(
+                added_reference
+                    .get_node()
+                    .get_string(t.get_compiler())
+                    .to_string(),
+            );
+        }
+    }
+    // port: ReferenceCollectorTest#testBehavior_hoistedFunctionsInReferenceOrder_declaredBeforeFirstCall (Behavior#afterExitScope)
+    fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, reference_map: &dyn ReferenceMap) {
+        let scope = t.get_scope();
+        if scope.is_global(t.get_compiler()) {
+            let var = scope
+                .get_var(t.get_compiler(), JsString::from("z"))
+                .unwrap();
+            let z = reference_map.get_references(var).unwrap();
+            // TODO(b/581117790): Even with collectHoistedFunctionsInReferenceOrder = true,
+            // shouldTraverse() traverses `function f()` immediately on first AST encounter when
+            // `f` has not been referenced yet, recording the read of `z` inside `f()` before
+            // `let z;` rather than deferring traversal of `f()` until its first reference at
+            // `f();`.
+            let compiler = t.get_compiler();
+            let is_declaration: Vec<bool> = z
+                .references
+                .iter()
+                .map(|reference| reference.is_declaration(compiler))
+                .collect();
+            assert_eq!(is_declaration, [false, true]);
+            *self.checked.borrow_mut() = true;
+        }
+    }
+}
+
+// port: ReferenceCollectorTest#testBehavior_hoistedFunctionsInReferenceOrder_declaredBeforeFirstCall
+#[test]
+fn test_behavior_hoisted_functions_in_reference_order_declared_before_first_call() {
+    let behavior = DeclaredBeforeFirstCallBehavior::default();
+    let visited_reference_names = behavior.visited_reference_names.clone();
+    let checked = behavior.checked.clone();
+    let mut test = set_up(behavior);
+    test.collect_hoisted_functions_in_reference_order = true;
+    test_behavior(
+        &mut test,
+        "function f() {
+  return z;
+}
+let z;
+f();
+",
+    );
+
+    assert!(*checked.borrow());
+    assert_eq!(*visited_reference_names.borrow(), ["f", "z", "z", "f"]);
+}
+
 // port: ReferenceCollectorTest#testBehavior_hoistedFunctionsInReferenceOrder_false
 #[test]
 fn test_behavior_hoisted_functions_in_reference_order_false() {
