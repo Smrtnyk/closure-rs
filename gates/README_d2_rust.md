@@ -44,8 +44,8 @@ Pairs: every case of `corpus/d2/cases.jsonl` (the final corpus) x
   on timeout the whole process group is killed;
 - the out_dir is created empty before the run and removed afterwards;
 - compared with `corpus-cache/d2/_golden/$REF_GOLDEN_TAG/<case>/<profile>.json` (`ref-<first 8
-  hex digits of the reference jar's sha256>`: `ref-ddef697f` for `v20261102`; the store of
-  every older reference, such as `ref-9e1b1cf8`, stays next to it), **byte for byte,
+  hex digits of the reference jar's sha256>`: `ref-e1da98c7` for `v20261108`; the store of
+  every older reference, such as `ref-ddef697f`, stays next to it), **byte for byte,
   no normalization**: exit code, stdout, stderr, the set of files in the out_dir and each
   file's bytes (`out.js`, `out.js.map`, `c0.js`...). A pair passes only if everything is
   identical and it did not time out.
