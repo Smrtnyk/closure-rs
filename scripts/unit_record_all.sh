@@ -40,6 +40,8 @@ run_one() {
   cls="$1"; name="${cls##*.}"
   [ -f "$STAT/$name.json" ] && { echo "SKIP $name"; return 0; }
   cd "$WS" || return 1
+  # A crash marker of an earlier run is stale once the class runs again.
+  rm -f "$STAT/$name.crash.json"
   timeout 2400 java -Xmx2g -Xss8m -XX:+UseParallelGC -Dclosurers.unit.record=true \
     --add-exports=java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED \
     "-javaagent:$AGENT_JAR=trace=$TRACE_SCOPE" \
