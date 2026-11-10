@@ -165,6 +165,9 @@ pub struct Compiler {
     // decides which input map's sourcesContent is kept for a source that several maps name.
     input_source_maps: Arc<std::sync::Mutex<InputSourceMaps>>,
     script_node_by_filename: Arc<std::sync::Mutex<IndexMap<String, NodeId>>>,
+    // Java's LinkedHashMultimap: keys and each key's values in insertion order.
+    hoisted_externs_by_chunk:
+        IndexMap<crate::js_chunk::JSChunk, closure_rhino::fast_hash::IndexSet<CompilerInput>>,
     module_loader: crate::deps::module_loader::ModuleLoader,
     pending_module_errors: Arc<std::sync::Mutex<Vec<JSError>>>,
     prefer_regex_parser: bool,
@@ -279,6 +282,7 @@ impl Compiler {
             comments_per_file: IndexMap::<_, _>::default(),
             input_source_maps,
             script_node_by_filename: Arc::new(std::sync::Mutex::new(IndexMap::<_, _>::default())),
+            hoisted_externs_by_chunk: IndexMap::<_, _>::default(),
             module_loader: crate::deps::module_loader::EMPTY.clone(),
             pending_module_errors: Arc::new(std::sync::Mutex::new(Vec::new())),
             prefer_regex_parser: false,
@@ -2272,13 +2276,33 @@ impl Compiler {
     ) -> closure_rhino::js_string::JsString {
         self.run_in_compiler_thread(|compiler| {
             let inputs = chunk.get_inputs();
-            if inputs.is_empty() {
+            let chunk_externs: Vec<CompilerInput> = if compiler.get_options().should_print_externs()
+            {
+                compiler
+                    .hoisted_externs_by_chunk
+                    .get(chunk)
+                    .map(|externs| externs.iter().cloned().collect())
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            if inputs.is_empty() && chunk_externs.is_empty() {
                 return closure_rhino::js_string::JsString::default();
             }
             let mut cb = CodeBuilder::default();
-            for (i, input) in inputs.iter().enumerate() {
+            let mut seq = 0;
+            for extern_input in &chunk_externs {
+                let script_node = extern_input.get_ast_root(compiler);
+                compiler.to_source_with_builder(&mut cb, tracker, seq, script_node);
+                seq += 1;
+            }
+            for input in &inputs {
+                if !chunk_externs.is_empty() && Compiler::is_fill_file_name(input.get_name()) {
+                    continue;
+                }
                 let root = input.get_ast_root(compiler);
-                compiler.to_source_with_builder(&mut cb, tracker, i as i32, root);
+                compiler.to_source_with_builder(&mut cb, tracker, seq, root);
+                seq += 1;
             }
             cb.to_js_string()
         })
@@ -2843,6 +2867,10 @@ impl Compiler {
                 .unwrap()
                 .insert(input.get_source_file().get_name().into(), root);
             if let Some(chunk) = input.get_chunk() {
+                self.hoisted_externs_by_chunk
+                    .entry(chunk.clone())
+                    .or_default()
+                    .insert(input.clone());
                 chunk.remove(input);
             }
             self.externs.push(input.clone());
