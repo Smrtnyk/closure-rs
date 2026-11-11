@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
 //   src/com/google/javascript/jscomp/CodeGenerator.java.
 
 #![allow(
@@ -1001,8 +1001,20 @@ pub trait CodeGeneration<'a> {
                     if (!super_class.is_empty(ast)) {
                         self.add(&("extends").into());
 
-                        // Parentheses are required for a comma expression or an assignment expression.
-                        self.add_expr(ast, super_class, 1, Context::OTHER);
+                        // ClassHeritage is `extends LeftHandSideExpression`, so parenthesize anything that
+                        // binds more loosely, e.g. comma, assignment, `??`, `?:`, `await`. CALL's precedence
+                        // is the lowest level at which every expression is a LeftHandSideExpression, except
+                        // for arrow functions, which arrowFunctionNeedsParens handles.
+                        // NEW is special-cased. NodeUtil gives it unary precedence because `new Foo` can't be
+                        // followed by `()` or `.x` without changing its meaning. But in the grammar, both
+                        // `new Foo()` (MemberExpression) and `new Foo` (NewExpression) are
+                        // LeftHandSideExpressions, so a NEW superclass never needs parentheses.
+                        let super_class_precedence = if super_class.is_new(ast) {
+                            NodeUtil::precedence(Token::NEW)
+                        } else {
+                            NodeUtil::precedence(Token::CALL)
+                        };
+                        self.add_expr(ast, super_class, super_class_precedence, Context::OTHER);
                     }
 
                     let mut interfaces = node.get_implements(ast);
@@ -2204,6 +2216,9 @@ pub trait CodeGeneration<'a> {
             // MemberFunction '(' AssignmentExpressionList ')'
             // LeftHandSideExpression ? AssignmentExpression : AssignmentExpression
             expression_or_enclosing_cast.is_first_child_of(ast, Some(parent))
+        } else if parent.is_class(ast) {
+            // ClassHeritage : 'extends' LeftHandSideExpression
+            expression_or_enclosing_cast.is_second_child_of(ast, Some(parent))
         } else {
             // All other cases are either illegal (e.g. because you cannot assign a value to an
             // ArrowFunction) or do not require parens.
@@ -2487,9 +2502,6 @@ pub trait CodeGeneration<'a> {
         {
             // precedence is not enough here since using && or || with ?? without parentheses
             // is a syntax error as ?? expands directly to |
-            true
-        } else if n.is_assign(ast) && n.get_parent(ast).unwrap().is_class(ast) {
-            // Class declarations with assignments should be wrapped in parentheses.
             true
         } else {
             self.precedence(ast, n) < min_precedence

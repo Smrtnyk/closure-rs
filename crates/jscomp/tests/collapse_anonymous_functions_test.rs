@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
 //   test/com/google/javascript/jscomp/CollapseAnonymousFunctionsTest.java,
 //   test/com/google/javascript/jscomp/CompilerTestCase.java.
 

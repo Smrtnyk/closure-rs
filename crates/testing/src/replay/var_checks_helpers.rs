@@ -19,7 +19,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
 //   src/com/google/javascript/jscomp/CompilerPass.java,
 //   src/com/google/javascript/jscomp/ConstCheck.java,
 //   src/com/google/javascript/jscomp/DeclaredGlobalExternsOnWindow.java,

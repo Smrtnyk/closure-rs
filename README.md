@@ -14,10 +14,10 @@ its [documentation](https://developers.google.com/closure/compiler) and the offi
 ## Status
 
 closure-rs is stable and matches Closure Compiler release
-[`v20261108`](https://github.com/google/closure-compiler/tree/v20261108) (commit
-[`51d8099`](https://github.com/google/closure-compiler/tree/51d8099391498ee0fd730c24bff9d983ccc4aac8)),
+[`v20261109`](https://github.com/google/closure-compiler/tree/v20261109) (commit
+[`ddfede7`](https://github.com/google/closure-compiler/tree/ddfede731e001beb7555d5a796e073bb09a01104)),
 published on npm as
-[`google-closure-compiler@20261108.0.0`](https://www.npmjs.com/package/google-closure-compiler/v/20261108.0.0).
+[`google-closure-compiler@20261109.0.0`](https://www.npmjs.com/package/google-closure-compiler/v/20261109.0.0).
 It follows upstream *releases*, not master commits: each sync moves it to a newer npm release
 ([Versioning](#versioning)). Its output is deterministic;
 [How the port is checked](#how-the-port-is-checked) describes how it is compared with the Java
@@ -91,14 +91,14 @@ source maps in every run.
 
 Versions are `<upstream>.<minor>.<patch>`:
 
-- **major:** the upstream release whose output closure-rs matches (`20261108` is
-  `google-closure-compiler@20261108.0.0`). A sync to a newer upstream release starts a new major
+- **major:** the upstream release whose output closure-rs matches (`20261109` is
+  `google-closure-compiler@20261109.0.0`). A sync to a newer upstream release starts a new major
   version at `.0.0`.
 - **minor:** releases that leave the output unchanged: speed, the npm wrapper, new platforms.
 - **patch:** fixes: a difference from the Java compiler, a crash, a bug in the npm wrapper.
 
-So a range such as `^20261108.0.0` stays on one upstream release. `latest` is the stable release;
-experimental builds are prereleases (for example `20261108.1.0-exp.1`) under the dist-tag `exp`.
+So a range such as `^20261109.0.0` stays on one upstream release. `latest` is the stable release;
+experimental builds are prereleases (for example `20261109.1.0-exp.1`) under the dist-tag `exp`.
 
 ## Bugs and issues
 
