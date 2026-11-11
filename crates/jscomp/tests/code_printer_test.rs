@@ -1661,6 +1661,45 @@ fn test_class_extends_left_hand_side_expression() {
         JsString::from("class A {\n}\nclass B extends(0, A) {\n}\n"),
     );
 }
+// port: CodePrinterTest#testClassExtendsNew
+#[test]
+fn test_class_extends_new() {
+    // Both `new Foo()` (MemberExpression) and `new Foo` (NewExpression) are
+    // LeftHandSideExpressions, so neither needs parentheses.
+    let mut t = CodePrinterTestBase::new();
+    t.assert_print_same(JsString::from("class C extends new Foo{}"));
+    t.assert_print(
+        JsString::from("class C extends new Foo() {}"),
+        JsString::from("class C extends new Foo{}"),
+    );
+    t.assert_print_same(JsString::from("class C extends new Foo(1){}"));
+}
+// port: CodePrinterTest#testClassExtendsNonLeftHandSideExpression
+#[test]
+fn test_class_extends_non_left_hand_side_expression() {
+    let mut t = CodePrinterTestBase::new();
+    t.assert_print_same(JsString::from("class C extends(a=b){}"));
+    t.assert_print_same(JsString::from("class C extends(a?b:c){}"));
+    t.assert_print_same(JsString::from("class C extends(a||b){}"));
+    t.assert_print_same(JsString::from("class C extends(a??b){}"));
+    t.assert_print_same(JsString::from("class C extends(!a){}"));
+    t.assert_print_same(JsString::from(
+        "async function f(){class C extends(await a){}}",
+    ));
+    t.assert_print_same(JsString::from("function*f(){class C extends(yield a){}}"));
+    t.assert_print_same(JsString::from("class C extends(()=>{}){}"));
+    t.assert_print_same(JsString::from("class C extends(async()=>{}){}"));
+}
+// port: CodePrinterTest#testClassExtendsLeftHandSideExpressionNoParens
+#[test]
+fn test_class_extends_left_hand_side_expression_no_parens() {
+    let mut t = CodePrinterTestBase::new();
+    t.assert_print_same(JsString::from("class C extends a.b{}"));
+    t.assert_print_same(JsString::from("class C extends a[b]{}"));
+    t.assert_print_same(JsString::from("class C extends a(){}"));
+    t.assert_print_same(JsString::from("class C extends a?.b{}"));
+    t.assert_print_same(JsString::from("class C extends class{}{}"));
+}
 // port: CodePrinterTest#testNonJSDocCommentsPrinted_trailing_inlineComments_callArgList
 #[test]
 fn test_non_js_doc_comments_printed_trailing_inline_comments_call_arg_list() {
@@ -4384,21 +4423,22 @@ fn test_or_cast_in_nullish_coalesce() {
 // port: CodePrinterTest#testNullishCoalesceExtends
 #[test]
 fn test_nullish_coalesce_extends() {
-    // TODO(b/571641705): CodeGenerator omits required parentheses around ?? in class extends clauses
     let mut t = CodePrinterTestBase::new();
     t.language_mode = LanguageMode::ECMASCRIPT_NEXT;
     let node = t.parse(JsString::from("class C extends (a ?? b) {}"));
-    assert_eq!(t.print_node(node), JsString::from("class C extends a??b{}"));
+    assert_eq!(
+        t.print_node(node),
+        JsString::from("class C extends(a??b){}")
+    );
 }
 // port: CodePrinterTest#testNullishCoalesceAssignExtends
 #[test]
 fn test_nullish_coalesce_assign_extends() {
-    // TODO(b/571641705): CodeGenerator omits required parentheses around ??= in class extends clauses
     let mut t = CodePrinterTestBase::new();
     t.language_mode = LanguageMode::ECMASCRIPT_NEXT;
     let node = t.parse(JsString::from("class C extends (a ??= b) {}"));
     assert_eq!(
         t.print_node(node),
-        JsString::from("class C extends a??=b{}")
+        JsString::from("class C extends(a??=b){}")
     );
 }
