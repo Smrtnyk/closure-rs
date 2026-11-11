@@ -7,16 +7,20 @@ descriptors that use them; then every static call, instance method name, private
 header cites). Static: it reads only corpus/unit/descriptors and oracle/replay/helpers.
 Overloads are listed by arity; the Java signature replay resolved at run time (DSL.md "Overload
 resolution") comes from corpus/unit/replay_signatures.tsv (--collect-signatures).
+The descriptors and helpers are read from, and REPLAY.md and replay_signatures.tsv written to, the
+checkout this script belongs to (a worktree, too); the replay's signature logs are read from the
+gate 0.2 work directory of ROOT (scripts/paths.py: $CLOSURE_RS_ROOT, else the main checkout).
 """
+import argparse
 import collections
-import sys
 import json
 import os
 import re
 
-from paths import ROOT  # the main checkout (scripts/paths.py)
-DESC = f"{ROOT}/corpus/unit/descriptors"
-HELP = f"{ROOT}/oracle/replay/helpers"
+from paths import ROOT  # where gate 0.2 leaves build/gate02 (scripts/paths.py)
+CHECKOUT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DESC = f"{CHECKOUT}/corpus/unit/descriptors"
+HELP = f"{CHECKOUT}/oracle/replay/helpers"
 
 
 def walk(x, desc, acc):
@@ -57,11 +61,11 @@ def helper_header(pkg, holder):
         txt = f.read()
     m = re.match(r"/\*(.*?)\*/", txt, re.S)
     cites = sorted(set(re.findall(r"(test/\S+\.java)[^\n]*?lines? ([\d\-, ]+)", m.group(1) if m else "")))
-    return os.path.relpath(p, ROOT), txt.count("\n"), "; ".join(f"{a} lines {b.strip()}" for a, b in cites)
+    return os.path.relpath(p, CHECKOUT), txt.count("\n"), "; ".join(f"{a} lines {b.strip()}" for a, b in cites)
 
 
 SIG_DIR = f"{ROOT}/build/gate02/replay"
-SIG_TSV = f"{ROOT}/corpus/unit/replay_signatures.tsv"
+SIG_TSV = f"{CHECKOUT}/corpus/unit/replay_signatures.tsv"
 
 
 def collect_signatures():
@@ -116,7 +120,11 @@ def sig_section():
 
 
 def main():
-    if "--collect-signatures" in sys.argv:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--collect-signatures", action="store_true",
+                    help=f"first rebuild corpus/unit/replay_signatures.tsv from the replay's logs in {SIG_DIR}")
+    a = ap.parse_args()
+    if a.collect_signatures:
         collect_signatures()
     acc = collections.defaultdict(lambda: collections.defaultdict(set))
     acc["new"] = collections.defaultdict(lambda: collections.defaultdict(set))
@@ -166,7 +174,7 @@ def main():
         for k, v in sorted(cm.items()):
             L.append(f"| {n} | `{k}` | `{v}` |")
     L += sig_section()
-    with open(f"{ROOT}/corpus/unit/REPLAY.md", "w") as f:
+    with open(f"{CHECKOUT}/corpus/unit/REPLAY.md", "w") as f:
         f.write("\n".join(L) + "\n")
     print("REPLAY.md:", len(acc["new"]), "classes,", len(acc["helper"]), "helper refs")
 
