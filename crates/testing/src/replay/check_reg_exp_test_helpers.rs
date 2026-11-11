@@ -31,7 +31,7 @@
 // Ported from closure-rs' own Java oracle tooling:
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java,
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 51d8099:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
 //   src/com/google/javascript/jscomp/CheckRegExp.java,
 //   test/com/google/javascript/jscomp/CheckRegExpTest.java.
 
