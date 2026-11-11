@@ -19,10 +19,10 @@ It is a faithful port, not a redesign: the Java code is ported as it is, the out
 identical, and the port does not "improve" the optimizer or its output. A difference from the Java
 compiler at the pinned commit is a porting defect.
 
-**Reference:** `github.com/google/closure-compiler` release `v20261108`, commit
-`51d8099391498ee0fd730c24bff9d983ccc4aac8` (2026-11-06), the release published on npm as
-`google-closure-compiler@20261108.0.0` (registry tag `v20261108` in `scripts/references.tsv`).
-`scripts/fetch_reference.sh` fetches it into `reference/closure-compiler-v20261108` (gitignored);
+**Reference:** `github.com/google/closure-compiler` release `v20261109`, commit
+`ddfede731e001beb7555d5a796e073bb09a01104` (2026-11-09), the release published on npm as
+`google-closure-compiler@20261109.0.0` (registry tag `v20261109` in `scripts/references.tsv`).
+`scripts/fetch_reference.sh` fetches it into `reference/closure-compiler-v20261109` (gitignored);
 `oracle/REFERENCE.md` describes how the reference jar is built. The pin moves only when the port
 is synced with upstream (§9), and only to an upstream release that is published on npm.
 
@@ -338,11 +338,11 @@ checkout it is run from (a branch for the sync, also a git worktree):
 
 ```sh
 python3 scripts/upstream_sync.py --list                    # the steps
-python3 scripts/upstream_sync.py v20261108 --dry-run       # what each step would do
-mkdir -p build/logs && setsid nohup python3 scripts/upstream_sync.py v20261108 \
+python3 scripts/upstream_sync.py v20261109 --dry-run       # what each step would do
+mkdir -p build/logs && setsid nohup python3 scripts/upstream_sync.py v20261109 \
   > build/logs/upstream-sync.log 2>&1 &                     # the whole sync, detached
-python3 scripts/upstream_sync.py v20261108 --from unit-record   # resume at a step
-python3 scripts/upstream_sync.py v20261108 --only flags,license-headers
+python3 scripts/upstream_sync.py v20261109 --from unit-record   # resume at a step
+python3 scripts/upstream_sync.py v20261109 --only flags,license-headers
 ```
 
 Every step first checks whether its result is already there and then only says so, so the command
