@@ -6206,7 +6206,7 @@ fn test_large_radix_literals_round_once() {
     // 443538294610663463 needs 59 bits, so it cannot be accumulated digit by digit without
     // rounding at every step. Its nearest double is 443538294610663488; rounding at each step
     // instead lands on the neighboring double 443538294610663424.
-    let expected = 443538294610663488.0;
+    let expected = 4.435382946106635E+17;
     h.mode = LanguageMode::ECMASCRIPT_2015;
     let n = parse_number_literal(&mut h, "0x627c3ba9e8d1827;");
     assert!(n.is_number(&h.ast));
