@@ -131,10 +131,19 @@ def _collect_outputs(out_dir_abs: str) -> dict:
     return dict(sorted(outputs.items()))
 
 
+class JvmCrash(RuntimeError):
+    """The JVM died of a signal or reported a fatal error of its own (hs_err): not a result of the
+    compiler, so run_one writes no result; the record is kept under build/golden-tmp/_crashes/."""
+
+
+JVM_FATAL = b"A fatal error has been detected by the Java Runtime Environment"
+
+
 def run_one(case: dict, profile: str, *, result_file: str | None = None,
             timeout_s: int = DEFAULT_TIMEOUT_S, xmx: str = DEFAULT_XMX,
             keep_out: bool = False, profiles: dict | None = None) -> dict:
-    """Run one (case, profile) and write its result JSON. Returns the result dict."""
+    """Run one (case, profile) and write its result JSON. Returns the result dict. Raises JvmCrash,
+    writing no result, when the JVM crashed (see JvmCrash)."""
     check_jar()
     profiles = profiles or case_args.load_profiles()
     out_dir = case_args.default_out_dir(case["id"], profile, profiles)
@@ -221,6 +230,14 @@ def run_one(case: dict, profile: str, *, result_file: str | None = None,
         "peak_rss_kb": peak_rss_kb,
         "cpu_ms": int(round((ru.ru_utime + ru.ru_stime) * 1000)),
     }
+    if not res["timed_out"] and (proc.returncode < 0 or JVM_FATAL in stdout or JVM_FATAL in stderr):
+        keep = os.path.join(REPO, "build/golden-tmp/_crashes", case["id"], f"{profile}.json")
+        os.makedirs(os.path.dirname(keep), exist_ok=True)
+        with open(keep, "w", encoding="utf-8") as f:
+            json.dump(res, f, ensure_ascii=False, indent=1)
+            f.write("\n")
+        raise JvmCrash(f"{case['id']}/{profile}: the JVM crashed (exit {proc.returncode}); "
+                       f"no result written, record in {os.path.relpath(keep, REPO)}")
     dest = os.path.join(REPO, result_file or result_path(case["id"], profile))
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     tmp = f"{dest}.tmp.{os.getpid()}.{threading.get_ident()}"

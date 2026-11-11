@@ -87,6 +87,18 @@ def rel(path):
     return path
 
 
+def newest_mtime(root):
+    """The newest modification time of the files under root (0 when there are none)."""
+    newest = 0.0
+    for dirpath, _dirs, files in os.walk(root):
+        for fn in files:
+            try:
+                newest = max(newest, os.path.getmtime(os.path.join(dirpath, fn)))
+            except OSError:
+                pass
+    return newest
+
+
 class Sync:
     def __init__(self, a):
         self.tag = a.tag
@@ -894,6 +906,12 @@ class Sync:
         self.link_shared()
         out = os.path.join(self.work, "d2-rust")
         wl = os.path.join(self.work, "d2-worklist.txt")
+        store = os.path.join(CHECKOUT, "corpus-cache", "d2", "_golden", self.ref().golden_tag)
+        if os.path.exists(wl) and newest_mtime(store) > os.path.getmtime(wl):
+            # a golden result was redone (for example a pair whose JVM crashed) after the worklist ran
+            log(f"  {rel(wl)} is older than a golden result of {self.ref().golden_tag}: running again")
+            if not self.dry:
+                os.remove(wl)
         if os.path.exists(wl):
             log(f"  {rel(wl)} exists (delete it and {rel(out)} to run again):")
             log("    " + open(wl, encoding="utf-8").read().rstrip().replace("\n", "\n    "))

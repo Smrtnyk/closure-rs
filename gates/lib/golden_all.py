@@ -11,6 +11,8 @@ Usage:
   margin), capped at 3/4 of the CPUs.  Additionally a job is only started while
   /proc/meminfo MemAvailable stays above --reserve-gb (host protection).
 * Long jobs first (inputs ordered by total input bytes, descending) for load balancing.
+* A JVM crash (run_reference.JvmCrash: a signal or the JVM's fatal-error report) is retried once;
+  a pair that crashes twice gets no result, so it stays missing and the run exits 1.
 * At the end (and with --summary-only) writes <golden>/_summary.json and prints it.
 """
 
@@ -235,12 +237,18 @@ def main() -> int:
             while mem_available_kb() < reserve_kb and waited < 600:
                 time.sleep(2)
                 waited += 2
-        try:
-            r = rr.run_one(c, p, timeout_s=a.timeout, xmx=a.xmx, profiles=profiles)
-            key = "timeout" if r["timed_out"] else str(r["exit_code"])
-        except Exception as e:  # noqa: BLE001 - keep the driver alive, report at the end
-            key = f"runner_error:{type(e).__name__}"
-            print(f"[golden] RUNNER ERROR {c['id']}/{p}: {e!r}", flush=True)
+        for attempt in (1, 2):
+            try:
+                r = rr.run_one(c, p, timeout_s=a.timeout, xmx=a.xmx, profiles=profiles)
+                key = "timeout" if r["timed_out"] else str(r["exit_code"])
+            except rr.JvmCrash as e:
+                key = "jvm_crash"
+                print(f"[golden] JVM CRASH (attempt {attempt} of 2) {e}", flush=True)
+                continue
+            except Exception as e:  # noqa: BLE001 - keep the driver alive, report at the end
+                key = f"runner_error:{type(e).__name__}"
+                print(f"[golden] RUNNER ERROR {c['id']}/{p}: {e!r}", flush=True)
+            break
         with lock:
             done += 1
             fails[key] += 1
