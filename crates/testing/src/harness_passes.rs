@@ -39,7 +39,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/AccessorSummary.java,
 //   src/com/google/javascript/jscomp/ChangeVerifier.java,
 //   src/com/google/javascript/jscomp/Compiler.java,
