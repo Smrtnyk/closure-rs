@@ -67,6 +67,9 @@ fn bad() -> Throwable {
 pub fn holder(_ctx: &mut Ctx, _args: Vec<DslValue>) -> Result<DslValue, Throwable> {
     let mut fields = IndexMap::<_, _>::default();
     let mut field_types = IndexMap::<_, _>::default();
+    // @Parameter public boolean enableTypeCheck;
+    fields.insert("enableTypeCheck".to_string(), DslValue::Bool(false));
+    field_types.insert("enableTypeCheck".to_string(), "boolean".to_string());
     // private @Nullable String dynamicImportAlias = "imprt_";
     fields.insert(
         "dynamicImportAlias".to_string(),
@@ -160,14 +163,21 @@ impl NativeObject for Processor {
         externs: NodeId,
         root: NodeId,
     ) -> Result<(), Throwable> {
-        // NOTE: we cannot just use enableTypeCheck(), because we need to be able
-        // to retrieve globalTypedScope for use by Es6RewriteModules.
-        // new TypeCheck(compiler, new SemanticReverseAbstractInterpreter(registry), registry)
-        //     .processForTesting(externs, root), on the compiler the harness lends this pass.
-        let global_typed_scope = Some(crate::harness_passes::type_check_scope(
-            compiler, externs, root, false,
-        )?);
-        compiler.set_type_checking_has_run(true);
+        let enable_type_check = match self.outer.borrow().fields.get("enableTypeCheck") {
+            Some(DslValue::Bool(b)) => *b,
+            _ => return Err(bad()),
+        };
+        let mut global_typed_scope = None;
+        if enable_type_check {
+            // NOTE: we cannot just use enableTypeCheck(), because we need to be able
+            // to retrieve globalTypedScope for use by Es6RewriteModules.
+            // new TypeCheck(compiler, new SemanticReverseAbstractInterpreter(registry), registry)
+            //     .processForTesting(externs, root), on the compiler the harness lends this pass.
+            global_typed_scope = Some(crate::harness_passes::type_check_scope(
+                compiler, externs, root, false,
+            )?);
+            compiler.set_type_checking_has_run(true);
+        }
         // We need to make sure modules are rewritten, because RewriteDynamicImports
         // expects to be able to see the module variables.
         let module_metadata_map = compiler.get_module_metadata_map().cloned();
