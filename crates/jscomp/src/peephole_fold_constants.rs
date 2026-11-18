@@ -878,9 +878,23 @@ impl PeepholeFoldConstants {
                 if let (Some(l), Some(r)) = (l_val_obj, r_val_obj) {
                     return self.maybe_replace_binary_op_with_numeric_result(compiler, l + r, l, r);
                 }
-                if l_val_obj.is_some_and(|l| l == 0.0) {
+                // NOTE: `x + 0` and `0 + x` can only be folded to `x` when `x` cannot evaluate to
+                // `-0`, because `-0 + 0` and `0 + (-0)` is `+0` (not `-0`).
+                if Self::is_positive_zero(l_val_obj)
+                    && !NodeUtil::may_be_negative_zero_normalized(
+                        compiler,
+                        right,
+                        self.is_ast_normalized(compiler),
+                    )
+                {
                     return Some(right.clone_tree_with_type_exprs(compiler, true));
-                } else if r_val_obj.is_some_and(|r| r == 0.0) {
+                } else if Self::is_positive_zero(r_val_obj)
+                    && !NodeUtil::may_be_negative_zero_normalized(
+                        compiler,
+                        left,
+                        self.is_ast_normalized(compiler),
+                    )
+                {
                     return Some(left.clone_tree_with_type_exprs(compiler, true));
                 }
                 return None;
@@ -889,14 +903,18 @@ impl PeepholeFoldConstants {
                 if let (Some(l), Some(r)) = (l_val_obj, r_val_obj) {
                     return self.maybe_replace_binary_op_with_numeric_result(compiler, l - r, l, r);
                 }
-                if l_val_obj.is_some_and(|l| l == 0.0) {
+                if Self::is_positive_zero(l_val_obj)
+                    && !NodeUtil::may_be_positive_zero(compiler, right)
+                {
                     // 0 - x -> -x
-                    // NOTE: this optimization has the subtle side effect of changing `0` to `-0`
-                    // because `0-0 -> 0` but `-0 -> -0`.
+                    // NOTE: 0 - x is only safe to fold to -x when x cannot be +0.0, because
+                    // 0 - (+0.0) is +0.0, but -(+0.0) is -0.0.
                     let clone = right.clone_tree_with_type_exprs(compiler, true);
                     return Some(IR::neg(compiler, clone));
-                } else if r_val_obj.is_some_and(|r| r == 0.0) {
+                } else if Self::is_positive_zero(r_val_obj) {
                     // x - 0 -> x
+                    // NOTE: x - 0 is safe for all numbers under IEEE 754 when 0 is +0.0:
+                    // +0.0 - 0.0 = +0.0, -0.0 - 0.0 = -0.0.
                     return Some(left.clone_tree_with_type_exprs(compiler, true));
                 }
                 return None;
@@ -1091,6 +1109,11 @@ impl PeepholeFoldConstants {
             }
             _ => None,
         }
+    }
+
+    // port: PeepholeFoldConstants#isPositiveZero
+    fn is_positive_zero(val: Option<f64>) -> bool {
+        val.is_some_and(|val| val == 0.0 && JSCompDoubles::is_positive(val))
     }
 
     // port: PeepholeFoldConstants#isNumeric

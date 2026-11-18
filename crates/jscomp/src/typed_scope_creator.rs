@@ -3396,9 +3396,7 @@ impl AbstractScopeBuilder<'_> {
             return self.get_declared_type(compiler, info, l_value, second, None);
         }
 
-        if info.is_some()
-            && FunctionTypeBuilder::is_function_type_declaration(info.as_ref().unwrap())
-        {
+        if info.is_some() && NodeUtil::is_function_type_declaration(info.as_ref().unwrap()) {
             let fn_name = l_value.get_qualified_name(compiler);
             return Some(self.create_function_type_from_nodes(
                 compiler,
@@ -4151,7 +4149,7 @@ impl AbstractScopeBuilder<'_> {
             && (info.as_ref().unwrap().has_type()
                 || info.as_ref().unwrap().has_enum_parameter_type()
                 || self.is_valid_typedef_declaration(compiler, n, info.clone())
-                || FunctionTypeBuilder::is_function_type_declaration(info.as_ref().unwrap())
+                || NodeUtil::is_function_type_declaration(info.as_ref().unwrap())
                 || (rhs_value.is_some() && rhs_value.unwrap().is_function(compiler))))
             || self.is_typed_constant_declaration(compiler, info.as_deref(), n, Some(value_type))
         {
