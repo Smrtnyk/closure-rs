@@ -355,7 +355,7 @@ pub fn post_call_snapshot(
             "packageJsonMainEntries",
             "typedPercent",
             "moduleMapBoundNames",
-            "googModuleExportTypes",
+            "tsExportTypes",
         ] {
             match compiler_snapshot_value(&mut c.borrow_mut(), key) {
                 Ok(Some(value)) => {
@@ -363,7 +363,7 @@ pub fn post_call_snapshot(
                         "typeMismatches" | "injectedLibraries" => {
                             value.as_array().is_some_and(|a| !a.is_empty())
                         }
-                        "moduleMapBoundNames" | "googModuleExportTypes" => {
+                        "moduleMapBoundNames" | "tsExportTypes" => {
                             value.as_object().is_some_and(|o| !o.is_empty())
                         }
                         "packageJsonMainEntries" => value
@@ -829,27 +829,13 @@ fn compiler_snapshot_value(
                     .collect(),
             )
         }),
-        // getModuleMetadataMap().getModulesByGoogNamespace() -> ClosureExportTypeClassifier
-        // .classify(rootNode, namespace).name() for the goog.modules whose root is a SCRIPT with a
-        // MODULE_BODY first child (the classifier's precondition).
-        "googModuleExportTypes" => c.get_module_metadata_map().cloned().map(|mm| {
+        // getModuleMetadataMap().getModulesByGoogNamespace(): namespace -> the metadata's
+        // tsExportTypes().get(namespace).name(), for the namespaces it classifies.
+        "tsExportTypes" => c.get_module_metadata_map().cloned().map(|mm| {
             let mut types = IndexMap::<_, _>::default();
             for (namespace, m) in mm.get_modules_by_goog_namespace() {
-                let Some(root) = m.root_node() else {
-                    continue;
-                };
-                if m.is_goog_module()
-                    && root.is_script(c)
-                    && root
-                        .get_first_child(c)
-                        .is_some_and(|first| first.is_module_body(c))
-                {
-                    let namespace = namespace.to_string();
-                    let export_type =
-                        closure_jscomp::closure_export_type_classifier::ClosureExportTypeClassifier::classify(
-                            c, root, &namespace,
-                        );
-                    types.insert(namespace, JsonValue::str(&format!("{export_type:?}")));
+                if let Some(export_type) = m.ts_export_types().get(namespace) {
+                    types.insert(namespace.to_string(), JsonValue::str(export_type.name()));
                 }
             }
             JsonValue::Object(types)

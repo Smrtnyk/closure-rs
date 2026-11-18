@@ -444,7 +444,7 @@ encoding. `compiler` is read from the compiler the record's `observed` comes fro
 | `packageJsonMainEntries` | `Compiler.getModuleLoader().getPackageJsonMainEntries()` | map string -> string (the loader's map order); present only when non-empty |
 | `typedPercent` | `Compiler.getErrorManager().getTypedPercent()` | `{"double": Double.toString}`; present only when non-zero |
 | `moduleMapBoundNames` | `Compiler.getModuleMap().getModulesByPath()` -> `Module.boundNames().keySet()` | object module path -> list of bound local names in `boundNames()` order; present only when the module map is set and non-empty |
-| `googModuleExportTypes` | `Compiler.getModuleMetadataMap().getModulesByGoogNamespace()` -> `ClosureExportTypeClassifier.classify(metadata.rootNode(), namespace)` | object goog namespace -> `TsExportType` name (`DEFAULT` or `NAMED`), in the map's order, for the goog.modules (`isGoogModule()`) whose root node is a SCRIPT with a MODULE_BODY first child (the classifier's precondition); present only when non-empty |
+| `tsExportTypes` | `Compiler.getModuleMetadataMap().getModulesByGoogNamespace()` -> `metadata.tsExportTypes().get(namespace)` | object goog namespace -> `TsExportType` name (`DEFAULT`, `NAMED` or `NO_DTS`), in the map's order, for the namespaces whose metadata classifies them (GatherModuleMetadata classifies the namespaces of goog.provide and goog.module scripts); present only when non-empty |
 
 `pass` holds the results of **result producers**: pass objects reachable from the processor (its
 instance fields to object depth 2, list and array items included) and then from the roots (the
