@@ -451,9 +451,8 @@ MARKER = re.compile(r'(?://|/\*|^\s*\*)[^\n]*?\bport:([^\n]*)', re.M)
 
 # Markers naming closure-rs' own differential tests and fixture dumpers (Java programs kept
 # outside the repository, under build/), or plain words: no upstream source.
-NOT_A_CLASS = {'UnixPathTest', 'URITest', 'MatcherTest', 'SourcemapDiffDriver', 'OptionsStringsDump',
-               'OptionsConfigurationsDump', 'PatternExpectationsDump', 'Unported', 'JDK', 'Java',
-               'Rust', 'JS', 'JSON', 'I', 'N', 'T'}
+NOT_A_CLASS = {'UnixPathTest', 'URITest', 'MatcherTest', 'SourcemapDiffDriver', 'PatternExpectationsDump',
+               'Unported', 'JDK', 'Java', 'Rust', 'JS', 'JSON', 'I', 'N', 'T'}
 
 # Test-library assertions whose markers name the API semantics the Rust test helper reimplements
 # (Truth subjects, JUnit's TemporaryFolder, Guava testlib's EqualsTester); no library source is

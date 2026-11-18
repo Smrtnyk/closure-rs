@@ -612,9 +612,9 @@ crates/jscomp/tests/compiler_chunk_dependencies.rs	3677f9c8dea1045c	Apache-2.0	c
 crates/jscomp/tests/compiler_chunks.rs	3677f9c8dea1045c	Apache-2.0	closure:test/com/google/javascript/jscomp/JSChunkGraphTest.java; closure:test/com/google/javascript/jscomp/JSChunkTest.java
 crates/jscomp/tests/compiler_excerpt_test.rs	9b98c0ca3098782c	Apache-2.0	closure:test/com/google/javascript/jscomp/JSCompilerSourceExcerptProviderTest.java; closure:test/com/google/javascript/jscomp/DiagnosticGroupTest.java
 crates/jscomp/tests/compiler_flow_test.rs	d3c6c0aa81ab23f0	Apache-2.0	closure:test/com/google/javascript/jscomp/CompilerTest.java
-crates/jscomp/tests/compiler_options_configs_test.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/jscomp/tests/compiler_options_configs_test.rs	d0dd843c0754e0c4	Apache-2.0	own:scripts/unit_options_defaults/OptionsConfigurationsDump.java
 crates/jscomp/tests/compiler_options_defaults_test.rs	c32abd3c389099ca	Apache-2.0	own:scripts/unit_options_defaults/OptionsDefaultsDump.java
-crates/jscomp/tests/compiler_options_strings_test.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/jscomp/tests/compiler_options_strings_test.rs	710fffdea6bc417d	Apache-2.0	own:scripts/unit_options_defaults/OptionsStringsDump.java
 crates/jscomp/tests/compiler_options_test.rs	6fd255d8b66a92fd	Apache-2.0	closure:test/com/google/javascript/jscomp/CompilerOptionsTest.java
 crates/jscomp/tests/compiler_suppress_doc_test.rs	b808012f663c99ec	Apache-2.0	closure:test/com/google/javascript/jscomp/WarningsGuardTest.java
 crates/jscomp/tests/compiler_test.rs	d3c6c0aa81ab23f0	Apache-2.0	closure:test/com/google/javascript/jscomp/CompilerTest.java

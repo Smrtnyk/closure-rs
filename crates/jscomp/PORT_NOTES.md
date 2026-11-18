@@ -337,6 +337,10 @@ Tests read committed fixtures and need no JVM; the Java helpers that produced th
   uses the `compiler_whitespace_check` example.
 - `tests/data/compiler_pass_lists.json`: the pass lists DefaultPassConfig builds for 14 option
   configurations (`default_pass_config_test.rs`, `tests/java/CompilerPassLists.java`).
+- `tests/data/compiler_options_strings.json`, `compiler_options_configs.json`: `CompilerOptions`'
+  `toString` after 15 configurations and the fields that 317 option-setting configurations change,
+  dumped with the unit recorder's value encoder by `scripts/unit_options_defaults.sh` (the Java is in
+  `scripts/unit_options_defaults/`, next to the dump of the unit corpus' options defaults).
 - `tests/data/names.tsv`, `names.sha256`, `variables.expected.tsv.gz`: DefaultNameGenerator
   configurations with Java digests and VariableMap expectations (`namegen_golden_test.rs`); the
   `namegen_compare` example compares a full Java capture.

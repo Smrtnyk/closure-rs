@@ -54,6 +54,9 @@ NPM_REGISTRY = "https://registry.npmjs.org"
 JAVA = os.path.join(ROOT, "tools", "jdk-21", "bin")
 FIXED_ENV = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "TZ": "UTC"}
 UNIT_JARS = ("unit_support_deploy.jar", "unit_all_tests.jar", "compiler_tests_lib.jar")
+# What scripts/unit_options_defaults.sh writes from the reference's unit support jar.
+OPTIONS_FIXTURES = ("corpus/unit/options_defaults.json", "crates/jscomp/tests/data/compiler_options_strings.json",
+                    "crates/jscomp/tests/data/compiler_options_configs.json")
 # Upstream sources the port embeds verbatim (include_str!), as the jar ships them:
 # source path -> (jar entry, the port's copy). Step resources copies them from the jar.
 JAR_COPIES = {
@@ -725,7 +728,8 @@ class Sync:
 
     def step_unit_install(self):
         """Copies the new records into corpus/unit/records (the old ones are kept in the work
-        directory) and regenerates what derives from them."""
+        directory) and regenerates what derives from them, and the CompilerOptions fixtures of the
+        new reference (scripts/unit_options_defaults.sh)."""
         d = self.unit_dirs()
         dst = os.path.join(CHECKOUT, "corpus", "unit", "records")
         classes = self.test_classes()
@@ -779,7 +783,11 @@ class Sync:
         self.run([sys.executable, "scripts/unit_postcall_impls.py", "--check"], write=False, capture=True)
         self.run([sys.executable, "scripts/unit_rust_unit_tests.py", "--check"], write=False)
         self.run(["bash", "scripts/unit_options_defaults.sh"])
-        if self.diffstat("corpus/unit", "crates/testing/tests/data/record_counts.tsv"):
+        if not self.dry and self.git("status", "--short", "--", *OPTIONS_FIXTURES).strip():
+            self.note("unit-install", "the CompilerOptions fixtures changed (scripts/unit_options_defaults.sh): "
+                                      "port the options change; compiler_options_{defaults,configs,strings}_test.rs "
+                                      "and crates/testing pin the field and case counts")
+        if self.diffstat("corpus/unit", "crates/testing/tests/data/record_counts.tsv", *OPTIONS_FIXTURES):
             new_cls = [n for k, n in changed if k != "removed" and has_records(os.path.join(dst, n + ".jsonl.gz"))]
             missing = [n for n in new_cls if not os.path.exists(
                 os.path.join(CHECKOUT, "corpus", "unit", "descriptors", n + ".json"))]
