@@ -120,6 +120,13 @@ impl Callback for FindExportableNodes {
         }
         let parent = parent.unwrap();
 
+        if n.is_private_identifier(t) {
+            // A private member can't be exported, because its name is valid only inside the class
+            // body.
+            t.report(n, &EXPORT_ANNOTATION_NOT_ALLOWED, &[]);
+            return;
+        }
+
         if parent.is_assign(t) && (n.is_function(t) || n.is_class(t)) {
             let parent_info = parent.get_jsdoc_info(t);
             if parent_info.is_some_and(|parent_info| parent_info.is_export()) {

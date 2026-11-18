@@ -218,6 +218,19 @@ impl VarCheck {
             return;
         }
 
+        // In `#x in obj`, IRFactory represents `#x` as a NAME node and validates at parse time
+        // that it is inside a class and declared by an enclosing class. SyntacticScopeCreator only
+        // tracks variables, not class members, so skip `Scope` lookup and extern synthesis here.
+        if n.is_private_identifier(t) {
+            let parent = parent.unwrap();
+            check_state!(
+                parent.is_in(t) && n.is_first_child_of(t, Some(parent)),
+                "%s",
+                n.to_string(t)
+            );
+            return;
+        }
+
         let scope = t.get_scope();
         let var = scope.get_var_of_node(t.get_compiler(), n);
 
