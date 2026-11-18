@@ -9,6 +9,7 @@
    "AdvancedOptimizationsIntegrationTest#testRequireAndEncourageInlining_complexCase@2": "post-call not captured",
    "AdvancedOptimizationsIntegrationTest#testRequireAndEncourageInlining_complexCase@3": "post-call not captured",
    "AdvancedOptimizationsIntegrationTest#testSourceInfoForReferenceToImportedSymbol@0": "post-call not captured",
+   "AstValidatorTest#testArrayLit_validLaterEmptyAndSpread@0": "post-call not captured",
    "AstValidatorTest#testAwaitExpression@0": "post-call not captured",
    "AstValidatorTest#testAwaitExpression@1": "post-call not captured",
    "AstValidatorTest#testAwaitExpression@2": "post-call not captured",
@@ -190,6 +191,9 @@
    "CheckTemplateParamsTest#testReferenceToNonObjectType@0": "post-call not captured",
    "CheckTemplateParamsTest#testReferenceToNonObjectType@1": "post-call not captured",
    "CheckTemplateParamsTest#testReferenceToNonObjectType@2": "post-call not captured",
+   "ClosureExportTypeClassifierTest#emptyGoogNamespaces_returnsEmptyMap@0": "post-call not captured",
+   "ClosureExportTypeClassifierTest#mixedProvideAndEsExport_throwsIllegalArgumentException@0": "post-call not captured",
+   "ClosureExportTypeClassifierTest#mixedProvideAndEsImport_throwsIllegalArgumentException@0": "post-call not captured",
    "ClosureIntegrationTest#testGetOriginalQualifiedNameAfterEs6RewriteClasses@0": "post-call not captured",
    "ClosureRewriteModuleTest#testTypeAndSourceInfoOfGoogRequireFromModule@0": "post-call not captured",
    "ClosureRewriteModuleTest#testTypeOfGoogRequireFromLegacyModule@0": "post-call not captured",
@@ -321,8 +325,6 @@
    "GatherGetterAndSetterPropertiesTest#mergeExtersAndSrcs@0": "post-call not captured",
    "GatherGetterAndSetterPropertiesTest#mergeInExterns@0": "post-call not captured",
    "GatherGetterAndSetterPropertiesTest#mergeInSrcs@0": "post-call not captured",
-   "GenerateExportsTest#testCannotExportPrivateClassMembers_knownBug@0": "post-call not captured",
-   "GenerateExportsTest#testCannotExportPrivateClassMembers_knownBug@1": "post-call not captured",
    "InferJSDocInfoTest#testClassWithUnknownTypeDoesNotCrash@0": "post-call not captured",
    "InferJSDocInfoTest#testJSDocDoesNotPropagateBackwardFromInstancesToTypes@0": "post-call not captured",
    "InferJSDocInfoTest#testJSDocDoesNotPropagateFromStructuralTypesToClassProperties@0": "post-call not captured",
@@ -537,8 +539,6 @@
    "RewriteAsyncIterationTest#testYieldInAsyncGenerator@0": "post-call not captured",
    "RewriteAsyncIterationTest#testYieldInAsyncGenerator@1": "post-call not captured",
    "RewriteCatchWithNoBindingTest#typeOfAddedBindingIsUnknown@0": "post-call not captured",
-   "RewriteClassMembersTest#testLogicalAssignmentToPrivateField_knownBug@0": "post-call not captured",
-   "RewriteClassMembersTest#testLogicalAssignmentToPrivateMethod_knownBug@0": "post-call not captured",
    "RewriteClassMembersTest#testPrivateFieldAsSuperclass_knownBug@0": "post-call not captured",
    "RewriteClassMembersTest#testPrivateOptionalChaining_bothOptional_chainContinues@0": "post-call not captured",
    "RewriteClassMembersTest#testStaticInitializationWithNativePrivateElements_knownBug@0": "post-call not captured",
@@ -1056,7 +1056,6 @@
    "Es6RewriteDestructuringTest#testObjectPatternInAssignExpression_inGeneratorUsingYield": "classification claim does not hold",
    "Es6TranspilationIntegrationTest#testInitSymbol": "classification claim does not hold",
    "GatherGetterAndSetterPropertiesTest#detectObjectCreateWithProperties": "no postcall entry",
-   "GenerateExportsTest#testCannotExportPrivateClassMembers_knownBug": "explicit unclassified entry",
    "InferJSDocInfoTest#testJSDocDoesNotPropagateBackwardFromInstancesToTypes": "explicit unclassified entry",
    "InferJSDocInfoTest#testJSDocDoesNotPropagateFromStructuralTypesToClassProperties": "explicit unclassified entry",
    "InferJSDocInfoTest#testJSDocFromConstAssignmentPropagatesToDefinedType": "explicit unclassified entry",
@@ -1134,8 +1133,6 @@
    "ReplaceCssNamesTest#testIgnoreReferencesInCssTsFiles": "classification claim does not hold",
    "ReplaceMessagesTest#testProtectedMessagesAndFallbackAreRemovable": "explicit unclassified entry",
    "RewriteAsyncFunctionsTest#testObjectLiteralAsyncMethodSuperCall": "no postcall entry",
-   "RewriteClassMembersTest#testLogicalAssignmentToPrivateField_knownBug": "explicit unclassified entry",
-   "RewriteClassMembersTest#testLogicalAssignmentToPrivateMethod_knownBug": "explicit unclassified entry",
    "RewriteClassMembersTest#testPrivateFieldAsSuperclass_knownBug": "explicit unclassified entry",
    "RewriteClassMembersTest#testPrivateOptionalChaining_bothOptional_chainContinues": "no postcall entry",
    "RewriteClassMembersTest#testStaticInitializationWithNativePrivateElements_knownBug": "explicit unclassified entry",
@@ -1195,13 +1192,13 @@
  "d": {
   "failingUnits": {
    "TypeCheck (unit: TypedScopeCreator, TypeInferencePass, TypeCheck)": {
-    "changeExpecting": 1663,
+    "changeExpecting": 1662,
     "failed": 79,
     "faults": [
      "below90"
     ],
     "kind": "pass",
-    "rate": 0.047505
+    "rate": 0.047533
    },
    "{ClosureRewriteModule, Es6NormalizeClasses, ScopedAliases, TypeCheck}": {
     "changeExpecting": 24,
@@ -1259,12 +1256,12 @@
    },
    "{Es6NormalizeClasses, Normalize, TypeCheck}": {
     "changeExpecting": 276,
-    "failed": 3,
+    "failed": 1,
     "faults": [
      "below90"
     ],
     "kind": "group",
-    "rate": 0.01087
+    "rate": 0.003623
    },
    "{Es6NormalizeClasses, Normalize}": {
     "changeExpecting": 1,
@@ -1324,6 +1321,7 @@
    "AdvancedOptimizationsIntegrationTest#testRequireAndEncourageInlining_complexCase@2": "post-call not captured",
    "AdvancedOptimizationsIntegrationTest#testRequireAndEncourageInlining_complexCase@3": "post-call not captured",
    "AdvancedOptimizationsIntegrationTest#testSourceInfoForReferenceToImportedSymbol@0": "post-call not captured",
+   "AstValidatorTest#testArrayLit_validLaterEmptyAndSpread@0": "post-call not captured",
    "AstValidatorTest#testAwaitExpression@0": "post-call not captured",
    "AstValidatorTest#testAwaitExpression@1": "post-call not captured",
    "AstValidatorTest#testAwaitExpression@2": "post-call not captured",
@@ -1505,6 +1503,9 @@
    "CheckTemplateParamsTest#testReferenceToNonObjectType@0": "post-call not captured",
    "CheckTemplateParamsTest#testReferenceToNonObjectType@1": "post-call not captured",
    "CheckTemplateParamsTest#testReferenceToNonObjectType@2": "post-call not captured",
+   "ClosureExportTypeClassifierTest#emptyGoogNamespaces_returnsEmptyMap@0": "post-call not captured",
+   "ClosureExportTypeClassifierTest#mixedProvideAndEsExport_throwsIllegalArgumentException@0": "post-call not captured",
+   "ClosureExportTypeClassifierTest#mixedProvideAndEsImport_throwsIllegalArgumentException@0": "post-call not captured",
    "ClosureIntegrationTest#testGetOriginalQualifiedNameAfterEs6RewriteClasses@0": "post-call not captured",
    "ClosureRewriteModuleTest#testTypeAndSourceInfoOfGoogRequireFromModule@0": "post-call not captured",
    "ClosureRewriteModuleTest#testTypeOfGoogRequireFromLegacyModule@0": "post-call not captured",
@@ -1637,8 +1638,6 @@
    "GatherGetterAndSetterPropertiesTest#mergeExtersAndSrcs@0": "post-call not captured",
    "GatherGetterAndSetterPropertiesTest#mergeInExterns@0": "post-call not captured",
    "GatherGetterAndSetterPropertiesTest#mergeInSrcs@0": "post-call not captured",
-   "GenerateExportsTest#testCannotExportPrivateClassMembers_knownBug@0": "post-call not captured",
-   "GenerateExportsTest#testCannotExportPrivateClassMembers_knownBug@1": "post-call not captured",
    "InferJSDocInfoTest#testClassWithUnknownTypeDoesNotCrash@0": "post-call not captured",
    "InferJSDocInfoTest#testJSDocDoesNotPropagateBackwardFromInstancesToTypes@0": "post-call not captured",
    "InferJSDocInfoTest#testJSDocDoesNotPropagateFromStructuralTypesToClassProperties@0": "post-call not captured",
@@ -1703,7 +1702,7 @@
    "InlineObjectLiteralsTest#testObject1_optChainContinues@0": "post-call not captured",
    "InlineSimpleMethodsTest#testNoInlineOfGetterThatReadsPrivateField_knownBug@0": "post-call not captured",
    "InlineSimpleMethodsTest#testNoInlineOfPrivateMethodCall_knownBug@0": "post-call not captured",
-   "IntegrationTest#testAlwaysRunSafetyCheck@0": "recorder-level, placeholder",
+   "IntegrationTest#testAlwaysRunSafetyCheck@0": "recorder-level",
    "IntegrationTest#testGetOriginalQualifiedNameAfterEs6RewriteClasses@0": "post-call not captured",
    "IntegrationTest#testInferTypes@0": "post-call not captured",
    "IntegrationTest#testInferTypes@1": "post-call not captured",
@@ -1855,8 +1854,6 @@
    "RewriteAsyncIterationTest#testYieldInAsyncGenerator@0": "post-call not captured",
    "RewriteAsyncIterationTest#testYieldInAsyncGenerator@1": "post-call not captured",
    "RewriteCatchWithNoBindingTest#typeOfAddedBindingIsUnknown@0": "post-call not captured",
-   "RewriteClassMembersTest#testLogicalAssignmentToPrivateField_knownBug@0": "post-call not captured",
-   "RewriteClassMembersTest#testLogicalAssignmentToPrivateMethod_knownBug@0": "post-call not captured",
    "RewriteClassMembersTest#testPrivateFieldAsSuperclass_knownBug@0": "post-call not captured",
    "RewriteClassMembersTest#testPrivateOptionalChaining_bothOptional_chainContinues@0": "post-call not captured",
    "RewriteClassMembersTest#testStaticInitializationWithNativePrivateElements_knownBug@0": "post-call not captured",
@@ -2361,7 +2358,7 @@
  },
  "methodKey": "Binary#method: the record class's binary simple name (Outer$Inner) and the test method without parameters",
  "recordKey": "Class#method@call: Class = record file stem under corpus/unit/records/, method and call = the record's fields; ~n is appended when n >= 1 earlier records of the file have the same method and call (the key scripts/unit_ratchet_rebase.py maps records by)",
- "reference": "v20261109",
+ "reference": "v20261116",
  "schema": "closure-rs/gate02-ratchet/1",
  "strictPassing": [
   "b",
@@ -2370,11 +2367,11 @@
  "summary": {
   "dFailingUnits": 13,
   "excluded": 1038,
-  "excludedFraction": 0.04081,
+  "excludedFraction": 0.040306,
   "postStateUnclassified": 2,
-  "records": 25435,
-  "unclassifiedMethods": 144,
+  "records": 25753,
+  "unclassifiedMethods": 141,
   "unrepresentable": 1041,
-  "unrepresentableFraction": 0.040928
+  "unrepresentableFraction": 0.040422
  }
 }
