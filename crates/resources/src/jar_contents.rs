@@ -852,6 +852,12 @@ pub static JAR_ENTRIES: &[ArchiveEntry] = &[
         )),
     },
     ArchiveEntry {
+        name: "com/google/javascript/jscomp/js/es6/string/towellformed.js",
+        content: EntryContent::File(include_bytes!(
+            "../data/com/google/javascript/jscomp/js/es6/string/towellformed.js"
+        )),
+    },
+    ArchiveEntry {
         name: "com/google/javascript/jscomp/js/es6/string/trimend.js",
         content: EntryContent::File(include_bytes!(
             "../data/com/google/javascript/jscomp/js/es6/string/trimend.js"
