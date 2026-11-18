@@ -8,8 +8,8 @@
   refuses a patch that touches anything but `test/`, `BUILD.bazel` and `oracle_recording/`.
 - **Jars:** `scripts/unit_bazel_build.sh` builds `build/unit/jars/unit_support_deploy.jar`
   (`//:unit_support`: the compiler, its runtime deps and compiler_tests_lib, with no closure
-  `*Test` class) and `unit_all_tests.jar` (all 434 `*Test.java` files).
-- **Recording:** `scripts/unit_record_all.sh` runs every one of the 434 classes outside Bazel:
+  `*Test` class) and `unit_all_tests.jar` (all 436 `*Test.java` files).
+- **Recording:** `scripts/unit_record_all.sh` runs every one of the 436 classes outside Bazel:
   plain JUnitCore (`UnitRecordingMain`), cwd = the recording workspace,
   `-Dclosurers.unit.record=true`, one JVM per class at `-Xmx2g -Xss8m`, 10 JVMs in parallel
   (`UNIT_RECORD_PARALLEL`). The run is resumable through the per-class stats files; run it
