@@ -221,6 +221,7 @@ const OPTION_POOL: &[(&[&str], When)] = &[
         When::SingleOutput,
     ),
     (&["--source_map_include_content"], When::Sourcemap),
+    (&["--source_map_merge_identical_segments"], When::Sourcemap),
     // goog programs: base.js defines goog.exportSymbol for the @export annotations.
     (
         &[
