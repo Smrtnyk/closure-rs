@@ -728,8 +728,9 @@ class Sync:
 
     def step_unit_install(self):
         """Copies the new records into corpus/unit/records (the old ones are kept in the work
-        directory) and regenerates what derives from them, and the CompilerOptions fixtures of the
-        new reference (scripts/unit_options_defaults.sh)."""
+        directory) and regenerates what derives from them, the corpus counts the docs quote included
+        (scripts/unit_corpus_counts.py), and the CompilerOptions fixtures of the new reference
+        (scripts/unit_options_defaults.sh)."""
         d = self.unit_dirs()
         dst = os.path.join(CHECKOUT, "corpus", "unit", "records")
         classes = self.test_classes()
@@ -780,6 +781,7 @@ class Sync:
                                               f"{', '.join(missing)}")
         self.run([sys.executable, "scripts/unit_derive_expected_pipeline.py"])
         self.run([sys.executable, "crates/testing/tests/data/gen_record_counts.py"])
+        self.run([sys.executable, "scripts/unit_corpus_counts.py"])
         self.run([sys.executable, "scripts/unit_postcall_impls.py", "--check"], write=False, capture=True)
         self.run([sys.executable, "scripts/unit_rust_unit_tests.py", "--check"], write=False)
         self.run(["bash", "scripts/unit_options_defaults.sh"])
@@ -787,7 +789,8 @@ class Sync:
             self.note("unit-install", "the CompilerOptions fixtures changed (scripts/unit_options_defaults.sh): "
                                       "port the options change; compiler_options_{defaults,configs,strings}_test.rs "
                                       "and crates/testing pin the field and case counts")
-        if self.diffstat("corpus/unit", "crates/testing/tests/data/record_counts.tsv", *OPTIONS_FIXTURES):
+        if self.diffstat("corpus/unit", "crates/testing/tests/data/record_counts.tsv", "crates/testing/README.md",
+                         *OPTIONS_FIXTURES):
             new_cls = [n for k, n in changed if k != "removed" and has_records(os.path.join(dst, n + ".jsonl.gz"))]
             missing = [n for n in new_cls if not os.path.exists(
                 os.path.join(CHECKOUT, "corpus", "unit", "descriptors", n + ".json"))]
@@ -1243,7 +1246,8 @@ Left for a person or agent (docs/PORTING.md §9, §7):
      docs/PORTING.md §9),
      targeted probes and a differential fuzz run against the new reference.
   4. When everything matches: --only switch-default (read its diff), then the counts the docs
-     quote (records in corpus/unit/RECORDING.md) and the pull request."""
+     quote that no step rewrites (crates/testing/README.md: descriptor cases, CompilerOptions
+     fields; unit-install rewrote the record and class counts) and the pull request."""
 
 
 def main():
