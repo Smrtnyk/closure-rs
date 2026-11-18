@@ -363,6 +363,12 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   projects (`scripts/run_bench.py --write-args`; the last one covers a bundle compiled with an
   input source map), for less CPU time. Pushes and pull requests build without
   a profile; the output is the same either way.
+- `jscomp/build.rs`, `parsing/extern_snapshot.rs` and `rhino/node/snapshot.rs`: Cargo parses the
+  bundled browser externs on the build host and embeds their syntax trees and JSDoc type trees.
+  A compiler using the original resource text and matching parser configuration loads the
+  snapshot when it first needs that file. Loading preserves node allocation order, source
+  positions, shared properties and type expressions. Files with diagnostics or unsupported
+  parser data use the source parser.
 - `jscomp/parallel_parse.rs`: inputs are parsed on up to 8 worker threads into arenas of their
   own (`Ast::new_for_preparse`) while the compiler runs; `CompilerInput#parse` moves a finished
   parse into the compiler's arena (`Ast::append_preparsed`) with the node ids, object sharing

@@ -34,6 +34,7 @@ flate2 = { version = "1", default-features = false, features = ["zlib"] }
 num-bigint = "0.4"
 num-integer = "0.1"
 serde = { version = "1", features = ["derive"] }
+postcard = { version = "1.1", default-features = false, features = ["alloc"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 base64 = "0.22"
 sha2 = "0.10"

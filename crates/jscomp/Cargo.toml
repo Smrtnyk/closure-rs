@@ -25,6 +25,11 @@ zip = { workspace = true }
 serde_json = { workspace = true, features = ["unbounded_depth"] }
 
 
+[build-dependencies]
+closure-parsing = { workspace = true }
+closure-rhino = { workspace = true }
+closure-resources = { path = "../resources" }
+
 [dev-dependencies]
 closure-testing = { path = "../testing" }
 serde_json = { workspace = true, features = ["unbounded_depth"] }

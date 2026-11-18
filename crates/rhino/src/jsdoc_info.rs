@@ -707,7 +707,9 @@ impl PropertyValue {
         }
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum Visibility {
     PRIVATE,
     PACKAGE,
@@ -721,7 +723,7 @@ impl std::fmt::Display for Visibility {
         std::fmt::Debug::fmt(self, f)
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum IdGenerator {
     XID,
     CONSISTENT,
@@ -729,7 +731,7 @@ pub enum IdGenerator {
     STABLE,
     MAPPED,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum PerFileClosureUnawareMode {
     UNSPECIFIED,
     SIMPLE,
@@ -1009,6 +1011,27 @@ impl JSDocInfo {
             },
         }
     }
+    pub(crate) fn snapshot_properties(&self) -> (u64, u64, &[PropertyValue]) {
+        let values = match &self.property_values {
+            PackedPropertyValues::Empty => &[][..],
+            PackedPropertyValues::Single(v) => std::slice::from_ref(v),
+            PackedPropertyValues::Multiple(v) => v.as_slice(),
+        };
+        (self.property_bits, self.property_keys_bitset, values)
+    }
+
+    pub(crate) fn from_snapshot_properties(
+        bits: u64,
+        keys: u64,
+        values: Vec<PropertyValue>,
+    ) -> Self {
+        Self {
+            property_bits: bits,
+            property_keys_bitset: keys,
+            property_values: Self::pack_property_values(values),
+        }
+    }
+
     // port: JSDocInfo#getPropertyValueByIndex
     pub fn get_property_value_by_index(&self, index: usize) -> &PropertyValue {
         match &self.property_values {

@@ -171,29 +171,38 @@ impl CompilerInput {
                 } else {
                     ConfigContext::DEFAULT
                 });
-                // Split the compiler's arena borrow from reporting, retaining diagnostic order.
-                // Rust-only (performance divergence): an input parsed ahead on a worker thread is
-                // moved in instead.
-                let (result, errors) =
-                    match crate::parallel_parse::take(compiler, self, &config, &code) {
-                        Some(preparsed) => preparsed,
-                        None => {
-                            let mut errors =
-                                crate::rhino_error_reporter::RecordingErrorHandler::default();
-                            let mut reporter =
-                                crate::rhino_error_reporter::RhinoErrorReporter::for_old_rhino(
-                                    &mut errors,
-                                );
-                            let result = ParserRunner::parse(
-                                &mut compiler.ast,
-                                self.source_file.clone(),
-                                code,
-                                &config,
-                                &mut reporter,
-                            );
-                            (result, errors.errors)
-                        }
-                    };
+                // Install the extern or worker result when this input is requested, preserving
+                // shared arena ids and diagnostic order. A caller tracking individual parser
+                // mutations needs the source parse.
+                let (result, errors) = if let Some(bytes) =
+                    self.source_file.extern_snapshot(&config, &code)
+                    && !compiler.ast.is_tracking_changes()
+                {
+                    (
+                        closure_parsing::extern_snapshot::load(
+                            bytes,
+                            &mut compiler.ast,
+                            self.source_file.clone(),
+                        ),
+                        Vec::new(),
+                    )
+                } else if let Some(parsed) =
+                    crate::parallel_parse::take(compiler, self, &config, &code)
+                {
+                    parsed
+                } else {
+                    let mut errors = crate::rhino_error_reporter::RecordingErrorHandler::default();
+                    let mut reporter =
+                        crate::rhino_error_reporter::RhinoErrorReporter::for_old_rhino(&mut errors);
+                    let result = ParserRunner::parse(
+                        &mut compiler.ast,
+                        self.source_file.clone(),
+                        code,
+                        &config,
+                        &mut reporter,
+                    );
+                    (result, errors.errors)
+                };
                 for error in errors {
                     compiler.report(error);
                 }

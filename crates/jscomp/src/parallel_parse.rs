@@ -117,6 +117,9 @@ pub(crate) fn start(compiler: &mut AbstractCompiler, inputs: &[CompilerInput]) {
             ConfigContext::DEFAULT
         };
         let config = compiler.get_parser_config(context);
+        if source_file.extern_snapshot(&config, &code).is_some() {
+            continue;
+        }
         let kind = StaticSourceFile::get_kind(source_file);
         job_of.insert(input.clone(), jobs.len());
         jobs.push(Job {

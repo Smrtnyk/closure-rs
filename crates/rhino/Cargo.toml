@@ -11,6 +11,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+serde = { workspace = true }
 regex = { workspace = true }
 indexmap = { workspace = true }
 num-bigint = { workspace = true }
