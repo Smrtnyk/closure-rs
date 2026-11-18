@@ -699,6 +699,30 @@ fn assert_location_mappings_contain_exactly(
         assert!(set.contains(&Some(e)), "missing {e} in {actual:?}");
     }
 }
+// port: CommandLineRunnerTest#testSourceMapMergeIdenticalSegments_default
+#[test]
+fn test_source_map_merge_identical_segments_default() {
+    let mut h = Harness::new();
+    h.test_same(&["var x = 3;"]);
+    assert!(
+        !h.get_compiler()
+            .get_options()
+            .get_source_map_merge_identical_segments()
+    );
+}
+// port: CommandLineRunnerTest#testSourceMapMergeIdenticalSegments_flag
+#[test]
+fn test_source_map_merge_identical_segments_flag() {
+    let mut h = Harness::new();
+    h.args
+        .push("--source_map_merge_identical_segments".to_string());
+    h.test_same(&["var x = 3;"]);
+    assert!(
+        h.get_compiler()
+            .get_options()
+            .get_source_map_merge_identical_segments()
+    );
+}
 // port: CommandLineRunnerTest#testSourceMapLocationsTranslations1
 #[test]
 fn test_source_map_locations_translations1() {

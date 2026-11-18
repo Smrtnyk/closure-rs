@@ -1347,6 +1347,10 @@ pub fn options_fields(options: &CompilerOptions) -> Value {
             "sourceMapIncludeSourcesContent",
             options.get_source_map_include_sources_content().record(),
         ),
+        (
+            "sourceMapMergeIdenticalSegments",
+            options.get_source_map_merge_identical_segments().record(),
+        ),
         ("outputCharset", options.get_output_charset().record()),
         (
             "protectHiddenSideEffects",

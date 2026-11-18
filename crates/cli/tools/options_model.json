@@ -161,6 +161,7 @@
     "resolveSourceMapAnnotations",
     "sourceMapLocationMappings",
     "sourceMapIncludeSourcesContent",
+    "sourceMapMergeIdenticalSegments",
     "outputCharset",
     "protectHiddenSideEffects",
     "assumeGettersArePure",

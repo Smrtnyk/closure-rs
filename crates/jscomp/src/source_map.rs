@@ -364,6 +364,13 @@ impl SourceMap {
     pub fn validate(&mut self, validate: bool) {
         self.generator.validate(validate);
     }
+    /// Sets whether to omit a mapped segment whose original position and name are identical to
+    /// those of the previous segment on the same generated line.
+    // port: SourceMap#setMergeIdenticalSegments
+    pub fn set_merge_identical_segments(&mut self, merge_identical_segments: bool) {
+        self.generator
+            .set_merge_identical_segments(merge_identical_segments);
+    }
     ///
     // port: SourceMap#setPrefixMappings
     #[allow(clippy::empty_docs)] // Retain Java's empty Javadoc.

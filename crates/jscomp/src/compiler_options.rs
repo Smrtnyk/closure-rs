@@ -273,6 +273,7 @@ pub struct CompilerOptions {
     resolve_source_map_annotations: bool,
     source_map_location_mappings: Vec<Arc<dyn LocationMapping + Send + Sync>>,
     source_map_include_sources_content: bool,
+    source_map_merge_identical_segments: bool,
     output_charset: Option<Charset>,
     protect_hidden_side_effects: bool,
     assume_getters_are_pure: bool,
@@ -970,6 +971,7 @@ impl CompilerOptions {
         let resolve_source_map_annotations = true;
         let source_map_location_mappings = Vec::new();
         let source_map_include_sources_content = false;
+        let source_map_merge_identical_segments = false;
         let assume_getters_are_pure = true;
         let assume_properties_are_statically_analyzable = true;
         let assume_static_inheritance_is_not_used = true;
@@ -1274,6 +1276,7 @@ impl CompilerOptions {
             resolve_source_map_annotations,
             source_map_location_mappings,
             source_map_include_sources_content,
+            source_map_merge_identical_segments,
             output_charset: None,
             protect_hidden_side_effects: false,
             assume_getters_are_pure,
@@ -3111,6 +3114,21 @@ impl CompilerOptions {
     pub fn get_source_map_include_sources_content(&self) -> bool {
         self.source_map_include_sources_content
     }
+    /// Sets whether to omit a source map segment whose source, original position, and name are
+    /// identical to those of the previous segment on the same generated line. Every generated
+    /// position still resolves to the same original mapping, so this only reduces the source map
+    /// size.
+    // port: CompilerOptions#setSourceMapMergeIdenticalSegments
+    pub fn set_source_map_merge_identical_segments(
+        &mut self,
+        source_map_merge_identical_segments: bool,
+    ) {
+        self.source_map_merge_identical_segments = source_map_merge_identical_segments;
+    }
+    // port: CompilerOptions#getSourceMapMergeIdenticalSegments
+    pub fn get_source_map_merge_identical_segments(&self) -> bool {
+        self.source_map_merge_identical_segments
+    }
     // port: CompilerOptions#setParseInlineSourceMaps
     pub fn set_parse_inline_source_maps(&mut self, parse_inline_source_maps: bool) {
         self.parse_inline_source_maps = parse_inline_source_maps;
@@ -4131,6 +4149,8 @@ impl fmt::Display for CompilerOptions {
                 .join(", ")
         );
         entries.push(format!("sourceMapLocationMappings={displayed}"));
+        let displayed = self.source_map_merge_identical_segments.to_string();
+        entries.push(format!("sourceMapMergeIdenticalSegments={displayed}"));
         if let Some(value) = &self.source_map_output_path {
             let displayed = value.to_string();
             entries.push(format!("sourceMapOutputPath={displayed}"));
@@ -4534,6 +4554,7 @@ replay_compiler_options_fields!(
     resolve_source_map_annotations: bool,
     source_map_location_mappings: Vec<Arc<dyn LocationMapping + Send + Sync>>,
     source_map_include_sources_content: bool,
+    source_map_merge_identical_segments: bool,
     output_charset: Option<Charset>,
     protect_hidden_side_effects: bool,
     assume_getters_are_pure: bool,

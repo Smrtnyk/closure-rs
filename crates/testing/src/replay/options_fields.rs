@@ -720,6 +720,11 @@ pub fn set_field(
                 .replay_fields_mut()
                 .source_map_include_sources_content = OptionValue::decode_value(&decoded)?
         }
+        "sourceMapMergeIdenticalSegments" => {
+            *options
+                .replay_fields_mut()
+                .source_map_merge_identical_segments = OptionValue::decode_value(&decoded)?
+        }
         "outputCharset" => {
             *options.replay_fields_mut().output_charset = OptionValue::decode_value(&decoded)?
         }
@@ -1326,6 +1331,10 @@ pub fn get_field(options: &CompilerOptions, name: &str) -> Result<JsonValue, Thr
         "sourceMapIncludeSourcesContent" => options
             .replay_fields()
             .source_map_include_sources_content
+            .encode_value()?,
+        "sourceMapMergeIdenticalSegments" => options
+            .replay_fields()
+            .source_map_merge_identical_segments
             .encode_value()?,
         "outputCharset" => options.replay_fields().output_charset.encode_value()?,
         "protectHiddenSideEffects" => options

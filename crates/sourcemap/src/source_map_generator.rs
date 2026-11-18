@@ -51,4 +51,9 @@ pub trait SourceMapGenerator {
     fn set_wrapper_prefix(&mut self, prefix: JsString);
     // port: SourceMapGenerator#setStartingPosition
     fn set_starting_position(&mut self, offset_line: i32, offset_index: i32);
+    /// Sets whether to omit a mapped segment whose original position and name are identical to
+    /// those of the previous segment on the same generated line. Generators that do not support
+    /// this ignore it.
+    // port: SourceMapGenerator#setMergeIdenticalSegments
+    fn set_merge_identical_segments(&mut self, _merge_identical_segments: bool) {}
 }

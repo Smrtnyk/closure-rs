@@ -1461,6 +1461,9 @@ impl Compiler {
                     })
                     .collect(),
             );
+            source_map.set_merge_identical_segments(
+                self.get_options().get_source_map_merge_identical_segments(),
+            );
             if self.get_options().get_apply_input_source_maps() {
                 source_map.set_source_file_mapping(Some(Box::new(self.excerpt_provider.clone())));
             }

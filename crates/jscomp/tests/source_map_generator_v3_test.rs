@@ -347,6 +347,155 @@ fn test_source_map_merging() {
         .checks
         .check_inputs(&inputs, &output.into(), &map_contents.into());
 }
+// port: SourceMapGeneratorV3Test#buildMergeSampleMappings
+fn build_merge_sample_mappings(merge_identical_segments: bool) -> String {
+    let mut g = SourceMapGeneratorV3::new();
+    g.set_merge_identical_segments(merge_identical_segments);
+    add_mapping(&mut g, "a.js", Some("x"), 1, 1, 0, 0, 0, 20);
+    add_mapping(&mut g, "a.js", Some("x"), 1, 1, 0, 2, 0, 5);
+    add_mapping(&mut g, "a.js", Some("x"), 1, 1, 0, 5, 0, 8);
+    add_mapping(&mut g, "a.js", None, 2, 3, 0, 10, 0, 12);
+    add_mapping(&mut g, "a.js", Some("y"), 1, 1, 0, 14, 0, 16);
+    add_mapping(&mut g, "b.js", Some("z"), 5, 0, 0, 22, 1, 3);
+    add_mapping(&mut g, "b.js", Some("z"), 5, 0, 1, 3, 1, 6);
+    add_mapping(&mut g, "b.js", Some("z"), 5, 0, 1, 6, 1, 9);
+    add_mapping(&mut g, "b.js", Some("z"), 5, 0, 1, 11, 1, 13);
+    add_mapping(&mut g, "c.js", Some("z"), 5, 0, 1, 13, 1, 15);
+    let mut out = String::new();
+    g.append_to(&mut out, Some("out.js".into())).unwrap();
+    out
+}
+
+// port: SourceMapGeneratorV3Test#addMapping
+#[allow(clippy::too_many_arguments)] // Java's signature.
+fn add_mapping(
+    generator: &mut SourceMapGeneratorV3,
+    source: &str,
+    name: Option<&str>,
+    src_line: i32,
+    src_col: i32,
+    start_line: i32,
+    start_col: i32,
+    end_line: i32,
+    end_col: i32,
+) {
+    generator.add_mapping(
+        Some(source.into()),
+        name.map(JsString::from),
+        FilePosition::new(src_line, src_col),
+        FilePosition::new(start_line, start_col),
+        FilePosition::new(end_line, end_col),
+    );
+}
+
+// port: SourceMapGeneratorV3Test#getMappings
+fn get_mappings(source_map: &str) -> String {
+    source_map_test_case::common::parse_json_object(source_map)
+        .get("mappings")
+        .unwrap()
+        .get_as_string()
+        .to_string()
+}
+
+// port: SourceMapGeneratorV3Test#countSegments
+fn count_segments(source_map: &str) -> usize {
+    let mut count = 0;
+    for line in get_mappings(source_map).split(';') {
+        if !line.is_empty() {
+            count += line.split(',').count();
+        }
+    }
+    count
+}
+
+// port: SourceMapGeneratorV3Test#assertSameLookups
+fn assert_same_lookups(expected_map: &str, actual_map: &str, max_column: i32) {
+    let mut expected = SourceMapConsumerV3::new();
+    expected.parse(expected_map).unwrap();
+    let mut actual = SourceMapConsumerV3::new();
+    actual.parse(actual_map).unwrap();
+    assert_eq!(actual.get_line_count(), expected.get_line_count());
+    for line in 1..=expected.get_line_count() + 1 {
+        for column in 1..=max_column {
+            assert_eq!(
+                actual.get_mapping_for_line(line, column),
+                expected.get_mapping_for_line(line, column),
+                "line {line}, column {column}"
+            );
+        }
+    }
+}
+
+// port: SourceMapGeneratorV3Test#testMergeIdenticalSegments_disabledByDefaultKeepsEverySegment
+#[test]
+fn test_merge_identical_segments_disabled_by_default_keeps_every_segment() {
+    let expected_mappings =
+        "AACCA,EAAAA,GAAAA,GAAAA,EACE,EADFA,EAAAC,EAAAD,I,ECIDE;GAAAA,GAAAA,G,EAAAA,ECAAA;";
+    assert_eq!(
+        get_mappings(&build_merge_sample_mappings(false)),
+        expected_mappings
+    );
+
+    let mut generator = SourceMapGeneratorV3::new();
+    add_mapping(&mut generator, "a.js", Some("x"), 1, 1, 0, 0, 0, 20);
+    add_mapping(&mut generator, "a.js", Some("x"), 1, 1, 0, 2, 0, 5);
+    let mut out = String::new();
+    generator
+        .append_to(&mut out, Some("out.js".into()))
+        .unwrap();
+    assert_eq!(count_segments(&out), 3);
+}
+
+// port: SourceMapGeneratorV3Test#testMergeIdenticalSegments
+#[test]
+fn test_merge_identical_segments() {
+    let unmerged = build_merge_sample_mappings(false);
+    let merged = build_merge_sample_mappings(true);
+    assert_eq!(
+        get_mappings(&merged),
+        "AACCA,UACE,EADFA,EAAAC,EAAAD,I,ECIDE;GAAAA,M,EAAAA,ECAAA;"
+    );
+    assert_same_lookups(&unmerged, &merged, 30);
+
+    // Distinct original line/col and line starts are never merged.
+    let mut g = SourceMapGeneratorV3::new();
+    g.set_merge_identical_segments(true);
+    add_mapping(&mut g, "a.js", Some("x"), 1, 1, 0, 0, 0, 2);
+    add_mapping(&mut g, "a.js", Some("x"), 2, 1, 0, 2, 0, 4);
+    add_mapping(&mut g, "a.js", Some("x"), 2, 2, 0, 4, 0, 6);
+    add_mapping(&mut g, "a.js", Some("x"), 2, 2, 1, 0, 1, 4);
+    let mut out = String::new();
+    g.append_to(&mut out, Some("out.js".into())).unwrap();
+    // 3 distinct segments on line 0 + 1 unmapped segment from col 6 to line end + 1 on line 1.
+    assert_eq!(count_segments(&out), 5);
+
+    let js = "goog.asserts.assert(__A__.__B__.__C__);
+var __X__ = `line ${__D__.__E__}
+line ${__F__.__G__.__H__}`;
+__I__.__J__.__K__(1, __L__.__M__);
+";
+    let mut test = SourceMapGeneratorV3Test::default();
+    test.base.source_map_merge_identical_segments = false;
+    let unmerged_run = test.compile(js, "testcode");
+    test.base.source_map_merge_identical_segments = true;
+    let merged_run = test.compile(js, "testcode");
+    assert!(
+        count_segments(&merged_run.source_map_file_content)
+            < count_segments(&unmerged_run.source_map_file_content)
+    );
+    assert_same_lookups(
+        &unmerged_run.source_map_file_content,
+        &merged_run.source_map_file_content,
+        80,
+    );
+    test.base.checks.check(
+        &"testcode".into(),
+        &js.into(),
+        &merged_run.generated_source,
+        &merged_run.source_map_file_content.clone().into(),
+    );
+}
+
 // port: SourceMapGeneratorV3Test#count
 fn count(js: &JsString) -> FilePosition {
     let mut line = 0;

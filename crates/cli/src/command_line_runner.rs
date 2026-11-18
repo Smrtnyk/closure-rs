@@ -106,6 +106,8 @@ pub struct Flags {
 
     pub source_map_include_sources_content: bool,
 
+    pub source_map_merge_identical_segments: bool,
+
     pub property_map_output_file: String,
 
     pub third_party: bool,
@@ -299,6 +301,7 @@ impl Default for Flags {
             instrumentation_mapping_output_file: "".into(),
             create_name_map_files: false,
             source_map_include_sources_content: false,
+            source_map_merge_identical_segments: false,
             property_map_output_file: "".into(),
             third_party: false,
             summary_detail_level: 1,
@@ -694,6 +697,20 @@ pub static OPTIONS: &[NamedOptionDef] = &[
     },
     NamedOptionDef {
         index: 21,
+        name: "--source_map_merge_identical_segments",
+        aliases: &[],
+        usage: "Omits source map segments that map to the same original position and name as the previous segment on the same generated line. Reduces the size of source maps without changing the original position of any generated position.",
+        meta_var: "",
+        hidden: false,
+        required: false,
+        help: false,
+        depends: &[],
+        forbids: &[],
+        handler: HandlerKind::ClosureBoolean,
+        multi_valued: false,
+    },
+    NamedOptionDef {
+        index: 22,
         name: "--property_renaming_report",
         aliases: &[],
         usage: "File where the serialized version of the property renaming map produced should be saved",
@@ -707,7 +724,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 22,
+        index: 23,
         name: "--third_party",
         aliases: &[],
         usage: "Check source validity but do not enforce Closure style rules and conventions",
@@ -721,7 +738,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 23,
+        index: 24,
         name: "--summary_detail_level",
         aliases: &[],
         usage: "Controls how detailed the compilation summary is. Values: 0 (never print summary), 1 (print summary only if there are errors or warnings), 2 (print summary if the 'checkTypes' diagnostic  group is enabled, see --jscomp_warning), 3 (always print summary). The default level is 1",
@@ -735,7 +752,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 24,
+        index: 25,
         name: "--isolation_mode",
         aliases: &[],
         usage: "If set to IIFE the compiler output will follow the form:\n  (function(){%output%}).call(this);\nOptions: NONE, IIFE",
@@ -749,7 +766,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 25,
+        index: 26,
         name: "--output_wrapper",
         aliases: &[],
         usage: "Interpolate output into this string at the place denoted by the marker token %output%. Use marker token %output|jsstring% to do js string escaping on the output. Consider using the --isolation_mode flag instead.",
@@ -763,7 +780,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 26,
+        index: 27,
         name: "--output_wrapper_file",
         aliases: &[],
         usage: "Loads the specified file and passes the file contents to the --output_wrapper flag, replacing the value if it exists. This is useful if you want special characters like newline in the wrapper.",
@@ -777,7 +794,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 27,
+        index: 28,
         name: "--chunk_wrapper",
         aliases: &[],
         usage: "An output wrapper for a JavaScript chunk (optional). The format is <name>:<wrapper>. The chunk name must correspond with a chunk specified using --chunk. The wrapper must contain %s as the code placeholder. Alternately, %output% can be used in place of %s. %n% can be used to represent a newline. The %basename% placeholder can also be used to substitute the base name of the chunk output file.",
@@ -791,7 +808,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 28,
+        index: 29,
         name: "--chunk_output_path_prefix",
         aliases: &[],
         usage: "Prefix for filenames of compiled JS chunks. <chunk-name>.js will be appended to this prefix. Directories will be created as needed. Use with --chunk",
@@ -805,7 +822,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 29,
+        index: 30,
         name: "--create_source_map",
         aliases: &[],
         usage: "If specified, a source map file mapping the generated source files back to the original source file will be output to the specified path. The %outname% placeholder will expand to the name of the output file that the source map corresponds to.",
@@ -819,7 +836,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 30,
+        index: 31,
         name: "--source_map_format",
         aliases: &[],
         usage: "The source map format to produce. Options are V3 and DEFAULT, which are equivalent.",
@@ -833,7 +850,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 31,
+        index: 32,
         name: "--source_map_location_mapping",
         aliases: &[],
         usage: "Source map location mapping separated by a '|' (i.e. filesystem-path|webserver-path)",
@@ -847,7 +864,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 32,
+        index: 33,
         name: "--source_map_input",
         aliases: &[],
         usage: "Source map locations for input files, separated by a '|', (i.e. input-file-path|input-source-map)",
@@ -861,7 +878,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 33,
+        index: 34,
         name: "--parse_inline_source_maps",
         aliases: &[],
         usage: "Parse inline source maps (//# sourceMappingURL=data:...)",
@@ -875,7 +892,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 34,
+        index: 35,
         name: "--apply_input_source_maps",
         aliases: &[],
         usage: "Apply input source maps to the output source map, i.e. have the result map back to original inputs.  Input sourcemaps can be located in 2 ways:\n 1) by the//# sourceMappingURL=<url>. \n 2) using the--source_map_location_mapping flag.\nsourceMappingURL=<url> can read both paths and inline Base64 encoded sourcemaps. For inline Base64 encoded sourcemaps, see --parse_inline_source_maps.",
@@ -889,7 +906,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 35,
+        index: 36,
         name: "--jscomp_error",
         aliases: &[],
         usage: "Make the named class of warnings an error. Must be one of the error group items. '*' adds all supported.",
@@ -903,7 +920,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 36,
+        index: 37,
         name: "--jscomp_warning",
         aliases: &[],
         usage: "Make the named class of warnings a normal warning. Must be one of the error group items. '*' adds all supported.",
@@ -917,7 +934,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 37,
+        index: 38,
         name: "--jscomp_off",
         aliases: &[],
         usage: "Turn off the named class of warnings. Must be one of the error group items. '*' adds all supported.",
@@ -931,7 +948,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 38,
+        index: 39,
         name: "--define",
         aliases: &["--D", "-D"],
         usage: "Override the value of a variable annotated @define. The format is <name>[=<val>], where <name> is the name of a @define variable and <val> is a boolean, number, or a single-quoted string that contains no single quotes. If [=<val>] is omitted, the variable is marked true",
@@ -945,7 +962,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 39,
+        index: 40,
         name: "--charset",
         aliases: &[],
         usage: "Input and output charset for all files. By default, we accept UTF-8 as input and output US_ASCII",
@@ -959,7 +976,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 40,
+        index: 41,
         name: "--compilation_level",
         aliases: &["-O"],
         usage: "Specifies the compilation level to use. Options: BUNDLE, WHITESPACE_ONLY, SIMPLE (default), TRANSPILE_ONLY,ADVANCED",
@@ -973,7 +990,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 41,
+        index: 42,
         name: "--num_parallel_threads",
         aliases: &[],
         usage: "Use multiple threads to parallelize parts of the compilation.",
@@ -987,7 +1004,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 42,
+        index: 43,
         name: "--checks_only",
         aliases: &["--checks-only"],
         usage: "Don't generate output. Run checks, but no optimization passes.",
@@ -1001,7 +1018,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 43,
+        index: 44,
         name: "--incremental_check_mode",
         aliases: &[],
         usage: "Generate or check externs-like .i.js files representing individual libraries.",
@@ -1015,7 +1032,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 44,
+        index: 45,
         name: "--continue_after_errors",
         aliases: &[],
         usage: "Continue trying to compile after an error is encountered.",
@@ -1029,7 +1046,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 45,
+        index: 46,
         name: "--use_types_for_optimization",
         aliases: &[],
         usage: "Enable or disable the optimizations based on available type information. Inaccurate type annotations may result in incorrect results.",
@@ -1043,7 +1060,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 46,
+        index: 47,
         name: "--assume_function_wrapper",
         aliases: &[],
         usage: "Enable additional optimizations based on the assumption that the output will be wrapped with a function wrapper.  This flag is used to indicate that \"global\" declarations will not actually be global but instead isolated to the compilation unit. This enables additional optimizations.",
@@ -1057,7 +1074,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 47,
+        index: 48,
         name: "--warning_level",
         aliases: &["-W"],
         usage: "Specifies the warning level to use. Options: QUIET, DEFAULT, VERBOSE",
@@ -1071,7 +1088,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 48,
+        index: 49,
         name: "--debug",
         aliases: &[],
         usage: "Enable debugging options. Property renaming uses long mangled names which can be mapped back to the original name.",
@@ -1085,7 +1102,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 49,
+        index: 50,
         name: "--typed_ast_output_file",
         aliases: &[],
         usage: "Sets file to output in-progress typedAST format. DO NOT USE!",
@@ -1099,7 +1116,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 50,
+        index: 51,
         name: "--generate_exports",
         aliases: &[],
         usage: "Generates export code for those marked with @export",
@@ -1113,7 +1130,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 51,
+        index: 52,
         name: "--export_local_property_definitions",
         aliases: &[],
         usage: "Generates export code for local properties marked with @export",
@@ -1127,7 +1144,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 52,
+        index: 53,
         name: "--formatting",
         aliases: &[],
         usage: "Specifies which formatting options, if any, should be applied to the output JS. Options: PRETTY_PRINT, PRINT_INPUT_DELIMITER, SINGLE_QUOTES",
@@ -1141,7 +1158,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 53,
+        index: 54,
         name: "--process_common_js_modules",
         aliases: &[],
         usage: "Process CommonJS modules to a concatenable form.",
@@ -1155,7 +1172,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 54,
+        index: 55,
         name: "--js_module_root",
         aliases: &[],
         usage: "Path prefixes to be removed from ES6 & CommonJS modules.",
@@ -1169,7 +1186,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 55,
+        index: 56,
         name: "--process_closure_primitives",
         aliases: &[],
         usage: "Processes built-ins from the Closure library, such as goog.require(), goog.provide(), and goog.exportSymbol(). True by default.",
@@ -1183,7 +1200,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 56,
+        index: 57,
         name: "--angular_pass",
         aliases: &[],
         usage: "Generate $inject properties for AngularJS for functions annotated with @ngInject",
@@ -1197,7 +1214,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 57,
+        index: 58,
         name: "--polymer_version",
         aliases: &[],
         usage: "Which version of Polymer is being used (1 or 2).",
@@ -1211,7 +1228,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 58,
+        index: 59,
         name: "--chrome_pass",
         aliases: &[],
         usage: "Enable Chrome-specific options for handling cr.* functions.",
@@ -1225,7 +1242,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 59,
+        index: 60,
         name: "--j2cl_pass",
         aliases: &[],
         usage: "Rewrite J2CL output to be compiler-friendly if enabled (ON or AUTO). Options:OFF, ON, AUTO(default)",
@@ -1239,7 +1256,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 60,
+        index: 61,
         name: "--remove_j2cl_asserts",
         aliases: &[],
         usage: "Remove calls to J2CL assertions.",
@@ -1253,7 +1270,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 61,
+        index: 62,
         name: "--output_manifest",
         aliases: &[],
         usage: "Prints out a list of all the files in the compilation. If --dependency_mode=PRUNE or PRUNE_LEGACY is specified, this will not include files that got dropped because they were not required. The %outname% placeholder expands to the JS output file. If you're using modularization, using %outname% will create a manifest for each module.",
@@ -1267,7 +1284,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 62,
+        index: 63,
         name: "--output_chunk_dependencies",
         aliases: &[],
         usage: "Prints out a JSON file of dependencies between chunks.",
@@ -1281,7 +1298,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 63,
+        index: 64,
         name: "--language_in",
         aliases: &[],
         usage: "Sets the language spec to which input sources should conform. Options: ECMASCRIPT3, ECMASCRIPT5, ECMASCRIPT5_STRICT, ECMASCRIPT_2015, ECMASCRIPT_2016, ECMASCRIPT_2017, ECMASCRIPT_2018, ECMASCRIPT_2019, ECMASCRIPT_2020,ECMASCRIPT_2021, STABLE, ECMASCRIPT_NEXT (latest features supported),UNSTABLE (for testing only)",
@@ -1295,7 +1312,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 64,
+        index: 65,
         name: "--language_out",
         aliases: &[],
         usage: "Sets the language spec to which output should conform. Options: ECMASCRIPT3, ECMASCRIPT5, ECMASCRIPT_2015, ECMASCRIPT_2016, ECMASCRIPT_2017, ECMASCRIPT_2018, ECMASCRIPT_2019, ECMASCRIPT_2020, ECMASCRIPT_2021, STABLE, ECMASCRIPT_NEXT (latest features supported)",
@@ -1309,7 +1326,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 65,
+        index: 66,
         name: "--version",
         aliases: &[],
         usage: "Prints the compiler version to stdout and exit.",
@@ -1323,7 +1340,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 66,
+        index: 67,
         name: "--translations_file",
         aliases: &[],
         usage: "Source of translated messages. Currently only supports XTB.",
@@ -1337,7 +1354,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 67,
+        index: 68,
         name: "--translations_project",
         aliases: &[],
         usage: "Scopes all translations to the specified project.When specified, we will use different message ids so that messages in different projects can have different translations.",
@@ -1351,7 +1368,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 68,
+        index: 69,
         name: "--flagfile",
         aliases: &[],
         usage: "A file (or files) containing additional command-line options.",
@@ -1365,7 +1382,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 69,
+        index: 70,
         name: concat!("--warnings_", "allow", "list_file"),
         aliases: &["--warnings_whitelist_file"],
         usage: "A file containing warnings to suppress. Each line should be of the form\n<file-name>:<line-number>?  <warning-description>",
@@ -1379,7 +1396,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 70,
+        index: 71,
         name: "--hide_warnings_for",
         aliases: &[],
         usage: "If specified, files whose path contains this string will have their warnings hidden. You may specify multiple.",
@@ -1393,7 +1410,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 71,
+        index: 72,
         name: "--extra_annotation_name",
         aliases: &[],
         usage: concat!(
@@ -1411,7 +1428,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 72,
+        index: 73,
         name: "--tracer_mode",
         aliases: &[],
         usage: "Shows the duration of each compiler pass and the impact to the compiled output size. Options: ALL, AST_SIZE, RAW_SIZE, TIMING_ONLY, OFF",
@@ -1432,7 +1449,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 73,
+        index: 74,
         name: "--rename_variable_prefix",
         aliases: &[],
         usage: "Specifies a prefix that will be prepended to all variables.",
@@ -1446,7 +1463,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 74,
+        index: 75,
         name: "--rename_prefix_namespace",
         aliases: &[],
         usage: "Specifies the name of an object that will be used to store all non-extern globals",
@@ -1460,7 +1477,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 75,
+        index: 76,
         name: "--conformance_configs",
         aliases: &[],
         usage: "A list of JS Conformance configurations in text protocol buffer format.",
@@ -1474,7 +1491,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 76,
+        index: 77,
         name: "--env",
         aliases: &[],
         usage: "Determines the set of builtin externs to load. Options: BROWSER, CUSTOM. Defaults to BROWSER.",
@@ -1488,7 +1505,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 77,
+        index: 78,
         name: "--json_streams",
         aliases: &[],
         usage: "Specifies whether standard input and output streams will be a JSON array of sources. Each source will be an object of the form {path: filename, src: file_contents, source_map: srcmap_contents }. Intended for use by stream-based build systems such as gulpjs. Options: NONE, IN, OUT, BOTH. Defaults to NONE.",
@@ -1502,7 +1519,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 78,
+        index: 79,
         name: "--preserve_type_annotations",
         aliases: &[],
         usage: "Preserves type annotations.",
@@ -1516,7 +1533,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 79,
+        index: 80,
         name: "--inject_libraries",
         aliases: &[],
         usage: "Allow injecting runtime libraries.",
@@ -1530,7 +1547,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 80,
+        index: 81,
         name: "--force_inject_library",
         aliases: &[],
         usage: "Force injection of named runtime libraries. The format is <name> where <name> is the name of a runtime library. Possible libraries include: base, es6_runtime",
@@ -1544,7 +1561,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 81,
+        index: 82,
         name: "--dependency_mode",
         aliases: &[],
         usage: "Specifies how the compiler should determine the set and order of files for a compilation. Options: NONE the compiler will include all src files in the order listed, SORT_ONLY the compiler will include all source files in dependency order, PRUNE files will only be included if they are transitive dependencies of files listed in the --entry_point flag and then sorted in dependency order, PRUNE_LEGACY same as PRUNE but files that do not goog.provide a namespace and are not modules will be automatically added as --entry_point entries. Defaults to PRUNE_LEGACY if entry points are defined, otherwise to NONE.",
@@ -1564,7 +1581,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 82,
+        index: 83,
         name: "--entry_point",
         aliases: &[],
         usage: "A file or namespace to use as the starting point for determining which src files to include in the compilation. ES6 and CommonJS modules are specified as file paths (without the extension). Closure-library namespaces are specified with a \"goog:\" prefix. Example: --entry_point=goog:goog.Promise",
@@ -1578,7 +1595,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: true,
     },
     NamedOptionDef {
-        index: 83,
+        index: 84,
         name: "--rewrite_polyfills",
         aliases: &[],
         usage: "Injects polyfills for ES2015+ library classes and methods used in source. See also the \"Polyfills\" GitHub Wiki page.",
@@ -1592,7 +1609,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 84,
+        index: 85,
         name: "--isolate_polyfills",
         aliases: &[],
         usage: "Hides injected polyfills from the global scope and any external code. See the the \"Polyfills\" GitHub Wiki page for details.",
@@ -1606,7 +1623,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 85,
+        index: 86,
         name: "--print_source_after_each_pass",
         aliases: &[],
         usage: "Whether to iteratively print resulting JS source per pass.",
@@ -1620,7 +1637,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 86,
+        index: 87,
         name: "--module_resolution",
         aliases: &[],
         usage: "Specifies how the compiler locates modules. BROWSER requires all module imports to begin with a '.' or '/' and have a file extension. NODE uses the node module rules. WEBPACK looks up modules from a special lookup map.",
@@ -1639,7 +1656,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 87,
+        index: 88,
         name: "--browser_resolver_prefix_replacements",
         aliases: &[],
         usage: "Prefixes to replace in ES6 import paths before resolving. module_resolution must be BROWSER_WITH_TRANSFORMED_PREFIXES to take effect.",
@@ -1653,7 +1670,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 88,
+        index: 89,
         name: "--package_json_entry_names",
         aliases: &[],
         usage: "Ordered list of entries to look for in package.json files when processing modules with the NODE module resolution strategy (i.e. esnext:main,browser,main). Defaults to a list with the following entries: \"browser\", \"module\", \"main\".",
@@ -1667,7 +1684,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 89,
+        index: 90,
         name: "--error_format",
         aliases: &[],
         usage: "Specifies format for error messages.",
@@ -1681,7 +1698,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 90,
+        index: 91,
         name: "--renaming",
         aliases: &[],
         usage: "Disables variable renaming. Cannot be used with ADVANCED optimizations.",
@@ -1695,7 +1712,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 91,
+        index: 92,
         name: "--help_markdown",
         aliases: &[],
         usage: "Prints markdown formatted flag usage",
@@ -1709,7 +1726,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 92,
+        index: 93,
         name: "--instrument_for_coverage_option",
         aliases: &[],
         usage: "Enable code instrumentation to perform code coverage analysis. Options are:\n 1. NONE (default)\n 2. LINE - Instrument code by line.\n 3. BRANCH - Instrument code by branch.\n 4. PRODUCTION - Function Instrumentation on compiled JS code.\n",
@@ -1723,7 +1740,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 93,
+        index: 94,
         name: "--production_instrumentation_array_name",
         aliases: &[],
         usage: "Name of the global array used by production instrumentation. The array name should be declared as an extern so it is not renamed by the compiler. A function that parses the global array should also be included. This flag is to be used in tandem with --instrument_code=PRODUCTION",
@@ -1737,7 +1754,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 94,
+        index: 95,
         name: "--chunk_output_type",
         aliases: &[],
         usage: "Indicates what format the compiler should use for output chunks. GLOBAL_NAMESPACE is typically used in conjunction with --rename_prefix_namespace. ES_MODULES outputs chunks as proper modules with 'import' and 'export' statements.",
@@ -1751,7 +1768,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 95,
+        index: 96,
         name: "--allow_dynamic_import",
         aliases: &[],
         usage: "Indicates that the compiler should allow dynamic import expressions. Dynamic import expressions are not yet fully supported and may lead to broken output code.",
@@ -1765,7 +1782,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 96,
+        index: 97,
         name: "--dynamic_import_alias",
         aliases: &[],
         usage: "Instructs the compiler to replace dynamic imports expressions with a function call using the specified name. Allows dynamic import expressions to be externally polyfilled when the output language level does not natively support them. An alias of 'import' is allowed.",
@@ -1779,7 +1796,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 97,
+        index: 98,
         name: "--assume_static_inheritance_is_not_used",
         aliases: &[],
         usage: "Assume that static (class-side) inheritance is not being used and that static methods will not be referenced via `this` or through subclasses. This enables optimizations that could break code that did those things.",
@@ -1793,7 +1810,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 98,
+        index: 99,
         name: "--assume_no_prototype_method_enumeration",
         aliases: &[],
         usage: "Assume that prototype method enumeration is not being used. This allows the compiler to move a prototype method declaration into a deeper chunk without creating stub functions in a parent chunk.",
@@ -1807,7 +1824,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 99,
+        index: 100,
         name: "--variable_map_input_file",
         aliases: &[],
         usage: "File containing the serialized version of the variable renaming map produced by a previous compilation",
@@ -1821,7 +1838,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 100,
+        index: 101,
         name: "--property_map_input_file",
         aliases: &[],
         usage: "File containing the serialized version of the property renaming map produced by a previous compilation",
@@ -1835,7 +1852,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 101,
+        index: 102,
         name: "--expected_diagnostics",
         aliases: &[],
         usage: "Expected diagnostics in the format [(line,col)]CODE:regex. CODE is the JSCompiler DiagnosticType key. regex matches the description.",
@@ -1935,6 +1952,7 @@ pub static CATEGORIES: &[(&str, &[&str])] = &[
             "source_map_input",
             "source_map_include_content",
             "source_map_location_mapping",
+            "source_map_merge_identical_segments",
             "variable_renaming_report",
         ],
     ),
@@ -2037,52 +2055,55 @@ impl Flags {
                 self.source_map_include_sources_content = value.into_bool();
             }
             21 => {
-                self.property_map_output_file = value.into_string();
+                self.source_map_merge_identical_segments = value.into_bool();
             }
             22 => {
-                self.third_party = value.into_bool();
+                self.property_map_output_file = value.into_string();
             }
             23 => {
-                self.summary_detail_level = value.into_int();
+                self.third_party = value.into_bool();
             }
             24 => {
-                self.isolation_mode = IsolationMode::value_of(&value.into_string()).unwrap();
+                self.summary_detail_level = value.into_int();
             }
             25 => {
-                self.output_wrapper = value.into_string();
+                self.isolation_mode = IsolationMode::value_of(&value.into_string()).unwrap();
             }
             26 => {
-                self.output_wrapper_file = value.into_string();
+                self.output_wrapper = value.into_string();
             }
             27 => {
-                self.chunk_wrapper.push(value.into_string());
+                self.output_wrapper_file = value.into_string();
             }
             28 => {
-                self.chunk_output_path_prefix = value.into_string();
+                self.chunk_wrapper.push(value.into_string());
             }
             29 => {
-                self.create_source_map = value.into_string();
+                self.chunk_output_path_prefix = value.into_string();
             }
             30 => {
+                self.create_source_map = value.into_string();
+            }
+            31 => {
                 self.source_map_format = match value.into_string().as_str() {
                     "DEFAULT" => Format::DEFAULT,
                     "V3" => Format::V3,
                     _ => unreachable!(),
                 };
             }
-            31 => {
+            32 => {
                 self.source_map_location_mapping.push(value.into_string());
             }
-            32 => {
+            33 => {
                 self.source_map_inputs.push(value.into_string());
             }
-            33 => {
+            34 => {
                 self.parse_inline_source_maps = value.into_bool();
             }
-            34 => {
+            35 => {
                 self.apply_input_source_maps = value.into_bool();
             }
-            35 => {
+            36 => {
                 let proxy = crate::args4j::spi::setter::StringFieldSetter {
                     field: &mut self.jscomp_error,
                     option: &OPTIONS[35],
@@ -2091,7 +2112,7 @@ impl Flags {
                     .setter
                     .add_value(value.into_string());
             }
-            36 => {
+            37 => {
                 let proxy = crate::args4j::spi::setter::StringFieldSetter {
                     field: &mut self.jscomp_warning,
                     option: &OPTIONS[36],
@@ -2100,7 +2121,7 @@ impl Flags {
                     .setter
                     .add_value(value.into_string());
             }
-            37 => {
+            38 => {
                 let proxy = crate::args4j::spi::setter::StringFieldSetter {
                     field: &mut self.jscomp_off,
                     option: &OPTIONS[37],
@@ -2109,159 +2130,159 @@ impl Flags {
                     .setter
                     .add_value(value.into_string());
             }
-            38 => {
+            39 => {
                 self.define.push(value.into_string());
             }
-            39 => {
+            40 => {
                 self.charset = value.into_string();
             }
-            40 => {
+            41 => {
                 self.compilation_level = value.into_string();
             }
-            41 => {
+            42 => {
                 self.num_parallel_threads = value.into_int();
             }
-            42 => {
+            43 => {
                 self.checks_only = value.into_bool();
             }
-            43 => {
+            44 => {
                 self.incremental_check_mode =
                     IncrementalCheckMode::value_of(&value.into_string()).unwrap();
             }
-            44 => {
+            45 => {
                 self.continue_after_errors = value.into_bool();
             }
-            45 => {
+            46 => {
                 self.use_types_for_optimization = value.into_bool();
             }
-            46 => {
+            47 => {
                 self.assume_function_wrapper = value.into_bool();
             }
-            47 => {
+            48 => {
                 self.warning_level = WarningLevel::value_of(&value.into_string()).unwrap();
             }
-            48 => {
+            49 => {
                 self.debug = value.into_bool();
             }
-            49 => {
+            50 => {
                 self.typed_ast_output_file = Some(value.into_string());
             }
-            50 => {
+            51 => {
                 self.generate_exports = value.into_bool();
             }
-            51 => {
+            52 => {
                 self.export_local_property_definitions = value.into_bool();
             }
-            52 => {
+            53 => {
                 self.formatting
                     .push(FormattingOption::value_of(&value.into_string()).unwrap());
             }
-            53 => {
+            54 => {
                 self.process_common_js_modules = value.into_bool();
             }
-            54 => {
+            55 => {
                 self.module_root.push(value.into_string());
             }
-            55 => {
+            56 => {
                 self.process_closure_primitives = value.into_bool();
             }
-            56 => {
+            57 => {
                 self.angular_pass = value.into_bool();
             }
-            57 => {
+            58 => {
                 self.polymer_version = Some(value.into_int());
             }
-            58 => {
+            59 => {
                 self.chrome_pass = value.into_bool();
             }
-            59 => {
+            60 => {
                 self.j2cl_pass_mode = value.into_string();
             }
-            60 => {
+            61 => {
                 self.remove_j2c_l_asserts = value.into_bool();
             }
-            61 => {
+            62 => {
                 self.output_manifest = value.into_string();
             }
-            62 => {
+            63 => {
                 self.output_chunk_dependencies = value.into_string();
             }
-            63 => {
+            64 => {
                 self.language_in = value.into_string();
             }
-            64 => {
+            65 => {
                 self.language_out = value.into_string();
                 self.language_out_was_set = true;
             }
-            65 => {
+            66 => {
                 self.version = value.into_bool();
             }
-            66 => {
+            67 => {
                 self.translations_file = value.into_string();
             }
-            67 => {
+            68 => {
                 self.translations_project = Some(value.into_string());
             }
-            68 => {
+            69 => {
                 self.flag_files.push(value.into_string());
             }
-            69 => {
+            70 => {
                 self.warnings_allow_list_file = value.into_string();
             }
-            70 => {
+            71 => {
                 self.hide_warnings_for.push(value.into_string());
             }
-            71 => {
+            72 => {
                 self.extra_annotation_name.push(value.into_string());
             }
-            72 => {
+            73 => {
                 self.tracer_mode = TracerMode::value_of(&value.into_string()).unwrap();
             }
-            73 => {
+            74 => {
                 self.rename_prefix = Some(value.into_string());
             }
-            74 => {
+            75 => {
                 self.rename_prefix_namespace = Some(value.into_string());
             }
-            75 => {
+            76 => {
                 self.conformance_configs.push(value.into_string());
             }
-            76 => {
+            77 => {
                 self.environment = match value.into_string().as_str() {
                     "BROWSER" => Environment::BROWSER,
                     "CUSTOM" => Environment::CUSTOM,
                     _ => unreachable!(),
                 };
             }
-            77 => {
+            78 => {
                 self.json_stream_mode = JsonStreamMode::value_of(&value.into_string()).unwrap();
             }
-            78 => {
+            79 => {
                 self.preserve_type_annotations = value.into_bool();
             }
-            79 => {
+            80 => {
                 self.inject_libraries = value.into_bool();
             }
-            80 => {
+            81 => {
                 self.force_inject_libraries.push(value.into_string());
             }
-            81 => {
+            82 => {
                 self.dependency_mode =
                     Some(DependencyMode::value_of(&value.into_string()).unwrap());
             }
-            82 => {
+            83 => {
                 self.entry_point.push(value.into_string());
             }
-            83 => {
+            84 => {
                 self.rewrite_polyfills = value.into_bool();
             }
-            84 => {
+            85 => {
                 self.isolate_polyfills = value.into_bool();
             }
-            85 => {
+            86 => {
                 self.print_source_after_each_pass = value.into_bool();
             }
-            86 => {
+            87 => {
                 self.module_resolution_mode = match value.into_string().as_str() {
                     "BROWSER" => ResolutionMode::BROWSER,
                     "NODE" => ResolutionMode::NODE,
@@ -2272,50 +2293,50 @@ impl Flags {
                     _ => unreachable!(),
                 };
             }
-            87 => {
+            88 => {
                 let (key, value) = value.into_map();
                 self.browser_resolver_prefix_replacements.insert(key, value);
             }
-            88 => {
+            89 => {
                 self.package_json_entry_names = Some(value.into_string());
             }
-            89 => {
+            90 => {
                 self.error_format = ErrorFormatOption::value_of(&value.into_string()).unwrap();
             }
-            90 => {
+            91 => {
                 self.renaming = value.into_bool();
             }
-            91 => {
+            92 => {
                 self.help_markdown = value.into_bool();
             }
-            92 => {
+            93 => {
                 self.instrument_for_coverage_option = value.into_string();
             }
-            93 => {
+            94 => {
                 self.production_instrumentation_array_name = value.into_string();
             }
-            94 => {
+            95 => {
                 self.chunk_output_type = ChunkOutputType::value_of(&value.into_string()).unwrap();
             }
-            95 => {
+            96 => {
                 self.allow_dynamic_import = value.into_bool();
             }
-            96 => {
+            97 => {
                 self.dynamic_import_alias = Some(value.into_string());
             }
-            97 => {
+            98 => {
                 self.assume_static_inheritance_is_not_used = value.into_bool();
             }
-            98 => {
+            99 => {
                 self.assume_no_prototype_method_enumeration = value.into_bool();
             }
-            99 => {
+            100 => {
                 self.variable_map_input_file = value.into_string();
             }
-            100 => {
+            101 => {
                 self.property_map_input_file = value.into_string();
             }
-            101 => {
+            102 => {
                 self.expected_diagnostics.push(value.into_string());
             }
             _ => unreachable!(),
@@ -2348,93 +2369,94 @@ impl Flags {
             18 => Some(self.instrumentation_mapping_output_file.to_string()),
             19 => Some(self.create_name_map_files.to_string()),
             20 => Some(self.source_map_include_sources_content.to_string()),
-            21 => Some(self.property_map_output_file.to_string()),
-            22 => Some(self.third_party.to_string()),
-            23 => Some(self.summary_detail_level.to_string()),
-            24 => Some(self.isolation_mode.to_string()),
-            25 => Some(self.output_wrapper.to_string()),
-            26 => Some(self.output_wrapper_file.to_string()),
-            27 => print_list(&self.chunk_wrapper),
-            28 => Some(self.chunk_output_path_prefix.to_string()),
-            29 => Some(self.create_source_map.to_string()),
-            30 => Some(format!("{:?}", self.source_map_format)),
-            31 => print_list(&self.source_map_location_mapping),
-            32 => print_list(&self.source_map_inputs),
-            33 => Some(self.parse_inline_source_maps.to_string()),
-            34 => Some(self.apply_input_source_maps.to_string()),
-            35 => None,
+            21 => Some(self.source_map_merge_identical_segments.to_string()),
+            22 => Some(self.property_map_output_file.to_string()),
+            23 => Some(self.third_party.to_string()),
+            24 => Some(self.summary_detail_level.to_string()),
+            25 => Some(self.isolation_mode.to_string()),
+            26 => Some(self.output_wrapper.to_string()),
+            27 => Some(self.output_wrapper_file.to_string()),
+            28 => print_list(&self.chunk_wrapper),
+            29 => Some(self.chunk_output_path_prefix.to_string()),
+            30 => Some(self.create_source_map.to_string()),
+            31 => Some(format!("{:?}", self.source_map_format)),
+            32 => print_list(&self.source_map_location_mapping),
+            33 => print_list(&self.source_map_inputs),
+            34 => Some(self.parse_inline_source_maps.to_string()),
+            35 => Some(self.apply_input_source_maps.to_string()),
             36 => None,
             37 => None,
-            38 => print_list(&self.define),
-            39 => Some(self.charset.to_string()),
-            40 => Some(self.compilation_level.to_string()),
-            41 => Some(self.num_parallel_threads.to_string()),
-            42 => Some(self.checks_only.to_string()),
-            43 => Some(self.incremental_check_mode.to_string()),
-            44 => Some(self.continue_after_errors.to_string()),
-            45 => Some(self.use_types_for_optimization.to_string()),
-            46 => Some(self.assume_function_wrapper.to_string()),
-            47 => Some(self.warning_level.to_string()),
-            48 => Some(self.debug.to_string()),
-            49 => self.typed_ast_output_file.as_ref().map(ToString::to_string),
-            50 => Some(self.generate_exports.to_string()),
-            51 => Some(self.export_local_property_definitions.to_string()),
-            52 => print_list(&self.formatting),
-            53 => Some(self.process_common_js_modules.to_string()),
-            54 => print_list(&self.module_root),
-            55 => Some(self.process_closure_primitives.to_string()),
-            56 => Some(self.angular_pass.to_string()),
-            57 => self.polymer_version.as_ref().map(ToString::to_string),
-            58 => Some(self.chrome_pass.to_string()),
-            59 => Some(self.j2cl_pass_mode.to_string()),
-            60 => Some(self.remove_j2c_l_asserts.to_string()),
-            61 => Some(self.output_manifest.to_string()),
-            62 => Some(self.output_chunk_dependencies.to_string()),
-            63 => Some(self.language_in.to_string()),
-            64 => Some(self.language_out.to_string()),
-            65 => Some(self.version.to_string()),
-            66 => Some(self.translations_file.to_string()),
-            67 => self.translations_project.as_ref().map(ToString::to_string),
-            68 => print_list(&self.flag_files),
-            69 => Some(self.warnings_allow_list_file.to_string()),
-            70 => print_list(&self.hide_warnings_for),
-            71 => print_list(&self.extra_annotation_name),
-            72 => Some(self.tracer_mode.to_string()),
-            73 => self.rename_prefix.as_ref().map(ToString::to_string),
-            74 => self
+            38 => None,
+            39 => print_list(&self.define),
+            40 => Some(self.charset.to_string()),
+            41 => Some(self.compilation_level.to_string()),
+            42 => Some(self.num_parallel_threads.to_string()),
+            43 => Some(self.checks_only.to_string()),
+            44 => Some(self.incremental_check_mode.to_string()),
+            45 => Some(self.continue_after_errors.to_string()),
+            46 => Some(self.use_types_for_optimization.to_string()),
+            47 => Some(self.assume_function_wrapper.to_string()),
+            48 => Some(self.warning_level.to_string()),
+            49 => Some(self.debug.to_string()),
+            50 => self.typed_ast_output_file.as_ref().map(ToString::to_string),
+            51 => Some(self.generate_exports.to_string()),
+            52 => Some(self.export_local_property_definitions.to_string()),
+            53 => print_list(&self.formatting),
+            54 => Some(self.process_common_js_modules.to_string()),
+            55 => print_list(&self.module_root),
+            56 => Some(self.process_closure_primitives.to_string()),
+            57 => Some(self.angular_pass.to_string()),
+            58 => self.polymer_version.as_ref().map(ToString::to_string),
+            59 => Some(self.chrome_pass.to_string()),
+            60 => Some(self.j2cl_pass_mode.to_string()),
+            61 => Some(self.remove_j2c_l_asserts.to_string()),
+            62 => Some(self.output_manifest.to_string()),
+            63 => Some(self.output_chunk_dependencies.to_string()),
+            64 => Some(self.language_in.to_string()),
+            65 => Some(self.language_out.to_string()),
+            66 => Some(self.version.to_string()),
+            67 => Some(self.translations_file.to_string()),
+            68 => self.translations_project.as_ref().map(ToString::to_string),
+            69 => print_list(&self.flag_files),
+            70 => Some(self.warnings_allow_list_file.to_string()),
+            71 => print_list(&self.hide_warnings_for),
+            72 => print_list(&self.extra_annotation_name),
+            73 => Some(self.tracer_mode.to_string()),
+            74 => self.rename_prefix.as_ref().map(ToString::to_string),
+            75 => self
                 .rename_prefix_namespace
                 .as_ref()
                 .map(ToString::to_string),
-            75 => print_list(&self.conformance_configs),
-            76 => Some(self.environment.to_string()),
-            77 => Some(self.json_stream_mode.to_string()),
-            78 => Some(self.preserve_type_annotations.to_string()),
-            79 => Some(self.inject_libraries.to_string()),
-            80 => print_list(&self.force_inject_libraries),
-            81 => self.dependency_mode.as_ref().map(ToString::to_string),
-            82 => print_list(&self.entry_point),
-            83 => Some(self.rewrite_polyfills.to_string()),
-            84 => Some(self.isolate_polyfills.to_string()),
-            85 => Some(self.print_source_after_each_pass.to_string()),
-            86 => Some(format!("{:?}", self.module_resolution_mode)),
-            87 => Some(java_map_string(&self.browser_resolver_prefix_replacements)),
-            88 => self
+            76 => print_list(&self.conformance_configs),
+            77 => Some(self.environment.to_string()),
+            78 => Some(self.json_stream_mode.to_string()),
+            79 => Some(self.preserve_type_annotations.to_string()),
+            80 => Some(self.inject_libraries.to_string()),
+            81 => print_list(&self.force_inject_libraries),
+            82 => self.dependency_mode.as_ref().map(ToString::to_string),
+            83 => print_list(&self.entry_point),
+            84 => Some(self.rewrite_polyfills.to_string()),
+            85 => Some(self.isolate_polyfills.to_string()),
+            86 => Some(self.print_source_after_each_pass.to_string()),
+            87 => Some(format!("{:?}", self.module_resolution_mode)),
+            88 => Some(java_map_string(&self.browser_resolver_prefix_replacements)),
+            89 => self
                 .package_json_entry_names
                 .as_ref()
                 .map(ToString::to_string),
-            89 => Some(self.error_format.to_string()),
-            90 => Some(self.renaming.to_string()),
-            91 => Some(self.help_markdown.to_string()),
-            92 => Some(self.instrument_for_coverage_option.to_string()),
-            93 => Some(self.production_instrumentation_array_name.to_string()),
-            94 => Some(self.chunk_output_type.to_string()),
-            95 => Some(self.allow_dynamic_import.to_string()),
-            96 => self.dynamic_import_alias.as_ref().map(ToString::to_string),
-            97 => Some(self.assume_static_inheritance_is_not_used.to_string()),
-            98 => Some(self.assume_no_prototype_method_enumeration.to_string()),
-            99 => Some(self.variable_map_input_file.to_string()),
-            100 => Some(self.property_map_input_file.to_string()),
-            101 => print_list(&self.expected_diagnostics),
+            90 => Some(self.error_format.to_string()),
+            91 => Some(self.renaming.to_string()),
+            92 => Some(self.help_markdown.to_string()),
+            93 => Some(self.instrument_for_coverage_option.to_string()),
+            94 => Some(self.production_instrumentation_array_name.to_string()),
+            95 => Some(self.chunk_output_type.to_string()),
+            96 => Some(self.allow_dynamic_import.to_string()),
+            97 => self.dynamic_import_alias.as_ref().map(ToString::to_string),
+            98 => Some(self.assume_static_inheritance_is_not_used.to_string()),
+            99 => Some(self.assume_no_prototype_method_enumeration.to_string()),
+            100 => Some(self.variable_map_input_file.to_string()),
+            101 => Some(self.property_map_input_file.to_string()),
+            102 => print_list(&self.expected_diagnostics),
             _ => None,
         }
     }
@@ -3962,6 +3984,7 @@ impl CommandLineRunner {
         options.set_strict_mode_input(flags.strict_mode_input);
         options.set_emit_use_strict(flags.emit_use_strict);
         options.set_source_map_include_sources_content(flags.source_map_include_sources_content);
+        options.set_source_map_merge_identical_segments(flags.source_map_merge_identical_segments);
         options.set_module_resolution_mode(flags.module_resolution_mode);
         let replacements: IndexMap<String, String> = flags
             .browser_resolver_prefix_replacements
