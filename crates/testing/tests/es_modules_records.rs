@@ -159,14 +159,15 @@ fn es6_rewrite_modules_with_goog_interop_test() {
 }
 
 /// getProcessor is the corpus helper RewriteDynamicImportsTest_Helpers.GetProcessor, which runs
-/// `TypeCheck#processForTesting` before Es6RewriteModules and RewriteDynamicImports.
-// port: RewriteDynamicImportsTest (25 recorded calls)
+/// `TypeCheck#processForTesting` (when the test's `enableTypeCheck` parameter is set) before
+/// Es6RewriteModules and RewriteDynamicImports.
+// port: RewriteDynamicImportsTest (50 recorded calls: 25 with and 25 without type checking)
 #[test]
 fn rewrite_dynamic_imports_test() {
     assert_records(
         "RewriteDynamicImportsTest",
-        25,
-        25,
+        50,
+        50,
         &[SEMANTIC_RAI, TYPE_CHECK],
     );
 }
