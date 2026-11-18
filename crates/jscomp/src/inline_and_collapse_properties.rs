@@ -34,6 +34,7 @@ use crate::{
     deps::module_loader::ResolutionMode,
     destructuring_global_name_extractor::DestructuringGlobalNameExtractor,
     diagnostic_type::DiagnosticType,
+    evaluation_order::{EvaluationOrder, ExecutionOrderCheck},
     global_namespace::{
         AstChange, DecisionsLog, GlobalNamespace, Inlinability, Name, Ref, RefBasedAstChange,
         SimpleAstChange,
@@ -989,6 +990,84 @@ impl AggressiveInlineAliases {
         ))
     }
 
+    /// Checks whether a conditionally executed global alias (such as `var $tmp; cond && (($tmp =
+    /// C).p ?? ($tmp.p = x))`) is unescaped, assigned once, and dominates all of its reads within
+    /// the same basic block.
+    ///
+    /// Runs in O(refs * depth) time.
+    // port: InlineAndCollapseProperties.AggressiveInlineAliases#isConditionallyInlineableGlobalAlias
+    fn is_conditionally_inlineable_global_alias(
+        compiler: &AbstractCompiler,
+        namespace: &GlobalNamespace,
+        aliasing_name: Name,
+        alias: Ref,
+        alias_parent: NodeId,
+        lvalue: NodeId,
+        allow_loop: bool,
+    ) -> bool {
+        if !lvalue.is_name(compiler) {
+            // Tracking property control flow is a lot harder, even within a basic block; and we
+            // are also primarily motivated by the simple variable aliases that Normalize
+            // generates.
+            return false;
+        }
+        if !allow_loop && NodeUtil::is_within_loop(compiler, alias_parent) {
+            return false;
+        }
+        let init_order_check = EvaluationOrder::check_execution_after(
+            compiler,
+            alias_parent,
+            alias.scope(namespace).unwrap(),
+        );
+
+        Self::are_all_refs_executed_after_init_in_block(
+            compiler,
+            namespace,
+            aliasing_name,
+            aliasing_name.get_initialization(namespace),
+            aliasing_name.get_declaration(namespace),
+            &init_order_check,
+        )
+    }
+
+    // port: InlineAndCollapseProperties.AggressiveInlineAliases#areAllRefsExecutedAfterInitInBlock
+    fn are_all_refs_executed_after_init_in_block(
+        compiler: &AbstractCompiler,
+        namespace: &GlobalNamespace,
+        current_name: Name,
+        init_ref: Option<Ref>,
+        decl_ref: Option<Ref>,
+        init_order_check: &ExecutionOrderCheck,
+    ) -> bool {
+        for r#ref in current_name.get_refs(namespace) {
+            if Some(r#ref) == init_ref || Some(r#ref) == decl_ref {
+                continue;
+            }
+            if !init_order_check.is_executed_after_init(
+                compiler,
+                r#ref.get_node(namespace).unwrap(),
+                r#ref.scope(namespace).unwrap(),
+            ) {
+                return false;
+            }
+        }
+        if let Some(props) = current_name.props(namespace) {
+            for &prop in props {
+                if !Self::are_all_refs_executed_after_init_in_block(
+                    compiler,
+                    namespace,
+                    prop,
+                    init_ref,
+                    decl_ref,
+                    init_order_check,
+                ) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     /// Attempt to inline an global alias of a global name. This requires that the name is well
     /// defined: assigned unconditionally, assigned exactly once. It is assumed that, the name for
     /// which it is an alias must already meet these same requirements.
@@ -1006,14 +1085,7 @@ impl AggressiveInlineAliases {
         // declaration.
         let alias_node = alias.get_node(namespace).unwrap();
         let alias_parent = alias_node.get_parent(compiler).unwrap();
-        if ((alias_parent.is_assign(compiler) || alias_parent.is_name(compiler))
-            && NodeUtil::is_executed_exactly_once(compiler, alias_parent))
-            // We special-case for constructors here, to inline constructor aliases
-            // more aggressively in global scope.
-            // We do this because constructor properties are always collapsed,
-            // so we want to inline the aliases also to avoid breakages.
-            || (alias_parent.is_name(compiler) && name.is_constructor(namespace))
-        {
+        if alias_parent.is_assign(compiler) || alias_parent.is_name(compiler) {
             let lvalue = if alias_parent.is_name(compiler) {
                 alias_parent
             } else {
@@ -1043,6 +1115,23 @@ impl AggressiveInlineAliases {
             let alias_inlinability = aliasing_name.calculate_inlinability(namespace, compiler);
             if !alias_inlinability.should_inline_usages() {
                 // nothing to do here
+                return;
+            }
+
+            // Ensure that the alias is either executed unconditionally once, a declaration-site
+            // constructor alias, or dominates all of its reads within the same basic block.
+            if !NodeUtil::is_executed_exactly_once(compiler, alias_parent)
+                && !(alias_parent.is_name(compiler) && name.is_constructor(namespace))
+                && !Self::is_conditionally_inlineable_global_alias(
+                    compiler,
+                    namespace,
+                    aliasing_name,
+                    alias,
+                    alias_parent,
+                    lvalue,
+                    name.is_constructor(namespace),
+                )
+            {
                 return;
             }
 
