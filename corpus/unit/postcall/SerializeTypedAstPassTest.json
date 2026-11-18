@@ -105,6 +105,14 @@
     "testFieldsAfter.astConsumer"
    ],
    "note": "The hooked call is the test(...) inside compile(TestPart...) (lines 488-497); the pass under test hands the TypedAst to astConsumer, the lambda ast -> resultAst[0] = ast, and the test then reads it back through SerializationResult. testFieldsAfter.astConsumer holds that lambda's captured TypedAst[1] after the call in the neutral protobuf encoding (FORMAT.md \"Neutral encodings\"): every set field by descriptor name, no depth limit, string_pool.strings as strings and each LazyAst.script decoded into its AstNode tree. The descriptor opts in to testFieldsAfter on the shared helper holder, so replay compares the whole message (post state checked, no library-internal object dump). Asserted: result.sourceNodes.get(0), the AstNode that SerializationResult parses from code_ast[0].script, equals the expected AstNode tree ignoring line, column and type: the SOURCE_FILE has the GOOG_MODULE property, the module$exports$a$b$c VAR_DECLARATION has IS_NAMESPACE and JSDOC_CONST, and the rewritten function and its parameter keep original-name pointers to f and x (lines 304-354); records [8]."
+  },
+  {
+   "method": "testAst_repeatedNestedBuiltinTypes_deterministicAndPreserved",
+   "status": "captured",
+   "via": [
+    "testFieldsAfter.astConsumer"
+   ],
+   "note": "Two hooked compiles of the same source through compileWithExterns (test(...) inside compile(TestPart...)); the test asserts that the two TypedAsts are equal and that the type pool is not empty. testFieldsAfter.astConsumer holds each call's TypedAst in the neutral protobuf encoding (as for the class's other methods), replay compares it in both records (equal recorded values), and the type pool is part of it."
   }
  ],
  "note": "Classify round 2, batch 3: all 13 flagged methods are captured via testFieldsAfter.astConsumer. They assert only on the serialized TypedAst message, which the v7 records hold in full in the neutral protobuf encoding; round 1 had left them unclassified until that encoding existed. No method is a Rust unit test."

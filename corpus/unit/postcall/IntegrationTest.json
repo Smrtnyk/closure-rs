@@ -132,6 +132,36 @@
     "observed.warnings"
    ],
    "note": "Review round 3 reclassification (was rust_unit_test; the reason names observed state replay compares): integration record: the asserted value (exactly one warning, whose description contains 'Unnecessary escape') is in the record's observed.warnings, which replay compares JSON-equal, but kind=integration records have no postCall snapshot and the postcall via schema accepts only postCall.*, testFieldsAfter.* and postconditions, so it cannot be declared captured; harness request filed to accept observed.warnings as a via for integration records."
+  },
+  {
+   "method": "testTaggedTemplateInFunctionNotDuplicatedAcrossCallSites_advancedOptimizations_es2020",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.warnings",
+    "observed.output"
+   ],
+   "note": "After compile: no errors, no warnings, and the output (compiler.getRoot().getLastChild()) holds exactly one TAGGED_TEMPLATELIT: the record's observed.errors, observed.warnings and observed.output (the output code, whose tagged templates are its TAGGED_TEMPLATELIT nodes), which replay compares JSON-equal."
+  },
+  {
+   "method": "testTaggedTemplateInFunctionNotDuplicatedAcrossCallSites_simpleOptimizations_es2020",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.warnings",
+    "observed.output"
+   ],
+   "note": "As the advanced variant with SIMPLE_OPTIMIZATIONS: no errors, no warnings, one TAGGED_TEMPLATELIT in the output, all in observed.errors, observed.warnings and observed.output."
+  },
+  {
+   "method": "testTaggedTemplateInFunctionInlinedAcrossCallSites_advancedOptimizations_es5",
+   "status": "captured",
+   "via": [
+    "observed.errors",
+    "observed.warnings",
+    "observed.output"
+   ],
+   "note": "After compile: no errors, no warnings, no TAGGED_TEMPLATELIT in the output, and compiler.toSource() holds the escaped <li> literal once and matches a pattern of the two calls sharing one template array: observed.errors, observed.warnings and observed.output (toSource of the output), which replay compares JSON-equal."
   }
  ],
  "note": "Classify round 2 batch 5 (v7 records). 19 flagged methods: 14 captured (observed.errors/warnings/output or outcome, which replay compares for integration records), 1 rust_unit_test (Node original-name properties of the output AST), 4 unclassified. The 4 assert neutral values on state no integration record holds: the v7 recording (harness round 2) writes postCall only for compiler_test_case records, so kind=integration records have no postCall snapshot (see pendingNeutralKey).",

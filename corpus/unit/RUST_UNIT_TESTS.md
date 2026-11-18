@@ -15,6 +15,7 @@ Each class below is in scope (not under refactoring/, jscomp/ant/, jscomp/instru
 - com.google.javascript.jscomp.AstAnalyzerTest: Logic for answering questions about portions of the AST. [src com/google/javascript/jscomp/AstAnalyzer.java]
 - com.google.javascript.jscomp.AstFactoryTest: Creates AST nodes and subtrees. [src com/google/javascript/jscomp/AstFactory.java]
 - com.google.javascript.jscomp.AstManipulationsTest: Utilities to abstract away certain common AST manipulations [src com/google/javascript/jscomp/AstManipulations.java]
+- com.google.javascript.jscomp.BasicBlockTest: Represents a section of code that is uninterrupted by control structures (conditional or iterative logic). [src com/google/javascript/jscomp/BasicBlock.java]
 - com.google.javascript.jscomp.ChangeTrackerTest: Tracks various kind of changes during a single compilation [src com/google/javascript/jscomp/ChangeTracker.java]
 - com.google.javascript.jscomp.ChangeVerifierTest: A Class to assist in AST change tracking verification. [src com/google/javascript/jscomp/ChangeVerifier.java]
 - com.google.javascript.jscomp.ClosureCodingConventionTest: This describes the Closure-specific JavaScript coding conventions. [src com/google/javascript/jscomp/ClosureCodingConvention.java]
@@ -35,6 +36,7 @@ Each class below is in scope (not under refactoring/, jscomp/ant/, jscomp/instru
 - com.google.javascript.jscomp.DiagnosticGroupsTest: Named groups of DiagnosticTypes exposed by Compiler. [src com/google/javascript/jscomp/DiagnosticGroups.java]
 - com.google.javascript.jscomp.DiagnosticToSuppressionMapperTest: Used to print a map from diagnostic id to suppression. [src com/google/javascript/jscomp/DiagnosticToSuppressionMapper.java]
 - com.google.javascript.jscomp.DotFormatterTest: DotFormatter prints out a dot file of the Abstract Syntax Tree. [src com/google/javascript/jscomp/DotFormatter.java]
+- com.google.javascript.jscomp.EvaluationOrderTest: Syntactic rules for the order in which the children of an expression are evaluated, and which children are only conditionally evaluated. [src com/google/javascript/jscomp/EvaluationOrder.java]
 - com.google.javascript.jscomp.ExpressionDecomposerTest: Partially or fully decomposes an expression with respect to some sub-expression. [src com/google/javascript/jscomp/ExpressionDecomposer.java]
 - com.google.javascript.jscomp.FixedPointGraphTraversalTest: Test for FixedPointGraphTraversal. [test-class Javadoc]
 - com.google.javascript.jscomp.FunctionArgumentInjectorTest: A nifty set of functions to deal with the issues of replacing function parameters with a set of call argument expressions. [src com/google/javascript/jscomp/FunctionArgumentInjector.java]
@@ -188,6 +190,7 @@ Test class com.google.javascript.jscomp.integration.AdvancedOptimizationsIntegra
 
 Methods of `com.google.javascript.jscomp.AstValidatorTest` that, after the hooked `testSame(...)` calls of `valid()`, `invalid()`, `parseValidScript()` or `testFeatureValidation()`, run AstValidator directly (through `doCheck`, test lines 1789-1811: a fresh Compiler, `createValidator`, then `validateScript`/`validateStatement`/`validateExpression`) on Java `Node` objects: trees built by hand with the Node/IR API, or nodes of the output AST mutated by hand (replaced children, a changed `Node.FEATURE_SET` prop, erased type information, a closure-unaware shadow). Those inputs exist only as Java Node objects, so the checks are ported as Rust unit tests next to AstValidator. The `lastCheckViolationMessages` assertions that follow each hooked call are compared by replay (descriptor `testFieldsAfter` + `testFieldsAfterAlso`), so these methods' records stay counted in gate (a).
 
+- AstValidatorTest#testArrayLit_validLaterEmptyAndSpread: a hand-built ARRAYLIT of a number, an EMPTY slot and an ITER_SPREAD of a name validates as an expression with no violations (AstValidator called directly on hand-built Node trees; test lines 1894-1901)
 - AstValidatorTest#testAwaitExpression: a hand-built AWAIT node inside a hand-built async FUNCTION (Node.setIsAsyncFunction) validates as an expression with no violations (AstValidator called directly on hand-built Node trees; test lines 825-844)
 - AstValidatorTest#testClass: a hand-built CLASS node with empty CLASS_MEMBERS is a valid statement; adding a MEMBER_FUNCTION_DEF without a name string, or one whose string is empty, makes it invalid (AstValidator called directly on hand-built Node trees; test lines 127-165)
 - AstValidatorTest#testCompoundAssign: hand-built ASSIGN_ADD nodes whose target is an ARRAY_PATTERN or OBJECT_PATTERN are invalid expressions (AstValidator called directly on hand-built Node trees; test lines 615-624)
