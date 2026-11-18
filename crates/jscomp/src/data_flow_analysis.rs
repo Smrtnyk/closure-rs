@@ -462,7 +462,7 @@ pub fn compute_escaped(
         .set_callback(&mut finder)
         .traverse_at_scope(js_scope);
     for &var in all_vars_in_fn.values() {
-        if var.get_parent_node(compiler).unwrap().is_catch(compiler)
+        if crate::abstract_var::AbstractVar::is_catch(var, compiler)
             || compiler
                 .get_coding_convention()
                 .is_exported_name(&var.get_name(compiler))

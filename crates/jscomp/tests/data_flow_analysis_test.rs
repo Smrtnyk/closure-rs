@@ -933,6 +933,19 @@ mod escaped_locals_tests {
             compute_escaped_locals(r###"function f() {try{} catch(e){}}"###).len(),
             1
         );
+        assert_eq!(
+            compute_escaped_locals(r###"function f() {try{} catch({e}){}}"###).len(),
+            1
+        );
+        assert_eq!(
+            compute_escaped_locals(r###"function f() {try{} catch({e}){ let x = 1; }}"###).len(),
+            1
+        );
+        assert_eq!(
+            compute_escaped_locals(r###"function f() {try{} catch([a, b = 1, ...rest]){}}"###)
+                .len(),
+            3
+        );
     }
 
     // port: DataFlowAnalysisTest#testEscapedFunctionLayered
