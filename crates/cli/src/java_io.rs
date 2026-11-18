@@ -295,9 +295,9 @@ pub fn variable_map_load_error(
             .caused_by(cause);
     }
     file_not_found(error, path, false, false)
-        .at("com.google.common.io.Files$FileByteSource.openStream(Files.java:132)")
-        .at("com.google.common.io.Files$FileByteSource.read(Files.java:156)")
-        .at("com.google.common.io.Files.toByteArray(Files.java:238)")
+        .at("com.google.common.io.Files$FileByteSource.openStream(Files.java:131)")
+        .at("com.google.common.io.Files$FileByteSource.read(Files.java:155)")
+        .at("com.google.common.io.Files.toByteArray(Files.java:237)")
         .at_cli("VariableMap", "load", 86)
 }
 
