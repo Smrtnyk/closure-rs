@@ -222,10 +222,18 @@ impl<T: OptionValue> OptionValue for Arc<T> {
 impl OptionValue for PathBuf {
     // port: ReplayValues#decode (Path)
     fn decode_value(v: &DslValue) -> Result<Self, Throwable> {
+        if let DslValue::Path(p) = v.untyped() {
+            return Ok(p.clone());
+        }
         Ok(String::decode_value(v)?.into())
     }
-    // port: UnitRecorder#value (Path)
+    // port: UnitRecorder#value (Path): a directory below the temporary directory is
+    // `{"freshTempDir": true}`.
     fn encode_value(&self) -> Result<DslValue, Throwable> {
+        let tmp = std::env::temp_dir();
+        if self.is_absolute() && self.is_dir() && self.starts_with(&tmp) && *self != tmp {
+            return Ok(DslValue::Path(self.clone()));
+        }
         Ok(DslValue::String(self.to_string_lossy().as_ref().into()))
     }
 }

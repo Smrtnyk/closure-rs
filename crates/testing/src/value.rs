@@ -346,6 +346,9 @@ pub enum Value {
     },
     /// `{"sourceFile": SourceFile}`
     SourceFile(SourceFile),
+    /// `{"freshTempDir": true}`: a `java.nio.file.Path` naming a directory the test created below
+    /// `java.io.tmpdir`; replay supplies a fresh empty directory (FORMAT.md "Value encoding").
+    FreshTempDir,
     /// `{"optional": v}` (`java.util.Optional`; `None` when empty, written as null).
     Optional(Option<Box<Value>>),
     /// `{"list": [...], "impl": FQCN}`
@@ -409,6 +412,7 @@ const TAGS: &[&str] = &[
     "classRef",
     "regex",
     "sourceFile",
+    "freshTempDir",
     "optional",
     "list",
     "set",
@@ -470,6 +474,10 @@ impl Value {
                 flags: o.req_i32("flags")?,
             },
             "sourceFile" => Value::SourceFile(SourceFile::from_json(o.req(tag)?, &tp)?),
+            "freshTempDir" => match o.req(tag)? {
+                JsonValue::Bool(true) => Value::FreshTempDir,
+                _ => return err(&tp, "expected true"),
+            },
             "optional" => {
                 let x = o.req(tag)?;
                 Value::Optional(match x {
@@ -580,6 +588,9 @@ impl Value {
                 .put("flags", int(*flags))
                 .build(),
             Value::SourceFile(f) => ObjOut::new().put("sourceFile", f.to_json()).build(),
+            Value::FreshTempDir => ObjOut::new()
+                .put("freshTempDir", JsonValue::Bool(true))
+                .build(),
             Value::Optional(x) => ObjOut::new()
                 .put(
                     "optional",
@@ -736,6 +747,7 @@ mod tests {
         rt(r#"{"diagnosticType":{"key":"JSC_X","level":"WARNING"}}"#);
         rt(r#"{"diagnosticGroup":{"group":null,"types":["JSC_A","JSC_B"]}}"#);
         rt(r#"{"classRef":"a.B"}"#);
+        rt(r#"{"freshTempDir":true}"#);
         rt(r#"{"regex":"(code$)","flags":0}"#);
         rt(r#"{"sourceFile":{"name":"f.js","code":"x","kind":"EXTERN"}}"#);
         assert_eq!(rt(r#"{"optional":null}"#), Value::Optional(None));

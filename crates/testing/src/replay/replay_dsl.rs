@@ -183,6 +183,8 @@ pub enum DslValue {
         encoding: JsonValue,
     },
     SourceFile(Arc<SourceFile>),
+    /// A `java.nio.file.Path`: the directory decoded from `{"freshTempDir": true}`.
+    Path(std::path::PathBuf),
     Regex {
         pattern: JsString,
         flags: i32,
@@ -254,6 +256,7 @@ impl DslValue {
             Self::DiagnosticGroup(_) => "com.google.javascript.jscomp.DiagnosticGroup",
             Self::WarningsGuard { .. } => "com.google.javascript.jscomp.ComposeWarningsGuard",
             Self::SourceFile(_) => "com.google.javascript.jscomp.SourceFile",
+            Self::Path(_) => "java.nio.file.Path",
             Self::Regex { .. } => "java.util.regex.Pattern",
             Self::Proto(p) => return p.name.clone(),
         }
@@ -290,6 +293,7 @@ impl DslValue {
             }
             (Self::DiagnosticType(a), Self::DiagnosticType(b)) => a == b,
             (Self::SourceFile(a), Self::SourceFile(b)) => Arc::ptr_eq(a, b),
+            (Self::Path(a), Self::Path(b)) => a == b,
             (Self::Object(a), Self::Object(b)) => Rc::ptr_eq(a, b),
             (Self::Lambda(a), Self::Lambda(b)) => Rc::ptr_eq(a, b),
             (Self::Node(a), Self::Node(b)) => a == b,
