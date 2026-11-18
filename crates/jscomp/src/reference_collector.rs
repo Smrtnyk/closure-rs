@@ -32,7 +32,6 @@ use crate::var::VarId;
 use closure_rhino::check_state;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::{Ast, NodeId};
-use closure_rhino::token::Token;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
@@ -418,51 +417,6 @@ fn is_non_local_module_specifier_name(ast: &Ast, n: NodeId, parent: NodeId) -> b
         || (parent.is_export_spec(ast) && Some(n) != parent.get_first_child(ast))
 }
 
-/// Returns true if this node marks the start of a new basic block
-// port: ReferenceCollector#isBlockBoundary
-fn is_block_boundary(ast: &Ast, n: NodeId, parent: Option<NodeId>) -> bool {
-    if let Some(parent) = parent {
-        match parent.get_token(ast) {
-            Token::DO
-            | Token::FOR
-            | Token::FOR_IN
-            | Token::FOR_OF
-            | Token::FOR_AWAIT_OF
-            | Token::TRY
-            | Token::WHILE
-            | Token::WITH
-            | Token::CLASS
-            | Token::SWITCH_BODY => {
-                // NOTE: TRY has up to 3 child blocks:
-                // TRY
-                //   BLOCK
-                //   BLOCK
-                //     CATCH
-                //   BLOCK
-                // Note that there is an explicit CATCH token but no explicit
-                // FINALLY token. For simplicity, we consider each BLOCK
-                // a separate basic BLOCK.
-                return true;
-            }
-            Token::AND
-            | Token::HOOK
-            | Token::IF
-            | Token::OR
-            | Token::COALESCE
-            | Token::OPTCHAIN_GETPROP
-            | Token::OPTCHAIN_GETELEM
-            | Token::OPTCHAIN_CALL
-            | Token::DEFAULT_VALUE => {
-                // The first child of a conditional is not a boundary,
-                // but all the rest of the children are.
-                return Some(n) != parent.get_first_child(ast);
-            }
-            _ => {}
-        }
-    }
-    n.is_case(ast)
-}
-
 impl<B: Behavior> Callback for CollectorCallback<'_, B> {
     /// Updates block stack.
     // port: ReferenceCollector.CollectorCallback#shouldTraverse
@@ -491,7 +445,7 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
             .before_traverse_node(node_traversal, n, parent);
 
         // If node is a new basic block, put on basic block stack
-        if is_block_boundary(node_traversal, n, parent) {
+        if BasicBlock::is_block_boundary(node_traversal, n, parent) {
             self.push_new_block(node_traversal, n);
         }
         true
@@ -531,7 +485,7 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
         self.behavior
             .after_visit_node(t, n, parent, added_reference);
 
-        if is_block_boundary(t, n, parent) {
+        if BasicBlock::is_block_boundary(t, n, parent) {
             self.pop_last_block(t, n);
         }
     }
