@@ -1148,6 +1148,9 @@ impl Runner {
                 }
             }
         };
+        // FORMAT.md "Decoding values into live objects": the directories decoded from
+        // `{"freshTempDir": true}` belong to this record only.
+        crate::replay::replay_values::delete_fresh_temp_dirs();
         let rr = Box::new(RecordResult {
             class: stem.to_string(),
             index: record.index,

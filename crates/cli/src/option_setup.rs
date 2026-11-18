@@ -835,6 +835,12 @@ pub fn options_fields(
                     .setup_json(),
             ),
             (
+                "sourceMapMergeIdenticalSegments".into(),
+                options
+                    .get_source_map_merge_identical_segments()
+                    .setup_json(),
+            ),
+            (
                 "outputCharset".into(),
                 options.get_output_charset().setup_json(),
             ),

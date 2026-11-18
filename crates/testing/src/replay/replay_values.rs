@@ -31,7 +31,7 @@
 // Ported from closure-rs' own Java oracle tooling:
 //   UnitRecorder.java (oracle/patches/0002-recording-hooks.patch),
 //   oracle/replay/src/com/google/javascript/jscomp/ReplayValues.java.
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/CheckLevel.java.
 
 //! ReplayValues decoder and the recorder's referenceable value/error projection.
@@ -121,6 +121,41 @@ fn json_number_int_value(literal: &str) -> Result<i32, Throwable> {
         result
     })
 }
+thread_local! {
+    /// The directories [`fresh_temp_dir`] created for the record being replayed.
+    static FRESH_TEMP_DIRS: std::cell::RefCell<Vec<std::path::PathBuf>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// FORMAT.md "Decoding values into live objects": `{"freshTempDir": true}` is a new empty
+/// directory of this replay, deleted after the record ([`delete_fresh_temp_dirs`]).
+// port: ReplayValues#freshTempDir
+pub fn fresh_temp_dir() -> Result<std::path::PathBuf, Throwable> {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    loop {
+        let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir =
+            std::env::temp_dir().join(format!("closure-rs-replay-{}-{n}", std::process::id()));
+        match std::fs::create_dir(&dir) {
+            Ok(()) => {
+                FRESH_TEMP_DIRS.with(|d| d.borrow_mut().push(dir.clone()));
+                return Ok(dir);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(bad(&format!("cannot create a temporary directory: {e}"))),
+        }
+    }
+}
+
+/// Deletes, with their content, the directories [`fresh_temp_dir`] created on this thread.
+// port: ReplayValues#deleteFreshTempDirs
+pub fn delete_fresh_temp_dirs() {
+    for dir in FRESH_TEMP_DIRS.with(|d| std::mem::take(&mut *d.borrow_mut())) {
+        std::fs::remove_dir_all(&dir)
+            .unwrap_or_else(|e| panic!("cannot delete {}: {e}", dir.display()));
+    }
+}
+
 // port: ReplayValues#decode
 pub fn decode(
     value: &Value,
@@ -162,6 +197,7 @@ pub fn decode(
             flags: *flags,
         },
         Value::SourceFile(f) => DslValue::SourceFile(source_file(f)),
+        Value::FreshTempDir => DslValue::Path(fresh_temp_dir()?),
         Value::Optional(v) => DslValue::Optional(
             v.as_deref()
                 .map(|v| decode(v, "java.lang.Object", class_map).map(Box::new))
@@ -586,6 +622,7 @@ pub fn encode(v: &DslValue) -> Result<JsonValue, Throwable> {
             ("flags", JsonValue::int(i64::from(*flags))),
         ]),
         DslValue::Proto(p) => p.to_json(),
+        DslValue::Path(_) => object([("freshTempDir", JsonValue::Bool(true))]),
         DslValue::SourceFile(f) => object([(
             "sourceFile",
             object([

@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/ExtractPrototypeMemberDeclarations.java,
 //   src/com/google/javascript/jscomp/NodeTraversal.java.
 
@@ -332,6 +332,18 @@ impl ExtractPrototypeMemberDeclarations {
             compiler,
             Some(class_name.concat(&JsString::from(".prototype"))),
         );
+
+        name.copy_type_from(compiler, lhs);
+        if name.get_color(compiler).is_some() && lhs.is_color_from_type_cast(compiler) {
+            name.set_color_from_type_cast(compiler);
+        }
+
+        let receiver = lhs.get_first_child(compiler).unwrap();
+        let alias_node = name.get_first_child(compiler).unwrap();
+        alias_node.copy_type_from(compiler, receiver);
+        if alias_node.get_color(compiler).is_some() && receiver.is_color_from_type_cast(compiler) {
+            alias_node.set_color_from_type_cast(compiler);
+        }
 
         lhs.replace_with(compiler, name);
         compiler.report_change_to_enclosing_scope(name);

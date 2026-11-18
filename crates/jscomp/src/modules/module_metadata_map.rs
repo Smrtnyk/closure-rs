@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/modules/ModuleMetadataMap.java.
 
 //! Contains metadata around modules (or scripts) that is useful for checking imports / requires.
@@ -79,7 +79,7 @@ impl<E: Hash + Eq + Clone> Multiset<E> {
     }
 
     /// `Multiset#elementSet()`.
-    pub fn element_set(&self) -> impl Iterator<Item = &E> {
+    pub fn element_set(&self) -> indexmap::map::Keys<'_, E, i32> {
         self.counts.keys()
     }
 
@@ -128,6 +128,33 @@ impl ModuleType {
             ModuleType::COMMON_JS => "COMMON_JS",
             ModuleType::GOOG_PROVIDE => "GOOG_PROVIDE",
             ModuleType::SCRIPT => "SCRIPT",
+        }
+    }
+}
+
+/// How a goog.provide or goog.module namespace is seen from TypeScript (via Clutz): as a set of
+/// named exports, as a single default export, or omitted because of `@nodts`.
+///
+/// For example, `exports = {A, B};` is NAMED, `exports = class Foo {};` is DEFAULT, and
+/// `/** @nodts */ exports = class Foo {};` is NO_DTS.
+// port: ModuleMetadataMap.TsExportType
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TsExportType {
+    /// The module exports a single default value.
+    DEFAULT,
+    /// The module exports multiple named values.
+    NAMED,
+    /// Clutz omits the namespace from the .d.ts (and import mappings) because of `@nodts`.
+    NO_DTS,
+}
+
+impl TsExportType {
+    /// Java's `Enum#name()`.
+    pub fn name(self) -> &'static str {
+        match self {
+            TsExportType::DEFAULT => "DEFAULT",
+            TsExportType::NAMED => "NAMED",
+            TsExportType::NO_DTS => "NO_DTS",
         }
     }
 }
@@ -185,6 +212,26 @@ impl ModuleMetadataMap {
         &self.module_metadata
     }
 
+    /// Returns whether TypeScript sees the given goog namespace as a set of named exports, as a
+    /// single default export, or as omitted because of `@nodts`.
+    ///
+    /// This is a purely syntactic approximation of Clutz's type-based classification, so that it
+    /// can be computed without typechecking (e.g. when extracting JsTrimmer summaries).
+    ///
+    /// Returns DEFAULT for namespaces not in this map, and for namespaces that aren't from a
+    /// goog.provide or goog.module, e.g. from goog.declareModuleId, which aren't classified.
+    // port: ModuleMetadataMap#getTsExportType
+    pub fn get_ts_export_type(&self, goog_namespace: &JsString) -> TsExportType {
+        match self.modules_by_goog_namespace.get(goog_namespace) {
+            Some(module) => module
+                .ts_export_types()
+                .get(goog_namespace)
+                .copied()
+                .unwrap_or(TsExportType::DEFAULT),
+            None => TsExportType::DEFAULT,
+        }
+    }
+
     // port: ModuleMetadataMap#emptyForTesting
     pub fn empty_for_testing() -> Self {
         Self::new(IndexMap::<_, _>::default(), IndexMap::<_, _>::default())
@@ -214,6 +261,7 @@ pub struct ModuleMetadata {
     es6_import_specifiers: Multiset<JsString>,
     nested_modules: Vec<Arc<ModuleMetadata>>,
     read_toggles: Multiset<JsString>,
+    ts_export_types: IndexMap<JsString, TsExportType>,
     path: Option<ModulePath>,
 }
 
@@ -254,7 +302,7 @@ impl ModuleMetadata {
             .map(|n| n.to_string(ast))
             .collect::<Vec<_>>();
         format!(
-            "ModuleMetadata{{moduleType={}, rootNode={}, usesClosure={}, isTestOnly={}, googNamespaces={}, stronglyRequiredGoogNamespaces={}, dynamicallyRequiredGoogNamespaces={}, maybeRequiredGoogNamespaces={}, weaklyRequiredGoogNamespaces={}, es6ImportSpecifiers={}, nestedModules=[{}], readToggles={}, path={}}}",
+            "ModuleMetadata{{moduleType={}, rootNode={}, usesClosure={}, isTestOnly={}, googNamespaces={}, stronglyRequiredGoogNamespaces={}, dynamicallyRequiredGoogNamespaces={}, maybeRequiredGoogNamespaces={}, weaklyRequiredGoogNamespaces={}, es6ImportSpecifiers={}, nestedModules=[{}], readToggles={}, tsExportTypes={{{}}}, path={}}}",
             self.module_type().name(),
             self.root_node()
                 .map_or_else(|| "null".to_string(), |n| n.to_string(ast)),
@@ -268,6 +316,11 @@ impl ModuleMetadata {
             multiset_to_string(self.es6_import_specifiers()),
             nested.join(", "),
             multiset_to_string(self.read_toggles()),
+            self.ts_export_types()
+                .iter()
+                .map(|(k, v)| format!("{k}={}", v.name()))
+                .collect::<Vec<_>>()
+                .join(", "),
             self.path()
                 .map_or_else(|| "null".to_string(), |p| p.to_string()),
         )
@@ -404,6 +457,15 @@ impl ModuleMetadata {
         &self.read_toggles
     }
 
+    /// How TypeScript (via Clutz) sees each namespace in `goog_namespaces()`.
+    ///
+    /// Populated for top-level goog.provide and goog.module files; see
+    /// `ModuleMetadataMap#get_ts_export_type`.
+    // port: ModuleMetadataMap.ModuleMetadata#tsExportTypes
+    pub fn ts_export_types(&self) -> &IndexMap<JsString, TsExportType> {
+        &self.ts_export_types
+    }
+
     // port: ModuleMetadataMap.ModuleMetadata#path
     pub fn path(&self) -> Option<&ModulePath> {
         self.path.as_ref()
@@ -430,6 +492,8 @@ pub struct Builder {
     es6_import_specifiers_builder: Multiset<JsString>,
     nested_modules_builder: Vec<Arc<ModuleMetadata>>,
     read_toggles_builder: Multiset<JsString>,
+    /// `builder()` sets it to `ImmutableMap.of()`.
+    ts_export_types: IndexMap<JsString, TsExportType>,
     path: Option<ModulePath>,
 }
 
@@ -469,6 +533,7 @@ impl Builder {
             es6_import_specifiers: self.es6_import_specifiers_builder.clone(),
             nested_modules: self.nested_modules_builder.clone(),
             read_toggles: self.read_toggles_builder.clone(),
+            ts_export_types: self.ts_export_types.clone(),
             path: self.path.clone(),
         })
     }
@@ -517,6 +582,12 @@ impl Builder {
     // port: ModuleMetadataMap.ModuleMetadata.Builder#readTogglesBuilder
     pub fn read_toggles_builder(&mut self) -> &mut Multiset<JsString> {
         &mut self.read_toggles_builder
+    }
+
+    // port: ModuleMetadataMap.ModuleMetadata.Builder#tsExportTypes
+    pub fn ts_export_types(&mut self, value: IndexMap<JsString, TsExportType>) -> &mut Self {
+        self.ts_export_types = value;
+        self
     }
 
     // port: ModuleMetadataMap.ModuleMetadata.Builder#path

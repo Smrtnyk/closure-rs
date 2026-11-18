@@ -4,12 +4,87 @@
  "methods": [
   {
    "method": "testExportType",
+   "recordClass": "com.google.javascript.jscomp.ClosureExportTypeClassifierTest$ClassifyTest",
    "status": "captured",
    "via": [
-    "postCall.compiler.googModuleExportTypes",
+    "postCall.compiler.tsExportTypes",
     "postCall.compiler.moduleMetadataByPath"
    ],
-   "note": "After the hooked testSame of each parameterized case the test looks up the goog.module 'm' in getLastCompiler().getModuleMetadataMap().getModulesByGoogNamespace() (isNotNull) and asserts ClosureExportTypeClassifier.classify(m.rootNode(), \"m\"). postCall.compiler.googModuleExportTypes holds that classification for every goog.module of the map, and postCall.compiler.moduleMetadataByPath the module's metadata with its namespace. Source lines 367-376 (75 records, one per case)."
+   "note": "ClassifyTest (parameterized, 268 cases): after the hooked testSame(srcs(files)) the test looks up the case's goog namespace in getLastCompiler().getModuleMetadataMap().getModulesByGoogNamespace() (isNotNull) and asserts its tsExportTypes().get(namespace). postCall.compiler.tsExportTypes holds that value for every namespace of the map, and postCall.compiler.moduleMetadataByPath the module metadata with its namespaces. Source lines 1838-1847 (268 records, one per case)."
+  },
+  {
+   "method": "misplacedGoogModuleAfterStatement_ignoresExportsAndReturnsDefault",
+   "recordClass": "com.google.javascript.jscomp.ClosureExportTypeClassifierTest$AstPreconditionsTest",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.tsExportTypes",
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "asserts the metadata of 'm' isGoogModule() and that ClosureExportTypeClassifier.classify(m.rootNode(), m.googNamespaces().elementSet()) maps 'm' to DEFAULT. That call is the one GatherModuleMetadata makes for the module (a GOOG_MODULE SCRIPT with namespaces), so its result is the metadata's tsExportTypes, which postCall.compiler.tsExportTypes holds ({m: DEFAULT}); the module type is in postCall.compiler.moduleMetadataByPath. Source lines 1898-1911."
+  },
+  {
+   "method": "legacyNamedTsExportOnEmptyGoogProvide_ignoresMalformedCall",
+   "recordClass": "com.google.javascript.jscomp.ClosureExportTypeClassifierTest$AstPreconditionsTest",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.tsExportTypes",
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "after the hooked testError (INVALID_PROVIDE_NAMESPACE) asserts that ClosureExportTypeClassifier.classify(m.rootNode(), m.googNamespaces().elementSet()) maps 'a.b' to DEFAULT: the call GatherModuleMetadata makes for the GOOG_PROVIDE script, whose result postCall.compiler.tsExportTypes holds ({a.b: DEFAULT}). Source lines 1924-1935."
+  },
+  {
+   "method": "legacyNamedTsExportOnNonStringGoogProvide_ignoresMalformedCall",
+   "recordClass": "com.google.javascript.jscomp.ClosureExportTypeClassifierTest$AstPreconditionsTest",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.tsExportTypes",
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "as legacyNamedTsExportOnEmptyGoogProvide_ignoresMalformedCall, for goog.provide(123): postCall.compiler.tsExportTypes holds {a.b: DEFAULT}. Source lines 1937-1948."
+  },
+  {
+   "method": "legacyNamedTsExportOnTemplateLiteralGoogProvide_ignoresMalformedCall",
+   "recordClass": "com.google.javascript.jscomp.ClosureExportTypeClassifierTest$AstPreconditionsTest",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.tsExportTypes",
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "as legacyNamedTsExportOnEmptyGoogProvide_ignoresMalformedCall, for goog.provide(`c.d`): postCall.compiler.tsExportTypes holds {a.b: DEFAULT}. Source lines 1950-1961."
+  },
+  {
+   "method": "legacyNamedTsExportOnEmptyGoogModule_ignoresMalformedCall",
+   "recordClass": "com.google.javascript.jscomp.ClosureExportTypeClassifierTest$AstPreconditionsTest",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.tsExportTypes",
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "after the hooked testError (INVALID_MODULE_ID_ARG) asserts that classify(m.rootNode(), m.googNamespaces().elementSet()) maps 'm' to DEFAULT: the call GatherModuleMetadata makes for the GOOG_MODULE script, whose result postCall.compiler.tsExportTypes holds ({m: DEFAULT}). Source lines 1963-1974."
+  },
+  {
+   "method": "mixedProvideAndEsImport_throwsIllegalArgumentException",
+   "recordClass": "com.google.javascript.jscomp.ClosureExportTypeClassifierTest$AstPreconditionsTest",
+   "status": "rust_unit_test",
+   "category": "graph",
+   "reason": "after the hooked testError(MIXED_MODULE_TYPE) the test passes the a.b module's ModuleMetadata#rootNode() (its SCRIPT node) and googNamespaces().elementSet() (module-metadata graph objects) to a direct ClosureExportTypeClassifier.classify call and asserts that this direct call, not the hooked one, throws IllegalArgumentException naming SCRIPT: the hooked compile completes, since GatherModuleMetadata classifies only goog.provide and goog.module scripts and this one is an ES module; postCall.compiler.moduleMetadataByPath holds the module's type (so isEs6Module() is compared) and namespaces, but not the classifier's precondition on a root node no compile of the record passes to it; Rust test ast_preconditions_test_mixed_provide_and_es_import_throws_illegal_argument_exception",
+   "fragment": "corpus/unit/rust_unit_tests/ClosureExportTypeClassifierTest.md"
+  },
+  {
+   "method": "mixedProvideAndEsExport_throwsIllegalArgumentException",
+   "recordClass": "com.google.javascript.jscomp.ClosureExportTypeClassifierTest$AstPreconditionsTest",
+   "status": "rust_unit_test",
+   "category": "graph",
+   "reason": "after the hooked testError(MIXED_MODULE_TYPE) the test passes the a.b module's ModuleMetadata#rootNode() (its SCRIPT node) and googNamespaces().elementSet() (module-metadata graph objects) to a direct ClosureExportTypeClassifier.classify call and asserts that this direct call, not the hooked one, throws IllegalArgumentException naming SCRIPT: the hooked compile completes, since GatherModuleMetadata classifies only goog.provide and goog.module scripts and this one is an ES module; postCall.compiler.moduleMetadataByPath holds the module's type (so isEs6Module() is compared) and namespaces, but not the classifier's precondition on a root node no compile of the record passes to it; Rust test ast_preconditions_test_mixed_provide_and_es_export_throws_illegal_argument_exception",
+   "fragment": "corpus/unit/rust_unit_tests/ClosureExportTypeClassifierTest.md"
+  },
+  {
+   "method": "emptyGoogNamespaces_returnsEmptyMap",
+   "recordClass": "com.google.javascript.jscomp.ClosureExportTypeClassifierTest$AstPreconditionsTest",
+   "status": "rust_unit_test",
+   "category": "graph",
+   "reason": "after the hooked testSame the test passes the a.b module's ModuleMetadata#rootNode() (its SCRIPT node, a module-metadata graph object) and an empty namespace set of its own choosing to a direct ClosureExportTypeClassifier.classify call and asserts that it returns an empty map; postCall.compiler.moduleMetadataByPath and postCall.compiler.tsExportTypes hold what the compile computed for the module's own namespace a.b, not the classifier's result for an empty set, which no compile of the record computes; Rust test ast_preconditions_test_empty_goog_namespaces_returns_empty_map",
+   "fragment": "corpus/unit/rust_unit_tests/ClosureExportTypeClassifierTest.md"
   }
  ]
 }

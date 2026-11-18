@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/CommandLineRunner.java.
 
 #![forbid(unsafe_code)]
@@ -49,7 +49,7 @@ fn run(args: &[String]) -> i32 {
         Ok(runner) => runner,
         Err(error) => {
             eprintln!(
-                "Exception in thread \"main\" com.google.javascript.jscomp.FlagUsageException: {error}\n\tat com.google.javascript.jscomp.CommandLineRunner.initConfigFromFlags(CommandLineRunner.java:1656)\n\tat com.google.javascript.jscomp.CommandLineRunner.<init>(CommandLineRunner.java:1478)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2253)"
+                "Exception in thread \"main\" com.google.javascript.jscomp.FlagUsageException: {error}\n\tat com.google.javascript.jscomp.CommandLineRunner.initConfigFromFlags(CommandLineRunner.java:1666)\n\tat com.google.javascript.jscomp.CommandLineRunner.<init>(CommandLineRunner.java:1488)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2264)"
             );
             return 1;
         }

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   test/com/google/debugging/sourcemap/SourceMapTestCase.java.
 
 //! Compiler-dependent SourceMapTestCase helpers. Token discovery and mapping
@@ -57,6 +57,7 @@ pub struct RunResult {
 pub struct SourceMapTestCase {
     pub detail_level: DetailLevel,
     pub source_map_include_sources_content: bool,
+    pub source_map_merge_identical_segments: bool,
     pub checks: mapping_checks::SourceMapTestCase,
 }
 impl Default for SourceMapTestCase {
@@ -65,6 +66,7 @@ impl Default for SourceMapTestCase {
         Self {
             detail_level: DetailLevel::ALL,
             source_map_include_sources_content: false,
+            source_map_merge_identical_segments: false,
             checks: Default::default(),
         }
     }
@@ -81,6 +83,7 @@ impl SourceMapTestCase {
         options.set_source_map_format(format);
         options.set_source_map_detail_level(self.detail_level);
         options.set_source_map_include_sources_content(self.source_map_include_sources_content);
+        options.set_source_map_merge_identical_segments(self.source_map_merge_identical_segments);
         options.add_warnings_guard(Arc::new(CheckUselessCodeGuard));
         options
     }

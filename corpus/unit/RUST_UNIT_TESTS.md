@@ -15,6 +15,7 @@ Each class below is in scope (not under refactoring/, jscomp/ant/, jscomp/instru
 - com.google.javascript.jscomp.AstAnalyzerTest: Logic for answering questions about portions of the AST. [src com/google/javascript/jscomp/AstAnalyzer.java]
 - com.google.javascript.jscomp.AstFactoryTest: Creates AST nodes and subtrees. [src com/google/javascript/jscomp/AstFactory.java]
 - com.google.javascript.jscomp.AstManipulationsTest: Utilities to abstract away certain common AST manipulations [src com/google/javascript/jscomp/AstManipulations.java]
+- com.google.javascript.jscomp.BasicBlockTest: Represents a section of code that is uninterrupted by control structures (conditional or iterative logic). [src com/google/javascript/jscomp/BasicBlock.java]
 - com.google.javascript.jscomp.ChangeTrackerTest: Tracks various kind of changes during a single compilation [src com/google/javascript/jscomp/ChangeTracker.java]
 - com.google.javascript.jscomp.ChangeVerifierTest: A Class to assist in AST change tracking verification. [src com/google/javascript/jscomp/ChangeVerifier.java]
 - com.google.javascript.jscomp.ClosureCodingConventionTest: This describes the Closure-specific JavaScript coding conventions. [src com/google/javascript/jscomp/ClosureCodingConvention.java]
@@ -35,6 +36,7 @@ Each class below is in scope (not under refactoring/, jscomp/ant/, jscomp/instru
 - com.google.javascript.jscomp.DiagnosticGroupsTest: Named groups of DiagnosticTypes exposed by Compiler. [src com/google/javascript/jscomp/DiagnosticGroups.java]
 - com.google.javascript.jscomp.DiagnosticToSuppressionMapperTest: Used to print a map from diagnostic id to suppression. [src com/google/javascript/jscomp/DiagnosticToSuppressionMapper.java]
 - com.google.javascript.jscomp.DotFormatterTest: DotFormatter prints out a dot file of the Abstract Syntax Tree. [src com/google/javascript/jscomp/DotFormatter.java]
+- com.google.javascript.jscomp.EvaluationOrderTest: Syntactic rules for the order in which the children of an expression are evaluated, and which children are only conditionally evaluated. [src com/google/javascript/jscomp/EvaluationOrder.java]
 - com.google.javascript.jscomp.ExpressionDecomposerTest: Partially or fully decomposes an expression with respect to some sub-expression. [src com/google/javascript/jscomp/ExpressionDecomposer.java]
 - com.google.javascript.jscomp.FixedPointGraphTraversalTest: Test for FixedPointGraphTraversal. [test-class Javadoc]
 - com.google.javascript.jscomp.FunctionArgumentInjectorTest: A nifty set of functions to deal with the issues of replacing function parameters with a set of call argument expressions. [src com/google/javascript/jscomp/FunctionArgumentInjector.java]
@@ -188,6 +190,7 @@ Test class com.google.javascript.jscomp.integration.AdvancedOptimizationsIntegra
 
 Methods of `com.google.javascript.jscomp.AstValidatorTest` that, after the hooked `testSame(...)` calls of `valid()`, `invalid()`, `parseValidScript()` or `testFeatureValidation()`, run AstValidator directly (through `doCheck`, test lines 1789-1811: a fresh Compiler, `createValidator`, then `validateScript`/`validateStatement`/`validateExpression`) on Java `Node` objects: trees built by hand with the Node/IR API, or nodes of the output AST mutated by hand (replaced children, a changed `Node.FEATURE_SET` prop, erased type information, a closure-unaware shadow). Those inputs exist only as Java Node objects, so the checks are ported as Rust unit tests next to AstValidator. The `lastCheckViolationMessages` assertions that follow each hooked call are compared by replay (descriptor `testFieldsAfter` + `testFieldsAfterAlso`), so these methods' records stay counted in gate (a).
 
+- AstValidatorTest#testArrayLit_validLaterEmptyAndSpread: a hand-built ARRAYLIT of a number, an EMPTY slot and an ITER_SPREAD of a name validates as an expression with no violations (AstValidator called directly on hand-built Node trees; test lines 1894-1901)
 - AstValidatorTest#testAwaitExpression: a hand-built AWAIT node inside a hand-built async FUNCTION (Node.setIsAsyncFunction) validates as an expression with no violations (AstValidator called directly on hand-built Node trees; test lines 825-844)
 - AstValidatorTest#testClass: a hand-built CLASS node with empty CLASS_MEMBERS is a valid statement; adding a MEMBER_FUNCTION_DEF without a name string, or one whose string is empty, makes it invalid (AstValidator called directly on hand-built Node trees; test lines 127-165)
 - AstValidatorTest#testCompoundAssign: hand-built ASSIGN_ADD nodes whose target is an ARRAY_PATTERN or OBJECT_PATTERN are invalid expressions (AstValidator called directly on hand-built Node trees; test lines 615-624)
@@ -244,6 +247,14 @@ Methods of `com.google.javascript.jscomp.AstValidatorTest` that, after the hooke
 - AstValidatorTest#testSuperInvalidAsAnExpression: after parseValidScript (testSame), the NAME node `replaceWithSuper` of the output AST is replaced by a SUPER node; AstValidator.validateScript on the output SCRIPT node must report a violation (test lines 1289-1309)
 - AstValidatorTest#testSuperInvalidIfTypeInfoIsMissing: after parseValidScript (testSame), the type information of the SUPER node of the output AST is erased (Node.setJSType(null)); AstValidator.validateScript on the output SCRIPT node must report a violation (test lines 1312-1330)
 - AstValidatorTest#testSwitchStatement: after parseValidScript (testSame), a hand-built BLOCK is inserted as the first child of the first CASE node of the output AST; AstValidator.validateScript on the output SCRIPT node must report a violation (test lines 1726-1753)
+
+## ClosureExportTypeClassifierTest (post-call assertions, gate 0.2 (a))
+
+Methods of `com.google.javascript.jscomp.ClosureExportTypeClassifierTest$AstPreconditionsTest` that, after the hooked `testSame`/`testError`, take the module's root SCRIPT node from its `ModuleMetadata` and call `ClosureExportTypeClassifier.classify` directly with a namespace set of the test's choosing. What those direct calls do is not part of any compile the records hold, so the checks are ported as Rust unit tests in `crates/jscomp/tests/closure_export_type_classifier_test.rs`. The records still replay but are excluded from gate (a) counting.
+
+- ClosureExportTypeClassifierTest#emptyGoogNamespaces_returnsEmptyMap: classify(root of the goog.provide('a.b') script, empty namespace set) returns an empty map (test lines 1914-1922; Rust test `ast_preconditions_test_empty_goog_namespaces_returns_empty_map`)
+- ClosureExportTypeClassifierTest#mixedProvideAndEsExport_throwsIllegalArgumentException: classify(root of a goog.provide script with an ES export, its namespaces) throws IllegalArgumentException naming SCRIPT, from the direct call, not from the hooked one (test lines 1879-1896; Rust test `ast_preconditions_test_mixed_provide_and_es_export_throws_illegal_argument_exception`)
+- ClosureExportTypeClassifierTest#mixedProvideAndEsImport_throwsIllegalArgumentException: the same for a goog.provide script with an ES import (test lines 1861-1876; Rust test `ast_preconditions_test_mixed_provide_and_es_import_throws_illegal_argument_exception`)
 
 ## ClosureIntegrationTest (post-call assertions)
 

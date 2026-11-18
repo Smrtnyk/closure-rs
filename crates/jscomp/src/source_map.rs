@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/SourceMap.java.
 
 #![allow(clippy::collapsible_if, clippy::unnecessary_unwrap)] // Retain Java nested conditionals and null checks.
@@ -363,6 +363,13 @@ impl SourceMap {
     // port: SourceMap#validate
     pub fn validate(&mut self, validate: bool) {
         self.generator.validate(validate);
+    }
+    /// Sets whether to omit a mapped segment whose original position and name are identical to
+    /// those of the previous segment on the same generated line.
+    // port: SourceMap#setMergeIdenticalSegments
+    pub fn set_merge_identical_segments(&mut self, merge_identical_segments: bool) {
+        self.generator
+            .set_merge_identical_segments(merge_identical_segments);
     }
     ///
     // port: SourceMap#setPrefixMappings

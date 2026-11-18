@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   test/com/google/javascript/jscomp/CommandLineRunnerTest.java.
 
 mod common;
@@ -698,6 +698,30 @@ fn assert_location_mappings_contain_exactly(
     for e in expected {
         assert!(set.contains(&Some(e)), "missing {e} in {actual:?}");
     }
+}
+// port: CommandLineRunnerTest#testSourceMapMergeIdenticalSegments_default
+#[test]
+fn test_source_map_merge_identical_segments_default() {
+    let mut h = Harness::new();
+    h.test_same(&["var x = 3;"]);
+    assert!(
+        !h.get_compiler()
+            .get_options()
+            .get_source_map_merge_identical_segments()
+    );
+}
+// port: CommandLineRunnerTest#testSourceMapMergeIdenticalSegments_flag
+#[test]
+fn test_source_map_merge_identical_segments_flag() {
+    let mut h = Harness::new();
+    h.args
+        .push("--source_map_merge_identical_segments".to_string());
+    h.test_same(&["var x = 3;"]);
+    assert!(
+        h.get_compiler()
+            .get_options()
+            .get_source_map_merge_identical_segments()
+    );
 }
 // port: CommandLineRunnerTest#testSourceMapLocationsTranslations1
 #[test]

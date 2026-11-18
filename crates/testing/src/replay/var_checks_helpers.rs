@@ -19,7 +19,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/CompilerPass.java,
 //   src/com/google/javascript/jscomp/ConstCheck.java,
 //   src/com/google/javascript/jscomp/DeclaredGlobalExternsOnWindow.java,
@@ -261,7 +261,11 @@ impl Callback for VariableTestCheckCallback {
     // port: VarCheckTest_Helpers.VariableTestCheck#process (anonymous AbstractPostOrderCallback#visit)
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
         let parent = parent.unwrap();
-        if n.is_name(t) && !parent.is_function(t) && !parent.is_label(t) {
+        if n.is_name(t)
+            && !parent.is_function(t)
+            && !parent.is_label(t)
+            && !n.is_private_identifier(t)
+        {
             let scope = t.get_scope();
             let name = n.get_string(t);
             assert_scope(t.get_compiler(), scope).declares(&name.to_string());

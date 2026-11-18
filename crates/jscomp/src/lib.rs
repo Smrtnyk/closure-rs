@@ -206,6 +206,7 @@ pub mod warning_level;
 pub mod ast_validator;
 pub mod basic_block;
 pub mod error_pass;
+pub mod evaluation_order;
 pub mod forbidden_change;
 pub mod gather_extern_properties;
 pub mod infer_consts;

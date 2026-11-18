@@ -155,7 +155,9 @@ JSON string/bool/int are themselves. Other values are tagged objects:
 `{"long":"123"}`, `{"double":"1.5"}` (Java `Double.toString`), `{"char":"x"}`,
 `{"enum":FQCN,"name":N}`, `{"diagnosticType":{key,level}}`, `{"diagnosticGroup":{group,types}}`
 (`group` = registered name or `DiagnosticGroups.FIELD`, else null), `{"classRef":FQCN}`,
-`{"regex":p,"flags":n}`, `{"sourceFile":SourceFile}`, `{"optional":v}`,
+`{"regex":p,"flags":n}`, `{"sourceFile":SourceFile}`, `{"freshTempDir":true}` (a `java.nio.file.Path`
+naming an existing directory below `java.io.tmpdir`, such as a JUnit `TemporaryFolder` the test
+created; neither its machine-specific name nor its content is recorded), `{"optional":v}`,
 `{"list":[...],"impl":FQCN}`, `{"set":[...],"impl":FQCN}`, `{"map":[[k,v],...],"impl":FQCN}`,
 `{"arrayOf":FQCN,"items":[...]}`, `{"composeWarningsGuard":{"guards":[...]}}` (guards in effective order;
 each `DiagnosticGroupWarningsGuard` dumps as an object with `group` and `level`),
@@ -293,6 +295,10 @@ map keys and values decode against `Object`.
 - JSON number → `int`, converted to `short`/`byte`/`long`/`double` when the slot has that primitive
   or boxed type. `{"double"}` → `double`, or `float` when the slot is `float`/`Float`. `{"long"}` →
   `long`. `{"char"}` → its first UTF-16 unit. Bool and string decode as themselves.
+- `{"freshTempDir":true}` → a new empty directory that the replay creates for this record (Java
+  `Files.createTempDirectory`, Rust below `std::env::temp_dir()`) and deletes, with its content,
+  after the record (the compiler writes its debug logs there when the value is
+  `CompilerOptions.debugLogDirectory`). Every occurrence in a record gets a directory of its own.
 - `{"object":C,"fields":F}`: Guava `Present`/`Absent` → `Optional.of(decode(reference))`/`absent()`.
   A Java record class → its canonical constructor with each component decoded from `F`. Any other
   class → the no-argument constructor when one exists (any visibility), else an allocation **without**
@@ -444,7 +450,7 @@ encoding. `compiler` is read from the compiler the record's `observed` comes fro
 | `packageJsonMainEntries` | `Compiler.getModuleLoader().getPackageJsonMainEntries()` | map string -> string (the loader's map order); present only when non-empty |
 | `typedPercent` | `Compiler.getErrorManager().getTypedPercent()` | `{"double": Double.toString}`; present only when non-zero |
 | `moduleMapBoundNames` | `Compiler.getModuleMap().getModulesByPath()` -> `Module.boundNames().keySet()` | object module path -> list of bound local names in `boundNames()` order; present only when the module map is set and non-empty |
-| `googModuleExportTypes` | `Compiler.getModuleMetadataMap().getModulesByGoogNamespace()` -> `ClosureExportTypeClassifier.classify(metadata.rootNode(), namespace)` | object goog namespace -> `TsExportType` name (`DEFAULT` or `NAMED`), in the map's order, for the goog.modules (`isGoogModule()`) whose root node is a SCRIPT with a MODULE_BODY first child (the classifier's precondition); present only when non-empty |
+| `tsExportTypes` | `Compiler.getModuleMetadataMap().getModulesByGoogNamespace()` -> `metadata.tsExportTypes().get(namespace)` | object goog namespace -> `TsExportType` name (`DEFAULT`, `NAMED` or `NO_DTS`), in the map's order, for the namespaces whose metadata classifies them (GatherModuleMetadata classifies the namespaces of goog.provide and goog.module scripts); present only when non-empty |
 
 `pass` holds the results of **result producers**: pass objects reachable from the processor (its
 instance fields to object depth 2, list and array items included) and then from the roots (the

@@ -377,6 +377,65 @@
     "postCall.compiler.moduleMetadataByPath"
    ],
    "note": "asserts only on getModulesByPath() entries: testcode usesClosure == true. Every asserted field is a field of postCall.compiler.moduleMetadataByPath, which replay compares (checked: record present in the snapshot, record passes)."
+  },
+  {
+   "method": "testMixedProvideAndEs6Module_isEs6Module",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "Two hooked testError(MIXED_MODULE_TYPE) calls, each followed by metadataMap().getModulesByPath().get(\"testcode\") isEs6Module() and googNamespaces() containsExactly a.b: postCall.compiler.moduleMetadataByPath holds testcode as ES6_MODULE with googNamespaces [a.b] in both records."
+  },
+  {
+   "method": "testMixedGoogModuleAndEs6Module_isGoogModule",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath",
+    "postCall.compiler.tsExportTypes"
+   ],
+   "note": "After the hooked testError(MIXED_MODULE_TYPE): testcode isGoogModule() and googNamespaces() containsExactly m; postCall.compiler.moduleMetadataByPath holds testcode as GOOG_MODULE with googNamespaces [m]."
+  },
+  {
+   "method": "testClassifyTsExportTypes_enabled",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath",
+    "postCall.compiler.tsExportTypes"
+   ],
+   "note": "After one testSame of seven files: each namespace's metadata tsExportTypes() containsExactly (namespace, type) (empty for the goog.loadModule module) and metadataMap().getTsExportType(namespace) for them and for an unknown namespace (DEFAULT). postCall.compiler.tsExportTypes holds the type of every classified namespace of getModulesByGoogNamespace() (none for loaded.module), and postCall.compiler.moduleMetadataByPath which namespaces each module has; getTsExportType is the namespace's entry or DEFAULT."
+  },
+  {
+   "method": "testClassifyTsExportTypes_esModuleDoesNotCrashAndReturnsNothing",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "After one testSame of two ES modules: tsExportTypes() of my.es6 (by namespace) and of without_id.js (by path) are empty and getTsExportType(\"my.es6\") is DEFAULT. postCall.compiler.moduleMetadataByPath holds both modules as ES6_MODULE (my.es6 with its namespace); GatherModuleMetadata classifies only goog.provide and goog.module scripts, and the record has no postCall.compiler.tsExportTypes key, which replay compares as part of the postCall object (the key is written only when some namespace is classified), so an ES module's empty tsExportTypes is compared too."
+  },
+  {
+   "method": "testClassifyTsExportTypes_mixedProvideAndEsModuleReportsErrorWithoutCrash",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath"
+   ],
+   "note": "Two hooked testError(MIXED_MODULE_TYPE) calls, each followed by: the namespace's module isEs6Module() and its tsExportTypes() is empty. postCall.compiler.moduleMetadataByPath holds testcode as ES6_MODULE with that namespace in both records; neither record has a postCall.compiler.tsExportTypes key (no classified namespace), and replay compares the postCall object as a whole, so the empty tsExportTypes is compared too."
+  },
+  {
+   "method": "testClassifyTsExportTypes_esModuleImportingProvideScriptPreservesProvide",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.moduleMetadataByPath",
+    "postCall.compiler.tsExportTypes"
+   ],
+   "note": "After one testSame (rewriteScriptsToModules): the module of a.b isGoogProvide() and its tsExportTypes() containsExactly (a.b, NAMED). postCall.compiler.moduleMetadataByPath holds p.js as GOOG_PROVIDE with googNamespaces [a.b], postCall.compiler.tsExportTypes {a.b: NAMED}."
+  },
+  {
+   "method": "testClassifyTsExportTypes_malformedProvideOrModuleWithLegacyNamedTsExportReportsErrorWithoutCrash",
+   "status": "captured",
+   "via": [
+    "postCall.compiler.tsExportTypes"
+   ],
+   "note": "Four hooked testError calls, each followed by metadataMap().getTsExportType of a.b or m (DEFAULT): postCall.compiler.tsExportTypes holds {a.b: DEFAULT} or {m: DEFAULT} in the four records."
   }
  ],
  "note": "Batch 6 (classify round 1). 40 methods captured via postCall.compiler.moduleMetadataByPath (28 assert only on getModulesByPath(); 12 also on getModulesByGoogNamespace() for records without nested modules, see their notes), 7 rust_unit_test (nested goog.loadModule modules, not in the snapshot)."

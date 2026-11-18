@@ -536,7 +536,7 @@ Descriptors: 256.
 | `ReplaceIdGeneratorsTest_Helpers.IdTestMap` | `oracle/replay/helpers/com/google/javascript/jscomp/ReplaceIdGeneratorsTest_Helpers.java` | 33 | test/com/google/javascript/jscomp/ReplaceIdGeneratorsTest.java lines 44-53 | ReplaceIdGeneratorsTest |
 | `ReplaceMessagesTest_Helpers.SimpleMessageBundle` | `oracle/replay/helpers/com/google/javascript/jscomp/ReplaceMessagesTest_Helpers.java` | 59 | (see file header) | ReplaceMessagesTest |
 | `ReplaceStringsTest_Helpers.GetProcessorPass` | `oracle/replay/helpers/com/google/javascript/jscomp/ReplaceStringsTest_Helpers.java` | 82 | (see file header) | ReplaceStringsTest |
-| `RewriteDynamicImportsTest_Helpers.GetProcessor` | `oracle/replay/helpers/com/google/javascript/jscomp/RewriteDynamicImportsTest_Helpers.java` | 52 | (see file header) | RewriteDynamicImportsTest |
+| `RewriteDynamicImportsTest_Helpers.GetProcessor` | `oracle/replay/helpers/com/google/javascript/jscomp/RewriteDynamicImportsTest_Helpers.java` | 56 | (see file header) | RewriteDynamicImportsTest |
 | `RewriteGoogJsImportsTest_Helpers.GetProcessorPass` | `oracle/replay/helpers/com/google/javascript/jscomp/RewriteGoogJsImportsTest_Helpers.java` | 39 | test/com/google/javascript/jscomp/RewriteGoogJsImportsTest.java lines 61-70 | RewriteGoogJsImportsTest |
 | `RewriteObjectSpreadTest_Helpers.GetProcessor` | `oracle/replay/helpers/com/google/javascript/jscomp/RewriteObjectSpreadTest_Helpers.java` | 24 | (see file header) | RewriteObjectSpreadTest |
 | `RewritePolyfillsTest_Helpers.CreateRuntimeJsLibManager` | `oracle/replay/helpers/com/google/javascript/jscomp/RewritePolyfillsTest_Helpers.java` | 51 | (see file header) | RewritePolyfillsTest |
@@ -546,7 +546,7 @@ Descriptors: 256.
 | `TypeValidatorTest_Helpers.Anon1` | `oracle/replay/helpers/com/google/javascript/jscomp/TypeValidatorTest_Helpers.java` | 22 | (see file header) | TypeValidatorTest |
 | `TypedScopeCreatorTest_Helpers` | `oracle/replay/helpers/com/google/javascript/jscomp/TypedScopeCreatorTest_Helpers.java` | 106 | (see file header) | TypedScopeCreatorTest |
 | `ValidityCheckTest_Helpers.GetProcessor` | `oracle/replay/helpers/com/google/javascript/jscomp/ValidityCheckTest_Helpers.java` | 108 | (see file header) | ValidityCheckTest |
-| `VarCheckTest_Helpers.GetProcessorPass` | `oracle/replay/helpers/com/google/javascript/jscomp/VarCheckTest_Helpers.java` | 72 | (see file header) | VarCheckTest |
+| `VarCheckTest_Helpers.GetProcessorPass` | `oracle/replay/helpers/com/google/javascript/jscomp/VarCheckTest_Helpers.java` | 75 | (see file header) | VarCheckTest |
 | `JSTypeReconserializerTest_Helpers` | `oracle/replay/helpers/com/google/javascript/jscomp/serialization/JSTypeReconserializerTest_Helpers.java` | 86 | (see file header) | JSTypeReconserializerTest |
 
 ## classMap substitutions

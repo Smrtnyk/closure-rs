@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   test/com/google/javascript/jscomp/CompilerOptionsTest.java.
 
 use closure_jscomp::abstract_compiler::AbstractCompiler;
@@ -438,7 +438,8 @@ fn test_to_string_deterministic_format() {
         " rewriteModulesBeforeTypechecking=false, rewritePolyfills=false,",
         " runtimeLibraryMode=INJECT, skipNonTranspilationPasses=false,",
         " smartNameRemoval=false, sourceMapDetailLevel=ALL, sourceMapFormat=DEFAULT,",
-        " sourceMapLocationMappings=[], strictMessageReplacement=false,",
+        " sourceMapLocationMappings=[], sourceMapMergeIdenticalSegments=false,",
+        " strictMessageReplacement=false,",
         " stripNamePrefixes=[prefixA, prefixB], stripNameSuffixes=[suffixA, suffixB],",
         " stripTypes=[typeA, typeB], summaryDetailLevel=1, tracer=OFF, trustedStrings=false,",
         " tweakProcessing=OFF, useTypesForLocalOptimization=false, variableRenaming=OFF,",

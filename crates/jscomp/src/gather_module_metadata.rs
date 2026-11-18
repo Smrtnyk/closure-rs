@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/GatherModuleMetadata.java.
 
 //! Gathers metadata around modules that is useful for checking imports / requires and creates a
@@ -21,6 +21,7 @@
 use crate::{
     AbstractCompiler,
     closure_check_module::DECLARE_LEGACY_NAMESPACE_IN_NON_MODULE,
+    closure_export_type_classifier::ClosureExportTypeClassifier,
     closure_primitive_errors::{
         self, DUPLICATE_MODULE, DUPLICATE_NAMESPACE, DUPLICATE_NAMESPACE_AND_MODULE,
     },
@@ -28,6 +29,7 @@ use crate::{
     compiler_pass::CompilerPass,
     deps::module_loader::{ModulePath, ResolutionMode},
     diagnostic_type::DiagnosticType,
+    es6_rewrite_modules::Es6RewriteModules,
     js_error::JSError,
     modules::module_metadata_map::{self, ModuleMetadata, ModuleMetadataMap, ModuleType},
     node_traversal::{Callback, NodeTraversal},
@@ -238,9 +240,9 @@ impl CompilerPass for GatherModuleMetadata {
 
 struct ModuleMetadataBuilder {
     ambiguous: bool,
-    has_module_body: bool,
     declared_module_id: Option<NodeId>,
     declares_legacy_namespace: Option<NodeId>,
+    root_node: NodeId,
     metadata_builder: module_metadata_map::Builder,
     /// LinkedHashMultiset<String>.
     goog_namespaces: module_metadata_map::Multiset<JsString>,
@@ -258,9 +260,9 @@ impl ModuleMetadataBuilder {
             .is_test_only(false);
         Self {
             ambiguous: false,
-            has_module_body: false,
             declared_module_id: None,
             declares_legacy_namespace: None,
+            root_node,
             metadata_builder,
             goog_namespaces: module_metadata_map::Multiset::new(),
         }
@@ -308,14 +310,17 @@ impl ModuleMetadataBuilder {
         self.metadata_builder
             .goog_namespaces_builder()
             .add_all(&self.goog_namespaces);
+        if self.root_node.is_script(compiler)
+            && Es6RewriteModules::is_es6_module_root(compiler, self.root_node)
+        {
+            // A script with a non-goog.module MODULE_BODY was either wrapped by
+            // Es6RewriteScriptsToModules (which only wraps scripts with no goog.provide) or parsed
+            // by IRFactory with import/export syntax (setting Node.ES6_MODULE, even if it
+            // ambiguously also contains goog.provide). Treat it as an ES6_MODULE to match
+            // Es6RewriteModules.
+            self.metadata_builder.module_type(ModuleType::ES6_MODULE);
+        }
         if !self.ambiguous {
-            if self.has_module_body && self.metadata_builder.get_module_type() == ModuleType::SCRIPT
-            {
-                // A script with no imports or exports, but has a module body, must be an ES
-                // module.
-                self.metadata_builder.module_type(ModuleType::ES6_MODULE);
-            }
-
             if let Some(declared_module_id) = self.declared_module_id
                 && self.metadata_builder.get_module_type() != ModuleType::ES6_MODULE
             {
@@ -340,6 +345,21 @@ impl ModuleMetadataBuilder {
                     ));
                 }
             }
+        }
+
+        let module_type = self.metadata_builder.get_module_type();
+        if self.root_node.is_script(compiler)
+            && !self.goog_namespaces.is_empty()
+            && (module_type == ModuleType::GOOG_PROVIDE
+                || module_type == ModuleType::GOOG_MODULE
+                || module_type == ModuleType::LEGACY_GOOG_MODULE)
+        {
+            self.metadata_builder
+                .ts_export_types(ClosureExportTypeClassifier::classify(
+                    compiler,
+                    self.root_node,
+                    self.goog_namespaces.element_set(),
+                ));
         }
 
         self.metadata_builder.build()
@@ -837,7 +857,6 @@ impl Callback for Finder<'_> {
                     self.enter_module(t, n, None);
                 }
             }
-            Token::MODULE_BODY => self.current_module().has_module_body = true,
             Token::DYNAMIC_IMPORT => self.visit_dynamic_import(t, n),
             _ => {}
         }

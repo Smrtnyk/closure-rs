@@ -1,0 +1,7 @@
+## ClosureExportTypeClassifierTest (post-call assertions, gate 0.2 (a))
+
+Methods of `com.google.javascript.jscomp.ClosureExportTypeClassifierTest$AstPreconditionsTest` that, after the hooked `testSame`/`testError`, take the module's root SCRIPT node from its `ModuleMetadata` and call `ClosureExportTypeClassifier.classify` directly with a namespace set of the test's choosing. What those direct calls do is not part of any compile the records hold, so the checks are ported as Rust unit tests in `crates/jscomp/tests/closure_export_type_classifier_test.rs`. The records still replay but are excluded from gate (a) counting.
+
+- ClosureExportTypeClassifierTest#emptyGoogNamespaces_returnsEmptyMap: classify(root of the goog.provide('a.b') script, empty namespace set) returns an empty map (test lines 1914-1922; Rust test `ast_preconditions_test_empty_goog_namespaces_returns_empty_map`)
+- ClosureExportTypeClassifierTest#mixedProvideAndEsExport_throwsIllegalArgumentException: classify(root of a goog.provide script with an ES export, its namespaces) throws IllegalArgumentException naming SCRIPT, from the direct call, not from the hooked one (test lines 1879-1896; Rust test `ast_preconditions_test_mixed_provide_and_es_export_throws_illegal_argument_exception`)
+- ClosureExportTypeClassifierTest#mixedProvideAndEsImport_throwsIllegalArgumentException: the same for a goog.provide script with an ES import (test lines 1861-1876; Rust test `ast_preconditions_test_mixed_provide_and_es_import_throws_illegal_argument_exception`)

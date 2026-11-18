@@ -578,10 +578,10 @@ index 0851d93..3733b32 100644
  }
 diff --git a/test/com/google/javascript/jscomp/UnitRecorder.java b/test/com/google/javascript/jscomp/UnitRecorder.java
 new file mode 100644
-index 0000000..a32bbcf
+index 0000000..28bf46f
 --- /dev/null
 +++ b/test/com/google/javascript/jscomp/UnitRecorder.java
-@@ -0,0 +1,1510 @@
+@@ -0,0 +1,1528 @@
 +/*
 + * closure-rs unit-corpus recording hook (oracle/patches/0002-recording-hooks.patch).
 + * Inactive unless the system property closurers.unit.record is set (so Bazel runs are unaffected).
@@ -1085,6 +1085,17 @@ index 0000000..a32bbcf
 +    unrep.add(o);
 +  }
 +
++  /** An existing directory below java.io.tmpdir (FORMAT.md "Value encoding", freshTempDir). */
++  private static boolean isTemporaryDirectory(java.nio.file.Path p) {
++    String tmp = System.getProperty("java.io.tmpdir");
++    if (tmp == null || !p.isAbsolute() || !java.nio.file.Files.isDirectory(p)) {
++      return false;
++    }
++    java.nio.file.Path root = java.nio.file.Paths.get(tmp).toAbsolutePath().normalize();
++    java.nio.file.Path dir = p.normalize();
++    return !dir.equals(root) && dir.startsWith(root);
++  }
++
 +  private static JsonElement dump(
 +      Object v, String path, JsonArray unrep, int depthLeft, IdentityHashMap<Object, Boolean> seen) {
 +    if (v == null) {
@@ -1144,6 +1155,14 @@ index 0000000..a32bbcf
 +    if (v instanceof SourceFile f) {
 +      JsonObject o = new JsonObject();
 +      o.add("sourceFile", sourceFile(f));
++      return o;
++    }
++    if (v instanceof java.nio.file.Path p && isTemporaryDirectory(p)) {
++      // FORMAT.md "Value encoding": a directory the test created under java.io.tmpdir (e.g. a JUnit
++      // TemporaryFolder). Neither its machine-specific name nor its content is recorded; replay
++      // supplies a fresh empty directory of its own.
++      JsonObject o = new JsonObject();
++      o.addProperty("freshTempDir", true);
 +      return o;
 +    }
 +    if (v instanceof Optional<?> opt) {
@@ -1691,30 +1710,29 @@ index 0000000..a32bbcf
 +      } catch (RuntimeException e) {
 +        comp.addProperty("moduleMapBoundNamesError", e.getClass().getName());
 +      }
-+      // googModuleExportTypes: {goog namespace: ClosureExportTypeClassifier.classify(root,
-+      // namespace) as the TsExportType name} for the entries of getModuleMetadataMap()
-+      // .getModulesByGoogNamespace(), in that map's order, that are goog.modules whose root node is
-+      // a SCRIPT with a MODULE_BODY first child (the classifier's precondition); present only when
-+      // non-empty.
++      // tsExportTypes: {goog namespace: metadata.tsExportTypes().get(namespace) as the
++      // TsExportType name} for the entries (namespace, metadata) of getModuleMetadataMap()
++      // .getModulesByGoogNamespace(), in that map's order, whose metadata classifies the
++      // namespace (GatherModuleMetadata fills tsExportTypes for goog.provide and goog.module
++      // scripts); present only when non-empty.
 +      try {
 +        com.google.javascript.jscomp.modules.ModuleMetadataMap mm = compiler.getModuleMetadataMap();
 +        if (mm != null) {
 +          JsonObject types = new JsonObject();
 +          for (Map.Entry<String, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata> e :
 +              mm.getModulesByGoogNamespace().entrySet()) {
-+            com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata m = e.getValue();
-+            com.google.javascript.rhino.Node root = m.rootNode();
-+            if (m.isGoogModule() && root != null && root.isScript() && root.hasChildren()
-+                && root.getFirstChild().isModuleBody()) {
-+              types.addProperty(e.getKey(), ClosureExportTypeClassifier.classify(root, e.getKey()).name());
++            com.google.javascript.jscomp.modules.ModuleMetadataMap.TsExportType t =
++                e.getValue().tsExportTypes().get(e.getKey());
++            if (t != null) {
++              types.addProperty(e.getKey(), t.name());
 +            }
 +          }
 +          if (types.size() > 0) {
-+            comp.add("googModuleExportTypes", types);
++            comp.add("tsExportTypes", types);
 +          }
 +        }
 +      } catch (RuntimeException e) {
-+        comp.addProperty("googModuleExportTypesError", e.getClass().getName());
++        comp.addProperty("tsExportTypesError", e.getClass().getName());
 +      }
 +    }
 +    snap.add("compiler", comp);

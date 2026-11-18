@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   test/com/google/javascript/jscomp/NodeUtilTest.java.
 
 use super::*;
@@ -2989,6 +2989,165 @@ mod assorted_tests {
         assert!(throws(&compiler, Some(n)));
     }
 
+    // port: NodeUtilTest.AssortedTests#testMayBeNegativeZero
+    #[test]
+    fn test_may_be_negative_zero() {
+        let mut compiler = Compiler::new();
+        let n = parse_expr(&mut compiler, "1");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "-1");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "0");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "+0");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "NaN");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "Infinity");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "-Infinity");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "a | 0");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "a & b");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "a ^ b");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "~a");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "a << 1");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "a >> 1");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "a >>> 1");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "a + 0");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "0 + a");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "0 - a");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "+(a | 0)");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "Math.abs(a)");
+        assert!(!NodeUtil::may_be_negative_zero_normalized(
+            &compiler, n, true
+        ));
+        let n = parse_expr(&mut compiler, "c ? Math.abs(a) : (b & 1)");
+        assert!(!NodeUtil::may_be_negative_zero_normalized(
+            &compiler, n, true
+        ));
+        let n = parse_expr(&mut compiler, "c ? (a | 0) : (b & 1)");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "(foo(), a | 0)");
+        assert!(!NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "-0");
+        assert!(NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "-0.0");
+        assert!(NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "a");
+        assert!(NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "a * b");
+        assert!(NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "a / b");
+        assert!(NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "a - b");
+        assert!(NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "-a");
+        assert!(NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "+(x + 0)");
+        assert!(NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "+(x + '')");
+        assert!(NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "c ? a : (b | 0)");
+        assert!(NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "Math.abs(a)");
+        assert!(NodeUtil::may_be_negative_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "Math.abs(a)");
+        assert!(NodeUtil::may_be_negative_zero_normalized(
+            &compiler, n, false
+        ));
+        let n = parse_expr(&mut compiler, "c ? Math.abs(a) : (b & 1)");
+        assert!(NodeUtil::may_be_negative_zero_normalized(
+            &compiler, n, false
+        ));
+    }
+
+    // port: NodeUtilTest.AssortedTests#testMayBePositiveZero
+    #[test]
+    fn test_may_be_positive_zero() {
+        let mut compiler = Compiler::new();
+        let n = parse_expr(&mut compiler, "1");
+        assert!(!NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "-1");
+        assert!(!NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "-0.0");
+        assert!(!NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "NaN");
+        assert!(!NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "Infinity");
+        assert!(!NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "-Infinity");
+        assert!(!NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "void 0");
+        assert!(!NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "void foo()");
+        assert!(!NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "0");
+        assert!(NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "+0");
+        assert!(NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "0.0");
+        assert!(NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "'0'");
+        assert!(NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "null");
+        assert!(NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "false");
+        assert!(NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "a");
+        assert!(NodeUtil::may_be_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "a + b");
+        assert!(NodeUtil::may_be_positive_zero(&compiler, n));
+    }
+
+    // port: NodeUtilTest.AssortedTests#testIsPositiveZero
+    #[test]
+    fn test_is_positive_zero() {
+        let mut compiler = Compiler::new();
+        let n = parse_expr(&mut compiler, "0");
+        assert!(NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "+0");
+        assert!(NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "0.0");
+        assert!(NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "'0'");
+        assert!(!NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "''");
+        assert!(!NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "null");
+        assert!(!NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "false");
+        assert!(!NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "-0");
+        assert!(!NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "-0.0");
+        assert!(!NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "1");
+        assert!(!NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "-1");
+        assert!(!NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "NaN");
+        assert!(!NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "Infinity");
+        assert!(!NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "void 0");
+        assert!(!NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "void foo()");
+        assert!(!NodeUtil::is_positive_zero(&compiler, n));
+        let n = parse_expr(&mut compiler, "a");
+        assert!(!NodeUtil::is_positive_zero(&compiler, n));
+    }
     // port: NodeUtilTest.AssortedTests#testGetBigIntValue
     #[test]
     fn test_get_big_int_value() {

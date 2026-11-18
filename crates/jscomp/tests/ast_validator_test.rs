@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/AstValidator.java,
 //   src/com/google/javascript/jscomp/CompilerOptions.java,
 //   test/com/google/javascript/jscomp/AstValidatorTest.java,
@@ -831,6 +831,44 @@ fn test_validates_color_info_on_expression() {
     foo.set_color(&mut t.ast, Some(standard_colors::STRING.clone()));
 
     t.expect_valid(expr, Check::STATEMENT);
+}
+
+// port: AstValidatorTest#testArrayLit_invalidLaterElement
+#[test]
+fn test_array_lit_invalid_later_element() {
+    let mut t = AstValidatorTest::set_up();
+    t.type_info_validation_mode = TypeInfoValidation::NONE;
+
+    let ast = &mut t.ast;
+    let one = IR::number(ast, 1.0);
+    let block = IR::block(ast);
+    let array_with_block = ast.new_node_with_children2(Token::ARRAYLIT, one, block);
+    t.set_test_source_location_for_tree(array_with_block);
+    t.expect_invalid(array_with_block, Check::EXPRESSION);
+
+    let ast = &mut t.ast;
+    let one = IR::number(ast, 1.0);
+    let block = IR::block(ast);
+    let spread = ast.new_node_with_child(Token::ITER_SPREAD, block);
+    let array_with_invalid_spread = ast.new_node_with_children2(Token::ARRAYLIT, one, spread);
+    t.set_test_source_location_for_tree(array_with_invalid_spread);
+    t.expect_invalid(array_with_invalid_spread, Check::EXPRESSION);
+}
+
+// port: AstValidatorTest#testArrayLit_validLaterEmptyAndSpread
+// (its `valid(...)` part replays from the corpus record)
+#[test]
+fn test_array_lit_valid_later_empty_and_spread() {
+    let mut t = AstValidatorTest::set_up();
+    t.type_info_validation_mode = TypeInfoValidation::NONE;
+    let ast = &mut t.ast;
+    let one = IR::number(ast, 1.0);
+    let empty = IR::empty(ast);
+    let x = IR::name(ast, "x");
+    let spread = IR::iter_spread(ast, x);
+    let hand_built = IR::arraylit(ast, &[one, empty, spread]);
+    t.set_test_source_location_for_tree(hand_built);
+    t.expect_valid(hand_built, Check::EXPRESSION);
 }
 
 // port: AstValidatorTest#checkRequiredInlinings_failsWithRemainingRequiredInlinings

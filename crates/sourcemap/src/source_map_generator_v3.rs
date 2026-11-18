@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/debugging/sourcemap/SourceMapGeneratorV3.java.
 
 use crate::{
@@ -79,6 +79,9 @@ pub struct SourceMapGeneratorV3 {
     prefix_position: FilePosition,
     extensions: IndexMap<JsString, ExtensionValue>,
     source_root_path: Option<JsString>,
+    /// Whether to omit a mapped segment whose original position and name are identical to those
+    /// of the previous segment written on the same generated line.
+    merge_identical_segments: bool,
 }
 impl SourceMapGeneratorV3 {
     // port: SourceMapGeneratorV3#SourceMapGeneratorV3
@@ -101,6 +104,18 @@ impl SourceMapGeneratorV3 {
     }
     // port: SourceMapGeneratorV3#validate
     pub fn validate(&mut self, _validate: bool) {}
+    /// Sets whether to omit a mapped segment whose source, original line, original column, and
+    /// name are identical to those of the previous segment written on the same generated line.
+    ///
+    /// Lookups from a generated position to an original position are unchanged: a lookup
+    /// resolves to the closest preceding segment on the line, which carries the same original
+    /// position and name. The first segment of each generated line is always written, and
+    /// unmapped segments are never merged. Reverse lookups may report fewer generated columns
+    /// for an original position.
+    // port: SourceMapGeneratorV3#setMergeIdenticalSegments
+    pub fn set_merge_identical_segments(&mut self, merge_identical_segments: bool) {
+        self.merge_identical_segments = merge_identical_segments;
+    }
     // port: SourceMapGeneratorV3#setWrapperPrefix
     pub fn set_wrapper_prefix(&mut self, prefix: impl Into<JsString>) {
         let mut prefix_line = 0i32;
@@ -250,6 +265,7 @@ impl SourceMapGeneratorV3 {
         LineMapper::new(
             out,
             max_line,
+            self.merge_identical_segments,
             &mut self.source_file_map,
             &mut self.original_name_map,
             &mut self.last_source_file,
@@ -526,11 +542,13 @@ impl Mapping {
     }
 }
 
-trait MappingVisitor {
+/// Java's `MappingVisitor`; `'m` is the lifetime of the visited mappings, so that a visitor can
+/// keep one (Java keeps the object).
+trait MappingVisitor<'m> {
     // port: SourceMapGeneratorV3.MappingVisitor#visit
     fn visit(
         &mut self,
-        m: Option<&Mapping>,
+        m: Option<&'m Mapping>,
         line: i32,
         col: i32,
         end_line: i32,
@@ -538,11 +556,11 @@ trait MappingVisitor {
     ) -> fmt::Result;
 }
 struct UsedMappingCheck;
-impl MappingVisitor for UsedMappingCheck {
+impl<'m> MappingVisitor<'m> for UsedMappingCheck {
     // port: SourceMapGeneratorV3.UsedMappingCheck#visit
     fn visit(
         &mut self,
-        m: Option<&Mapping>,
+        m: Option<&'m Mapping>,
         _line: i32,
         _col: i32,
         _end_line: i32,
@@ -573,8 +591,8 @@ impl<'a> MappingTraversal<'a> {
     // Preserve the Java statement order.
     #[allow(clippy::manual_while_let_some)]
     // port: SourceMapGeneratorV3.MappingTraversal#traverse
-    fn traverse(mut self, v: &mut dyn MappingVisitor) -> fmt::Result {
-        let mut stack: Vec<&Mapping> = Vec::new();
+    fn traverse(mut self, v: &mut dyn MappingVisitor<'a>) -> fmt::Result {
+        let mut stack: Vec<&'a Mapping> = Vec::new();
         for m in self.mappings {
             while stack
                 .last()
@@ -616,7 +634,7 @@ impl<'a> MappingTraversal<'a> {
         (l1 == l2 && c1 >= c2) || l1 > l2
     }
     // port: SourceMapGeneratorV3.MappingTraversal#maybeVisit
-    fn maybe_visit(&mut self, v: &mut dyn MappingVisitor, m: &Mapping) -> fmt::Result {
+    fn maybe_visit(&mut self, v: &mut dyn MappingVisitor<'a>, m: &'a Mapping) -> fmt::Result {
         let next_line = self.get_adjusted_line(m.end_position);
         let next_col = self.get_adjusted_col(m.end_position);
         if self.line < next_line || (self.line == next_line && self.col < next_col) {
@@ -627,9 +645,9 @@ impl<'a> MappingTraversal<'a> {
     // port: SourceMapGeneratorV3.MappingTraversal#maybeVisitParent
     fn maybe_visit_parent(
         &mut self,
-        v: &mut dyn MappingVisitor,
-        parent: Option<&Mapping>,
-        m: &Mapping,
+        v: &mut dyn MappingVisitor<'a>,
+        parent: Option<&'a Mapping>,
+        m: &'a Mapping,
     ) -> fmt::Result {
         let next_line = self.get_adjusted_line(m.start_position);
         let next_col = self.get_adjusted_col(m.start_position);
@@ -645,8 +663,8 @@ impl<'a> MappingTraversal<'a> {
     // port: SourceMapGeneratorV3.MappingTraversal#visit
     fn visit(
         &mut self,
-        v: &mut dyn MappingVisitor,
-        m: Option<&Mapping>,
+        v: &mut dyn MappingVisitor<'a>,
+        m: Option<&'a Mapping>,
         next_line: i32,
         next_col: i32,
     ) -> fmt::Result {
@@ -664,25 +682,31 @@ impl<'a> MappingTraversal<'a> {
         Ok(())
     }
 }
-struct LineMapper<'a, 'out> {
+struct LineMapper<'a, 'out, 'm> {
     out: &'a mut JavaAppendable<'out>,
     max_line: i32,
+    /// The outer generator's `mergeIdenticalSegments`.
+    merge_identical_segments: bool,
     previous_line: i32,
     previous_column: i32,
     previous_source_file_id: i32,
     previous_source_line: i32,
     previous_source_column: i32,
     previous_name_id: i32,
+    /// The mapping of the last entry written, or null if that entry was unmapped. Only meaningful
+    /// when the entry being visited is on previousLine.
+    previous_mapping: Option<&'m Mapping>,
     source_file_map: &'a mut IndexMap<JsString, i32>,
     original_name_map: &'a mut IndexMap<JsString, i32>,
     last_source_file: &'a mut Option<JsString>,
     last_source_file_index: &'a mut i32,
 }
-impl MappingVisitor for LineMapper<'_, '_> {
+impl<'m> MappingVisitor<'m> for LineMapper<'_, '_, 'm> {
+    /// As each segment is visited write out the appropriate line mapping.
     // port: SourceMapGeneratorV3.LineMapper#visit
     fn visit(
         &mut self,
-        m: Option<&Mapping>,
+        m: Option<&'m Mapping>,
         line: i32,
         col: i32,
         next_line: i32,
@@ -693,12 +717,22 @@ impl MappingVisitor for LineMapper<'_, '_> {
         }
         if line != next_line || col != next_col {
             if line < self.max_line {
-                if self.previous_line == line {
-                    self.out.write_char(',')?;
+                // When merging, skip a segment that the previous entry on this line already covers
+                // with the same original position and name. VLQ deltas stay relative to the last
+                // written entry.
+                let merge = self.merge_identical_segments
+                    && self.previous_line == line
+                    && Self::has_same_origin(m, self.previous_mapping);
+                if !merge {
+                    if self.previous_line == line {
+                        // not the first entry for the line
+                        self.out.write_char(',')?;
+                    }
+                    self.write_entry(m, col)?;
+                    self.previous_line = line;
+                    self.previous_column = col;
+                    self.previous_mapping = m;
                 }
-                self.write_entry(m, col)?;
-                self.previous_line = line;
-                self.previous_column = col;
             } else {
                 assert!(m.is_none(), "java.lang.IllegalStateException");
             }
@@ -715,26 +749,29 @@ impl MappingVisitor for LineMapper<'_, '_> {
         Ok(())
     }
 }
-impl LineMapper<'_, '_> {
+impl<'m> LineMapper<'_, '_, 'm> {
     // Borrowed outer generator fields are passed explicitly to preserve Rust's aliasing rules.
     // port: SourceMapGeneratorV3.LineMapper#LineMapper
     fn new<'a, 'out>(
         out: &'a mut JavaAppendable<'out>,
         max_line: i32,
+        merge_identical_segments: bool,
         source_file_map: &'a mut IndexMap<JsString, i32>,
         original_name_map: &'a mut IndexMap<JsString, i32>,
         last_source_file: &'a mut Option<JsString>,
         last_source_file_index: &'a mut i32,
-    ) -> LineMapper<'a, 'out> {
+    ) -> LineMapper<'a, 'out, 'm> {
         LineMapper {
             out,
             max_line,
+            merge_identical_segments,
             previous_line: -1,
             previous_column: 0,
             previous_source_file_id: 0,
             previous_source_line: 0,
             previous_source_column: 0,
             previous_name_id: 0,
+            previous_mapping: None,
             source_file_map,
             original_name_map,
             last_source_file,
@@ -769,8 +806,21 @@ impl LineMapper<'_, '_> {
         }
         original_name_index
     }
+    /// Returns whether both mappings are non-null and have the same source file, original
+    /// position, and original name, i.e. would be written as the same source map segment apart
+    /// from the generated column.
+    // port: SourceMapGeneratorV3.LineMapper#hasSameOrigin
+    fn has_same_origin(m: Option<&Mapping>, previous: Option<&Mapping>) -> bool {
+        let (Some(m), Some(previous)) = (m, previous) else {
+            return false;
+        };
+        m.source_file == previous.source_file
+            && m.original_position.get_line() == previous.original_position.get_line()
+            && m.original_position.get_column() == previous.original_position.get_column()
+            && m.original_name == previous.original_name
+    }
     // port: SourceMapGeneratorV3.LineMapper#writeEntry
-    fn write_entry(&mut self, m: Option<&Mapping>, column: i32) -> fmt::Result {
+    fn write_entry(&mut self, m: Option<&'m Mapping>, column: i32) -> fmt::Result {
         Base64VLQ::encode(self.out, column.wrapping_sub(self.previous_column))?;
         self.previous_column = column;
         if let Some(m) = m {
@@ -798,7 +848,7 @@ impl LineMapper<'_, '_> {
         Ok(())
     }
     // port: SourceMapGeneratorV3.LineMapper#appendLineMappings
-    fn append_line_mappings(&mut self, traversal: MappingTraversal<'_>) -> fmt::Result {
+    fn append_line_mappings(&mut self, traversal: MappingTraversal<'m>) -> fmt::Result {
         self.open_line(true)?;
         traversal.traverse(self)?;
         self.close_line(true)
@@ -845,6 +895,10 @@ impl SourceMapGenerator for SourceMapGeneratorV3 {
     // Rust trait dispatch to the single Java method body.
     fn validate(&mut self, validate: bool) {
         self.validate(validate)
+    }
+    // Rust trait dispatch to the single Java method body.
+    fn set_merge_identical_segments(&mut self, merge_identical_segments: bool) {
+        self.set_merge_identical_segments(merge_identical_segments)
     }
     // Rust trait dispatch to the single Java method body.
     fn set_wrapper_prefix(&mut self, prefix: JsString) {

@@ -19,21 +19,25 @@ import com.google.javascript.jscomp.type.SemanticReverseAbstractInterpreter;
 import org.jspecify.annotations.Nullable;
 
 final class RewriteDynamicImportsTest_Helpers {
+  public boolean enableTypeCheck;
   private @Nullable String dynamicImportAlias = "imprt_";
   private ChunkOutputType chunkOutputType = ChunkOutputType.GLOBAL_NAMESPACE;
 
   private final class GetProcessor {
     protected CompilerPass getProcessor(Compiler compiler) {
       return (externs, root) -> {
-        // NOTE: we cannot just use enableTypeCheck(), because we need to be able
-        // to retrieve globalTypedScope for use by Es6RewriteModules.
-        ReverseAbstractInterpreter rai =
-            new SemanticReverseAbstractInterpreter(compiler.getTypeRegistry());
-        TypedScope globalTypedScope =
-            checkNotNull(
-                new TypeCheck(compiler, rai, compiler.getTypeRegistry())
-                    .processForTesting(externs, root));
-        compiler.setTypeCheckingHasRun(true);
+        TypedScope globalTypedScope = null;
+        if (enableTypeCheck) {
+          // NOTE: we cannot just use enableTypeCheck(), because we need to be able
+          // to retrieve globalTypedScope for use by Es6RewriteModules.
+          ReverseAbstractInterpreter rai =
+              new SemanticReverseAbstractInterpreter(compiler.getTypeRegistry());
+          globalTypedScope =
+              checkNotNull(
+                  new TypeCheck(compiler, rai, compiler.getTypeRegistry())
+                      .processForTesting(externs, root));
+          compiler.setTypeCheckingHasRun(true);
+        }
         // We need to make sure modules are rewritten, because RewriteDynamicImports
         // expects to be able to see the module variables.
         new Es6RewriteModules(

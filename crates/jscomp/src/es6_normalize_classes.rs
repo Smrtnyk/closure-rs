@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/Es6NormalizeClasses.java.
 
 //! Port of `Es6NormalizeClasses.java`.
@@ -861,7 +861,7 @@ impl PrivateMember {
 
     // port: Es6NormalizeClasses.ClassRecord.PrivateMember#propertyName
     fn property_name(&self) -> JsString {
-        if self.name.starts_with("#") {
+        if NodeId::is_private_name(&self.name) {
             self.name.substring_from(1)
         } else {
             self.name.clone()
@@ -986,7 +986,7 @@ impl ClassRecord {
     fn record_private_member(&mut self, ast: &Ast, n: NodeId) {
         check_argument!(n.is_private_identifier(ast));
         let name = n.get_string(ast);
-        check_argument!(name.starts_with("#"), "%s", name);
+        check_argument!(NodeId::is_private_name(&name), "%s", name);
         let is_static = n.is_static_member(ast);
 
         let kind = if n.is_member_field_def(ast) {

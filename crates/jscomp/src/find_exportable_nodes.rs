@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/FindExportableNodes.java,
 //   src/com/google/javascript/jscomp/NodeTraversal.java,
 //   test/com/google/javascript/jscomp/GenerateExportsTest.java.
@@ -119,6 +119,13 @@ impl Callback for FindExportableNodes {
             return;
         }
         let parent = parent.unwrap();
+
+        if n.is_private_identifier(t) {
+            // A private member can't be exported, because its name is valid only inside the class
+            // body.
+            t.report(n, &EXPORT_ANNOTATION_NOT_ALLOWED, &[]);
+            return;
+        }
 
         if parent.is_assign(t) && (n.is_function(t) || n.is_class(t)) {
             let parent_info = parent.get_jsdoc_info(t);

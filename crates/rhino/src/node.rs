@@ -37,7 +37,7 @@
  * file under either the MPL or the GPL.
  *
  * ***** END LICENSE BLOCK ***** */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/rhino/Node.java.
 
 // Keep the Java control flow visible for side-by-side port review.
@@ -3873,6 +3873,12 @@ impl NodeId {
         );
         self.put_boolean_prop(ast, Prop::QUOTED, true);
     }
+    // port: Node#isPrivateName
+    /// Returns true if `name`, the name of a property or class member, is a private name, like
+    /// `#x`.
+    pub fn is_private_name(name: &JsString) -> bool {
+        name.starts_with("#")
+    }
     // port: Node#isPrivateIdentifier
     pub fn is_private_identifier(self, ast: &Ast) -> bool {
         matches!(ast[self].kind, NodeKind::String { .. })
@@ -3885,7 +3891,11 @@ impl NodeId {
             "%s",
             self.to_string(ast)
         );
-        check_state!(self.get_string_ref(ast).starts_with("#"));
+        check_state!(
+            NodeId::is_private_name(self.get_string_ref(ast)),
+            "%s",
+            self.to_string(ast)
+        );
         self.put_boolean_prop(ast, Prop::PRIVATE_IDENTIFIER, true);
     }
     // port: Node#isAdd

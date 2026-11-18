@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   test/com/google/javascript/jscomp/RewriteDynamicImportsTest.java.
 
 //! Rust unit test of RewriteDynamicImportsTest.java that calls `getProcessor(compiler).process`
@@ -44,6 +44,8 @@ use std::sync::Arc;
 
 /// The fields of RewriteDynamicImportsTest that aliasExternInjectedSimpleImport sets and reads.
 struct RewriteDynamicImportsTest {
+    /// `@Parameter public boolean enableTypeCheck` (the class runs with true and with false).
+    enable_type_check: bool,
     harness: CompilerTestCase,
     language: Option<LanguageMode>,
     language_in: Option<LanguageMode>,
@@ -54,7 +56,7 @@ struct RewriteDynamicImportsTest {
 
 impl RewriteDynamicImportsTest {
     // port: RewriteDynamicImportsTest#RewriteDynamicImportsTest
-    fn new() -> Self {
+    fn new(enable_type_check: bool) -> Self {
         let mut ctx = Ctx::new(
             "RewriteDynamicImportsTest".into(),
             object([]),
@@ -64,7 +66,15 @@ impl RewriteDynamicImportsTest {
         // private @Nullable String dynamicImportAlias = "imprt_";
         // private ChunkOutputType chunkOutputType = ChunkOutputType.GLOBAL_NAMESPACE;
         let fields = rewrite_dynamic_imports_test_helpers::holder(&mut ctx, vec![]).unwrap();
+        let DslValue::Object(holder) = &fields else {
+            unreachable!("the holder is an object");
+        };
+        holder
+            .borrow_mut()
+            .fields
+            .insert("enableTypeCheck".into(), DslValue::Bool(enable_type_check));
         let mut test = Self {
+            enable_type_check,
             harness: CompilerTestCase::new(TestExternsBuilder::new().add_promise().build()),
             language: None,
             language_in: None,
@@ -79,7 +89,9 @@ impl RewriteDynamicImportsTest {
     fn set_up(&mut self) {
         self.harness.set_up();
         self.harness.enable_create_module_map().unwrap();
-        self.harness.enable_type_info_validation().unwrap();
+        if self.enable_type_check {
+            self.harness.enable_type_info_validation().unwrap();
+        }
     }
 
     // port: RewriteDynamicImportsTest#getOptions
@@ -123,7 +135,14 @@ impl RewriteDynamicImportsTest {
 // port: RewriteDynamicImportsTest#aliasExternInjectedSimpleImport
 #[test]
 fn alias_extern_injected_simple_import() {
-    let mut t = RewriteDynamicImportsTest::new();
+    // @Parameters: enableTypeCheck in {true, false}.
+    for enable_type_check in [true, false] {
+        alias_extern_injected_simple_import_with(enable_type_check);
+    }
+}
+
+fn alias_extern_injected_simple_import_with(enable_type_check: bool) {
+    let mut t = RewriteDynamicImportsTest::new(enable_type_check);
     t.language = Some(LanguageMode::ECMASCRIPT_2015);
     t.language_in = Some(LanguageMode::ECMASCRIPT_NEXT);
     t.set_dynamic_import_alias("import");
@@ -186,4 +205,5 @@ fn alias_extern_injected_simple_import() {
         injected_alias.get_first_child(&c).unwrap().get_string(&c),
         "import"
     );
+    assert_eq!(injected_alias.get_jstype(&c).is_some(), t.enable_type_check);
 }

@@ -8,7 +8,7 @@
  *                     level (2 spaces); the anonymous class became a named
  *                     inner class whose constructor takes the captured getProcessor parameter
  *                     `compiler`.
- *   VariableTestCheck: lines 1232-1255, VERBATIM.
+ *   VariableTestCheck: lines 1277-1303 at commit 030d049 (v20261116), VERBATIM.
  * DSL names: VarCheckTest_Helpers.GetProcessorPass (outer: validityCheck, declarationCheck)
  */
 package com.google.javascript.jscomp;
@@ -60,7 +60,10 @@ final class VarCheckTest_Helpers {
           new AbstractPostOrderCallback() {
             @Override
             public void visit(NodeTraversal t, Node n, Node parent) {
-              if (n.isName() && !parent.isFunction() && !parent.isLabel()) {
+              if (n.isName()
+                  && !parent.isFunction()
+                  && !parent.isLabel()
+                  && !n.isPrivateIdentifier()) {
                 assertScope(t.getScope()).declares(n.getString());
               }
             }

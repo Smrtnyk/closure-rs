@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/parsing/IRFactory.java.
 
 //! IRFactory transforms the external AST to the internal AST.
@@ -3093,6 +3093,15 @@ impl<'a> IRFactory<'a> {
                 prop_name,
                 cur_node.get_token(ast)
             );
+            // ES2022 § 15.7.1: It is a Syntax Error if PrivateBoundIdentifiers of ClassElementList
+            // contains "#constructor".
+            if prop_name == "#constructor" {
+                self.error(
+                    ast,
+                    cur_node,
+                    "Classes may not have a private element named '#constructor'",
+                );
+            }
             let is_static = cur_node.is_static_member(ast);
             let mut already_declared = private_prop_names.contains(&prop_name);
             match cur_node.get_token(ast) {

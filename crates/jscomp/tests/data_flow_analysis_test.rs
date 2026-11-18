@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   test/com/google/javascript/jscomp/DataFlowAnalysisTest.java.
 
 #![allow(
@@ -932,6 +932,19 @@ mod escaped_locals_tests {
         assert_eq!(
             compute_escaped_locals(r###"function f() {try{} catch(e){}}"###).len(),
             1
+        );
+        assert_eq!(
+            compute_escaped_locals(r###"function f() {try{} catch({e}){}}"###).len(),
+            1
+        );
+        assert_eq!(
+            compute_escaped_locals(r###"function f() {try{} catch({e}){ let x = 1; }}"###).len(),
+            1
+        );
+        assert_eq!(
+            compute_escaped_locals(r###"function f() {try{} catch([a, b = 1, ...rest]){}}"###)
+                .len(),
+            3
         );
     }
 

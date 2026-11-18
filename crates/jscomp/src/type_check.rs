@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/TypeCheck.java,
 //   src/com/google/javascript/jscomp/TypedScopeCreator.java.
 
@@ -1053,20 +1053,26 @@ impl TypeCheck {
                 left = n.get_first_child(compiler).unwrap();
                 right = n.get_last_child(compiler).unwrap();
                 right_type = self.get_js_type(compiler, right);
-                let left_js_type = self.get_js_type(compiler, left);
-                self.validator.expect_string_or_symbol(
-                    compiler,
-                    left,
-                    left_js_type,
-                    "left side of 'in'",
-                );
+                // In a private brand check (`#x in obj`), the LHS is a private identifier rather
+                // than a string/symbol expression, and checking it on a `@struct` class is safe
+                // because `RenameProperties` renames `#x` together with the class's `#x`
+                // declaration.
+                let is_private_brand_check = left.is_private_identifier(compiler);
+                if !is_private_brand_check {
+                    let left_js_type = self.get_js_type(compiler, left);
+                    self.validator.expect_string_or_symbol(
+                        compiler,
+                        left,
+                        left_js_type,
+                        "left side of 'in'",
+                    );
+                }
                 self.validator
                     .expect_object(compiler, n, right_type, "'in' requires an object");
-                let is_struct = {
+                if !is_private_brand_check && {
                     let (reg, ast) = compiler.get_type_registry_and_ast();
                     right_type.is_struct(reg, ast)
-                };
-                if is_struct {
+                } {
                     Self::report(compiler, right, &IN_USED_WITH_STRUCT, &[]);
                 }
                 self.ensure_typed_native(compiler, n, BOOLEAN_TYPE);
@@ -2337,6 +2343,12 @@ impl TypeCheck {
             self.ensure_typed_with_type(compiler, key, Some(right_type));
         } else {
             self.ensure_typed(compiler, key);
+        }
+
+        if key.is_private_identifier(compiler) {
+            // Each class has its own private names, so a private member never overrides another
+            // member.
+            return;
         }
 
         // Validate inheritance for classes and object literals used as prototypes

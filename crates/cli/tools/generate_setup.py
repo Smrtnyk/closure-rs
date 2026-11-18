@@ -15,7 +15,7 @@ valid=[[],['--compilation_level','WHITESPACE_ONLY'],['-O','ADVANCED'],['-O','TRA
  ['--process_common_js_modules'],['--process_closure_primitives','false'],['--angular_pass'],['--polymer_version','1'],['--polymer_version','2'],['--chrome_pass'],
  ['--j2cl_pass','OFF'],['--rename_variable_prefix','prefix'],['--rename_prefix_namespace','name'],['--preserve_type_annotations'],
  ['--inject_libraries','false'],['--force_inject_library','base'],['--rewrite_polyfills','false'],['--isolate_polyfills'],
- ['--strict_mode_input','false'],['--emit_use_strict'],['--source_map_include_content'],['--module_resolution','NODE'],
+ ['--strict_mode_input','false'],['--emit_use_strict'],['--source_map_include_content'],['--source_map_merge_identical_segments'],['--module_resolution','NODE'],
  ['--browser_resolver_prefix_replacements','a=b','--browser_resolver_prefix_replacements','b=c'],['--package_json_entry_names','module,main'],
  ['--renaming','false'],['--instrument_for_coverage_option','LINE'],['--instrument_for_coverage_option','BRANCH'],
  ['--instrument_for_coverage_option','PRODUCTION','--instrument_mapping_report','map.txt','--production_instrumentation_array_name','coverage'],

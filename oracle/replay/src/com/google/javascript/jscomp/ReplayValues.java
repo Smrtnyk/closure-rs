@@ -211,6 +211,9 @@ public final class ReplayValues {
     if (o.has("sourceFile")) {
       return sourceFile(o.getAsJsonObject("sourceFile"));
     }
+    if (o.has("freshTempDir")) {
+      return freshTempDir();
+    }
     if (o.has("optional")) {
       JsonElement v = o.get("optional");
       return v.isJsonNull() ? Optional.empty() : Optional.of(decode(v, Object.class));
@@ -278,6 +281,37 @@ public final class ReplayValues {
       throw new Undecodable("unrepresentable value " + o.get("unrepresentable").getAsString());
     }
     throw new Undecodable("unknown value encoding " + o);
+  }
+
+  /** The directories {@link #freshTempDir} created for the record being replayed. */
+  private static final List<java.nio.file.Path> FRESH_TEMP_DIRS = new ArrayList<>();
+
+  /**
+   * FORMAT.md "Decoding values into live objects": {"freshTempDir":true} is a new empty directory
+   * of this replay, deleted after the record ({@link #deleteFreshTempDirs}).
+   */
+  static java.nio.file.Path freshTempDir() {
+    try {
+      java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("closure-rs-replay-");
+      FRESH_TEMP_DIRS.add(dir);
+      return dir;
+    } catch (java.io.IOException e) {
+      throw new java.io.UncheckedIOException(e);
+    }
+  }
+
+  /** Deletes, with their content, the directories {@link #freshTempDir} created. */
+  static void deleteFreshTempDirs() {
+    for (java.nio.file.Path dir : FRESH_TEMP_DIRS) {
+      try (java.util.stream.Stream<java.nio.file.Path> s = java.nio.file.Files.walk(dir)) {
+        for (java.nio.file.Path p : s.sorted(java.util.Comparator.reverseOrder()).toList()) {
+          java.nio.file.Files.deleteIfExists(p);
+        }
+      } catch (java.io.IOException e) {
+        throw new java.io.UncheckedIOException(e);
+      }
+    }
+    FRESH_TEMP_DIRS.clear();
   }
 
   static SourceFile sourceFile(JsonObject f) {

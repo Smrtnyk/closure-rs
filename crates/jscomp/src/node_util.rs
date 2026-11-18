@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/NodeUtil.java.
 
 #![allow(clippy::match_like_matches_macro)] // Retain Java switch bodies.
@@ -1347,6 +1347,117 @@ impl NodeUtil {
     // port: NodeUtil#isNumericResult
     pub fn is_numeric_result(ast: &Ast, n: NodeId) -> bool {
         Self::get_known_value_type(ast, n) == ValueType::NUMBER
+    }
+    /// Returns false only if the node is guaranteed to never evaluate to negative zero (-0.0).
+    /// Returns true if it may evaluate to -0.0 or if it's unknown.
+    // port: NodeUtil#mayBeNegativeZero(Node)
+    pub fn may_be_negative_zero(ast: &Ast, n: NodeId) -> bool {
+        Self::may_be_negative_zero_normalized(ast, n, false)
+    }
+    /// Returns false only if the node is guaranteed to never evaluate to negative zero (-0.0).
+    /// Returns true if it may evaluate to -0.0 or if it's unknown.
+    ///
+    /// `is_normalized`: whether the AST is normalized. When true, known global methods like
+    /// Math.abs can be assumed not to be shadowed.
+    // port: NodeUtil#mayBeNegativeZero(Node, boolean)
+    pub fn may_be_negative_zero_normalized(ast: &Ast, n: NodeId, is_normalized: bool) -> bool {
+        let val = Self::get_number_value_no_conversions(ast, n);
+        if let Some(val) = val {
+            return val == 0.0 && JSCompDoubles::is_negative(val);
+        }
+        match n.get_token(ast) {
+            Token::BITOR
+            | Token::BITAND
+            | Token::BITXOR
+            | Token::BITNOT
+            | Token::LSH
+            | Token::RSH
+            | Token::URSH => {
+                // Bitwise operations return 32-bit integers, which in JavaScript always convert to
+                // +0.0, never -0.0.
+                false
+            }
+            Token::ADD => {
+                // x + 0 and 0 + x (with +0.0) never result in -0.0 under IEEE 754:
+                // -0.0 + 0.0 is +0.0.
+                let left = n.get_first_child(ast).unwrap();
+                let right = n.get_last_child(ast).unwrap();
+                if Self::is_positive_zero(ast, left) || Self::is_positive_zero(ast, right) {
+                    return false;
+                }
+                true
+            }
+            Token::SUB => {
+                // 0 - x (with +0.0) never results in -0.0 under IEEE 754:
+                // 0.0 - 0.0 is +0.0, and 0.0 - (-0.0) is +0.0.
+                let left = n.get_first_child(ast).unwrap();
+                if Self::is_positive_zero(ast, left) {
+                    return false;
+                }
+                true
+            }
+            Token::CALL => {
+                if is_normalized {
+                    // Math.abs() never returns -0.0: Math.abs(-0.0) is +0.0.
+                    let target = n.get_first_child(ast).unwrap();
+                    if target.is_get_prop(ast)
+                        && *target.get_string_ref(ast) == "abs"
+                        && target.get_first_child(ast).unwrap().is_name(ast)
+                        && *target.get_first_child(ast).unwrap().get_string_ref(ast) == "Math"
+                    {
+                        return false;
+                    }
+                }
+                true
+            }
+            Token::HOOK => {
+                Self::may_be_negative_zero_normalized(
+                    ast,
+                    n.get_second_child(ast).unwrap(),
+                    is_normalized,
+                ) || Self::may_be_negative_zero_normalized(
+                    ast,
+                    n.get_last_child(ast).unwrap(),
+                    is_normalized,
+                )
+            }
+            Token::COMMA => Self::may_be_negative_zero_normalized(
+                ast,
+                n.get_last_child(ast).unwrap(),
+                is_normalized,
+            ),
+            Token::POS => {
+                if Self::is_numeric_result(ast, n.get_first_child(ast).unwrap()) {
+                    return Self::may_be_negative_zero_normalized(
+                        ast,
+                        n.get_first_child(ast).unwrap(),
+                        is_normalized,
+                    );
+                }
+                true
+            }
+            Token::CAST => Self::may_be_negative_zero_normalized(
+                ast,
+                n.get_first_child(ast).unwrap(),
+                is_normalized,
+            ),
+            _ => true,
+        }
+    }
+    /// Returns false only if the node is guaranteed to never evaluate to positive zero (+0.0).
+    /// Returns true if it may evaluate to +0.0 or if it's unknown.
+    // port: NodeUtil#mayBePositiveZero
+    pub fn may_be_positive_zero(ast: &Ast, n: NodeId) -> bool {
+        let val = Self::get_number_value(ast, n);
+        match val {
+            None => true,
+            Some(val) => val == 0.0 && !JSCompDoubles::is_negative(val),
+        }
+    }
+    // port: NodeUtil#isPositiveZero
+    pub fn is_positive_zero(ast: &Ast, n: NodeId) -> bool {
+        let val = Self::get_number_value_no_conversions(ast, n);
+        val.is_some_and(|val| val == 0.0 && !JSCompDoubles::is_negative(val))
     }
     // port: NodeUtil#isBigIntResult
     pub fn is_big_int_result(ast: &Ast, n: NodeId) -> bool {
@@ -4832,6 +4943,16 @@ impl NodeUtil {
             || js_doc_info.is_some_and(|info| info.is_constructor())
             || color.is_some_and(|color| color.is_constructor())
             || Self::is_es6_constructor(ast, fn_node)
+    }
+    /// Determines whether the given JsDoc info declares a function type.
+    // port: NodeUtil#isFunctionTypeDeclaration
+    pub fn is_function_type_declaration(info: &JSDocInfo) -> bool {
+        info.get_parameter_count() > 0
+            || info.has_return_type()
+            || info.has_this_type()
+            || info.is_constructor()
+            || info.is_interface()
+            || info.is_abstract()
     }
     // port: NodeUtil#isEs6ConstructorMemberFunctionDef
     pub fn is_es6_constructor_member_function_def(ast: &Ast, member_function_def: NodeId) -> bool {

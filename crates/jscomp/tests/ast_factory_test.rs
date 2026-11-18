@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   test/com/google/javascript/jscomp/AstFactoryTest.java.
 
 //! Port of `AstFactoryTest.java`.
@@ -975,6 +975,52 @@ fn test_create_continue_opt_chain_getprop() {
         Some(standard_colors::NUMBER.clone())
     );
     assert!(!get_prop.is_optional_chain_start(&t.compiler));
+    assert!(!get_prop.is_private_identifier(&t.compiler));
+}
+
+// port: AstFactoryTest#testCreateGetPropSetsPrivateIdentifier
+#[test]
+fn test_create_get_prop_sets_private_identifier() {
+    let mut t = AstFactoryTest::set_up();
+    let ast_factory = t.create_test_ast_factory_with_colors();
+    let type_template = ast_factory.create_number(&mut t.compiler, 0.0);
+
+    let x = ast_factory.create_name_with_unknown_type(&mut t.compiler, "x");
+    let get_prop = ast_factory.create_get_prop(
+        &mut t.compiler,
+        x,
+        "#y",
+        AstFactory::type_node(type_template),
+    );
+    assert!(get_prop.is_private_identifier(&t.compiler));
+
+    let x = ast_factory.create_name_with_unknown_type(&mut t.compiler, "x");
+    let get_prop_unknown = ast_factory.create_get_prop_with_unknown_type(&mut t.compiler, x, "#y");
+    assert!(get_prop_unknown.is_private_identifier(&t.compiler));
+
+    let x = ast_factory.create_name_with_unknown_type(&mut t.compiler, "x");
+    let start_opt_chain = ast_factory.create_start_opt_chain_getprop(
+        &mut t.compiler,
+        x,
+        "#y",
+        AstFactory::type_node(type_template),
+    );
+    assert!(start_opt_chain.is_private_identifier(&t.compiler));
+
+    let x = ast_factory.create_name_with_unknown_type(&mut t.compiler, "x");
+    let continue_opt_chain = ast_factory.create_continue_opt_chain_getprop(
+        &mut t.compiler,
+        x,
+        "#y",
+        AstFactory::type_node(type_template),
+    );
+    assert!(continue_opt_chain.is_private_identifier(&t.compiler));
+
+    let jstype_factory = t.create_test_ast_factory();
+    let x = jstype_factory.create_name_with_unknown_type(&mut t.compiler, "x");
+    let get_prop_without_color =
+        jstype_factory.create_get_prop_without_color(&mut t.compiler, x, "#y");
+    assert!(get_prop_without_color.is_private_identifier(&t.compiler));
 }
 
 // port: AstFactoryTest#testCreateStartOptChainGetelem

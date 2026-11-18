@@ -28,7 +28,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/RemoveUnusedCode.java.
 // Ported from Guava 33.4.6-jre (https://github.com/google/guava):
 //   com/google/common/collect/AbstractMapBasedMultimap.java,
@@ -617,6 +617,14 @@ impl RemoveUnusedCode {
                         !((parent.is_function(compiler) || parent.is_class(compiler))
                             && parent.get_first_child(compiler) == Some(n))
                     );
+                    if n.is_private_identifier(compiler) {
+                        // In `#x in o`, `#x` is a NAME node representing a private property (not
+                        // a variable in `scope`); pin the property name so the declaration of
+                        // `#x` is kept, and skip variable lookup.
+                        let name = n.get_string(compiler);
+                        self.mark_property_name_as_pinned(compiler, name);
+                        return;
+                    }
                     let var_info = self.traverse_name_node(compiler, n, scope);
                     self.var_info_set_is_explicitly_not_removable(compiler, var_info, |ast| {
                         format!("reference found: {}", n.get_location(ast))

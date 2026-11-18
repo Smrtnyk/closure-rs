@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/FunctionTypeBuilder.java.
 
 //! FunctionTypeBuilder.java: builds the FunctionType of a function or class from its JSDoc, its
@@ -1624,17 +1624,6 @@ impl FunctionTypeBuilder {
         args: &[&str],
     ) {
         compiler.report(JSError::make(compiler, self.error_root, error, args));
-    }
-
-    /// Determines whether the given JsDoc info declares a function type.
-    // port: FunctionTypeBuilder#isFunctionTypeDeclaration
-    pub fn is_function_type_declaration(info: &JSDocInfo) -> bool {
-        info.get_parameter_count() > 0
-            || info.has_return_type()
-            || info.has_this_type()
-            || info.is_constructor()
-            || info.is_interface()
-            || info.is_abstract()
     }
 
     /// Check whether a type is resolvable in the future If this has a supertype that hasn't been

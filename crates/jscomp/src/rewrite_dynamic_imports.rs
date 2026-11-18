@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/NodeTraversal.java,
 //   src/com/google/javascript/jscomp/RewriteDynamicImports.java.
 
@@ -71,6 +71,9 @@ pub static DYNAMIC_IMPORT_INVALID_ALIAS: DiagnosticType = DiagnosticType::error(
 // port: RewriteDynamicImports
 pub struct RewriteDynamicImports {
     ast_factory: AstFactory,
+    /// Java's `registry` field, the compiler's type registry when the AST factory adds types and
+    /// null otherwise: whether it is non-null (the registry itself is the compiler's).
+    registry: bool,
     alias: Option<JsString>,
     requires_aliasing: bool,
     should_wrap_dynamic_import_callbacks: bool,
@@ -86,8 +89,11 @@ impl RewriteDynamicImports {
         alias: Option<&str>,
         chunk_output_type: ChunkOutputType,
     ) -> Self {
+        let ast_factory = compiler.create_ast_factory();
+        let registry = ast_factory.is_adding_types();
         Self {
-            ast_factory: compiler.create_ast_factory(),
+            ast_factory,
+            registry,
             alias: alias.map(JsString::from),
             requires_aliasing: !compiler
                 .get_options()
@@ -123,49 +129,26 @@ impl RewriteDynamicImports {
     ) {
         let compiler = t.get_compiler();
         let namespace = TranspilationNamespace::get(compiler);
-        let promise_dot_resolve =
-            self.ast_factory
-                .create_qname(compiler, &namespace, "Promise.resolve");
-        let promise_resolve_call = self.ast_factory.create_call(
-            compiler,
-            promise_dot_resolve,
-            AstFactory::type_node(dynamic_import),
-            &[],
-        );
+        let promise = self
+            .ast_factory
+            .create_name_in_scope(compiler, Some(&namespace), "Promise");
+        let promise_dot_resolve = self
+            .ast_factory
+            .create_get_prop_with_unknown_type(compiler, promise, "resolve");
         let is_expression_used = NodeUtil::is_expression_result_used(compiler, dynamic_import);
-        if is_expression_used {
+        let promise_resolve_call = if is_expression_used {
             let module_namespace_node =
                 Self::create_module_namespace_node(compiler, target_module_ns);
-            let (registry, ast) = compiler.get_type_registry_and_ast();
-            let dynamic_import_type = dynamic_import.get_jstype(ast);
-            let module_namespace_type = match dynamic_import_type {
-                Some(ty) if ty.is_templatized_type(registry) => {
-                    let templatized_type = ty;
-                    templatized_type.get_template_types(registry).unwrap()[0]
-                }
-                _ => registry.get_native_type(JSTypeNative::UNKNOWN_TYPE),
-            };
-            let promise_type = registry.get_native_object_type(JSTypeNative::PROMISE_TYPE);
-            let templatized =
-                registry.create_templatized_type(ast, promise_type, &[module_namespace_type]);
-            let all_type = registry.get_native_type(JSTypeNative::ALL_TYPE);
-            let function_type = registry.create_function_type(ast, templatized, &[all_type]);
-            promise_dot_resolve.set_jstype(ast, Some(function_type));
-            promise_resolve_call.add_child_to_back(ast, module_namespace_node);
-            promise_resolve_call.copy_type_from(ast, dynamic_import);
+            self.ast_factory.create_call(
+                compiler,
+                promise_dot_resolve,
+                AstFactory::type_node(dynamic_import),
+                &[module_namespace_node],
+            )
         } else {
-            let (registry, ast) = compiler.get_type_registry_and_ast();
-            let promise_type = registry.get_native_object_type(JSTypeNative::PROMISE_TYPE);
-            let void_type = registry.get_native_type(JSTypeNative::VOID_TYPE);
-            let templatized = registry.create_templatized_type(ast, promise_type, &[void_type]);
-            let all_type = registry.get_native_type(JSTypeNative::ALL_TYPE);
-            let function_type = registry.create_function_type(ast, templatized, &[all_type]);
-            promise_dot_resolve.set_jstype(ast, Some(function_type));
-            let promise_type = registry.get_native_object_type(JSTypeNative::PROMISE_TYPE);
-            let void_type = registry.get_native_type(JSTypeNative::VOID_TYPE);
-            let templatized = registry.create_templatized_type(ast, promise_type, &[void_type]);
-            promise_resolve_call.set_jstype(ast, Some(templatized));
-        }
+            self.ast_factory
+                .create_call_with_unknown_type(compiler, promise_dot_resolve, &[])
+        };
         promise_resolve_call.srcref_tree(t, dynamic_import);
         let parent = dynamic_import.get_parent(t).unwrap();
         dynamic_import.replace_with(t, promise_resolve_call);
@@ -235,27 +218,23 @@ impl RewriteDynamicImports {
         let callback_fn = self
             .ast_factory
             .create_zero_arg_arrow_function_for_expression(compiler, module_namespace_node);
-        {
-            let (registry, ast) = compiler.get_type_registry_and_ast();
-            let promise_type = registry.get_native_object_type(JSTypeNative::PROMISE_TYPE);
-            let unknown_type = registry.get_native_type(JSTypeNative::UNKNOWN_TYPE);
-            let templatized = registry.create_templatized_type(ast, promise_type, &[unknown_type]);
-            let all_type = registry.get_native_type(JSTypeNative::ALL_TYPE);
-            let all_fn = registry.create_function_type(ast, all_type, &[]);
-            let function_type = registry.create_function_type(ast, templatized, &[all_fn]);
-            callback_fn.set_jstype(ast, Some(function_type));
-        }
         let mut then_argument = callback_fn;
         if self.should_wrap_dynamic_import_callbacks {
-            let wrapping_type = {
+            let wrapping_fn_type = if self.registry {
                 let (registry, ast) = compiler.get_type_registry_and_ast();
                 let callback_type = callback_fn.get_jstype(ast).unwrap();
-                registry.create_function_type(ast, callback_type, &[callback_type])
+                AstFactory::type_jstype(Some(registry.create_function_type(
+                    ast,
+                    callback_type,
+                    &[callback_type],
+                )))
+            } else {
+                AstFactory::type_native(JSTypeNative::UNKNOWN_TYPE)
             };
             let wrapping_function = self.ast_factory.create_name(
                 compiler,
                 DYNAMIC_IMPORT_CALLBACK_FN,
-                AstFactory::type_jstype(Some(wrapping_type)),
+                wrapping_fn_type,
             );
             then_argument = self.ast_factory.create_call(
                 compiler,
@@ -275,9 +254,6 @@ impl RewriteDynamicImports {
             &[then_argument],
         );
         import_then_call.srcref_tree_if_missing(compiler, dynamic_import);
-        if dynamic_import.get_jstype(compiler).is_some() {
-            import_then_call.copy_type_from(compiler, dynamic_import);
-        }
         placeholder.replace_with(compiler, import_then_call);
         let current_script = t.get_current_script().unwrap();
         let compiler = t.get_compiler();
@@ -307,9 +283,6 @@ impl RewriteDynamicImports {
                 &[module_specifier],
             )
             .srcref_tree_if_missing(compiler, dynamic_import);
-        if dynamic_import.get_jstype(compiler).is_some() {
-            import_alias_call.copy_type_from(compiler, dynamic_import);
-        }
         dynamic_import.replace_with(compiler, import_alias_call);
         t.report_code_change_at_node(import_alias_call);
         self.dynamic_imports_removed = true;
@@ -327,11 +300,16 @@ impl RewriteDynamicImports {
     /// For a given module, return a reference to the module namespace export
     // port: RewriteDynamicImports#injectWrappingFunctionExtern
     fn inject_wrapping_function_extern(&mut self, compiler: &mut AbstractCompiler) {
-        let function_type = {
+        let mut wrapping_fn_type = AstFactory::type_native(JSTypeNative::UNKNOWN_TYPE);
+        if self.registry {
             let (registry, ast) = compiler.get_type_registry_and_ast();
             let template_t = registry.create_template_type(ast, "T");
-            registry.create_function_type(ast, template_t, &[template_t])
-        };
+            wrapping_fn_type = AstFactory::type_jstype(Some(registry.create_function_type(
+                ast,
+                template_t,
+                &[template_t],
+            )));
+        }
         let params = self
             .ast_factory
             .create_param_list(compiler, &["importCallback"]);
@@ -341,7 +319,7 @@ impl RewriteDynamicImports {
             DYNAMIC_IMPORT_CALLBACK_FN,
             params,
             body,
-            AstFactory::type_jstype(Some(function_type)),
+            wrapping_fn_type,
         );
 
         let externs_input = compiler.get_synthesized_externs_input().clone();
@@ -498,8 +476,9 @@ impl Callback for AliasInjectingTraversal<'_> {
             }
         }
 
-        // Create the type of the import function
-        let (promise_templatized_type, string_type) = {
+        // Create the type of the import function if adding types
+        let mut import_fn_type = AstFactory::type_native(JSTypeNative::UNKNOWN_TYPE);
+        if self.outer.registry {
             let (registry, ast) = t.get_compiler().get_type_registry_and_ast();
             let unknown_type = registry.get_native_type(JSTypeNative::UNKNOWN_TYPE);
             let promise_type = registry.get_native_type(JSTypeNative::PROMISE_TYPE);
@@ -507,8 +486,12 @@ impl Callback for AliasInjectingTraversal<'_> {
             let promise_templatized_type =
                 registry.create_templatized_type(ast, promise_object_type, &[unknown_type]);
             let string_type = registry.get_native_type(JSTypeNative::STRING_TYPE);
-            (promise_templatized_type, string_type)
-        };
+            import_fn_type = AstFactory::type_jstype(Some(registry.create_function_type(
+                ast,
+                promise_templatized_type,
+                &[string_type],
+            )));
+        }
 
         let compiler = t.get_compiler();
         let externs_input = compiler.get_synthesized_externs_input().clone();
@@ -516,19 +499,10 @@ impl Callback for AliasInjectingTraversal<'_> {
         // "import" is not a valid JS name and will not parse. However we can manually create it
         // and inject it into the externs.
         if alias == *"import" || NodeUtil::is_valid_simple_name(&alias) {
-            let function_type = {
-                let (registry, ast) = compiler.get_type_registry_and_ast();
-                registry.create_function_type(ast, promise_templatized_type, &[string_type])
-            };
             let params = ast_factory.create_param_list(compiler, &["specifier"]);
             let body = ast_factory.create_block(compiler, &[]);
-            let alias_node = ast_factory.create_function(
-                compiler,
-                alias.clone(),
-                params,
-                body,
-                AstFactory::type_jstype(Some(function_type)),
-            );
+            let alias_node =
+                ast_factory.create_function(compiler, alias.clone(), params, body, import_fn_type);
             alias_node.srcref_tree(compiler, externs_root);
             externs_root.add_child_to_back(compiler, alias_node);
         } else {
@@ -564,19 +538,9 @@ impl Callback for AliasInjectingTraversal<'_> {
                 let receiver = q_name.clone_tree(compiler);
                 q_name = ast_factory.create_get_prop_with_unknown_type(compiler, receiver, part);
                 let assigned_value = if alias_name_parts.peek().is_none() {
-                    let function_type = {
-                        let (registry, ast) = compiler.get_type_registry_and_ast();
-                        registry.create_function_type(ast, promise_templatized_type, &[string_type])
-                    };
                     let params = ast_factory.create_param_list(compiler, &["specifier"]);
                     let body = ast_factory.create_block(compiler, &[]);
-                    ast_factory.create_function(
-                        compiler,
-                        "",
-                        params,
-                        body,
-                        AstFactory::type_jstype(Some(function_type)),
-                    )
+                    ast_factory.create_function(compiler, "", params, body, import_fn_type.clone())
                 } else {
                     ast_factory.create_object_lit(compiler, &[])
                 };

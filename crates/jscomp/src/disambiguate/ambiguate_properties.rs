@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/NodeTraversal.java,
 //   src/com/google/javascript/jscomp/disambiguate/AmbiguateProperties.java.
 
@@ -194,7 +194,7 @@ impl CompilerPass for AmbiguateProperties {
         {
             let mut chunk_graph_log =
                 compiler.create_or_reopen_log("AmbiguateProperties", "color_graph.dot", &[]);
-            chunk_graph_log.log_string(&DotFormatter::to_dot_graph(&color_graph));
+            chunk_graph_log.log(&mut || DotFormatter::to_dot_graph(&color_graph));
             chunk_graph_log.close();
         }
         for node in graph_node_factory.get_all_known_types() {

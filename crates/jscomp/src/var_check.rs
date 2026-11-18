@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/VarCheck.java.
 
 //! Port of `VarCheck.java`.
@@ -214,6 +214,19 @@ impl VarCheck {
             check_state!(
                 NodeUtil::is_function_expression(t, parent)
                     || NodeUtil::is_method_declaration(t, parent)
+            );
+            return;
+        }
+
+        // In `#x in obj`, IRFactory represents `#x` as a NAME node and validates at parse time
+        // that it is inside a class and declared by an enclosing class. SyntacticScopeCreator only
+        // tracks variables, not class members, so skip `Scope` lookup and extern synthesis here.
+        if n.is_private_identifier(t) {
+            let parent = parent.unwrap();
+            check_state!(
+                parent.is_in(t) && n.is_first_child_of(t, Some(parent)),
+                "%s",
+                n.to_string(t)
             );
             return;
         }

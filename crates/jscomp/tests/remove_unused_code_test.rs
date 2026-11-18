@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   test/com/google/javascript/jscomp/CompilerTestCase.java,
 //   test/com/google/javascript/jscomp/RemoveUnusedCodeTest.java.
 
@@ -4514,31 +4514,18 @@ console.log(arr)
     );
 }
 
-// port: RemoveUnusedCodeTest#testPrivateFieldUsedOnlyInBrandCheck_knownBug
+// port: RemoveUnusedCodeTest#testPrivateFieldUsedOnlyInBrandCheck
 #[test]
-fn test_private_field_used_only_in_brand_check_known_bug() {
+fn test_private_field_used_only_in_brand_check() {
     let mut f = Fixture::new();
-    // Expected behavior: `RemoveUnusedCode` leaves this code unchanged. In `#brand in o`, `#brand`
-    // is a private name of `C`, not a variable, and the brand check is a use of the field.
-    let js = r#"class C {
-  // Expected: kept, because `#brand in o` uses it. Without it, `#brand in o` is a
-  // SyntaxError.
+    f.test_same(
+        r"class C {
   #brand;
   static isC(o) { return #brand in o; }
 }
 alert(C.isC({}));
-"#;
-    // TODO(b/236744850): `RemoveUnusedCode` crashes on `#brand in o`.
-    // Current behavior: `testSame(js)` throws a NullPointerException, because `#brand` is looked
-    //   up as a variable, and there is none.
-    // Why it's a bug: the compiler crashes on valid code.
-    // In a full build: the crash shows up once `VarCheck` skips private names. Before that,
-    //   `VarCheck` reports `#brand` as undeclared, and with that check off it declares `#brand`
-    //   as a global, so this pass deletes `#brand;` instead, which is a SyntaxError.
-    // assertThrows(NullPointerException.class, ...): the NullPointerException of a failed
-    // `checkNotNull` is a panic in Rust.
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f.test_same(js)))
-        .expect_err("expected a NullPointerException");
+",
+    );
 }
 
 // port: RemoveUnusedCodeTest#testRemoveUnusedPolyfills_global_typed

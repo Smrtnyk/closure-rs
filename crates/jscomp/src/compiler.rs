@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/Compiler.java.
 
 #![allow(
@@ -1460,6 +1460,9 @@ impl Compiler {
                             as Box<dyn crate::source_map::LocationMapping>
                     })
                     .collect(),
+            );
+            source_map.set_merge_identical_segments(
+                self.get_options().get_source_map_merge_identical_segments(),
             );
             if self.get_options().get_apply_input_source_maps() {
                 source_map.set_source_file_mapping(Some(Box::new(self.excerpt_provider.clone())));
@@ -3901,10 +3904,11 @@ impl Compiler {
             return input.get_ast_root(self);
         }
         if let Some(chunk) = chunk {
-            let inputs = chunk.get_inputs();
-            assert!(!inputs.is_empty(), "Root chunk has no inputs");
-            let root = inputs[0].get_ast_root(self);
-            Self::check_not_module(self, root, "Cannot insert code into a module")
+            if chunk.get_input_count() > 0 {
+                let root = chunk.get_first().get_ast_root(self);
+                return Self::check_not_module(self, root, "Cannot insert code into a module");
+            }
+            panic!("Root chunk has no inputs");
         } else {
             let inputs = self.get_inputs_in_order();
             assert!(

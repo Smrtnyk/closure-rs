@@ -13,11 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit ddfede7:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/BasicBlock.java.
 
 //! Port of `BasicBlock.java`.
 
+use crate::evaluation_order::EvaluationOrder;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use std::rc::Rc;
@@ -42,6 +43,56 @@ pub struct BasicBlock {
 }
 
 impl BasicBlock {
+    /// Returns true if `n` marks the start of a new basic block under `parent`.
+    // port: BasicBlock#isBlockBoundary
+    pub fn is_block_boundary(ast: &Ast, n: NodeId, parent: Option<NodeId>) -> bool {
+        if let Some(parent) = parent {
+            match parent.get_token(ast) {
+                Token::DO
+                | Token::FOR
+                | Token::FOR_IN
+                | Token::FOR_OF
+                | Token::FOR_AWAIT_OF
+                | Token::TRY
+                | Token::WHILE
+                | Token::WITH
+                | Token::SWITCH_BODY => {
+                    // NOTE: TRY has up to 3 child blocks:
+                    // TRY
+                    //   BLOCK
+                    //   BLOCK
+                    //     CATCH
+                    //   BLOCK
+                    // Note that there is an explicit CATCH token but no explicit
+                    // FINALLY token. For simplicity, we consider each BLOCK
+                    // a separate basic BLOCK.
+                    return true;
+                }
+                Token::CLASS => {
+                    // The name and `extends` clause are evaluated unconditionally, but every
+                    // child of a class is still treated as a separate block. Passes like
+                    // InlineVariables only inline within a single basic block, and rely on this
+                    // to avoid inlining declarations into an `extends` clause (e.g. undoing
+                    // Es6RewriteClassExtendsExpressions).
+                    return true;
+                }
+                Token::IF | Token::LABEL => {
+                    // The if condition or label name is not a boundary, but the corresponding
+                    // block is.
+                    return Some(n) != parent.get_first_child(ast);
+                }
+                _ => {}
+            }
+            if EvaluationOrder::is_conditional_child(ast, n) {
+                // e.g. the right-hand side of `&&`, either arm of `?:`, or a destructuring
+                // default value.
+                return true;
+            }
+        }
+
+        n.is_case(ast)
+    }
+
     /// Creates a new block.
     ///
     /// `parent`: The containing block. `root`: The root node of the block.
