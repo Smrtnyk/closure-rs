@@ -112,6 +112,9 @@ public final class ReplayMain {
             res = null;
             why = "harness error: " + t;
           }
+          // FORMAT.md "Decoding values into live objects": the directories decoded from
+          // {"freshTempDir":true} belong to this record only.
+          ReplayValues.deleteFreshTempDirs();
           // FORMAT.md "passTrace" (HARNESS.md "Pass trace"): with the agent in TRACE
           // mode the set of in-scope pass classes whose entry points ran during the replayed call
           // must equal the recorded passTrace; a difference fails the record. A record without a
