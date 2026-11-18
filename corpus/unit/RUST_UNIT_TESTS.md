@@ -248,6 +248,14 @@ Methods of `com.google.javascript.jscomp.AstValidatorTest` that, after the hooke
 - AstValidatorTest#testSuperInvalidIfTypeInfoIsMissing: after parseValidScript (testSame), the type information of the SUPER node of the output AST is erased (Node.setJSType(null)); AstValidator.validateScript on the output SCRIPT node must report a violation (test lines 1312-1330)
 - AstValidatorTest#testSwitchStatement: after parseValidScript (testSame), a hand-built BLOCK is inserted as the first child of the first CASE node of the output AST; AstValidator.validateScript on the output SCRIPT node must report a violation (test lines 1726-1753)
 
+## ClosureExportTypeClassifierTest (post-call assertions, gate 0.2 (a))
+
+Methods of `com.google.javascript.jscomp.ClosureExportTypeClassifierTest$AstPreconditionsTest` that, after the hooked `testSame`/`testError`, take the module's root SCRIPT node from its `ModuleMetadata` and call `ClosureExportTypeClassifier.classify` directly with a namespace set of the test's choosing. What those direct calls do is not part of any compile the records hold, so the checks are ported as Rust unit tests in `crates/jscomp/tests/closure_export_type_classifier_test.rs`. The records still replay but are excluded from gate (a) counting.
+
+- ClosureExportTypeClassifierTest#emptyGoogNamespaces_returnsEmptyMap: classify(root of the goog.provide('a.b') script, empty namespace set) returns an empty map (test lines 1914-1922; Rust test `ast_preconditions_test_empty_goog_namespaces_returns_empty_map`)
+- ClosureExportTypeClassifierTest#mixedProvideAndEsExport_throwsIllegalArgumentException: classify(root of a goog.provide script with an ES export, its namespaces) throws IllegalArgumentException naming SCRIPT, from the direct call, not from the hooked one (test lines 1879-1896; Rust test `ast_preconditions_test_mixed_provide_and_es_export_throws_illegal_argument_exception`)
+- ClosureExportTypeClassifierTest#mixedProvideAndEsImport_throwsIllegalArgumentException: the same for a goog.provide script with an ES import (test lines 1861-1876; Rust test `ast_preconditions_test_mixed_provide_and_es_import_throws_illegal_argument_exception`)
+
 ## ClosureIntegrationTest (post-call assertions)
 
 IntegrationTestCase subclass with 12 methods that assert on the compiler after the hooked call. The 11 `compile()` methods assert diagnostics or output that the record holds in `observed` (errors, warnings, output) and Java replay compares exactly; they are classified `captured` (via `observed.*`) in corpus/unit/postcall/ClosureIntegrationTest.json and are not listed here. `testGetOriginalQualifiedNameAfterEs6RewriteClasses` checks Node original-name properties, which no replayed value holds, and is a Rust unit test.

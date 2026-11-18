@@ -61,6 +61,30 @@
     "postCall.compiler.moduleMetadataByPath"
    ],
    "note": "after the hooked testError (INVALID_MODULE_ID_ARG) asserts that classify(m.rootNode(), m.googNamespaces().elementSet()) maps 'm' to DEFAULT: the call GatherModuleMetadata makes for the GOOG_MODULE script, whose result postCall.compiler.tsExportTypes holds ({m: DEFAULT}). Source lines 1963-1974."
+  },
+  {
+   "method": "mixedProvideAndEsImport_throwsIllegalArgumentException",
+   "recordClass": "com.google.javascript.jscomp.ClosureExportTypeClassifierTest$AstPreconditionsTest",
+   "status": "rust_unit_test",
+   "category": "graph",
+   "reason": "after the hooked testError(MIXED_MODULE_TYPE) the test passes the a.b module's ModuleMetadata#rootNode() (its SCRIPT node) and googNamespaces().elementSet() (module-metadata graph objects) to a direct ClosureExportTypeClassifier.classify call and asserts that this direct call, not the hooked one, throws IllegalArgumentException naming SCRIPT: the hooked compile completes, since GatherModuleMetadata classifies only goog.provide and goog.module scripts and this one is an ES module; postCall.compiler.moduleMetadataByPath holds the module's type (so isEs6Module() is compared) and namespaces, but not the classifier's precondition on a root node no compile of the record passes to it; Rust test ast_preconditions_test_mixed_provide_and_es_import_throws_illegal_argument_exception",
+   "fragment": "corpus/unit/rust_unit_tests/ClosureExportTypeClassifierTest.md"
+  },
+  {
+   "method": "mixedProvideAndEsExport_throwsIllegalArgumentException",
+   "recordClass": "com.google.javascript.jscomp.ClosureExportTypeClassifierTest$AstPreconditionsTest",
+   "status": "rust_unit_test",
+   "category": "graph",
+   "reason": "after the hooked testError(MIXED_MODULE_TYPE) the test passes the a.b module's ModuleMetadata#rootNode() (its SCRIPT node) and googNamespaces().elementSet() (module-metadata graph objects) to a direct ClosureExportTypeClassifier.classify call and asserts that this direct call, not the hooked one, throws IllegalArgumentException naming SCRIPT: the hooked compile completes, since GatherModuleMetadata classifies only goog.provide and goog.module scripts and this one is an ES module; postCall.compiler.moduleMetadataByPath holds the module's type (so isEs6Module() is compared) and namespaces, but not the classifier's precondition on a root node no compile of the record passes to it; Rust test ast_preconditions_test_mixed_provide_and_es_export_throws_illegal_argument_exception",
+   "fragment": "corpus/unit/rust_unit_tests/ClosureExportTypeClassifierTest.md"
+  },
+  {
+   "method": "emptyGoogNamespaces_returnsEmptyMap",
+   "recordClass": "com.google.javascript.jscomp.ClosureExportTypeClassifierTest$AstPreconditionsTest",
+   "status": "rust_unit_test",
+   "category": "graph",
+   "reason": "after the hooked testSame the test passes the a.b module's ModuleMetadata#rootNode() (its SCRIPT node, a module-metadata graph object) and an empty namespace set of its own choosing to a direct ClosureExportTypeClassifier.classify call and asserts that it returns an empty map; postCall.compiler.moduleMetadataByPath and postCall.compiler.tsExportTypes hold what the compile computed for the module's own namespace a.b, not the classifier's result for an empty set, which no compile of the record computes; Rust test ast_preconditions_test_empty_goog_namespaces_returns_empty_map",
+   "fragment": "corpus/unit/rust_unit_tests/ClosureExportTypeClassifierTest.md"
   }
  ]
 }
