@@ -85,8 +85,8 @@ A case's `test_profiles` lists the profiles whose Java output passes the library
 
 ### `whole-program-bytes-3.1.2` / `advanced_strict`
 
-- Java exit code 42; test exit None; tests (total, pass, fail, skip): None.
-- Java exit 42, outputs=[]
+- Java exit code 43; test exit None; tests (total, pass, fail, skip): None.
+- Java exit 43, outputs=[]
 
 ### `whole-program-camelcase-9.0.0` / `ws`
 
