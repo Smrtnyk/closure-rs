@@ -231,7 +231,7 @@ ReplaceMessagesTest helper (`TEST_ID_GENERATOR`, `SimpleMessageBundle` and its h
 `replay/replace_messages_helpers.rs`.
 
 `mod.rs` only declares modules. A stand-in is replaced in place when its implementation is ported;
-an Unported-only body is never marked as a port. Replay assigns all 204 fields on the real
+an Unported-only body is never marked as a port. Replay assigns all 205 fields on the real
 CompilerOptions without invoking setters, and constructor defaults are checked before assignment.
 NodeSubject's equality, mismatch and serializer code is ported; its other Truth convenience
 subjects are outside the replay comparison path and are not ported.
