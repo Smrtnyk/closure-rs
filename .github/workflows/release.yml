@@ -363,8 +363,8 @@ jobs:
           path: dist/*.tgz
           if-no-files-found: error
 
-  # gates/ci.sh split in two parallel jobs: lint (unsafe check, license headers, fmt, clippy, no
-  # ignored tests) and test. Locally `bash gates/ci.sh` still runs both.
+  # gates/ci.sh split in two parallel jobs: lint (unsafe check, license headers, unit corpus
+  # counts, fmt, clippy, no ignored tests) and test. Locally `bash gates/ci.sh` still runs both.
   lint:
     name: lint (fmt, clippy, licenses)
     runs-on: ubuntu-22.04
