@@ -1244,7 +1244,8 @@ Left for a person or agent (docs/PORTING.md §9, §7):
      UNIT_TEST_CLASSES={work}/unit/all_test_classes.txt gates/gate_0_2.sh --ratchet must exit 0;
      then, with the same variables, --update-baseline drops what it lists as resolved or gone;
      docs/PORTING.md §9),
-     targeted probes and a differential fuzz run against the new reference.
+     targeted probes and a differential fuzz run against the new reference (then
+     scripts/fuzz_java_crashes.py --seed SEED replays its kept Java crashes under both references).
   4. When everything matches: --only switch-default (read its diff), then the counts the docs
      quote that no step rewrites (crates/testing/README.md: descriptor cases, CompilerOptions
      fields; unit-install rewrote the record and class counts) and the pull request."""

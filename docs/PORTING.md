@@ -393,7 +393,8 @@ that needs judgement:
 3. Verify as in §4: `--only license-headers` again for newly ported files, `gates/ci.sh`, the new
    ratchets (`gates/unit_rust.sh --update`, `gates/d2_rust.py`), `gates/gate_0_1.sh` with
    `CLOSURE_RS_REF=<tag>` (the oracle against the jar), the gate 0.2 ratchet (below), targeted
-   probes for the upstream changes and a differential fuzz run against the new reference.
+   probes for the upstream changes and a differential fuzz run against the new reference, whose
+   Java crashes are then replayed under both references (below).
 4. `--only switch-default`, then read its diff and update the counts the docs quote that no step
    rewrites (`crates/testing/README.md`: descriptor cases, CompilerOptions fields; `unit-install`
    rewrote the record and class counts).
@@ -422,6 +423,16 @@ those upstream deleted as gone; neither fails the ratchet. `gates/gate_0_2.sh --
 improved; it never takes in a new failure. The updated baseline goes into the sync's pull
 request. `--update-baseline --grow` takes the current state as the baseline and lists every
 addition; it is for a loss the pull request explains, not for a new test that can be classified.
+
+**The fuzz run in a sync.** The differential fuzz run (§4.6) does not compare a program on which
+Java crashes; the driver keeps it as `build/fuzz/java-crashes/<seed>-<index>-<profile>/` (its
+files and `origin.txt`, whose second line is the program's exact flag list).
+`scripts/fuzz_java_crashes.py --seed <seed>` replays the run's kept crashes through the CLI of
+the previous and of the new reference jar, each with its profile and flags, and reports per
+program whether it crashes under both jars, only one, or neither. The jars default to the
+registry row before the selected reference and the selected one (`CLOSURE_RS_REF=<tag>` until
+`--only switch-default`; `--old` and `--new` take a tag or a jar). It exits 0 when every program
+crashes under both; a crash the new reference added or fixed goes into the pull request.
 
 **The reference registry.** `scripts/references.tsv` lists every pinned reference: per tag its
 commit, the uberjar's sha256 (`-` until the jar is built and pinned), and its paths relative to

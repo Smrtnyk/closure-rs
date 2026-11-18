@@ -98,6 +98,33 @@ CRASH_DIR = "build/fuzz/java-crashes"
 CRASH_CLASSES = f"{GATE}/java-crash-classes.jsonl"
 
 
+def kept_crash(p: str) -> dict:
+    """A program the fuzz driver kept because Java crashed on it: the directory
+    `<seed>-<index>-<profile>` under CRASH_DIR with the program's .js files and origin.txt
+    (fuzz/driver/src/main.rs). Returns its origin (origin.txt line 1), profile (from the directory
+    name), extra_flags (line 2: the JSON list of the flags the program adds to the profile's, --wide
+    draws included; line 1's `:opts=` part joins them with commas, so it cannot be split; a directory
+    without line 2 gets none) and files (the .js names in the order the driver passed them: base.js
+    first, then by name with numbers compared by value). Raises OSError or ValueError on a directory
+    that is not such a program."""
+    import re
+    lines = open(os.path.join(p, "origin.txt"), encoding="utf-8").read().splitlines()
+    name = os.path.basename(os.path.normpath(p))
+    parts = name.split("-", 2)
+    if len(parts) != 3 or not lines:
+        raise ValueError(f"{p}: not a kept Java crash (<seed>-<index>-<profile>/origin.txt)")
+    files = sorted((f for f in os.listdir(p) if f.endswith(".js")),
+                   key=lambda f: (f != "base.js", [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", f)]))
+    return {"origin": lines[0], "profile": parts[2], "extra_flags": json.loads(lines[1]) if len(lines) > 1 else [],
+            "files": files}
+
+
+def is_java_crash(exit_code: int | None, stderr: str) -> bool:
+    """The driver's Java-crash rule, the D2 drop rule (docs/PORTING.md §4.4): exit 254 (an uncaught
+    exception) or an internal compiler error."""
+    return exit_code == 254 or "INTERNAL COMPILER ERROR" in stderr
+
+
 def _program_sha(p: str) -> str:
     """Content hash of a kept crash program (its .js files and origin.txt). Origins and
     directory names repeat across fuzzer versions for the same seed, so the classification cache
@@ -113,7 +140,16 @@ def _program_sha(p: str) -> str:
     return h.hexdigest()
 
 
-def _exception_class(exc_lines: list[str]) -> str:
+def exception_lines(stderr: str) -> list[str]:
+    """The first three lines of a Java run's stderr that name an exception or error (not stack
+    frames, not JSC_ diagnostics)."""
+    import re
+    return [ln.strip() for ln in stderr.splitlines()
+            if re.search(r"(Exception|Error)(:|$)", ln.strip()) and not ln.strip().startswith("at ")
+            and "JSC_" not in ln][:3]
+
+
+def exception_class(exc_lines: list[str]) -> str:
     """The JVM exception class of a crash: the first "Caused by:" line among the exception lines,
     else the first line; the fully qualified class name in it when there is one. Closure can print
     its JSON diagnostics summary on the same stderr line, before the exception (a naive split labels
@@ -132,7 +168,7 @@ def _rerun_crash(d: str, origin: str, prof: str, extra: list[str], profiles: dic
     import subprocess
     import run_reference as rr
     p = os.path.join(CRASH_DIR, d)
-    files = sorted(os.path.join(p, f) for f in os.listdir(p) if f.endswith(".js"))
+    files = [os.path.join(p, f) for f in kept_crash(p)["files"]]
     case = {"id": "crash-" + d, "inputs": files, "externs": [], "shims": [],
             "extra_flags": extra, "profiles": [prof]}
     od = f"{GATE}/crash-diag/{d}"
@@ -145,16 +181,14 @@ def _rerun_crash(d: str, origin: str, prof: str, extra: list[str], profiles: dic
     except subprocess.TimeoutExpired:
         return {**rec, "exit": None, "timeout": True, "reproduced": False}
     err = r.stderr.decode("utf-8", "replace")
-    exc = [ln.strip() for ln in err.splitlines()
-           if re.search(r"(Exception|Error)(:|$)", ln.strip()) and not ln.strip().startswith("at ")
-           and "JSC_" not in ln][:3]
-    cls = _exception_class(exc)
+    exc = exception_lines(err)
+    cls = exception_class(exc)
     # Match the JVM class names only: Closure's AST dumps on stderr list extern type names such as
     # GPUOutOfMemoryError, which a bare substring test mistook for a JVM OutOfMemoryError.
     return {**rec, "exit": r.returncode, "internal_compiler_error": "INTERNAL COMPILER ERROR" in err,
             "stack_overflow": re.search(r"\bjava\.lang\.StackOverflowError\b", err) is not None,
             "oom": re.search(r"\bjava\.lang\.OutOfMemoryError\b", err) is not None,
-            "reproduced": r.returncode == 254 or "INTERNAL COMPILER ERROR" in err,
+            "reproduced": is_java_crash(r.returncode, err),
             "exception_class": cls, "exception_lines": exc}
 
 
@@ -189,12 +223,10 @@ def classify_java_crashes(run: dict, since: float | None = None) -> dict:
                 if since is not None and os.path.getmtime(os.path.join(p, "origin.txt")) < since:
                     older_dirs += 1
                     continue
-                lines = open(os.path.join(p, "origin.txt"), encoding="utf-8").read().splitlines()
-                extra = json.loads(lines[1]) if len(lines) > 1 else []
+                k = kept_crash(p)
             except (OSError, ValueError):
                 continue
-            prof = d.split("-", 2)[2]
-            dirs.setdefault((lines[0], prof), []).append((d, extra, _program_sha(p)))
+            dirs.setdefault((k["origin"], k["profile"]), []).append((d, k["extra_flags"], _program_sha(p)))
         todo, missing, picked = [], [], []
         for e in dropped:
             origin, _, prof = e.rpartition(" ")
@@ -226,7 +258,7 @@ def classify_java_crashes(run: dict, since: float | None = None) -> dict:
         by_class: dict[str, int] = {}
         for r in rows:
             # Re-derived from the kept exception lines, so cached rows get the current parser too.
-            k = (_exception_class(r.get("exception_lines") or []) or r.get("exception_class")
+            k = (exception_class(r.get("exception_lines") or []) or r.get("exception_class")
                  or ("timeout" if r.get("timeout") else "no exception line on stderr"))
             by_class[k] = by_class.get(k, 0) + 1
         out.update({"classified": len(rows), "reproduced": sum(1 for r in rows if r.get("reproduced")),
