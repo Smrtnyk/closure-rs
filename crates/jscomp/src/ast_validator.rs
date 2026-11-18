@@ -2349,10 +2349,11 @@ impl<'h> AstValidator<'h> {
     // port: AstValidator#validateArrayLit
     fn validate_array_lit(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
         self.validate_node_type(compiler, Token::ARRAYLIT, n);
-        // Java's for loop over the children breaks after its first iteration.
-        if let Some(c) = n.get_first_child(compiler) {
+        let mut c = n.get_first_child(compiler);
+        while let Some(cur) = c {
             // Array-literals may have empty slots.
-            self.validate_pseudo_expression(compiler, c, &[Token::EMPTY, Token::ITER_SPREAD]);
+            self.validate_pseudo_expression(compiler, cur, &[Token::EMPTY, Token::ITER_SPREAD]);
+            c = cur.get_next(compiler);
         }
     }
 

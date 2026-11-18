@@ -296,3 +296,37 @@ fn test_var_with_template_lit_on_rhs() {
     .join("\n");
     assert_eq!(v10.to_string_tree(&ast), v11);
 }
+
+// port: IRTest#testGetpropSetsPrivateIdentifier
+#[test]
+fn test_getprop_sets_private_identifier() {
+    let mut ast = Ast::new();
+    let x = IR::name(&mut ast, "x");
+    assert!(!IR::getprop(&mut ast, x, "y").is_private_identifier(&ast));
+    let x = IR::name(&mut ast, "x");
+    assert!(IR::getprop(&mut ast, x, "#y").is_private_identifier(&ast));
+
+    let x = IR::name(&mut ast, "x");
+    let chained = IR::getprop_with_more_props(&mut ast, x, "a", &["#b".into()]);
+    assert!(chained.is_private_identifier(&ast));
+    assert!(
+        !chained
+            .get_first_child(&ast)
+            .unwrap()
+            .is_private_identifier(&ast)
+    );
+
+    let x = IR::name(&mut ast, "x");
+    let start_opt_chain = IR::start_opt_chain_getprop(&mut ast, x, "#y");
+    assert!(start_opt_chain.is_private_identifier(&ast));
+    let x = IR::name(&mut ast, "x");
+    assert!(!IR::start_opt_chain_getprop(&mut ast, x, "y").is_private_identifier(&ast));
+
+    let x = IR::name(&mut ast, "x");
+    let a = IR::start_opt_chain_getprop(&mut ast, x, "a");
+    let continue_opt_chain = IR::continue_opt_chain_getprop(&mut ast, a, "#y");
+    assert!(continue_opt_chain.is_private_identifier(&ast));
+    let x = IR::name(&mut ast, "x");
+    let a = IR::start_opt_chain_getprop(&mut ast, x, "a");
+    assert!(!IR::continue_opt_chain_getprop(&mut ast, a, "y").is_private_identifier(&ast));
+}

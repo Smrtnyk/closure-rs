@@ -346,3 +346,42 @@ fn precondition_check_failure() {
         "Precondition for pass myPass failed: message"
     );
 }
+// port: PhaseOptimizerTest#sizeHeuristicDisabled_runsCodeRemovalLoopToFixpoint
+#[test]
+fn size_heuristic_disabled_runs_code_removal_loop_to_fixpoint() {
+    let (mut compiler, _optimizer, externs, root, script, runs) = setup();
+    compiler
+        .get_options_mut()
+        .set_use_size_heuristic_to_stop_optimization_loop(false);
+    let mut optimizer = PhaseOptimizer::new(
+        &compiler,
+        Some(Arc::new(Mutex::new(PerformanceTracker::new(
+            externs,
+            root,
+            TracerMode::TIMING_ONLY,
+        )))),
+    );
+    {
+        let lp = optimizer.add_fixed_point_loop();
+        lp.add_looped_pass(factory(
+            pass_names::PEEPHOLE_OPTIMIZATIONS,
+            3,
+            false,
+            script,
+            &runs,
+        ));
+    }
+    assert_passes(
+        &mut compiler,
+        &mut optimizer,
+        externs,
+        root,
+        &runs,
+        &[
+            pass_names::PEEPHOLE_OPTIMIZATIONS,
+            pass_names::PEEPHOLE_OPTIMIZATIONS,
+            pass_names::PEEPHOLE_OPTIMIZATIONS,
+            pass_names::PEEPHOLE_OPTIMIZATIONS,
+        ],
+    );
+}

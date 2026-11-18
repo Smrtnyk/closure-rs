@@ -3901,10 +3901,11 @@ impl Compiler {
             return input.get_ast_root(self);
         }
         if let Some(chunk) = chunk {
-            let inputs = chunk.get_inputs();
-            assert!(!inputs.is_empty(), "Root chunk has no inputs");
-            let root = inputs[0].get_ast_root(self);
-            Self::check_not_module(self, root, "Cannot insert code into a module")
+            if chunk.get_input_count() > 0 {
+                let root = chunk.get_first().get_ast_root(self);
+                return Self::check_not_module(self, root, "Cannot insert code into a module");
+            }
+            panic!("Root chunk has no inputs");
         } else {
             let inputs = self.get_inputs_in_order();
             assert!(

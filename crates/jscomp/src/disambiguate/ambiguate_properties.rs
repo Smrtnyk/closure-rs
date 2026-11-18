@@ -194,7 +194,7 @@ impl CompilerPass for AmbiguateProperties {
         {
             let mut chunk_graph_log =
                 compiler.create_or_reopen_log("AmbiguateProperties", "color_graph.dot", &[]);
-            chunk_graph_log.log_string(&DotFormatter::to_dot_graph(&color_graph));
+            chunk_graph_log.log(&mut || DotFormatter::to_dot_graph(&color_graph));
             chunk_graph_log.close();
         }
         for node in graph_node_factory.get_all_known_types() {

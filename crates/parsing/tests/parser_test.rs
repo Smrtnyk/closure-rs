@@ -9484,23 +9484,18 @@ fn test_private_property_invalid_identifier_already_declared_cross_static_getter
     let _ = tmp4;
 }
 
-// port: ParserTest#testPrivateProperty_namedConstructor_knownBug
+// port: ParserTest#testPrivateProperty_namedConstructor
 #[test]
-fn test_private_property_named_constructor_known_bug() {
+fn test_private_property_named_constructor() {
     let mut h = Harness::new();
-    // Expected behavior: the parser reports "Classes may not have a private element named
-    // '#constructor'" for each source. The spec makes a private element named `#constructor` an
-    // early SyntaxError.
-    //
-    // TODO(b/236744850): A private element named `#constructor` is accepted.
-    // Current behavior: each source parses without an error or a warning, so `parse` passes.
-    // Why it's a bug: natively each source is a SyntaxError, so the whole script fails to load.
-    //   The compiler accepts the code instead of reporting the error.
-    h.parse("class C { #constructor; }");
-    h.parse("class C { #constructor() {} }");
-    h.parse("class C { async #constructor() {} }");
-    h.parse("class C { get #constructor() {} }");
-    h.parse("class C { set #constructor(v) {} }");
+    let error = "Classes may not have a private element named '#constructor'";
+    h.parse_error("class C { #constructor; }", &[error]);
+    h.parse_error("class C { #constructor() {} }", &[error]);
+    h.parse_error("class C { async #constructor() {} }", &[error]);
+    h.parse_error("class C { get #constructor() {} }", &[error]);
+    h.parse_error("class C { set #constructor(v) {} }", &[error]);
+    h.parse_error("class C { static #constructor; }", &[error]);
+    h.parse_error("class C { static #constructor() {} }", &[error]);
 }
 
 // port: ParserTest#testPrivateProperty_classMembersReferencingOtherPrivateField

@@ -1649,6 +1649,13 @@ fn test_check_tree_type_aware_equals_colors_different_null() {
     let node2 = ast.new_string_with_token(Token::NAME, "f");
     assert!(!node1.is_equivalent_to_typed(&ast, node2));
 }
+// port: NodeTest#testIsPrivateName
+#[test]
+fn test_is_private_name() {
+    assert!(NodeId::is_private_name(&"#x".into()));
+    assert!(!NodeId::is_private_name(&"x".into()));
+    assert!(!NodeId::is_private_name(&"".into()));
+}
 // port: NodeTest#testIsPos
 #[test]
 fn test_is_pos() {

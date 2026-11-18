@@ -501,7 +501,11 @@ impl IR {
             "%s",
             target.to_string(ast)
         );
+        let is_private = NodeId::is_private_name(&prop);
         let opt_chain_get_prop = ast.new_string_with_token(Token::OPTCHAIN_GETPROP, prop);
+        if is_private {
+            opt_chain_get_prop.set_private_identifier(ast);
+        }
         opt_chain_get_prop.add_child_to_back(ast, target);
         opt_chain_get_prop.set_is_optional_chain_start(ast, true);
         return opt_chain_get_prop;
@@ -519,7 +523,11 @@ impl IR {
             "%s",
             target.to_string(ast)
         );
+        let is_private = NodeId::is_private_name(&prop);
         let opt_chain_get_prop = ast.new_string_with_token(Token::OPTCHAIN_GETPROP, prop);
+        if is_private {
+            opt_chain_get_prop.set_private_identifier(ast);
+        }
         opt_chain_get_prop.add_child_to_back(ast, target);
         opt_chain_get_prop.set_is_optional_chain_start(ast, false);
         return opt_chain_get_prop;
@@ -529,7 +537,11 @@ impl IR {
         let prop = prop.into();
 
         check_state!(Self::may_be_expression(ast, target));
+        let is_private = NodeId::is_private_name(&prop);
         let getprop = ast.new_string_with_token(Token::GETPROP, prop);
+        if is_private {
+            getprop.set_private_identifier(ast);
+        }
         getprop.add_child_to_back(ast, target);
         return getprop;
     }

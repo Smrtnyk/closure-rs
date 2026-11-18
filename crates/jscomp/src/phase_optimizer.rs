@@ -22,6 +22,7 @@ use crate::{
     compiler_pass::CompilerPass, node_util::NodeUtil, pass_factory::PassFactory, pass_gates,
     pass_names, performance_tracker::PerformanceTracker, platform::Platform,
 };
+use closure_rhino::check_state;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::NodeId;
 use std::sync::{
@@ -29,6 +30,7 @@ use std::sync::{
     atomic::{AtomicI32, Ordering},
 };
 pub const MAX_LOOPS: i32 = 100;
+const UNTRACKED_AST_SIZE: i32 = -1;
 pub const CODE_REMOVING_PASSES: &[&str] = &[pass_names::PEEPHOLE_OPTIMIZATIONS];
 pub const OPTIMIZE_LOOP_ERROR: &str = "Fixed point loop exceeded the maximum number of iterations.";
 const START_TIME: i32 = 0;
@@ -364,7 +366,12 @@ impl Loop {
         let mut did_not_make_changes = IndexSet::<_>::default();
         let mut state = State::RUN_PASSES_NOT_RUN_IN_PREV_ITER;
         let mut count = 1;
-        let mut ast_size = NodeUtil::count_ast_size(compiler, root);
+        let track_ast_size = self.should_track_ast_size(optimizer);
+        let mut ast_size = if track_ast_size {
+            NodeUtil::count_ast_size(compiler, root)
+        } else {
+            UNTRACKED_AST_SIZE
+        };
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             loop {
                 if count > optimizer.optimization_loop_max_iterations && self.is_code_removal_loop {
@@ -413,7 +420,11 @@ impl Loop {
                     }
                 }
                 let previous_ast_size = ast_size;
-                ast_size = NodeUtil::count_ast_size(compiler, root);
+                ast_size = if track_ast_size {
+                    NodeUtil::count_ast_size(compiler, root)
+                } else {
+                    UNTRACKED_AST_SIZE
+                };
                 if state == State::RUN_PASSES_NOT_RUN_IN_PREV_ITER {
                     if last_iter_made_changes
                         && self.is_ast_sufficiently_changing(optimizer, previous_ast_size, ast_size)
@@ -452,7 +463,13 @@ impl Loop {
         old_ast_size: i32,
         new_ast_size: i32,
     ) -> bool {
-        if optimizer.use_size_heuristic_to_stop_optimization_loop && self.is_code_removal_loop {
+        if self.should_track_ast_size(optimizer) {
+            check_state!(
+                old_ast_size > 0 && new_ast_size > 0,
+                "Expected positive AST sizes when size heuristic is active, got old=%s, new=%s",
+                old_ast_size,
+                new_ast_size
+            );
             let percent_change = 100.0f32
                 * (new_ast_size.wrapping_sub(old_ast_size).wrapping_abs() as f32
                     / old_ast_size as f32);
@@ -468,6 +485,10 @@ impl Loop {
     // port: PhaseOptimizer.Loop#isPopulated
     pub fn is_populated(&self) -> bool {
         !self.my_passes.is_empty()
+    }
+    // port: PhaseOptimizer.Loop#shouldTrackAstSize
+    fn should_track_ast_size(&self, optimizer: &PhaseOptimizer) -> bool {
+        optimizer.use_size_heuristic_to_stop_optimization_loop && self.is_code_removal_loop
     }
     // port: PhaseOptimizer.Loop#isCodeRemovalLoop
     fn is_code_removal_loop(&self) -> bool {

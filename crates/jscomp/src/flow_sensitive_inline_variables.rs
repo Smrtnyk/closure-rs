@@ -253,8 +253,7 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
             return; // Don't even brother. All global variables are likely escaped.
         }
 
-        let scope = t.get_scope();
-        if !scope.is_function_block_scope(t.get_compiler()) {
+        if !t.in_function_block_scope() {
             return; // Only want to do the following if its a function block scope.
         }
 
@@ -263,6 +262,8 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
         if !Self::is_candidate_function(t, function_scope_root) {
             return;
         }
+
+        let scope = t.get_scope();
 
         if live_variables_analysis::MAX_VARIABLES_TO_ANALYZE < scope.get_var_count(t.get_compiler())
         {
@@ -307,6 +308,9 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
                 &mut candidates,
             )),
         );
+        if candidates.is_empty() {
+            return;
+        }
 
         // Compute the backward reaching use. The CFG and per-function variable info can be
         // reused.
