@@ -2475,6 +2475,7 @@
       "impl": "com.google.common.collect.RegularImmutableList"
     },
     "sourceMapIncludeSourcesContent": false,
+    "sourceMapMergeIdenticalSegments": false,
     "outputCharset": null,
     "protectHiddenSideEffects": false,
     "assumeGettersArePure": true,
@@ -2729,6 +2730,7 @@
     "resolveSourceMapAnnotations": "boolean",
     "sourceMapLocationMappings": "com.google.common.collect.ImmutableList<? extends com.google.javascript.jscomp.SourceMap$LocationMapping>",
     "sourceMapIncludeSourcesContent": "boolean",
+    "sourceMapMergeIdenticalSegments": "boolean",
     "outputCharset": "java.nio.charset.Charset",
     "protectHiddenSideEffects": "boolean",
     "assumeGettersArePure": "boolean",

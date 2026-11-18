@@ -9,11 +9,12 @@ ApplySuggestedFixesTest	0	0	0	0
 AstAnalyzerTest	0	0	0	0
 AstFactoryTest	0	0	0	0
 AstManipulationsTest	0	0	0	0
-AstValidatorTest	231	231	0	0
+AstValidatorTest	232	232	0	0
 AttachJsdocsTest	0	0	0	0
 Base64Test	0	0	0	0
 Base64VLQTest	0	0	0	0
 BaseTranspilerTest	0	0	0	0
+BasicBlockTest	0	0	0	0
 BigIntTypeTest	0	0	0	0
 BooleanLiteralSetTest	0	0	0	0
 CachedTransformerTest	0	0	0	0
@@ -71,7 +72,7 @@ ClosureBundlerTest	0	0	0	0
 ClosureCheckModuleTest	110	110	0	0
 ClosureCodeRemovalTest	22	22	0	0
 ClosureCodingConventionTest	0	0	0	0
-ClosureExportTypeClassifierTest	75	75	0	0
+ClosureExportTypeClassifierTest	276	276	0	0
 ClosureIntegrationTest	91	0	91	0
 ClosureOptimizePrimitivesTest	42	42	0	0
 ClosurePrimitivesIntegrationTest	4	0	4	0
@@ -80,7 +81,7 @@ ClosureRewriteModuleTest	218	218	0	0
 ClosureUnawareCodeIntegrationTest	24	0	24	0
 ClosureUnawarePhaseOptimizerTest	2	2	0	0
 ClusterPropagatorTest	0	0	0	0
-CoalesceVariableNamesTest	174	174	0	0
+CoalesceVariableNamesTest	178	178	0	0
 CodePrinterEs6TypedTest	0	0	0	0
 CodePrinterTest	0	0	0	0
 CollapseAnonymousFunctionsTest	35	35	0	0
@@ -159,6 +160,7 @@ Es6TemplateLiteralsTest	3	3	0	0
 Es6TranspilationIntegrationTest	185	185	0	0
 Es7RewriteExponentialOperatorTest	9	9	0	0
 EsModuleIntegrationTest	4	0	4	0
+EvaluationOrderTest	0	0	0	0
 ExploitAssignsTest	91	91	0	0
 ExportTestFunctionsTest	62	62	0	0
 ExpressionDecomposerTest	0	0	0	0
@@ -178,7 +180,7 @@ FunctionTypeBuilderTest	8	8	0	0
 FunctionTypeTest	0	0	0	0
 GatherExternPropertiesTest	32	32	0	0
 GatherGetterAndSetterPropertiesTest	36	36	0	0
-GatherModuleMetadataTest	90	90	0	0
+GatherModuleMetadataTest	102	102	0	0
 GatherRawExportsTest	36	36	0	0
 GenerateExportsTest	81	81	0	0
 GetterAndSetterIntegrationTest	33	0	33	0
@@ -198,14 +200,14 @@ InjectTranspilationRuntimeLibrariesTest	0	0	0	0
 InlineAliasesTest	54	54	0	0
 InlineAndCollapsePropertiesTest	273	273	0	0
 InlineCostEstimatorTest	0	0	0	0
-InlineFunctionsTest	435	435	0	0
+InlineFunctionsTest	452	452	0	0
 InlineObjectLiteralsTest	104	104	0	0
 InlinePropertiesTest	56	56	0	0
 InlineSimpleMethodsTest	83	83	0	0
 InlineVariablesConstantsTest	31	31	0	0
-InlineVariablesTest	282	282	0	0
+InlineVariablesTest	283	283	0	0
 InstrumentAsyncContextTest	49	49	0	0
-IntegrationTest	345	0	345	0
+IntegrationTest	353	0	353	0
 InvalidatingTypesTest	0	0	0	0
 IsolatePolyfillsTest	57	57	0	0
 J2clAssertRemovalPassTest	3	3	0	0
@@ -283,9 +285,9 @@ ParsingUtilTest	0	0	0	0
 PartialCompilationTest	0	0	0	0
 PathUtilTest	0	0	0	0
 PeepholeCollectPropertyAssignmentsTest	66	66	0	0
-PeepholeFoldConstantsTest	1630	1630	0	0
-PeepholeIntegrationTest	270	270	0	0
-PeepholeMinimizeConditionsTest	372	372	0	0
+PeepholeFoldConstantsTest	1645	1645	0	0
+PeepholeIntegrationTest	276	276	0	0
+PeepholeMinimizeConditionsTest	396	396	0	0
 PeepholeOptimizationsPassTest	12	12	0	0
 PeepholeRemoveDeadCodeTest	627	627	0	0
 PeepholeReplaceKnownMethodsTest	859	859	0	0
@@ -344,7 +346,7 @@ RewriteAsyncIterationTest	29	29	0	0
 RewriteCallerCodeLocationTest	32	32	0	0
 RewriteCatchWithNoBindingTest	4	4	0	0
 RewriteClassMembersTest	286	286	0	0
-RewriteDynamicImportsTest	25	25	0	0
+RewriteDynamicImportsTest	50	50	0	0
 RewriteGlobalDeclarationsForTryCatchWrappingTest	14	14	0	0
 RewriteGoogJsImportsTest	13	13	0	0
 RewriteJsonToModuleTest	6	6	0	0
@@ -362,7 +364,7 @@ ScopedAliasesTest	141	141	0	0
 ScriptMetadataTest	1	1	0	0
 SemanticReverseAbstractInterpreterTest	0	0	0	0
 SerializeAndDeserializeAstTest	86	86	0	0
-SerializeTypedAstPassTest	14	14	0	0
+SerializeTypedAstPassTest	16	16	0	0
 SerializeTypesToPointersTest	0	0	0	0
 SortedDependenciesTest	0	0	0	0
 SortingErrorManagerTest	0	0	0	0
@@ -423,7 +425,7 @@ UnusedLocalsCheckTest	80	80	0	0
 UseSiteRenamerTest	0	0	0	0
 UtilTest	0	0	0	0
 ValidityCheckTest	3	3	0	0
-VarCheckTest	226	226	0	0
+VarCheckTest	228	228	0	0
 VariableMapTest	0	0	0	0
 VariableReferenceCheckTest	311	311	0	0
 VerboseMessageFormatterTest	0	0	0	0
