@@ -59,7 +59,7 @@ Per record file (one Java test class):
    matches. These are ports of `ReplayDsl#selectCase` / `#selectCaseOrNull` / `#matches` /
    `#path`, run on the raw record JSON. They keep Java's `String.split("\\.")` (trailing empty
    segments dropped) and Gson 2.9.1 `JsonElement.equals` (parsed numbers compare as doubles). All
-   21,835 `compiler_test_case` records select a case (`tests/cross_checks.rs`).
+   22,242 `compiler_test_case` records select a case (`tests/cross_checks.rs`).
 3. **Options**: start from the real `CompilerOptions::new()` (its defaults are checked against every field
    captured in `options_defaults.json`), replace each key present in `Record::options` (an
    `@class` names a subclass), apply the case's `options.skip` / `options.then`

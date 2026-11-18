@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Ported from closure-rs' own Java oracle tooling:
+//   scripts/unit_options_defaults/OptionsStringsDump.java.
 
 use closure_jscomp::{
     closure_coding_convention::ClosureCodingConvention, coding_conventions::CodingConventions,
