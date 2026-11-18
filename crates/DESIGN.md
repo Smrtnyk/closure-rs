@@ -342,6 +342,13 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   are `Arc`-shared, not copied per JSDoc comment.
 - `parsing/parser/scanner.rs` `peek_token_ref_at`: the parser peeks token types and lines by
   reference instead of cloning the token.
+- `parsing/parser/scanner.rs`, `keywords.rs`, `line_number_scanner.rs`: the scanner consumes
+  owned lookahead tokens, scans UTF-16 slices for comment ends, line breaks and identifier runs,
+  and recognizes unescaped keywords before allocating their spelling.
+- `parsing/js_doc_token_stream.rs`, `ir_factory.rs`: the JSDoc scanner reads the original
+  comment past its opener and retains source ranges for contiguous ASCII words and annotations.
+  It materializes the text on request and uses the character reader for normalization and dot
+  lookahead.
 - `rhino/jscomp_colors/color.rs`: `Color` memoizes its hash code (immutable value).
 - `rhino/node.rs` `lookup_property_ref`: the property list is walked by reference.
 - `jscomp/serialization/malformed_typed_ast_exception.rs` `DebugParam`, `remove_unused_code.rs`
@@ -356,6 +363,12 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   projects (`scripts/run_bench.py --write-args`; the last one covers a bundle compiled with an
   input source map), for less CPU time. Pushes and pull requests build without
   a profile; the output is the same either way.
+- `jscomp/build.rs`, `parsing/extern_snapshot.rs` and `rhino/node/snapshot.rs`: Cargo parses the
+  bundled browser externs on the build host and embeds their syntax trees and JSDoc type trees.
+  A compiler using the original resource text and matching parser configuration loads the
+  snapshot when it first needs that file. Loading preserves node allocation order, source
+  positions, shared properties and type expressions. Files with diagnostics or unsupported
+  parser data use the source parser.
 - `jscomp/parallel_parse.rs`: inputs are parsed on up to 8 worker threads into arenas of their
   own (`Ast::new_for_preparse`) while the compiler runs; `CompilerInput#parse` moves a finished
   parse into the compiler's arena (`Ast::append_preparsed`) with the node ids, object sharing

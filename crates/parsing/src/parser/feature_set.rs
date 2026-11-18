@@ -386,7 +386,7 @@ impl std::fmt::Display for Feature {
 /// LanguageSyntax enum with a separate strict mode flag, and then these could possibly be unified.
 ///
 /// <p>Instances of this class are immutable.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FeatureSet {
     features: u128,
 }

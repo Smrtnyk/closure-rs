@@ -44,6 +44,7 @@
 use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u16)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub enum Token {
     RETURN,
     BITOR,

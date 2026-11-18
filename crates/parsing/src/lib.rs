@@ -21,6 +21,7 @@
 pub mod config;
 
 pub mod annotation;
+pub mod extern_snapshot;
 pub mod feature_collector;
 pub mod ir_factory;
 pub mod js_doc_info_parser;

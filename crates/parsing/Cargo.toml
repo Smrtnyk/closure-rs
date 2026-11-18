@@ -11,6 +11,8 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+serde = { workspace = true }
+postcard = { workspace = true }
 closure-rhino = { path = "../rhino" }
 indexmap = { workspace = true }
 num-bigint = { workspace = true }

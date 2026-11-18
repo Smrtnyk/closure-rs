@@ -48,6 +48,8 @@
     clippy::question_mark
 )]
 //! Rhino's Node API, with object identity represented by arena handles.
+pub mod snapshot;
+
 use crate::input_id::InputId;
 use crate::ir::IR;
 use crate::java_lang::double_to_string;
@@ -345,7 +347,7 @@ pub enum JSTypeOrColor {
 /// Rust-only (performance divergence): the tree links and token of a node, the fields every
 /// traversal reads. They live in their own dense array (`Ast::links`), apart from the rest of the
 /// node, so that walking the tree touches 20 bytes per node instead of the whole node.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct NodeLinks {
     token: Token,
     parent: Option<NodeId>,
@@ -404,7 +406,9 @@ fn prop_list_summary(head: Option<&Arc<PropListItem>>) -> (u64, Option<Arc<JSDoc
     }
     (mask, jsdoc)
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct NodeId(NonZeroU32);
 /// Rust-only: how `Ast::append_preparsed` renumbered the nodes of a preparse arena.
 #[derive(Clone, Copy, Debug)]
@@ -418,6 +422,10 @@ impl PreparsedIdMap {
         let local = n.0.get();
         let shift = u32::from(self.bound_at.is_some_and(|at| local > at));
         NodeId(NonZeroU32::new(self.base + local + shift).unwrap())
+    }
+    fn node_at(&self, index: usize) -> NodeId {
+        let local = NonZeroU32::new(u32::try_from(index + 1).unwrap()).unwrap();
+        self.map(NodeId(local))
     }
 }
 /// Rust-only: rewrites the property lists of appended preparse nodes for their new ids,
@@ -620,7 +628,7 @@ const _: () = assert!((Token::PLACEHOLDER3 as usize) < 192);
 /// only grows: it is a superset of the arena's contents, never exact. It is kept by every write
 /// of a token, string, original name or property list in this file and merged in by
 /// `append_preparsed`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PresenceSummary {
     tokens: [u64; 3],
     names: u16,
@@ -744,6 +752,10 @@ impl Ast {
     /// not the change was reported to the compiler.
     pub fn track_changes(&mut self) {
         self.tracking_changes = true;
+    }
+    /// Whether callers are collecting the parser's individual node mutations.
+    pub fn is_tracking_changes(&self) -> bool {
+        self.tracking_changes
     }
     /// Rust-only (performance divergence): moves the nodes recorded since the last call to the end
     /// of `into`.
@@ -909,13 +921,6 @@ impl Ast {
     pub fn append_preparsed(&mut self, other: Ast) -> PreparsedIdMap {
         assert!(other.preparse && !self.preparse);
         let placeholder = other.implicit_template_bound.clone().unwrap();
-        let map = PreparsedIdMap {
-            base: u32::try_from(self.nodes.len()).unwrap(),
-            // Parsing into this arena would have created the bound (one node) at that point.
-            bound_at: other
-                .preparse_bound_first_use
-                .filter(|_| self.implicit_template_bound.is_none()),
-        };
         // The preparse arena kept its own summary of these nodes.
         self.presence.merge(&other.presence);
         let Ast {
@@ -925,18 +930,48 @@ impl Ast {
             types,
             ..
         } = other;
-        let mut heads = Vec::with_capacity(nodes.len());
-        for (i, (((mut data, link), cold), ty)) in nodes
-            .into_iter()
-            .zip(links)
-            .zip(cold)
-            .zip(types)
-            .enumerate()
-        {
+        let rows = nodes.into_iter().zip(links).zip(cold).zip(types).map(
+            |(((mut data, link), cold), ty)| {
+                let head = data.prop_list_head.take();
+                (data, link, cold, ty, head)
+            },
+        );
+        let (map, heads) = self.append_preparsed_nodes(other.preparse_bound_first_use, rows);
+        // The properties last: they may refer to the bound, which now exists.
+        let bound = self.implicit_template_bound.clone();
+        let mut remapper = PropRemapper {
+            map: &map,
+            placeholder,
+            bound,
+            items: Default::default(),
+            infos: Default::default(),
+            exprs: Default::default(),
+        };
+        for (i, head) in heads.into_iter().enumerate() {
+            if let Some(head) = head {
+                self.set_props(map.node_at(i), Some(remapper.list(head)));
+            }
+        }
+        map
+    }
+    // Allocate in the original order, including the singleton implicit template bound. The
+    // property heads are installed once every referenced node has its final id.
+    fn append_preparsed_nodes<H>(
+        &mut self,
+        bound_first_use: Option<u32>,
+        rows: impl ExactSizeIterator<Item = (NodeData, NodeLinks, NodeCold, NodeType, H)>,
+    ) -> (PreparsedIdMap, Vec<H>) {
+        let map = PreparsedIdMap {
+            base: u32::try_from(self.nodes.len()).unwrap(),
+            // Parsing into this arena would have created the bound (one node) at that point.
+            bound_at: bound_first_use.filter(|_| self.implicit_template_bound.is_none()),
+        };
+        let mut heads = Vec::with_capacity(rows.len());
+        for (i, (data, link, cold, ty, head)) in rows.enumerate() {
             if map.bound_at == Some(u32::try_from(i).unwrap()) {
                 crate::js_type_expression::JSTypeExpression::implicit_template_bound(self);
             }
-            heads.push(data.prop_list_head.take());
+            heads.push(head);
             self.prop_masks.push(0);
             self.jsdocs.push(None);
             self.links.push(NodeLinks {
@@ -953,24 +988,7 @@ impl Ast {
         if map.bound_at == Some(u32::try_from(heads.len()).unwrap()) {
             crate::js_type_expression::JSTypeExpression::implicit_template_bound(self);
         }
-        // The properties last: they may refer to the bound, which now exists.
-        let bound = self.implicit_template_bound.clone();
-        let mut remapper = PropRemapper {
-            map: &map,
-            placeholder,
-            bound,
-            items: Default::default(),
-            infos: Default::default(),
-            exprs: Default::default(),
-        };
-        for (i, head) in heads.into_iter().enumerate() {
-            if let Some(head) = head {
-                let local = NodeId(NonZeroU32::new(u32::try_from(i + 1).unwrap()).unwrap());
-                let id = map.map(local);
-                self.set_props(id, Some(remapper.list(head)));
-            }
-        }
-        map
+        (map, heads)
     }
     // port: Node#Node(Token)
     pub fn new_node(&mut self, token: Token) -> NodeId {

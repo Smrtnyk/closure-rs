@@ -18,6 +18,8 @@
 
 // Keep Java nested conditionals and nested loader class names.
 #![allow(clippy::collapsible_if, clippy::enum_variant_names)]
+mod bundled_externs;
+
 use crate::{
     js_comp_zip_file_cache::JSCompZipFileCache,
     serialization::source_file_proto::{FileOnDisk, Loader, SourceFileProto, ZipEntryOnDisk},
@@ -52,6 +54,7 @@ struct State {
 pub struct SourceFile {
     file_name: String,
     loader: CodeLoader,
+    bundled_browser_extern: bool,
     state: Mutex<State>,
     load_lock: Mutex<()>,
     /// Rust-only (performance divergence): `kind` (also in `state`) as an atomic, so that the
@@ -70,6 +73,7 @@ impl SourceFile {
         Self {
             file_name,
             loader,
+            bundled_browser_extern: false,
             state: Mutex::new(State {
                 code: None,
                 line_offsets: None,

@@ -4158,8 +4158,7 @@ impl CommandLineRunner {
             Environment::BROWSER => closure_resources::compiler_options::Environment::BROWSER,
             Environment::CUSTOM => closure_resources::compiler_options::Environment::CUSTOM,
         };
-        closure_resources::abstract_command_line_runner::AbstractCommandLineRunner::get_builtin_externs(env)
-            .into_iter().map(|file|closure_jscomp::source_file::SourceFile::builder().with_path(file.path.clone()).with_content(file.get_code()).build()).collect()
+        closure_jscomp::source_file::SourceFile::bundled_externs(env)
     }
 }
 

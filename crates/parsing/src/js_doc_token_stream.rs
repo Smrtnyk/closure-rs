@@ -20,6 +20,7 @@
 
 use closure_rhino::js_string::JsString;
 use closure_rhino::token_util::TokenUtil;
+use std::{ops::Range, sync::OnceLock};
 
 use crate::js_doc_token::JsDocToken;
 
@@ -39,10 +40,11 @@ pub struct JsDocTokenStream {
     // something to retrieve even if an error has occurred and no
     // string is found.  Fosters one class of error, but saves lots of
     // code.
-    string: JsString,
+    string: OnceLock<JsString>,
+    /// Source spelling of the last text token when it needed no character normalization.
+    string_range: Range<usize>,
 
     string_buffer: Vec<u16>,
-    string_buffer_top: usize,
 
     // Room to backtrace from to < on failed match of the last - in <!--
     unget_buffer: [i32; 3],
@@ -88,9 +90,9 @@ impl JsDocTokenStream {
         let source_string: JsString = source_string.into();
         let source_end = source_string.length() as i32;
         Self {
-            string: JsString::from(""),
-            string_buffer: vec![0; 128],
-            string_buffer_top: 0,
+            string: OnceLock::from(JsString::default()),
+            string_range: 0..0,
+            string_buffer: Vec::new(),
             unget_buffer: [0; 3],
             unget_cursor: 0,
             line_start: 0,
@@ -106,11 +108,20 @@ impl JsDocTokenStream {
         }
     }
 
+    /// Rust-only (performance divergence): scan the original comment after its three-character
+    /// opener. The logical cursor and columns still start at the beginning of the comment body.
+    pub(crate) fn from_comment(comment: JsString, lineno: i32, charno: i32) -> Self {
+        let mut stream = Self::new_with_lineno_and_charno(comment, lineno, charno + 3);
+        stream.source_cursor = 3;
+        stream.line_start = 3;
+        stream
+    }
+
     /// Tokenizes JSDoc comments.
     // port: JsDocTokenStream#getJsDocToken
     pub fn get_js_doc_token(&mut self) -> JsDocToken {
         let mut c: i32;
-        self.string_buffer_top = 0;
+        self.string_buffer.clear();
         // Java's outer `for (;;)` is kept; every path through its body returns.
         #[allow(clippy::never_loop)]
         loop {
@@ -130,14 +141,14 @@ impl JsDocTokenStream {
             // Every case returns except '.', which falls through into default (after the match).
             match char_of(c) {
                 // annotation, e.g. @type or @constructor
+                Some('@') if self.read_ascii_token_text(c) => return JsDocToken::ANNOTATION,
                 Some('@') => loop {
                     c = self.get_char();
                     if is_alpha(c) {
                         self.add_to_string(c);
                     } else {
                         self.unget_char(c);
-                        self.string = self.get_string_from_buffer();
-                        self.string_buffer_top = 0;
+                        self.finish_buffered_string();
                         return JsDocToken::ANNOTATION;
                     }
                 },
@@ -204,6 +215,9 @@ impl JsDocTokenStream {
 
             // default:
             {
+                if self.read_ascii_token_text(c) {
+                    return JsDocToken::STRING;
+                }
                 // recognize a JsDoc string but discard last . if it is followed by
                 // a non-JsDoc comment char, e.g. Array.<
                 let mut c1: i32;
@@ -211,8 +225,7 @@ impl JsDocTokenStream {
                 let mut c2 = self.get_char();
                 if !is_js_doc_string(c2) {
                     self.unget_char(c2);
-                    self.string = self.get_string_from_buffer();
-                    self.string_buffer_top = 0;
+                    self.finish_buffered_string();
                     return JsDocToken::STRING;
                 } else {
                     loop {
@@ -221,22 +234,73 @@ impl JsDocTokenStream {
                         if c1 == '.' as i32 && c2 == '<' as i32 {
                             self.unget_char(c2);
                             self.unget_char(c1);
-                            self.string = self.get_string_from_buffer();
-                            self.string_buffer_top = 0;
+                            self.finish_buffered_string();
                             return JsDocToken::STRING;
                         } else if is_js_doc_string(c2) {
                             self.add_to_string(c1);
                         } else {
                             self.unget_char(c2);
                             self.add_to_string(c1);
-                            self.string = self.get_string_from_buffer();
-                            self.string_buffer_top = 0;
+                            self.finish_buffered_string();
                             return JsDocToken::STRING;
                         }
                     }
                 }
             }
         }
+    }
+
+    /// Rust-only (performance divergence): retain a range for ordinary ASCII words and
+    /// annotations. The parser can discard documentation prose without allocating each word.
+    /// The normal reader consumes and pushes back the delimiter, preserving its line bookkeeping.
+    fn read_ascii_token_text(&mut self, first: i32) -> bool {
+        if self.unget_cursor != 0 || self.line_end_char >= 0 {
+            return false;
+        }
+        let cursor = self.source_cursor as usize;
+        let units = self.source_string.as_units();
+        let annotation = first == i32::from(b'@');
+        let start = if annotation {
+            cursor
+        } else {
+            // A leading dot has its own lookahead and pushback rules.
+            if !(0..128).contains(&first)
+                || first == i32::from(b'.')
+                || cursor == 0
+                || units[cursor - 1] != first as u16
+            {
+                return false;
+            }
+            cursor - 1
+        };
+        let tail = &units[cursor..];
+        let end = cursor
+            + if annotation {
+                tail.iter()
+                    .take_while(|&&ch| is_alpha(i32::from(ch)))
+                    .count()
+            } else {
+                tail.iter()
+                    .take_while(|&&ch| {
+                        ch < 128 && ch != u16::from(b'\r') && is_js_doc_string(i32::from(ch))
+                    })
+                    .count()
+            };
+        // A format character can disappear inside a word. A trailing dot before '<' is
+        // pushed back as part of '.<'. Both go through the original scanner.
+        if let Some(&next) = units.get(end)
+            && (next >= 128
+                || (!annotation && next == u16::from(b'<') && units[end - 1] == u16::from(b'.')))
+        {
+            return false;
+        }
+        self.source_cursor = end as i32;
+        self.cursor += (end - cursor) as i32;
+        let delimiter = self.get_char();
+        self.unget_char(delimiter);
+        self.string.take();
+        self.string_range = start..end;
+        true
     }
 
     /// Gets the remaining JSDoc line without the {@link JsDocToken#EOL},
@@ -263,9 +327,8 @@ impl JsDocTokenStream {
             }
             // case EOF_CHAR: case '\n':
             self.unget_char(c);
-            self.string = self.get_string_from_buffer();
-            self.string_buffer_top = 0;
-            return self.string.clone();
+            self.finish_buffered_string();
+            return self.get_string();
         }
     }
 
@@ -285,24 +348,22 @@ impl JsDocTokenStream {
 
     // port: JsDocTokenStream#getString
     pub fn get_string(&self) -> JsString {
-        self.string.clone()
+        self.string
+            .get_or_init(|| {
+                JsString::from_slice(&self.source_string.as_units()[self.string_range.clone()])
+            })
+            .clone()
     }
 
     // port: JsDocTokenStream#getStringFromBuffer
-    fn get_string_from_buffer(&self) -> JsString {
-        JsString::from_slice(&self.string_buffer[0..self.string_buffer_top])
+    fn finish_buffered_string(&mut self) {
+        self.string = OnceLock::from(JsString::from_slice(&self.string_buffer));
+        self.string_buffer.clear();
     }
 
     // port: JsDocTokenStream#addToString
     fn add_to_string(&mut self, c: i32) {
-        let n = self.string_buffer_top;
-        if n == self.string_buffer.len() {
-            let mut tmp = vec![0u16; self.string_buffer.len() * 2];
-            tmp[..n].copy_from_slice(&self.string_buffer[..n]);
-            self.string_buffer = tmp;
-        }
-        self.string_buffer[n] = c as u16;
-        self.string_buffer_top = n + 1;
+        self.string_buffer.push(c as u16);
     }
 
     // port: JsDocTokenStream#ungetChar
