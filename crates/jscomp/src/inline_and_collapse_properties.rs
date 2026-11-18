@@ -1074,6 +1074,7 @@ impl AggressiveInlineAliases {
     ///
     /// If the alias is completely removed, also deletes the aliasing Ref.
     // port: InlineAndCollapseProperties.AggressiveInlineAliases#inlineGlobalAliasIfPossible
+    #[allow(clippy::nonminimal_bool)] // Retain Java's condition.
     fn inline_global_alias_if_possible(
         &mut self,
         compiler: &mut AbstractCompiler,
