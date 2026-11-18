@@ -83,11 +83,9 @@ impl Scanner {
     }
     // port: Scanner#getOffset
     pub fn get_offset(&mut self) -> i32 {
-        if self.current_tokens.is_empty() {
-            self.index
-        } else {
-            self.peek_token().location.start.offset
-        }
+        self.current_tokens
+            .first()
+            .map_or(self.index, |token| token.location.start.offset)
     }
     // port: Scanner#setPosition
     pub fn set_position(&mut self, position: SourcePosition) {
@@ -97,10 +95,9 @@ impl Scanner {
     }
     // port: Scanner#getPosition
     pub fn get_position(&mut self) -> SourcePosition {
-        if self.current_tokens.is_empty() {
-            self.get_position_at(self.index)
-        } else {
-            self.peek_token().location.start
+        match self.current_tokens.first() {
+            Some(token) => token.location.start.clone(),
+            None => self.get_position_at(self.index),
         }
     }
     // port: Scanner#getPosition
@@ -121,14 +118,17 @@ impl Scanner {
     }
     // port: Scanner#nextToken
     pub fn next_token(&mut self) -> Token {
-        self.peek_token();
-        self.current_tokens.remove(0)
+        // Rust-only (performance divergence): consume an owned token without cloning its text.
+        if self.current_tokens.is_empty() {
+            self.scan_token()
+        } else {
+            self.current_tokens.remove(0)
+        }
     }
     // port: Scanner#clearTokenLookahead
     fn clear_token_lookahead(&mut self) {
-        if !self.current_tokens.is_empty() {
-            let position = self.peek_token().location.start;
-            self.set_position(position);
+        if let Some(token) = self.current_tokens.first() {
+            self.set_position(token.location.start.clone());
         }
     }
     // port: Scanner#nextRegularExpressionLiteralToken
@@ -264,11 +264,7 @@ impl Scanner {
     }
     // port: Scanner#peekToken
     pub fn peek_token_at(&mut self, index: usize) -> Token {
-        while self.current_tokens.len() <= index {
-            let token = self.scan_token();
-            self.current_tokens.push(token);
-        }
-        self.current_tokens[index].clone()
+        self.peek_token_ref_at(index).clone()
     }
     /// Not in Java: `peekToken(index)` without cloning the token (its source positions hold
     /// reference-counted pointers), for the parser's very frequent peeks.
@@ -412,9 +408,11 @@ impl Scanner {
     // port: Scanner#skipSingleLineComment
     fn skip_single_line_comment_type(&mut self, type_: comment::Type) {
         let start_offset = self.index;
-        while !self.is_at_end() && !Self::is_line_terminator(self.peek_char()) {
-            self.next_char();
-        }
+        let rest = &self.source.contents.as_units()[start_offset as usize..];
+        self.index += rest
+            .iter()
+            .position(|&ch| Self::is_line_terminator(ch))
+            .unwrap_or(rest.len()) as i32;
         let range = self
             .line_number_scanner
             .get_source_range(start_offset, self.index);
@@ -433,16 +431,14 @@ impl Scanner {
     // port: Scanner#skipMultiLineComment
     fn skip_multi_line_comment(&mut self) {
         let start_offset = self.index;
-        self.next_char(); // '/'
-        self.next_char(); // '*'
-        while !self.is_at_end()
-            && (self.peek_char() != u16::from(b'*') || self.peek_char_at(1) != u16::from(b'/'))
+        // Rust-only (performance divergence): find the terminator in the source slice. Computing
+        // the comment's range below still accounts for every intervening line break.
+        let rest = &self.source.contents.as_units()[start_offset as usize + 2..];
+        if let Some(end) = rest
+            .windows(2)
+            .position(|pair| pair == [u16::from(b'*'), u16::from(b'/')])
         {
-            self.next_char();
-        }
-        if !self.is_at_end() {
-            self.next_char();
-            self.next_char();
+            self.index = start_offset + end as i32 + 4;
             let mut type_ = comment::Type::BLOCK;
             if self.index - start_offset > 4 {
                 if self.source.contents.char_at((start_offset + 2) as usize) == u16::from(b'*') {
@@ -462,6 +458,7 @@ impl Scanner {
                 .substring(start_offset as usize, self.index as usize);
             self.record_comment(type_, range, value);
         } else {
+            self.index = self.contents_length;
             self.report_error("unterminated comment", &[]);
         }
     }
@@ -848,6 +845,15 @@ impl Scanner {
         let mut braced_unicode_escape = false;
         let is_private_identifier = ch == u16::from(b'#');
         let mut unicode_escape_len = if contains_unicode_escape { 1 } else { 0 };
+        // Rust-only (performance divergence): consume an unescaped run directly from the source.
+        // A backslash resumes the escape state machine at the same input position.
+        if !contains_unicode_escape {
+            let rest = &self.source.contents.as_units()[self.index as usize..];
+            self.index += rest
+                .iter()
+                .position(|&c| !Identifiers::is_identifier_part(c))
+                .unwrap_or(rest.len()) as i32;
+        }
         ch = self.peek_char();
         while Identifiers::is_identifier_part(ch)
             || ch == u16::from(b'\\')
@@ -873,6 +879,15 @@ impl Scanner {
             // Add character to token
             self.next_char();
             ch = self.peek_char();
+        }
+        // Escaped keywords are identifiers (ECMA-262 11.6.2). A plain keyword can be
+        // recognized without allocating a string for its spelling.
+        if !contains_unicode_escape
+            && let Some(k) = Keywords::get_by_units(
+                &self.source.contents.as_units()[value_start_index as usize..self.index as usize],
+            )
+        {
+            return Token::new(k.type_(), self.get_token_range(begin_token));
         }
         let mut value = self
             .source
@@ -912,12 +927,6 @@ impl Scanner {
                 ],
             );
             return self.create_token(TokenType::ERROR, begin_token);
-        }
-        let k = Keywords::get_by_name(&value);
-        // Keywords containing unicode escape sequences are treated as IdentifierTokens rather than
-        // keyword Tokens (ECMA-262 11.6.2).
-        if let Some(k) = k.filter(|_| !contains_unicode_escape) {
-            return Token::new(k.type_(), self.get_token_range(begin_token));
         }
         IdentifierToken::new(self.get_token_range(begin_token), value)
     }

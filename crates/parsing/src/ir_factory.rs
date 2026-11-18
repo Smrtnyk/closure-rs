@@ -1122,11 +1122,7 @@ impl<'a> IRFactory<'a> {
         }
         let mut parser = JsDocInfoParser::new(
             ast,
-            JsDocTokenStream::new_with_lineno_and_charno(
-                comment.substring_from(3),
-                lineno,
-                charno + 3,
-            ),
+            JsDocTokenStream::from_comment(comment.clone(), lineno, charno),
             Some(comment),
             node.location.start.offset,
             Some(self.template_node),
@@ -1154,11 +1150,7 @@ impl<'a> IRFactory<'a> {
         let charno = Self::charno_position(&node.location.start);
         let mut parser = JsDocInfoParser::new(
             ast,
-            JsDocTokenStream::new_with_lineno_and_charno(
-                comment.substring_from(3),
-                lineno,
-                charno + 3,
-            ),
+            JsDocTokenStream::from_comment(comment.clone(), lineno, charno),
             Some(comment),
             node.location.start.offset,
             Some(self.template_node),

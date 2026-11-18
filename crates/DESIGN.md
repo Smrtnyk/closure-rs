@@ -342,6 +342,13 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   are `Arc`-shared, not copied per JSDoc comment.
 - `parsing/parser/scanner.rs` `peek_token_ref_at`: the parser peeks token types and lines by
   reference instead of cloning the token.
+- `parsing/parser/scanner.rs`, `keywords.rs`, `line_number_scanner.rs`: the scanner consumes
+  owned lookahead tokens, scans UTF-16 slices for comment ends, line breaks and identifier runs,
+  and recognizes unescaped keywords before allocating their spelling.
+- `parsing/js_doc_token_stream.rs`, `ir_factory.rs`: the JSDoc scanner reads the original
+  comment past its opener and retains source ranges for contiguous ASCII words and annotations.
+  It materializes the text on request and uses the character reader for normalization and dot
+  lookahead.
 - `rhino/jscomp_colors/color.rs`: `Color` memoizes its hash code (immutable value).
 - `rhino/node.rs` `lookup_property_ref`: the property list is walked by reference.
 - `jscomp/serialization/malformed_typed_ast_exception.rs` `DebugParam`, `remove_unused_code.rs`

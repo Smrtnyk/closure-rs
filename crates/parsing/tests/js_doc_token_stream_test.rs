@@ -353,3 +353,42 @@ fn test_js_doc_token_stream(comment: &str, tokens: &[JsDocToken], strings: &[&st
         }
     }
 }
+
+#[test]
+fn source_spans_preserve_text_and_positions_across_lookahead() {
+    let mut stream = JsDocTokenStream::new_with_lineno_and_charno(
+        "name\r\n @ty\u{00ad}pe {A.<B>}\u{2028}after*/",
+        7,
+        13,
+    );
+    // Include the retained text on punctuation and EOL, even if no caller read the word
+    // before requesting the next token. The soft hyphen disappears inside the annotation.
+    for (token, line, column, cursor, text) in [
+        (STRING, 7, 13, 4, None),
+        (EOL, 7, 17, 5, Some("name")),
+        (ANNOTATION, 8, 1, 13, Some("type")),
+        (LEFT_CURLY, 8, 8, 15, Some("type")),
+        (STRING, 8, 9, 16, None),
+        (LEFT_ANGLE, 8, 10, 18, Some("A")),
+        (STRING, 8, 12, 19, None),
+        (RIGHT_ANGLE, 8, 13, 20, Some("B")),
+        (RIGHT_CURLY, 8, 14, 21, None),
+        (EOL, 8, 15, 22, None),
+        (STRING, 9, 0, 27, None),
+        (EOC, 9, 5, 29, Some("after")),
+        (EOF, 9, 6, 29, Some("after")),
+    ] {
+        assert_eq!(stream.get_js_doc_token(), token);
+        assert_eq!(
+            (
+                stream.get_lineno(),
+                stream.get_charno(),
+                stream.get_cursor()
+            ),
+            (line, column, cursor)
+        );
+        if let Some(text) = text {
+            assert_eq!(stream.get_string(), text);
+        }
+    }
+}

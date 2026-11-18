@@ -226,10 +226,13 @@ impl Keywords {
     }
     // port: Keywords#get
     pub fn get_by_name(value: &JsString) -> Option<Self> {
+        Self::get_by_units(value.as_units())
+    }
+
+    pub(super) fn get_by_units(units: &[u16]) -> Option<Self> {
         // Java looks the name up in a HashMap; every keyword is 2 to 10 lowercase ASCII letters,
         // so match the bytes instead of comparing against each keyword in turn
         // (performance divergence).
-        let units = value.as_units();
         if !(2..=10).contains(&units.len()) {
             return None;
         }

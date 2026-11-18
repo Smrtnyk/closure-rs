@@ -29,7 +29,6 @@ pub struct LineNumberScanner {
     source_file: Arc<SourceFile>,
     /// Rust-only: the copyable identity of `source_file` that positions carry.
     source_file_id: SourceFileId,
-    source_length: i32,
     last_line: i32,
     last_line_start: i32,
     next_line_start: i32,
@@ -39,7 +38,6 @@ impl LineNumberScanner {
     // port: LineNumberScanner#<init>
     pub fn new(source_file: Arc<SourceFile>) -> Self {
         Self {
-            source_length: source_file.contents.length() as i32,
             source_file_id: SourceFileId::register(&source_file),
             source_file,
             last_line: -1,
@@ -94,22 +92,16 @@ impl LineNumberScanner {
     fn advance_line(&mut self) {
         self.last_line += 1;
         self.last_line_start = self.next_line_start;
-        let mut index = self.last_line_start;
-        while index < self.source_length {
-            let ch = self.source_file.contents.char_at(index as usize);
-            if Self::is_line_terminator(ch) {
-                if ch == u16::from(b'\r')
-                    && index + 1 < self.source_length
-                    && self.source_file.contents.char_at((index + 1) as usize) == u16::from(b'\n')
-                {
-                    index += 1;
-                }
-                self.next_line_start = index + 1;
-                return;
+        // Rust-only (performance divergence): scan the UTF-16 slice once for the next delimiter.
+        let rest = &self.source_file.contents.as_units()[self.last_line_start as usize..];
+        self.next_line_start = match rest.iter().position(|&ch| Self::is_line_terminator(ch)) {
+            Some(end) => {
+                let crlf =
+                    rest[end] == u16::from(b'\r') && rest.get(end + 1) == Some(&u16::from(b'\n'));
+                self.last_line_start + end as i32 + 1 + i32::from(crlf)
             }
-            index += 1;
-        }
-        self.next_line_start = i32::MAX;
+            None => i32::MAX,
+        };
     }
 
     // port: LineNumberScanner#isLineTerminator
