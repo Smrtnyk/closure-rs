@@ -1239,3 +1239,29 @@ fn test_useless_unconditional_return6() {
         "function f() {}",
     );
 }
+
+// See https://github.com/google/closure-compiler/issues/4388
+// port: PeepholeIntegrationTest#testFinallyBareReturnPreserved
+#[test]
+fn test_finally_bare_return_preserved() {
+    let mut t = PeepholeIntegrationTest::new();
+    t.test_same("function f() { try { return 1; } finally { return; } }");
+    t.test_same("function h(fn) { try { fn(); } finally { return; } }");
+    t.test(
+        "function f() { try { return 1; } finally { return undefined; } }",
+        "function f() { try { return 1; } finally { return; } }",
+    );
+    t.test(
+        "function f() { try { return 1; } finally { return void 0; } }",
+        "function f() { try { return 1; } finally { return; } }",
+    );
+    t.test(
+        "function f(x) { try { return 1; } finally { if (x) { return; } else { return; } } }",
+        "function f(x) { try { return 1; } finally { return; } }",
+    );
+    // When try is empty, PeepholeRemoveDeadCode unwraps finally first, after which return; is dead.
+    t.test(
+        "function f() { try {} finally { return; } }",
+        "function f() {}",
+    );
+}

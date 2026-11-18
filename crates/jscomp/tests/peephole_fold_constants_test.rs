@@ -2948,17 +2948,19 @@ fn test_algebraic_identities() {
     t.harness.enable_type_check().unwrap();
     t.harness.replace_types_with_colors().unwrap();
     t.harness.disable_compare_js_doc().unwrap();
-    t.fold_numeric_types("x+0", "x");
-    t.fold_numeric_types("0+x", "x");
-    t.fold_numeric_types("x+0+0+x+x+0", "x+x+x");
+    // can't optimize these without keeping the sign of zero: -0 + 0 is +0, and 0 - 0 is +0 (not -0)
+    t.fold_numeric_types("x+0", "x+0");
+    t.fold_numeric_types("0+x", "0+x");
+    // (x+0) cannot be -0, so (x+0)+0 folds to x+0:
+    t.fold_numeric_types("x+0+0+x+x+0", "x+0+x+x+0");
     t.fold_numeric_types("x-0", "x");
     t.fold_numeric_types("x-0-0-0", "x");
     // 'x-0' is numeric even if x isn't
     t.test("var x='a'; x-0-0", "var x='a';x-0");
-    t.fold_numeric_types("0-x", "-x");
+    t.fold_numeric_types("0-x", "0-x");
     t.test(
         "for (var i = 0; i < 5; i++) var x = 0 + i * 1",
-        "var i = 0; for(; i < 5; i++) var x=i",
+        "var i = 0; for(; i < 5; i++) var x=0+i",
     );
     t.fold_numeric_types("x*1", "x");
     t.fold_numeric_types("1*x", "x");
@@ -2967,6 +2969,40 @@ fn test_algebraic_identities() {
     t.test_same("0*x");
     t.test_same("0/x");
     t.fold_numeric_types("x/1", "x");
+}
+
+// port: PeepholeFoldConstantsTest#testIssue4387
+#[test]
+fn test_issue4387() {
+    let mut t = PeepholeFoldConstantsTest::new();
+    t.harness.enable_type_check().unwrap();
+    t.harness.replace_types_with_colors().unwrap();
+    t.harness.disable_compare_js_doc().unwrap();
+
+    // Preserve the sign of zero:
+    // -0 + 0 is +0, so x + 0 and 0 + x cannot be folded to x when x may be -0.
+    // 0 - 0 is +0, but -(+0) is -0, so 0 - x cannot be folded to -x when x may be +0.
+    t.fold_numeric_types("x + 0", "x + 0");
+    t.fold_numeric_types("0 + x", "0 + x");
+    t.fold_numeric_types("0 - x", "0 - x");
+    t.fold_numeric_types("x - 0", "x");
+    t.fold_numeric_types("x - -0", "x - -0");
+    t.test_same("function f(x) { return [0 - x * 1, x * 1 + 0, 0 + x * 1]; }");
+
+    // Operations that can never evaluate to -0 can safely fold with 0:
+    t.test("var x = (y | 0) + 0", "var x = y | 0");
+    t.test("var x = 0 + (y | 0)", "var x = y | 0");
+    t.test("var x = (y >>> 0) + 0", "var x = y >>> 0");
+    t.test("var x = (c ? -1 : 1) + 0", "var x = c ? -1 : 1");
+    t.fold_numeric_types("(x + 0) + 0", "x + 0");
+    t.fold_numeric_types("(0 - x) + 0", "0 - x");
+
+    // Expressions that could evaluate to string "-0" cannot fold when coerced with unary +:
+    t.test_same("var x = +(y + 0) + 0");
+    t.test_same("var x = +(y + '') + 0");
+
+    // 0 - x folds to -x when x cannot be +0 (e.g., void expressions with side effects):
+    t.test("var x = 0 - +void foo()", "var x = -(+void foo())");
 }
 
 // port: PeepholeFoldConstantsTest#testBigIntAlgebraicIdentities

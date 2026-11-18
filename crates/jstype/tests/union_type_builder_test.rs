@@ -40,6 +40,7 @@
 
 use closure_jstype::{
     TypeId,
+    enum_type::EnumTypeBuilder,
     function_type::FunctionTypeBuilder,
     prelude::*,
     record_type_builder::RecordTypeBuilder,
@@ -84,6 +85,34 @@ impl Fixture {
             _expr1.close(&mut f.base.reg, &f.base.ast);
         }
         f
+    }
+
+    // port: UnionTypeBuilderTest#createDistinctInstanceTypes
+    fn create_distinct_instance_types(&mut self, prefix: &str, count: i32) -> Vec<TypeId> {
+        let f = self;
+        let mut result = Vec::new();
+        {
+            let mut closer = f.base.reg.get_resolver().open_for_definition();
+            for i in 0..count {
+                result.push(
+                    FunctionTypeBuilder::new()
+                        .for_constructor()
+                        .with_name(format!("{prefix}{i}"))
+                        .build(&mut f.base.reg, &f.base.ast)
+                        .get_instance_type(&f.base.reg)
+                        .unwrap(),
+                );
+            }
+            closer.close(&mut f.base.reg, &f.base.ast);
+        }
+        result
+    }
+
+    /// Truth's `contains` on a `List<JSType>`: List#contains calls JSType#equals, which is
+    /// isEquivalentTo.
+    fn list_contains(&mut self, list: &[TypeId], type_: TypeId) -> bool {
+        list.iter()
+            .any(|&element| type_.equals(&mut self.base.reg, &self.base.ast, element))
     }
 
     // port: UnionTypeBuilderTest#addRecordType
@@ -466,4 +495,282 @@ fn test_after_build_cannot_add() {
         }))
         .is_err()
     );
+}
+
+// port: UnionTypeBuilderTest#testLargeUnion_deduplicatesIdenticalAndSubsumedAlternates
+#[test]
+fn test_large_union_deduplicates_identical_and_subsumed_alternates() {
+    let mut f = Fixture::set_up();
+    let classes = f.create_distinct_instance_types("C", 12);
+
+    let mut builder = UnionTypeBuilder::new();
+    for &cls in &classes {
+        builder.add_alternate(&mut f.base.reg, &f.base.ast, cls);
+    }
+    builder
+        .add_alternate(&mut f.base.reg, &f.base.ast, f.base.string_type)
+        .add_alternate(&mut f.base.reg, &f.base.ast, f.base.number_type);
+
+    // Re-add identical alternates after the large-union threshold.
+    builder
+        .add_alternate(&mut f.base.reg, &f.base.ast, classes[0])
+        .add_alternate(&mut f.base.reg, &f.base.ast, classes[7])
+        .add_alternate(&mut f.base.reg, &f.base.ast, f.base.string_type)
+        .add_alternate(&mut f.base.reg, &f.base.ast, f.base.number_type);
+
+    // Subsumption and equality checks must still apply alongside identity dedup.
+    builder.add_alternate(&mut f.base.reg, &f.base.ast, f.base.array_type);
+    let array_of_string =
+        f.base
+            .reg
+            .create_templatized_type(&f.base.ast, f.base.array_type, &[f.base.string_type]);
+    builder.add_alternate(&mut f.base.reg, &f.base.ast, array_of_string);
+    builder.add_alternate(&mut f.base.reg, &f.base.ast, f.sub);
+    builder.add_alternate(&mut f.base.reg, &f.base.ast, f.base_type);
+    f.add_record_type(&mut builder, false);
+    f.add_record_type(&mut builder, false);
+
+    let union = builder
+        .build(&mut f.base.reg, &f.base.ast)
+        .to_maybe_union_type(&f.base.reg);
+    assert!(union.is_some());
+    let union = union.unwrap();
+    let alternates = union.get_alternates(&mut f.base.reg, &f.base.ast);
+    assert_eq!(alternates.len(), 17);
+    for &cls in &classes {
+        assert!(f.list_contains(&alternates, cls));
+    }
+    for type_ in [
+        f.base.string_type,
+        f.base.number_type,
+        f.base.array_type,
+        f.base_type,
+    ] {
+        assert!(f.list_contains(&alternates, type_));
+    }
+    assert!(!f.list_contains(&alternates, f.sub));
+}
+
+// port: UnionTypeBuilderTest#testLargeUnion_enumElementTypeAndPrimitiveDeduplication
+#[test]
+fn test_large_union_enum_element_type_and_primitive_deduplication() {
+    let mut f = Fixture::set_up();
+    let classes = f.create_distinct_instance_types("EnumCls", 10);
+    let enum_type;
+    {
+        let mut closer = f.base.reg.get_resolver().open_for_definition();
+        enum_type = EnumTypeBuilder::new()
+            .set_name("E")
+            .set_element_type(f.base.number_type)
+            .build(&mut f.base.reg, &f.base.ast);
+        closer.close(&mut f.base.reg, &f.base.ast);
+    }
+    let enum_element = enum_type.get_elements_type(&f.base.reg);
+
+    // EnumElementType preceding a FunctionType must still be removed when NUMBER_TYPE arrives,
+    // shifting functionTypePosition properly so subsequent functions merge.
+    let mut remove_before_fn_builder = UnionTypeBuilder::new();
+    remove_before_fn_builder.add_alternate(&mut f.base.reg, &f.base.ast, enum_element);
+    let fn_returning_sub = f.create_function_with_return(f.sub);
+    remove_before_fn_builder.add_alternate(&mut f.base.reg, &f.base.ast, fn_returning_sub);
+    for &cls in &classes {
+        remove_before_fn_builder.add_alternate(&mut f.base.reg, &f.base.ast, cls);
+    }
+    remove_before_fn_builder.add_alternate(&mut f.base.reg, &f.base.ast, f.base.number_type);
+    let fn_returning_base = f.create_function_with_return(f.base_type);
+    remove_before_fn_builder.add_alternate(&mut f.base.reg, &f.base.ast, fn_returning_base);
+
+    let removed_union = remove_before_fn_builder
+        .build(&mut f.base.reg, &f.base.ast)
+        .to_maybe_union_type(&f.base.reg);
+    assert!(removed_union.is_some());
+    let removed_union = removed_union.unwrap();
+    let alternates = removed_union.get_alternates(&mut f.base.reg, &f.base.ast);
+    assert_eq!(alternates.len(), 12);
+    assert!(f.list_contains(&alternates, f.base.number_type));
+    assert!(!f.list_contains(&alternates, enum_element));
+    assert_eq!(
+        alternates
+            .iter()
+            .filter(|t| t.is_function_type(&f.base.reg))
+            .count(),
+        1
+    );
+    let function_alternate = *alternates
+        .iter()
+        .find(|t| t.is_function_type(&f.base.reg))
+        .unwrap();
+    let expected = f.create_function_with_return(f.base_type);
+    TypeSubject::assert_type(function_alternate).is_equal_to(
+        &mut f.base.reg,
+        &f.base.ast,
+        expected,
+    );
+
+    // Adding EnumElementType when its primitive NUMBER_TYPE is already present must be redundant.
+    let mut existing_primitive_builder = UnionTypeBuilder::new();
+    existing_primitive_builder.add_alternate(&mut f.base.reg, &f.base.ast, f.base.number_type);
+    for &cls in &classes {
+        existing_primitive_builder.add_alternate(&mut f.base.reg, &f.base.ast, cls);
+    }
+    existing_primitive_builder.add_alternate(&mut f.base.reg, &f.base.ast, enum_element);
+    let existing_primitive_union = existing_primitive_builder
+        .build(&mut f.base.reg, &f.base.ast)
+        .to_maybe_union_type(&f.base.reg);
+    assert!(existing_primitive_union.is_some());
+    let existing_primitive_union = existing_primitive_union.unwrap();
+    let alternates = existing_primitive_union.get_alternates(&mut f.base.reg, &f.base.ast);
+    assert_eq!(alternates.len(), 11);
+    assert!(f.list_contains(&alternates, f.base.number_type));
+    assert!(!f.list_contains(&alternates, enum_element));
+}
+
+// port: UnionTypeBuilderTest#testLargeUnion_functionTypePositionShiftsWhenAlternateRemovedBeforeFunction
+#[test]
+fn test_large_union_function_type_position_shifts_when_alternate_removed_before_function() {
+    let mut f = Fixture::set_up();
+    let classes = f.create_distinct_instance_types("ShiftCls", 11);
+
+    let mut builder = UnionTypeBuilder::new();
+    builder
+        .add_alternate(&mut f.base.reg, &f.base.ast, f.sub)
+        .add_alternate(&mut f.base.reg, &f.base.ast, classes[0]);
+    let fn_returning_sub = f.create_function_with_return(f.sub);
+    builder.add_alternate(&mut f.base.reg, &f.base.ast, fn_returning_sub);
+    for &cls in &classes[1..] {
+        builder.add_alternate(&mut f.base.reg, &f.base.ast, cls);
+    }
+    // Removing `sub` at index 0 shifts the function alternate index down by 1.
+    builder.add_alternate(&mut f.base.reg, &f.base.ast, f.base_type);
+    // Merging a second function must hit the shifted functionTypePosition, not insert a duplicate.
+    let fn_returning_base = f.create_function_with_return(f.base_type);
+    builder.add_alternate(&mut f.base.reg, &f.base.ast, fn_returning_base);
+
+    let union = builder
+        .build(&mut f.base.reg, &f.base.ast)
+        .to_maybe_union_type(&f.base.reg);
+    assert!(union.is_some());
+    let union = union.unwrap();
+    let alternates = union.get_alternates(&mut f.base.reg, &f.base.ast);
+    assert_eq!(alternates.len(), 13);
+    assert!(!f.list_contains(&alternates, f.sub));
+    assert!(f.list_contains(&alternates, f.base_type));
+    assert_eq!(
+        alternates
+            .iter()
+            .filter(|t| t.is_function_type(&f.base.reg))
+            .count(),
+        1
+    );
+    let function_alternate = *alternates
+        .iter()
+        .find(|t| t.is_function_type(&f.base.reg))
+        .unwrap();
+    let expected = f.create_function_with_return(f.base_type);
+    TypeSubject::assert_type(function_alternate).is_equal_to(
+        &mut f.base.reg,
+        &f.base.ast,
+        expected,
+    );
+}
+
+// port: UnionTypeBuilderTest#testLargeUnion_unresolvedAlternates_deferredUntilResolution
+#[test]
+fn test_large_union_unresolved_alternates_deferred_until_resolution() {
+    let mut f = Fixture::set_up();
+    let classes = f.create_distinct_instance_types("UnresCls", 11);
+    let union;
+    {
+        let mut closer = f.base.reg.get_resolver().open_for_definition();
+        let rec_a1 = f.base.reg.create_record_type(
+            &f.base.ast,
+            vec![(JsString::from("prop"), f.base.string_type)],
+        );
+        let rec_a2 = f.base.reg.create_record_type(
+            &f.base.ast,
+            vec![(JsString::from("prop"), f.base.string_type)],
+        );
+
+        let mut builder = UnionTypeBuilder::new();
+        for &cls in &classes {
+            builder.add_alternate(&mut f.base.reg, &f.base.ast, cls);
+        }
+        builder
+            .add_alternate(&mut f.base.reg, &f.base.ast, rec_a1)
+            .add_alternate(&mut f.base.reg, &f.base.ast, rec_a1)
+            .add_alternate(&mut f.base.reg, &f.base.ast, rec_a2);
+
+        let built = builder
+            .build(&mut f.base.reg, &f.base.ast)
+            .to_maybe_union_type(&f.base.reg);
+        assert!(built.is_some());
+        union = built.unwrap();
+        assert!(!union.is_resolved(&f.base.reg));
+        // Identity duplicate `recA1` dropped immediately; distinct equal `recA2` deferred until
+        // close.
+        assert_eq!(union.get_alternates(&mut f.base.reg, &f.base.ast).len(), 13);
+        closer.close(&mut f.base.reg, &f.base.ast);
+    }
+    assert!(union.is_resolved(&f.base.reg));
+    assert_eq!(union.get_alternates(&mut f.base.reg, &f.base.ast).len(), 12);
+}
+
+// port: UnionTypeBuilderTest#testLargeUnion_recordTypeEqualityAndNonStructuralSubtyping
+#[test]
+fn test_large_union_record_type_equality_and_non_structural_subtyping() {
+    let mut f = Fixture::set_up();
+    let classes = f.create_distinct_instance_types("RecCls", 10);
+    let sub_rec = f
+        .base
+        .reg
+        .create_record_type(
+            &f.base.ast,
+            vec![
+                (JsString::from("keepProp"), f.base.string_type),
+                (JsString::from("extraProp"), f.base.number_type),
+            ],
+        )
+        .to_maybe_record_type(&f.base.reg)
+        .unwrap();
+    let super_rec1 = f
+        .base
+        .reg
+        .create_record_type(
+            &f.base.ast,
+            vec![(JsString::from("keepProp"), f.base.string_type)],
+        )
+        .to_maybe_record_type(&f.base.reg)
+        .unwrap();
+    let super_rec2 = f
+        .base
+        .reg
+        .create_record_type(
+            &f.base.ast,
+            vec![(JsString::from("keepProp"), f.base.string_type)],
+        )
+        .to_maybe_record_type(&f.base.reg)
+        .unwrap();
+
+    let mut builder = UnionTypeBuilder::new();
+    for &cls in &classes {
+        builder.add_alternate(&mut f.base.reg, &f.base.ast, cls);
+    }
+    builder
+        .add_alternate(&mut f.base.reg, &f.base.ast, sub_rec)
+        .add_alternate(&mut f.base.reg, &f.base.ast, super_rec1)
+        .add_alternate(&mut f.base.reg, &f.base.ast, super_rec2);
+
+    let union = builder
+        .build(&mut f.base.reg, &f.base.ast)
+        .to_maybe_union_type(&f.base.reg);
+    assert!(union.is_some());
+    let union = union.unwrap();
+    // Builder uses non-structural subtyping so subRec and superRec1 stay distinct, while equal
+    // superRec2 is deduplicated against superRec1 even past the identity-set threshold.
+    let alternates = union.get_alternates(&mut f.base.reg, &f.base.ast);
+    for &cls in &classes {
+        assert!(f.list_contains(&alternates, cls));
+    }
+    assert!(f.list_contains(&alternates, sub_rec));
+    assert_eq!(alternates.len(), 12);
 }

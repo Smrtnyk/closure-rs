@@ -25,7 +25,7 @@ use closure_jscomp::{
     closure_primitive_errors::{
         DUPLICATE_MODULE, DUPLICATE_NAMESPACE, DUPLICATE_NAMESPACE_AND_MODULE,
     },
-    closure_rewrite_module::INVALID_MODULE_ID_ARG,
+    closure_rewrite_module::{INVALID_MODULE_ID_ARG, INVALID_PROVIDE_NAMESPACE},
     compiler_options::{CompilerOptions, LanguageMode},
     compiler_pass::CompilerPass,
     dependency_options::DependencyOptions,
@@ -34,10 +34,10 @@ use closure_jscomp::{
     es6_rewrite_scripts_to_modules::Es6RewriteScriptsToModules,
     gather_module_metadata::{
         GatherModuleMetadata, INVALID_MAYBE_REQUIRE, INVALID_NAMESPACE_OR_MODULE_ID,
-        INVALID_REQUIRE_DYNAMIC, INVALID_SET_TEST_ONLY, INVALID_TOGGLE_USAGE,
+        INVALID_REQUIRE_DYNAMIC, INVALID_SET_TEST_ONLY, INVALID_TOGGLE_USAGE, MIXED_MODULE_TYPE,
     },
     module_identifier::ModuleIdentifier,
-    modules::module_metadata_map::{ModuleMetadata, ModuleMetadataMap, ModuleType},
+    modules::module_metadata_map::{ModuleMetadata, ModuleMetadataMap, ModuleType, TsExportType},
     source_file::SourceFile,
 };
 use closure_rhino::js_string::JsString;
@@ -211,6 +211,31 @@ fn exactly(items: &[&str]) -> Vec<String> {
     let mut v: Vec<String> = items.iter().map(|s| s.to_string()).collect();
     v.sort();
     v
+}
+
+/// `assertThat(tsExportTypes).containsExactly(...)` / `.isEmpty()`.
+fn ts_export_types_exactly(m: &ModuleMetadata, entries: &[(&str, TsExportType)]) {
+    let actual: Vec<(String, TsExportType)> = m
+        .ts_export_types()
+        .iter()
+        .map(|(k, v)| (k.to_string_lossy(), *v))
+        .collect();
+    let expected: Vec<(String, TsExportType)> =
+        entries.iter().map(|(k, v)| (k.to_string(), *v)).collect();
+    assert_eq!(actual, expected);
+}
+
+impl GatherModuleMetadataTest {
+    fn ts_export_type(&self, namespace: &str) -> TsExportType {
+        self.metadata_map()
+            .get_ts_export_type(&JsString::from(namespace))
+    }
+
+    /// `testError(srcs(SourceFile...), error)` with named files.
+    fn test_error_files(&mut self, files: &[(&str, &str)], error: &DiagnosticType) {
+        let found: Vec<&str> = self.run_files(files).into_iter().map(|(k, _)| k).collect();
+        assert_eq!(found, vec![error.key]);
+    }
 }
 
 fn keys_exactly(keys: Vec<String>, items: &[&str]) {
@@ -703,6 +728,40 @@ fn test_duplicate_provide_and_es6_module() {
         ],
         &DUPLICATE_NAMESPACE_AND_MODULE,
     );
+}
+
+// port: GatherModuleMetadataTest#testMixedProvideAndEs6Module_isEs6Module
+#[test]
+fn test_mixed_provide_and_es6_module_is_es6_module() {
+    let mut t = GatherModuleMetadataTest::set_up();
+    t.test_error(
+        &["goog.provide('a.b'); export const x = 1;"],
+        &MIXED_MODULE_TYPE,
+    );
+    let m = t.by_path("testcode");
+    assert!(m.is_es6_module());
+    assert_eq!(strings(m.goog_namespaces()), exactly(&["a.b"]));
+
+    t.test_error(
+        &["goog.provide('a.b'); import './dep.js';"],
+        &MIXED_MODULE_TYPE,
+    );
+    let m = t.by_path("testcode");
+    assert!(m.is_es6_module());
+    assert_eq!(strings(m.goog_namespaces()), exactly(&["a.b"]));
+}
+
+// port: GatherModuleMetadataTest#testMixedGoogModuleAndEs6Module_isGoogModule
+#[test]
+fn test_mixed_goog_module_and_es6_module_is_goog_module() {
+    let mut t = GatherModuleMetadataTest::set_up();
+    t.test_error(
+        &["goog.module('m'); export const x = 1;"],
+        &MIXED_MODULE_TYPE,
+    );
+    let m = t.by_path("testcode");
+    assert!(m.is_goog_module());
+    assert_eq!(strings(m.goog_namespaces()), exactly(&["m"]));
 }
 
 // port: GatherModuleMetadataTest#testDuplicateGoogModules
@@ -1216,4 +1275,155 @@ function foo() {
 "]);
     let m = t.by_path("testcode");
     assert!(m.read_toggles().is_empty());
+}
+
+// port: GatherModuleMetadataTest#testClassifyTsExportTypes_enabled
+#[test]
+fn test_classify_ts_export_types_enabled() {
+    let mut t = GatherModuleMetadataTest::set_up();
+    t.test_same(&[
+        "goog.module('named.module'); exports = {a: 1};",
+        "goog.module('def.module'); exports = class {};",
+        "goog.module('nodts.module'); /** @nodts */ class C {} exports = C;",
+        "goog.provide('named.provide'); named.provide.a = 1;",
+        "goog.provide('def.provide'); def.provide = class {};",
+        "goog.provide('nodts.provide'); /** @nodts */ nodts.provide = class {};",
+        r"goog.loadModule(function(exports) {
+  goog.module('loaded.module');
+  exports = {a: 1};
+  return exports;
+});
+",
+    ]);
+
+    ts_export_types_exactly(
+        &t.by_namespace("named.module"),
+        &[("named.module", TsExportType::NAMED)],
+    );
+    ts_export_types_exactly(
+        &t.by_namespace("def.module"),
+        &[("def.module", TsExportType::DEFAULT)],
+    );
+    ts_export_types_exactly(
+        &t.by_namespace("nodts.module"),
+        &[("nodts.module", TsExportType::NO_DTS)],
+    );
+    ts_export_types_exactly(
+        &t.by_namespace("named.provide"),
+        &[("named.provide", TsExportType::NAMED)],
+    );
+    ts_export_types_exactly(
+        &t.by_namespace("def.provide"),
+        &[("def.provide", TsExportType::DEFAULT)],
+    );
+    ts_export_types_exactly(
+        &t.by_namespace("nodts.provide"),
+        &[("nodts.provide", TsExportType::NO_DTS)],
+    );
+    ts_export_types_exactly(&t.by_namespace("loaded.module"), &[]);
+
+    assert_eq!(t.ts_export_type("named.module"), TsExportType::NAMED);
+    assert_eq!(t.ts_export_type("def.module"), TsExportType::DEFAULT);
+    assert_eq!(t.ts_export_type("nodts.module"), TsExportType::NO_DTS);
+    assert_eq!(t.ts_export_type("named.provide"), TsExportType::NAMED);
+    assert_eq!(t.ts_export_type("def.provide"), TsExportType::DEFAULT);
+    assert_eq!(t.ts_export_type("nodts.provide"), TsExportType::NO_DTS);
+    assert_eq!(t.ts_export_type("loaded.module"), TsExportType::DEFAULT);
+    assert_eq!(t.ts_export_type("unknown"), TsExportType::DEFAULT);
+}
+
+// port: GatherModuleMetadataTest#testClassifyTsExportTypes_esModuleDoesNotCrashAndReturnsNothing
+#[test]
+fn test_classify_ts_export_types_es_module_does_not_crash_and_returns_nothing() {
+    let mut t = GatherModuleMetadataTest::set_up();
+    let found = t.run_files(&[
+        (
+            "with_id.js",
+            "goog.declareModuleId('my.es6'); export const a = 1;",
+        ),
+        ("without_id.js", "export const b = 2;"),
+    ]);
+    assert!(found.is_empty(), "{found:?}");
+
+    ts_export_types_exactly(&t.by_namespace("my.es6"), &[]);
+    ts_export_types_exactly(&t.by_path("without_id.js"), &[]);
+    assert_eq!(t.ts_export_type("my.es6"), TsExportType::DEFAULT);
+}
+
+// port: GatherModuleMetadataTest#testClassifyTsExportTypes_mixedProvideAndEsModuleReportsErrorWithoutCrash
+#[test]
+fn test_classify_ts_export_types_mixed_provide_and_es_module_reports_error_without_crash() {
+    let mut t = GatherModuleMetadataTest::set_up();
+    t.test_error(
+        &["goog.provide('a.b'); export const x = 1;"],
+        &MIXED_MODULE_TYPE,
+    );
+    assert!(t.by_namespace("a.b").is_es6_module());
+    ts_export_types_exactly(&t.by_namespace("a.b"), &[]);
+
+    t.test_error(
+        &["goog.provide('c.d'); import './other.js';"],
+        &MIXED_MODULE_TYPE,
+    );
+    assert!(t.by_namespace("c.d").is_es6_module());
+    ts_export_types_exactly(&t.by_namespace("c.d"), &[]);
+}
+
+// port: GatherModuleMetadataTest#testClassifyTsExportTypes_esModuleImportingProvideScriptPreservesProvide
+#[test]
+fn test_classify_ts_export_types_es_module_importing_provide_script_preserves_provide() {
+    let mut t = GatherModuleMetadataTest::set_up();
+    t.rewrite_scripts_to_modules = true;
+
+    let found = t.run_files(&[
+        ("p.js", "goog.provide('a.b'); a.b.x = 1;"),
+        ("m.js", "import './p.js';"),
+    ]);
+    assert!(found.is_empty(), "{found:?}");
+
+    let m = t.by_namespace("a.b");
+    assert!(m.is_goog_provide());
+    ts_export_types_exactly(&m, &[("a.b", TsExportType::NAMED)]);
+}
+
+// port: GatherModuleMetadataTest#testClassifyTsExportTypes_malformedProvideOrModuleWithLegacyNamedTsExportReportsErrorWithoutCrash
+#[test]
+fn test_classify_ts_export_types_malformed_provide_or_module_with_legacy_named_ts_export_reports_error_without_crash()
+ {
+    let mut t = GatherModuleMetadataTest::set_up();
+    t.test_error_files(
+        &[(
+            "testcode",
+            "goog.provide('a.b'); /** @legacyNamedTsExport */ goog.provide();",
+        )],
+        &INVALID_PROVIDE_NAMESPACE,
+    );
+    assert_eq!(t.ts_export_type("a.b"), TsExportType::DEFAULT);
+
+    t.test_error_files(
+        &[(
+            "testcode",
+            "goog.provide('a.b'); /** @legacyNamedTsExport */ goog.provide(123);",
+        )],
+        &INVALID_PROVIDE_NAMESPACE,
+    );
+    assert_eq!(t.ts_export_type("a.b"), TsExportType::DEFAULT);
+
+    t.test_error_files(
+        &[(
+            "testcode",
+            "goog.provide('a.b'); /** @legacyNamedTsExport */ goog.provide(`c.d`);",
+        )],
+        &INVALID_PROVIDE_NAMESPACE,
+    );
+    assert_eq!(t.ts_export_type("a.b"), TsExportType::DEFAULT);
+
+    t.test_error_files(
+        &[(
+            "testcode",
+            "goog.module('m'); /** @legacyNamedTsExport */ goog.module();",
+        )],
+        &INVALID_MODULE_ID_ARG,
+    );
+    assert_eq!(t.ts_export_type("m"), TsExportType::DEFAULT);
 }

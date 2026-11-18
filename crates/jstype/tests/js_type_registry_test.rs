@@ -41,7 +41,7 @@
 use closure_jstype::{
     TypeId,
     function_type::{FunctionType, FunctionTypeBuilder},
-    js_type::JSType,
+    js_type::{JSType, Nullability},
     js_type_native::JSTypeNative,
     js_type_registry::JSTypeRegistry,
     object_type::ObjectType,
@@ -49,7 +49,11 @@ use closure_jstype::{
     static_typed_ref::StaticTypedRef,
     static_typed_scope::StaticTypedScope,
     static_typed_slot::StaticTypedSlot,
-    testing::{map_based_scope::MapBasedScope, type_subject::TypeSubject},
+    testing::{
+        abstract_static_scope::AbstractStaticScope,
+        base_js_type_test_case::SharedTestErrorReporter, map_based_scope::MapBasedScope,
+        type_subject::TypeSubject,
+    },
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
@@ -57,9 +61,10 @@ use closure_rhino::{
     js_string::JsString,
     jsdoc_info::JSDocInfo,
     node::{Ast, NodeId},
+    testing::test_error_reporter::TestErrorReporter,
     token::Token,
 };
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 // port: JSTypeRegistryTest#setUp
 fn set_up() -> (Ast, JSTypeRegistry) {
@@ -572,4 +577,673 @@ fn test_get_built_in_type_map() {
         param_list[0].get_jstype().to_string(&mut registry, &ast),
         "(Array<Array<(K|V)>>|Iterable<Array<(K|V)>,?,?>|null|undefined)"
     );
+}
+
+/// `new JSTypeRegistry(reporter)`: a registry whose resolver stays closed, reporting to a
+/// TestErrorReporter the test verifies.
+fn closed_registry_with_reporter(ast: &mut Ast) -> (JSTypeRegistry, Arc<Mutex<TestErrorReporter>>) {
+    let reporter = Arc::new(Mutex::new(TestErrorReporter::new()));
+    let registry = JSTypeRegistry::new(
+        ast,
+        Box::new(SharedTestErrorReporter(reporter.clone())),
+        Vec::new(),
+    );
+    (registry, reporter)
+}
+
+// port: JSTypeRegistryTest#testCreateTypeFromCommentNode_internedBuiltinTypesAndTemplates_closedResolver
+#[test]
+fn test_create_type_from_comment_node_interned_builtin_types_and_templates_closed_resolver() {
+    let mut ast = Ast::new();
+    let (mut closed_registry, reporter) = closed_registry_with_reporter(&mut ast);
+    let global_scope: Arc<dyn StaticTypedScope> = create_static_typed_scope(
+        ast.new_node(Token::ROOT),
+        None,
+        IndexMap::<_, _>::default(),
+        IndexSet::<_>::default(),
+    );
+
+    // Builtin generic specializations (non-null via BANG, nullable via bare STRINGLIT/QMARK,
+    // optional).
+    let arg = ast.new_string("string");
+    let array = templatized_comment_node(&mut ast, "Array", &[arg]);
+    let n = bang_node(&mut ast, array);
+    let non_null_array_str = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    let arg = ast.new_string("string");
+    let n = templatized_comment_node(&mut ast, "Array", &[arg]);
+    let nullable_array_str = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "b.js",
+        Some(global_scope.clone()),
+    );
+    let arg = ast.new_string("string");
+    let array = templatized_comment_node(&mut ast, "Array", &[arg]);
+    let n = ast.new_node_with_child(Token::QMARK, array);
+    let qmark_array_str = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "b.js",
+        Some(global_scope.clone()),
+    );
+    let array = nullable_array_str_node(&mut ast);
+    let n = ast.new_node_with_child(Token::EQUALS, array);
+    let opt_array_str = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "b.js",
+        Some(global_scope.clone()),
+    );
+    let arg = ast.new_node(Token::QMARK);
+    let array = templatized_comment_node(&mut ast, "Array", &[arg]);
+    let n = bang_node(&mut ast, array);
+    let non_null_array_unknown = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "c.js",
+        Some(global_scope.clone()),
+    );
+    let arg = ast.new_node(Token::QMARK);
+    let n = templatized_comment_node(&mut ast, "Array", &[arg]);
+    let array_unknown = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "c.js",
+        Some(global_scope.clone()),
+    );
+
+    let array_type = closed_registry.get_native_object_type(JSTypeNative::ARRAY_TYPE);
+    let string_type = closed_registry.get_native_type(JSTypeNative::STRING_TYPE);
+    let expected = closed_registry.create_templatized_type(&ast, array_type, &[string_type]);
+    TypeSubject::assert_type(non_null_array_str).is_equal_to(&mut closed_registry, &ast, expected);
+    assert_eq!(
+        non_null_array_str.to_string(&mut closed_registry, &ast),
+        "Array<string>"
+    );
+    assert_eq!(
+        non_null_array_str.to_annotation_string(&mut closed_registry, &ast, Nullability::EXPLICIT),
+        "!Array<string>"
+    );
+    let expected = closed_registry.create_nullable_type(&ast, non_null_array_str);
+    TypeSubject::assert_type(nullable_array_str).is_equal_to(&mut closed_registry, &ast, expected);
+    TypeSubject::assert_type(qmark_array_str).is_equal_to(
+        &mut closed_registry,
+        &ast,
+        nullable_array_str,
+    );
+    let expected = closed_registry.create_optional_type(&ast, nullable_array_str);
+    TypeSubject::assert_type(opt_array_str).is_equal_to(&mut closed_registry, &ast, expected);
+    let array_type = closed_registry.get_native_object_type(JSTypeNative::ARRAY_TYPE);
+    let unknown_type = closed_registry.get_native_type(JSTypeNative::UNKNOWN_TYPE);
+    let expected = closed_registry.create_templatized_type(&ast, array_type, &[unknown_type]);
+    TypeSubject::assert_type(non_null_array_unknown).is_equal_to(
+        &mut closed_registry,
+        &ast,
+        expected,
+    );
+    TypeSubject::assert_type(non_null_array_unknown).is_not_equal_to(
+        &mut closed_registry,
+        &ast,
+        non_null_array_str,
+    );
+    assert_eq!(
+        non_null_array_unknown.to_string(&mut closed_registry, &ast),
+        "Array<?>"
+    );
+    assert_eq!(
+        array_unknown.to_string(&mut closed_registry, &ast),
+        "(Array<?>|null)"
+    );
+
+    // Repeated evaluation yields structurally equal types with identical template arguments.
+    let arg = ast.new_string("string");
+    let array = templatized_comment_node(&mut ast, "Array", &[arg]);
+    let n = bang_node(&mut ast, array);
+    let non_null_array_str2 =
+        closed_registry.create_type_from_comment_node_with_location(&ast, n, "d.js", None);
+    TypeSubject::assert_type(non_null_array_str2).is_equal_to(
+        &mut closed_registry,
+        &ast,
+        non_null_array_str,
+    );
+    assert!(non_null_array_str2.is_resolved(&closed_registry));
+    // containsExactlyElementsIn(...).inOrder(): element-wise JSType#equals, in order.
+    let actual_values = non_null_array_str2
+        .get_template_type_map(&closed_registry)
+        .get_template_values()
+        .to_vec();
+    let expected_values = non_null_array_str
+        .get_template_type_map(&closed_registry)
+        .get_template_values()
+        .to_vec();
+    assert_eq!(actual_values.len(), expected_values.len());
+    for (actual, expected) in actual_values.into_iter().zip(expected_values) {
+        assert!(actual.equals(&mut closed_registry, &ast, expected));
+    }
+
+    // ReadonlyArray, Promise, IThenable, IIterableResult, ReadonlyMap, Map, and unions.
+    let arg = ast.new_string("number");
+    let readonly_array = templatized_comment_node(&mut ast, "ReadonlyArray", &[arg]);
+    let n = bang_node(&mut ast, readonly_array);
+    let readonly_arr_num = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    assert_eq!(
+        readonly_arr_num.to_string(&mut closed_registry, &ast),
+        "ReadonlyArray<number>"
+    );
+
+    let arg = ast.new_string("string");
+    let promise = templatized_comment_node(&mut ast, "Promise", &[arg]);
+    let n = bang_node(&mut ast, promise);
+    let promise_str = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    assert_eq!(
+        promise_str.to_string(&mut closed_registry, &ast),
+        "Promise<string>"
+    );
+
+    let arg = ast.new_string("boolean");
+    let ithenable = templatized_comment_node(&mut ast, "IThenable", &[arg]);
+    let n = bang_node(&mut ast, ithenable);
+    let ithenable_bool = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    assert_eq!(
+        ithenable_bool.to_string(&mut closed_registry, &ast),
+        "IThenable<boolean>"
+    );
+
+    let arg = ast.new_string("number");
+    let iter_result = templatized_comment_node(&mut ast, "IIterableResult", &[arg]);
+    let n = bang_node(&mut ast, iter_result);
+    let iter_result_num = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    assert_eq!(
+        iter_result_num.to_string(&mut closed_registry, &ast),
+        "IIterableResult<number>"
+    );
+
+    let key = ast.new_string("string");
+    let value = ast.new_string("number");
+    let readonly_map = templatized_comment_node(&mut ast, "ReadonlyMap", &[key, value]);
+    let n = bang_node(&mut ast, readonly_map);
+    let readonly_map_str_num = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    assert_eq!(
+        readonly_map_str_num.to_string(&mut closed_registry, &ast),
+        "ReadonlyMap<string,number>"
+    );
+
+    let key = ast.new_string("string");
+    let arg = ast.new_string("string");
+    let array = templatized_comment_node(&mut ast, "Array", &[arg]);
+    let value = bang_node(&mut ast, array);
+    let map = templatized_comment_node(&mut ast, "Map", &[key, value]);
+    let n = bang_node(&mut ast, map);
+    let nested_map = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    assert_eq!(
+        nested_map.to_string(&mut closed_registry, &ast),
+        "Map<string,Array<string>>"
+    );
+
+    let union_node = ast.new_node(Token::PIPE);
+    for name in [
+        "string",
+        "number",
+        "boolean",
+        "bigint",
+        "null",
+        "undefined",
+        "symbol",
+    ] {
+        let child = ast.new_string(name);
+        union_node.add_child_to_back(&mut ast, child);
+    }
+    let big_union = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        union_node,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    assert_eq!(
+        big_union.to_string(&mut closed_registry, &ast),
+        "(bigint|boolean|null|number|string|symbol|undefined)"
+    );
+
+    let n = ast.new_node(Token::STAR);
+    let actual = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    let expected = closed_registry.get_native_type(JSTypeNative::ALL_TYPE);
+    TypeSubject::assert_type(actual).is_equal_to(&mut closed_registry, &ast, expected);
+    let n = ast.new_node(Token::QMARK);
+    let actual = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    let expected = closed_registry.get_native_type(JSTypeNative::UNKNOWN_TYPE);
+    TypeSubject::assert_type(actual).is_equal_to(&mut closed_registry, &ast, expected);
+    let n = ast.new_node(Token::EMPTY);
+    let actual = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    let expected = closed_registry.get_native_type(JSTypeNative::UNKNOWN_TYPE);
+    TypeSubject::assert_type(actual).is_equal_to(&mut closed_registry, &ast, expected);
+    let n = ast.new_string("null");
+    let actual = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    let expected = closed_registry.get_native_type(JSTypeNative::NULL_TYPE);
+    TypeSubject::assert_type(actual).is_equal_to(&mut closed_registry, &ast, expected);
+    // !null removes null from the type, yielding bottom (None).
+    let null = ast.new_string("null");
+    let n = bang_node(&mut ast, null);
+    let actual = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    let expected = closed_registry.get_native_type(JSTypeNative::NO_TYPE);
+    TypeSubject::assert_type(actual).is_equal_to(&mut closed_registry, &ast, expected);
+    let string = ast.new_string("string");
+    let bang_string = bang_node(&mut ast, string);
+    let n = ast.new_node_with_child(Token::QMARK, bang_string);
+    let actual = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    let string_type = closed_registry.get_native_type(JSTypeNative::STRING_TYPE);
+    let expected = closed_registry.create_nullable_type(&ast, string_type);
+    TypeSubject::assert_type(actual).is_equal_to(&mut closed_registry, &ast, expected);
+    let string = ast.new_string("string");
+    let qmark_string = ast.new_node_with_child(Token::QMARK, string);
+    let n = bang_node(&mut ast, qmark_string);
+    let actual = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope),
+    );
+    let expected = closed_registry.get_native_type(JSTypeNative::STRING_TYPE);
+    TypeSubject::assert_type(actual).is_equal_to(&mut closed_registry, &ast, expected);
+
+    reporter
+        .lock()
+        .unwrap()
+        .verify_has_encountered_all_warnings_and_errors();
+}
+
+/// The anonymous AbstractStaticScope of
+/// testCreateTypeFromCommentNode_templateScopeShadowing_doesNotLeakCachedBuiltins.
+struct TypeOfThisScope {
+    // Java's getRootNode returns a new IR.block() on each call. Nothing is registered under this
+    // scope's root, so one detached BLOCK answers the same lookups.
+    root: NodeId,
+    parent: Arc<dyn StaticTypedScope>,
+    owner_this: TypeId,
+}
+impl AbstractStaticScope for TypeOfThisScope {
+    // port: JSTypeRegistryTest#getRootNode
+    fn get_root_node(&self) -> Option<NodeId> {
+        Some(self.root)
+    }
+    // port: JSTypeRegistryTest#getParentScope
+    fn get_parent_scope(&self) -> Option<&dyn StaticTypedScope> {
+        Some(self.parent.as_ref())
+    }
+    // port: JSTypeRegistryTest#getSlot
+    fn get_slot(&self, _name: &JsString) -> Option<&dyn StaticTypedSlot> {
+        None
+    }
+    // port: JSTypeRegistryTest#getTypeOfThis
+    fn get_type_of_this(&self, _reg: &JSTypeRegistry, _ast: &Ast) -> Option<TypeId> {
+        Some(self.owner_this)
+    }
+}
+
+// port: JSTypeRegistryTest#testCreateTypeFromCommentNode_templateScopeShadowing_doesNotLeakCachedBuiltins
+#[test]
+fn test_create_type_from_comment_node_template_scope_shadowing_does_not_leak_cached_builtins() {
+    let mut ast = Ast::new();
+    let (mut closed_registry, reporter) = closed_registry_with_reporter(&mut ast);
+    let global_scope: Arc<dyn StaticTypedScope> = create_static_typed_scope(
+        ast.new_node(Token::ROOT),
+        None,
+        IndexMap::<_, _>::default(),
+        IndexSet::<_>::default(),
+    );
+
+    // Warm builtin Array evaluation first.
+    let arg = ast.new_string("string");
+    let array = templatized_comment_node(&mut ast, "Array", &[arg]);
+    let n = bang_node(&mut ast, array);
+    let builtin_array_str = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    assert!(builtin_array_str.is_templatized_type(&closed_registry));
+
+    // Shadow "Array" via @template in SyntheticTemplateScope.
+    let template_array = closed_registry.create_template_type(&ast, "Array");
+    let template_scope =
+        closed_registry.create_scope_with_templates(global_scope.clone(), vec![template_array]);
+
+    let n = ast.new_string("Array");
+    let shadowed_bare = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(template_scope.clone()),
+    );
+    let arg = ast.new_string("string");
+    let array = templatized_comment_node(&mut ast, "Array", &[arg]);
+    let n = bang_node(&mut ast, array);
+    let shadowed_with_args = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(template_scope),
+    );
+    TypeSubject::assert_type(shadowed_bare).is_equal_to(&mut closed_registry, &ast, template_array);
+    TypeSubject::assert_type(shadowed_with_args).is_equal_to(
+        &mut closed_registry,
+        &ast,
+        template_array,
+    );
+
+    // Shadow "Promise" via typeOfThis template key map.
+    let template_promise = closed_registry.create_template_type(&ast, "Promise");
+    let owner_this;
+    {
+        let mut closer = closed_registry.get_resolver().open_for_definition();
+        owner_this = FunctionTypeBuilder::new()
+            .for_constructor()
+            .with_name("PromiseOwner")
+            .with_template_keys(&mut closed_registry, &ast, vec![template_promise])
+            .build(&mut closed_registry, &ast)
+            .get_instance_type(&closed_registry)
+            .unwrap();
+        closer.close(&mut closed_registry, &ast);
+    }
+    let this_scope: Arc<dyn StaticTypedScope> = Arc::new(TypeOfThisScope {
+        root: ast.new_node(Token::BLOCK),
+        parent: global_scope.clone(),
+        owner_this,
+    });
+    let arg = ast.new_string("string");
+    let promise = templatized_comment_node(&mut ast, "Promise", &[arg]);
+    let n = bang_node(&mut ast, promise);
+    let shadowed_this_promise = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(this_scope),
+    );
+    TypeSubject::assert_type(shadowed_this_promise).is_equal_to(
+        &mut closed_registry,
+        &ast,
+        template_promise,
+    );
+
+    // Shadowing must not leak back to clean global scope.
+    let arg = ast.new_string("string");
+    let array = templatized_comment_node(&mut ast, "Array", &[arg]);
+    let n = bang_node(&mut ast, array);
+    let clean_again = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope),
+    );
+    TypeSubject::assert_type(clean_again).is_equal_to(
+        &mut closed_registry,
+        &ast,
+        builtin_array_str,
+    );
+
+    reporter
+        .lock()
+        .unwrap()
+        .verify_has_encountered_all_warnings_and_errors();
+}
+
+// port: JSTypeRegistryTest#testCreateTypeFromCommentNode_localScopeAndNonNullableShadowing
+#[test]
+fn test_create_type_from_comment_node_local_scope_and_non_nullable_shadowing() {
+    let mut ast = Ast::new();
+    let (mut closed_registry, reporter) = closed_registry_with_reporter(&mut ast);
+    let global_scope = create_static_typed_scope(
+        ast.new_node(Token::ROOT),
+        None,
+        IndexMap::<_, _>::default(),
+        IndexSet::<_>::default(),
+    );
+
+    let arg = ast.new_string("string");
+    let n = templatized_comment_node(&mut ast, "Promise", &[arg]);
+    let global_promise = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "a.js",
+        Some(global_scope.clone()),
+    );
+    assert_eq!(
+        global_promise.to_string(&mut closed_registry, &ast),
+        "(Promise<string>|null)"
+    );
+
+    // Local slot shadowing built-in Array must produce NamedType, not builtin Array.
+    let local_scope = create_static_typed_scope(
+        ast.new_node(Token::BLOCK),
+        Some(global_scope.clone()),
+        IndexMap::<_, _>::default(),
+        IndexSet::<_>::default(),
+    );
+    let unknown = closed_registry.get_native_type(JSTypeNative::UNKNOWN_TYPE);
+    let slots = IndexMap::<_, _>::from_iter([(
+        "Array".into(),
+        ScopedSlot {
+            slot: SimpleSlot::new("Array", unknown, true),
+            scope: local_scope.clone(),
+        },
+    )]);
+    local_scope
+        .slots
+        .set(slots)
+        .unwrap_or_else(|_| panic!("slot map already initialized"));
+    reporter.lock().unwrap().expect_all_warnings(&[concat!(
+        "Bad type annotation. Unknown type Array\n",
+        "It's possible that 'Array' refers to a value, not a type."
+    )]);
+    let arg = ast.new_string("string");
+    let array = templatized_comment_node(&mut ast, "Array", &[arg]);
+    let n = bang_node(&mut ast, array);
+    let shadowed_local = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "local.js",
+        Some(local_scope),
+    );
+    assert!(shadowed_local.is_named_type(&closed_registry));
+
+    // Registering a non-nullable name must change subsequent un-banged evaluations.
+    closed_registry.identify_non_nullable_name(&ast, None, "Promise");
+    let arg = ast.new_string("string");
+    let n = templatized_comment_node(&mut ast, "Promise", &[arg]);
+    let non_nullable_promise = closed_registry.create_type_from_comment_node_with_location(
+        &ast,
+        n,
+        "b.js",
+        Some(global_scope),
+    );
+    assert_eq!(
+        non_nullable_promise.to_string(&mut closed_registry, &ast),
+        "Promise<string>"
+    );
+
+    reporter
+        .lock()
+        .unwrap()
+        .verify_has_encountered_all_warnings_and_errors();
+}
+
+// port: JSTypeRegistryTest#testCreateTypeFromCommentNode_repeatedTooManyTemplateParametersEmitsAllWarnings
+#[test]
+fn test_create_type_from_comment_node_repeated_too_many_template_parameters_emits_all_warnings() {
+    let mut ast = Ast::new();
+    let warning_reporter = Arc::new(Mutex::new(TestErrorReporter::new()));
+    let expected = "Too many template parameters\nFound 2, required at most 1";
+    warning_reporter
+        .lock()
+        .unwrap()
+        .expect_all_warnings(&[expected, expected]);
+    let mut warn_registry = JSTypeRegistry::new(
+        &mut ast,
+        Box::new(SharedTestErrorReporter(warning_reporter.clone())),
+        Vec::new(),
+    );
+
+    let first_extra = ast.new_string("number");
+    first_extra.set_lineno_charno(&mut ast, 10, 20);
+    let first_array = ast.new_string("Array");
+    let string = ast.new_string("string");
+    let block = ast.new_node_with_children2(Token::BLOCK, string, first_extra);
+    first_array.add_child_to_front(&mut ast, block);
+
+    let second_extra = ast.new_string("number");
+    second_extra.set_lineno_charno(&mut ast, 25, 4);
+    let second_array = ast.new_string("Array");
+    let string = ast.new_string("string");
+    let block = ast.new_node_with_children2(Token::BLOCK, string, second_extra);
+    second_array.add_child_to_front(&mut ast, block);
+
+    let n = bang_node(&mut ast, first_array);
+    let t1 = warn_registry.create_type_from_comment_node_with_location(&ast, n, "warn.js", None);
+    let n = bang_node(&mut ast, second_array);
+    let t2 = warn_registry.create_type_from_comment_node_with_location(&ast, n, "warn.js", None);
+
+    TypeSubject::assert_type(t1).is_equal_to(&mut warn_registry, &ast, t2);
+    assert_eq!(t1.to_string(&mut warn_registry, &ast), "Array<string>");
+    warning_reporter
+        .lock()
+        .unwrap()
+        .verify_has_encountered_all_warnings_and_errors();
+}
+
+// port: JSTypeRegistryTest#testCreateTypeFromCommentNode_recordTypePreservesDistinctPropertyNodes
+#[test]
+fn test_create_type_from_comment_node_record_type_preserves_distinct_property_nodes() {
+    let mut ast = Ast::new();
+    let (mut closed_registry, reporter) = closed_registry_with_reporter(&mut ast);
+
+    let prop_node1 = ast.new_string("a");
+    prop_node1.set_lineno_charno(&mut ast, 10, 3);
+    let string = ast.new_string("string");
+    let colon = ast.new_node_with_children2(Token::COLON, prop_node1, string);
+    let lb = ast.new_node_with_child(Token::LB, colon);
+    let rec_node1 = ast.new_node_with_child(Token::LC, lb);
+
+    let prop_node2 = ast.new_string("a");
+    prop_node2.set_lineno_charno(&mut ast, 20, 3);
+    let string = ast.new_string("string");
+    let colon = ast.new_node_with_children2(Token::COLON, prop_node2, string);
+    let lb = ast.new_node_with_child(Token::LB, colon);
+    let rec_node2 = ast.new_node_with_child(Token::LC, lb);
+
+    let r1 = closed_registry
+        .create_type_from_comment_node_with_location(&ast, rec_node1, "rec.js", None);
+    let r2 = closed_registry
+        .create_type_from_comment_node_with_location(&ast, rec_node2, "rec.js", None);
+
+    TypeSubject::assert_type(r1).is_equal_to(&mut closed_registry, &ast, r2);
+    // isSameInstanceAs: Node identity is NodeId equality.
+    assert_eq!(
+        r1.to_maybe_record_type(&closed_registry)
+            .unwrap()
+            .get_property_node(&mut closed_registry, &ast, "a"),
+        Some(prop_node1)
+    );
+    assert_eq!(
+        r2.to_maybe_record_type(&closed_registry)
+            .unwrap()
+            .get_property_node(&mut closed_registry, &ast, "a"),
+        Some(prop_node2)
+    );
+    assert_ne!(
+        r2.to_maybe_record_type(&closed_registry)
+            .unwrap()
+            .get_property_node(&mut closed_registry, &ast, "a"),
+        Some(prop_node1)
+    );
+    reporter
+        .lock()
+        .unwrap()
+        .verify_has_encountered_all_warnings_and_errors();
+}
+
+// port: JSTypeRegistryTest#nullableArrayStrNode
+fn nullable_array_str_node(ast: &mut Ast) -> NodeId {
+    let arg = ast.new_string("string");
+    templatized_comment_node(ast, "Array", &[arg])
+}
+
+// port: JSTypeRegistryTest#bangNode
+fn bang_node(ast: &mut Ast, child: NodeId) -> NodeId {
+    ast.new_node_with_child(Token::BANG, child)
+}
+
+// port: JSTypeRegistryTest#templatizedCommentNode
+fn templatized_comment_node(ast: &mut Ast, name: &str, template_args: &[NodeId]) -> NodeId {
+    let node = ast.new_string(name);
+    let block = ast.new_node(Token::BLOCK);
+    for &arg in template_args {
+        block.add_child_to_back(ast, arg);
+    }
+    node.add_child_to_front(ast, block);
+    node
 }
