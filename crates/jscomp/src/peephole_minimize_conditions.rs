@@ -268,6 +268,13 @@ impl PeepholeMinimizeConditions {
             return n;
         }
 
+        if Self::exits_finally_block(compiler, break_target, follow) {
+            // Breaking to breakTarget and falling through to follow would exit an enclosing
+            // finally block normally instead of overriding any pending completion from try or
+            // catch.
+            return n;
+        }
+
         // When follow is null, this mean the follow of a break target is the
         // end of a function. This means a break is same as return.
         if follow.is_none() || self.are_matching_exits(compiler, n, follow.unwrap()) {
@@ -314,6 +321,12 @@ impl PeepholeMinimizeConditions {
             return Some(n);
         }
 
+        if Self::exits_finally_block(compiler, n, follow) {
+            // Falling through to follow would exit an enclosing finally block normally instead of
+            // overriding any pending completion from try or catch.
+            return Some(n);
+        }
+
         // When follow is null, this mean the follow of a break target is the
         // end of a function. This means a break is same as return.
         if follow.is_none() || self.are_matching_exits(compiler, n, follow.unwrap()) {
@@ -323,6 +336,33 @@ impl PeepholeMinimizeConditions {
         }
 
         Some(n)
+    }
+
+    /// Returns whether normal control-flow transfer from `start_node` to `follow` exits an
+    /// enclosing `finally` block.
+    ///
+    /// In ECMA-262 `TryStatement` evaluation, normal completion of a `finally` block resumes any
+    /// pending abrupt completion (`return`, `throw`, `break`, or `continue`) from the `try` or
+    /// `catch` block, whereas an abrupt exit from `finally` overrides that pending completion.
+    // port: PeepholeMinimizeConditions#exitsFinallyBlock
+    fn exits_finally_block(
+        compiler: &AbstractCompiler,
+        start_node: NodeId,
+        follow: Option<NodeId>,
+    ) -> bool {
+        let mut cur = start_node;
+        while !cur.is_function(compiler) && !cur.is_script(compiler) {
+            let parent = cur.get_parent(compiler).unwrap();
+            if NodeUtil::is_try_finally_node(compiler, parent, cur)
+                && (follow.is_none()
+                    || follow == Some(cur)
+                    || !follow.unwrap().is_descendant_of(compiler, cur))
+            {
+                return true;
+            }
+            cur = parent;
+        }
+        false
     }
 
     /// Returns whether the expression does not produces and can not be affected by side-effects.
