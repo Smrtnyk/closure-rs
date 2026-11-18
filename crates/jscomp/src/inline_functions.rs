@@ -436,6 +436,13 @@ impl InlineFunctions {
         let injector = &self.injector;
         self.fns.retain(|_, function_state| {
             if function_state.has_references() {
+                if Self::would_duplicate_tagged_template_lit(function_state) {
+                    function_state.disallow_inlining(
+                        compiler,
+                        DisallowInliningReason::TAGGED_TEMPLATE_LITERAL,
+                    );
+                    return false;
+                }
                 // Only inline function if it decreases the code size.
                 let lowers_cost = Self::minimize_cost(compiler, injector, function_state);
                 if !lowers_cost {
@@ -449,6 +456,15 @@ impl InlineFunctions {
             }
             true
         });
+    }
+
+    /// Returns whether inlining `function_state` would leave more than one copy of a tagged
+    /// template literal in the AST, breaking ECMA-262 `GetTemplateObject` call-site identity.
+    // port: InlineFunctions#wouldDuplicateTaggedTemplateLit
+    fn would_duplicate_tagged_template_lit(function_state: &FunctionState) -> bool {
+        let ref_count = function_state.get_references().count();
+        (ref_count > 1 || (ref_count == 1 && !function_state.can_remove()))
+            && function_state.has_tagged_template_lit()
     }
 
     /// Determines if the function is worth inlining and potentially trims references that
@@ -570,7 +586,13 @@ impl InlineFunctions {
                     );
                     // For functions that can no longer be removed, check if they should
                     // still be inlined.
-                    if !Self::minimize_cost(compiler, &self.injector, fs_called)
+                    if Self::would_duplicate_tagged_template_lit(fs_called) {
+                        fs_called.disallow_inlining_with_warning(
+                            compiler,
+                            DisallowInliningReason::TAGGED_TEMPLATE_LITERAL,
+                            ShouldWarnWhenRequireInliningCannotInline::NO,
+                        );
+                    } else if !Self::minimize_cost(compiler, &self.injector, fs_called)
                         && !fs_called.require_inlining(compiler)
                         && !fs_called.encourage_inlining(compiler)
                     {
@@ -977,6 +999,7 @@ impl<C: CallVisitorCallback> Callback for CallVisitor<'_, C> {
 /// callback side is `CandidateReferenceCollector`, which the CallVisitor owns.
 struct FindCandidatesReferences<'a> {
     call_visitor: CallVisitor<'a, CandidateReferenceCollector<'a>>,
+    functions_with_tagged_template_lit: IndexSet<NodeId>,
 }
 
 /// The CallVisitorCallback side of FindCandidatesReferences.
@@ -1005,7 +1028,36 @@ impl<'a> FindCandidatesReferences<'a> {
                     max_size_after_inlining,
                 },
             ),
+            functions_with_tagged_template_lit: IndexSet::<_>::default(),
         }
+    }
+
+    // port: InlineFunctions.FindCandidatesReferences#getFunctionStateForFunctionNode
+    fn get_function_state_for_function_node(
+        &mut self,
+        ast: &Ast,
+        fn_node: NodeId,
+    ) -> Option<&mut FunctionState> {
+        let mut name = self.call_visitor.anon_function_map.get(&fn_node).cloned();
+        if name.is_none() {
+            if NodeUtil::is_function_declaration(ast, fn_node) {
+                name = Some(fn_node.get_first_child(ast).unwrap().get_string(ast));
+            } else if fn_node.get_parent(ast).unwrap().is_name(ast)
+                && fn_node.get_grandparent(ast).is_some()
+                && NodeUtil::is_name_declaration(ast, fn_node.get_grandparent(ast))
+            {
+                name = Some(fn_node.get_parent(ast).unwrap().get_string(ast));
+            }
+        }
+        let name = name?;
+        let function_state = self.call_visitor.function_map.get_mut(&name);
+        if let Some(function_state) = function_state
+            && function_state.has_existing_function_definition()
+            && function_state.get_fn().get_function_node(ast) == fn_node
+        {
+            return Some(function_state);
+        }
+        None
     }
 
     /// Find functions that can be inlined.
@@ -1077,6 +1129,23 @@ impl Callback for FindCandidatesReferences<'_> {
         self.call_visitor.visit_calls(t, n, parent);
         if n.is_name(t) {
             self.check_name_usage(t, n, parent.unwrap());
+        } else if n.is_tagged_template_lit(t) {
+            let enclosing_fn = t.get_enclosing_function();
+            if let Some(enclosing_fn) = enclosing_fn {
+                self.functions_with_tagged_template_lit.insert(enclosing_fn);
+            }
+        } else if n.is_function(t)
+            && !self.functions_with_tagged_template_lit.is_empty()
+            && self.functions_with_tagged_template_lit.shift_remove(&n)
+        {
+            let function_state = self.get_function_state_for_function_node(t, n);
+            if let Some(function_state) = function_state {
+                function_state.set_has_tagged_template_lit(true);
+            }
+            let enclosing_fn = t.get_enclosing_function();
+            if let Some(enclosing_fn) = enclosing_fn {
+                self.functions_with_tagged_template_lit.insert(enclosing_fn);
+            }
         }
     }
 }
@@ -1249,6 +1318,7 @@ struct FunctionState {
     inline_directly: bool,
     references_this: bool,
     has_inner_closures: bool,
+    has_tagged_template_lit: bool,
     references: Option<IndexMap<NodeId, Reference>>,
     chunk: Option<JSChunk>,
     names_to_alias: Option<IndexSet<JsString>>,
@@ -1271,6 +1341,7 @@ impl FunctionState {
             inline_directly: false,
             references_this: false,
             has_inner_closures: false,
+            has_tagged_template_lit: false,
             references: None,
             chunk: None,
             names_to_alias: None,
@@ -1305,6 +1376,16 @@ impl FunctionState {
     // port: InlineFunctions.FunctionState#hasInnerClosures
     fn has_inner_closures(&self) -> bool {
         self.has_inner_closures
+    }
+
+    // port: InlineFunctions.FunctionState#setHasTaggedTemplateLit
+    fn set_has_tagged_template_lit(&mut self, has_tagged_template_lit: bool) {
+        self.has_tagged_template_lit = has_tagged_template_lit;
+    }
+
+    // port: InlineFunctions.FunctionState#hasTaggedTemplateLit
+    fn has_tagged_template_lit(&self) -> bool {
+        self.has_tagged_template_lit
     }
 
     // port: InlineFunctions.FunctionState#removeBlockInliningReferences
@@ -1800,6 +1881,7 @@ pub enum DisallowInliningReason {
     NOT_CANDIDATE_FUNCTION,
     NO_INLINE_ANNOTATION,
     REASSIGNED,
+    TAGGED_TEMPLATE_LITERAL,
     TARGET_SIZE_EXCEEDS_LIMIT,
 }
 
@@ -1821,6 +1903,7 @@ impl DisallowInliningReason {
             DisallowInliningReason::NOT_CANDIDATE_FUNCTION => "NOT_CANDIDATE_FUNCTION",
             DisallowInliningReason::NO_INLINE_ANNOTATION => "NO_INLINE_ANNOTATION",
             DisallowInliningReason::REASSIGNED => "REASSIGNED",
+            DisallowInliningReason::TAGGED_TEMPLATE_LITERAL => "TAGGED_TEMPLATE_LITERAL",
             DisallowInliningReason::TARGET_SIZE_EXCEEDS_LIMIT => "TARGET_SIZE_EXCEEDS_LIMIT",
         }
     }
