@@ -480,6 +480,9 @@ fn test_branched_simple_if() {
     let n2 = cfg.create_node(Some(inst2.clone()));
     let n3 = cfg.create_node(Some(inst3.clone()));
     let n4 = cfg.create_node(Some(inst4.clone()));
+    // Disconnected edges leave holes in the stable graph IDs used by indexed analyses.
+    cfg.connect(Some(inst1.clone()), Branch::UNCOND, Some(inst4.clone()));
+    cfg.disconnect(&Some(inst1.clone()), &Some(inst4.clone()));
     cfg.connect(Some(inst1.clone()), Branch::ON_TRUE, Some(inst2.clone()));
     cfg.connect(Some(inst1.clone()), Branch::ON_FALSE, Some(inst3.clone()));
     cfg.connect(Some(inst2.clone()), Branch::UNCOND, Some(inst4.clone()));
@@ -505,6 +508,27 @@ fn test_branched_simple_if() {
 
     // After the merge we should still have a = 0.
     verify_in_has(&const_prop, n4, a.clone(), Some(0));
+
+    let nodes = [n1, n2, n3, n4, const_prop.get_cfg().get_implicit_return()];
+    let expected = nodes.map(|node| const_prop.flow_state(node).clone());
+    let mut compiler = Compiler::new();
+    const_prop.analyze_indexed(&mut compiler);
+    for (node, expected) in nodes.into_iter().zip(expected) {
+        let actual = const_prop.flow_state(node);
+        assert_eq!(actual.get_step_count(), expected.get_step_count());
+        assert!(
+            actual
+                .get_in()
+                .lattice_equals(&mut compiler, expected.get_in())
+        );
+        assert!(
+            actual
+                .get_out()
+                .lattice_equals(&mut compiler, expected.get_out())
+        );
+    }
+    const_prop.analyze(&mut compiler);
+    verify_in_has(&const_prop, n4, a, Some(0));
 }
 #[derive(Clone, Debug)]
 struct Counter(Arc<AtomicI32>);

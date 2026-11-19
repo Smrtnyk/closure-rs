@@ -336,8 +336,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 
 - `jstype/property_map.rs`: `properties` / `known_symbols` are `Arc`, copy-on-write
   (`Arc::make_mut`), so the clones that release the registry borrow are O(1).
-- `jscomp/data_flow_analysis.rs` `UniqueQueue`: `swap_remove` on the seen set; sorted queue
-  insert by binary search (Java: `HashSet` + `PriorityQueue`).
+- `jscomp/data_flow_analysis.rs` keeps compiler-owned flow states in vectors indexed by
+  graph node and edge ID. The graph-annotating analysis entry point supports callers that
+  inspect annotations. The work queue tracks graph IDs in a membership array and inserts
+  by priority using binary search.
 - `parsing/config.rs`, `js_doc_info_parser.rs`: annotation / suppression / primitive-name maps
   are `Arc`-shared, not copied per JSDoc comment.
 - `parsing/parser/scanner.rs` `peek_token_ref_at`: the parser peeks token types and lines by
@@ -368,7 +370,11 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   A compiler using the original resource text and matching parser configuration loads the
   snapshot when it first needs that file. Loading preserves node allocation order, source
   positions, shared properties and type expressions. Files with diagnostics or unsupported
-  parser data use the source parser.
+  parser data use the source parser. The build also checks uncommented dependency input,
+  recording annotation flags for files without Closure primitives or module syntax. It
+  records top-level qualified property declarations in source order. The scope builder
+  validates each live property chain and applies its current JSDoc in the compilation's
+  type registry. A changed statement goes through ordinary traversal.
 - `jscomp/parallel_parse.rs`: inputs are parsed on up to 8 worker threads into arenas of their
   own (`Ast::new_for_preparse`) while the compiler runs; `CompilerInput#parse` moves a finished
   parse into the compiler's arena (`Ast::append_preparsed`) with the node ids, object sharing

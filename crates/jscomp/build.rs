@@ -27,6 +27,29 @@ use std::{fmt::Write, fs, path::PathBuf, sync::Arc};
 #[path = "src/deps/js_file_line_parser/lines.rs"]
 mod lines;
 
+/// One record per top-level statement, in source order. An empty record uses the normal
+/// scope builder. Bare qualified properties are declarations in browser externs.
+fn property_declarations(
+    ast: &closure_rhino::node::Ast,
+    script: closure_rhino::node::NodeId,
+) -> String {
+    let mut records = String::new();
+    for statement in script.children(ast) {
+        if statement.is_expr_result(ast)
+            && let Some(property) = statement.get_first_child(ast)
+            && property.is_get_prop(ast)
+            && let Some(name) = property.get_qualified_name(ast)
+        {
+            let name = name.to_string_lossy();
+            if name.is_ascii() && !name.contains(['\r', '\n']) {
+                records.push_str(&name);
+            }
+        }
+        records.push('\n');
+    }
+    records
+}
+
 /// JsFileRegexParser can produce dependencies or diagnostics only for Closure primitives,
 /// module syntax or @provideGoog. Leave any such file to the configured module loader.
 fn plain_dependency_flags(code: JsString) -> Option<(bool, bool)> {
@@ -61,6 +84,7 @@ fn main() {
     let out = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
     let mut lookup = String::from("match name {\n");
     let mut dependencies = String::from("match name {\n");
+    let mut declarations = String::from("match name {\n");
     for (i, file) in AbstractCommandLineRunner::get_builtin_externs(Environment::BROWSER)
         .into_iter()
         .enumerate()
@@ -70,9 +94,21 @@ fn main() {
         if let Some(flags) = plain_dependency_flags(code.clone()) {
             writeln!(dependencies, "{:?} => Some({flags:?}),", file.path).unwrap();
         }
-        if let Some(bytes) = closure_parsing::extern_snapshot::generate(source, code) {
+        if let Some((bytes, records)) =
+            closure_parsing::extern_snapshot::generate_with_ast(source, code, property_declarations)
+        {
             let filename = format!("extern-{i}.bin");
             fs::write(out.join(&filename), bytes).unwrap();
+            if !records.trim().is_empty() {
+                let names = format!("extern-{i}-properties.txt");
+                fs::write(out.join(&names), records).unwrap();
+                writeln!(
+                    declarations,
+                    "{:?} => Some(include_str!({names:?})),",
+                    file.path
+                )
+                .unwrap();
+            }
             writeln!(
                 lookup,
                 "{:?} => Some(include_bytes!({filename:?})),",
@@ -85,4 +121,6 @@ fn main() {
     fs::write(out.join("bundled_externs.rs"), lookup).unwrap();
     dependencies.push_str("_ => None,\n}\n");
     fs::write(out.join("bundled_extern_dependencies.rs"), dependencies).unwrap();
+    declarations.push_str("_ => None,\n}\n");
+    fs::write(out.join("bundled_extern_declarations.rs"), declarations).unwrap();
 }

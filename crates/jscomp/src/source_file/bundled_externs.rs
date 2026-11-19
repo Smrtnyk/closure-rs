@@ -72,6 +72,15 @@ impl SourceFile {
         let name = self.get_name();
         include!(concat!(env!("OUT_DIR"), "/bundled_externs.rs"))
     }
+
+    pub(crate) fn bundled_property_declarations(&self) -> Option<&'static str> {
+        if !self.bundled_browser_extern || !self.is_original_bundled_extern(&self.get_code().ok()?)
+        {
+            return None;
+        }
+        let name = self.get_name();
+        include!(concat!(env!("OUT_DIR"), "/bundled_extern_declarations.rs"))
+    }
 }
 
 #[cfg(test)]
@@ -230,6 +239,7 @@ mod tests {
             SourceFile::from_code_with_kind(file.get_name(), code.clone(), SourceKind::EXTERN);
         assert!(lookalike.extern_snapshot(config, &code).is_none());
         assert!(lookalike.bundled_dependency_info(&code).is_none());
+        assert!(lookalike.bundled_property_declarations().is_none());
         file.set_code_deprecated("var replacement;");
         assert!(
             file.bundled_dependency_info(&file.get_code().unwrap())
