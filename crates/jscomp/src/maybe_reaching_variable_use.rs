@@ -16,13 +16,11 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/MaybeReachingVariableUse.java.
 
-use crate::graph::{adjacency_graph::AdjacencyGraph, annotatable::Annotatable, graph::GraphEdge};
+use crate::graph::{adjacency_graph::AdjacencyGraph, graph::GraphEdge};
 use crate::{
     AbstractCompiler,
     control_flow_graph::{Branch, ControlFlowGraph},
-    data_flow_analysis::{
-        DataFlowAnalysis, DataFlowAnalysisState, FlowJoiner, LatticeEquals, LinearFlowState,
-    },
+    data_flow_analysis::{DataFlowAnalysis, DataFlowAnalysisState, FlowJoiner, LatticeEquals},
     graph::di_graph::DiGraph,
     node_util::NodeUtil,
     var::VarId,
@@ -414,9 +412,7 @@ impl MaybeReachingVariableUse {
     // port: MaybeReachingVariableUse#getUses
     pub fn get_uses(&self, name: &JsString, def_node: NodeId) -> Vec<NodeId> {
         let n = check_not_null!(self.get_cfg().get_node(&Some(def_node)));
-        let state = n
-            .get_annotation_as::<LinearFlowState<ReachingUses>>(self.get_cfg())
-            .unwrap();
+        let state = self.flow_state(n);
         self.all_vars_in_fn
             .get(name)
             .map(|&v| state.get_out().get(v))

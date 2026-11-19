@@ -295,7 +295,7 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
 
         let mut reaching_def =
             MustBeReachingVariableDef::new(compiler, cfg, escaped.clone(), all_vars_in_fn.clone());
-        reaching_def.analyze(compiler);
+        reaching_def.analyze_indexed(compiler);
         let mut candidates: VecDeque<Candidate> = VecDeque::new();
 
         // Using the forward reaching definition search to find all the inline
@@ -316,7 +316,7 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
         // reused.
         let cfg = reaching_def.into_cfg();
         let mut reaching_uses = MaybeReachingVariableUse::new(cfg, escaped, all_vars_in_fn.clone());
-        reaching_uses.analyze(compiler);
+        reaching_uses.analyze_indexed(compiler);
         while let Some(mut c) = candidates.pop_front() {
             let candidate_var = check_not_null!(all_vars_in_fn.get(&c.var_name).copied());
             let candidate_scope = candidate_var.get_scope(compiler);
