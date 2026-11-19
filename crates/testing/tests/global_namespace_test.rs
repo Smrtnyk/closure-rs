@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
 //   test/com/google/javascript/jscomp/GlobalNamespaceTest.java.
 
 //! Port of GlobalNamespaceTest (JUnit). Every helper compiles through `Compiler#compile` with
@@ -1988,4 +1988,58 @@ fn get_common_ancestor_chunk_finds_common_ancestor_of_sibling_chunks() {
             .get_chunk(&namespace),
         Some(chunks[2].clone())
     );
+}
+
+// port: GlobalNamespaceTest#testToStringValueOfInObjectLiteral_cannotCollapse
+#[test]
+fn test_to_string_value_of_in_object_literal_cannot_collapse() {
+    let mut t = GlobalNamespaceTest::new();
+    let mut ns = t.parse(
+        "function getScore() { return 1; }
+const a = {
+  valueOf: getScore,
+  toString: null,
+  other: 1,
+};
+const b = {
+  valueOf: {x: 1},
+};
+const c = {};
+function init() {
+  c.valueOf = getScore;
+}
+class D {
+  static valueOf() { return 1; }
+}
+function fn() {}
+fn.valueOf = getScore;
+",
+    );
+
+    let a_value_of = t.slot(&mut ns, "a.valueOf").unwrap();
+    assert!(!a_value_of.can_collapse(&ns, t.c()));
+    let a_to_string = t.slot(&mut ns, "a.toString").unwrap();
+    assert!(!a_to_string.can_collapse(&ns, t.c()));
+    let a_other = t.slot(&mut ns, "a.other").unwrap();
+    assert!(a_other.can_collapse(&ns, t.c()));
+
+    let b_value_of = t.slot(&mut ns, "b.valueOf").unwrap();
+    assert!(!b_value_of.can_collapse(&ns, t.c()));
+    assert_eq!(
+        b_value_of.can_collapse_or_inline_child_names(&ns, t.c()),
+        Inlinability::DO_NOT_INLINE
+    );
+    assert!(b_value_of.should_keep_keys(&ns));
+    let b_value_of_x = t.slot(&mut ns, "b.valueOf.x").unwrap();
+    assert!(!b_value_of_x.can_collapse(&ns, t.c()));
+
+    let c_value_of = t.slot(&mut ns, "c.valueOf").unwrap();
+    assert!(!c_value_of.can_collapse(&ns, t.c()));
+    assert!(!c_value_of.needs_to_be_stubbed(&ns));
+
+    // The guard stays scoped to object literals so static class/function helpers still collapse.
+    let d_value_of = t.slot(&mut ns, "D.valueOf").unwrap();
+    assert!(d_value_of.can_collapse(&ns, t.c()));
+    let fn_value_of = t.slot(&mut ns, "fn.valueOf").unwrap();
+    assert!(fn_value_of.can_collapse(&ns, t.c()));
 }

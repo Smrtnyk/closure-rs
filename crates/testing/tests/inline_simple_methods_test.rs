@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
 //   test/com/google/javascript/jscomp/InlineSimpleMethodsTest.java.
 
 //! Port of InlineSimpleMethodsTest (CompilerTestCase over the crates/testing port).
@@ -104,6 +104,29 @@ fn test_does_not_inline_method_on_base_class() {
     );
     let source = [base_class_js, derived_class_js].concat();
     t.test_same(&source);
+}
+
+// port: InlineSimpleMethodsTest#testSuperElsewhereInReceiverChain
+#[test]
+fn test_super_elsewhere_in_receiver_chain() {
+    let mut t = Test::new();
+    t.test_with_prefix(
+        concat!(
+            "function Foo(){}\n",
+            "Foo.prototype.bar=function(){return this.baz};\n",
+            "class Base { getFoo() { return new Foo(); } }\n"
+        ),
+        concat!(
+            "class Derived extends Base {\n",
+            "  derivedMethod() { return super.getFoo().bar(); }\n",
+            "}\n"
+        ),
+        concat!(
+            "class Derived extends Base {\n",
+            "  derivedMethod() { return super.getFoo().baz; }\n",
+            "}\n"
+        ),
+    );
 }
 
 // port: InlineSimpleMethodsTest#testSimpleInline1

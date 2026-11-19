@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
 //   test/com/google/javascript/jscomp/CommandLineRunnerTest.java.
 
 mod common;
@@ -1366,6 +1366,26 @@ fn test_assume_static_inheritance_is_not_used() {
         !h.get_compiler()
             .get_options()
             .get_assume_static_inheritance_is_not_used()
+    );
+}
+
+// port: CommandLineRunnerTest#testAssumeForOfIteratorCloseIsNotNeeded
+#[test]
+fn test_assume_for_of_iterator_close_is_not_needed() {
+    let mut h = Harness::new();
+    h.test_same(&[""]);
+    assert!(
+        !h.get_compiler()
+            .get_options()
+            .get_assume_for_of_iterator_close_is_not_needed()
+    );
+    h.args
+        .push("--assume_for_of_iterator_close_is_not_needed".into());
+    h.test_same(&[""]);
+    assert!(
+        h.get_compiler()
+            .get_options()
+            .get_assume_for_of_iterator_close_is_not_needed()
     );
 }
 // port: CommandLineRunnerTest#testChunkOutputFiles

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
 //   src/com/google/javascript/jscomp/Es6ForOfConverter.java.
 
 //! Port of `Es6ForOfConverter.java`.
@@ -54,6 +54,7 @@ pub struct Es6ForOfConverter {
     namer: DefaultNameGenerator,
     ast_factory: AstFactory,
     namespace: TranspilationNamespace,
+    emit_iterator_close: bool,
 }
 
 impl Es6ForOfConverter {
@@ -63,6 +64,9 @@ impl Es6ForOfConverter {
             namer: DefaultNameGenerator::new(),
             ast_factory: compiler.create_ast_factory(),
             namespace: TranspilationNamespace::get(compiler),
+            emit_iterator_close: !compiler
+                .get_options()
+                .get_assume_for_of_iterator_close_is_not_needed(),
         }
     }
 
@@ -199,58 +203,51 @@ impl Es6ForOfConverter {
         let new_body = IR::block_with_children(t, &[declaration_or_assign, body]).srcref(t, body);
         let empty = self.ast_factory.create_empty(t.get_compiler());
         let new_for = IR::for_node(t, empty, cond, incr, new_body).srcref_tree_if_missing(t, node);
-
-        // Build finally block:
-        // (0, $jscomp.iteratorClose)($jscomp$iter$0, $jscomp$key$extraName);
-        let iter_name_clone = iter_name.clone_tree(t);
-        let iter_result_clone = iter_result.clone_tree(t);
-        let call_iterator_close = self
-            .ast_factory
-            .create_jscomp_iterator_close_call(
-                t.get_compiler(),
-                iter_name_clone,
-                iter_result_clone,
-                &self.namespace,
-            )
-            .srcref_tree_if_missing(t, node);
-        let call_stmt = self
-            .ast_factory
-            .expr_result(t.get_compiler(), call_iterator_close);
-        let finally_block = self
-            .ast_factory
-            .create_block(t.get_compiler(), &[call_stmt]);
+        node.replace_with(t, new_for);
 
         // Check if the for loop has a parent that is a label i.e. `loop1: for(...of ...)`
-        let mut label_names: Vec<NodeId> = Vec::new();
-        let mut insertion_point = node;
+        let mut insertion_point = new_for;
         while let Some(parent) = insertion_point.get_parent(t)
             && parent.is_label(t)
         {
             insertion_point = parent;
-            let label = check_not_null!(insertion_point.get_first_child(t));
-            label_names.push(label.clone_node(t));
         }
 
-        let mut inner_loop = new_for;
-        for label_name in label_names {
-            inner_loop = self
+        if self.emit_iterator_close {
+            // Build finally block:
+            // (0, $jscomp.iteratorClose)($jscomp$iter$0, $jscomp$key$extraName);
+            let iter_name_clone = iter_name.clone_tree(t);
+            let iter_result_clone = iter_result.clone_tree(t);
+            let call_iterator_close = self
                 .ast_factory
-                .create_label(t.get_compiler(), label_name, inner_loop);
+                .create_jscomp_iterator_close_call(
+                    t.get_compiler(),
+                    iter_name_clone,
+                    iter_result_clone,
+                    &self.namespace,
+                )
+                .srcref_tree_if_missing(t, node);
+            let call_stmt = self
+                .ast_factory
+                .expr_result(t.get_compiler(), call_iterator_close);
+            let finally_block = self
+                .ast_factory
+                .create_block(t.get_compiler(), &[call_stmt]);
+            let try_block = self.ast_factory.create_block(t.get_compiler(), &[]);
+            let try_finally = self
+                .ast_factory
+                .create_try_finally(t.get_compiler(), try_block, finally_block)
+                .srcref_tree_if_missing(t, node);
+
+            insertion_point.replace_with(t, try_finally);
+            try_block.add_child_to_back(t, insertion_point);
+            insertion_point = try_finally;
         }
-        let try_block = self
-            .ast_factory
-            .create_block(t.get_compiler(), &[inner_loop]);
-        let try_finally = self
-            .ast_factory
-            .create_try_finally(t.get_compiler(), try_block, finally_block)
-            .srcref_tree_if_missing(t, node);
 
-        insertion_point.replace_with(t, try_finally);
-
-        init_iter.insert_before(t, try_finally);
+        init_iter.insert_before(t, insertion_point);
         init_iter_result.insert_after(t, init_iter);
         t.get_compiler()
-            .report_change_to_enclosing_scope(try_finally);
+            .report_change_to_enclosing_scope(insertion_point);
     }
 }
 

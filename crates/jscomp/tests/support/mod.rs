@@ -1370,6 +1370,12 @@ pub fn options_fields(options: &CompilerOptions) -> Value {
             "assumeStaticInheritanceIsNotUsed",
             options.get_assume_static_inheritance_is_not_used().record(),
         ),
+        (
+            "assumeForOfIteratorCloseIsNotNeeded",
+            options
+                .get_assume_for_of_iterator_close_is_not_needed()
+                .record(),
+        ),
         ("errorHandler", options.get_error_handler().record()),
         (
             "instrumentForCoverageOption",

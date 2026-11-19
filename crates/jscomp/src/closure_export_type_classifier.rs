@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
 //   src/com/google/javascript/jscomp/ClosureExportTypeClassifier.java.
 
 //! Syntactically classifies whether each goog.provide or goog.module namespace in a file is seen

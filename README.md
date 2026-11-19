@@ -14,10 +14,10 @@ its [documentation](https://developers.google.com/closure/compiler) and the offi
 ## Status
 
 closure-rs is stable and matches Closure Compiler release
-[`v20261116`](https://github.com/google/closure-compiler/tree/v20261116) (commit
-[`030d049`](https://github.com/google/closure-compiler/tree/030d049b25f74de12e2ed8e6ad8f3e6cbe8c7bee)),
+[`v20261117`](https://github.com/google/closure-compiler/tree/v20261117) (commit
+[`143e31c`](https://github.com/google/closure-compiler/tree/143e31c0385a93c8de8bb81c9ada8db16c453b0a)),
 published on npm as
-[`google-closure-compiler@20261116.0.0`](https://www.npmjs.com/package/google-closure-compiler/v/20261116.0.0).
+[`google-closure-compiler@20261117.0.0`](https://www.npmjs.com/package/google-closure-compiler/v/20261117.0.0).
 It follows upstream *releases*, not master commits: each sync moves it to a newer npm release
 ([Versioning](#versioning)). Its output is deterministic;
 [How the port is checked](#how-the-port-is-checked) describes how it is compared with the Java
@@ -109,14 +109,14 @@ to −4.6%. [Benchmark run and raw measurements](https://github.com/Smrtnyk/clos
 
 Versions are `<upstream>.<minor>.<patch>`:
 
-- **major:** the upstream release whose output closure-rs matches (`20261116` is
-  `google-closure-compiler@20261116.0.0`). A sync to a newer upstream release starts a new major
+- **major:** the upstream release whose output closure-rs matches (`20261117` is
+  `google-closure-compiler@20261117.0.0`). A sync to a newer upstream release starts a new major
   version at `.0.0`.
 - **minor:** releases that leave the output unchanged: speed, the npm wrapper, new platforms.
 - **patch:** fixes: a difference from the Java compiler, a crash, a bug in the npm wrapper.
 
-So a range such as `^20261116.0.0` stays on one upstream release. `latest` is the stable release;
-experimental builds are prereleases (for example `20261116.1.0-exp.1`) under the dist-tag `exp`.
+So a range such as `^20261117.0.0` stays on one upstream release. `latest` is the stable release;
+experimental builds are prereleases (for example `20261117.1.0-exp.1`) under the dist-tag `exp`.
 
 ## Bugs and issues
 

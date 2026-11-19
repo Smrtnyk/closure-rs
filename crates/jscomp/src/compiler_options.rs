@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
 //   src/com/google/javascript/jscomp/CompilerOptions.java.
 
 use crate::{
@@ -279,6 +279,7 @@ pub struct CompilerOptions {
     assume_getters_are_pure: bool,
     assume_properties_are_statically_analyzable: bool,
     assume_static_inheritance_is_not_used: bool,
+    assume_for_of_iterator_close_is_not_needed: bool,
     error_handler: Option<Arc<std::sync::Mutex<dyn ErrorHandler + Send>>>,
     instrument_for_coverage_option: InstrumentOption,
     production_instrumentation_array_name: String,
@@ -975,6 +976,7 @@ impl CompilerOptions {
         let assume_getters_are_pure = true;
         let assume_properties_are_statically_analyzable = true;
         let assume_static_inheritance_is_not_used = true;
+        let assume_for_of_iterator_close_is_not_needed = false;
         let conformance_configs = Vec::new();
         let conformance_reporting_mode =
             ConformanceReportingMode::IGNORE_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG;
@@ -1282,6 +1284,7 @@ impl CompilerOptions {
             assume_getters_are_pure,
             assume_properties_are_statically_analyzable,
             assume_static_inheritance_is_not_used,
+            assume_for_of_iterator_close_is_not_needed,
             error_handler,
             instrument_for_coverage_option,
             production_instrumentation_array_name,
@@ -1648,6 +1651,14 @@ impl CompilerOptions {
     // port: CompilerOptions#getAssumeStaticInheritanceIsNotUsed
     pub fn get_assume_static_inheritance_is_not_used(&self) -> bool {
         self.assume_static_inheritance_is_not_used
+    }
+    // port: CompilerOptions#setAssumeForOfIteratorCloseIsNotNeeded
+    pub fn set_assume_for_of_iterator_close_is_not_needed(&mut self, x: bool) {
+        self.assume_for_of_iterator_close_is_not_needed = x;
+    }
+    // port: CompilerOptions#getAssumeForOfIteratorCloseIsNotNeeded
+    pub fn get_assume_for_of_iterator_close_is_not_needed(&self) -> bool {
+        self.assume_for_of_iterator_close_is_not_needed
     }
     // port: CompilerOptions#getConformanceReportingMode
     pub fn get_conformance_reporting_mode(&self) -> ConformanceReportingMode {
@@ -3618,6 +3629,8 @@ impl fmt::Display for CompilerOptions {
         entries.push(format!("ambiguateProperties={displayed}"));
         let displayed = self.angular_pass.to_string();
         entries.push(format!("angularPass={displayed}"));
+        let displayed = self.assume_for_of_iterator_close_is_not_needed.to_string();
+        entries.push(format!("assumeForOfIteratorCloseIsNotNeeded={displayed}"));
         let displayed = self.assume_getters_are_pure.to_string();
         entries.push(format!("assumeGettersArePure={displayed}"));
         let displayed = self.assume_properties_are_statically_analyzable.to_string();
@@ -4560,6 +4573,7 @@ replay_compiler_options_fields!(
     assume_getters_are_pure: bool,
     assume_properties_are_statically_analyzable: bool,
     assume_static_inheritance_is_not_used: bool,
+    assume_for_of_iterator_close_is_not_needed: bool,
     error_handler: Option<Arc<std::sync::Mutex<dyn ErrorHandler + Send>>>,
     instrument_for_coverage_option: InstrumentOption,
     production_instrumentation_array_name: String,

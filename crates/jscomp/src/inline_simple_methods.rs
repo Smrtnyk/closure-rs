@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
 //   src/com/google/javascript/jscomp/InlineSimpleMethods.java,
 //   src/com/google/javascript/jscomp/NodeTraversal.java.
 
@@ -392,9 +392,12 @@ impl InvocationsCallback for InlineTrivialAccessors<'_> {
         let first_definition = *definitions.iter().next().unwrap();
 
         // Do not inline if the callsite is a derived class calling a base method using `super.`
-        if !outer.args_may_have_side_effects(t.get_compiler(), call_node)
-            && !NodeUtil::references_super(t, call_node)
-        {
+        // Only the immediate receiver matters: `super` elsewhere in the receiver chain or in the
+        // arguments stays at the call site, and InvocationsCallback guarantees the callee is a
+        // GETPROP. Avoid searching the whole call subtree, which is quadratic for long call chains.
+        let receiver =
+            check_not_null!(check_not_null!(call_node.get_first_child(t)).get_first_child(t));
+        if !outer.args_may_have_side_effects(t.get_compiler(), call_node) && !receiver.is_super(t) {
             // Verify this is a trivial return
             let returned = InlineSimpleMethods::returned_expression(t, first_definition);
             if let Some(returned) = returned {

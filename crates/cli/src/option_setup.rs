@@ -865,6 +865,12 @@ pub fn options_fields(
                     .setup_json(),
             ),
             (
+                "assumeForOfIteratorCloseIsNotNeeded".into(),
+                options
+                    .get_assume_for_of_iterator_close_is_not_needed()
+                    .setup_json(),
+            ),
+            (
                 "instrumentForCoverageOption".into(),
                 options.get_instrument_for_coverage_option().setup_json(),
             ),

@@ -2358,7 +2358,7 @@
  },
  "methodKey": "Binary#method: the record class's binary simple name (Outer$Inner) and the test method without parameters",
  "recordKey": "Class#method@call: Class = record file stem under corpus/unit/records/, method and call = the record's fields; ~n is appended when n >= 1 earlier records of the file have the same method and call (the key scripts/unit_ratchet_rebase.py maps records by)",
- "reference": "v20261116",
+ "reference": "v20261117",
  "schema": "closure-rs/gate02-ratchet/1",
  "strictPassing": [
   "b",
@@ -2367,11 +2367,11 @@
  "summary": {
   "dFailingUnits": 13,
   "excluded": 1038,
-  "excludedFraction": 0.040306,
+  "excludedFraction": 0.040275,
   "postStateUnclassified": 2,
-  "records": 25753,
+  "records": 25773,
   "unclassifiedMethods": 141,
   "unrepresentable": 1041,
-  "unrepresentableFraction": 0.040422
+  "unrepresentableFraction": 0.040391
  }
 }

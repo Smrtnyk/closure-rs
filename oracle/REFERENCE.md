@@ -2,19 +2,20 @@
 
 | Item | Value |
 |---|---|
-| Reference | google/closure-compiler release `v20261116` @ `030d049b25f74de12e2ed8e6ad8f3e6cbe8c7bee` = npm `google-closure-compiler@20261116.0.0` (registry tag `v20261116` in `scripts/references.tsv`, the default; fetched with `scripts/fetch_reference.sh` into `reference/closure-compiler-v20261116`) |
+| Reference | google/closure-compiler release `v20261117` @ `143e31c0385a93c8de8bb81c9ada8db16c453b0a` = npm `google-closure-compiler@20261117.0.0` (registry tag `v20261117` in `scripts/references.tsv`, the default; fetched with `scripts/fetch_reference.sh` into `reference/closure-compiler-v20261117`) |
 | Bazel | 8.0.0 (from the reference's `.bazelversion`), via bazelisk v1.29.0 (`tools/bin/bazelisk`) |
 | JDK | Temurin jdk-21.0.12.1+1 (`tools/jdk-21`); Bazel builds with its hermetic remote JDK |
 | Tools | `scripts/setup_tools.sh` installs bazelisk, the JDK and `tools/env.sh` under `tools/`, pinned by version and sha256 ("Toolchain" below) |
-| Uberjar | `build/reference-v20261116/closure-compiler.jar`, sha256 `d779dc05617049b4401e4c2e405b605ebb3e4f318eb2ad8546ee11b00c8f685d` |
-| Oracle | `build/oracle-v20261116/oracle.jar` |
+| Uberjar | `build/reference-v20261117/closure-compiler.jar`, sha256 `0081162b6ac72e46e5ede7e3fbf8a8877c1880d40660095d17b698a6d34aece6` |
+| Oracle | `build/oracle-v20261117/oracle.jar` |
 | Bazel output_base | `~/.cache/bazel/_bazel_<user>/<hash>` (Bazel's default for the reference workspace; one per checkout) |
 
 Every reference stays installed alongside the newer ones (docs/PORTING.md §9):
 
 | Registry tag | Upstream | Checkout (under the main checkout) | Uberjar sha256 | Oracle |
 |---|---|---|---|---|
-| `v20261116` (default) | release `v20261116`, `030d049b25f74de12e2ed8e6ad8f3e6cbe8c7bee`, npm `20261116.0.0` | `reference/closure-compiler-v20261116` | `build/reference-v20261116/closure-compiler.jar`, `d779dc05617049b4401e4c2e405b605ebb3e4f318eb2ad8546ee11b00c8f685d` | `build/oracle-v20261116/oracle.jar` |
+| `v20261117` (default) | release `v20261117`, `143e31c0385a93c8de8bb81c9ada8db16c453b0a`, npm `20261117.0.0` | `reference/closure-compiler-v20261117` | `build/reference-v20261117/closure-compiler.jar`, `0081162b6ac72e46e5ede7e3fbf8a8877c1880d40660095d17b698a6d34aece6` | `build/oracle-v20261117/oracle.jar` |
+| `v20261116` | release `v20261116`, `030d049b25f74de12e2ed8e6ad8f3e6cbe8c7bee`, npm `20261116.0.0` | `reference/closure-compiler-v20261116` | `build/reference-v20261116/closure-compiler.jar`, `d779dc05617049b4401e4c2e405b605ebb3e4f318eb2ad8546ee11b00c8f685d` | `build/oracle-v20261116/oracle.jar` |
 | `v20261109` | release `v20261109`, `ddfede731e001beb7555d5a796e073bb09a01104`, npm `20261109.0.0` | `reference/closure-compiler-v20261109` | `build/reference-v20261109/closure-compiler.jar`, `1591d9ba389d14d77e74d1598138fdc7d8adf442c8feec0d6185e7634c57a1e9` | `build/oracle-v20261109/oracle.jar` |
 | `v20261108` | release `v20261108`, `51d8099391498ee0fd730c24bff9d983ccc4aac8`, npm `20261108.0.0` | `reference/closure-compiler-v20261108` | `build/reference-v20261108/closure-compiler.jar`, `e1da98c721331a10e89442575b0c244ef353f9b8a0fccdc647036cd7607bdfcb` | `build/oracle-v20261108/oracle.jar` |
 | `v20261102` | release `v20261102`, `977e2cfbb93843d87325fbf94e67cc761773684c`, npm `20261102.0.0` | `reference/closure-compiler-v20261102` | `build/reference-v20261102/closure-compiler.jar`, `ddef697f34c244983d738939a339b0cc7a9ce328f23f92f9833e1d6dee5f7c37` | `build/oracle-v20261102/oracle.jar` |
@@ -83,10 +84,10 @@ compiling protoc from source.
 ## Oracle
 
 - **Build:** `oracle/build.sh` compiles `oracle/src` with JDK 21 (`--release 21`), using
-  the reference jar `$REF_JAR` (`build/reference-v20261116/closure-compiler.jar` for the default)
-  as the only classpath entry, into `$ORACLE_JAR` (`build/oracle-v20261116/oracle.jar`). It checks the reference
+  the reference jar `$REF_JAR` (`build/reference-v20261117/closure-compiler.jar` for the default)
+  as the only classpath entry, into `$ORACLE_JAR` (`build/oracle-v20261117/oracle.jar`). It checks the reference
   jar's sha256 against the registry first, and refuses a reference whose sha256 is not pinned.
-- **Run:** `java -cp build/oracle-v20261116/oracle.jar:build/reference-v20261116/closure-compiler.jar closurers.oracle.Main compile|request|server`
+- **Run:** `java -cp build/oracle-v20261117/oracle.jar:build/reference-v20261117/closure-compiler.jar closurers.oracle.Main compile|request|server`
   (another reference: `$ORACLE_JAR:$REF_JAR`). The oracle uses the jar `CommandLineRunner` was
   loaded from as its reference jar (`-Doracle.reference_jar=PATH` overrides).
   The protocol, the seam caveats and the identity checks are in `oracle/PROTOCOL.md`, the
