@@ -3824,7 +3824,7 @@ impl CommandLineRunner {
                 } else {
                     let error = error
                         .at_cli("AbstractCommandLineRunner", "run", 536)
-                        .at_cli("CommandLineRunner", "main", 2266);
+                        .at_cli("CommandLineRunner", "main", 2278);
                     let _ = error.print_stack_trace(&mut self.base.err);
                     -2
                 }
@@ -3968,13 +3968,13 @@ impl CommandLineRunner {
             let stream = std::fs::File::open(&flags.translations_file).map_err(|e| {
                 let cause =
                     crate::java_io::file_not_found(e, &flags.translations_file, false, true)
-                        .at_cli("CommandLineRunner", "createOptions", 1952);
+                        .at_cli("CommandLineRunner", "createOptions", 1963);
                 RunnerException::java_exception(
                     "java.lang.RuntimeException",
                     "Reading XTB file".into(),
                     vec![],
                 )
-                .at_cli("CommandLineRunner", "createOptions", 1956)
+                .at_cli("CommandLineRunner", "createOptions", 1967)
                 .caused_by(cause)
             })?;
             let bundle = closure_jscomp::xtb_message_bundle::XtbMessageBundle::new(
@@ -3985,7 +3985,7 @@ impl CommandLineRunner {
                 // XtbMessageBundle wraps the SAX or I/O exception in a RuntimeException.
                 RunnerException::java_exception("java.lang.RuntimeException", e.to_string(), vec![])
                     .at_cli("XtbMessageBundle", "<init>", 72)
-                    .at_cli("CommandLineRunner", "createOptions", 1953)
+                    .at_cli("CommandLineRunner", "createOptions", 1964)
             })?;
             options.set_message_bundle(Arc::new(bundle));
         } else if level == CompilationLevel::ADVANCED_OPTIMIZATIONS {
@@ -3999,7 +3999,7 @@ impl CommandLineRunner {
         }
         options.set_conformance_configs(
             Self::load_conformance_configs(&flags.conformance_configs)
-                .map_err(|e| e.at_cli("CommandLineRunner", "createOptions", 1971))?,
+                .map_err(|e| e.at_cli("CommandLineRunner", "createOptions", 1982))?,
         );
         options.set_print_source_after_each_pass(flags.print_source_after_each_pass);
         options.set_tracer_mode(flags.tracer_mode);
@@ -4086,19 +4086,19 @@ impl CommandLineRunner {
                     let cause = RunnerException::from(e).at_cli(
                         "CommandLineRunner",
                         "loadConformanceConfigs",
-                        2109,
+                        2121,
                     );
                     RunnerException::java_exception(
                         "java.lang.RuntimeException",
                         "Error loading conformance config".into(),
                         vec![],
                     )
-                    .at_cli("CommandLineRunner", "loadConformanceConfigs", 2111)
+                    .at_cli("CommandLineRunner", "loadConformanceConfigs", 2123)
                     .caused_by(cause)
                 }
                 // Not an IOException: it leaves loadConformanceConfigs unwrapped.
                 LoadConformanceConfigError::RuntimeException(e) => {
-                    e.at_cli("CommandLineRunner", "loadConformanceConfigs", 2109)
+                    e.at_cli("CommandLineRunner", "loadConformanceConfigs", 2121)
                 }
             })?;
             configs.push(config);
@@ -4116,7 +4116,7 @@ impl CommandLineRunner {
                     .at("com.google.common.io.Files$FileByteSource.openStream(Files.java:131)")
                     .at("com.google.common.io.Files$FileByteSource.read(Files.java:155)")
                     .at("com.google.common.io.ByteSource$AsCharSource.read(ByteSource.java:473)")
-                    .at_cli("CommandLineRunner", "loadConformanceConfig", 2119),
+                    .at_cli("CommandLineRunner", "loadConformanceConfig", 2131),
             ))
         })?;
         let text = closure_rhino::java_lang::charset::Charset::UTF_8
@@ -4136,14 +4136,14 @@ impl CommandLineRunner {
                 e.get_message().to_string(),
                 vec![],
             )
-            .at_cli("CommandLineRunner", "loadConformanceConfig", 2130);
+            .at_cli("CommandLineRunner", "loadConformanceConfig", 2142);
             return Err(LoadConformanceConfigError::RuntimeException(
                 RunnerException::java_exception(
                     "java.lang.RuntimeException",
                     e.to_string(),
                     vec![],
                 )
-                .at_cli("CommandLineRunner", "loadConformanceConfig", 2132)
+                .at_cli("CommandLineRunner", "loadConformanceConfig", 2144)
                 .caused_by(cause),
             ));
         }
