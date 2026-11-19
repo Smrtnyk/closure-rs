@@ -23,6 +23,7 @@ crates/cli/src/command_line_runner.rs	776bd32a60b9a28a	Apache-2.0	closure:src/co
 crates/cli/src/gson/json_reader.rs	6657f057893e7125	Apache-2.0	gson:com/google/gson/stream/JsonReader.java; gson:com/google/gson/internal/bind/TypeAdapters.java; closure:src/com/google/javascript/jscomp/AbstractCommandLineRunner.java; gson:com/google/gson/Gson.java
 crates/cli/src/gson/json_writer.rs	71bc145e681d09af	Apache-2.0	gson:com/google/gson/stream/JsonWriter.java; gson:com/google/gson/Gson.java; gson:com/google/gson/internal/Streams.java
 crates/cli/src/gson/mod.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/cli/src/java_frames.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/src/java_io.rs	6d6690031bef03c5	Apache-2.0	closure:src/com/google/javascript/jscomp/AbstractCommandLineRunner.java
 crates/cli/src/java_util_logging_level.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/src/jdk_globs.rs	8956086764e6f64c	GPL-2.0-only WITH Classpath-exception-2.0	jdk:java.base/java/util/regex/Pattern.java; jdk:java.base/java/util/regex/PatternSyntaxException.java; jdk:java.base/sun/nio/fs/UnixFileSystem.java; jdk:java.base/java/util/regex/Matcher.java; jdk:java.base/sun/nio/fs/Globs.java

@@ -19,6 +19,7 @@
 #![forbid(unsafe_code)]
 use closure_cli::{
     abstract_command_line_runner::SystemExitCodeReceiver, command_line_runner::CommandLineRunner,
+    java_frames,
 };
 
 // Not in Java (the JVM has its own allocator): mimalloc is much faster than the system allocator
@@ -49,7 +50,10 @@ fn run(args: &[String]) -> i32 {
         Ok(runner) => runner,
         Err(error) => {
             eprintln!(
-                "Exception in thread \"main\" com.google.javascript.jscomp.FlagUsageException: {error}\n\tat com.google.javascript.jscomp.CommandLineRunner.initConfigFromFlags(CommandLineRunner.java:1677)\n\tat com.google.javascript.jscomp.CommandLineRunner.<init>(CommandLineRunner.java:1499)\n\tat com.google.javascript.jscomp.CommandLineRunner.main(CommandLineRunner.java:2276)"
+                "Exception in thread \"main\" com.google.javascript.jscomp.FlagUsageException: {error}\n\tat {}\n\tat {}\n\tat {}",
+                java_frames::COMMAND_LINE_RUNNER_INIT_CONFIG_FLAG_USAGE,
+                java_frames::COMMAND_LINE_RUNNER_INIT_INIT_CONFIG,
+                java_frames::COMMAND_LINE_RUNNER_MAIN_NEW,
             );
             return 1;
         }

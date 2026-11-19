@@ -3563,12 +3563,12 @@ impl CommandLineRunner {
         }
         // Not in Java: Polymer is outside the port (docs/PORTING.md §2.1).
         crate::out_of_scope::refuse_polymer(&self.flags)?;
-        let mut options = self
-            .create_options()
-            .map_err(|e| e.at_cli("AbstractCommandLineRunner", "doRun", 1164))?;
-        self.base
-            .set_run_options(&mut options)
-            .map_err(|e| e.at_cli("AbstractCommandLineRunner", "doRun", 1165))?;
+        let mut options = self.create_options().map_err(|e| {
+            e.at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_DO_RUN_CREATE_OPTIONS)
+        })?;
+        self.base.set_run_options(&mut options).map_err(|e| {
+            e.at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_DO_RUN_SET_RUN_OPTIONS)
+        })?;
         // Not in Java: flags that turn on a part of the compiler outside the port
         // (docs/PORTING.md §2.1).
         crate::out_of_scope::refuse_flags(&self.flags)?;
@@ -3598,7 +3598,8 @@ impl CommandLineRunner {
                 self.base
                     .parse_json_files_from_input_stream()
                     .map_err(|e| {
-                        RunnerException::from(e).at_cli("AbstractCommandLineRunner", "doRun", 1195)
+                        RunnerException::from(e)
+                            .at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_DO_RUN_PARSE_JSON)
                     })?,
             )
         } else {
@@ -3609,7 +3610,7 @@ impl CommandLineRunner {
             let mut input_source_maps = IndexMap::<_, _>::default();
             let mut found_json_input_source_map = false;
             for file in files {
-                let file = file.as_ref().ok_or_else(|| RunnerException::java_exception("java.lang.NullPointerException", "Cannot invoke \"com.google.javascript.jscomp.AbstractCommandLineRunner$JsonFileSpec.getSourceMap()\" because \"jsonFile\" is null".into(), vec![]).at_cli("AbstractCommandLineRunner", "doRun", 1202))?;
+                let file = file.as_ref().ok_or_else(|| RunnerException::java_exception("java.lang.NullPointerException", "Cannot invoke \"com.google.javascript.jscomp.AbstractCommandLineRunner$JsonFileSpec.getSourceMap()\" because \"jsonFile\" is null".into(), vec![]).at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_DO_RUN_JSON_SOURCE_MAP))?;
                 // The source name `createInputs` gives this file (crates/DESIGN.md, "Source names
                 // that hold unpaired surrogates").
                 let path = file.get_path().expect("null path").to_string();
@@ -3811,7 +3812,9 @@ impl CommandLineRunner {
             metrics_recorder
                 .record_result_metrics(self.base.compiler.as_ref().unwrap(), result.as_ref());
         }
-        exit_status.map_err(|e| e.at_cli("AbstractCommandLineRunner", "doRun", 1325))
+        exit_status.map_err(|e| {
+            e.at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_DO_RUN_PROCESS_RESULTS)
+        })
     }
     // port: AbstractCommandLineRunner#run
     pub fn run(&mut self) -> i32 {
@@ -3823,8 +3826,8 @@ impl CommandLineRunner {
                     -1
                 } else {
                     let error = error
-                        .at_cli("AbstractCommandLineRunner", "run", 536)
-                        .at_cli("CommandLineRunner", "main", 2278);
+                        .at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_RUN_DO_RUN)
+                        .at(crate::java_frames::COMMAND_LINE_RUNNER_MAIN_RUN);
                     let _ = error.print_stack_trace(&mut self.base.err);
                     -2
                 }
@@ -3968,13 +3971,13 @@ impl CommandLineRunner {
             let stream = std::fs::File::open(&flags.translations_file).map_err(|e| {
                 let cause =
                     crate::java_io::file_not_found(e, &flags.translations_file, false, true)
-                        .at_cli("CommandLineRunner", "createOptions", 1963);
+                        .at(crate::java_frames::COMMAND_LINE_RUNNER_CREATE_OPTIONS_XTB_STREAM);
                 RunnerException::java_exception(
                     "java.lang.RuntimeException",
                     "Reading XTB file".into(),
                     vec![],
                 )
-                .at_cli("CommandLineRunner", "createOptions", 1967)
+                .at(crate::java_frames::COMMAND_LINE_RUNNER_CREATE_OPTIONS_XTB_ERROR)
                 .caused_by(cause)
             })?;
             let bundle = closure_jscomp::xtb_message_bundle::XtbMessageBundle::new(
@@ -3984,8 +3987,8 @@ impl CommandLineRunner {
             .map_err(|e| {
                 // XtbMessageBundle wraps the SAX or I/O exception in a RuntimeException.
                 RunnerException::java_exception("java.lang.RuntimeException", e.to_string(), vec![])
-                    .at_cli("XtbMessageBundle", "<init>", 72)
-                    .at_cli("CommandLineRunner", "createOptions", 1964)
+                    .at(crate::java_frames::XTB_MESSAGE_BUNDLE_INIT_ERROR)
+                    .at(crate::java_frames::COMMAND_LINE_RUNNER_CREATE_OPTIONS_XTB_BUNDLE)
             })?;
             options.set_message_bundle(Arc::new(bundle));
         } else if level == CompilationLevel::ADVANCED_OPTIMIZATIONS {
@@ -3998,8 +4001,9 @@ impl CommandLineRunner {
             );
         }
         options.set_conformance_configs(
-            Self::load_conformance_configs(&flags.conformance_configs)
-                .map_err(|e| e.at_cli("CommandLineRunner", "createOptions", 1982))?,
+            Self::load_conformance_configs(&flags.conformance_configs).map_err(|e| {
+                e.at(crate::java_frames::COMMAND_LINE_RUNNER_CREATE_OPTIONS_CONFORMANCE)
+            })?,
         );
         options.set_print_source_after_each_pass(flags.print_source_after_each_pass);
         options.set_tracer_mode(flags.tracer_mode);
@@ -4083,22 +4087,19 @@ impl CommandLineRunner {
         for path in paths {
             let config = Self::load_conformance_config(path).map_err(|e| match e {
                 LoadConformanceConfigError::IOException(e) => {
-                    let cause = RunnerException::from(e).at_cli(
-                        "CommandLineRunner",
-                        "loadConformanceConfigs",
-                        2121,
-                    );
+                    let cause = RunnerException::from(e)
+                        .at(crate::java_frames::COMMAND_LINE_RUNNER_LOAD_CONFORMANCE_CONFIGS_LOAD);
                     RunnerException::java_exception(
                         "java.lang.RuntimeException",
                         "Error loading conformance config".into(),
                         vec![],
                     )
-                    .at_cli("CommandLineRunner", "loadConformanceConfigs", 2123)
+                    .at(crate::java_frames::COMMAND_LINE_RUNNER_LOAD_CONFORMANCE_CONFIGS_ERROR)
                     .caused_by(cause)
                 }
                 // Not an IOException: it leaves loadConformanceConfigs unwrapped.
                 LoadConformanceConfigError::RuntimeException(e) => {
-                    e.at_cli("CommandLineRunner", "loadConformanceConfigs", 2121)
+                    e.at(crate::java_frames::COMMAND_LINE_RUNNER_LOAD_CONFORMANCE_CONFIGS_LOAD)
                 }
             })?;
             configs.push(config);
@@ -4116,7 +4117,7 @@ impl CommandLineRunner {
                     .at("com.google.common.io.Files$FileByteSource.openStream(Files.java:131)")
                     .at("com.google.common.io.Files$FileByteSource.read(Files.java:155)")
                     .at("com.google.common.io.ByteSource$AsCharSource.read(ByteSource.java:473)")
-                    .at_cli("CommandLineRunner", "loadConformanceConfig", 2131),
+                    .at(crate::java_frames::COMMAND_LINE_RUNNER_LOAD_CONFORMANCE_CONFIG_READ),
             ))
         })?;
         let text = closure_rhino::java_lang::charset::Charset::UTF_8
@@ -4136,14 +4137,14 @@ impl CommandLineRunner {
                 e.get_message().to_string(),
                 vec![],
             )
-            .at_cli("CommandLineRunner", "loadConformanceConfig", 2142);
+            .at(crate::java_frames::COMMAND_LINE_RUNNER_LOAD_CONFORMANCE_CONFIG_MERGE);
             return Err(LoadConformanceConfigError::RuntimeException(
                 RunnerException::java_exception(
                     "java.lang.RuntimeException",
                     e.to_string(),
                     vec![],
                 )
-                .at_cli("CommandLineRunner", "loadConformanceConfig", 2144)
+                .at(crate::java_frames::COMMAND_LINE_RUNNER_LOAD_CONFORMANCE_CONFIG_ERROR)
                 .caused_by(cause),
             ));
         }
@@ -4554,9 +4555,9 @@ impl CommandLineRunner {
         if options.get_output_js() != OutputJs::NONE && result.success {
             self.output_chunk_graph_json()?;
             if chunks.is_none() {
-                self.base
-                    .output_single_binary(options)
-                    .map_err(|e| e.at_cli("AbstractCommandLineRunner", "processResults", 1537))?;
+                self.base.output_single_binary(options).map_err(|e| {
+                    e.at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_PROCESS_RESULTS_OUTPUT)
+                })?;
                 if !self.base.is_output_in_json() {
                     self.base
                         .output_source_map(options, &self.base.config.js_output_file.clone())

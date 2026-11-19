@@ -3,8 +3,8 @@
 environment and the Java helpers (CliMetadata.java, CliOptionSetup.java) compiled against the
 reference jar.
 
-Not a script; generate_golden.py, generate_exception_golden.py and generate_setup.py import
-it. Their work directory (--work) holds the compiled helpers and the flag
+Not a script; generate_golden.py, generate_exception_golden.py, generate_setup.py and
+java_frames.py import it. Their work directory (--work) holds the compiled helpers and the flag
 metadata; it defaults to build/cli-fixtures/<tag>/ of this checkout.
 """
 from __future__ import annotations

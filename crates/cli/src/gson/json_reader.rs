@@ -750,12 +750,8 @@ impl JsonReader {
 // port: AbstractCommandLineRunner#parseJsonFilesFromInputStream / Gson#fromJson
 pub fn parse_json_files(text: &str) -> Result<Vec<Option<JsonFileSpec>>, JsonError> {
     use crate::abstract_command_line_runner::RunnerException;
-    fn cli(error: JsonParseException, line: u32) -> RunnerException {
-        error.into_runner().at_cli(
-            "AbstractCommandLineRunner",
-            "parseJsonFilesFromInputStream",
-            line,
-        )
+    fn cli(error: JsonParseException, frame: &str) -> RunnerException {
+        error.into_runner().at(frame)
     }
     fn gson(error: JsonParseException, adapter: bool) -> RunnerException {
         let class = error.class.clone();
@@ -769,11 +765,7 @@ pub fn parse_json_files(text: &str) -> Result<Vec<Option<JsonFileSpec>>, JsonErr
         ) {
             let cause = error
                 .at("com.google.gson.Gson.fromJson(Gson.java:1058)")
-                .at_cli(
-                    "AbstractCommandLineRunner",
-                    "parseJsonFilesFromInputStream",
-                    558,
-                );
+                .at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_PARSE_JSON_FROM_JSON);
             let outer = if adapter {
                 RunnerException::java_exception("com.google.gson.JsonSyntaxException", format!("{class}: {message}"),
                     vec!["com.google.gson.internal.bind.ReflectiveTypeAdapterFactory$Adapter.read(ReflectiveTypeAdapterFactory.java:270)".into(),
@@ -786,27 +778,29 @@ pub fn parse_json_files(text: &str) -> Result<Vec<Option<JsonFileSpec>>, JsonErr
                 )
             };
             outer
-                .at_cli(
-                    "AbstractCommandLineRunner",
-                    "parseJsonFilesFromInputStream",
-                    558,
-                )
+                .at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_PARSE_JSON_FROM_JSON)
                 .caused_by(cause)
         } else {
             error
                 .at("com.google.gson.Gson.fromJson(Gson.java:1058)")
-                .at_cli(
-                    "AbstractCommandLineRunner",
-                    "parseJsonFilesFromInputStream",
-                    558,
-                )
+                .at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_PARSE_JSON_FROM_JSON)
         }
     }
     let mut reader = JsonReader::new(text);
     let result = (|| -> Result<Vec<Option<JsonFileSpec>>, RunnerException> {
-        reader.begin_array().map_err(|e| cli(e, 556))?;
+        reader.begin_array().map_err(|e| {
+            cli(
+                e,
+                crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_PARSE_JSON_BEGIN_ARRAY,
+            )
+        })?;
         let mut files = Vec::new();
-        while reader.has_next().map_err(|e| cli(e, 557))? {
+        while reader.has_next().map_err(|e| {
+            cli(
+                e,
+                crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_PARSE_JSON_HAS_NEXT,
+            )
+        })? {
             // Gson.fromJson temporarily enables lenient reading for each object only.
             reader.lenient = true;
             if matches!(reader.peek().map_err(|e| gson(e, false))?, JsonToken::NULL) {
@@ -840,7 +834,12 @@ pub fn parse_json_files(text: &str) -> Result<Vec<Option<JsonFileSpec>>, JsonErr
             reader.lenient = false;
             files.push(Some(file));
         }
-        reader.end_array().map_err(|e| cli(e, 560))?;
+        reader.end_array().map_err(|e| {
+            cli(
+                e,
+                crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_PARSE_JSON_END_ARRAY,
+            )
+        })?;
         Ok(files)
     })();
     result.map_err(|e| {

@@ -54,6 +54,10 @@ fi
 step "1c. unit corpus counts the tests pin and the docs quote (scripts/unit_corpus_counts.py --check; without --check it rewrites them)"
 python3 scripts/unit_corpus_counts.py --check || bad "unit corpus counts"
 
+step "1d. the Java stack frames the CLI prints (crates/cli/tools/java_frames.py --check; without --check it rewrites them)"
+# They come from the line tables of the reference jar; without the jar (CI) the check is skipped.
+python3 crates/cli/tools/java_frames.py --check || bad "Java stack frames (crates/cli/src/java_frames.rs)"
+
 step "2a. cargo fmt --check"
 cargo fmt --all --check >/dev/null 2>&1 || { cargo fmt --all --check 2>&1 | head -40; bad "cargo fmt"; }
 

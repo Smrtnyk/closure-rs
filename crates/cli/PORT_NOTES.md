@@ -72,6 +72,13 @@ of scope (docs/PORTING.md §2).
   `Throwable#printEnclosedStackTrace`'s shared-tail elision, and file-output failures keep the
   pinned JDK frames. Exceptions thrown inside the compiler are not converted into invented Java
   exceptions.
+- The frames of the reference's own classes (`CommandLineRunner`, `AbstractCommandLineRunner`,
+  `VariableMap`, `XtbMessageBundle`) come from `src/java_frames.rs`, which
+  `tools/java_frames.py` generates from the line tables of the reference jar: each frame is named
+  by the method and the call it stands at, so the line numbers follow the reference. `--check`
+  (run by `gates/ci.sh` when the jar is there) fails when the file is stale. The frames of the
+  libraries in the jar (Guava, Gson) and of the JDK stay where they are printed: they change only
+  with those versions.
 
 ## Gson and globs
 
@@ -106,10 +113,10 @@ code, stdout and stderr bytes, including help, markdown help and version), optio
 boundaries (`exception_golden.json`). They were produced by the matching `tools/generate_*.py`
 scripts; Rust tests read them without a JVM. `generate_golden.py`, `generate_exception_golden.py`
 and `generate_setup.py` run the selected reference (`$CLOSURE_RS_REF`) and list what changed
-(`--check` writes nothing); the cli-fixtures step of `scripts/upstream_sync.py` runs them. The
-golden cases include the standard cases of every flag of the reference's flag list, and the option
-setups one for every boolean flag that no hand-written setup uses, so a new flag needs no
-hand-written case.
+(`--check` writes nothing); the cli-fixtures step of `scripts/upstream_sync.py` runs them, with
+`tools/java_frames.py`. The golden cases include the standard cases of every flag of the reference's
+flag list, and the option setups one for every boolean flag that no hand-written setup uses, so a
+new flag needs no hand-written case.
 
 `tests/data/fuzz_regressions/<case>/` holds the regression cases of differences found by
 differential fuzzing and benchmarks (fuzz/findings/): the inputs, the argv and origin

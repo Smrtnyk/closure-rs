@@ -59,12 +59,12 @@ OPTIONS_FIXTURES = ("corpus/unit/options_defaults.json", "crates/jscomp/tests/da
                     "crates/jscomp/tests/data/compiler_options_configs.json")
 # What crates/parsing/tools/GenParserRunnerConfig.java writes (step resources).
 PARSER_FIXTURE = "crates/parsing/tests/fixtures/parser_runner_config.txt"
-# The CLI's Java-derived fixtures (step cli-fixtures): each generator, with --check for --dry-run,
-# and what it writes.
+# The CLI's Java-derived fixtures and frames (step cli-fixtures): each generator, with --check for
+# --dry-run, and what it writes.
 CLI_GENERATORS = ("crates/cli/tools/generate_golden.py", "crates/cli/tools/generate_exception_golden.py",
-                  "crates/cli/tools/generate_setup.py")
+                  "crates/cli/tools/generate_setup.py", "crates/cli/tools/java_frames.py")
 CLI_FIXTURES = ("crates/cli/tests/data/cli_golden", "crates/cli/tests/data/exception_golden.json",
-                "crates/cli/tests/data/option_setup.json")
+                "crates/cli/tests/data/option_setup.json", "crates/cli/src/java_frames.rs")
 # What scripts/unit_corpus_counts.py writes: the counts the tests pin and the docs quote.
 COUNTS_FILES = ("crates/testing/tests/data/record_counts.tsv", "crates/testing/tests/data/corpus_counts.tsv",
                 "crates/testing/README.md", "corpus/unit/RECORDING.md")
@@ -549,8 +549,9 @@ class Sync:
 
     def step_cli_fixtures(self):
         """Regenerates the CLI's Java-derived fixtures from the reference jar and lists what changed:
-        the CLI goldens with the standard cases of every flag, the exception goldens and the option
-        setup fixture (crates/cli/tools/generate_*.py)."""
+        the CLI goldens with the standard cases of every flag, the exception goldens, the option setup
+        fixture (crates/cli/tools/generate_*.py) and the Java stack frames the CLI prints
+        (crates/cli/tools/java_frames.py)."""
         work = os.path.join(self.work, "cli-fixtures")
         for tool in CLI_GENERATORS:
             extra = (["--work", work] if tool.endswith(("generate_golden.py", "generate_setup.py")) else []) + \
