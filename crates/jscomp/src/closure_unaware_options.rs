@@ -105,6 +105,7 @@ impl<'a> ClosureUnawareOptions<'a> {
         shadow_options.set_coding_convention(CodingConventions::get_default());
         shadow_options.set_remove_closure_asserts(false);
 
+        shadow_options.set_assume_for_of_iterator_close_is_not_needed(false);
         shadow_options.set_assume_getters_are_pure(false);
         shadow_options.set_assume_properties_are_statically_analyzable(false);
         shadow_options.set_assume_static_inheritance_is_not_used(false);

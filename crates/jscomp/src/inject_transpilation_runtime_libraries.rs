@@ -167,7 +167,11 @@ impl CompilerPass for InjectTranspilationRuntimeLibraries {
             self.inject_lib_for_field(compiler, "$jscomp.makeIterator");
         }
 
-        if must_be_compiled_away.contains(Feature::FOR_OF) {
+        if must_be_compiled_away.contains(Feature::FOR_OF)
+            && !compiler
+                .get_options()
+                .get_assume_for_of_iterator_close_is_not_needed()
+        {
             self.inject_lib_for_field(compiler, "$jscomp.iteratorClose");
         }
 

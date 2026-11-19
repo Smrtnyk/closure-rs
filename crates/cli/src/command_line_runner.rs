@@ -262,6 +262,8 @@ pub struct Flags {
 
     pub assume_static_inheritance_is_not_used: bool,
 
+    pub assume_for_of_iterator_close_is_not_needed: bool,
+
     pub assume_no_prototype_method_enumeration: bool,
 
     pub variable_map_input_file: String,
@@ -379,6 +381,7 @@ impl Default for Flags {
             allow_dynamic_import: true,
             dynamic_import_alias: None,
             assume_static_inheritance_is_not_used: true,
+            assume_for_of_iterator_close_is_not_needed: false,
             assume_no_prototype_method_enumeration: false,
             variable_map_input_file: "".into(),
             property_map_input_file: "".into(),
@@ -1811,6 +1814,20 @@ pub static OPTIONS: &[NamedOptionDef] = &[
     },
     NamedOptionDef {
         index: 99,
+        name: "--assume_for_of_iterator_close_is_not_needed",
+        aliases: &[],
+        usage: "Assume that code does not depend on an iterator's return() method being called when a for-of loop exits early (via break, return or throw). When transpiling for-of loops, this omits the try/finally that closes the iterator, reducing code size.",
+        meta_var: "",
+        hidden: false,
+        required: false,
+        help: false,
+        depends: &[],
+        forbids: &[],
+        handler: HandlerKind::ClosureBoolean,
+        multi_valued: false,
+    },
+    NamedOptionDef {
+        index: 100,
         name: "--assume_no_prototype_method_enumeration",
         aliases: &[],
         usage: "Assume that prototype method enumeration is not being used. This allows the compiler to move a prototype method declaration into a deeper chunk without creating stub functions in a parent chunk.",
@@ -1824,7 +1841,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 100,
+        index: 101,
         name: "--variable_map_input_file",
         aliases: &[],
         usage: "File containing the serialized version of the variable renaming map produced by a previous compilation",
@@ -1838,7 +1855,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 101,
+        index: 102,
         name: "--property_map_input_file",
         aliases: &[],
         usage: "File containing the serialized version of the property renaming map produced by a previous compilation",
@@ -1852,7 +1869,7 @@ pub static OPTIONS: &[NamedOptionDef] = &[
         multi_valued: false,
     },
     NamedOptionDef {
-        index: 102,
+        index: 103,
         name: "--expected_diagnostics",
         aliases: &[],
         usage: "Expected diagnostics in the format [(line,col)]CODE:regex. CODE is the JSCompiler DiagnosticType key. regex matches the description.",
@@ -1959,6 +1976,7 @@ pub static CATEGORIES: &[(&str, &[&str])] = &[
     (
         "Miscellaneous",
         &[
+            "assume_for_of_iterator_close_is_not_needed",
             "assume_static_inheritance_is_not_used",
             "browser_featureset_year",
             "charset",
@@ -2328,15 +2346,18 @@ impl Flags {
                 self.assume_static_inheritance_is_not_used = value.into_bool();
             }
             99 => {
-                self.assume_no_prototype_method_enumeration = value.into_bool();
+                self.assume_for_of_iterator_close_is_not_needed = value.into_bool();
             }
             100 => {
-                self.variable_map_input_file = value.into_string();
+                self.assume_no_prototype_method_enumeration = value.into_bool();
             }
             101 => {
-                self.property_map_input_file = value.into_string();
+                self.variable_map_input_file = value.into_string();
             }
             102 => {
+                self.property_map_input_file = value.into_string();
+            }
+            103 => {
                 self.expected_diagnostics.push(value.into_string());
             }
             _ => unreachable!(),
@@ -2453,10 +2474,11 @@ impl Flags {
             96 => Some(self.allow_dynamic_import.to_string()),
             97 => self.dynamic_import_alias.as_ref().map(ToString::to_string),
             98 => Some(self.assume_static_inheritance_is_not_used.to_string()),
-            99 => Some(self.assume_no_prototype_method_enumeration.to_string()),
-            100 => Some(self.variable_map_input_file.to_string()),
-            101 => Some(self.property_map_input_file.to_string()),
-            102 => print_list(&self.expected_diagnostics),
+            99 => Some(self.assume_for_of_iterator_close_is_not_needed.to_string()),
+            100 => Some(self.assume_no_prototype_method_enumeration.to_string()),
+            101 => Some(self.variable_map_input_file.to_string()),
+            102 => Some(self.property_map_input_file.to_string()),
+            103 => print_list(&self.expected_diagnostics),
             _ => None,
         }
     }
@@ -4030,6 +4052,9 @@ impl CommandLineRunner {
         }
         options
             .set_assume_static_inheritance_is_not_used(flags.assume_static_inheritance_is_not_used);
+        options.set_assume_for_of_iterator_close_is_not_needed(
+            flags.assume_for_of_iterator_close_is_not_needed,
+        );
         options.set_cross_chunk_code_motion_no_stub_methods(
             flags.assume_no_prototype_method_enumeration,
         );

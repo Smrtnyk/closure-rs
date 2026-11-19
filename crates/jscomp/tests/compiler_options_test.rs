@@ -380,7 +380,7 @@ fn test_to_string_deterministic_format() {
 
     let expected = concat!(
         "CompilerOptions{aliasStringsMode=NONE, ambiguateProperties=false, angularPass=false,",
-        " assumeGettersArePure=true,",
+        " assumeForOfIteratorCloseIsNotNeeded=false, assumeGettersArePure=true,",
         " assumePropertiesAreStaticallyAnalyzable=true, assumeStrictThis=false,",
         " browserResolverPrefixReplacements={}, checkDeterminism=false,",
         " checkSuspiciousCode=false, checkSymbols=false, checkTypes=false, checksOnly=false,",

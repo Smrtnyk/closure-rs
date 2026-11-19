@@ -1368,6 +1368,26 @@ fn test_assume_static_inheritance_is_not_used() {
             .get_assume_static_inheritance_is_not_used()
     );
 }
+
+// port: CommandLineRunnerTest#testAssumeForOfIteratorCloseIsNotNeeded
+#[test]
+fn test_assume_for_of_iterator_close_is_not_needed() {
+    let mut h = Harness::new();
+    h.test_same(&[""]);
+    assert!(
+        !h.get_compiler()
+            .get_options()
+            .get_assume_for_of_iterator_close_is_not_needed()
+    );
+    h.args
+        .push("--assume_for_of_iterator_close_is_not_needed".into());
+    h.test_same(&[""]);
+    assert!(
+        h.get_compiler()
+            .get_options()
+            .get_assume_for_of_iterator_close_is_not_needed()
+    );
+}
 // port: CommandLineRunnerTest#testChunkOutputFiles
 #[test]
 fn test_chunk_output_files() {

@@ -33,6 +33,7 @@ struct InjectTranspilationRuntimeLibrariesTest {
     compiler: Compiler,
     language_out: LanguageMode,
     instrument_async_context: bool,
+    assume_for_of_iterator_close_is_not_needed: bool,
 }
 
 impl InjectTranspilationRuntimeLibrariesTest {
@@ -42,6 +43,7 @@ impl InjectTranspilationRuntimeLibrariesTest {
             compiler: Compiler::new(),
             language_out: LanguageMode::ECMASCRIPT5,
             instrument_async_context: false,
+            assume_for_of_iterator_close_is_not_needed: false,
         }
     }
 
@@ -54,6 +56,9 @@ impl InjectTranspilationRuntimeLibrariesTest {
         let mut options = CompilerOptions::new();
         options.set_language_out(self.language_out);
         options.set_instrument_async_context(self.instrument_async_context);
+        options.set_assume_for_of_iterator_close_is_not_needed(
+            self.assume_for_of_iterator_close_is_not_needed,
+        );
         options.set_runtime_library_mode(RuntimeLibraryMode::RECORD_ONLY);
 
         let compiler = &mut self.compiler;
@@ -140,6 +145,16 @@ fn test_for_of_injects_make_iterator() {
         &injected,
         &["es6/util/makeiterator", "es6/util/iteratorclose"],
     );
+}
+
+// port: InjectTranspilationRuntimeLibrariesTest#testForOf_assumeIteratorCloseIsNotNeeded_doesNotInjectIteratorClose
+#[test]
+fn test_for_of_assume_iterator_close_is_not_needed_does_not_inject_iterator_close() {
+    let mut t = InjectTranspilationRuntimeLibrariesTest::setup();
+    t.assume_for_of_iterator_close_is_not_needed = true;
+    let injected = t.parse_and_run_injection_pass("for (x of []) {}");
+
+    assert_contains_exactly(&injected, &["es6/util/makeiterator"]);
 }
 
 // port: InjectTranspilationRuntimeLibrariesTest#testArrayPattern_injectsMakeIterator

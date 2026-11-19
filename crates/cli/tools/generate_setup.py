@@ -19,7 +19,7 @@ valid=[[],['--compilation_level','WHITESPACE_ONLY'],['-O','ADVANCED'],['-O','TRA
  ['--browser_resolver_prefix_replacements','a=b','--browser_resolver_prefix_replacements','b=c'],['--package_json_entry_names','module,main'],
  ['--renaming','false'],['--instrument_for_coverage_option','LINE'],['--instrument_for_coverage_option','BRANCH'],
  ['--instrument_for_coverage_option','PRODUCTION','--instrument_mapping_report','map.txt','--production_instrumentation_array_name','coverage'],
- ['--allow_dynamic_import','false'],['--dynamic_import_alias','load'],['--assume_static_inheritance_is_not_used','false'],['--assume_no_prototype_method_enumeration'],
+ ['--allow_dynamic_import','false'],['--dynamic_import_alias','load'],['--assume_static_inheritance_is_not_used','false'],['--assume_for_of_iterator_close_is_not_needed'],['--assume_no_prototype_method_enumeration'],
  ['--js','foo.js','--js','bar.js','--chunk','foo:1','--chunk','bar:1:foo','--chunk_wrapper','foo:(%s)'],
  ['--jscomp_error','checkTypes','--jscomp_off','checkTypes','--jscomp_warning','deprecated'],
  ['--jscomp_error','*'],['--hide_warnings_for','vendor'],['--third_party'],['--extra_annotation_name','custom'],

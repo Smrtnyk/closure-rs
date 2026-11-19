@@ -167,6 +167,7 @@
     "assumeGettersArePure",
     "assumePropertiesAreStaticallyAnalyzable",
     "assumeStaticInheritanceIsNotUsed",
+    "assumeForOfIteratorCloseIsNotNeeded",
     "instrumentForCoverageOption",
     "productionInstrumentationArrayName",
     "conformanceReportingMode",
