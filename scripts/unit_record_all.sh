@@ -42,7 +42,10 @@ run_one() {
   cd "$WS" || return 1
   # A crash marker of an earlier run is stale once the class runs again.
   rm -f "$STAT/$name.crash.json"
+  # A crashing JVM writes its fatal error log and compiler replay file next to the class's log,
+  # not to its working directory (the recording workspace).
   timeout 2400 java -Xmx2g -Xss8m -XX:+UseParallelGC -Dclosurers.unit.record=true \
+    "-XX:ErrorFile=$LOGD/$name.hs_err_pid%p.log" "-XX:ReplayDataFile=$LOGD/$name.replay_pid%p.log" \
     --add-exports=java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED \
     "-javaagent:$AGENT_JAR=trace=$TRACE_SCOPE" \
     -Duser.language=en -Duser.country=US -Duser.timezone=UTC -Dfile.encoding=UTF-8 \

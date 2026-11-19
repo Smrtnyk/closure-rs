@@ -94,7 +94,14 @@ pub fn check_jvm_env(env: &Value) -> Result<(), String> {
     }
 }
 
-/// JVM flags for pool servers (as gates/lib/gate01.py server_jvm_flags, heap from caller).
+/// Where a crashing server JVM writes its fatal error log and compiler replay file (named by its
+/// pid), relative to the repository root, its working directory, where they would land otherwise
+/// (as oracle/oracle_client.py). `Server::start` creates it: the JVM falls back to its working
+/// directory when the directory is missing.
+pub const JVM_CRASH_DIR: &str = "build/jvm-crashes";
+
+/// JVM flags for pool servers (as gates/lib/gate01.py server_jvm_flags, heap from caller; the
+/// crash files go to `JVM_CRASH_DIR`).
 pub fn server_jvm_flags(xmx: &str) -> Vec<String> {
     [
         &format!("-Xmx{xmx}"),
@@ -107,6 +114,8 @@ pub fn server_jvm_flags(xmx: &str) -> Vec<String> {
         "-XX:+DisplayVMOutputToStderr",
         "-Xlog:disable",
         "-Xlog:all=off",
+        &format!("-XX:ErrorFile={JVM_CRASH_DIR}/hs_err_pid%p.log"),
+        &format!("-XX:ReplayDataFile={JVM_CRASH_DIR}/replay_pid%p.log"),
     ]
     .iter()
     .map(|s| s.to_string())
@@ -126,6 +135,8 @@ impl Server {
         let root = repo_root();
         let java = root.join("tools/jdk-21/bin/java");
         let (oracle_jar, reference_jar) = jars(&root)?;
+        std::fs::create_dir_all(root.join(JVM_CRASH_DIR))
+            .map_err(|e| format!("create {JVM_CRASH_DIR}: {e}"))?;
         let cp = format!("{}:{}", oracle_jar.display(), reference_jar.display());
         let mut cmd = Command::new(java);
         cmd.args(server_jvm_flags(xmx))

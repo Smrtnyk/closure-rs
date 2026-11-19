@@ -12,7 +12,9 @@ Usage:
   /proc/meminfo MemAvailable stays above --reserve-gb (host protection).
 * Long jobs first (inputs ordered by total input bytes, descending) for load balancing.
 * A JVM crash (run_reference.JvmCrash: a signal or the JVM's fatal-error report) is retried once;
-  a pair that crashes twice gets no result, so it stays missing and the run exits 1.
+  a pair that crashes twice gets no result, so it stays missing and the run exits 1. Each crash is
+  kept in build/golden-tmp/_crashes/<case>/: the run's record and the JVM's hs_err and compiler
+  replay files (never in the checkout's root).
 * At the end (and with --summary-only) writes <golden>/_summary.json and prints it.
 """
 

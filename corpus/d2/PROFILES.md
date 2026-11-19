@@ -164,6 +164,10 @@ Text that is not valid UTF-8 is stored as `{"base64": …}`.
 - `-Xlog:disable -Xlog:all=off`, which keeps JVM logging out of stdout
 - `-Xshare:auto -XX:SharedArchiveFile=build/golden-tmp/cds-0081162b.jsa` (named after the jar's
   sha256). This is a dynamic AppCDS archive created once by a throwaway compile.
+- `-XX:ErrorFile=… -XX:ReplayDataFile=…`, which put the JVM's own crash files (its fatal error log
+  and its compiler replay file) under `build/golden-tmp/_crashes/` instead of the checkout's root.
+  A run whose JVM crashed writes no result: the runner keeps its record and these files in
+  `build/golden-tmp/_crashes/<case>/`, and `golden_all.py` retries it once.
 
 **Environment.** The child process gets a fixed minimal environment: `PATH`, `HOME`,
 `LANG`/`LC_ALL=C.UTF-8` and `TZ=UTC`. Nothing else is inherited.

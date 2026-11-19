@@ -16,6 +16,17 @@ from paths import ORACLE_JAR, REF_JAR  # noqa: E402  the reference's jars (scrip
 from paths import ROOT as MAIN_ROOT  # noqa: E402  the main checkout (tools/ lives only there)
 JAVA = os.path.join(MAIN_ROOT, "tools", "jdk-21", "bin", "java")
 CP = ORACLE_JAR + ":" + REF_JAR
+# Where a crashing oracle JVM writes its fatal error log (hs_err_pid<pid>.log) and compiler replay
+# file (replay_pid<pid>.log) instead of its working directory, the checkout's root.
+JVM_CRASH_DIR = os.path.join(ROOT, "build", "jvm-crashes")
+
+
+def jvm_crash_flags() -> list:
+    """-XX:ErrorFile and -XX:ReplayDataFile into JVM_CRASH_DIR (created here: the JVM falls back
+    to its working directory when the directory is missing)."""
+    os.makedirs(JVM_CRASH_DIR, exist_ok=True)
+    return [f"-XX:ErrorFile={JVM_CRASH_DIR}/hs_err_pid%p.log",
+            f"-XX:ReplayDataFile={JVM_CRASH_DIR}/replay_pid%p.log"]
 
 
 def golden_env() -> dict:
@@ -72,8 +83,8 @@ class Oracle:
 
     def __init__(self, isolate="none", xmx="2g", extra_jvm=(), env=None, check_env=True):
         self.proc = subprocess.Popen(
-            [JAVA, f"-Xmx{xmx}", *extra_jvm, "-cp", CP, "closurers.oracle.Main", "server",
-             f"--isolate={isolate}"],
+            [JAVA, f"-Xmx{xmx}", *extra_jvm, *jvm_crash_flags(), "-cp", CP, "closurers.oracle.Main",
+             "server", f"--isolate={isolate}"],
             cwd=ROOT, env=golden_env() if env is None else env,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0)
         hello = json.loads(self.proc.stdout.readline())
@@ -121,7 +132,7 @@ def cli_compile(args, timeout=600, env=None):
 
     The CLI mode prints nothing but the compiler's own output, so it cannot report its
     environment; the pinned golden_env() is what makes it ground truth."""
-    p = subprocess.run([JAVA, "-Xmx2g", "-cp", CP, "closurers.oracle.Main", "compile", *args],
+    p = subprocess.run([JAVA, "-Xmx2g", *jvm_crash_flags(), "-cp", CP, "closurers.oracle.Main", "compile", *args],
                        cwd=ROOT, env=golden_env() if env is None else env,
                        stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout)
     return p.returncode, p.stdout, p.stderr
