@@ -106,6 +106,29 @@ fn test_does_not_inline_method_on_base_class() {
     t.test_same(&source);
 }
 
+// port: InlineSimpleMethodsTest#testSuperElsewhereInReceiverChain
+#[test]
+fn test_super_elsewhere_in_receiver_chain() {
+    let mut t = Test::new();
+    t.test_with_prefix(
+        concat!(
+            "function Foo(){}\n",
+            "Foo.prototype.bar=function(){return this.baz};\n",
+            "class Base { getFoo() { return new Foo(); } }\n"
+        ),
+        concat!(
+            "class Derived extends Base {\n",
+            "  derivedMethod() { return super.getFoo().bar(); }\n",
+            "}\n"
+        ),
+        concat!(
+            "class Derived extends Base {\n",
+            "  derivedMethod() { return super.getFoo().baz; }\n",
+            "}\n"
+        ),
+    );
+}
+
 // port: InlineSimpleMethodsTest#testSimpleInline1
 #[test]
 fn test_simple_inline1() {
