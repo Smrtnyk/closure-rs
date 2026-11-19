@@ -62,30 +62,48 @@ systems, [build from source](#building); those builds are not tested by the proj
 
 ## Performance
 
-Wall-clock time and peak memory of one compile. Both compilers produced byte-identical output and
-source maps in every run.
+### Java and closure-rs
 
-| Bundle | Level | Java | closure-rs | Speedup | Java memory | closure-rs memory |
+Each Java compile ran `google-closure-compiler` version `20261116.0.0` in a fresh OpenJDK 21
+JVM with default settings (`java -jar`). Each Rust compile used the profile-guided Linux x64
+binary shipped in `closure-rs@20261116.2.0`. Wall time and peak resident set size (RSS) are
+medians of five compiles per compiler on one GitHub-hosted Ubuntu 24.04 runner
+(4 Intel Xeon 6975P-C vCPUs).
+Speedup is Java wall time divided by closure-rs wall time.
+
+| Bundle | Level | Java | closure-rs | Speedup | Java peak RSS | closure-rs peak RSS |
 |---|---|---:|---:|---:|---:|---:|
-| three.js r186 (1.3 MB) | ADVANCED | 4.64 s | 1.15 s | 4.0× | 691 MB | 314 MB |
-| | SIMPLE | 3.10 s | 0.73 s | 4.2× | 633 MB | 307 MB |
-| fabric.js 7.4.0 (0.8 MB) | ADVANCED | 3.89 s | 0.88 s | 4.4× | 662 MB | 284 MB |
-| | SIMPLE | 2.30 s | 0.46 s | 5.0× | 561 MB | 229 MB |
-| d3 7.9.0 (0.6 MB) | ADVANCED | 3.83 s | 0.91 s | 4.2× | 875 MB | 270 MB |
-| | SIMPLE | 2.59 s | 0.55 s | 4.7× | 780 MB | 247 MB |
-| lodash 4.17.21 (0.2 MB) | ADVANCED | 2.54 s | 0.39 s | 6.5× | 527 MB | 229 MB |
-| | SIMPLE | 1.58 s | 0.21 s | 7.4× | 533 MB | 211 MB |
+| three.js r186 (1.3 MB) | ADVANCED | 9.64 s | 1.63 s | 5.9× | 603 MiB | 321 MiB |
+|  | SIMPLE | 6.71 s | 1.00 s | 6.7× | 574 MiB | 293 MiB |
+| fabric.js 7.4.0 (0.8 MB) | ADVANCED | 7.54 s | 1.24 s | 6.1× | 532 MiB | 259 MiB |
+|  | SIMPLE | 4.54 s | 0.62 s | 7.3× | 505 MiB | 211 MiB |
+| d3 7.9.0 (0.6 MB) | ADVANCED | 7.35 s | 1.24 s | 5.9× | 565 MiB | 255 MiB |
+|  | SIMPLE | 5.34 s | 0.75 s | 7.1× | 599 MiB | 215 MiB |
+| lodash 4.17.21 (0.2 MB) | ADVANCED | 5.01 s | 0.56 s | 8.9× | 414 MiB | 193 MiB |
+|  | SIMPLE | 3.20 s | 0.30 s | 10.7× | 358 MiB | 151 MiB |
 
-- **Inputs:** the bundle files (for three.js `three.core.js` and `three.module.js`) with their input
-  source maps (`--source_map_input`), `--create_source_map`, `--source_map_include_content`,
-  `--language_out=ECMASCRIPT_2015`.
-- **Java:** the `google-closure-compiler` 20261006.0.0 jar on OpenJDK 21: `java -jar`, default JVM
-  settings, a new JVM per compile, as the npm package's API runs it.
-- **closure-rs:** 20261006.2.1, the profile-guided Linux x64 release binary.
-- **Machine:** AMD Ryzen 9 9950X (16 cores, 32 threads), 62 GB, Fedora Linux 44, otherwise idle
-  during the runs. Medians of 5 runs; memory is peak RSS.
+The three.js input contains `three.core.js` and `three.module.js`. All four bundles use
+`--source_map_input`, `--create_source_map`, `--source_map_include_content` and
+`--language_out=ECMASCRIPT_2015`. JavaScript, source maps, diagnostics and exit codes matched
+in all 40 paired runs.
 
-`scripts/run_bench.py` runs these benchmarks ([bench/README.md](bench/README.md)).
+### Change from the previous release
+
+On the same runner, the published Linux x64 binaries for `20261116.1.0` and `20261116.2.0`
+compiled 48 jobs over five rounds, alternating which version ran first. Half of the jobs
+compile individual D3 packages. Each row shows the percentage change in the geometric mean
+across its jobs, using the five-run median for each job and version. A negative value
+means less time or memory.
+
+| Workload | Jobs | Wall time | CPU time | Peak RSS |
+|---|---:|---:|---:|---:|
+| SIMPLE | 22 | −6.1% | −6.1% | +0.1% |
+| ADVANCED | 22 | −3.9% | −4.1% | +0.3% |
+| Flag variants | 4 | −2.8% | −2.7% | −0.2% |
+| All jobs | 48 | −4.8% | −4.9% | +0.2% |
+
+Across the five individual rounds, the wall-time change for all jobs ranged from −5.1%
+to −4.6%. [Benchmark run and raw measurements](https://github.com/Smrtnyk/closure-rs/actions/runs/44505250844) · [Benchmark inputs and commands](bench/README.md)
 
 ## Versioning
 
