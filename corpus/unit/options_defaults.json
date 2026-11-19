@@ -2481,6 +2481,7 @@
     "assumeGettersArePure": true,
     "assumePropertiesAreStaticallyAnalyzable": true,
     "assumeStaticInheritanceIsNotUsed": true,
+    "assumeForOfIteratorCloseIsNotNeeded": false,
     "errorHandler": null,
     "instrumentForCoverageOption": {
       "enum": "com.google.javascript.jscomp.CompilerOptions$InstrumentOption",
@@ -2736,6 +2737,7 @@
     "assumeGettersArePure": "boolean",
     "assumePropertiesAreStaticallyAnalyzable": "boolean",
     "assumeStaticInheritanceIsNotUsed": "boolean",
+    "assumeForOfIteratorCloseIsNotNeeded": "boolean",
     "errorHandler": "com.google.javascript.jscomp.ErrorHandler",
     "instrumentForCoverageOption": "com.google.javascript.jscomp.CompilerOptions$InstrumentOption",
     "productionInstrumentationArrayName": "java.lang.String",
