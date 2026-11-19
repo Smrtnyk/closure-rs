@@ -43,7 +43,6 @@ use crate::{
     data_flow_analysis::{DataFlowAnalysis, LinearFlowState},
     graph::{
         adjacency_graph::AdjacencyGraph,
-        annotatable::Annotatable,
         graph::Graph,
         graph_coloring::{GraphColoring, GreedyGraphColoring},
         graph_node::GraphNode,
@@ -219,7 +218,7 @@ impl CoalesceVariableNames {
             }
         }
 
-        liveness.analyze(compiler);
+        liveness.analyze_indexed(compiler);
         self.live_analyses.push_front(liveness);
 
         // The interference graph has the function's variables as its nodes and any interference
@@ -425,9 +424,7 @@ impl CoalesceVariableNames {
                 continue;
             }
 
-            let state = cfg_node
-                .get_annotation_as::<LinearFlowState<LiveVariableLattice>>(cfg)
-                .unwrap();
+            let state = liveness.flow_state(cfg_node);
 
             // Check the live states and add edge when possible. An edge between two variables
             // means that they are alive at overlapping times, which means that their
@@ -703,9 +700,7 @@ impl CoalesceVariableNames {
         let liveness = self.liveness();
         let cfg = liveness.get_cfg();
         let cfg_node = check_not_null!(cfg.get_node(&Some(let_node)));
-        let state = check_not_null!(
-            cfg_node.get_annotation_as::<LinearFlowState<LiveVariableLattice>>(cfg)
-        );
+        let state = liveness.flow_state(cfg_node);
         let var_index = liveness.get_var_index(&original_var.get_name(compiler));
         var_index >= 0 && state.get_out().is_live(var_index)
     }

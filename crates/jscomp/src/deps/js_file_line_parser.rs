@@ -31,6 +31,9 @@
 // Ported from Guava 33.4.6-jre (https://github.com/google/guava):
 //   com/google/common/base/CharMatcher.java.
 
+mod lines;
+use lines::{Comments, StringLines};
+
 use crate::{
     check_level::CheckLevel, diagnostic_type::DiagnosticType, error_manager::ErrorManager,
     js_error::JSError,
@@ -150,8 +153,7 @@ impl JsFileLineParser {
         parser.base().file_path = file_path.into();
         parser.base().parse_succeeded = true;
         parser.base().line_num = 0;
-        let mut in_multiline_comment = false;
-        let mut in_js_doc_comment = false;
+        let mut comments = Comments::default();
         for line in lines {
             let line = match line {
                 Ok(line) => line,
@@ -173,74 +175,11 @@ impl JsFileLineParser {
             };
             parser.base().line_num += 1;
             let result = (|| -> Result<bool, ParseException> {
-                let mut revised_line = line.clone();
-                let mut revised_js_doc_comment_line = JsString::from("");
-                if in_multiline_comment {
-                    if let Some(end) = find(&revised_line, "*/", 0) {
-                        if in_js_doc_comment {
-                            revised_js_doc_comment_line = revised_line.substring(0, end + 2);
-                            in_js_doc_comment = false;
-                        }
-                        revised_line = revised_line.substring_from(end + 2);
-                        in_multiline_comment = false;
-                    } else {
-                        if in_js_doc_comment {
-                            revised_js_doc_comment_line = line.clone();
-                        }
-                        revised_line = JsString::from("");
-                    }
-                }
-                if !in_multiline_comment {
-                    loop {
-                        let start_line = find(&revised_line, "//", 0);
-                        let start_multi = find(&revised_line, "/*", 0);
-                        if let Some(start) = start_line
-                            && start_multi.is_none_or(|m| start < m)
-                        {
-                            revised_line = revised_line.substring(0, start);
-                            break;
-                        } else if let Some(start) = start_multi {
-                            if Self::is_comment_quoted(&revised_line, start, b'\'' as u16)
-                                || Self::is_comment_quoted(&revised_line, start, b'"' as u16)
-                            {
-                                break;
-                            }
-                            if find(&revised_line, "/**", 0) == Some(start) {
-                                in_js_doc_comment = true;
-                            }
-                            if let Some(end) = find(&revised_line, "*/", start + 2) {
-                                if in_js_doc_comment {
-                                    if !parser.parse_js_doc_comment_line(
-                                        &revised_line.substring(start, end + 2),
-                                    ) && parser.base().shortcut_mode
-                                    {
-                                        break;
-                                    }
-                                    in_js_doc_comment = false;
-                                }
-                                revised_line = revised_line
-                                    .substring(0, start)
-                                    .concat(&revised_line.substring_from(end + 2));
-                            } else {
-                                if in_js_doc_comment {
-                                    revised_js_doc_comment_line =
-                                        revised_line.substring_from(start);
-                                }
-                                revised_line = revised_line.substring(0, start);
-                                in_multiline_comment = true;
-                                break;
-                            }
-                        } else {
-                            break;
-                        }
-                    }
-                }
-                if !revised_js_doc_comment_line.is_empty()
-                    && !parser.parse_js_doc_comment_line(&revised_js_doc_comment_line)
-                    && parser.base().shortcut_mode
-                {
+                let Some(revised_line) = comments.strip(line.clone(), |doc| {
+                    parser.parse_js_doc_comment_line(doc) || !parser.base().shortcut_mode
+                }) else {
                     return Ok(false);
-                }
+                };
                 if !revised_line.is_empty()
                     && !parser.parse_line(&revised_line)?
                     && parser.base().shortcut_mode
@@ -273,42 +212,6 @@ impl JsFileLineParser {
                 }
             }
         }
-    }
-    // port: JsFileLineParser#isCommentQuoted
-    fn is_comment_quoted(
-        line: &JsString,
-        start_of_multiline_comment: usize,
-        quote_char: u16,
-    ) -> bool {
-        let quote = JsString::from_units(vec![quote_char]);
-        let mut start_quote = usize::try_from(line.index_of(&quote)).ok();
-        while let Some(start) = start_quote
-            && start < start_of_multiline_comment
-        {
-            let mut closing = usize::try_from(line.index_of_from(&quote, (start + 1) as i32)).ok();
-            while let Some(end) = closing
-                && Self::is_escaped(line, end)
-            {
-                closing = usize::try_from(line.index_of_from(&quote, (end + 1) as i32)).ok();
-            }
-            let Some(end) = closing else {
-                return false;
-            };
-            if end > start_of_multiline_comment {
-                return true;
-            }
-            start_quote = usize::try_from(line.index_of_from(&quote, (end + 1) as i32)).ok();
-        }
-        false
-    }
-    // port: JsFileLineParser#isEscaped
-    fn is_escaped(line: &JsString, closing_quote_index: usize) -> bool {
-        let escape_char_count = line.as_units()[..closing_quote_index]
-            .iter()
-            .rev()
-            .take_while(|c| **c == b'\\' as u16)
-            .count();
-        escape_char_count % 2 == 1
     }
     // port: JsFileLineParser#parseJsString
     pub fn parse_js_string(
@@ -470,44 +373,6 @@ pub(crate) fn guava_whitespace(c: u16) -> bool {
     TABLE[(1682554634u32.wrapping_mul(c as u32) >> 27) as usize] == c
 }
 // port: String#indexOf(String,int)
-fn find(s: &JsString, needle: &str, from: usize) -> Option<usize> {
-    usize::try_from(s.index_of_from(needle, from as i32)).ok()
-}
-struct StringLines {
-    input: JsString,
-    position: usize,
-}
-impl StringLines {
-    // port: StringReader#StringReader
-    fn new(input: JsString) -> Self {
-        Self { input, position: 0 }
-    }
-}
-impl Iterator for StringLines {
-    type Item = io::Result<JsString>;
-    // port: BufferedReader#readLine (StringReader source, preserving UTF-16)
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.position == self.input.length() {
-            return None;
-        }
-        let start = self.position;
-        while self.position < self.input.length() {
-            let c = self.input.char_at(self.position);
-            self.position += 1;
-            if c == 10 || c == 13 {
-                let end = self.position - 1;
-                if c == 13
-                    && self.position < self.input.length()
-                    && self.input.char_at(self.position) == 10
-                {
-                    self.position += 1;
-                }
-                return Some(Ok(self.input.substring(start, end)));
-            }
-        }
-        Some(Ok(self.input.substring_from(start)))
-    }
-}
 struct JavaLines<R: BufRead> {
     reader: R,
     after_cr: bool,

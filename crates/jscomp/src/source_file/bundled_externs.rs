@@ -34,21 +34,56 @@ impl SourceFile {
             .collect()
     }
 
+    fn is_original_bundled_extern(&self, code: Option<&JsString>) -> bool {
+        if !self.bundled_browser_extern || !self.is_extern() {
+            return false;
+        }
+        let state = self.state.lock().unwrap();
+        let code = code.or(state.code.as_ref());
+        !state.is_closure_unaware_code
+            && matches!(&self.loader, CodeLoader::Preloaded { preloaded_code } if code.is_none_or(|code| preloaded_code == code))
+    }
+
+    pub(crate) fn bundled_dependency_info(
+        &self,
+        code: &JsString,
+    ) -> Option<crate::deps::simple_dependency_info::SimpleDependencyInfo> {
+        if !self.is_original_bundled_extern(Some(code)) {
+            return None;
+        }
+        let name = self.get_name();
+        let (externs, no_compile) =
+            include!(concat!(env!("OUT_DIR"), "/bundled_extern_dependencies.rs"))?;
+        Some(
+            crate::deps::simple_dependency_info::SimpleDependencyInfo::builder(name, name)
+                .set_has_externs_annotation(externs)
+                .set_has_no_compile_annotation(no_compile)
+                .build(),
+        )
+    }
+
     pub(crate) fn extern_snapshot(
         &self,
         config: &closure_parsing::config::Config,
         code: &JsString,
     ) -> Option<&'static [u8]> {
-        if !self.bundled_browser_extern
-            || !self.is_extern()
-            || self.is_closure_unaware_code()
-            || !matches!(&self.loader, CodeLoader::Preloaded { preloaded_code } if preloaded_code == code)
+        if !self.is_original_bundled_extern(Some(code))
             || config != &*closure_parsing::extern_snapshot::CONFIG
         {
             return None;
         }
         let name = self.get_name();
         include!(concat!(env!("OUT_DIR"), "/bundled_externs.rs"))
+    }
+
+    pub(crate) fn bundled_property_declarations(&self) -> Option<&'static [u8]> {
+        // When the parser has released the cached source, the next read would retrieve
+        // the original embedded resource. Avoid loading it just to make this check.
+        if !self.is_original_bundled_extern(None) {
+            return None;
+        }
+        let name = self.get_name();
+        include!(concat!(env!("OUT_DIR"), "/bundled_extern_declarations.rs"))
     }
 }
 
@@ -67,6 +102,34 @@ mod tests {
         node::{Ast, JsDocComparison, RecursionMode, SideEffectComparison, TypeComparison},
         token::Token,
     };
+
+    #[test]
+    fn bundled_dependencies_match_the_dependency_parser() {
+        use crate::{
+            black_hole_error_manager::BlackHoleErrorManager,
+            deps::js_file_regex_parser::JsFileRegexParser, error_manager::ErrorManager,
+        };
+        let errors = Arc::new(Mutex::new(BlackHoleErrorManager::new()));
+        let mut checked_es6 = false;
+        for file in SourceFile::bundled_externs(Environment::BROWSER) {
+            file.set_kind(SourceKind::EXTERN);
+            let code = file.get_code().unwrap();
+            if let Some(info) = file.bundled_dependency_info(&code) {
+                let name = file.get_name();
+                let expected = JsFileRegexParser::new(errors.clone())
+                    .set_include_goog_base(true)
+                    .parse_file(name, name, code);
+                assert_eq!(info, expected, "{name}");
+                checked_es6 |= name == "externs.zip//es6.js";
+            }
+        }
+        assert!(checked_es6);
+        let errors = errors.lock().unwrap();
+        assert_eq!(
+            (errors.get_error_count(), errors.get_warning_count()),
+            (0, 0)
+        );
+    }
 
     #[test]
     fn snapshots_match_fresh_parses_of_bundled_externs() {
@@ -179,7 +242,13 @@ mod tests {
         let lookalike =
             SourceFile::from_code_with_kind(file.get_name(), code.clone(), SourceKind::EXTERN);
         assert!(lookalike.extern_snapshot(config, &code).is_none());
+        assert!(lookalike.bundled_dependency_info(&code).is_none());
+        assert!(lookalike.bundled_property_declarations().is_none());
         file.set_code_deprecated("var replacement;");
+        assert!(
+            file.bundled_dependency_info(&file.get_code().unwrap())
+                .is_none()
+        );
         assert!(
             file.extern_snapshot(config, &file.get_code().unwrap())
                 .is_none()
@@ -191,6 +260,23 @@ mod tests {
         );
         file.mark_as_closure_unaware_code();
         assert!(file.extern_snapshot(config, &code).is_none());
+    }
+
+    #[test]
+    fn declarations_preserve_the_source_cache_and_respect_overrides() {
+        let file = SourceFile::bundled_externs(Environment::BROWSER)
+            .into_iter()
+            .find(|file| file.get_name() == "externs.zip//es6.js")
+            .unwrap();
+        file.set_kind(SourceKind::EXTERN);
+        file.clear_cached_source();
+        let records = file.bundled_property_declarations().unwrap();
+        assert!(records.contains(&1));
+        assert!(file.state.lock().unwrap().code.is_none());
+        file.set_code_deprecated("var replacement;");
+        assert!(file.bundled_property_declarations().is_none());
+        file.clear_cached_source();
+        assert_eq!(file.bundled_property_declarations(), Some(records));
     }
     #[test]
     fn files_requiring_parse_diagnostics_use_source() {

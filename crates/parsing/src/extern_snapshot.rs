@@ -26,7 +26,7 @@ use crate::{
 use closure_rhino::{
     error_reporter::ErrorReporter,
     js_string::JsString,
-    node::{Ast, snapshot::AstSnapshot},
+    node::{Ast, NodeId, snapshot::AstSnapshot},
     static_source_file::StaticSourceFile,
 };
 use std::sync::{Arc, LazyLock};
@@ -41,6 +41,15 @@ struct Script {
 }
 
 pub fn generate(file: Arc<dyn StaticSourceFile>, code: JsString) -> Option<Vec<u8>> {
+    generate_with_ast(file, code, |_, _| ()).map(|(bytes, ())| bytes)
+}
+
+/// Derive additional build-time data from the very same successful parse as the snapshot.
+pub fn generate_with_ast<T>(
+    file: Arc<dyn StaticSourceFile>,
+    code: JsString,
+    inspect: impl FnOnce(&Ast, NodeId) -> T,
+) -> Option<(Vec<u8>, T)> {
     let mut ast = Ast::new_for_preparse();
     let mut diagnostics = Diagnostics::default();
     let result =
@@ -52,14 +61,16 @@ pub fn generate(file: Arc<dyn StaticSourceFile>, code: JsString) -> Option<Vec<u
     {
         return None;
     }
-    let arena = AstSnapshot::capture(&ast, result.ast?, &file)?;
-    Some(
+    let root = result.ast?;
+    let arena = AstSnapshot::capture(&ast, root, &file)?;
+    Some((
         postcard::to_allocvec(&Script {
             arena,
             features: result.features,
         })
         .expect("serialize bundled extern"),
-    )
+        inspect(&ast, root),
+    ))
 }
 
 pub fn load(bytes: &'static [u8], ast: &mut Ast, file: Arc<dyn StaticSourceFile>) -> ParseResult {

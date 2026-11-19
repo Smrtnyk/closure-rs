@@ -162,6 +162,7 @@ crates/jscomp/src/deps/dependency_info.rs	5bd7883687ddad7b	Apache-2.0	closure:sr
 crates/jscomp/src/deps/deps_file_regex_parser.rs	acc8ac05937fed7a	Apache-2.0	closure:src/com/google/javascript/jscomp/deps/DepsFileRegexParser.java; closure:src/com/google/javascript/jscomp/deps/JsFileLineParser.java
 crates/jscomp/src/deps/deps_file_regex_parser/tests.rs	4cbf7d934e0677f5	Apache-2.0	closure:test/com/google/javascript/jscomp/deps/DepsFileRegexParserTest.java
 crates/jscomp/src/deps/js_file_line_parser.rs	2a3ed154ad3f9a56	Apache-2.0	closure:src/com/google/javascript/jscomp/deps/JsFileLineParser.java; guava:com/google/common/base/CharMatcher.java
+crates/jscomp/src/deps/js_file_line_parser/lines.rs	2705f0cd1c062537	Apache-2.0	closure:src/com/google/javascript/jscomp/deps/JsFileLineParser.java
 crates/jscomp/src/deps/js_file_line_parser/tests.rs	f475ab47ac0f5ea2	Apache-2.0	closure:test/com/google/javascript/jscomp/deps/JsFileLineParserTest.java; closure:src/com/google/javascript/jscomp/deps/JsFileLineParser.java
 crates/jscomp/src/deps/js_file_regex_parser.rs	0da2dfdd4979836d	Apache-2.0	closure:src/com/google/javascript/jscomp/deps/JsFileRegexParser.java; closure:src/com/google/javascript/jscomp/deps/JsFileLineParser.java
 crates/jscomp/src/deps/js_file_regex_parser/tests.rs	dbf059e08574d4db	Apache-2.0	closure:test/com/google/javascript/jscomp/deps/JsFileRegexParserTest.java

@@ -16,15 +16,13 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
 //   src/com/google/javascript/jscomp/MustBeReachingVariableDef.java.
 
-use crate::graph::{adjacency_graph::AdjacencyGraph, annotatable::Annotatable};
+use crate::graph::adjacency_graph::AdjacencyGraph;
 use crate::{
     AbstractCompiler,
     control_flow_graph::{
         AbstractCfgNodeTraversal, AbstractCfgNodeTraversalCallback, ControlFlowGraph,
     },
-    data_flow_analysis::{
-        DataFlowAnalysis, DataFlowAnalysisState, FlowJoiner, LatticeEquals, LinearFlowState,
-    },
+    data_flow_analysis::{DataFlowAnalysis, DataFlowAnalysisState, FlowJoiner, LatticeEquals},
     graph::graph::Graph,
     node_traversal::NodeTraversal,
     node_util::NodeUtil,
@@ -518,9 +516,7 @@ impl MustBeReachingVariableDef {
     pub fn get_def(&self, name: &JsString, use_node: NodeId) -> Option<Arc<Definition>> {
         check_argument!(self.get_cfg().has_node(&Some(use_node)));
         let n = self.get_cfg().get_node(&Some(use_node)).unwrap();
-        let state = n
-            .get_annotation_as::<LinearFlowState<MustDef>>(self.get_cfg())
-            .unwrap();
+        let state = self.flow_state(n);
         self.all_vars_in_fn
             .get(name)
             .and_then(|var| state.get_in().reaching_def.get(var))

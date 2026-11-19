@@ -31,8 +31,8 @@ use crate::{
     coding_convention::AssertionFunctionLookup,
     control_flow_analysis::ControlFlowAnalysis,
     control_flow_graph::ControlFlowGraph,
-    data_flow_analysis::{DataFlowAnalysis, LinearFlowState},
-    graph::{adjacency_graph::AdjacencyGraph, annotatable::Annotatable, graph_node::GraphNode},
+    data_flow_analysis::DataFlowAnalysis,
+    graph::{adjacency_graph::AdjacencyGraph, graph_node::GraphNode},
     node_traversal::{AbstractScopedCallback, NodeTraversal},
     reverse_abstract_interpreter::ReverseAbstractInterpreter,
     scope::ScopeId,
@@ -240,7 +240,7 @@ impl TypeInferencePass {
             &mut scope_creator,
             &self.assertion_function_lookup,
         );
-        type_inference.analyze(compiler);
+        type_inference.analyze_indexed(compiler);
 
         if let Some(step_count_histogram) = &self.step_count_histogram {
             let cfg = type_inference.get_cfg();
@@ -250,11 +250,7 @@ impl TypeInferencePass {
                     continue;
                 }
 
-                let state = node
-                    .get_annotation_as::<LinearFlowState<crate::type_inference::FlowScopeLattice>>(
-                        cfg,
-                    )
-                    .unwrap();
+                let state = type_inference.flow_state(node);
                 let token = node.get_value(cfg).unwrap().get_token(compiler);
                 *step_count_histogram
                     .entry(state.get_step_count())

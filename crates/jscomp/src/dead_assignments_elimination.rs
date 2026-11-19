@@ -30,7 +30,7 @@ use crate::{
     control_flow_analysis::ControlFlowAnalysis,
     control_flow_graph::ControlFlowGraph,
     data_flow_analysis::{DataFlowAnalysis, LinearFlowState},
-    graph::{adjacency_graph::AdjacencyGraph, annotatable::Annotatable, graph_node::GraphNode},
+    graph::{adjacency_graph::AdjacencyGraph, graph_node::GraphNode},
     live_variables_analysis::{
         LiveVariableLattice, LiveVariablesAnalysis, MAX_VARIABLES_TO_ANALYZE,
     },
@@ -160,10 +160,9 @@ impl DeadAssignmentsElimination {
             &mut scope_creator,
             all_vars_declared_in_function,
         );
-        liveness.analyze(compiler);
-        let all_vars_in_fn = liveness.get_all_variables().clone();
+        liveness.analyze_indexed(compiler);
         self.liveness = Some(liveness);
-        self.try_remove_dead_assignments(t, &all_vars_in_fn);
+        self.try_remove_dead_assignments(t);
     }
 
     // Matches all assignment operators and increment/decrement operators.
@@ -180,47 +179,32 @@ impl DeadAssignmentsElimination {
     /// Try to remove useless assignments from a control flow graph that has been annotated with
     /// liveness information.
     // port: DeadAssignmentsElimination#tryRemoveDeadAssignments
-    fn try_remove_dead_assignments(
-        &mut self,
-        t: &mut NodeTraversal<'_>,
-        all_vars_in_fn: &IndexMap<JsString, VarId>,
-    ) {
-        let cfg = self.liveness.as_ref().unwrap().get_cfg();
-        let nodes: Vec<_> = cfg
-            .get_nodes()
-            .into_iter()
-            .map(|cfg_node| {
-                (
-                    cfg_node
-                        .get_annotation_as::<LinearFlowState<LiveVariableLattice>>(cfg)
-                        .cloned(),
-                    *cfg_node.get_value(cfg),
-                )
-            })
-            .collect();
-
-        for (state, n) in nodes {
-            let Some(n) = n else {
+    fn try_remove_dead_assignments(&self, t: &mut NodeTraversal<'_>) {
+        let liveness = self.liveness.as_ref().unwrap();
+        let cfg = liveness.get_cfg();
+        let all_vars_in_fn = liveness.get_all_variables();
+        for cfg_node in cfg.get_nodes() {
+            let Some(n) = *cfg_node.get_value(cfg) else {
                 continue;
             };
-            let state = state.unwrap();
+            let state = liveness.flow_state(cfg_node);
             match n.get_token(t) {
                 Token::IF | Token::WHILE | Token::DO => {
                     let cond = NodeUtil::get_condition_expression(t, n).unwrap();
-                    self.try_remove_assignment(t, cond, &state, all_vars_in_fn);
+                    self.try_remove_assignment(t, cond, state, all_vars_in_fn);
                     continue;
                 }
                 Token::FOR | Token::FOR_IN | Token::FOR_OF | Token::FOR_AWAIT_OF => {
                     if n.is_vanilla_for(t) {
                         let cond = NodeUtil::get_condition_expression(t, n).unwrap();
-                        self.try_remove_assignment(t, cond, &state, all_vars_in_fn);
+                        self.try_remove_assignment(t, cond, state, all_vars_in_fn);
                     }
                     continue;
                 }
                 Token::SWITCH | Token::CASE | Token::RETURN => {
                     if n.has_children(t) {
                         let first = n.get_first_child(t).unwrap();
-                        self.try_remove_assignment(t, first, &state, all_vars_in_fn);
+                        self.try_remove_assignment(t, first, state, all_vars_in_fn);
                     }
                     continue;
                     // TODO(user): case VAR: Remove var a=1;a=2;.....
@@ -228,13 +212,13 @@ impl DeadAssignmentsElimination {
                 _ => {}
             }
 
-            self.try_remove_assignment(t, n, &state, all_vars_in_fn);
+            self.try_remove_assignment(t, n, state, all_vars_in_fn);
         }
     }
 
     // port: DeadAssignmentsElimination#tryRemoveAssignment(NodeTraversal, Node, LinearFlowState, Map)
     fn try_remove_assignment(
-        &mut self,
+        &self,
         t: &mut NodeTraversal<'_>,
         n: NodeId,
         state: &LinearFlowState<LiveVariableLattice>,
@@ -247,7 +231,7 @@ impl DeadAssignmentsElimination {
     /// within the subtree of `n`. Removes those assignments if there are any.
     // port: DeadAssignmentsElimination#tryRemoveAssignment(NodeTraversal, Node, Node, LinearFlowState, Map)
     fn try_remove_assignment_with_expr_root(
-        &mut self,
+        &self,
         t: &mut NodeTraversal<'_>,
         n: NodeId,
         expr_root: NodeId,

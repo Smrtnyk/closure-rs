@@ -524,6 +524,9 @@ impl CompilerInput {
         {
             match self.get_code() {
                 Ok(code) => {
+                    if let Some(info) = self.source_file.bundled_dependency_info(&code) {
+                        return (info, true);
+                    }
                     let mut parser = crate::deps::js_file_regex_parser::JsFileRegexParser::new(
                         compiler.get_shared_error_manager(),
                     );

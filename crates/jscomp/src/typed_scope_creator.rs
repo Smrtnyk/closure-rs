@@ -996,6 +996,10 @@ struct AbstractScopeBuilder<'a> {
     // Java: a LinkedHashMultimap; its entries in global insertion order (values() runs them in
     // that order), with the multimap operations in the `*_deferred_action*` helpers.
     deferred_actions: Vec<(NodeId, DeferredAction)>,
+    // ResolveStubDeclaration always waits for the scope root. Only statement actions need
+    // a membership test in visit() for each descendant.
+    deferred_statements: IndexSet<NodeId>,
+    bundled_declarations: Option<(NodeId, std::slice::Iter<'static, u8>)>,
 }
 
 impl<'a> AbstractScopeBuilder<'a> {
@@ -1016,6 +1020,8 @@ impl<'a> AbstractScopeBuilder<'a> {
             source_name: None,
             input_id: None,
             deferred_actions: Vec::new(),
+            deferred_statements: IndexSet::default(),
+            bundled_declarations: None,
         }
     }
 
@@ -2971,8 +2977,31 @@ impl Callback for AbstractScopeBuilder<'_> {
             check_not_null!(self.input_id.as_ref());
             self.source_name = NodeUtil::get_source_name(compiler, n);
         }
+        if n.is_script(compiler) {
+            self.bundled_declarations = if self.kind == ScopeBuilderKind::NormalScopeBuilder
+                && self.current_scope.is_global(compiler)
+            {
+                t.get_input()
+                    .and_then(|input| input.get_source_file().bundled_property_declarations())
+                    .map(|records| (n, records.iter()))
+            } else {
+                None
+            };
+        }
         if parent.is_none() || self.in_current_scope(t) {
             self.visit_preorder(t, n, parent);
+            if let Some((script, records)) = &mut self.bundled_declarations
+                && Some(*script) == parent
+                && records.next() == Some(&1)
+                && let Some(property) = Self::bare_property_declaration(t, n)
+            {
+                // NAME and the intermediate GETPROPs of a bare name have no scope-building
+                // work. Run the ordinary declaration and statement actions in postorder.
+                let info = property.get_jsdoc_info(t);
+                self.maybe_declare_qualified_name(t, info, property, n, None);
+                self.visit(t, n, parent);
+                return false;
+            }
             return true;
         } else if n.is_module_body(t.get_compiler()) {
             // Visit modules pre-order. While this doesn't exactly match execution semantics, it
@@ -3020,19 +3049,47 @@ impl Callback for AbstractScopeBuilder<'_> {
 }
 
 impl AbstractScopeBuilder<'_> {
+    /// Earlier passes can insert, move or rewrite statements. A live bare property can
+    /// be declared directly even when its name has changed. Other shapes need traversal.
+    fn bare_property_declaration(
+        ast: &closure_rhino::node::Ast,
+        statement: NodeId,
+    ) -> Option<NodeId> {
+        if !statement.is_expr_result(ast) || !statement.has_one_child(ast) {
+            return None;
+        }
+        let property = statement.get_first_child(ast)?;
+        if !property.is_get_prop(ast) {
+            return None;
+        }
+        let mut node = property;
+        while node.is_get_prop(ast) {
+            if !node.has_one_child(ast) {
+                return None;
+            }
+            node = node.get_first_child(ast)?;
+        }
+        (node.is_name(ast) && !node.has_children(ast) && !node.get_string_ref(ast).is_empty())
+            .then_some(property)
+    }
+
     // Rust-only: `deferredActions.put(key, runnable)` (LinkedHashMultimap: entries keep their
     // global insertion order).
     fn put_deferred_action(&mut self, key: NodeId, action: DeferredAction) {
+        if matches!(action, DeferredAction::DefineObjectLiteral(_)) {
+            self.deferred_statements.insert(key);
+        }
         self.deferred_actions.push((key, action));
     }
 
     // Rust-only: `deferredActions.containsKey(key)`.
     fn deferred_actions_contains_key(&self, key: NodeId) -> bool {
-        self.deferred_actions.iter().any(|(k, _)| *k == key)
+        self.deferred_statements.contains(&key)
     }
 
     // Rust-only: `deferredActions.removeAll(key)`: the key's values in insertion order.
     fn remove_all_deferred_actions(&mut self, key: NodeId) -> Vec<DeferredAction> {
+        self.deferred_statements.swap_remove(&key);
         let mut removed = Vec::new();
         let mut kept = Vec::new();
         for (k, action) in std::mem::take(&mut self.deferred_actions) {
@@ -6044,3 +6101,36 @@ fn extract_known_symbol_key(
 #[path = "typed_scope_creator_rhino.rs"]
 mod rhino;
 use rhino::lookup_qualified_name;
+
+#[cfg(test)]
+mod bundled_declaration_tests {
+    use super::AbstractScopeBuilder;
+    use closure_rhino::{ir::IR, node::Ast};
+
+    #[test]
+    fn replay_checks_the_current_property_chain() {
+        let mut ast = Ast::new();
+        let base = IR::name(&mut ast, "Window");
+        let owner = IR::getprop(&mut ast, base, "prototype");
+        let property = IR::getprop(&mut ast, owner, "location");
+        let statement = IR::expr_result(&mut ast, property);
+        assert_eq!(
+            AbstractScopeBuilder::bare_property_declaration(&ast, statement),
+            Some(property)
+        );
+
+        owner.set_string(&mut ast, "other");
+        let live = AbstractScopeBuilder::bare_property_declaration(&ast, statement).unwrap();
+        assert_eq!(
+            live.get_qualified_name(&ast).unwrap(),
+            "Window.other.location"
+        );
+        owner.set_string(&mut ast, "prototype");
+        let literal = IR::number(&mut ast, 1.0);
+        base.replace_with(&mut ast, literal);
+        assert_eq!(
+            AbstractScopeBuilder::bare_property_declaration(&ast, statement),
+            None
+        );
+    }
+}
