@@ -2442,9 +2442,8 @@ impl Name {
                 gn,
                 Inlinability::DO_NOT_INLINE,
                 concat!(
-                    "references explicit definition of toString/valueOf functions used ",
-                    "implicitly in the JS",
-                    " language"
+                    "references explicit definition of toString/valueOf properties used implicitly in the",
+                    " JS language"
                 ),
             );
             return Inlinability::DO_NOT_INLINE;
@@ -2677,13 +2676,12 @@ impl Name {
             .can_collapse()
     }
 
-    // toString/valueOf are implicitly used as part of the JS language should not be collapsed.
+    // toString/valueOf are implicitly used as part of the JS language and should not be collapsed.
     // port: GlobalNamespace.Name#isToStringValueOfInObjectLiteral
     pub fn is_to_string_value_of_in_object_literal(self, gn: &GlobalNamespace) -> bool {
         let parent = self.get_parent(gn);
         let base_name = self.get_base_name(gn);
-        self.is_function(gn)
-            && parent.is_some_and(|parent| parent.is_object_literal(gn))
+        parent.is_some_and(|parent| parent.is_object_literal(gn))
             && (base_name == "toString" || base_name == "valueOf")
     }
 
@@ -2734,6 +2732,18 @@ impl Name {
         if self.is_collapsing_explicitly_denied(gn) {
             // condition (d)
             self.log_child_names_decision(gn, Inlinability::DO_NOT_INLINE, "@nocollapse");
+            return Inlinability::DO_NOT_INLINE;
+        }
+
+        if self.is_to_string_value_of_in_object_literal(gn) {
+            self.log_child_names_decision(
+                gn,
+                Inlinability::DO_NOT_INLINE,
+                concat!(
+                    "references explicit definition of toString/valueOf properties used implicitly in the",
+                    " JS language"
+                ),
+            );
             return Inlinability::DO_NOT_INLINE;
         }
 
@@ -2873,7 +2883,9 @@ impl Name {
     // port: GlobalNamespace.Name#shouldKeepKeys
     pub fn should_keep_keys(self, gn: &GlobalNamespace) -> bool {
         self.is_object_literal(gn)
-            && (gn.name_data(self).aliasing_gets > 0 || self.is_collapsing_explicitly_denied(gn))
+            && (gn.name_data(self).aliasing_gets > 0
+                || self.is_collapsing_explicitly_denied(gn)
+                || self.is_to_string_value_of_in_object_literal(gn))
     }
 
     // port: GlobalNamespace.Name#needsToBeStubbed
@@ -2883,6 +2895,7 @@ impl Name {
             && data.local_sets > 0
             && data.local_sets_with_no_collapse == 0
             && !self.is_collapsing_explicitly_denied(gn)
+            && !self.is_to_string_value_of_in_object_literal(gn)
     }
 
     // port: GlobalNamespace.Name#setDeclaredTypeKind

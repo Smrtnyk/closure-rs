@@ -2421,6 +2421,14 @@ impl CollapseProperties {
             );
             return;
         }
+        if n.is_to_string_value_of_in_object_literal(namespace) {
+            self.log_decision_for_name(
+                namespace,
+                n,
+                "toString/valueOf on object literal: will not flatten descendant name references",
+            );
+            return;
+        }
         if escaped.contains(&n) {
             self.log_decision_for_name(
                 namespace,
@@ -2451,6 +2459,12 @@ impl CollapseProperties {
                         namespace,
                         p,
                         "@nocollapse: will not flatten references",
+                    );
+                } else if p.is_to_string_value_of_in_object_literal(namespace) {
+                    self.log_decision_for_name(
+                        namespace,
+                        p,
+                        "toString/valueOf on object literal: will not flatten references",
                     );
                 } else if p.is_simple_stub_declaration(namespace, compiler) {
                     self.log_decision_for_name(
@@ -2840,7 +2854,10 @@ impl CollapseProperties {
             );
         }
 
-        if n.props(namespace).is_none() || escaped.contains(&n) {
+        if n.props(namespace).is_none()
+            || escaped.contains(&n)
+            || n.is_to_string_value_of_in_object_literal(namespace)
+        {
             return;
         }
         self.log_decision_for_name(namespace, n, "collapsing descendants");
