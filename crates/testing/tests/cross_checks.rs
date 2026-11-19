@@ -26,6 +26,7 @@ use closure_testing::corpus::{
     LoadedDescriptor, file_stem, jsonl_lines, load_descriptor_for, load_expected_pipeline,
     map_files_parallel, record_files, records,
 };
+use closure_testing::corpus_counts::assert_count;
 use closure_testing::descriptor::{select_case, select_case_or_null};
 use closure_testing::json::JsonValue;
 use std::sync::OnceLock;
@@ -175,8 +176,8 @@ fn case_selection_and_unrepresentable_entries() {
     }
     assert!(errors.is_empty(), "{} records without a case", errors.len());
     println!("selected a case: {selected:?}; no case (optional): {no_match_optional:?}");
-    assert_eq!(ctc, 22_257);
-    assert_eq!(selected["compiler_test_case"], 22_257);
+    assert_count("kind.compiler_test_case", ctc);
+    assert_count("kind.compiler_test_case", selected["compiler_test_case"]);
 }
 
 #[test]
@@ -216,7 +217,7 @@ fn expected_pipeline_matches_records() {
         }
     }
     assert_eq!(matched, entries.len());
-    assert_eq!(matched, 22_257);
+    assert_count("expected_pipeline", matched);
 }
 
 fn has_lone_surrogate(v: &JsonValue) -> bool {

@@ -19,6 +19,7 @@
 use closure_rhino::fast_hash::IndexSet;
 use closure_testing::{
     corpus,
+    corpus_counts::assert_count,
     json::parse_json,
     replay::replay_main::{Report, Runner},
 };
@@ -41,7 +42,7 @@ fn sampled_record_count() -> usize {
         all += n;
         sampled += n.div_ceil(SAMPLE);
     }
-    assert_eq!(all, 25773);
+    assert_count("records", all);
     sampled
 }
 
@@ -76,7 +77,7 @@ fn every_record_is_classified_once_and_the_report_round_trips() {
         },
     )
     .unwrap();
-    assert_eq!(classes, 436);
+    assert_count("record_files", classes);
     assert_eq!(identities.len(), sampled_record_count());
     assert_eq!(report.totals.records, identities.len());
     assert_eq!(

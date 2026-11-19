@@ -1,0 +1,34 @@
+# The counts the tests pin (closure_testing::corpus_counts), from the corpus read with Python's json
+# module. Written by scripts/unit_corpus_counts.py; do not edit, run it after the corpus changes.
+name	count
+record_files	436
+records	25773
+recorded_files	256
+kind.compiler_test_case	22257
+kind.integration	786
+kind.type_check	2730
+api.TypeTestBuilder.run	2685
+api.compile	56
+api.parseAndTypeCheckWithScope	45
+api.test	605
+api.testExternChanges	103
+api.testInternal	22154
+api.testNoWarnings	30
+api.testParseError	4
+api.test_warning	83
+api.test_warnings	8
+expected_pipeline	22257
+descriptors	256
+descriptor_cases	381
+descriptor_cases.compilerSetup	5
+descriptor_cases.options	2
+descriptor_cases.postconditions	17
+descriptor_cases.processor	377
+descriptor_cases.testFieldsAfter	64
+descriptor_cases.testFieldsAfterAlso	33
+descriptor_cases.testFieldsAfterSkip	3
+descriptor_cases.testFieldsAfterUnchecked	1
+descriptor_cases.when	381
+options_fields	206
+options_configs	317
+options_configs.dependency	192

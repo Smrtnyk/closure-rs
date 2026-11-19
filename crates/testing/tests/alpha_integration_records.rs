@@ -55,6 +55,7 @@
 //! for every record. One test per class, so that the test runner replays the classes in
 //! parallel. Only the 3 IntegrationTest records that reach out-of-scope passes (ChromePass,
 //! J2clPass) stay unported, and they must stay exactly that.
+use closure_testing::corpus_counts::assert_record_count;
 use closure_testing::{
     corpus,
     replay::replay_main::{RecordResult, Runner},
@@ -100,11 +101,12 @@ const OUT_OF_SCOPE: [(&str, &str); 3] = [
     ),
 ];
 
-/// Asserts that `class` has `expected` records and that every one passes, except the
-/// out-of-scope records of `OUT_OF_SCOPE`, which must be unported by exactly their pass.
-fn assert_all_pass(class: &str, expected: usize) {
+/// Asserts that `class` has its records of tests/data/record_counts.tsv and that every one
+/// passes, except the out-of-scope records of `OUT_OF_SCOPE`, which must be unported by exactly
+/// their pass.
+fn assert_all_pass(class: &str) {
     let records = replay(class);
-    assert_eq!(records.len(), expected, "{class} record count");
+    assert_record_count(class, records.len());
     let mut failing = Vec::new();
     let mut out_of_scope = 0;
     for r in &records {
@@ -131,70 +133,70 @@ fn assert_all_pass(class: &str, expected: usize) {
     );
 }
 
-// port: IntegrationTest (356 recorded calls; 3 reach out-of-scope passes)
+// port: IntegrationTest (the records in OUT_OF_SCOPE reach out-of-scope passes)
 #[test]
 fn integration_test() {
-    assert_all_pass("IntegrationTest", 356);
+    assert_all_pass("IntegrationTest");
 }
 
-// port: AdvancedOptimizationsIntegrationTest (136 recorded calls)
+// port: AdvancedOptimizationsIntegrationTest
 #[test]
 fn advanced_optimizations_integration_test() {
-    assert_all_pass("AdvancedOptimizationsIntegrationTest", 136);
+    assert_all_pass("AdvancedOptimizationsIntegrationTest");
 }
 
-// port: ClosureIntegrationTest (90 recorded calls)
+// port: ClosureIntegrationTest
 #[test]
 fn closure_integration_test() {
-    assert_all_pass("ClosureIntegrationTest", 91);
+    assert_all_pass("ClosureIntegrationTest");
 }
 
-// port: GetterAndSetterIntegrationTest (33 recorded calls)
+// port: GetterAndSetterIntegrationTest
 #[test]
 fn getter_and_setter_integration_test() {
-    assert_all_pass("GetterAndSetterIntegrationTest", 33);
+    assert_all_pass("GetterAndSetterIntegrationTest");
 }
 
-// port: ClosurePrimitivesIntegrationTest (4 recorded calls)
+// port: ClosurePrimitivesIntegrationTest
 #[test]
 fn closure_primitives_integration_test() {
-    assert_all_pass("ClosurePrimitivesIntegrationTest", 4);
+    assert_all_pass("ClosurePrimitivesIntegrationTest");
 }
 
-// port: MultiPassTest (19 recorded calls)
+// port: MultiPassTest
 #[test]
 fn multi_pass_test() {
-    assert_all_pass("MultiPassTest", 19);
+    assert_all_pass("MultiPassTest");
 }
 
-// port: TranspileAndOptimizeClosureUnawareTest (33 recorded calls)
+// port: TranspileAndOptimizeClosureUnawareTest
 #[test]
 fn transpile_and_optimize_closure_unaware_test() {
-    assert_all_pass("TranspileAndOptimizeClosureUnawareTest", 33);
+    assert_all_pass("TranspileAndOptimizeClosureUnawareTest");
 }
 
-// port: ClosureUnawareCodeIntegrationTest (24 recorded calls)
+// port: ClosureUnawareCodeIntegrationTest
 #[test]
 fn closure_unaware_code_integration_test() {
-    assert_all_pass("ClosureUnawareCodeIntegrationTest", 24);
+    assert_all_pass("ClosureUnawareCodeIntegrationTest");
 }
 
-// port: ClosureUnawarePhaseOptimizerTest (2 @Test methods, 2 recorded calls)
+// port: ClosureUnawarePhaseOptimizerTest
 #[test]
 fn closure_unaware_phase_optimizer_test() {
-    assert_all_pass("ClosureUnawarePhaseOptimizerTest", 2);
+    assert_all_pass("ClosureUnawarePhaseOptimizerTest");
 }
 
-// port: ProcessClosureProvidesAndRequiresTest (97 recorded calls; the 5 tests that make no
-// recorded call are in process_closure_provides_and_requires_test.rs)
+// port: ProcessClosureProvidesAndRequiresTest (the tests that make no recorded call are in
+// process_closure_provides_and_requires_test.rs)
 #[test]
 fn process_closure_provides_and_requires_test() {
-    assert_all_pass("ProcessClosureProvidesAndRequiresTest", 97);
+    assert_all_pass("ProcessClosureProvidesAndRequiresTest");
 }
 
-// port: CommonJSIntegrationTest (16 recorded calls of the 16 active @Test methods; they compile
-// the whole ADVANCED pipeline with ES5 output)
+// port: CommonJSIntegrationTest (one recorded call per active @Test method; they compile the
+// whole ADVANCED pipeline with ES5 output)
 #[test]
 fn common_js_integration_test() {
-    assert_all_pass("CommonJSIntegrationTest", 16);
+    assert_all_pass("CommonJSIntegrationTest");
 }

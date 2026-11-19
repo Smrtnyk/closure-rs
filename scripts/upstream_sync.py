@@ -57,6 +57,9 @@ UNIT_JARS = ("unit_support_deploy.jar", "unit_all_tests.jar", "compiler_tests_li
 # What scripts/unit_options_defaults.sh writes from the reference's unit support jar.
 OPTIONS_FIXTURES = ("corpus/unit/options_defaults.json", "crates/jscomp/tests/data/compiler_options_strings.json",
                     "crates/jscomp/tests/data/compiler_options_configs.json")
+# What scripts/unit_corpus_counts.py writes: the counts the tests pin and the docs quote.
+COUNTS_FILES = ("crates/testing/tests/data/record_counts.tsv", "crates/testing/tests/data/corpus_counts.tsv",
+                "crates/testing/README.md", "corpus/unit/RECORDING.md")
 # Upstream sources the port embeds verbatim (include_str!), as the jar ships them:
 # source path -> (jar entry, the port's copy). Step resources copies them from the jar.
 JAR_COPIES = {
@@ -728,9 +731,9 @@ class Sync:
 
     def step_unit_install(self):
         """Copies the new records into corpus/unit/records (the old ones are kept in the work
-        directory) and regenerates what derives from them, the corpus counts the docs quote included
-        (scripts/unit_corpus_counts.py), and the CompilerOptions fixtures of the new reference
-        (scripts/unit_options_defaults.sh)."""
+        directory) and regenerates what derives from them: the CompilerOptions fixtures of the new
+        reference (scripts/unit_options_defaults.sh), then the corpus counts the tests pin and the
+        docs quote (scripts/unit_corpus_counts.py)."""
         d = self.unit_dirs()
         dst = os.path.join(CHECKOUT, "corpus", "unit", "records")
         classes = self.test_classes()
@@ -780,17 +783,16 @@ class Sync:
                     self.note("unit-install", f"{rel(desc)}: unrepresentable records gone upstream: "
                                               f"{', '.join(missing)}")
         self.run([sys.executable, "scripts/unit_derive_expected_pipeline.py"])
-        self.run([sys.executable, "crates/testing/tests/data/gen_record_counts.py"])
-        self.run([sys.executable, "scripts/unit_corpus_counts.py"])
         self.run([sys.executable, "scripts/unit_postcall_impls.py", "--check"], write=False, capture=True)
         self.run([sys.executable, "scripts/unit_rust_unit_tests.py", "--check"], write=False)
         self.run(["bash", "scripts/unit_options_defaults.sh"])
         if not self.dry and self.git("status", "--short", "--", *OPTIONS_FIXTURES).strip():
             self.note("unit-install", "the CompilerOptions fixtures changed (scripts/unit_options_defaults.sh): "
-                                      "port the options change; compiler_options_{defaults,configs,strings}_test.rs "
-                                      "and crates/testing pin the field and case counts")
-        if self.diffstat("corpus/unit", "crates/testing/tests/data/record_counts.tsv", "crates/testing/README.md",
-                         *OPTIONS_FIXTURES):
+                                      "port the options change (CompilerOptions, the replay's options_fields, "
+                                      "crates/cli/tools/options_model.json)")
+        # After the fixtures: the counts include the CompilerOptions fields and configurations.
+        self.run([sys.executable, "scripts/unit_corpus_counts.py"])
+        if self.diffstat("corpus/unit", *COUNTS_FILES, *OPTIONS_FIXTURES):
             new_cls = [n for k, n in changed if k != "removed" and has_records(os.path.join(dst, n + ".jsonl.gz"))]
             missing = [n for n in new_cls if not os.path.exists(
                 os.path.join(CHECKOUT, "corpus", "unit", "descriptors", n + ".json"))]
@@ -1234,7 +1236,8 @@ LEFT = """\
 Left for a person or agent (docs/PORTING.md §9, §7):
   1. Port the Java changes: {work}/porting-worklist.md lists every changed upstream file with the
      Rust files ported from it, and upstream.diff holds the diff. New or changed upstream tests:
-     unit records (descriptors for new record classes), Rust test ports for non-harness classes.
+     unit records (descriptors for new record classes, then scripts/unit_corpus_counts.py for
+     the descriptor counts), Rust test ports for non-harness classes.
   2. Triage the regression worklists: {work}/unit-worklist.json (unit records) and
      {work}/d2-worklist.txt (D2 pairs) list what the new reference breaks before porting.
   3. Re-run after porting: --only license-headers (headers of newly ported files), gates/ci.sh,
@@ -1246,9 +1249,7 @@ Left for a person or agent (docs/PORTING.md §9, §7):
      docs/PORTING.md §9),
      targeted probes and a differential fuzz run against the new reference (then
      scripts/fuzz_java_crashes.py --seed SEED replays its kept Java crashes under both references).
-  4. When everything matches: --only switch-default (read its diff), then the counts the docs
-     quote that no step rewrites (crates/testing/README.md: descriptor cases, CompilerOptions
-     fields; unit-install rewrote the record and class counts) and the pull request."""
+  4. When everything matches: --only switch-default (read its diff), then the pull request."""
 
 
 def main():

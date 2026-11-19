@@ -38,6 +38,7 @@
 //! NodeUtil.createSynthesizedExternsSymbol). This test replays the class's record through the Rust
 //! CompilerTestCase port (the unit_replay runner) with the NodeUtilTest_Helpers port and requires
 //! the Java outcome.
+use closure_testing::corpus_counts::assert_record_count;
 use closure_testing::{
     corpus,
     replay::replay_main::{RecordResult, Runner},
@@ -68,7 +69,7 @@ fn replay(class: &str) -> Vec<RecordResult> {
 #[test]
 fn create_synthesized_externs_symbol_tests() {
     let records = replay("NodeUtilTest");
-    assert_eq!(records.len(), 1);
+    assert_record_count("NodeUtilTest", records.len());
     for r in &records {
         assert_eq!(
             r.status, "pass",

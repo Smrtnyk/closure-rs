@@ -23,6 +23,7 @@ pub mod compiler_test_case;
 pub mod compiler_test_case_utils;
 pub mod compiler_type_test_case;
 pub mod corpus;
+pub mod corpus_counts;
 pub mod derived;
 pub mod descriptor;
 pub mod dsl;

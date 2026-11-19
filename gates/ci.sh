@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The CI gate (docs/PORTING.md §6): formatting, clippy, license headers, the unit corpus counts the
-# docs quote and the tests.
+# tests pin and the docs quote, and the tests.
 #   gates/ci.sh [--lint | --test] [checkout-dir]
 # checkout-dir defaults to the checkout this script lives in (works in worktrees). Without a mode
 # every step runs; --lint runs the checks and clippy (steps 1-4), --test only the tests (step 5),
@@ -51,7 +51,7 @@ else
   printf '%s\n' "$lic_out" | tail -40; bad "license headers"
 fi
 
-step "1c. unit corpus counts in the docs (scripts/unit_corpus_counts.py --check; without --check it rewrites them)"
+step "1c. unit corpus counts the tests pin and the docs quote (scripts/unit_corpus_counts.py --check; without --check it rewrites them)"
 python3 scripts/unit_corpus_counts.py --check || bad "unit corpus counts"
 
 step "2a. cargo fmt --check"

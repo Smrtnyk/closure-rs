@@ -51,6 +51,7 @@
 //! tests. Every test/testSame/testError/testWarning call they make is a corpus unit record; these
 //! tests replay each class's records through the Rust CompilerTestCase port (the unit_replay
 //! runner) and require the Java outcome.
+use closure_testing::corpus_counts::assert_record_count;
 use closure_testing::{
     corpus,
     replay::replay_main::{RecordResult, Runner},
@@ -77,10 +78,11 @@ fn replay(class: &str) -> Vec<RecordResult> {
     records
 }
 
-/// Asserts that all `expected` records of `class` pass.
-fn assert_records(class: &str, expected: usize) {
+/// Asserts that `class` has its records of tests/data/record_counts.tsv and that all of them
+/// pass.
+fn assert_records(class: &str) {
     let records = replay(class);
-    assert_eq!(records.len(), expected, "{class} record count");
+    assert_record_count(class, records.len());
     for r in &records {
         assert!(
             r.status == "pass",
@@ -95,50 +97,50 @@ fn assert_records(class: &str, expected: usize) {
     }
 }
 
-// port: VarCheckTest (132 @Test methods, 228 recorded calls)
+// port: VarCheckTest
 #[test]
 fn var_check_test() {
-    assert_records("VarCheckTest", 228);
+    assert_records("VarCheckTest");
 }
 
-// port: VariableReferenceCheckTest (122 @Test methods, 311 recorded calls)
+// port: VariableReferenceCheckTest
 #[test]
 fn variable_reference_check_test() {
-    assert_records("VariableReferenceCheckTest", 311);
+    assert_records("VariableReferenceCheckTest");
 }
 
-// port: UnusedLocalsCheckTest (47 @Test methods, 80 recorded calls)
+// port: UnusedLocalsCheckTest
 #[test]
 fn unused_locals_check_test() {
-    assert_records("UnusedLocalsCheckTest", 80);
+    assert_records("UnusedLocalsCheckTest");
 }
 
-// port: ConstCheckTest (47 @Test methods, 54 recorded calls)
+// port: ConstCheckTest
 #[test]
 fn const_check_test() {
-    assert_records("ConstCheckTest", 54);
+    assert_records("ConstCheckTest");
 }
 
-// port: ValidityCheckTest (5 @Test methods, 3 recorded calls)
+// port: ValidityCheckTest
 #[test]
 fn validity_check_test() {
-    assert_records("ValidityCheckTest", 3);
+    assert_records("ValidityCheckTest");
 }
 
-// port: StrictModeCheckTest (46 @Test methods, 100 recorded calls)
+// port: StrictModeCheckTest
 #[test]
 fn strict_mode_check_test() {
-    assert_records("StrictModeCheckTest", 100);
+    assert_records("StrictModeCheckTest");
 }
 
-// port: DeclaredGlobalExternsOnWindowTest (18 @Test methods, 20 recorded calls)
+// port: DeclaredGlobalExternsOnWindowTest
 #[test]
 fn declared_global_externs_on_window_test() {
-    assert_records("DeclaredGlobalExternsOnWindowTest", 20);
+    assert_records("DeclaredGlobalExternsOnWindowTest");
 }
 
-// port: RemoveUnnecessarySyntheticExternsTest (12 @Test methods, 27 recorded calls)
+// port: RemoveUnnecessarySyntheticExternsTest
 #[test]
 fn remove_unnecessary_synthetic_externs_test() {
-    assert_records("RemoveUnnecessarySyntheticExternsTest", 27);
+    assert_records("RemoveUnnecessarySyntheticExternsTest");
 }

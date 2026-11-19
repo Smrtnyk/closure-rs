@@ -40,6 +40,7 @@
 //! (`crates/testing/src/replay/replace_messages_helpers.rs`). This test replays every record of
 //! the class through the Rust harness ports (the unit_replay runner) and requires the Java
 //! outcome for each of them.
+use closure_testing::corpus_counts::assert_record_count;
 use closure_testing::{
     corpus,
     replay::replay_main::{RecordResult, Runner},
@@ -68,11 +69,11 @@ fn replay(class: &str) -> Vec<RecordResult> {
     records
 }
 
-// port: ReplaceMessagesTest (259 recorded calls of its 87 tests)
+// port: ReplaceMessagesTest
 #[test]
 fn replace_messages_test() {
     let records = replay("ReplaceMessagesTest");
-    assert_eq!(records.len(), 259, "ReplaceMessagesTest record count");
+    assert_record_count("ReplaceMessagesTest", records.len());
     for r in &records {
         assert_eq!(
             r.status, "pass",

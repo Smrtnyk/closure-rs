@@ -25,8 +25,22 @@ fn option_setup_parity() {
     let model: serde_json::Value =
         serde_json::from_str(include_str!("../tools/options_model.json")).unwrap();
     let keys = model["modelled"].as_array().unwrap();
-    assert_eq!(keys.len(), 187);
-    assert_eq!(model["unmodelled"].as_array().unwrap().len(), 19);
+    // Every CompilerOptions field (corpus/unit/options_defaults.json) is modelled or unmodelled,
+    // exactly once.
+    let (defaults, _) = closure_testing::corpus::load_options_defaults().unwrap();
+    let mut classified: Vec<&str> = keys
+        .iter()
+        .chain(model["unmodelled"].as_array().unwrap())
+        .map(|k| k.as_str().or_else(|| k["field"].as_str()).unwrap())
+        .collect();
+    classified.sort_unstable();
+    let mut fields: Vec<&str> = defaults.field_types.keys().map(String::as_str).collect();
+    fields.sort_unstable();
+    assert_eq!(
+        classified, fields,
+        "tools/options_model.json: its modelled and unmodelled fields must be the CompilerOptions \
+         fields of corpus/unit/options_defaults.json, each once"
+    );
     for row in &rows {
         let args: Vec<String> = serde_json::from_value(row["argv"].clone()).unwrap();
         let java = &row["setup"];

@@ -26,6 +26,7 @@ use closure_jscomp::{
 use closure_rhino::js_string::JsString;
 use closure_testing::{
     corpus::load_options_defaults,
+    corpus_counts::assert_count,
     json::{JsonValue as Value, parse_json},
 };
 // port: OptionsConfigurationsDump#main
@@ -33,7 +34,7 @@ use closure_testing::{
 fn every_java_configuration_matches_every_field() {
     let (_, raw_defaults) = load_options_defaults().unwrap();
     let cases = parse_json(include_str!("data/compiler_options_configs.json")).unwrap();
-    assert_eq!(cases.as_array().unwrap().len(), 317);
+    assert_count("options_configs", cases.as_array().unwrap().len());
     let mut option_count = 0;
     let mut dependency_count = 0;
     for case in cases.as_array().unwrap() {
@@ -178,7 +179,7 @@ fn every_java_configuration_matches_every_field() {
         let mut actual = support::options_fields(&options);
         support::normalize_standins(&mut expected);
         support::normalize_standins(&mut actual);
-        assert_eq!(actual.as_object().unwrap().len(), 206);
+        assert_count("options_fields", actual.as_object().unwrap().len());
         for (name, value) in actual.as_object().unwrap() {
             assert_eq!(
                 value,
@@ -187,6 +188,6 @@ fn every_java_configuration_matches_every_field() {
             );
         }
     }
-    assert_eq!(option_count, 125);
-    assert_eq!(dependency_count, 192);
+    assert_count("options_configs.dependency", dependency_count);
+    assert_count("options_configs", option_count + dependency_count);
 }

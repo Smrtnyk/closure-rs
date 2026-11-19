@@ -1222,6 +1222,7 @@ crates/testing/src/compiler_test_case_rhino.rs	5d885ad51b0c08b6	(MPL-1.1 OR GPL-
 crates/testing/src/compiler_test_case_utils.rs	dd27d14e1cb33017	Apache-2.0	closure:test/com/google/javascript/jscomp/CompilerTestCaseUtils.java
 crates/testing/src/compiler_type_test_case.rs	fb7a7ec7f22519ae	Apache-2.0	closure:test/com/google/javascript/jscomp/CompilerTypeTestCase.java
 crates/testing/src/corpus.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/testing/src/corpus_counts.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/testing/src/derived.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/testing/src/descriptor.rs	e4e94c70136729b1	Apache-2.0	own:oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java
 crates/testing/src/dsl.rs	322fc2ba37b98b96	Apache-2.0	-

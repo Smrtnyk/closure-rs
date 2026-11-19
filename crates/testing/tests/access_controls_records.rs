@@ -44,6 +44,7 @@
 //! CheckNestedNamesTest) are CompilerTestCase tests. Every test/testSame/testError/testWarning call
 //! they make is a corpus unit record; these tests replay each class's records through the Rust
 //! CompilerTestCase port (the unit_replay runner) and require the Java outcome.
+use closure_testing::corpus_counts::assert_record_count;
 use closure_testing::{
     corpus,
     replay::replay_main::{RecordResult, Runner},
@@ -70,10 +71,11 @@ fn replay(class: &str) -> Vec<RecordResult> {
     records
 }
 
-/// Asserts that all `expected` records of `class` pass.
-fn assert_all_pass(class: &str, expected: usize) {
+/// Asserts that `class` has its records of tests/data/record_counts.tsv and that all of them
+/// pass.
+fn assert_all_pass(class: &str) {
     let records = replay(class);
-    assert_eq!(records.len(), expected, "{class} record count");
+    assert_record_count(class, records.len());
     let failing: Vec<_> = records
         .iter()
         .filter(|r| r.status != "pass")
@@ -87,34 +89,34 @@ fn assert_all_pass(class: &str, expected: usize) {
     assert!(failing.is_empty(), "{}", failing.join("\n"));
 }
 
-// port: CheckAccessControlsTest (224 @Test methods, 233 recorded calls)
+// port: CheckAccessControlsTest
 #[test]
 fn check_access_controls_test() {
-    assert_all_pass("CheckAccessControlsTest", 233);
+    assert_all_pass("CheckAccessControlsTest");
 }
 
-// port: CheckAccessControlsOldSyntaxTest (210 @Test methods, 215 recorded calls)
+// port: CheckAccessControlsOldSyntaxTest
 #[test]
 fn check_access_controls_old_syntax_test() {
-    assert_all_pass("CheckAccessControlsOldSyntaxTest", 215);
+    assert_all_pass("CheckAccessControlsOldSyntaxTest");
 }
 
-// port: ImplicitNullabilityCheckTest (15 @Test methods, 46 recorded calls)
+// port: ImplicitNullabilityCheckTest
 #[test]
 fn implicit_nullability_check_test() {
-    assert_all_pass("ImplicitNullabilityCheckTest", 46);
+    assert_all_pass("ImplicitNullabilityCheckTest");
 }
 
-// port: CheckNestedNamesTest (13 @Test methods, 45 recorded calls)
+// port: CheckNestedNamesTest
 #[test]
 fn check_nested_names_test() {
-    assert_all_pass("CheckNestedNamesTest", 45);
+    assert_all_pass("CheckNestedNamesTest");
 }
 
 /// CheckArrayWithGoogObjectTest#setUp calls enableTranspile(), so the harness runs
 /// TranspilationPasses#addTranspilationPasses (all transpile passes ported since transpile-misc).
-// port: CheckArrayWithGoogObjectTest (4 @Test methods, 4 recorded calls)
+// port: CheckArrayWithGoogObjectTest
 #[test]
 fn check_array_with_goog_object_test() {
-    assert_all_pass("CheckArrayWithGoogObjectTest", 4);
+    assert_all_pass("CheckArrayWithGoogObjectTest");
 }

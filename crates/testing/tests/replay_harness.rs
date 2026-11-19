@@ -274,14 +274,17 @@ fn generic_names_use_wrapping_hash_and_ordered_plain_replacements() {
 }
 // port: CompilerOptions#CompilerOptions / ReplayValues#setField / ReplayBridge#options / setField
 #[test]
-fn all_206_option_defaults_decode_and_round_trip() {
+fn all_option_defaults_decode_and_round_trip() {
     let mut ctx = context("descriptor\tlookup\tdeclaringClass\tsignature\twidened\n");
     let options =
         closure_testing::replay::replay_bridge::options(&IndexMap::<_, _>::default(), &mut ctx)
             .unwrap();
     let handle = Rc::new(RefCell::new(options));
     let instance = DslValue::Options(handle.clone());
-    assert_eq!(options_fields::defaults().fields.len(), 206);
+    closure_testing::corpus_counts::assert_count(
+        "options_fields",
+        options_fields::defaults().fields.len(),
+    );
     let differences = options_fields::defaults()
         .fields
         .iter()

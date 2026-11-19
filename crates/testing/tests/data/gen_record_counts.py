@@ -2,7 +2,9 @@
 """Writes record_counts.tsv: per record file, the number of records of each kind.
 
 Independent of the Rust reader (Python's json module), so tests/records_load.rs can check the
-per-class counts it computes against it. Run from anywhere:
+per-class counts it computes against it, and the record tests take each class's record count from
+it (closure_testing::corpus_counts::record_count). scripts/unit_corpus_counts.py writes it too,
+with the other counts the tests pin. Run from anywhere:
     python3 crates/testing/tests/data/gen_record_counts.py
 """
 import collections
@@ -16,9 +18,10 @@ RECORDS = os.path.join(HERE, "../../../../corpus/unit/records")
 KINDS = ["compiler_test_case", "integration", "type_check"]
 
 
-def main():
+def table(records=RECORDS):
+    """The text of record_counts.tsv for the record files in `records`."""
     rows = []
-    for f in sorted(glob.glob(os.path.join(RECORDS, "*.jsonl.gz"))):
+    for f in sorted(glob.glob(os.path.join(records, "*.jsonl.gz"))):
         stem = os.path.basename(f).split(".")[0]
         counts = collections.Counter()
         total = 0
@@ -32,10 +35,12 @@ def main():
                 counts[rec["kind"]] += 1
                 total += 1
         rows.append([stem, str(total)] + [str(counts[k]) for k in KINDS])
+    return "".join("\t".join(r) + "\n" for r in [["stem", "total"] + KINDS] + rows)
+
+
+def main():
     with open(os.path.join(HERE, "record_counts.tsv"), "w", encoding="utf-8") as out:
-        out.write("\t".join(["stem", "total"] + KINDS) + "\n")
-        for r in rows:
-            out.write("\t".join(r) + "\n")
+        out.write(table())
 
 
 if __name__ == "__main__":

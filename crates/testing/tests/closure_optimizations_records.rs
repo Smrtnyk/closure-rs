@@ -55,6 +55,7 @@
 //!
 //! Records that need a class that is not ported are "unported" by exactly that class (listed per
 //! test below); no record may fail.
+use closure_testing::corpus_counts::assert_record_count;
 use closure_testing::{
     corpus,
     replay::replay_main::{RecordResult, Runner},
@@ -81,12 +82,12 @@ fn replay(class: &str) -> Vec<RecordResult> {
     records
 }
 
-/// Asserts that `class` has `expected` records, that at least `passing` of them pass (a floor:
-/// more may pass as other classes are ported) and that every other one
+/// Asserts that `class` has its records of tests/data/record_counts.tsv, that at least `passing`
+/// of them pass (a floor: more may pass as other classes are ported) and that every other one
 /// is unported by one of `allowed_unported_by` (a class that is not ported).
-fn assert_records(class: &str, expected: usize, passing: usize, allowed_unported_by: &[&str]) {
+fn assert_records(class: &str, passing: usize, allowed_unported_by: &[&str]) {
     let records = replay(class);
-    assert_eq!(records.len(), expected, "{class} record count");
+    assert_record_count(class, records.len());
     let bad: Vec<_> = records
         .iter()
         .filter(|r| match r.status.as_str() {
@@ -112,54 +113,54 @@ fn assert_records(class: &str, expected: usize, passing: usize, allowed_unported
     );
 }
 
-// port: ReplaceTogglesTest (13 @Test methods, 25 recorded calls)
+// port: ReplaceTogglesTest
 #[test]
 fn replace_toggles_test() {
-    assert_records("ReplaceTogglesTest", 25, 25, &[]);
+    assert_records("ReplaceTogglesTest", 25, &[]);
 }
 
-// port: ClosureOptimizePrimitivesTest (36 @Test methods, 42 recorded calls)
+// port: ClosureOptimizePrimitivesTest
 #[test]
 fn closure_optimize_primitives_test() {
-    assert_records("ClosureOptimizePrimitivesTest", 42, 42, &[]);
+    assert_records("ClosureOptimizePrimitivesTest", 42, &[]);
 }
 
-// port: AngularPassTest (33 @Test methods, 57 recorded calls)
+// port: AngularPassTest
 #[test]
 fn angular_pass_test() {
-    assert_records("AngularPassTest", 57, 57, &[]);
+    assert_records("AngularPassTest", 57, &[]);
 }
 
-// port: GenerateExportsTest (53 @Test methods, 79 recorded calls)
+// port: GenerateExportsTest
 #[test]
 fn generate_exports_test() {
-    assert_records("GenerateExportsTest", 81, 81, &[]);
+    assert_records("GenerateExportsTest", 81, &[]);
 }
 
-// port: ReplaceIdGeneratorsTest (42 @Test methods, 102 recorded calls)
+// port: ReplaceIdGeneratorsTest
 #[test]
 fn replace_id_generators_test() {
-    assert_records("ReplaceIdGeneratorsTest", 102, 102, &[]);
+    assert_records("ReplaceIdGeneratorsTest", 102, &[]);
 }
 
 /// TypeCheck runs first; ChangeVerifier prints typed nodes through the compiler's registry.
-// port: ClosureCodeRemovalTest (22 @Test methods, 22 recorded calls)
+// port: ClosureCodeRemovalTest
 #[test]
 fn closure_code_removal_test() {
-    assert_records("ClosureCodeRemovalTest", 22, 22, &[]);
+    assert_records("ClosureCodeRemovalTest", 22, &[]);
 }
 
 /// TypeCheck runs first; ChangeVerifier prints typed nodes through the compiler's registry.
-// port: ReplaceCssNamesTest (32 @Test methods, 71 recorded calls)
+// port: ReplaceCssNamesTest
 #[test]
 fn replace_css_names_test() {
-    assert_records("ReplaceCssNamesTest", 71, 71, &[]);
+    assert_records("ReplaceCssNamesTest", 71, &[]);
 }
 
 /// Every record also compares the host field `namespace`, a depth-2 dump of the GlobalNamespace
 /// the pass built (GlobalNamespace#unit_dump_fields).
-// port: ProcessDefinesTest (98 @Test methods, 139 recorded calls)
+// port: ProcessDefinesTest
 #[test]
 fn process_defines_test() {
-    assert_records("ProcessDefinesTest", 139, 139, &[]);
+    assert_records("ProcessDefinesTest", 139, &[]);
 }

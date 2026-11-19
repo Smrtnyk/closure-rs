@@ -23,6 +23,7 @@ use closure_testing::corpus::{
     descriptor_files, file_stem, load_descriptor, load_expected_pipeline, load_options_defaults,
     read_gz, record_files,
 };
+use closure_testing::corpus_counts::{assert_count, assert_counts_with_prefix};
 use closure_testing::dsl::Expr;
 
 #[test]
@@ -93,11 +94,10 @@ fn all_descriptors_load_and_round_trip() {
     println!("descriptors: {}, cases: {cases}", files.len());
     println!("case keys: {keys:?}");
     println!("expression tags: {tags:?}");
-    assert_eq!(files.len(), 256);
-    assert_eq!(cases, 381);
-    assert_eq!(keys["processor"], 377);
-    assert_eq!(keys["testFieldsAfter"], 64);
-    assert_eq!(keys["postconditions"], 17);
+    assert_count("descriptors", files.len());
+    assert_count("descriptor_cases", cases);
+    let keys: Vec<_> = keys.iter().map(|(k, v)| (*k, *v)).collect();
+    assert_counts_with_prefix("descriptor_cases.", &keys);
 
     // One descriptor per non-empty record file, and no other.
     let nonempty: IndexSet<String> = record_files()
@@ -119,8 +119,8 @@ fn options_defaults_load_and_round_trip() {
     assert_eq!(d.v, 2);
     assert_eq!(d.class, "com.google.javascript.jscomp.CompilerOptions");
     assert_eq!(d.depth, 4);
-    assert_eq!(d.fields.len(), 206);
-    assert_eq!(d.field_types.len(), 206);
+    assert_count("options_fields", d.fields.len());
+    assert_count("options_fields", d.field_types.len());
     assert!(
         d.fields.keys().eq(d.field_types.keys()),
         "fields vs fieldTypes"
@@ -131,7 +131,7 @@ fn options_defaults_load_and_round_trip() {
 #[test]
 fn expected_pipeline_loads_and_round_trips() {
     let entries = load_expected_pipeline().unwrap();
-    assert_eq!(entries.len(), 22_257);
+    assert_count("expected_pipeline", entries.len());
     for (e, raw) in &entries {
         assert_eq!(&e.to_json(), raw);
     }
