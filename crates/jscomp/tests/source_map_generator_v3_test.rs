@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 030d049:
+// Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
 //   test/com/google/debugging/sourcemap/SourceMapGeneratorV3Test.java.
 
 #[path = "support/source_map_test_case.rs"]
