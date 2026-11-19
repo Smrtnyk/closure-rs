@@ -57,6 +57,8 @@ UNIT_JARS = ("unit_support_deploy.jar", "unit_all_tests.jar", "compiler_tests_li
 # What scripts/unit_options_defaults.sh writes from the reference's unit support jar.
 OPTIONS_FIXTURES = ("corpus/unit/options_defaults.json", "crates/jscomp/tests/data/compiler_options_strings.json",
                     "crates/jscomp/tests/data/compiler_options_configs.json")
+# What crates/parsing/tools/GenParserRunnerConfig.java writes (step resources).
+PARSER_FIXTURE = "crates/parsing/tests/fixtures/parser_runner_config.txt"
 # What scripts/unit_corpus_counts.py writes: the counts the tests pin and the docs quote.
 COUNTS_FILES = ("crates/testing/tests/data/record_counts.tsv", "crates/testing/tests/data/corpus_counts.tsv",
                 "crates/testing/README.md", "corpus/unit/RECORDING.md")
@@ -469,8 +471,9 @@ class Sync:
 
     def step_resources(self):
         """Regenerates the jar resources (crates/resources/tools/sync_from_jar.py), the Java-side
-        resource fixtures (crates/resources/tools/GenResourceFixtures.java) and the port's verbatim
-        copies of upstream sources (JAR_COPIES)."""
+        resource fixtures (crates/resources/tools/GenResourceFixtures.java) and the parser's
+        (crates/parsing/tools/GenParserRunnerConfig.java), and the port's verbatim copies of upstream
+        sources (JAR_COPIES)."""
         r = self.ref()
         jar, src = self.abs(r.jar), self.abs(r.src)
         self.run([sys.executable, "crates/resources/tools/sync_from_jar.py", jar, src])
@@ -508,7 +511,21 @@ class Sync:
                 if not os.path.exists(dst) or not filecmp.cmp(os.path.join(out, name), dst, shallow=False):
                     shutil.copyfile(os.path.join(out, name), dst)
                     log(f"  updated {rel(dst)}")
-        if not self.diffstat("crates/resources", *(c for _, c in JAR_COPIES.values())):
+        # The parser's: ParserRunner's annotation, suppression and reserved names.
+        tool, dst = "crates/parsing/tools/GenParserRunnerConfig.java", os.path.join(CHECKOUT, PARSER_FIXTURE)
+        if self.dry:
+            log(f"  would run {tool} against {rel(jar)} and write {PARSER_FIXTURE}")
+        else:
+            pcls, pout = os.path.join(gen, "parser-classes"), os.path.join(gen, "parser_runner_config.txt")
+            os.makedirs(pcls)
+            self.run([os.path.join(JAVA, "javac"), "-nowarn", "-encoding", "UTF-8", "-cp", jar, "-d", pcls,
+                      os.path.join(CHECKOUT, tool)])
+            self.run([os.path.join(JAVA, "java"), "-cp", f"{jar}:{pcls}", "GenParserRunnerConfig", pout],
+                     cwd=gen, env=dict(FIXED_ENV, HOME=os.environ.get("HOME", "/")))
+            if not filecmp.cmp(pout, dst, shallow=False):
+                shutil.copyfile(pout, dst)
+                log(f"  updated {PARSER_FIXTURE}")
+        if not self.diffstat("crates/resources", PARSER_FIXTURE, *(c for _, c in JAR_COPIES.values())):
             return "ran (no changes)"
         self.note("resources", "the jar resources changed: check the polyfill / runtime library "
                                "changes against the porting worklist")

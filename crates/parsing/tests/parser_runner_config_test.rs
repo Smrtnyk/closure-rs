@@ -16,9 +16,11 @@
 
 //! Checks the ParserRunner configuration helpers against the names Java computes.
 //!
-//! `fixtures/parser_runner_config.txt` was produced with the reference jar:
-//! `ParserRunner.createConfig(ECMASCRIPT3, null, SLOPPY)`'s `annotations().keySet()` and
-//! `suppressionNames()`, and `ParserRunner.getReservedVars()`, each joined with ','.
+//! `fixtures/parser_runner_config.txt` comes from the reference jar
+//! (`tools/GenParserRunnerConfig.java`, which the resources step of `scripts/upstream_sync.py`
+//! runs): `ParserRunner.createConfig(ECMASCRIPT3, no extra annotations, SLOPPY)`'s
+//! `annotations().keySet()` and `suppressionNames()`, and `ParserRunner.getReservedVars()`, each
+//! joined with ','.
 
 use closure_parsing::config::{LanguageMode, StrictMode};
 use closure_parsing::parser_runner::ParserRunner;
