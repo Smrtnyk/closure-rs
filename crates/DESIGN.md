@@ -372,9 +372,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   positions, shared properties and type expressions. Files with diagnostics or unsupported
   parser data use the source parser. The build also checks uncommented dependency input,
   recording annotation flags for files without Closure primitives or module syntax. It
-  records top-level qualified property declarations in source order. The scope builder
-  validates each live property chain and applies its current JSDoc in the compilation's
-  type registry. A changed statement goes through ordinary traversal.
+  marks top-level qualified property declarations in source order. The scope builder
+  checks the live statement shape and applies its current name and JSDoc in the
+  compilation's type registry. Other statement shapes go through ordinary traversal.
 - `jscomp/parallel_parse.rs`: inputs are parsed on up to 8 worker threads into arenas of their
   own (`Ast::new_for_preparse`) while the compiler runs; `CompilerInput#parse` moves a finished
   parse into the compiler's arena (`Ast::append_preparsed`) with the node ids, object sharing

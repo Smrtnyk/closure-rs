@@ -999,7 +999,7 @@ struct AbstractScopeBuilder<'a> {
     // ResolveStubDeclaration always waits for the scope root. Only statement actions need
     // a membership test in visit() for each descendant.
     deferred_statements: IndexSet<NodeId>,
-    bundled_declarations: Option<(NodeId, std::str::Lines<'static>)>,
+    bundled_declarations: Option<(NodeId, std::slice::Iter<'static, u8>)>,
 }
 
 impl<'a> AbstractScopeBuilder<'a> {
@@ -2983,7 +2983,7 @@ impl Callback for AbstractScopeBuilder<'_> {
             {
                 t.get_input()
                     .and_then(|input| input.get_source_file().bundled_property_declarations())
-                    .map(|records| (n, records.lines()))
+                    .map(|records| (n, records.iter()))
             } else {
                 None
             };
@@ -2992,22 +2992,13 @@ impl Callback for AbstractScopeBuilder<'_> {
             self.visit_preorder(t, n, parent);
             if let Some((script, records)) = &mut self.bundled_declarations
                 && Some(*script) == parent
-                && let Some(record) = records.next()
-                && !record.is_empty()
-                && let Some(property) = Self::matching_property_declaration(t, n, record)
+                && records.next() == Some(&1)
+                && let Some(property) = Self::bare_property_declaration(t, n)
             {
                 // NAME and the intermediate GETPROPs of a bare name have no scope-building
                 // work. Run the ordinary declaration and statement actions in postorder.
-                let (owner, _) = record.rsplit_once('.').unwrap();
                 let info = property.get_jsdoc_info(t);
-                self.maybe_declare_qualified_name(
-                    t,
-                    info,
-                    property,
-                    n,
-                    None,
-                    Some((owner.into(), record.into())),
-                );
+                self.maybe_declare_qualified_name(t, info, property, n, None);
                 self.visit(t, n, parent);
                 return false;
             }
@@ -3058,12 +3049,11 @@ impl Callback for AbstractScopeBuilder<'_> {
 }
 
 impl AbstractScopeBuilder<'_> {
-    /// Earlier passes can insert, move or rewrite extern ASTs. Validate the current shape
-    /// and names before replaying a record at its original position.
-    fn matching_property_declaration(
+    /// Earlier passes can insert, move or rewrite statements. A live bare property can
+    /// be declared directly even when its name has changed. Other shapes need traversal.
+    fn bare_property_declaration(
         ast: &closure_rhino::node::Ast,
         statement: NodeId,
-        name: &str,
     ) -> Option<NodeId> {
         if !statement.is_expr_result(ast) || !statement.has_one_child(ast) {
             return None;
@@ -3073,18 +3063,14 @@ impl AbstractScopeBuilder<'_> {
             return None;
         }
         let mut node = property;
-        let mut parts = name.rsplit('.');
         while node.is_get_prop(ast) {
-            if !node.has_one_child(ast) || node.get_string_ref(ast) != parts.next()? {
+            if !node.has_one_child(ast) {
                 return None;
             }
             node = node.get_first_child(ast)?;
         }
-        (node.is_name(ast)
-            && !node.has_children(ast)
-            && node.get_string_ref(ast) == parts.next()?
-            && parts.next().is_none())
-        .then_some(property)
+        (node.is_name(ast) && !node.has_children(ast) && !node.get_string_ref(ast).is_empty())
+            .then_some(property)
     }
 
     // Rust-only: `deferredActions.put(key, runnable)` (LinkedHashMultimap: entries keep their
@@ -4023,7 +4009,6 @@ impl AbstractScopeBuilder<'_> {
         n: NodeId,
         parent: NodeId,
         rhs_value: Option<NodeId>,
-        recorded_names: Option<(JsString, JsString)>,
     ) {
         let is_typedef = self.is_valid_typedef_declaration(t.get_compiler(), n, info.clone());
         if is_typedef {
@@ -4032,13 +4017,12 @@ impl AbstractScopeBuilder<'_> {
 
         let compiler = t.get_compiler();
         let owner_node = n.get_first_child(compiler).expect("NullPointerException");
-        let (owner_name, q_name) = recorded_names.unwrap_or_else(|| {
-            let owner = owner_node.get_qualified_name(compiler);
-            let name = n.get_qualified_name(compiler);
-            check_argument!(owner.is_some() && name.is_some());
-            (owner.unwrap(), name.unwrap())
-        });
+        let owner_name = owner_node.get_qualified_name(compiler);
+        let q_name = n.get_qualified_name(compiler);
         let prop_name = n.get_string(compiler);
+        check_argument!(q_name.is_some() && owner_name.is_some());
+        let q_name = q_name.unwrap();
+        let owner_name = owner_name.unwrap();
 
         // Precedence of type information on GETPROPs:
         // 1) @type annotation / @enum annotation
@@ -4636,7 +4620,7 @@ impl AbstractScopeBuilder<'_> {
                 if first_child.is_get_prop(compiler) && first_child.is_qualified_name(compiler) {
                     let info = n.get_jsdoc_info(compiler);
                     let next = first_child.get_next(compiler);
-                    self.maybe_declare_qualified_name(t, info, first_child, n, next, None);
+                    self.maybe_declare_qualified_name(t, info, first_child, n, next);
                 } else if first_child.is_get_elem(compiler)
                     && first_child
                         .get_first_child(compiler)
@@ -4662,7 +4646,7 @@ impl AbstractScopeBuilder<'_> {
                 let parent = parent.expect("NullPointerException");
                 if parent.is_expr_result(compiler) && n.is_qualified_name(compiler) {
                     let info = n.get_jsdoc_info(compiler);
-                    self.maybe_declare_qualified_name(t, info, n, parent, None, None);
+                    self.maybe_declare_qualified_name(t, info, n, parent, None);
                 }
             }
             Token::GETELEM => {
@@ -6130,22 +6114,22 @@ mod bundled_declaration_tests {
         let owner = IR::getprop(&mut ast, base, "prototype");
         let property = IR::getprop(&mut ast, owner, "location");
         let statement = IR::expr_result(&mut ast, property);
-        let name = "Window.prototype.location";
         assert_eq!(
-            AbstractScopeBuilder::matching_property_declaration(&ast, statement, name),
+            AbstractScopeBuilder::bare_property_declaration(&ast, statement),
             Some(property)
         );
 
         owner.set_string(&mut ast, "other");
+        let live = AbstractScopeBuilder::bare_property_declaration(&ast, statement).unwrap();
         assert_eq!(
-            AbstractScopeBuilder::matching_property_declaration(&ast, statement, name),
-            None
+            live.get_qualified_name(&ast).unwrap(),
+            "Window.other.location"
         );
         owner.set_string(&mut ast, "prototype");
         let literal = IR::number(&mut ast, 1.0);
         base.replace_with(&mut ast, literal);
         assert_eq!(
-            AbstractScopeBuilder::matching_property_declaration(&ast, statement, name),
+            AbstractScopeBuilder::bare_property_declaration(&ast, statement),
             None
         );
     }

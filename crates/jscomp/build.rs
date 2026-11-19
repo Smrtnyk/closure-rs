@@ -27,27 +27,23 @@ use std::{fmt::Write, fs, path::PathBuf, sync::Arc};
 #[path = "src/deps/js_file_line_parser/lines.rs"]
 mod lines;
 
-/// One record per top-level statement, in source order. An empty record uses the normal
-/// scope builder. Bare qualified properties are declarations in browser externs.
+/// One byte per top-level statement, in source order. Mark bare qualified property
+/// declarations. Their names and JSDoc will be read from the live tree.
 fn property_declarations(
     ast: &closure_rhino::node::Ast,
     script: closure_rhino::node::NodeId,
-) -> String {
-    let mut records = String::new();
-    for statement in script.children(ast) {
-        if statement.is_expr_result(ast)
-            && let Some(property) = statement.get_first_child(ast)
-            && property.is_get_prop(ast)
-            && let Some(name) = property.get_qualified_name(ast)
-        {
-            let name = name.to_string_lossy();
-            if name.is_ascii() && !name.contains(['\r', '\n']) {
-                records.push_str(&name);
-            }
-        }
-        records.push('\n');
-    }
-    records
+) -> Vec<u8> {
+    script
+        .children(ast)
+        .map(|statement| {
+            u8::from(
+                statement.is_expr_result(ast)
+                    && statement.get_first_child(ast).is_some_and(|property| {
+                        property.is_get_prop(ast) && property.is_qualified_name(ast)
+                    }),
+            )
+        })
+        .collect()
 }
 
 /// JsFileRegexParser can produce dependencies or diagnostics only for Closure primitives,
@@ -99,12 +95,12 @@ fn main() {
         {
             let filename = format!("extern-{i}.bin");
             fs::write(out.join(&filename), bytes).unwrap();
-            if !records.trim().is_empty() {
-                let names = format!("extern-{i}-properties.txt");
-                fs::write(out.join(&names), records).unwrap();
+            if records.contains(&1) {
+                let properties = format!("extern-{i}-properties.bin");
+                fs::write(out.join(&properties), records).unwrap();
                 writeln!(
                     declarations,
-                    "{:?} => Some(include_str!({names:?})),",
+                    "{:?} => Some(include_bytes!({properties:?})),",
                     file.path
                 )
                 .unwrap();
