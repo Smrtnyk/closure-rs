@@ -996,6 +996,9 @@ struct AbstractScopeBuilder<'a> {
     // Java: a LinkedHashMultimap; its entries in global insertion order (values() runs them in
     // that order), with the multimap operations in the `*_deferred_action*` helpers.
     deferred_actions: Vec<(NodeId, DeferredAction)>,
+    // ResolveStubDeclaration always waits for the scope root. Only statement actions need
+    // a membership test in visit() for each descendant.
+    deferred_statements: IndexSet<NodeId>,
 }
 
 impl<'a> AbstractScopeBuilder<'a> {
@@ -1016,6 +1019,7 @@ impl<'a> AbstractScopeBuilder<'a> {
             source_name: None,
             input_id: None,
             deferred_actions: Vec::new(),
+            deferred_statements: IndexSet::default(),
         }
     }
 
@@ -3023,16 +3027,20 @@ impl AbstractScopeBuilder<'_> {
     // Rust-only: `deferredActions.put(key, runnable)` (LinkedHashMultimap: entries keep their
     // global insertion order).
     fn put_deferred_action(&mut self, key: NodeId, action: DeferredAction) {
+        if matches!(action, DeferredAction::DefineObjectLiteral(_)) {
+            self.deferred_statements.insert(key);
+        }
         self.deferred_actions.push((key, action));
     }
 
     // Rust-only: `deferredActions.containsKey(key)`.
     fn deferred_actions_contains_key(&self, key: NodeId) -> bool {
-        self.deferred_actions.iter().any(|(k, _)| *k == key)
+        self.deferred_statements.contains(&key)
     }
 
     // Rust-only: `deferredActions.removeAll(key)`: the key's values in insertion order.
     fn remove_all_deferred_actions(&mut self, key: NodeId) -> Vec<DeferredAction> {
+        self.deferred_statements.swap_remove(&key);
         let mut removed = Vec::new();
         let mut kept = Vec::new();
         for (k, action) in std::mem::take(&mut self.deferred_actions) {
