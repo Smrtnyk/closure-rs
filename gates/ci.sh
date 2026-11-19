@@ -6,7 +6,10 @@
 # every step runs; --lint runs the checks and clippy (steps 1-4), --test only the tests (step 5),
 # which is how .github/workflows/release.yml splits them into two parallel jobs.
 # Step 5 uses cargo-nextest when it is installed (one process per test, all test binaries in
-# parallel) and plain `cargo test` otherwise; both run the same tests.
+# parallel) and plain `cargo test` otherwise; both run the same tests, and both run every test
+# binary (--no-fail-fast), so one run reports every failing test. `cargo test` writes its whole
+# output to build/logs/ci-cargo-test.log and prints each failing test with its panic message
+# (gates/lib/cargo_test_summary.py).
 set -uo pipefail
 MODE=all
 DIR=""
@@ -68,12 +71,16 @@ if cargo nextest --version >/dev/null 2>&1; then
   cargo nextest run --workspace --locked --no-fail-fast --status-level fail --final-status-level slow \
     --hide-progress-bar 2>&1
   [ "${PIPESTATUS[0]}" -eq 0 ] || bad "cargo nextest"
-  cargo test --workspace --locked --doc --quiet 2>&1 | grep -E 'FAILED|panicked|error(\[|:)' | head -40
+  cargo test --workspace --locked --doc --quiet --no-fail-fast 2>&1 | grep -E 'FAILED|panicked|error(\[|:)' | head -40
   [ "${PIPESTATUS[0]}" -eq 0 ] || bad "doctests"
 else
-  step "5. cargo test"
-  cargo test --workspace --quiet 2>&1 | grep -E '^test result|FAILED|panicked|error(\[|:)' | grep -v ' 0 failed' | head -40
-  [ "${PIPESTATUS[0]}" -eq 0 ] || bad "cargo test"
+  test_log=build/logs/ci-cargo-test.log
+  step "5. cargo test --no-fail-fast (whole output: $test_log)"
+  mkdir -p build/logs
+  cargo test --workspace --no-fail-fast > "$test_log" 2>&1
+  test_rc=$?
+  python3 gates/lib/cargo_test_summary.py "$test_log"
+  [ $test_rc -eq 0 ] || bad "cargo test (whole output: $test_log)"
 fi
 fi
 
