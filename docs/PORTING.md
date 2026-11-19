@@ -369,6 +369,7 @@ the D2 worklist on a sample (partial runs, for trying the command out).
 | `oracle` | the oracle jar | `oracle/build.sh` |
 | `resources` | the jar resources, the Java-side resource fixtures (the parser's `crates/parsing/tests/fixtures/parser_runner_config.txt` included) and the upstream sources the port embeds verbatim (`crates/parsing/src/ParserConfig.properties`), each checked against the reference source | `crates/resources/tools/sync_from_jar.py`, `GenResourceFixtures.java`, `crates/parsing/tools/GenParserRunnerConfig.java` |
 | `flags` | `scope/flags.txt` and the npm types | `scope/gen_flags.py`, `scripts/gen_npm_types.mjs` |
+| `cli-fixtures` | the CLI's fixtures from the reference jar, listing what changed: the CLI goldens (the standard cases of every flag of the jar's flag list), the exception goldens and the option setups (one for every boolean flag no hand-written setup uses) | `crates/cli/tools/generate_golden.py`, `generate_exception_golden.py`, `generate_setup.py` |
 | `license-headers` | the headers' upstream commit | `scripts/license_headers.py` |
 | `worklist` | `porting-worklist.md`: the upstream commits, every changed file with its diff stat and the Rust files ported from it (`LICENSES/headers.tsv`), changed tests with their record files; `upstream.diff` | |
 | `unit-ws` | the recording workspace | `scripts/unit_make_recording_ws.sh` |
@@ -467,12 +468,13 @@ By hand, a sync (each step names the scripts the command runs):
 3. Regenerates what is derived from the reference: `scope/flags.txt` (`scope/gen_flags.py`), the
    npm types (`scripts/gen_npm_types.mjs`), the jar resources
    (`crates/resources/tools/sync_from_jar.py "$REF_JAR" "$REF_SRC"`, which keeps the license
-   header of `jar_contents.rs`), the unit corpus (`corpus/unit/RECORDING.md`,
-   `scripts/unit_record_all.sh`, whose outputs `UNIT_JARS_DIR`, `UNIT_RECORDS_DIR` and
-   `UNIT_RECORDING_DIR` can move), the CompilerOptions fixtures (`scripts/unit_options_defaults.sh`),
-   then the counts the tests pin and the docs quote (`scripts/unit_corpus_counts.py`)
-   and the D2 golden results (`gates/lib/golden_all.py`, then `corpus/d2/validate/scan_golden.py`,
-   `wp_test.py` and `finalize.py`).
+   header of `jar_contents.rs`), the CLI's fixtures (`crates/cli/tools/`: `generate_golden.py`,
+   `generate_exception_golden.py`, `generate_setup.py`), the unit corpus
+   (`corpus/unit/RECORDING.md`, `scripts/unit_record_all.sh`, whose outputs `UNIT_JARS_DIR`,
+   `UNIT_RECORDS_DIR` and `UNIT_RECORDING_DIR` can move), the CompilerOptions fixtures
+   (`scripts/unit_options_defaults.sh`), then the counts the tests pin and the docs quote
+   (`scripts/unit_corpus_counts.py`) and the D2 golden results (`gates/lib/golden_all.py`, then
+   `corpus/d2/validate/scan_golden.py`, `wp_test.py` and `finalize.py`).
 4. Ports the Java diff between the old and the new pin (§7), and refreshes the license headers
    (`scripts/license_headers.py --apply`).
 5. Verifies the result as in §4: every unit record and D2 pair that matched before still matches

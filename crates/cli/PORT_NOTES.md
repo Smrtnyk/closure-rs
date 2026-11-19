@@ -104,7 +104,12 @@ of scope (docs/PORTING.md §2).
 code, stdout and stderr bytes, including help, markdown help and version), option setup
 (`option_setup.json`), Gson (`json_golden.json`), globs (`glob_golden.json`) and runtime exception
 boundaries (`exception_golden.json`). They were produced by the matching `tools/generate_*.py`
-scripts; Rust tests read them without a JVM.
+scripts; Rust tests read them without a JVM. `generate_golden.py`, `generate_exception_golden.py`
+and `generate_setup.py` run the selected reference (`$CLOSURE_RS_REF`) and list what changed
+(`--check` writes nothing); the cli-fixtures step of `scripts/upstream_sync.py` runs them. The
+golden cases include the standard cases of every flag of the reference's flag list, and the option
+setups one for every boolean flag that no hand-written setup uses, so a new flag needs no
+hand-written case.
 
 `tests/data/fuzz_regressions/<case>/` holds the regression cases of differences found by
 differential fuzzing and benchmarks (fuzz/findings/): the inputs, the argv and origin

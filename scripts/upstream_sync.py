@@ -59,6 +59,12 @@ OPTIONS_FIXTURES = ("corpus/unit/options_defaults.json", "crates/jscomp/tests/da
                     "crates/jscomp/tests/data/compiler_options_configs.json")
 # What crates/parsing/tools/GenParserRunnerConfig.java writes (step resources).
 PARSER_FIXTURE = "crates/parsing/tests/fixtures/parser_runner_config.txt"
+# The CLI's Java-derived fixtures (step cli-fixtures): each generator, with --check for --dry-run,
+# and what it writes.
+CLI_GENERATORS = ("crates/cli/tools/generate_golden.py", "crates/cli/tools/generate_exception_golden.py",
+                  "crates/cli/tools/generate_setup.py")
+CLI_FIXTURES = ("crates/cli/tests/data/cli_golden", "crates/cli/tests/data/exception_golden.json",
+                "crates/cli/tests/data/option_setup.json")
 # What scripts/unit_corpus_counts.py writes: the counts the tests pin and the docs quote.
 COUNTS_FILES = ("crates/testing/tests/data/record_counts.tsv", "crates/testing/tests/data/corpus_counts.tsv",
                 "crates/testing/README.md", "corpus/unit/RECORDING.md")
@@ -539,6 +545,24 @@ class Sync:
             return "ran (no changes)"
         self.note("flags", "CommandLineRunner's flags changed: port them (crates/cli OPTIONS); "
                            "gen_npm_types.mjs stops while the two flag lists disagree")
+        return "ran"
+
+    def step_cli_fixtures(self):
+        """Regenerates the CLI's Java-derived fixtures from the reference jar and lists what changed:
+        the CLI goldens with the standard cases of every flag, the exception goldens and the option
+        setup fixture (crates/cli/tools/generate_*.py)."""
+        work = os.path.join(self.work, "cli-fixtures")
+        for tool in CLI_GENERATORS:
+            extra = (["--work", work] if tool.endswith(("generate_golden.py", "generate_setup.py")) else []) + \
+                (["--jobs", str(self.jobs or 4)] if tool.endswith("generate_golden.py") else [])
+            if self.dry:  # --check lists what would change and writes nothing
+                self.run([sys.executable, tool, "--check", *extra], write=False, check=False)
+            else:
+                self.run([sys.executable, tool, *extra])
+        if not self.diffstat(*CLI_FIXTURES):
+            return "ran (no changes)"
+        self.note("cli-fixtures", "the CLI's Java fixtures changed: crates/cli's tests (cli_golden_test, "
+                                  "exception_golden_test, option_setup_test) check the port against them")
         return "ran"
 
     def step_license_headers(self):
@@ -1240,7 +1264,7 @@ def print_unit_worklist(s):
 STEPS = [
     ("resolve", Sync.step_resolve), ("registry", Sync.step_registry), ("fetch", Sync.step_fetch),
     ("jar", Sync.step_jar), ("npm-check", Sync.step_npm_check), ("oracle", Sync.step_oracle),
-    ("resources", Sync.step_resources), ("flags", Sync.step_flags),
+    ("resources", Sync.step_resources), ("flags", Sync.step_flags), ("cli-fixtures", Sync.step_cli_fixtures),
     ("license-headers", Sync.step_license_headers), ("worklist", Sync.step_worklist),
     ("unit-ws", Sync.step_unit_ws), ("unit-jars", Sync.step_unit_jars), ("unit-record", Sync.step_unit_record),
     ("unit-install", Sync.step_unit_install), ("unit-worklist", Sync.step_unit_worklist),
