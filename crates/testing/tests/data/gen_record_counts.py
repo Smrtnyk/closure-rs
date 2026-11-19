@@ -7,6 +7,7 @@ it (closure_testing::corpus_counts::record_count). scripts/unit_corpus_counts.py
 with the other counts the tests pin. Run from anywhere:
     python3 crates/testing/tests/data/gen_record_counts.py
 """
+import argparse
 import collections
 import glob
 import gzip
@@ -39,6 +40,7 @@ def table(records=RECORDS):
 
 
 def main():
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
     with open(os.path.join(HERE, "record_counts.tsv"), "w", encoding="utf-8") as out:
         out.write(table())
 

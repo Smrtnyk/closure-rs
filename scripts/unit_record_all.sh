@@ -10,7 +10,9 @@
 #   UNIT_RECORDS_DIR    the records (default corpus/unit/records of the main checkout)
 #   UNIT_RECORDING_DIR  stats/, logs/, the agent jar, the trace scope file and the PID file
 #                       (default build/unit/recording; the others then stay where they were)
+# A JVM that crashes writes its hs_err and compiler replay files next to its class's log (logs/).
 set -uo pipefail
+case "${1:-}" in -h|--help) sed -n '2,/^set -uo/{/^set -uo/d;s/^# \{0,1\}//;p}' "$0"; exit 0 ;; esac
 . "$(dirname "${BASH_SOURCE[0]}")/paths.sh"  # ROOT, REF_RECORDING_WS
 RECDIR="${UNIT_RECORDING_DIR:-$ROOT/build/unit/recording}"
 PIDDIR="${UNIT_RECORDING_DIR:-$ROOT/build/logs}"
@@ -42,8 +44,7 @@ run_one() {
   cd "$WS" || return 1
   # A crash marker of an earlier run is stale once the class runs again.
   rm -f "$STAT/$name.crash.json"
-  # A crashing JVM writes its fatal error log and compiler replay file next to the class's log,
-  # not to its working directory (the recording workspace).
+  # -XX:ErrorFile / -XX:ReplayDataFile: not the working directory (the recording workspace).
   timeout 2400 java -Xmx2g -Xss8m -XX:+UseParallelGC -Dclosurers.unit.record=true \
     "-XX:ErrorFile=$LOGD/$name.hs_err_pid%p.log" "-XX:ReplayDataFile=$LOGD/$name.replay_pid%p.log" \
     --add-exports=java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED \
