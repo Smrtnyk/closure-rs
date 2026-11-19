@@ -18,6 +18,7 @@
 
 use closure_rhino::fast_hash::IndexMap;
 use closure_testing::corpus::{file_stem, map_files_parallel, record_files, records};
+use closure_testing::corpus_counts::{assert_count, assert_counts_with_prefix};
 use closure_testing::record::{Api, RecordKind};
 
 /// (kind, api, "class#method", call) of one record.
@@ -28,7 +29,7 @@ type FileResult = (String, Result<Vec<RecordKey>, String>);
 #[test]
 fn all_records_load_and_round_trip() {
     let files = record_files().unwrap();
-    assert_eq!(files.len(), 436, "record files");
+    assert_count("record_files", files.len());
     // Record by record: each is checked and dropped before the next line is read.
     let results: Vec<FileResult> = map_files_parallel(&files, 4, |f| {
         let r = records(f).map_err(|e| e.to_string()).and_then(|recs| {
@@ -86,35 +87,28 @@ fn all_records_load_and_round_trip() {
         eprintln!("{e}");
     }
     assert!(errors.is_empty(), "{} files failed to load", errors.len());
-    // Per-class counts, checked against the table written independently by
-    // tests/data/gen_record_counts.py (Python's json module).
+    // Per-class counts and totals, checked against the counts scripts/unit_corpus_counts.py
+    // writes independently with Python's json module (tests/data/record_counts.tsv and
+    // tests/data/corpus_counts.tsv).
     let expected = include_str!("data/record_counts.tsv");
     for (got, want) in table.lines().zip(expected.lines()) {
         assert_eq!(
             got, want,
-            "per-class record counts (tests/data/record_counts.tsv)"
+            "per-class record counts (tests/data/record_counts.tsv; after a corpus change, \
+             `python3 scripts/unit_corpus_counts.py` rewrites it)"
         );
     }
     assert_eq!(
         table.lines().count(),
         expected.lines().count(),
-        "record_counts.tsv rows"
+        "record_counts.tsv rows (after a corpus change, `python3 scripts/unit_corpus_counts.py` \
+         rewrites it)"
     );
     println!("records: {total}, non-empty files: {nonempty}, kinds: {by_kind:?}, apis: {by_api:?}");
-    assert_eq!(total, 25_773);
-    assert_eq!(nonempty, 256);
-    assert_eq!(by_kind["compiler_test_case"], 22_257);
-    assert_eq!(by_kind["type_check"], 2_730);
-    assert_eq!(by_kind["integration"], 786);
-    let api = |n: &str| by_api.get(n).copied().unwrap_or(0);
-    assert_eq!(api("testInternal"), 22_154);
-    assert_eq!(api("testExternChanges"), 103);
-    assert_eq!(api("TypeTestBuilder.run"), 2_685);
-    assert_eq!(api("parseAndTypeCheckWithScope"), 45);
-    assert_eq!(api("test"), 605);
-    assert_eq!(api("compile"), 56);
-    assert_eq!(api("test_warning"), 83);
-    assert_eq!(api("testNoWarnings"), 30);
-    assert_eq!(api("testParseError"), 4);
-    assert_eq!(api("test_warnings"), 8);
+    assert_count("records", total);
+    assert_count("recorded_files", nonempty);
+    let pairs =
+        |m: &IndexMap<&'static str, usize>| m.iter().map(|(k, v)| (*k, *v)).collect::<Vec<_>>();
+    assert_counts_with_prefix("kind.", &pairs(&by_kind));
+    assert_counts_with_prefix("api.", &pairs(&by_api));
 }

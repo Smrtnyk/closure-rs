@@ -104,8 +104,7 @@ that need them.
 
 - `tests/records_load.rs`: all 25,773 records in 436 files (256 non-empty) load with 0 errors and
   round-trip; the counts per kind and per API are checked; `call` numbering per method is checked;
-  the per-class table must equal `tests/data/record_counts.tsv`, which
-  `tests/data/gen_record_counts.py` writes independently with Python's `json` module.
+  the per-class table must equal `tests/data/record_counts.tsv`.
 - `tests/descriptors_load.rs`: all 256 descriptors (381 cases) load and round-trip, and their stems
   equal the non-empty record files; `options_defaults.json` (206 fields) and `expected_pipeline`
   (22,257 lines) load and round-trip.
@@ -114,8 +113,16 @@ that need them.
   records; the 9 lone-surrogate lines keep their surrogates through the typed model and the writer.
 - Unit tests in `json.rs`, `value.rs`, `dsl.rs` and `descriptor.rs`.
 
-Regenerate the counts table after a corpus change with
-`python3 crates/testing/tests/data/gen_record_counts.py`.
+The counts these tests and the record tests check (and the CompilerOptions tests of
+`crates/jscomp` and `crates/cli`) are not literals in the test code: `corpus_counts` reads them from
+`tests/data/corpus_counts.tsv` (records per kind and per API, files, descriptors and their cases,
+`expected_pipeline` lines, CompilerOptions fields and configurations) and
+`tests/data/record_counts.tsv` (the records of each class), which `scripts/unit_corpus_counts.py`
+writes independently of the Rust reader, with Python's `json` module. A test compares the count it
+computes with the committed one, so a reader that drops or invents an entry fails it, and a corpus
+change shows as a diff of the two files. After a corpus change, `python3 scripts/unit_corpus_counts.py`
+rewrites them and the counts this README quotes (the unit-install step of a sync runs it;
+`gates/ci.sh` runs it with `--check`, which names every stale count).
 
 ## Replay runner
 

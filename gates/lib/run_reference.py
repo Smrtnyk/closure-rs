@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import glob
 import hashlib
 import json
 import os
@@ -46,15 +47,31 @@ GOLDEN_ROOT = f"corpus-cache/d2/_golden/{REF_TAG}"
 CDS_ARCHIVE = f"build/golden-tmp/cds-{REF_TAG[4:]}.jsa"
 DEFAULT_TIMEOUT_S = 180
 DEFAULT_XMX = "3g"
+# A JVM that crashes writes its fatal error log (hs_err_pid<pid>.log) and, when the JIT compiler
+# crashed, its compiler replay file (replay_pid<pid>.log) to its working directory, the checkout's
+# root, unless -XX:ErrorFile / -XX:ReplayDataFile name another place; every JVM the D2 and fuzz
+# tooling starts puts them here. run_one moves a crashed pair's files next to its kept record.
+JVM_CRASH_DIR = "build/golden-tmp/_crashes"
+
+
+def jvm_crash_flags(prefix: str) -> list[str]:
+    """The flags that make a crashing JVM write its fatal error log and compiler replay file to
+    <prefix>hs_err_pid<pid>.log and <prefix>replay_pid<pid>.log. The directory must exist (the JVM
+    falls back to its working directory otherwise)."""
+    return [f"-XX:ErrorFile={prefix}hs_err_pid%p.log", f"-XX:ReplayDataFile={prefix}replay_pid%p.log"]
+
 
 # JVM flags that do not change compiler behaviour: heap cap, GC choice, C1-only JIT
 # (measured: ~3-6x less CPU and lower RSS, also faster wall time on the largest case), no
 # perf-data file,
-# no unified-logging output (keeps CDS/GC notices out of stdout/stderr), and a dynamic
-# AppCDS archive for faster startup.  The archive is created once by ensure_cds_archive().
-def jvm_flags(xmx: str = DEFAULT_XMX, use_cds: bool = True) -> list[str]:
+# no unified-logging output (keeps CDS/GC notices out of stdout/stderr), a dynamic
+# AppCDS archive for faster startup (created once by ensure_cds_archive()), and the crash files
+# under JVM_CRASH_DIR (crash_prefix, repo-relative like the other paths; this creates the
+# directory).
+def jvm_flags(xmx: str = DEFAULT_XMX, use_cds: bool = True, crash_prefix: str = JVM_CRASH_DIR + "/") -> list[str]:
+    os.makedirs(os.path.join(REPO, os.path.dirname(crash_prefix)), exist_ok=True)
     flags = [f"-Xmx{xmx}", "-XX:+UseSerialGC", "-XX:TieredStopAtLevel=1", "-XX:-UsePerfData",
-             "-Xlog:disable", "-Xlog:all=off"]
+             "-Xlog:disable", "-Xlog:all=off", *jvm_crash_flags(crash_prefix)]
     if use_cds:
         flags += ["-Xshare:auto", f"-XX:SharedArchiveFile={CDS_ARCHIVE}"]
     return flags
@@ -133,7 +150,8 @@ def _collect_outputs(out_dir_abs: str) -> dict:
 
 class JvmCrash(RuntimeError):
     """The JVM died of a signal or reported a fatal error of its own (hs_err): not a result of the
-    compiler, so run_one writes no result; the record is kept under build/golden-tmp/_crashes/."""
+    compiler, so run_one writes no result; the record is kept under build/golden-tmp/_crashes/,
+    with the JVM's fatal error log and compiler replay file."""
 
 
 JVM_FATAL = b"A fatal error has been detected by the Java Runtime Environment"
@@ -148,7 +166,8 @@ def run_one(case: dict, profile: str, *, result_file: str | None = None,
     profiles = profiles or case_args.load_profiles()
     out_dir = case_args.default_out_dir(case["id"], profile, profiles)
     cargs = case_args.compiler_args(case, profile, out_dir, profiles)
-    argv = [JAVA, *jvm_flags(xmx, os.path.exists(os.path.join(REPO, CDS_ARCHIVE))),
+    crash_prefix = f"{JVM_CRASH_DIR}/{case['id']}.{profile}."
+    argv = [JAVA, *jvm_flags(xmx, os.path.exists(os.path.join(REPO, CDS_ARCHIVE)), crash_prefix),
             "-jar", JAR, *cargs]
 
     out_abs = os.path.join(REPO, out_dir)
@@ -231,13 +250,20 @@ def run_one(case: dict, profile: str, *, result_file: str | None = None,
         "cpu_ms": int(round((ru.ru_utime + ru.ru_stime) * 1000)),
     }
     if not res["timed_out"] and (proc.returncode < 0 or JVM_FATAL in stdout or JVM_FATAL in stderr):
-        keep = os.path.join(REPO, "build/golden-tmp/_crashes", case["id"], f"{profile}.json")
+        keep = os.path.join(REPO, JVM_CRASH_DIR, case["id"], f"{profile}.json")
         os.makedirs(os.path.dirname(keep), exist_ok=True)
+        # The JVM's own crash files, from crash_prefix to next to the record.
+        res["jvm_crash_files"] = []
+        for f in sorted(glob.glob(glob.escape(os.path.join(REPO, crash_prefix)) + "*_pid*.log")):
+            dest = os.path.join(os.path.dirname(keep), f"{profile}.{os.path.basename(f)[len(os.path.basename(crash_prefix)):]}")
+            os.replace(f, dest)
+            res["jvm_crash_files"].append(os.path.relpath(dest, REPO))
         with open(keep, "w", encoding="utf-8") as f:
             json.dump(res, f, ensure_ascii=False, indent=1)
             f.write("\n")
         raise JvmCrash(f"{case['id']}/{profile}: the JVM crashed (exit {proc.returncode}); "
-                       f"no result written, record in {os.path.relpath(keep, REPO)}")
+                       f"no result written, record in {os.path.relpath(keep, REPO)}"
+                       + "".join(f", {p}" for p in res["jvm_crash_files"]))
     dest = os.path.join(REPO, result_file or result_path(case["id"], profile))
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     tmp = f"{dest}.tmp.{os.getpid()}.{threading.get_ident()}"

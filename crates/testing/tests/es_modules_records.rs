@@ -53,6 +53,7 @@
 //! Java outcome. Records whose processor needs a class that is not ported report that class as
 //! unported; none may fail. Pass counts are floors, so more passing records keep the tests
 //! green.
+use closure_testing::corpus_counts::assert_record_count;
 use closure_testing::{
     corpus,
     replay::replay_main::{RecordResult, Runner},
@@ -83,12 +84,13 @@ fn replay(class: &str) -> Vec<RecordResult> {
     records
 }
 
-/// Asserts that `class` has `expected` records, that at least `passing` of them pass (a floor:
-/// more records pass as other classes are ported) and that none fails; a record that does not
-/// pass must be unported, by one of `unported_by` (a class that is not ported).
-fn assert_records(class: &str, expected: usize, passing: usize, unported_by: &[&str]) {
+/// Asserts that `class` has its records of tests/data/record_counts.tsv, that at least `passing`
+/// of them pass (a floor: more records pass as other classes are ported) and that none fails; a
+/// record that does not pass must be unported, by one of `unported_by` (a class that is not
+/// ported).
+fn assert_records(class: &str, passing: usize, unported_by: &[&str]) {
     let records = replay(class);
-    assert_eq!(records.len(), expected, "{class} record count");
+    assert_record_count(class, records.len());
     let mut pass = 0;
     let mut unported_by_named = 0;
     for r in &records {
@@ -110,49 +112,43 @@ fn assert_records(class: &str, expected: usize, passing: usize, unported_by: &[&
         "{class} passing records: {pass} < {passing}"
     );
     assert!(
-        unported_by_named <= expected - passing,
+        unported_by_named <= records.len() - passing,
         "{class} unported records"
     );
 }
 
-// port: Es6RelativizeImportPathsTest (26 recorded calls)
+// port: Es6RelativizeImportPathsTest
 #[test]
 fn es6_relativize_import_paths_test() {
-    assert_records("Es6RelativizeImportPathsTest", 26, 26, &[]);
+    assert_records("Es6RelativizeImportPathsTest", 26, &[]);
 }
 
-// port: Es6RewriteModulesToCommonJsModulesTest (29 recorded calls)
+// port: Es6RewriteModulesToCommonJsModulesTest
 #[test]
 fn es6_rewrite_modules_to_common_js_modules_test() {
-    assert_records("Es6RewriteModulesToCommonJsModulesTest", 29, 29, &[]);
+    assert_records("Es6RewriteModulesToCommonJsModulesTest", 29, &[]);
 }
 
 /// setUp enables type checking (CompilerTestCase#createTypeCheck runs TypeCheck before the pass).
-// port: Es6RewriteModulesBeforeTypeCheckingTest (82 recorded calls)
+// port: Es6RewriteModulesBeforeTypeCheckingTest
 #[test]
 fn es6_rewrite_modules_before_type_checking_test() {
-    assert_records(
-        "Es6RewriteModulesBeforeTypeCheckingTest",
-        82,
-        82,
-        &[TYPE_CHECK],
-    );
+    assert_records("Es6RewriteModulesBeforeTypeCheckingTest", 82, &[TYPE_CHECK]);
 }
 
 /// getProcessor runs `TypeCheck#processForTesting` for the global TypedScope before the pass;
 /// One record stops at ConvertChunksToESModules (chunk-output).
-// port: Es6RewriteModulesTest (88 recorded calls)
+// port: Es6RewriteModulesTest
 #[test]
 fn es6_rewrite_modules_test() {
-    assert_records("Es6RewriteModulesTest", 88, 88, &[]);
+    assert_records("Es6RewriteModulesTest", 88, &[]);
 }
 
-// port: Es6RewriteModulesWithGoogInteropTest (79 recorded calls)
+// port: Es6RewriteModulesWithGoogInteropTest
 #[test]
 fn es6_rewrite_modules_with_goog_interop_test() {
     assert_records(
         "Es6RewriteModulesWithGoogInteropTest",
-        79,
         79,
         &[TYPE_CHECK, SEMANTIC_RAI_INIT],
     );
@@ -161,25 +157,20 @@ fn es6_rewrite_modules_with_goog_interop_test() {
 /// getProcessor is the corpus helper RewriteDynamicImportsTest_Helpers.GetProcessor, which runs
 /// `TypeCheck#processForTesting` (when the test's `enableTypeCheck` parameter is set) before
 /// Es6RewriteModules and RewriteDynamicImports.
-// port: RewriteDynamicImportsTest (50 recorded calls: 25 with and 25 without type checking)
+// port: RewriteDynamicImportsTest (half of the records with and half without type checking)
 #[test]
 fn rewrite_dynamic_imports_test() {
-    assert_records(
-        "RewriteDynamicImportsTest",
-        50,
-        50,
-        &[SEMANTIC_RAI, TYPE_CHECK],
-    );
+    assert_records("RewriteDynamicImportsTest", 50, &[SEMANTIC_RAI, TYPE_CHECK]);
 }
 
-// port: ForbidDynamicImportUsageTest (1 recorded call)
+// port: ForbidDynamicImportUsageTest
 #[test]
 fn forbid_dynamic_import_usage_test() {
-    assert_records("ForbidDynamicImportUsageTest", 1, 1, &[TYPE_CHECK]);
+    assert_records("ForbidDynamicImportUsageTest", 1, &[TYPE_CHECK]);
 }
 
-// port: EsModuleIntegrationTest (4 recorded calls)
+// port: EsModuleIntegrationTest
 #[test]
 fn es_module_integration_test() {
-    assert_records("EsModuleIntegrationTest", 4, 4, &[]);
+    assert_records("EsModuleIntegrationTest", 4, &[]);
 }

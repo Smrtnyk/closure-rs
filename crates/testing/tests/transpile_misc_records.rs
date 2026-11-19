@@ -59,6 +59,7 @@
 //! test/testSame/testError/testWarning call they make is a corpus unit record; these tests replay
 //! each class's records through the Rust CompilerTestCase port (the unit_replay runner) and
 //! require the Java outcome.
+use closure_testing::corpus_counts::assert_record_count;
 use closure_testing::{
     corpus,
     replay::replay_main::{RecordResult, Runner},
@@ -85,10 +86,11 @@ fn replay(class: &str) -> Vec<RecordResult> {
     records
 }
 
-/// Asserts that `class` has `expected` records and that every one of them passes.
-fn assert_records(class: &str, expected: usize) {
+/// Asserts that `class` has its records of tests/data/record_counts.tsv and that every one of
+/// them passes.
+fn assert_records(class: &str) {
     let records = replay(class);
-    assert_eq!(records.len(), expected, "{class} record count");
+    assert_record_count(class, records.len());
     let bad: Vec<_> = records
         .iter()
         .filter(|r| r.status != "pass")
@@ -102,72 +104,70 @@ fn assert_records(class: &str, expected: usize) {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
-// port: Es6RewriteBlockScopedDeclarationTest (38 @Test methods, 97 recorded calls)
+// port: Es6RewriteBlockScopedDeclarationTest
 #[test]
 fn es6_rewrite_block_scoped_declaration_test() {
-    assert_records("Es6RewriteBlockScopedDeclarationTest", 97);
+    assert_records("Es6RewriteBlockScopedDeclarationTest");
 }
 
-// port: Es6RewriteBlockScopedFunctionDeclarationTest (7 @Test methods, 7 recorded calls)
+// port: Es6RewriteBlockScopedFunctionDeclarationTest
 #[test]
 fn es6_rewrite_block_scoped_function_declaration_test() {
-    assert_records("Es6RewriteBlockScopedFunctionDeclarationTest", 7);
+    assert_records("Es6RewriteBlockScopedFunctionDeclarationTest");
 }
 
-// port: Es6ForOfConverterTest (14 @Test methods, 23 recorded calls)
+// port: Es6ForOfConverterTest
 #[test]
 fn es6_for_of_converter_test() {
-    assert_records("Es6ForOfConverterTest", 23);
+    assert_records("Es6ForOfConverterTest");
 }
 
-// port: LateEs6ToEs3ConverterTest (15 @Test methods, 73 recorded calls)
+// port: LateEs6ToEs3ConverterTest
 #[test]
 fn late_es6_to_es3_converter_test() {
-    assert_records("LateEs6ToEs3ConverterTest", 73);
+    assert_records("LateEs6ToEs3ConverterTest");
 }
 
-// port: Es6TemplateLiteralsTest (3 @Test methods, 3 recorded calls)
+// port: Es6TemplateLiteralsTest
 #[test]
 fn es6_template_literals_test() {
-    assert_records("Es6TemplateLiteralsTest", 3);
+    assert_records("Es6TemplateLiteralsTest");
 }
 
-// port: Es7RewriteExponentialOperatorTest (9 @Test methods, 9 recorded calls)
+// port: Es7RewriteExponentialOperatorTest
 #[test]
 fn es7_rewrite_exponential_operator_test() {
-    assert_records("Es7RewriteExponentialOperatorTest", 9);
+    assert_records("Es7RewriteExponentialOperatorTest");
 }
 
-// port: RewriteObjectSpreadTest (3 @Test methods, 10 recorded calls)
+// port: RewriteObjectSpreadTest
 #[test]
 fn rewrite_object_spread_test() {
-    assert_records("RewriteObjectSpreadTest", 10);
+    assert_records("RewriteObjectSpreadTest");
 }
 
-// port: RewriteOptionalChainingOperatorTest (4 @Test methods, one of them the parameterized
-// doTest; 28 recorded calls)
+// port: RewriteOptionalChainingOperatorTest (one of its @Test methods is the parameterized doTest)
 #[test]
 fn rewrite_optional_chaining_operator_test() {
-    assert_records("RewriteOptionalChainingOperatorTest", 28);
+    assert_records("RewriteOptionalChainingOperatorTest");
 }
 
-// port: RewriteNullishCoalesceOperatorTest (4 @Test methods, 4 recorded calls)
+// port: RewriteNullishCoalesceOperatorTest
 #[test]
 fn rewrite_nullish_coalesce_operator_test() {
-    assert_records("RewriteNullishCoalesceOperatorTest", 4);
+    assert_records("RewriteNullishCoalesceOperatorTest");
 }
 
-// port: RewriteLogicalAssignmentOperatorsTest (6 @Test methods, 21 recorded calls)
+// port: RewriteLogicalAssignmentOperatorsTest
 #[test]
 fn rewrite_logical_assignment_operators_test() {
-    assert_records("RewriteLogicalAssignmentOperatorsTest", 21);
+    assert_records("RewriteLogicalAssignmentOperatorsTest");
 }
 
-// port: InstrumentAsyncContextTest (50 @Test methods, 49 recorded calls; testTopLevelAwait
-// returns before its test call, see below)
+// port: InstrumentAsyncContextTest (testTopLevelAwait returns before its test call, see below)
 #[test]
 fn instrument_async_context_test() {
-    assert_records("InstrumentAsyncContextTest", 49);
+    assert_records("InstrumentAsyncContextTest");
 }
 
 // port: InstrumentAsyncContextTest#SUPPORT_TOP_LEVEL_AWAIT
@@ -184,32 +184,32 @@ fn instrument_async_context_test_top_level_await() {
     unreachable!("InstrumentAsyncContextTest#testTopLevelAwait made no recorded call");
 }
 
-// port: Es6TranspilationIntegrationTest (73 @Test methods, 185 recorded calls)
+// port: Es6TranspilationIntegrationTest
 #[test]
 fn es6_transpilation_integration_test() {
-    assert_records("Es6TranspilationIntegrationTest", 185);
+    assert_records("Es6TranspilationIntegrationTest");
 }
 
-// port: ES2021IntegrationTest (25 @Test methods, 25 recorded calls)
+// port: ES2021IntegrationTest
 #[test]
 fn es2021_integration_test() {
-    assert_records("ES2021IntegrationTest", 25);
+    assert_records("ES2021IntegrationTest");
 }
 
-// port: ES2022IntegrationTest (27 @Test methods, 32 recorded calls)
+// port: ES2022IntegrationTest
 #[test]
 fn es2022_integration_test() {
-    assert_records("ES2022IntegrationTest", 40);
+    assert_records("ES2022IntegrationTest");
 }
 
-// port: OptionalChainingIntegrationTest (5 @Test methods, 6 recorded calls)
+// port: OptionalChainingIntegrationTest
 #[test]
 fn optional_chaining_integration_test() {
-    assert_records("OptionalChainingIntegrationTest", 6);
+    assert_records("OptionalChainingIntegrationTest");
 }
 
-// port: TranspileOnlyIntegrationTest (4 @Test methods, 4 recorded calls)
+// port: TranspileOnlyIntegrationTest
 #[test]
 fn transpile_only_integration_test() {
-    assert_records("TranspileOnlyIntegrationTest", 4);
+    assert_records("TranspileOnlyIntegrationTest");
 }

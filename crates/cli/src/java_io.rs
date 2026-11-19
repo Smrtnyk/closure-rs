@@ -287,18 +287,18 @@ pub fn variable_map_load_error(
             parse.get_message().into(),
             vec![],
         )
-        .at_cli("VariableMap", "fromLines", 160)
-        .at_cli("VariableMap", "fromBytes", 117)
-        .at_cli("VariableMap", "load", 86);
+        .at(crate::java_frames::VARIABLE_MAP_FROM_LINES_PARSE_ERROR)
+        .at(crate::java_frames::VARIABLE_MAP_FROM_BYTES_FROM_LINES)
+        .at(crate::java_frames::VARIABLE_MAP_LOAD_FROM_BYTES);
         return RunnerException::java_exception("java.io.IOException", parse.to_string(), vec![])
-            .at_cli("VariableMap", "load", 89)
+            .at(crate::java_frames::VARIABLE_MAP_LOAD_ERROR)
             .caused_by(cause);
     }
     file_not_found(error, path, false, false)
         .at("com.google.common.io.Files$FileByteSource.openStream(Files.java:131)")
         .at("com.google.common.io.Files$FileByteSource.read(Files.java:155)")
         .at("com.google.common.io.Files.toByteArray(Files.java:237)")
-        .at_cli("VariableMap", "load", 86)
+        .at(crate::java_frames::VARIABLE_MAP_LOAD_READ)
 }
 
 /// Java PrintStream suppresses write/flush IOException and remembers the trouble bit.

@@ -46,6 +46,7 @@
 //! corpus unit record; these tests replay each class's records through the Rust CompilerTestCase
 //! port (the unit_replay runner) and require the Java outcome. CheckMissingRequiresTest is also
 //! ported test by test in crates/jscomp/tests/check_missing_requires_test.rs.
+use closure_testing::corpus_counts::assert_record_count;
 use closure_testing::{
     corpus,
     replay::replay_main::{RecordResult, Runner},
@@ -72,10 +73,11 @@ fn replay(class: &str) -> Vec<RecordResult> {
     records
 }
 
-/// Asserts that all `expected` records of `class` pass.
-fn assert_all_pass(class: &str, expected: usize) {
+/// Asserts that `class` has its records of tests/data/record_counts.tsv and that all of them
+/// pass.
+fn assert_all_pass(class: &str) {
     let records = replay(class);
-    assert_eq!(records.len(), expected, "{class} record count");
+    assert_record_count(class, records.len());
     let failing: Vec<_> = records
         .iter()
         .filter(|r| r.status != "pass")
@@ -89,36 +91,36 @@ fn assert_all_pass(class: &str, expected: usize) {
     assert!(failing.is_empty(), "{}", failing.join("\n"));
 }
 
-// port: CheckGoogJsImportTest (9 @Test methods, 21 recorded calls)
+// port: CheckGoogJsImportTest
 #[test]
 fn check_goog_js_import_test() {
-    assert_all_pass("CheckGoogJsImportTest", 21);
+    assert_all_pass("CheckGoogJsImportTest");
 }
 
-// port: RewriteGoogJsImportsTest (7 @Test methods, 13 recorded calls)
+// port: RewriteGoogJsImportsTest
 #[test]
 fn rewrite_goog_js_imports_test() {
-    assert_all_pass("RewriteGoogJsImportsTest", 13);
+    assert_all_pass("RewriteGoogJsImportsTest");
 }
 
-// port: MissingProvideTest (18 @Test methods, 18 recorded calls)
+// port: MissingProvideTest
 #[test]
 fn missing_provide_test() {
-    assert_all_pass("MissingProvideTest", 18);
+    assert_all_pass("MissingProvideTest");
 }
 
-// port: CheckMissingRequiresTest (120 @Test methods, 120 recorded calls)
+// port: CheckMissingRequiresTest
 #[test]
 fn check_missing_requires_test() {
-    assert_all_pass("CheckMissingRequiresTest", 120);
+    assert_all_pass("CheckMissingRequiresTest");
 }
 
 /// ClosureRewriteModuleTest#getProcessor runs `TypeCheck#processForTesting` before the pass
 /// (`new SemanticReverseAbstractInterpreter(registry)` first) unless the test field
 /// `runTypeCheck` is false (the testUntyped* methods). Every record passes (ChangeVerifier
 /// and the pass print typed nodes through the compiler's registry).
-// port: ClosureRewriteModuleTest (171 @Test methods, 218 recorded calls)
+// port: ClosureRewriteModuleTest
 #[test]
 fn closure_rewrite_module_test() {
-    assert_all_pass("ClosureRewriteModuleTest", 218);
+    assert_all_pass("ClosureRewriteModuleTest");
 }

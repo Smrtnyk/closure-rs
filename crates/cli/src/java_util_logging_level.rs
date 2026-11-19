@@ -32,8 +32,14 @@ pub fn parse(name: &str) -> Result<Level, crate::abstract_command_line_runner::R
             .ok()
             .map(Level::new),
     };
-    value.ok_or_else(|| crate::abstract_command_line_runner::RunnerException::java_exception(
-        "java.lang.IllegalArgumentException", format!("Bad level \"{name}\""),
-        vec!["java.logging/java.util.logging.Level.parse(Level.java:527)".into(),
-            "com.google.javascript.jscomp.AbstractCommandLineRunner.doRun(AbstractCommandLineRunner.java:1157)".into()]))
+    value.ok_or_else(|| {
+        crate::abstract_command_line_runner::RunnerException::java_exception(
+            "java.lang.IllegalArgumentException",
+            format!("Bad level \"{name}\""),
+            vec![
+                "java.logging/java.util.logging.Level.parse(Level.java:527)".into(),
+                crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_DO_RUN_LOGGING_LEVEL.into(),
+            ],
+        )
+    })
 }

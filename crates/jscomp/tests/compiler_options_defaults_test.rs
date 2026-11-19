@@ -18,18 +18,20 @@
 
 mod support;
 use closure_jscomp::compiler_options::CompilerOptions;
-use closure_testing::{corpus::load_options_defaults, json::JsonValue};
+use closure_testing::{
+    corpus::load_options_defaults, corpus_counts::assert_count, json::JsonValue,
+};
 // port: OptionsDefaultsDump#main
 #[test]
 fn all_compiler_options_defaults_match_java() {
     let (defaults, _) = load_options_defaults().unwrap();
-    assert_eq!(defaults.field_types.len(), 206);
+    assert_count("options_fields", defaults.field_types.len());
     let expected = defaults.to_json();
     let mut expected = expected.get("fields").unwrap().clone();
     let mut actual = support::options_fields(&CompilerOptions::new());
     support::normalize_standins(&mut expected);
     support::normalize_standins(&mut actual);
-    assert_eq!(actual.as_object().unwrap().len(), 206);
+    assert_count("options_fields", actual.as_object().unwrap().len());
     for (name, value) in actual.as_object().unwrap() {
         assert!(
             defaults.field_types.contains_key(name),

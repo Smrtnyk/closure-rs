@@ -1,8 +1,8 @@
 /*
  * closure-rs unit-corpus helper (corpus/unit/DSL.md "helper"). The holder class and the nested
  * class declaration `GetProcessor extends CompilerTestCase` are generated. Copied VERBATIM from
- * test/com/google/javascript/jscomp/Es6ForOfConverterTest.java (closure-compiler commit 48f4107ca):
- *   - getProcessor, lines 55-63 (makePassFactory is the inherited CompilerTestCase helper).
+ * test/com/google/javascript/jscomp/Es6ForOfConverterTest.java (closure-compiler commit 143e31c03):
+ *   - getProcessor, lines 65-73 (makePassFactory is the inherited CompilerTestCase helper).
  * The method references InjectTranspilationRuntimeLibraries::new and Es6ForOfConverter::new
  * cannot be expressed in the DSL, so the whole getProcessor body is the helper.
  * DSL name: Es6ForOfConverterTest_Helpers.GetProcessor

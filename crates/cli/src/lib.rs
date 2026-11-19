@@ -21,6 +21,7 @@ pub mod abstract_command_line_runner;
 pub mod args4j;
 pub mod command_line_runner;
 pub mod gson;
+pub mod java_frames;
 pub mod java_io;
 pub mod java_util_logging_level;
 pub mod jdk_globs;

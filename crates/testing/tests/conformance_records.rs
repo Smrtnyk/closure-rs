@@ -41,6 +41,7 @@
 //! is one of the Java test's own classes (CheckConformanceTest, CheckConformanceTest$CustomRule,
 //! $CustomRuleMissingPublicConstructor, $CustomRuleReport). ConformanceRules.CustomRuleProxy loads
 //! them by reflection, which the port cannot do: those records are Unported, by exactly that.
+use closure_testing::corpus_counts::assert_record_count;
 use closure_testing::{
     corpus,
     replay::replay_main::{RecordResult, Runner},
@@ -67,11 +68,11 @@ fn replay(class: &str) -> Vec<RecordResult> {
     records
 }
 
-// port: CheckConformanceTest (171 @Test methods, 422 recorded calls)
+// port: CheckConformanceTest
 #[test]
 fn check_conformance_test() {
     let records = replay("CheckConformanceTest");
-    assert_eq!(records.len(), 422);
+    assert_record_count("CheckConformanceTest", records.len());
     for r in &records {
         assert_eq!(
             r.status, "pass",

@@ -288,10 +288,15 @@ in `DefaultPassConfig` order. `crates/DESIGN.md` gives the detailed Java-to-Rust
    `LICENSES/headers.tsv`). Code translated from OpenJDK (GPL-2.0 with the Classpath exception)
    is kept in files of its own (`*_jdk.rs`), as is code translated from Closure's Rhino-derived
    MPL-1.1 / GPL-2.0-or-later files inside a port of its Apache-2.0 code (`*_rhino.rs`).
-6. The unit corpus counts that `corpus/unit/RECORDING.md` and `crates/testing/README.md` quote
-   (test classes, records, classes with records, `compiler_test_case` records) are those of
-   `corpus/unit/records` (`scripts/unit_corpus_counts.py --check`; without `--check` it rewrites
-   them).
+6. The unit corpus counts the tests pin and the docs quote are those of the corpus
+   (`scripts/unit_corpus_counts.py --check`; without `--check` it rewrites them). The tests take
+   them from `crates/testing/tests/data/corpus_counts.tsv` and `record_counts.tsv` (records per
+   kind, API and class, descriptors and their cases, CompilerOptions fields; the script counts
+   them with Python's `json` module, independently of the Rust reader), and
+   `corpus/unit/RECORDING.md` and `crates/testing/README.md` quote some of them.
+7. The Java stack frames of the reference's own classes that the CLI prints are those of the
+   reference jar's line tables (`crates/cli/tools/java_frames.py --check`, skipped without the jar;
+   without `--check` it rewrites `crates/cli/src/java_frames.rs`).
 
 ## 7. Porting a change
 
@@ -365,14 +370,15 @@ the D2 worklist on a sample (partial runs, for trying the command out).
 | `jar` | builds the uberjar with Bazel (copying the base's `MODULE.bazel.lock` when `MODULE.bazel` is unchanged), installs it read-only and pins its sha256 | `oracle/REFERENCE.md` |
 | `npm-check` | downloads the npm release: is its JS wrapper unchanged since the base release (its bundled `externs/` and `contrib/` are listed apart), is its `contrib/` the reference checkout's (which `npm/closure-rs` packs), and does `google-closure-compiler-java`'s `compiler.jar` have the reference jar's entries (all but the two version-stamp classes)? | |
 | `oracle` | the oracle jar | `oracle/build.sh` |
-| `resources` | the jar resources, the Java-side resource fixtures and the upstream sources the port embeds verbatim (`crates/parsing/src/ParserConfig.properties`), each checked against the reference source | `crates/resources/tools/sync_from_jar.py`, `GenResourceFixtures.java` |
+| `resources` | the jar resources, the Java-side resource fixtures (the parser's `crates/parsing/tests/fixtures/parser_runner_config.txt` included) and the upstream sources the port embeds verbatim (`crates/parsing/src/ParserConfig.properties`), each checked against the reference source | `crates/resources/tools/sync_from_jar.py`, `GenResourceFixtures.java`, `crates/parsing/tools/GenParserRunnerConfig.java` |
 | `flags` | `scope/flags.txt` and the npm types | `scope/gen_flags.py`, `scripts/gen_npm_types.mjs` |
+| `cli-fixtures` | the CLI's fixtures from the reference jar, listing what changed: the CLI goldens (the standard cases of every flag of the jar's flag list), the exception goldens, the option setups (one for every boolean flag no hand-written setup uses) and the Java stack frames the CLI prints (`crates/cli/src/java_frames.rs`, from the jar's line tables) | `crates/cli/tools/generate_golden.py`, `generate_exception_golden.py`, `generate_setup.py`, `java_frames.py` |
 | `license-headers` | the headers' upstream commit | `scripts/license_headers.py` |
 | `worklist` | `porting-worklist.md`: the upstream commits, every changed file with its diff stat and the Rust files ported from it (`LICENSES/headers.tsv`), changed tests with their record files; `upstream.diff` | |
 | `unit-ws` | the recording workspace | `scripts/unit_make_recording_ws.sh` |
 | `unit-jars` | the recording jars, into the work directory | `scripts/unit_bazel_build.sh` |
 | `unit-record` | records every test class against the new reference, into the work directory | `scripts/unit_record_all.sh` |
-| `unit-install` | copies the new records into `corpus/unit/records` (the old ones stay in the work directory) and regenerates what derives from them, the corpus counts that `corpus/unit/RECORDING.md` and `crates/testing/README.md` quote included, and the CompilerOptions fixtures of the new reference (`corpus/unit/options_defaults.json`, `crates/jscomp/tests/data/compiler_options_*.json`) | `scripts/unit_derive_expected_pipeline.py`, `crates/testing/tests/data/gen_record_counts.py`, `scripts/unit_corpus_counts.py`, `scripts/unit_options_defaults.sh` |
+| `unit-install` | copies the new records into `corpus/unit/records` (the old ones stay in the work directory) and regenerates what derives from them: the CompilerOptions fixtures of the new reference (`corpus/unit/options_defaults.json`, `crates/jscomp/tests/data/compiler_options_*.json`), then the corpus counts the tests pin and the docs quote (`crates/testing/tests/data/corpus_counts.tsv` and `record_counts.tsv`, `corpus/unit/RECORDING.md`, `crates/testing/README.md`) | `scripts/unit_derive_expected_pipeline.py`, `scripts/unit_options_defaults.sh`, `scripts/unit_corpus_counts.py` |
 | `unit-worklist` | replays the records with the Rust runner and maps the unit ratchet across the re-recording: regressed, lost and new records (`unit-worklist.json`) | `unit_replay`, `scripts/unit_ratchet_rebase.py` |
 | `d2-golden` | the D2 golden results of the new jar, next to the older ones | `gates/lib/golden_all.py` |
 | `d2-validate` | the final D2 corpus from them (`cases.jsonl`, `JAVA_FAILURES.md`, ...) | `corpus/d2/validate/` |
@@ -384,7 +390,8 @@ golden run; all three resume where they stopped. The command ends with what is l
 that needs judgement:
 
 1. Port the Java changes (§7) from `porting-worklist.md` and `upstream.diff`: the Rust files, the
-   unit descriptors of new record classes, the Rust ports of new tests in classes without records.
+   unit descriptors of new record classes (then `scripts/unit_corpus_counts.py` for the descriptor
+   counts), the Rust ports of new tests in classes without records.
    A change to a pass that `crates/jscomp/src/pass_gates.rs` gates, or to what its trigger means,
    must re-check that pass's gate; `CLOSURE_RS_PASS_GATES=verify gates/d2_rust.py run ...` checks
    every gate on the D2 corpus (the runner passes that one variable on to the binary).
@@ -395,9 +402,7 @@ that needs judgement:
    `CLOSURE_RS_REF=<tag>` (the oracle against the jar), the gate 0.2 ratchet (below), targeted
    probes for the upstream changes and a differential fuzz run against the new reference, whose
    Java crashes are then replayed under both references (below).
-4. `--only switch-default`, then read its diff and update the counts the docs quote that no step
-   rewrites (`crates/testing/README.md`: descriptor cases, CompilerOptions fields; `unit-install`
-   rewrote the record and class counts).
+4. `--only switch-default`, then read its diff.
 
 **Gate 0.2 in a sync.** A sync passes the gate 0.2 ratchet; the strict criteria (a)-(e) are
 reported but do not decide (§4.2). The gate reads the records, descriptors and
@@ -466,12 +471,13 @@ By hand, a sync (each step names the scripts the command runs):
 3. Regenerates what is derived from the reference: `scope/flags.txt` (`scope/gen_flags.py`), the
    npm types (`scripts/gen_npm_types.mjs`), the jar resources
    (`crates/resources/tools/sync_from_jar.py "$REF_JAR" "$REF_SRC"`, which keeps the license
-   header of `jar_contents.rs`), the unit corpus (`corpus/unit/RECORDING.md`,
-   `scripts/unit_record_all.sh`, whose outputs `UNIT_JARS_DIR`, `UNIT_RECORDS_DIR` and
-   `UNIT_RECORDING_DIR` can move, then `scripts/unit_corpus_counts.py` for the counts the docs
-   quote), the CompilerOptions fixtures (`scripts/unit_options_defaults.sh`)
-   and the D2 golden results (`gates/lib/golden_all.py`, then `corpus/d2/validate/scan_golden.py`,
-   `wp_test.py` and `finalize.py`).
+   header of `jar_contents.rs`), the CLI's fixtures and Java stack frames (`crates/cli/tools/`:
+   `generate_golden.py`, `generate_exception_golden.py`, `generate_setup.py`, `java_frames.py`),
+   the unit corpus (`corpus/unit/RECORDING.md`, `scripts/unit_record_all.sh`, whose outputs
+   `UNIT_JARS_DIR`, `UNIT_RECORDS_DIR` and `UNIT_RECORDING_DIR` can move), the CompilerOptions
+   fixtures (`scripts/unit_options_defaults.sh`), then the counts the tests pin and the docs quote
+   (`scripts/unit_corpus_counts.py`) and the D2 golden results (`gates/lib/golden_all.py`, then
+   `corpus/d2/validate/scan_golden.py`, `wp_test.py` and `finalize.py`).
 4. Ports the Java diff between the old and the new pin (§7), and refreshes the license headers
    (`scripts/license_headers.py --apply`).
 5. Verifies the result as in §4: every unit record and D2 pair that matched before still matches

@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # The CI gate (docs/PORTING.md §6): formatting, clippy, license headers, the unit corpus counts the
-# docs quote and the tests.
+# tests pin and the docs quote, and the tests.
 #   gates/ci.sh [--lint | --test] [checkout-dir]
 # checkout-dir defaults to the checkout this script lives in (works in worktrees). Without a mode
 # every step runs; --lint runs the checks and clippy (steps 1-4), --test only the tests (step 5),
 # which is how .github/workflows/release.yml splits them into two parallel jobs.
 # Step 5 uses cargo-nextest when it is installed (one process per test, all test binaries in
-# parallel) and plain `cargo test` otherwise; both run the same tests.
+# parallel) and plain `cargo test` otherwise; both run the same tests, and both run every test
+# binary (--no-fail-fast), so one run reports every failing test. `cargo test` writes its whole
+# output to build/logs/ci-cargo-test.log and prints each failing test with its panic message
+# (gates/lib/cargo_test_summary.py).
 set -uo pipefail
 MODE=all
 DIR=""
@@ -48,8 +51,12 @@ else
   printf '%s\n' "$lic_out" | tail -40; bad "license headers"
 fi
 
-step "1c. unit corpus counts in the docs (scripts/unit_corpus_counts.py --check; without --check it rewrites them)"
+step "1c. unit corpus counts the tests pin and the docs quote (scripts/unit_corpus_counts.py --check; without --check it rewrites them)"
 python3 scripts/unit_corpus_counts.py --check || bad "unit corpus counts"
+
+step "1d. the Java stack frames the CLI prints (crates/cli/tools/java_frames.py --check; without --check it rewrites them)"
+# They come from the line tables of the reference jar; without the jar (CI) the check is skipped.
+python3 crates/cli/tools/java_frames.py --check || bad "Java stack frames (crates/cli/src/java_frames.rs)"
 
 step "2a. cargo fmt --check"
 cargo fmt --all --check >/dev/null 2>&1 || { cargo fmt --all --check 2>&1 | head -40; bad "cargo fmt"; }
@@ -68,12 +75,16 @@ if cargo nextest --version >/dev/null 2>&1; then
   cargo nextest run --workspace --locked --no-fail-fast --status-level fail --final-status-level slow \
     --hide-progress-bar 2>&1
   [ "${PIPESTATUS[0]}" -eq 0 ] || bad "cargo nextest"
-  cargo test --workspace --locked --doc --quiet 2>&1 | grep -E 'FAILED|panicked|error(\[|:)' | head -40
+  cargo test --workspace --locked --doc --quiet --no-fail-fast 2>&1 | grep -E 'FAILED|panicked|error(\[|:)' | head -40
   [ "${PIPESTATUS[0]}" -eq 0 ] || bad "doctests"
 else
-  step "5. cargo test"
-  cargo test --workspace --quiet 2>&1 | grep -E '^test result|FAILED|panicked|error(\[|:)' | grep -v ' 0 failed' | head -40
-  [ "${PIPESTATUS[0]}" -eq 0 ] || bad "cargo test"
+  test_log=build/logs/ci-cargo-test.log
+  step "5. cargo test --no-fail-fast (whole output: $test_log)"
+  mkdir -p build/logs
+  cargo test --workspace --no-fail-fast > "$test_log" 2>&1
+  test_rc=$?
+  python3 gates/lib/cargo_test_summary.py "$test_log"
+  [ $test_rc -eq 0 ] || bad "cargo test (whole output: $test_log)"
 fi
 fi
 

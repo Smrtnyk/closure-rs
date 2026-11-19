@@ -672,6 +672,35 @@
   },
   {
     "argv": [
+      "--source_map_merge_identical_segments",
+      "false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "28a7e83ef40f6679cf3d.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_merge_identical_segments=false",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "28a7e83ef40f6679cf3d.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
+      "--source_map_merge_identical_segments",
+      "strange.js",
+      "--help"
+    ],
+    "exit_code": 0,
+    "stdout": "cb0d2ba5efddcfebecc1.stdout",
+    "stderr": "e3b0c44298fc1c149afb.stderr"
+  },
+  {
+    "argv": [
       "--property_renaming_report",
       "value",
       "--help"

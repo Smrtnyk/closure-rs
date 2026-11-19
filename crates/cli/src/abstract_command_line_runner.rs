@@ -71,11 +71,6 @@ impl RunnerException {
             },
         )
     }
-    pub fn at_cli(self, class: &str, method: &str, line: u32) -> Self {
-        self.at(&format!(
-            "com.google.javascript.jscomp.{class}.{method}({class}.java:{line})"
-        ))
-    }
     pub fn at(mut self, frame: &str) -> Self {
         if let RunnerExceptionKind::JavaException { frames, cause, .. } = &mut self.1 {
             frames.push(frame.into());
@@ -1052,7 +1047,7 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
                 )
                 .map_err(|e| {
                     crate::java_io::variable_map_load_error(e, &self.config.variable_map_input_file)
-                        .at_cli("AbstractCommandLineRunner", "setRunOptions", 423)
+                        .at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_SET_RUN_OPTIONS_VARIABLE_MAP)
                 })?,
             ));
         }
@@ -1063,7 +1058,7 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
                 )
                 .map_err(|e| {
                     crate::java_io::variable_map_load_error(e, &self.config.property_map_input_file)
-                        .at_cli("AbstractCommandLineRunner", "setRunOptions", 427)
+                        .at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_SET_RUN_OPTIONS_PROPERTY_MAP)
                 })?,
             ));
         }
@@ -1698,11 +1693,8 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
                     .map(|file| Box::new(file) as Box<dyn Write>)
                     .map_err(|error| {
                         std::io::Error::other(
-                            crate::java_io::file_not_found(error, name, true, true).at_cli(
-                                "AbstractCommandLineRunner",
-                                "filenameToOutputStream",
-                                1899,
-                            ),
+                            crate::java_io::file_not_found(error, name, true, true)
+                                .at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_OUTPUT_STREAM),
                         )
                     })
             })
@@ -1742,11 +1734,10 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
         }
         Ok(Self::filename_to_output_stream(file_name)
             .map_err(|e| {
-                std::io::Error::other(RunnerException::from(e).at_cli(
-                    "AbstractCommandLineRunner",
-                    "fileNameToLegacyOutputWriter",
-                    1876,
-                ))
+                std::io::Error::other(
+                    RunnerException::from(e)
+                        .at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_LEGACY_OUTPUT_WRITER),
+                )
             })?
             .map(|stream| self.stream_to_legacy_output_writer(stream)))
     }
@@ -1763,11 +1754,10 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
         }
         Ok(Self::filename_to_output_stream(file_name)
             .map_err(|e| {
-                std::io::Error::other(RunnerException::from(e).at_cli(
-                    "AbstractCommandLineRunner",
-                    "fileNameToOutputWriter2",
-                    1890,
-                ))
+                std::io::Error::other(
+                    RunnerException::from(e)
+                        .at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_OUTPUT_WRITER2),
+                )
             })?
             .map(|stream| self.stream_to_output_writer2(stream)))
     }
@@ -1777,11 +1767,11 @@ impl<A, B> AbstractCommandLineRunner<A, B> {
             Ok(self
                 .file_name_to_legacy_output_writer(Some(&self.config.js_output_file))
                 .map_err(|e| {
-                    std::io::Error::other(RunnerException::from(e).at_cli(
-                        "AbstractCommandLineRunner",
-                        "createDefaultOutput",
-                        1128,
-                    ))
+                    std::io::Error::other(
+                        RunnerException::from(e).at(
+                            crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_CREATE_DEFAULT_OUTPUT,
+                        ),
+                    )
                 })?
                 .unwrap())
         } else {
@@ -2442,8 +2432,8 @@ impl AbstractCommandLineRunner<closure_jscomp::compiler::Compiler, CompilerOptio
                 self.file_name_to_legacy_output_writer(Some(&self.config.js_output_file))
                     .map_err(|e| {
                         RunnerException::from(e)
-                            .at_cli("AbstractCommandLineRunner", "createDefaultOutput", 1128)
-                            .at_cli("AbstractCommandLineRunner", "outputSingleBinary", 1605)
+                            .at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_CREATE_DEFAULT_OUTPUT)
+                            .at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_OUTPUT_SINGLE_BINARY)
                     })?
                     .unwrap()
             };

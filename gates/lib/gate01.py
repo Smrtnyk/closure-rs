@@ -202,10 +202,13 @@ def server_jvm_flags(xmx: str) -> list[str]:
     # -XX:+DisplayVMOutputToStderr sends to the server's stderr log instead of the protocol
     # stdout) instead of surfacing as an arbitrary wrapped exception.  Neither flag changes
     # anything unless the JVM itself prints or runs out of memory; the response's stdout/stderr
-    # are the in-memory capture streams, not the process streams.
+    # are the in-memory capture streams, not the process streams.  A server JVM that crashes
+    # writes its fatal error log and compiler replay file next to the server logs (named by its
+    # pid, which the server's .jsonl log records), not to the checkout's root.
     return [f"-Xmx{xmx}", "-Xms128m", "-XX:+UseSerialGC", "-XX:MinHeapFreeRatio=10",
             "-XX:MaxHeapFreeRatio=30", "-XX:-UsePerfData", "-XX:+ExitOnOutOfMemoryError",
-            "-XX:+DisplayVMOutputToStderr", "-Xlog:disable", "-Xlog:all=off"]
+            "-XX:+DisplayVMOutputToStderr", "-Xlog:disable", "-Xlog:all=off",
+            *rr.jvm_crash_flags(f"{SERVER_LOGS}/")]
 
 
 def collect_outputs(out_abs: str) -> dict[str, bytes]:

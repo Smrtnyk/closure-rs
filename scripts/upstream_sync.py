@@ -57,6 +57,17 @@ UNIT_JARS = ("unit_support_deploy.jar", "unit_all_tests.jar", "compiler_tests_li
 # What scripts/unit_options_defaults.sh writes from the reference's unit support jar.
 OPTIONS_FIXTURES = ("corpus/unit/options_defaults.json", "crates/jscomp/tests/data/compiler_options_strings.json",
                     "crates/jscomp/tests/data/compiler_options_configs.json")
+# What crates/parsing/tools/GenParserRunnerConfig.java writes (step resources).
+PARSER_FIXTURE = "crates/parsing/tests/fixtures/parser_runner_config.txt"
+# The CLI's Java-derived fixtures and frames (step cli-fixtures): each generator, with --check for
+# --dry-run, and what it writes.
+CLI_GENERATORS = ("crates/cli/tools/generate_golden.py", "crates/cli/tools/generate_exception_golden.py",
+                  "crates/cli/tools/generate_setup.py", "crates/cli/tools/java_frames.py")
+CLI_FIXTURES = ("crates/cli/tests/data/cli_golden", "crates/cli/tests/data/exception_golden.json",
+                "crates/cli/tests/data/option_setup.json", "crates/cli/src/java_frames.rs")
+# What scripts/unit_corpus_counts.py writes: the counts the tests pin and the docs quote.
+COUNTS_FILES = ("crates/testing/tests/data/record_counts.tsv", "crates/testing/tests/data/corpus_counts.tsv",
+                "crates/testing/README.md", "corpus/unit/RECORDING.md")
 # Upstream sources the port embeds verbatim (include_str!), as the jar ships them:
 # source path -> (jar entry, the port's copy). Step resources copies them from the jar.
 JAR_COPIES = {
@@ -466,8 +477,9 @@ class Sync:
 
     def step_resources(self):
         """Regenerates the jar resources (crates/resources/tools/sync_from_jar.py), the Java-side
-        resource fixtures (crates/resources/tools/GenResourceFixtures.java) and the port's verbatim
-        copies of upstream sources (JAR_COPIES)."""
+        resource fixtures (crates/resources/tools/GenResourceFixtures.java) and the parser's
+        (crates/parsing/tools/GenParserRunnerConfig.java), and the port's verbatim copies of upstream
+        sources (JAR_COPIES)."""
         r = self.ref()
         jar, src = self.abs(r.jar), self.abs(r.src)
         self.run([sys.executable, "crates/resources/tools/sync_from_jar.py", jar, src])
@@ -505,7 +517,21 @@ class Sync:
                 if not os.path.exists(dst) or not filecmp.cmp(os.path.join(out, name), dst, shallow=False):
                     shutil.copyfile(os.path.join(out, name), dst)
                     log(f"  updated {rel(dst)}")
-        if not self.diffstat("crates/resources", *(c for _, c in JAR_COPIES.values())):
+        # The parser's: ParserRunner's annotation, suppression and reserved names.
+        tool, dst = "crates/parsing/tools/GenParserRunnerConfig.java", os.path.join(CHECKOUT, PARSER_FIXTURE)
+        if self.dry:
+            log(f"  would run {tool} against {rel(jar)} and write {PARSER_FIXTURE}")
+        else:
+            pcls, pout = os.path.join(gen, "parser-classes"), os.path.join(gen, "parser_runner_config.txt")
+            os.makedirs(pcls)
+            self.run([os.path.join(JAVA, "javac"), "-nowarn", "-encoding", "UTF-8", "-cp", jar, "-d", pcls,
+                      os.path.join(CHECKOUT, tool)])
+            self.run([os.path.join(JAVA, "java"), "-cp", f"{jar}:{pcls}", "GenParserRunnerConfig", pout],
+                     cwd=gen, env=dict(FIXED_ENV, HOME=os.environ.get("HOME", "/")))
+            if not filecmp.cmp(pout, dst, shallow=False):
+                shutil.copyfile(pout, dst)
+                log(f"  updated {PARSER_FIXTURE}")
+        if not self.diffstat("crates/resources", PARSER_FIXTURE, *(c for _, c in JAR_COPIES.values())):
             return "ran (no changes)"
         self.note("resources", "the jar resources changed: check the polyfill / runtime library "
                                "changes against the porting worklist")
@@ -519,6 +545,25 @@ class Sync:
             return "ran (no changes)"
         self.note("flags", "CommandLineRunner's flags changed: port them (crates/cli OPTIONS); "
                            "gen_npm_types.mjs stops while the two flag lists disagree")
+        return "ran"
+
+    def step_cli_fixtures(self):
+        """Regenerates the CLI's Java-derived fixtures from the reference jar and lists what changed:
+        the CLI goldens with the standard cases of every flag, the exception goldens, the option setup
+        fixture (crates/cli/tools/generate_*.py) and the Java stack frames the CLI prints
+        (crates/cli/tools/java_frames.py)."""
+        work = os.path.join(self.work, "cli-fixtures")
+        for tool in CLI_GENERATORS:
+            extra = (["--work", work] if tool.endswith(("generate_golden.py", "generate_setup.py")) else []) + \
+                (["--jobs", str(self.jobs or 4)] if tool.endswith("generate_golden.py") else [])
+            if self.dry:  # --check lists what would change and writes nothing
+                self.run([sys.executable, tool, "--check", *extra], write=False, check=False)
+            else:
+                self.run([sys.executable, tool, *extra])
+        if not self.diffstat(*CLI_FIXTURES):
+            return "ran (no changes)"
+        self.note("cli-fixtures", "the CLI's Java fixtures changed: crates/cli's tests (cli_golden_test, "
+                                  "exception_golden_test, option_setup_test) check the port against them")
         return "ran"
 
     def step_license_headers(self):
@@ -728,9 +773,9 @@ class Sync:
 
     def step_unit_install(self):
         """Copies the new records into corpus/unit/records (the old ones are kept in the work
-        directory) and regenerates what derives from them, the corpus counts the docs quote included
-        (scripts/unit_corpus_counts.py), and the CompilerOptions fixtures of the new reference
-        (scripts/unit_options_defaults.sh)."""
+        directory) and regenerates what derives from them: the CompilerOptions fixtures of the new
+        reference (scripts/unit_options_defaults.sh), then the corpus counts the tests pin and the
+        docs quote (scripts/unit_corpus_counts.py)."""
         d = self.unit_dirs()
         dst = os.path.join(CHECKOUT, "corpus", "unit", "records")
         classes = self.test_classes()
@@ -780,17 +825,16 @@ class Sync:
                     self.note("unit-install", f"{rel(desc)}: unrepresentable records gone upstream: "
                                               f"{', '.join(missing)}")
         self.run([sys.executable, "scripts/unit_derive_expected_pipeline.py"])
-        self.run([sys.executable, "crates/testing/tests/data/gen_record_counts.py"])
-        self.run([sys.executable, "scripts/unit_corpus_counts.py"])
         self.run([sys.executable, "scripts/unit_postcall_impls.py", "--check"], write=False, capture=True)
         self.run([sys.executable, "scripts/unit_rust_unit_tests.py", "--check"], write=False)
         self.run(["bash", "scripts/unit_options_defaults.sh"])
         if not self.dry and self.git("status", "--short", "--", *OPTIONS_FIXTURES).strip():
             self.note("unit-install", "the CompilerOptions fixtures changed (scripts/unit_options_defaults.sh): "
-                                      "port the options change; compiler_options_{defaults,configs,strings}_test.rs "
-                                      "and crates/testing pin the field and case counts")
-        if self.diffstat("corpus/unit", "crates/testing/tests/data/record_counts.tsv", "crates/testing/README.md",
-                         *OPTIONS_FIXTURES):
+                                      "port the options change (CompilerOptions, the replay's options_fields, "
+                                      "crates/cli/tools/options_model.json)")
+        # After the fixtures: the counts include the CompilerOptions fields and configurations.
+        self.run([sys.executable, "scripts/unit_corpus_counts.py"])
+        if self.diffstat("corpus/unit", *COUNTS_FILES, *OPTIONS_FIXTURES):
             new_cls = [n for k, n in changed if k != "removed" and has_records(os.path.join(dst, n + ".jsonl.gz"))]
             missing = [n for n in new_cls if not os.path.exists(
                 os.path.join(CHECKOUT, "corpus", "unit", "descriptors", n + ".json"))]
@@ -1221,7 +1265,7 @@ def print_unit_worklist(s):
 STEPS = [
     ("resolve", Sync.step_resolve), ("registry", Sync.step_registry), ("fetch", Sync.step_fetch),
     ("jar", Sync.step_jar), ("npm-check", Sync.step_npm_check), ("oracle", Sync.step_oracle),
-    ("resources", Sync.step_resources), ("flags", Sync.step_flags),
+    ("resources", Sync.step_resources), ("flags", Sync.step_flags), ("cli-fixtures", Sync.step_cli_fixtures),
     ("license-headers", Sync.step_license_headers), ("worklist", Sync.step_worklist),
     ("unit-ws", Sync.step_unit_ws), ("unit-jars", Sync.step_unit_jars), ("unit-record", Sync.step_unit_record),
     ("unit-install", Sync.step_unit_install), ("unit-worklist", Sync.step_unit_worklist),
@@ -1234,7 +1278,8 @@ LEFT = """\
 Left for a person or agent (docs/PORTING.md §9, §7):
   1. Port the Java changes: {work}/porting-worklist.md lists every changed upstream file with the
      Rust files ported from it, and upstream.diff holds the diff. New or changed upstream tests:
-     unit records (descriptors for new record classes), Rust test ports for non-harness classes.
+     unit records (descriptors for new record classes, then scripts/unit_corpus_counts.py for
+     the descriptor counts), Rust test ports for non-harness classes.
   2. Triage the regression worklists: {work}/unit-worklist.json (unit records) and
      {work}/d2-worklist.txt (D2 pairs) list what the new reference breaks before porting.
   3. Re-run after porting: --only license-headers (headers of newly ported files), gates/ci.sh,
@@ -1246,9 +1291,7 @@ Left for a person or agent (docs/PORTING.md §9, §7):
      docs/PORTING.md §9),
      targeted probes and a differential fuzz run against the new reference (then
      scripts/fuzz_java_crashes.py --seed SEED replays its kept Java crashes under both references).
-  4. When everything matches: --only switch-default (read its diff), then the counts the docs
-     quote that no step rewrites (crates/testing/README.md: descriptor cases, CompilerOptions
-     fields; unit-install rewrote the record and class counts) and the pull request."""
+  4. When everything matches: --only switch-default (read its diff), then the pull request."""
 
 
 def main():

@@ -43,6 +43,7 @@
 //! through the Rust harness ports (the unit_replay runner) and require the Java outcome, including
 //! the `testFieldsAfter` holder fields the descriptors opt in to. All four classes enable type
 //! checking (TypeCheck). Pass counts are floors and no record may fail.
+use closure_testing::corpus_counts::assert_record_count;
 use closure_testing::{
     corpus,
     replay::replay_main::{RecordResult, Runner},
@@ -69,11 +70,11 @@ fn replay(class: &str) -> Vec<RecordResult> {
     records
 }
 
-/// Asserts that `class` has `expected` records, that at least `passing` of them pass and that
-/// none fails.
-fn assert_records(class: &str, expected: usize, passing: usize) {
+/// Asserts that `class` has its records of tests/data/record_counts.tsv, that at least `passing`
+/// of them pass and that none fails.
+fn assert_records(class: &str, passing: usize) {
     let records = replay(class);
-    assert_eq!(records.len(), expected, "{class} record count");
+    assert_record_count(class, records.len());
     let mut pass = 0;
     for r in &records {
         match r.status.as_str() {
@@ -91,31 +92,31 @@ fn assert_records(class: &str, expected: usize, passing: usize) {
     );
 }
 
-// port: AmbiguatePropertiesTest (139 recorded calls)
+// port: AmbiguatePropertiesTest
 #[test]
 fn ambiguate_properties_test() {
-    assert_records("AmbiguatePropertiesTest", 140, 140);
+    assert_records("AmbiguatePropertiesTest", 140);
 }
 
-// port: DisambiguatePropertiesTest (39 recorded calls)
+// port: DisambiguatePropertiesTest
 #[test]
 fn disambiguate_properties_test() {
-    assert_records("DisambiguatePropertiesTest", 40, 40);
+    assert_records("DisambiguatePropertiesTest", 40);
 }
 
 /// The holder ColorFindPropertyReferencesTest_Helpers; testFieldsAfter compares
 /// labeledStatementMap, finder (its propIndex) and flattener.
-// port: ColorFindPropertyReferencesTest (18 recorded calls)
+// port: ColorFindPropertyReferencesTest
 #[test]
 fn color_find_property_references_test() {
-    assert_records("ColorFindPropertyReferencesTest", 18, 18);
+    assert_records("ColorFindPropertyReferencesTest", 18);
 }
 
 /// The holder ColorGraphBuilderTest_Helpers; testFieldsAfter compares graphNodeFactory and
 /// labelToId. `disambiguationSupertypes_createConnection` (no record) is ported natively in
 /// crates/jscomp/tests/disambiguate_test.rs.
-// port: ColorGraphBuilderTest (12 recorded calls)
+// port: ColorGraphBuilderTest
 #[test]
 fn color_graph_builder_test() {
-    assert_records("ColorGraphBuilderTest", 12, 12);
+    assert_records("ColorGraphBuilderTest", 12);
 }

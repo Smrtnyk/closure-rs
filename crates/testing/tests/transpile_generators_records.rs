@@ -20,7 +20,7 @@
 //! RewriteAsyncFunctionsTest, RewriteAsyncIterationTest) through the record replay: every record
 //! passes. Every Java `@Test` method of these CompilerTestCase classes is recorded, so the replay is
 //! their Rust port (docs/PORTING.md §4.2).
-use closure_testing::{corpus, replay::replay_main::Runner};
+use closure_testing::{corpus, corpus_counts::record_count, replay::replay_main::Runner};
 
 const CLASSES: [&str; 3] = [
     "Es6RewriteGeneratorsTest",
@@ -55,7 +55,12 @@ fn transpile_generators_records_pass() {
     )
     .unwrap();
     assert!(failures.is_empty(), "{}", failures.join("\n"));
-    assert_eq!(records, 159);
+    assert_eq!(
+        records,
+        CLASSES.iter().map(|c| record_count(c)).sum::<usize>(),
+        "records (tests/data/record_counts.tsv; after a corpus change, \
+         `python3 scripts/unit_corpus_counts.py` rewrites it)"
+    );
     assert_eq!(report.harness_errors, 0);
     for class in CLASSES {
         let counts = &report.classes[class];

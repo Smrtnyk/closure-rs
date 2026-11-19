@@ -20,10 +20,15 @@ def main() -> None:
     jar = os.path.join(root, run_reference.JAR)
     cds = os.path.join(root, run_reference.CDS_ARCHIVE)
     use_cds = os.path.exists(cds)
+    os.makedirs(os.path.join(root, run_reference.JVM_CRASH_DIR), exist_ok=True)
     flags = []
     for f in run_reference.jvm_flags(run_reference.DEFAULT_XMX, use_cds):
         if f.startswith("-XX:SharedArchiveFile="):
             f = f"-XX:SharedArchiveFile={cds}"
+        elif f.startswith(("-XX:ErrorFile=", "-XX:ReplayDataFile=")):
+            # The runner's cwd is its run root: the crash files go to the data root's crash dir.
+            name, value = f.split("=", 1)
+            f = f"{name}={os.path.join(root, value)}"
         flags.append(f)
     os.execv(java, [java, *flags, "-jar", jar, *sys.argv[1:]])
 
