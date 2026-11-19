@@ -114,10 +114,10 @@ fn es6_rewrite_block_scoped_function_declaration_test() {
     assert_records("Es6RewriteBlockScopedFunctionDeclarationTest", 7);
 }
 
-// port: Es6ForOfConverterTest (12 @Test methods, 21 recorded calls)
+// port: Es6ForOfConverterTest (14 @Test methods, 23 recorded calls)
 #[test]
 fn es6_for_of_converter_test() {
-    assert_records("Es6ForOfConverterTest", 21);
+    assert_records("Es6ForOfConverterTest", 23);
 }
 
 // port: LateEs6ToEs3ConverterTest (15 @Test methods, 73 recorded calls)

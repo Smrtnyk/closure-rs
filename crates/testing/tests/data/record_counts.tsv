@@ -1,5 +1,5 @@
 stem	total	compiler_test_case	integration	type_check
-AdvancedOptimizationsIntegrationTest	134	0	134	0
+AdvancedOptimizationsIntegrationTest	136	0	136	0
 AggressiveInlineAliasesTest	231	231	0	0
 AliasStringsTest	20	20	0	0
 AmbiguatePropertiesTest	140	140	0	0
@@ -139,7 +139,7 @@ ErrorToFixMapperTest	0	0	0	0
 Es6CheckModuleTest	34	34	0	0
 Es6ConvertSuperTest	21	21	0	0
 Es6ExtractClassesTest	26	26	0	0
-Es6ForOfConverterTest	21	21	0	0
+Es6ForOfConverterTest	23	23	0	0
 Es6NormalizeShorthandPropertiesTest	1	1	0	0
 Es6RelativizeImportPathsTest	26	26	0	0
 Es6RewriteArrowFunctionTest	23	23	0	0
@@ -198,16 +198,16 @@ InferConstsTest	92	92	0	0
 InferJSDocInfoTest	54	54	0	0
 InjectTranspilationRuntimeLibrariesTest	0	0	0	0
 InlineAliasesTest	54	54	0	0
-InlineAndCollapsePropertiesTest	273	273	0	0
+InlineAndCollapsePropertiesTest	285	285	0	0
 InlineCostEstimatorTest	0	0	0	0
 InlineFunctionsTest	452	452	0	0
 InlineObjectLiteralsTest	104	104	0	0
 InlinePropertiesTest	56	56	0	0
-InlineSimpleMethodsTest	83	83	0	0
+InlineSimpleMethodsTest	84	84	0	0
 InlineVariablesConstantsTest	31	31	0	0
 InlineVariablesTest	283	283	0	0
 InstrumentAsyncContextTest	49	49	0	0
-IntegrationTest	353	0	353	0
+IntegrationTest	356	0	356	0
 InvalidatingTypesTest	0	0	0	0
 IsolatePolyfillsTest	57	57	0	0
 J2clAssertRemovalPassTest	3	3	0	0

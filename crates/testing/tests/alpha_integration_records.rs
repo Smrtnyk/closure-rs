@@ -131,16 +131,16 @@ fn assert_all_pass(class: &str, expected: usize) {
     );
 }
 
-// port: IntegrationTest (353 recorded calls; 3 reach out-of-scope passes)
+// port: IntegrationTest (356 recorded calls; 3 reach out-of-scope passes)
 #[test]
 fn integration_test() {
-    assert_all_pass("IntegrationTest", 353);
+    assert_all_pass("IntegrationTest", 356);
 }
 
-// port: AdvancedOptimizationsIntegrationTest (134 recorded calls)
+// port: AdvancedOptimizationsIntegrationTest (136 recorded calls)
 #[test]
 fn advanced_optimizations_integration_test() {
-    assert_all_pass("AdvancedOptimizationsIntegrationTest", 134);
+    assert_all_pass("AdvancedOptimizationsIntegrationTest", 136);
 }
 
 // port: ClosureIntegrationTest (90 recorded calls)
