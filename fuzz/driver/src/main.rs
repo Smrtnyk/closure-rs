@@ -177,6 +177,7 @@ const OPTION_POOL: &[(&[&str], When)] = &[
     (&["--angular_pass"], When::Any),
     (&["--emit_use_strict=false", "--emit_use_strict"], When::Any),
     (&["--inject_libraries=false"], When::Any),
+    (&["--assume_for_of_iterator_close_is_not_needed"], When::Any),
     (&["--dynamic_import_alias=__imp"], When::Any),
     (
         &["--warning_level=VERBOSE", "--warning_level=QUIET"],
