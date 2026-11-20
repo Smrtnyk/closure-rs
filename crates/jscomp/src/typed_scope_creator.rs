@@ -955,7 +955,30 @@ impl TypedScopeCreator {
         kind: ScopeBuilderKind,
         scope: TypedScope,
     ) {
-        AbstractScopeBuilder::new(self, compiler, kind, scope).build(compiler);
+        let root = scope.get_root_node(compiler);
+        // An empty ordinary block has neither declarations nor deferred statement actions.
+        if root.is_block(compiler)
+            && !root.has_children(compiler)
+            && scope.get_module(compiler).is_none()
+        {
+            return;
+        }
+        let mut builder = AbstractScopeBuilder::new(self, compiler, kind, scope);
+        if kind == ScopeBuilderKind::FunctionScopeBuilder
+            && declarations::is_plain_function_stub(compiler, root)
+            && compiler
+                .get_options_opt()
+                .is_some_and(|opts| opts.get_synthetic_block_start_marker().is_none())
+        {
+            // The function scope declares its name, parameters and templates at entry. Visiting
+            // plain parameter NAMEs and an empty body adds no literal types or nested declarations.
+            builder.input_id = NodeUtil::get_input_id(compiler, root);
+            check_not_null!(builder.input_id.as_ref());
+            builder.source_name = NodeUtil::get_source_name(compiler, root);
+            builder.handle_function_inputs(compiler);
+        } else {
+            builder.build(compiler);
+        }
     }
 }
 

@@ -74,8 +74,14 @@ pub(crate) fn bare_property(ast: &Ast, statement: NodeId) -> Option<NodeId> {
     (property.is_get_prop(ast) && bare_name(ast, property)).then_some(property)
 }
 
-fn is_function_stub(ast: &Ast, function: NodeId, declaration: bool) -> bool {
+pub(crate) fn is_plain_function_stub(ast: &Ast, function: NodeId) -> bool {
     if !function.is_function(ast) {
+        return false;
+    }
+    let Some(body) = function.get_last_child(ast) else {
+        return false;
+    };
+    if !body.is_block(ast) || body.has_children(ast) {
         return false;
     }
     let Some(name) = function.get_first_child(ast) else {
@@ -84,19 +90,23 @@ fn is_function_stub(ast: &Ast, function: NodeId, declaration: bool) -> bool {
     let Some(params) = name.get_next(ast) else {
         return false;
     };
-    let Some(body) = params.get_next(ast) else {
-        return false;
-    };
     name.is_name(ast)
         && !name.has_children(ast)
-        && name.get_string_ref(ast).is_empty() != declaration
         && params.is_param_list(ast)
-        && body.is_block(ast)
-        && !body.has_children(ast)
-        && body.get_next(ast).is_none()
+        && params.get_next(ast) == Some(body)
         && params.children(ast).all(|param| {
             param.is_name(ast) && !param.has_children(ast) && !param.get_string_ref(ast).is_empty()
         })
+}
+
+fn is_function_stub(ast: &Ast, function: NodeId, declaration: bool) -> bool {
+    is_plain_function_stub(ast, function)
+        && function
+            .get_first_child(ast)
+            .unwrap()
+            .get_string_ref(ast)
+            .is_empty()
+            != declaration
 }
 
 impl Declaration {

@@ -33,17 +33,22 @@ use crate::{
     control_flow_graph::ControlFlowGraph,
     data_flow_analysis::DataFlowAnalysis,
     graph::{adjacency_graph::AdjacencyGraph, graph_node::GraphNode},
-    node_traversal::{AbstractScopedCallback, NodeTraversal, TypedScopeEntry},
+    node_traversal::{Callback, NodeTraversal, ScopedCallback, TypedScopeEntry, WalkBranch},
     reverse_abstract_interpreter::ReverseAbstractInterpreter,
     scope::ScopeId,
     scope_creator::ScopeCreator,
+    source_file::declarations,
     type_inference::TypeInference,
     typed_scope::TypedScope,
     typed_scope_creator::TypedScopeCreator,
 };
 use closure_jstype::{JSTypeNative, TypeId};
 use closure_rhino::fast_hash::IndexMap;
-use closure_rhino::{check_state, node::NodeId, token::Token};
+use closure_rhino::{
+    check_state,
+    node::{NodeId, SnapshotUse},
+    token::Token,
+};
 use std::{cell::RefCell, sync::Arc};
 
 /// Java's `LinkedHashMap<Integer, HashMultiset<Token>>`: (stepCount, Token) -> populationCount.
@@ -141,7 +146,7 @@ impl TypeInferencePass {
             {
                 let mut scope_creator = SharedTypedScopeCreator(&self.scope_creator);
                 // FirstScopeBuildingCallback
-                let mut callback = first_scope_building_callback(&mut cfg_scopes);
+                let mut callback = FirstScopeBuildingCallback(&mut cfg_scopes);
                 NodeTraversal::builder()
                     .set_compiler(compiler)
                     .set_callback(&mut callback)
@@ -278,24 +283,64 @@ impl TypeInferencePass {
 }
 
 // port: TypeInferencePass.FirstScopeBuildingCallback
-fn first_scope_building_callback(
-    cfg_scopes: &mut Vec<TypedScopeEntry>,
-) -> AbstractScopedCallback<'_, impl FnMut(&mut NodeTraversal<'_>, NodeId, Option<NodeId>)> {
-    AbstractScopedCallback::with_scope_callbacks(
-        // port: TypeInferencePass.FirstScopeBuildingCallback#visit
-        |_t: &mut NodeTraversal<'_>, _n: NodeId, _parent: Option<NodeId>| {
-            // Do nothing
-        },
-        // port: TypeInferencePass.FirstScopeBuildingCallback#enterScope
-        |t: &mut NodeTraversal<'_>| {
-            let scope = t.get_typed_scope();
-            let compiler = t.get_compiler();
-            if scope.is_cfg_root_scope(compiler) && !scope.is_module_scope(compiler) {
-                cfg_scopes.push(t.typed_scope_entry(scope));
+struct FirstScopeBuildingCallback<'a>(&'a mut Vec<TypedScopeEntry>);
+
+impl Callback for FirstScopeBuildingCallback<'_> {
+    fn should_traverse(&mut self, _: &mut NodeTraversal<'_>, _: NodeId, _: Option<NodeId>) -> bool {
+        true
+    }
+
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        let Some((_, suffix)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames) else {
+            return true;
+        };
+        let Some(records) = t
+            .get_input()
+            .and_then(|input| input.bundled_declarations(script))
+        else {
+            return true;
+        };
+        let mut child = script.get_first_child(t);
+        for &record in records {
+            let statement = child.expect("recorded extern statement");
+            child = statement.get_next(t);
+            if record == declarations::OTHER {
+                self.walk_branch(t, statement, Some(script));
+            } else if record & declarations::HAS_FUNCTION != 0 {
+                // Only the stub and its body introduce scopes in this declaration.
+                let stub = declarations::initializer(t, statement, record).unwrap();
+                self.walk_branch(t, stub, stub.get_parent(t));
             }
-        },
-        |_t: &mut NodeTraversal<'_>| {},
-    )
+        }
+        debug_assert_eq!(child, suffix);
+        t.traverse_script_suffix(script, parent, suffix, self);
+        false
+    }
+
+    // port: TypeInferencePass.FirstScopeBuildingCallback#visit
+    fn visit(&mut self, _: &mut NodeTraversal<'_>, _: NodeId, _: Option<NodeId>) {}
+
+    fn as_scoped_callback(&mut self) -> Option<&mut dyn ScopedCallback> {
+        Some(self)
+    }
+}
+
+impl ScopedCallback for FirstScopeBuildingCallback<'_> {
+    // port: TypeInferencePass.FirstScopeBuildingCallback#enterScope
+    fn enter_scope(&mut self, t: &mut NodeTraversal<'_>) {
+        let scope = t.get_typed_scope();
+        let compiler = t.get_compiler();
+        if scope.is_cfg_root_scope(compiler) && !scope.is_module_scope(compiler) {
+            self.0.push(t.typed_scope_entry(scope));
+        }
+    }
+
+    fn exit_scope(&mut self, _: &mut NodeTraversal<'_>) {}
 }
 
 /// Rust-only: the pass's shared `TypedScopeCreator` as the NodeTraversal's scope creator
