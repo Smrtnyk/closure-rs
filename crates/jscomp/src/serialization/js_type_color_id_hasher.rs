@@ -183,9 +183,9 @@ impl JSTypeColorIdHasher {
         if r#type.has_reference_name(registry) {
             self.put_reference_name_type(&mut hasher, registry, r#type);
         } else {
-            for prop in r#type.get_own_property_names(registry) {
-                Self::put_utf8(&mut hasher, &prop);
-            }
+            closure_jstype::object_type::for_each_own_property_name(r#type, registry, |name| {
+                Self::put_utf8(&mut hasher, name);
+            });
         }
 
         ColorId::from_unsigned(hasher.hash_as_long())

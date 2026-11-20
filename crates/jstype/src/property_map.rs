@@ -320,6 +320,19 @@ impl PropertyMap {
     pub fn get_own_property_names(&self) -> BTreeSet<JsString> {
         self.properties.key_set()
     }
+    /// Visit the keys in Java TreeMap order without constructing an owned set.
+    pub(crate) fn for_each_own_property_name(&self, mut visit: impl FnMut(&JsString)) {
+        let keys = self.properties.0.keys();
+        if keys.len() <= 1 {
+            keys.for_each(visit);
+        } else {
+            let mut sorted: Vec<_> = keys.collect();
+            sorted.sort_unstable();
+            for name in sorted {
+                visit(name);
+            }
+        }
+    }
     // port: PropertyMap#getOwnKnownSymbols
     pub fn get_own_known_symbols(&self) -> Vec<TypeId> {
         self.known_symbols
