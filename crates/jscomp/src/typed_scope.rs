@@ -802,6 +802,7 @@ impl TypedScope {
 pub struct TypedScopeView {
     arena: Weak<RwLock<TypedScopeArena>>,
     scope: TypedScope,
+    parent: Option<TypedScope>,
 }
 
 impl TypedScopeArena {
@@ -811,10 +812,12 @@ impl TypedScopeArena {
         this: &Weak<RwLock<TypedScopeArena>>,
         scope: TypedScope,
     ) -> &'static Arc<TypedScopeView> {
-        self.scopes[scope.index()].view.get_or_init(|| {
+        let data = &self.scopes[scope.index()];
+        data.view.get_or_init(|| {
             Box::leak(Box::new(Arc::new(TypedScopeView {
                 arena: this.clone(),
                 scope,
+                parent: data.parent,
             })))
         })
     }
@@ -1118,11 +1121,17 @@ impl StaticTypedScope for TypedScopeView {
 
     // port: AbstractScope#getParentScope
     fn get_parent_scope(&self) -> Option<&dyn StaticTypedScope> {
-        self.read(|this, arena| {
-            arena.scopes[self.scope.index()]
-                .parent
-                .map(|parent| &**arena.scope_view(this, parent) as &dyn StaticTypedScope)
-        })
+        if let Some(parent) = self.parent {
+            return Some(
+                self.read(|this, arena| &**arena.scope_view(this, parent) as &dyn StaticTypedScope),
+            );
+        }
+        // A root view can answer without locking, but still checks its compiler's lifetime.
+        assert!(
+            self.arena.strong_count() != 0,
+            "a TypedScope view outlived its compiler"
+        );
+        None
     }
 
     // port: AbstractScope#getSlot
@@ -1224,6 +1233,23 @@ impl StaticTypedScope for TypedScopeView {
         ast: &Ast,
         name: &JsString,
     ) -> Option<&dyn StaticTypedScope> {
+        // Ordinary type names only consult declarations and reservations. Both belong to
+        // this arena, so the complete scope chain can be read under one lock.
+        if ImplicitVar::of(name).is_none() {
+            return self.read(|this, arena| {
+                let mut scope = Some(self.scope);
+                while let Some(current) = scope {
+                    let data = &arena.scopes[current.index()];
+                    if data.abstract_scope.vars.contains_key(name)
+                        || data.reserved_names.contains(name)
+                    {
+                        return Some(&**arena.scope_view(this, current) as &dyn StaticTypedScope);
+                    }
+                    scope = data.parent;
+                }
+                None
+            });
+        }
         if self
             .get_own_slot_creating_implicit_vars(reg, ast, name)
             .is_some()
@@ -1242,5 +1268,73 @@ impl StaticTypedScope for TypedScopeView {
             // Recurse on the parent because it, too, may be incomplete.
             Some(parent) => parent.get_topmost_scope_of_eventual_declaration(reg, ast, name),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compiler::Compiler;
+    use closure_rhino::ir::IR;
+
+    #[test]
+    fn declaration_view_follows_reservations_and_live_shadowing() {
+        let mut compiler = Compiler::new();
+        let root = IR::root(&mut compiler.ast, &[]);
+        let global = TypedScope::create_global_scope(&mut compiler, root);
+        let name = IR::name(&mut compiler.ast, "f");
+        let params = IR::param_list(&mut compiler.ast, &[]);
+        let body = IR::block(&mut compiler.ast);
+        let function = IR::function(&mut compiler.ast, name, params, body);
+        let reserved = IndexSet::from_iter([JsString::from("T")]);
+        let child =
+            TypedScope::new_with_reserved_names(&mut compiler, global, function, &reserved, None);
+        let global_view = global.as_static_typed_scope(&compiler);
+        let child_view = child.as_static_typed_scope(&compiler);
+        assert_eq!(child_view.get_root_node(), Some(function));
+        assert!(std::ptr::addr_eq(
+            child_view.get_parent_scope().unwrap(),
+            global_view
+        ));
+
+        let declaration = |compiler: &mut Compiler| {
+            let (reg, ast) = compiler.get_type_registry_and_ast();
+            child_view.get_topmost_scope_of_eventual_declaration(reg, ast, &JsString::from("T"))
+        };
+        let outer = global.declare(&mut compiler, "T", None, None, None, true);
+        assert!(std::ptr::addr_eq(
+            declaration(&mut compiler).unwrap(),
+            child_view
+        ));
+        let inner = child.declare(&mut compiler, "T", None, None, None, true);
+        assert!(std::ptr::addr_eq(
+            declaration(&mut compiler).unwrap(),
+            child_view
+        ));
+        child.undeclare(&mut compiler, inner);
+        assert!(std::ptr::addr_eq(
+            declaration(&mut compiler).unwrap(),
+            global_view
+        ));
+        global.undeclare(&mut compiler, outer);
+        assert!(declaration(&mut compiler).is_none());
+    }
+
+    #[test]
+    fn scope_view_checks_its_compilers_lifetime_for_immutable_fields() {
+        let view = {
+            let mut compiler = Compiler::new();
+            let root = IR::root(&mut compiler.ast, &[]);
+            TypedScope::create_global_scope(&mut compiler, root)
+                .as_static_typed_scope_arc(&compiler)
+        };
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| view.get_root_node()))
+                .is_err()
+        );
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| view.get_parent_scope()))
+                .is_err()
+        );
     }
 }

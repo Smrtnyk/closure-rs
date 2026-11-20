@@ -426,6 +426,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `declare` of syntactic scopes take the lock once.
 - `jscomp/typed_scope_creator.rs`: the never-iterated `reservedNamesForScope` and
   `assignedVarNames` remove entries with `swap_remove`.
+- A typed scope view records its parent at construction. For an ordinary type name it
+  checks declarations and reserved names along the scope chain under one arena read lock.
+  Implicit variables still use the usual slot lookup so they can be created on demand.
 - `jscomp/typed_scope_creator.rs` retains the input ID for each script and builds a full
   property name when a declaration needs it. A function owner with a declared slot uses
   that slot before constructing the component list for a property-chain lookup.
