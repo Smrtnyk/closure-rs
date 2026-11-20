@@ -28,7 +28,6 @@ use crate::js_error::JSError;
 use crate::node_traversal::{Callback, NodeTraversal, ScopedCallback};
 use crate::node_util::NodeUtil;
 use crate::scope::ScopeId;
-use crate::source_file::bundled_script::BundledScript;
 use crate::syntactic_scope_creator::{RedeclarationHandler, SyntacticScopeCreator};
 use crate::type_validator::TypeValidator;
 use closure_rhino::check_state;
@@ -591,7 +590,7 @@ impl Callback for NameRefInExternsCheck<'_> {
         if NodeUtil::is_from_type_summary(t, script) {
             return false;
         }
-        let Some((facts, first)) = BundledScript::prefix(t, script, SnapshotUse::SyntaxAndNames)
+        let Some((facts, first)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames)
         else {
             return true;
         };

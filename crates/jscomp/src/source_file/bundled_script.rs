@@ -22,7 +22,7 @@ use closure_rhino::{
     check_state,
     fast_hash::IndexSet,
     js_string::JsString,
-    node::{Ast, NodeId, SnapshotUse},
+    node::{Ast, NodeId},
     token::Token,
 };
 
@@ -34,17 +34,6 @@ pub(crate) struct BundledScript {
     pub(crate) may_have_calls: bool,
     pub(crate) may_have_module_syntax: bool,
     pub(crate) global_property_roots: Option<&'static [&'static str]>,
-}
-
-impl BundledScript {
-    /// Look up this arena's original statement prefix and the first appended statement.
-    pub(crate) fn prefix(
-        ast: &Ast,
-        script: NodeId,
-        usage: SnapshotUse,
-    ) -> Option<(&'static Self, Option<NodeId>)> {
-        ast.parsed_script_record(script, usage)
-    }
 }
 
 // port: GatherExternProperties#visit

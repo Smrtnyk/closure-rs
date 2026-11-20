@@ -389,14 +389,21 @@ mod tests {
         let ordinary = SourceFile::from_code(bundled.get_name(), bundled.get_code().unwrap());
         let mut oracle = load(ordinary);
         let mut target = load(bundled);
-        assert!(BundledScript::prefix(&target.0, target.1, SnapshotUse::SyntaxAndJsDoc).is_some());
+        assert!(
+            target
+                .0
+                .parsed_script_record::<BundledScript>(target.1, SnapshotUse::SyntaxAndJsDoc)
+                .is_some()
+        );
         for mode in [Mode::CHECK, Mode::OPTIMIZE, Mode::CHECK_AND_OPTIMIZE] {
             assert_eq!(collect(&mut target, mode), collect(&mut oracle, mode));
         }
         append(&mut target);
         append(&mut oracle);
         assert!(
-            BundledScript::prefix(&target.0, target.1, SnapshotUse::Syntax)
+            target
+                .0
+                .parsed_script_record::<BundledScript>(target.1, SnapshotUse::Syntax)
                 .unwrap()
                 .1
                 .is_some()
@@ -411,7 +418,12 @@ mod tests {
         }
         change_old_jsdoc_field(&mut target);
         change_old_jsdoc_field(&mut oracle);
-        assert!(BundledScript::prefix(&target.0, target.1, SnapshotUse::SyntaxAndJsDoc).is_none());
+        assert!(
+            target
+                .0
+                .parsed_script_record::<BundledScript>(target.1, SnapshotUse::SyntaxAndJsDoc)
+                .is_none()
+        );
         let fields = collect(&mut target, Mode::CHECK);
         assert_eq!(fields, collect(&mut oracle, Mode::CHECK));
         assert!(fields.iter().any(|s| s == "changedTypeField"));
@@ -432,6 +444,67 @@ mod tests {
         assert!(file.bundled_declarations().is_none());
         file.clear_cached_source();
         assert_eq!(file.bundled_declarations(), Some(records));
+    }
+
+    #[test]
+    fn synthetic_block_markers_preserve_live_property_validation() {
+        use crate::{
+            compiler::Compiler,
+            compiler_input::CompilerInput,
+            compiler_options::{CompilerOptions, LanguageMode},
+            compiler_pass::CompilerPass,
+            gather_extern_properties::{GatherExternProperties, Mode},
+        };
+        use closure_rhino::node::{ObjectProp, Prop};
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
+        fn failure(file: SourceFile) -> String {
+            let mut compiler = Compiler::new();
+            let mut options = CompilerOptions::new();
+            options.set_language_in(LanguageMode::ECMASCRIPT_NEXT);
+            options.set_synthetic_block_start_marker("start".to_owned());
+            compiler.init_options(options);
+            let input = CompilerInput::new_with_extern(file, true);
+            let script = input.get_ast_root(&mut compiler);
+            let mut nodes = vec![script];
+            let block = loop {
+                let n = nodes.pop().unwrap();
+                if n.is_block(&compiler) {
+                    break n;
+                }
+                nodes.extend(n.children(&compiler));
+            };
+            block.put_prop(
+                &mut compiler,
+                Prop::SYNTHETIC,
+                Some(ObjectProp::Node(block)),
+            );
+            let panic = catch_unwind(AssertUnwindSafe(|| {
+                GatherExternProperties::new(&compiler, Mode::OPTIMIZE).process(
+                    &mut compiler,
+                    script,
+                    script,
+                );
+            }))
+            .unwrap_err();
+            panic
+                .downcast_ref::<String>()
+                .cloned()
+                .unwrap_or_else(|| panic.downcast_ref::<&str>().unwrap().to_string())
+        }
+
+        let file = SourceFile::bundled_externs(Environment::BROWSER)
+            .into_iter()
+            .find(|f| f.get_name() == "externs.zip//w3c_batterystatus.js")
+            .unwrap();
+        let ordinary = SourceFile::from_code_with_kind(
+            file.get_name(),
+            file.get_code().unwrap(),
+            SourceKind::EXTERN,
+        );
+        let expected = failure(ordinary);
+        assert!(expected.contains("UnsupportedOperationException"));
+        assert_eq!(failure(file), expected);
     }
 
     #[test]

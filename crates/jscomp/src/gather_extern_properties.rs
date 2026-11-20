@@ -22,7 +22,7 @@ use crate::abstract_compiler::AbstractCompiler;
 use crate::compiler_pass::CompilerPass;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
-use crate::source_file::bundled_script::{BundledScript, gather_type_fields, property};
+use crate::source_file::bundled_script::{gather_type_fields, property};
 use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::node::{NodeId, SnapshotUse};
 
@@ -116,9 +116,11 @@ impl Callback for GatherExternProperties {
             return false;
         }
         let names = match self.mode {
-            Mode::CHECK => BundledScript::prefix(t, script, SnapshotUse::SyntaxAndJsDoc)
+            Mode::CHECK => t
+                .bundled_script_prefix(script, SnapshotUse::SyntaxAndJsDoc)
                 .map(|(s, first)| (s.type_fields, first)),
-            Mode::OPTIMIZE => BundledScript::prefix(t, script, SnapshotUse::Syntax)
+            Mode::OPTIMIZE => t
+                .bundled_script_prefix(script, SnapshotUse::Syntax)
                 .map(|(s, first)| (s.properties, first)),
             // This mode interleaves type and syntax fields in the same set.
             Mode::CHECK_AND_OPTIMIZE => None,

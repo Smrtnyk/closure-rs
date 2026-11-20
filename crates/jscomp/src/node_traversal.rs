@@ -34,13 +34,14 @@ use crate::{
     platform::Platform,
     scope::ScopeId,
     scope_creator::ScopeCreator,
+    source_file::bundled_script::BundledScript,
     syntactic_scope_creator::SyntacticScopeCreator,
     typed_scope::TypedScope,
 };
 use closure_rhino::{
     check_not_null, check_state,
     input_id::InputId,
-    node::{Ast, NodeId},
+    node::{Ast, NodeId, SnapshotUse},
     qualified_name::QualifiedName,
     token::Token,
 };
@@ -1812,6 +1813,19 @@ impl<'a> NodeTraversal<'a> {
         self.traverse_branch(child, Some(n), callback);
         self.pop_scope(callback);
         self.current_hoist_scope_root = previous_hoist_scope_root;
+    }
+
+    /// With synthetic block markers enabled, ordinary scope entry reads each BLOCK's live
+    /// SYNTHETIC property. That read validates the value even in a read-only visitor.
+    pub(crate) fn bundled_script_prefix(
+        &self,
+        script: NodeId,
+        usage: SnapshotUse,
+    ) -> Option<(&'static BundledScript, Option<NodeId>)> {
+        if self.may_contain_synthetic_blocks {
+            return None;
+        }
+        self.parsed_script_record(script, usage)
     }
 
     /// Finish a script after a callback has handled its original statement prefix.

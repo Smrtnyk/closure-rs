@@ -24,7 +24,6 @@
 //! Also rewrites any goog.{require,requireType,forwardDeclare,goog.module.get} calls that are
 //! either in an ES module or of an ES module using goog.declareModuleId.
 #![allow(clippy::needless_return, clippy::needless_late_init)] // Preserve Java statement order.
-use crate::source_file::bundled_script::BundledScript;
 use crate::{
     abstract_compiler::AbstractCompiler,
     ast_factory::AstFactory,
@@ -1154,7 +1153,7 @@ impl Callback for RewriteRequiresForEs6Modules<'_> {
         script: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
-        let Some((facts, first)) = BundledScript::prefix(t, script, SnapshotUse::Syntax) else {
+        let Some((facts, first)) = t.bundled_script_prefix(script, SnapshotUse::Syntax) else {
             return true;
         };
         if facts.may_have_calls {

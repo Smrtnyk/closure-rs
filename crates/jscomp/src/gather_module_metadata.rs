@@ -18,7 +18,6 @@
 
 //! Gathers metadata around modules that is useful for checking imports / requires and creates a
 //! `ModuleMetadataMap`.
-use crate::source_file::bundled_script::BundledScript;
 use crate::{
     AbstractCompiler,
     closure_check_module::DECLARE_LEGACY_NAMESPACE_IN_NON_MODULE,
@@ -876,7 +875,7 @@ impl Callback for Finder<'_> {
         if self.outer.process_common_js_modules || !self.toggle_module_names.is_empty() {
             return true;
         }
-        let Some((facts, first)) = BundledScript::prefix(t, script, SnapshotUse::SyntaxAndNames)
+        let Some((facts, first)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames)
         else {
             return true;
         };

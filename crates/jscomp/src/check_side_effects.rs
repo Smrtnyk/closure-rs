@@ -18,7 +18,6 @@
 //   src/com/google/javascript/jscomp/CheckSideEffects.java,
 //   src/com/google/javascript/jscomp/NodeTraversal.java.
 
-use crate::source_file::bundled_script::BundledScript;
 use crate::{
     abstract_compiler::AbstractCompiler,
     compiler_pass::CompilerPass,
@@ -335,7 +334,7 @@ impl Callback for GetNoSideEffectExterns<'_> {
         parent: Option<NodeId>,
     ) -> bool {
         let Some((facts, first)) =
-            BundledScript::prefix(t, script, SnapshotUse::SyntaxNamesAndJsDoc)
+            t.bundled_script_prefix(script, SnapshotUse::SyntaxNamesAndJsDoc)
         else {
             return true;
         };
