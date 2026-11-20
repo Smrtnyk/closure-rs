@@ -77,11 +77,12 @@ pub(crate) struct TypedScopeData {
 /// Rust-only (performance divergence): lock-free copies of a typed scope's fields that never change
 /// after construction (see `scope::ScopeMirror`), in `Compiler::typed_scope_mirror`, index-aligned
 /// with `TypedScopeArena::scopes`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub(crate) struct TypedScopeMeta {
     root_node: NodeId,
     parent: Option<TypedScope>,
     depth: i32,
+    view: OnceLock<&'static Arc<TypedScopeView>>,
 }
 
 /// Rust-only owner for Java TypedScope and TypedVar object identities; slots are never removed.
@@ -270,6 +271,7 @@ impl TypedScope {
             root_node,
             parent: None,
             depth: 0,
+            view: OnceLock::new(),
         });
         scope
     }
@@ -784,6 +786,7 @@ impl TypedScope {
 pub struct TypedScopeView {
     arena: Weak<RwLock<TypedScopeArena>>,
     scope: TypedScope,
+    root: NodeId,
     parent: Option<TypedScope>,
 }
 
@@ -799,6 +802,7 @@ impl TypedScopeArena {
             Box::leak(Box::new(Arc::new(TypedScopeView {
                 arena: this.clone(),
                 scope,
+                root: data.abstract_scope.root_node,
                 parent: data.parent,
             })))
         })
@@ -910,8 +914,12 @@ impl TypedScope {
     }
 
     fn static_typed_scope_view(self, compiler: &AbstractCompiler) -> &'static Arc<TypedScopeView> {
-        let this = Arc::downgrade(&compiler.typed_scope_arena);
-        TypedScopeArena::read(compiler).scope_view(&this, self)
+        compiler.typed_scope_mirror[self.index()]
+            .view
+            .get_or_init(|| {
+                let this = Arc::downgrade(&compiler.typed_scope_arena);
+                TypedScopeArena::read(compiler).scope_view(&this, self)
+            })
     }
 
     /// Rust-only: the TypedScope a closure-jstype scope reference stands for, when it is one of
@@ -1116,7 +1124,12 @@ impl TypedScopeView {
 impl StaticTypedScope for TypedScopeView {
     // port: AbstractScope#getRootNode
     fn get_root_node(&self) -> Option<NodeId> {
-        self.read(|_, arena| Some(arena.scopes[self.scope.index()].abstract_scope.root_node))
+        // Like the parent, the root is fixed when the view is created.
+        assert!(
+            self.arena.strong_count() != 0,
+            "a TypedScope view outlived its compiler"
+        );
+        Some(self.root)
     }
 
     // port: AbstractScope#getParentScope
@@ -1180,10 +1193,8 @@ impl StaticTypedScope for TypedScopeView {
 
     // port: TypedScope#getTypeOfThis
     fn get_type_of_this(&self, reg: &JSTypeRegistry, ast: &Ast) -> Option<TypeId> {
-        let (root, parent) = self.read(|_, arena| {
-            let data = &arena.scopes[self.scope.index()];
-            (data.abstract_scope.root_node, data.parent)
-        });
+        let root = self.get_root_node().unwrap();
+        let parent = self.parent;
         let parent_view =
             || parent.map(|parent| self.read(|this, arena| arena.scope_view(this, parent)));
         if parent.is_none() {
@@ -1276,6 +1287,34 @@ mod tests {
     use super::*;
     use crate::compiler::Compiler;
     use closure_rhino::ir::IR;
+
+    #[test]
+    fn canonical_scope_views_keep_their_root_and_observe_later_bindings() {
+        let mut compiler = Compiler::new();
+        let script = compiler.parse_test_code("function f() {}");
+        let global = TypedScope::create_global_scope(&mut compiler, script);
+        let function = script.get_only_child(&compiler);
+        let local = TypedScope::new(&mut compiler, global, function);
+        let view = local.as_static_typed_scope_arc(&compiler);
+        assert_eq!(view.get_root_node(), Some(function));
+        assert!(std::ptr::addr_eq(
+            Arc::as_ptr(&view),
+            local.as_static_typed_scope(&compiler)
+        ));
+        assert!(std::ptr::addr_eq(
+            view.get_parent_scope().unwrap(),
+            global.as_static_typed_scope(&compiler),
+        ));
+        let name = JsString::from("later");
+        assert!(view.get_slot(&name).is_none());
+        global.declare(&mut compiler, name.clone(), None, None, None, true);
+        assert!(view.get_slot(&name).is_some());
+        drop(compiler);
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| view.get_root_node()))
+                .is_err()
+        );
+    }
 
     #[test]
     fn qualified_lookup_uses_the_live_owner_of_the_root_binding() {
