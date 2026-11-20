@@ -2403,7 +2403,7 @@ impl InferenceTransfer<'_> {
             );
             type_ = Some(result_type);
         } else {
-            let var = scope.get_slot(compiler, &var_name);
+            let (var, declaration) = scope.get_slot_with_declaration(compiler, &var_name);
             if let Some(var) = var {
                 // There are two situations where we don't want to use type information
                 // from the scope, even if we have it.
@@ -2412,7 +2412,8 @@ impl InferenceTransfer<'_> {
                 // function f() { var x = 3; function g() { x = null } (x); }
                 let is_inferred = var.is_type_inferred(compiler);
                 let unflowable = is_inferred && {
-                    let declared = Self::get_declared_var(compiler, &scope, &var_name);
+                    let declared =
+                        declaration.or_else(|| Self::get_declared_var(compiler, &scope, &var_name));
                     self.is_unflowable_opt(compiler, declared)
                 };
 
@@ -4089,16 +4090,17 @@ impl InferenceTransfer<'_> {
 
         // Scopes sometimes contain inferred type info about qualified names.
         let qualified_name = n.get_qualified_name(compiler);
-        let var = match &qualified_name {
-            Some(qualified_name) => scope.get_slot(compiler, qualified_name),
-            None => None,
+        let (var, declaration) = match &qualified_name {
+            Some(name) => scope.get_slot_with_declaration(compiler, name),
+            None => (None, None),
         };
         if let Some(var) = var {
             let var_type = var.get_type(compiler);
             if let Some(var_type) = var_type {
                 let is_declared = !var.is_type_inferred(compiler);
-                let declared_var =
-                    Self::get_declared_var(compiler, scope, qualified_name.clone().unwrap());
+                let declared_var = declaration.or_else(|| {
+                    Self::get_declared_var(compiler, scope, qualified_name.as_ref().unwrap())
+                });
                 // Java's `var != getDeclaredVar(scope, qualifiedName)` (object identity).
                 is_locally_inferred = !matches!(
                     (&var, declared_var),

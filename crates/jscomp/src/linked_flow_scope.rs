@@ -27,6 +27,7 @@ use crate::{
     graph::{annotation::Annotation, lattice_element::LatticeElement},
     node_util::NodeUtil,
     typed_scope::TypedScope,
+    typed_var::TypedVar,
 };
 use closure_jstype::{TypeId, prelude::JSType};
 use closure_rhino::{
@@ -459,17 +460,34 @@ impl FlowScope for LinkedFlowScope {
     // port: LinkedFlowScope#getSlot
     /// Get the slot for the given symbol.
     fn get_slot(&self, compiler: &mut AbstractCompiler, name: &JsString) -> Option<FlowSlot> {
-        let var = self.syntactic_scope.get_var(compiler, name.clone());
-        let scope = match var {
-            None => self.get_overlay_scope_for_name(compiler, name, false),
-            Some(var) => {
-                let var_scope = var.get_scope(compiler);
-                self.get_overlay_scope_for_scope(var_scope, false)
-            }
-        };
-        match scope {
-            Some(scope) => scope.get_slot(compiler, name),
-            None => var.map(FlowSlot::Var),
+        self.get_slot_with_declaration(compiler, name).0
+    }
+
+    fn get_slot_with_declaration(
+        &self,
+        compiler: &mut AbstractCompiler,
+        name: &JsString,
+    ) -> (Option<FlowSlot>, Option<TypedVar>) {
+        // Rust-only (performance divergence): reuse the live declaration that selected the
+        // overlay. A lookup from a different owning scope still consults that scope.
+        let var = self.syntactic_scope.get_var(compiler, name);
+        if let Some(var) = var {
+            let owner = var.get_scope(compiler);
+            let slot = match self.scopes.get(&owner) {
+                Some(scope) if owner == self.syntactic_scope => {
+                    Some(scope.0.slots.get(name).map_or(FlowSlot::Var(var), |slot| {
+                        FlowSlot::Overlay(Arc::clone(&slot.0))
+                    }))
+                }
+                Some(scope) => scope.get_slot(compiler, name),
+                None => Some(FlowSlot::Var(var)),
+            };
+            (slot, Some(var))
+        } else {
+            let slot = self
+                .get_overlay_scope_for_name(compiler, name, false)
+                .and_then(|scope| scope.get_slot(compiler, name));
+            (slot, None)
         }
     }
 

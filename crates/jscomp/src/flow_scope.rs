@@ -74,6 +74,16 @@ pub trait FlowScope: LatticeElement {
     // port: StaticTypedScope#getSlot
     fn get_slot(&self, compiler: &mut AbstractCompiler, name: &JsString) -> Option<FlowSlot>;
 
+    /// As in getSlot, also return the declaration if finding the flow slot required its
+    /// lookup. A missing declaration hint leaves the ordinary lookup to the caller.
+    fn get_slot_with_declaration(
+        &self,
+        compiler: &mut AbstractCompiler,
+        name: &JsString,
+    ) -> (Option<FlowSlot>, Option<TypedVar>) {
+        (self.get_slot(compiler, name), None)
+    }
+
     // port: StaticTypedScope#getOwnSlot
     fn get_own_slot(&self, compiler: &mut AbstractCompiler, name: &JsString) -> Option<FlowSlot>;
 
