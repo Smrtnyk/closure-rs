@@ -641,6 +641,44 @@ fn watched_name_bits(s: &JsString) -> u16 {
 }
 // `PresenceSummary::tokens` has one bit per token.
 const _: () = assert!((Token::PLACEHOLDER3 as usize) < 192);
+/// Lazy postings for a token selection. Appends, including complete parser snapshots, are
+/// picked up at the next read. Only setToken can make an existing slot newly eligible.
+#[derive(Debug)]
+struct TokenCandidates {
+    tokens: &'static [Token],
+    includes: [bool; Token::PLACEHOLDER3 as usize + 1],
+    scanned: usize,
+    present: Vec<u64>,
+    nodes: Vec<NodeId>,
+}
+
+impl TokenCandidates {
+    fn new(tokens: &'static [Token]) -> Self {
+        let mut includes = [false; Token::PLACEHOLDER3 as usize + 1];
+        for &token in tokens {
+            includes[token as usize] = true;
+        }
+        Self {
+            tokens,
+            includes,
+            scanned: 0,
+            present: Vec::new(),
+            nodes: Vec::new(),
+        }
+    }
+
+    fn note_token(&mut self, node: NodeId, token: Token) {
+        let slot = node.arena_index();
+        if slot < self.scanned && self.includes[token as usize] {
+            let mask = 1u64 << (slot % 64);
+            if self.present[slot / 64] & mask == 0 {
+                self.present[slot / 64] |= mask;
+                self.nodes.push(node);
+            }
+        }
+    }
+}
+
 /// Rust-only (performance divergence): a record of what has ever existed in an arena, kept so
 /// that the compiler can skip a pass that only reacts to names, tokens or JSDoc flags the code
 /// does not contain (`closure_jscomp::pass_gates`; Java runs every pass).
@@ -730,6 +768,8 @@ pub struct Ast {
     pub(crate) preparse_bound_first_use: Option<u32>,
     /// Rust-only (performance divergence): whether `changed_nodes` is kept (see `track_changes`).
     tracking_changes: bool,
+    /// Lazily built by repeated syntax queries. Moving this arena also moves its index.
+    token_candidates: Option<Box<TokenCandidates>>,
     /// Rust-only (performance divergence): the nodes whose children, token or string changed since
     /// the last `take_changed_nodes`, in order, without immediate repeats.
     changed_nodes: Vec<NodeId>,
@@ -873,6 +913,35 @@ impl Ast {
             ..Self::default()
         }
     }
+    /// Reads the slots that have held one of the requested tokens since this scan first ran.
+    /// The result includes detached and subsequently retagged nodes. The caller checks the
+    /// current token and its place in the tree; no pass change notifications are needed.
+    pub fn with_token_candidates<R>(
+        &mut self,
+        tokens: &'static [Token],
+        read: impl FnOnce(&Ast, &[NodeId]) -> R,
+    ) -> R {
+        if self
+            .token_candidates
+            .as_ref()
+            .is_none_or(|index| index.tokens != tokens)
+        {
+            self.token_candidates = Some(Box::new(TokenCandidates::new(tokens)));
+        }
+        let index = self.token_candidates.as_mut().unwrap();
+        index.present.resize(self.links.len().div_ceil(64), 0);
+        for (slot, link) in self.links.iter().enumerate().skip(index.scanned) {
+            if index.includes[link.token as usize] {
+                index.present[slot / 64] |= 1u64 << (slot % 64);
+                index
+                    .nodes
+                    .push(NodeId(NonZeroU32::new(slot as u32 + 1).unwrap()));
+            }
+        }
+        index.scanned = self.links.len();
+        read(self, &self.token_candidates.as_ref().unwrap().nodes)
+    }
+
     /// Rust-only: the number of nodes in the arena.
     pub fn node_count(&self) -> u32 {
         u32::try_from(self.nodes.len()).unwrap()
@@ -1357,6 +1426,9 @@ impl NodeId {
     pub fn set_token(self, ast: &mut Ast, token: Token) {
         ast.presence.note_token(token);
         ast[L(self)].token = token;
+        if let Some(index) = &mut ast.token_candidates {
+            index.note_token(self, token);
+        }
         ast.note_changed(self);
         if let Some(parent) = ast[L(self)].parent {
             ast.note_changed(parent);
@@ -2211,6 +2283,14 @@ impl NodeId {
         match &ast[self].kind {
             NodeKind::String { str } => str,
             _ => panic!("ClassCastException"),
+        }
+    }
+
+    /// Returns the StringNode payload when inspecting possibly detached or repurposed nodes.
+    pub fn string_payload(self, ast: &Ast) -> Option<&JsString> {
+        match &ast[self].kind {
+            NodeKind::String { str } => Some(str),
+            _ => None,
         }
     }
     // port: Node#setString

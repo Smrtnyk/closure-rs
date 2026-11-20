@@ -539,6 +539,11 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   ordinary traversal if it needs to jump to a hoisted function.
   `CLOSURE_RS_REFERENCE_SITES=off` disables reuse of the ordered sites.
 - `jscomp/basic_block.rs`: the basic blocks of references are `Rc`, not `Arc`.
+- `jscomp/gather_getter_and_setter_properties.rs` gathers accessors by walking the paths to
+  current getter, setter and descriptor-call sites in Java traversal order. The arena indexes
+  selected tokens on demand, adds new slots on the next scan and records retagged nodes in
+  `setToken`. Each refresh checks live strings, parents and function and class shapes, so
+  moved, renamed and detached sites retain the behavior of a fresh traversal.
 - `jscomp/timeline.rs` keeps change order in the links between events. Deleting a
   function swaps out its index entry in constant expected time.
 - `rhino/js_string.rs` `JsStrLike::is_prefix_of`/`is_suffix_of`: `startsWith`/`endsWith` compare
