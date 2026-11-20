@@ -477,7 +477,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   them in the same traversal order after type resolution, saving a second AST walk. Each entry
   retains its original node and script for diagnostics. With the built-in reverse interpreter,
   straight-line functions run the same entry and statement transfers in control-flow order.
-  Debug histograms, custom interpreters and branching functions use the full graph.
+  In the global graph, leading scripts of unconditional declarations and expressions each
+  occupy one vertex. Inference visits their statements in order and keeps the separate edge
+  that bypasses externs. Debug histograms and custom interpreters use the full graph.
 - `jscomp/graph/linked_directed_graph.rs` keeps the first incoming and outgoing edge in each
   node. Additional edges and callers requesting a mutable vector use ordered vectors.
   Control-flow construction resolves both endpoints once when checking for duplicate edges.

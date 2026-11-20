@@ -181,6 +181,7 @@ where
 pub struct TypeInference<'a> {
     state: DataFlowAnalysisState<NodeId>,
     transfer: InferenceTransfer<'a>,
+    pub(crate) linear_scripts: Option<Box<crate::control_flow_analysis::LinearScripts>>,
 }
 
 /// Type inference at the entry and each reachable CFG node. The compiler pass can also
@@ -225,6 +226,7 @@ impl<'a> TypeInference<'a> {
         );
         Self {
             state: DataFlowAnalysisState::new(cfg, true, true),
+            linear_scripts: None,
             transfer: InferenceTransfer::new(
                 compiler,
                 reverse_interpreter,
@@ -1594,7 +1596,21 @@ impl DataFlowAnalysis<NodeId, FS> for TypeInference<'_> {
     }
 
     fn flow_through(&mut self, compiler: &mut AbstractCompiler, node: NodeId, input: FS) -> FS {
-        self.transfer.flow_through(compiler, node, input)
+        let mut output = self.transfer.flow_through(compiler, node, input);
+        if node.is_script(compiler)
+            && let Some(statements) = self
+                .linear_scripts
+                .as_ref()
+                .and_then(|scripts| scripts.get(&node))
+            && !same_scope(&output, &self.transfer.bottom_scope)
+        {
+            // Rust-only (performance divergence): these unconditional statements all have
+            // the script's global declaration scope. Its unbound vars were inferred on entry.
+            for &statement in statements {
+                output = self.transfer.traverse(compiler, statement, output);
+            }
+        }
+        output
     }
 
     // port: TypeInference#isForward

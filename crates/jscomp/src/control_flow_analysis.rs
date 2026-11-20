@@ -36,6 +36,8 @@ use closure_rhino::{
 };
 use std::collections::VecDeque;
 
+pub(crate) type LinearScripts = IndexMap<NodeId, Vec<NodeId>>;
+
 pub struct ControlFlowAnalysis {
     cfg: ControlFlowGraph<NodeId>,
     ast_position: Option<LinkedIdentityHashMap<Option<NodeId>, i32>>,
@@ -43,6 +45,7 @@ pub struct ControlFlowAnalysis {
     priority_counter: i32,
     should_traverse_functions: bool,
     root: NodeId,
+    linear_scripts: Option<Box<LinearScripts>>,
     exception_handler: VecDeque<NodeId>,
     // Guava LinkedHashMultimap: keys and each key's values in insertion order.
     finally_map: IndexMap<NodeId, IndexSet<Option<NodeId>>>,
@@ -115,6 +118,7 @@ impl ControlFlowAnalysis {
             priority_counter: 0,
             should_traverse_functions,
             root,
+            linear_scripts: None,
             exception_handler: VecDeque::new(),
             finally_map: IndexMap::<_, _>::default(),
         }
@@ -162,6 +166,48 @@ impl ControlFlowAnalysis {
             statements.push(node);
         }
         Some((body, statements))
+    }
+
+    /// In the global graph, contract each straight-line script before the first control-flow
+    /// statement into one vertex. No statement in the prefix can be reached a second time.
+    /// The separate edge from the externs root to the sources root still bypasses externs.
+    pub(crate) fn global_inference_cfg(
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+    ) -> (ControlFlowGraph<NodeId>, Box<LinearScripts>) {
+        let mut scripts = IndexMap::default();
+        'prefix: for section in root.children(compiler) {
+            if !section.is_root(compiler) {
+                break;
+            }
+            for script in section.children(compiler) {
+                if !script.is_script(compiler) {
+                    break 'prefix;
+                }
+                let mut statements = Vec::new();
+                for statement in script.children(compiler) {
+                    match statement.get_token(compiler) {
+                        // CFA skips function declarations when computing fall-through.
+                        Token::FUNCTION => continue,
+                        Token::EXPR_RESULT | Token::VAR | Token::LET | Token::CONST
+                            if !statement
+                                .children(compiler)
+                                .any(|child| child.is_try(compiler)) => {}
+                        Token::EMPTY | Token::DEBUGGER if !statement.has_children(compiler) => {}
+                        _ => break 'prefix,
+                    }
+                    statements.push(statement);
+                }
+                if !statements.is_empty() {
+                    scripts.insert(script, statements);
+                }
+            }
+        }
+
+        let mut cfa = Self::new(compiler, root, false, true);
+        cfa.linear_scripts = Some(Box::new(scripts));
+        cfa.compute_cfg(compiler, root);
+        (cfa.cfg, cfa.linear_scripts.unwrap())
     }
 
     // port: ControlFlowAnalysis#getCfg
@@ -1022,6 +1068,26 @@ impl Callback for ControlFlowAnalysis {
             false
         }
     }
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        if !self.should_traverse(t, script, parent) {
+            return false;
+        }
+        if self
+            .linear_scripts
+            .as_ref()
+            .is_some_and(|scripts| scripts.contains_key(&script))
+        {
+            let follow = self.compute_follow_node_with_cfa(t.get_compiler(), script);
+            self.create_edge(script, Branch::UNCOND, follow);
+            return false;
+        }
+        true
+    }
     // port: ControlFlowAnalysis#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
         let compiler = t.get_compiler();
@@ -1063,6 +1129,57 @@ impl Callback for ControlFlowAnalysis {
 mod linear_function_tests {
     use super::*;
     use crate::{Compiler, graph::graph::GraphEdge};
+    use closure_rhino::ir::IR;
+
+    #[test]
+    fn linear_scripts_keep_the_extern_bypass_and_stop_at_the_first_branch() {
+        let mut compiler = Compiler::new();
+        let ext = compiler.parse_test_code("var x = 1; function hoisted() {} x = {};");
+        let externs = IR::root(&mut compiler, &[ext]);
+        let sources = compiler.parse_test_code_many(vec![
+            "var y = x;".into(),
+            "if (y) y = 2;".into(),
+            "y = 'later';".into(),
+        ]);
+        let root = IR::root(&mut compiler, &[externs, sources]);
+        let (compact, scripts) = ControlFlowAnalysis::global_inference_cfg(&mut compiler, root);
+        let first_source = sources.get_first_child(&compiler).unwrap();
+        assert_eq!(
+            scripts.keys().copied().collect::<Vec<_>>(),
+            [ext, first_source]
+        );
+        assert_eq!(
+            scripts[&ext],
+            [
+                ext.get_first_child(&compiler).unwrap(),
+                ext.get_last_child(&compiler).unwrap()
+            ]
+        );
+        for statements in scripts.values() {
+            for n in statements {
+                assert!(compact.get_node(&Some(*n)).is_none());
+            }
+        }
+        let full = ControlFlowAnalysis::builder()
+            .set_cfg_root(root)
+            .compute_cfg(&mut compiler);
+        let predecessors = |cfg: &ControlFlowGraph<NodeId>| {
+            cfg.get_directed_pred_nodes(&Some(sources))
+                .into_iter()
+                .map(|node| node.get_value(cfg).unwrap())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            predecessors(&full),
+            [ext.get_last_child(&compiler).unwrap(), externs]
+        );
+        assert_eq!(predecessors(&compact), [ext, externs]);
+        let last = sources
+            .get_last_child(&compiler)
+            .unwrap()
+            .get_only_child(&compiler);
+        assert!(compact.get_node(&Some(last)).is_some());
+    }
 
     #[test]
     fn linear_function_nodes_follow_the_original_cfg() {

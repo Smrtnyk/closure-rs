@@ -51,7 +51,7 @@ type StepCountHistogram = IndexMap<i32, IndexMap<Token, i32>>;
 
 pub struct TypeInferencePass {
     reverse_interpreter: Arc<dyn ReverseAbstractInterpreter>,
-    use_linear_functions: bool,
+    use_linear_flow: bool,
     top_scope: Option<TypedScope>,
     scope_creator: RefCell<TypedScopeCreator>,
     assertion_function_lookup: AssertionFunctionLookup,
@@ -74,11 +74,11 @@ impl TypeInferencePass {
         } else {
             None
         };
-        let use_linear_functions = step_count_histogram.is_none()
+        let use_linear_flow = step_count_histogram.is_none()
             && compiler.owns_reverse_abstract_interpreter(&reverse_interpreter);
         Self {
             reverse_interpreter,
-            use_linear_functions,
+            use_linear_flow,
             top_scope: None,
             scope_creator: RefCell::new(scope_creator),
             assertion_function_lookup,
@@ -216,7 +216,7 @@ impl TypeInferencePass {
     // port: TypeInferencePass#inferScope
     fn infer_scope(&self, compiler: &mut AbstractCompiler, n: NodeId, scope: TypedScope) {
         let mut scope_creator = self.scope_creator.borrow_mut();
-        if self.use_linear_functions
+        if self.use_linear_flow
             && n == scope.get_root_node(compiler)
             && let Some((body, statements)) = ControlFlowAnalysis::linear_function(compiler, n)
         {
@@ -231,7 +231,13 @@ impl TypeInferencePass {
             );
             return;
         }
-        let cfg = Self::compute_cfg(compiler, n);
+        let (cfg, linear_scripts) =
+            if self.use_linear_flow && n.is_root(compiler) && n.get_parent(compiler).is_none() {
+                let (cfg, scripts) = ControlFlowAnalysis::global_inference_cfg(compiler, n);
+                (cfg, Some(scripts))
+            } else {
+                (Self::compute_cfg(compiler, n), None)
+            };
         let mut type_inference = TypeInference::new(
             compiler,
             cfg,
@@ -240,6 +246,7 @@ impl TypeInferencePass {
             &mut scope_creator,
             &self.assertion_function_lookup,
         );
+        type_inference.linear_scripts = linear_scripts;
         type_inference.analyze_indexed(compiler);
 
         if let Some(step_count_histogram) = &self.step_count_histogram {
@@ -370,8 +377,16 @@ mod tests {
             })('abc', {n: 5}, 7);
         "#,
         );
-        let externs = IR::root(&mut compiler, &[]);
-        let sources = IR::root(&mut compiler, &[script]);
+        let declarations = compiler.parse_synthetic_code(
+            "declarations",
+            "var value = 1; function hoisted() {} value = 'narrowed';",
+        );
+        let prefix = compiler.parse_synthetic_code(
+            "prefix",
+            "var result = value && value.length; result = result || 3;",
+        );
+        let externs = IR::root(&mut compiler, &[declarations]);
+        let sources = IR::root(&mut compiler, &[prefix, script]);
         let root = IR::root(&mut compiler, &[externs, sources]);
         let native = compiler.get_reverse_abstract_interpreter();
         let recording = Arc::new(RecordingInterpreter {
@@ -382,7 +397,7 @@ mod tests {
             if record { recording.clone() } else { native };
         let creator = TypedScopeCreator::new(&mut compiler);
         let mut pass = TypeInferencePass::new(&mut compiler, interpreter, creator);
-        assert_eq!(pass.use_linear_functions, !record);
+        assert_eq!(pass.use_linear_flow, !record);
         pass.infer_all_scopes(&mut compiler, root);
         if record {
             assert!(!recording.calls.lock().unwrap().is_empty());
@@ -427,7 +442,7 @@ mod tests {
     }
 
     #[test]
-    fn linear_functions_match_graph_types_slots_and_diagnostics() {
+    fn linear_flow_matches_graph_types_slots_and_diagnostics() {
         let direct = infer_with_recording(false);
         assert!(
             direct
