@@ -32,7 +32,7 @@ mod line_count;
 #[path = "src/deps/js_file_line_parser/lines.rs"]
 mod lines;
 
-#[allow(dead_code)]
+#[allow(dead_code, clippy::upper_case_acronyms)] // Java protobuf enum names.
 #[path = "src/serialization/protobuf.rs"]
 mod protobuf;
 #[path = "build/runtime_libraries.rs"]
