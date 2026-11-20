@@ -123,6 +123,47 @@ impl ControlFlowAnalysis {
     pub fn builder() -> Builder {
         Builder::new()
     }
+    /// A function whose CFG visits the function, its body and the listed statements once,
+    /// in source order, before the implicit return. Capture node identities before entry
+    /// inference, just as building the full CFG would.
+    pub(crate) fn linear_function(
+        compiler: &AbstractCompiler,
+        function: NodeId,
+    ) -> Option<(NodeId, Vec<NodeId>)> {
+        if !function.is_function(compiler) {
+            return None;
+        }
+        let name = function.get_first_child(compiler)?;
+        let params = name.get_next(compiler)?;
+        let body = params.get_next(compiler)?;
+        if !name.is_name(compiler)
+            || !params.is_param_list(compiler)
+            || body.get_next(compiler).is_some()
+            || !body.is_block(compiler)
+            || body.is_synthetic_block(compiler)
+        {
+            return None;
+        }
+
+        let mut statements = Vec::new();
+        for node in body.children(compiler) {
+            match node.get_token(compiler) {
+                // CFA skips nested functions, including when looking for the next statement.
+                Token::FUNCTION => continue,
+                Token::EXPR_RESULT | Token::VAR | Token::LET | Token::CONST => {}
+                Token::RETURN if node.get_next(compiler).is_none() => {}
+                _ => return None,
+            }
+            // These statement kinds are opaque to CFA. A TRY, even in a malformed
+            // expression, is considered by shouldTraverseIntoChildren before its parent.
+            if node.children(compiler).any(|child| child.is_try(compiler)) {
+                return None;
+            }
+            statements.push(node);
+        }
+        Some((body, statements))
+    }
+
     // port: ControlFlowAnalysis#getCfg
     pub fn get_cfg(&self) -> &ControlFlowGraph<NodeId> {
         &self.cfg
@@ -624,7 +665,8 @@ impl ControlFlowAnalysis {
     // port: ControlFlowAnalysis#handleReturn
     fn handle_return(&mut self, compiler: &AbstractCompiler, node: NodeId) {
         let mut last_jump = None;
-        for handler in self.exception_handler.clone() {
+        for i in 0..self.exception_handler.len() {
+            let handler = self.exception_handler[i];
             if handler.is_function(compiler) {
                 break;
             }
@@ -767,9 +809,15 @@ impl ControlFlowAnalysis {
     }
     // port: ControlFlowAnalysis#createEdge
     fn create_edge(&mut self, from: NodeId, branch: Branch, to: Option<NodeId>) {
-        self.cfg.create_node(Some(from));
-        self.cfg.create_node(to);
-        self.cfg.connect_if_not_found(Some(from), branch, to);
+        let graph = &mut self.cfg.graph;
+        let from = graph.create_node(Some(from));
+        let to = graph.create_node(to);
+        // Graph#connectIfNotFound checks both directions for this edge value.
+        if !graph.is_connected_in_direction_nodes(from, |edge| *edge == branch, to)
+            && !graph.is_connected_in_direction_nodes(to, |edge| *edge == branch, from)
+        {
+            graph.connect_nodes(from, branch, to);
+        }
     }
     // port: ControlFlowAnalysis#connectToPossibleExceptionHandler
     fn connect_to_possible_exception_handler(
@@ -788,11 +836,9 @@ impl ControlFlowAnalysis {
         compiler: &AbstractCompiler,
         cfg_node: NodeId,
     ) {
-        if self.exception_handler.is_empty() {
-            return;
-        }
         let mut last_jump = cfg_node;
-        for handler in self.exception_handler.clone() {
+        for i in 0..self.exception_handler.len() {
+            let handler = self.exception_handler[i];
             if handler.is_function(compiler) {
                 return;
             }
@@ -1009,6 +1055,48 @@ impl Callback for ControlFlowAnalysis {
             | Token::MEMBER_FIELD_DEF
             | Token::COMPUTED_FIELD_DEF => {}
             _ => self.handle_stmt(compiler, n),
+        }
+    }
+}
+
+#[cfg(test)]
+mod linear_function_tests {
+    use super::*;
+    use crate::{Compiler, graph::graph::GraphEdge};
+
+    #[test]
+    fn linear_function_nodes_follow_the_original_cfg() {
+        let mut compiler = Compiler::new();
+        let script = compiler.parse_test_code(
+            "function f(x = 1) { function g() { throw x; } var y; let z = g; x && g(); return z; }",
+        );
+        let function = script.get_only_child(&compiler);
+        let (body, statements) = ControlFlowAnalysis::linear_function(&compiler, function).unwrap();
+        let cfg = ControlFlowAnalysis::builder()
+            .set_cfg_root(function)
+            .compute_cfg(&mut compiler);
+        let mut previous = cfg.get_entry();
+        for next in [body].into_iter().chain(statements).map(Some).chain([None]) {
+            let edges = cfg.node_out_edges(previous);
+            assert_eq!(edges.len(), 1);
+            assert_eq!(*edges[0].get_value(&cfg), Branch::UNCOND);
+            previous = cfg.edge_node_b(edges[0]);
+            assert_eq!(*previous.get_value(&cfg), next);
+        }
+        assert_eq!(previous, cfg.get_implicit_return());
+        body.set_is_synthetic_block(&mut compiler, true);
+        assert!(ControlFlowAnalysis::linear_function(&compiler, function).is_none());
+
+        for code in [
+            "function f() { if (x) y(); }",
+            "function f() { return; x(); }",
+            "function f() { try { x(); } catch(e) {} }",
+        ] {
+            let script = compiler.parse_test_code(code);
+            assert!(
+                ControlFlowAnalysis::linear_function(&compiler, script.get_only_child(&compiler))
+                    .is_none()
+            );
         }
     }
 }

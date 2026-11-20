@@ -461,7 +461,12 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   original declaration snapshot. Embedders keep the eager namespace.
 - `jscomp/type_inference_pass.rs` records CFG entries as the typed scopes are built and runs
   them in the same traversal order after type resolution, saving a second AST walk. Each entry
-  retains its original node and script for diagnostics.
+  retains its original node and script for diagnostics. With the built-in reverse interpreter,
+  straight-line functions run the same entry and statement transfers in control-flow order.
+  Debug histograms, custom interpreters and branching functions use the full graph.
+- `jscomp/graph/linked_directed_graph.rs` keeps the first incoming and outgoing edge in each
+  node. Additional edges and callers requesting a mutable vector use ordered vectors.
+  Control-flow construction resolves both endpoints once when checking for duplicate edges.
 - `jscomp/node_traversal.rs`: `getInput` returns the cached input without recomputing its id;
   `getChunk` is read once per script.
 - `jscomp/source_file.rs`: the source kind is mirrored in an atomic, so `getKind`/`isExtern`

@@ -51,6 +51,7 @@ type StepCountHistogram = IndexMap<i32, IndexMap<Token, i32>>;
 
 pub struct TypeInferencePass {
     reverse_interpreter: Arc<dyn ReverseAbstractInterpreter>,
+    use_linear_functions: bool,
     top_scope: Option<TypedScope>,
     scope_creator: RefCell<TypedScopeCreator>,
     assertion_function_lookup: AssertionFunctionLookup,
@@ -73,8 +74,11 @@ impl TypeInferencePass {
         } else {
             None
         };
+        let use_linear_functions = step_count_histogram.is_none()
+            && compiler.owns_reverse_abstract_interpreter(&reverse_interpreter);
         Self {
             reverse_interpreter,
+            use_linear_functions,
             top_scope: None,
             scope_creator: RefCell::new(scope_creator),
             assertion_function_lookup,
@@ -211,8 +215,23 @@ impl TypeInferencePass {
 
     // port: TypeInferencePass#inferScope
     fn infer_scope(&self, compiler: &mut AbstractCompiler, n: NodeId, scope: TypedScope) {
-        let cfg = Self::compute_cfg(compiler, n);
         let mut scope_creator = self.scope_creator.borrow_mut();
+        if self.use_linear_functions
+            && n == scope.get_root_node(compiler)
+            && let Some((body, statements)) = ControlFlowAnalysis::linear_function(compiler, n)
+        {
+            TypeInference::infer_linear_function(
+                compiler,
+                Arc::clone(&self.reverse_interpreter),
+                scope,
+                &mut scope_creator,
+                &self.assertion_function_lookup,
+                body,
+                &statements,
+            );
+            return;
+        }
+        let cfg = Self::compute_cfg(compiler, n);
         let mut type_inference = TypeInference::new(
             compiler,
             cfg,
@@ -298,5 +317,124 @@ impl ScopeCreator for SharedTypedScopeCreator<'_> {
         // checkArgument(parent == null || parent instanceof TypedScope)
         let parent = parent.map(|parent| parent.typed(compiler));
         AbstractScopeHandle::Typed(self.0.borrow_mut().create_scope(compiler, n, parent))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Compiler, flow_scope::FlowScope, typed_var::TypedVar};
+    use closure_jstype::prelude::JSType;
+    use closure_rhino::{ir::IR, outcome::Outcome};
+    use std::sync::Mutex;
+
+    struct RecordingInterpreter {
+        inner: Arc<dyn ReverseAbstractInterpreter>,
+        calls: Mutex<Vec<(NodeId, Outcome)>>,
+    }
+
+    impl ReverseAbstractInterpreter for RecordingInterpreter {
+        fn get_preciser_scope_knowing_condition_outcome(
+            &self,
+            compiler: &mut AbstractCompiler,
+            condition: NodeId,
+            scope: Arc<dyn FlowScope>,
+            outcome: Outcome,
+        ) -> Arc<dyn FlowScope> {
+            self.calls.lock().unwrap().push((condition, outcome));
+            self.inner
+                .get_preciser_scope_knowing_condition_outcome(compiler, condition, scope, outcome)
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct InferenceResult {
+        nodes: Vec<(NodeId, Option<TypeId>, Option<String>)>,
+        slots: Vec<(TypedVar, TypedScope, Option<TypeId>, String, bool)>,
+        diagnostics: Vec<String>,
+    }
+
+    fn infer_with_recording(record: bool) -> InferenceResult {
+        let mut compiler = Compiler::new();
+        let script = compiler.parse_test_code(
+            r#"
+            class C {}
+            /** @param {number} declared */ function empty(declared) {}
+            (function (arg, {n = 3} = {}, ...rest) {
+                function nested(x = arg ? 1 : 2) { return x && n; }
+                var unbound;
+                let result = nested() || arg;
+                rest[0] = result;
+                C.prototype = {};
+                return unbound ?? result;
+            })('abc', {n: 5}, 7);
+        "#,
+        );
+        let externs = IR::root(&mut compiler, &[]);
+        let sources = IR::root(&mut compiler, &[script]);
+        let root = IR::root(&mut compiler, &[externs, sources]);
+        let native = compiler.get_reverse_abstract_interpreter();
+        let recording = Arc::new(RecordingInterpreter {
+            inner: Arc::clone(&native),
+            calls: Mutex::new(Vec::new()),
+        });
+        let interpreter: Arc<dyn ReverseAbstractInterpreter> =
+            if record { recording.clone() } else { native };
+        let creator = TypedScopeCreator::new(&mut compiler);
+        let mut pass = TypeInferencePass::new(&mut compiler, interpreter, creator);
+        assert_eq!(pass.use_linear_functions, !record);
+        pass.infer_all_scopes(&mut compiler, root);
+        if record {
+            assert!(!recording.calls.lock().unwrap().is_empty());
+        }
+
+        let mut nodes = Vec::new();
+        let mut pending = vec![root];
+        while let Some(node) = pending.pop() {
+            let ty = node.get_jstype(&compiler);
+            let name = ty.map(|ty| {
+                let (reg, ast) = compiler.get_type_registry_and_ast();
+                ty.to_string(reg, ast)
+            });
+            nodes.push((node, ty, name));
+            pending.extend(node.children(&compiler));
+        }
+        let slots = pass
+            .into_scope_creator()
+            .get_all_symbols(&compiler)
+            .into_iter()
+            .map(|v| {
+                (
+                    v,
+                    v.get_scope(&compiler),
+                    v.get_type(&compiler),
+                    v.to_string(&mut compiler),
+                    v.is_type_inferred(&compiler),
+                )
+            })
+            .collect();
+        let diagnostics = compiler
+            .get_errors()
+            .into_iter()
+            .chain(compiler.get_warnings())
+            .map(|e| format!("{} {:?} {}", e.type_.key, e.node, e))
+            .collect();
+        InferenceResult {
+            nodes,
+            slots,
+            diagnostics,
+        }
+    }
+
+    #[test]
+    fn linear_functions_match_graph_types_slots_and_diagnostics() {
+        let direct = infer_with_recording(false);
+        assert!(
+            direct
+                .diagnostics
+                .iter()
+                .any(|d| d.starts_with("JSC_REASSIGN_CLASS_PROTOTYPE"))
+        );
+        assert_eq!(direct, infer_with_recording(true));
     }
 }

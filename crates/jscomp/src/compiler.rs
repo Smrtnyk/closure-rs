@@ -3576,6 +3576,16 @@ impl Compiler {
         }
         self.abstract_interpreter.clone().unwrap()
     }
+    /// Built-in reverse interpreters produce only LinkedFlowScopes. A caller-supplied
+    /// interpreter can provide a lattice with observable equality or lifetime behavior.
+    pub(crate) fn owns_reverse_abstract_interpreter(
+        &self,
+        interpreter: &Arc<dyn crate::reverse_abstract_interpreter::ReverseAbstractInterpreter>,
+    ) -> bool {
+        self.abstract_interpreter
+            .as_ref()
+            .is_some_and(|own| Arc::ptr_eq(own, interpreter))
+    }
     // port: Compiler#getTypeValidator
     pub fn get_type_validator(&mut self) -> std::sync::Arc<crate::type_validator::TypeValidator> {
         if self.type_validator.is_none() {
