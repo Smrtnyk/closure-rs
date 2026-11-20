@@ -47,6 +47,7 @@ crates/cli/tests/option_setup_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/tests/out_of_scope_flags_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/tests/utf16_output_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/build.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/jscomp/build/runtime_libraries.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/examples/compiler_whitespace_check.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/examples/d2_stderr_check.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/examples/namegen_compare.rs	322fc2ba37b98b96	Apache-2.0	-
@@ -506,6 +507,7 @@ crates/jscomp/src/serialization/malformed_typed_ast_exception.rs	b7d8189c35e3c89
 crates/jscomp/src/serialization/mod.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/serialization/optimization_jsdoc_proto.rs	b7f359322d431e16	Apache-2.0	closure:src/com/google/javascript/rhino/typed_ast/optimization_jsdoc.proto
 crates/jscomp/src/serialization/protobuf.rs	6f55fdc90e8720f7	BSD-3-Clause	protobuf:java/core/src/main/java/com/google/protobuf/WireFormat.java; protobuf:java/core/src/main/java/com/google/protobuf/InvalidProtocolBufferException.java; protobuf:java/core/src/main/java/com/google/protobuf/CodedInputStream.java; protobuf:java/core/src/main/java/com/google/protobuf/CodedOutputStream.java; protobuf:java/core/src/main/java/com/google/protobuf/MessageLite.java; protobuf:java/core/src/main/java/com/google/protobuf/Internal.java; protobuf:java/core/src/main/java/com/google/protobuf/Utf8.java; protobuf:java/core/src/main/java/com/google/protobuf/Descriptors.java
+crates/jscomp/src/serialization/runtime_libraries.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/serialization/script_node_deserializer.rs	c7dd9f628022a3d1	Apache-2.0	closure:src/com/google/javascript/jscomp/serialization/ScriptNodeDeserializer.java
 crates/jscomp/src/serialization/serialization_options.rs	c1445cbf66c06ef6	Apache-2.0	closure:src/com/google/javascript/jscomp/serialization/SerializationOptions.java
 crates/jscomp/src/serialization/serialize_typed_ast_pass.rs	748bf084475d0ad0	Apache-2.0	closure:src/com/google/javascript/jscomp/serialization/SerializeTypedAstPass.java

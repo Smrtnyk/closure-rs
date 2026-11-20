@@ -614,6 +614,11 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `Behavior` field), so the per-node `beforeTraverseNode` / `afterVisitNode` hooks that a behavior
   does not override cost no call; `addReference` names the added reference by its index in the
   reference map, so `afterVisitNode` receives it without a second lookup by var.
+- `jscomp/serialization/runtime_libraries.rs` indexes the bundled single-shard runtime at build
+  time. Each compiler registers its strings, optimization colors and synthetic extern metadata
+  during initialization, then decodes source files and scripts on first use. A file keeps its
+  identity within the compiler and each script request produces fresh nodes. Packages with path
+  aliases, source-map annotations or other shard layouts use the general TypedAST loader.
 - `jscomp/polyfill_usage_finder.rs` `Polyfills::from_jar_table`: the jar's polyfill table is parsed
   once per process and shared (Java: the RewritePolyfills, IsolatePolyfills and RemoveUnusedCode
   constructors each load and parse `js/polyfills.txt`).

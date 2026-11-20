@@ -32,6 +32,15 @@ mod line_count;
 #[path = "src/deps/js_file_line_parser/lines.rs"]
 mod lines;
 
+#[allow(dead_code)]
+#[path = "src/serialization/protobuf.rs"]
+mod protobuf;
+#[path = "build/runtime_libraries.rs"]
+mod runtime_libraries;
+#[allow(non_camel_case_types)]
+#[path = "src/serialization/source_file_proto.rs"]
+mod source_file_proto;
+
 /// One record per top-level statement, including unrecognized statements to preserve positions.
 fn declaration_records(
     ast: &closure_rhino::node::Ast,
@@ -98,6 +107,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src/source_file/line_count.rs");
     println!("cargo:rerun-if-changed=src/source_file/declarations.rs");
     let out = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    runtime_libraries::generate(&out);
     let mut lookup = String::from("match name {\n");
     let mut dependencies = String::from("match name {\n");
     let mut declarations = String::from("match name {\n");

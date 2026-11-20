@@ -30,7 +30,22 @@ use closure_rhino::node::{Ast, NodeId, ObjectProp};
 use closure_rhino::static_source_file::StaticSourceFile;
 use closure_rhino::token::Token;
 use num_bigint::BigInt;
+use std::borrow::Cow;
 use std::sync::Arc;
+
+enum FilePool {
+    Loaded(Arc<Vec<Arc<SourceFile>>>),
+    Indexed(Arc<super::runtime_libraries::IndexedFiles>),
+}
+
+impl FilePool {
+    fn get(&self, position: usize) -> &Arc<SourceFile> {
+        match self {
+            Self::Loaded(files) => &files[position],
+            Self::Indexed(files) => files.get(position),
+        }
+    }
+}
 
 /// port: ScriptNodeDeserializer
 ///
@@ -40,11 +55,11 @@ use std::sync::Arc;
 /// to only a single SCRIPT. The other deserialized content must be provided beforehand.
 pub struct ScriptNodeDeserializer {
     source_file: Arc<SourceFile>,
-    script_bytes: Arc<[u8]>,
+    script_bytes: Cow<'static, [u8]>,
     source_mapping_url: String,
     color_pool_shard: Option<Arc<ShardView>>,
     string_pool: Arc<StringPool>,
-    file_pool: Arc<Vec<Arc<SourceFile>>>,
+    file_pool: FilePool,
 }
 
 impl ScriptNodeDeserializer {
@@ -56,12 +71,29 @@ impl ScriptNodeDeserializer {
         file_pool: Arc<Vec<Arc<SourceFile>>>,
     ) -> Self {
         Self {
-            script_bytes: Arc::from(ast.get_script()),
+            script_bytes: Cow::Owned(ast.get_script().to_vec()),
             source_file: file_pool[(ast.get_source_file() - 1) as usize].clone(),
             source_mapping_url: ast.get_source_mapping_url().to_string(),
             color_pool_shard,
             string_pool,
-            file_pool,
+            file_pool: FilePool::Loaded(file_pool),
+        }
+    }
+
+    pub(super) fn from_runtime(
+        bytes: &'static [u8],
+        position: usize,
+        string_pool: Arc<StringPool>,
+        color_pool_shard: Option<Arc<ShardView>>,
+        files: Arc<super::runtime_libraries::IndexedFiles>,
+    ) -> Self {
+        Self {
+            script_bytes: Cow::Borrowed(bytes),
+            source_file: files.get(position).clone(),
+            source_mapping_url: String::new(),
+            color_pool_shard,
+            string_pool,
+            file_pool: FilePool::Indexed(files),
         }
     }
 
@@ -543,7 +575,10 @@ impl Runner<'_> {
             Some(template) if ast_node.get_source_file() == 0 => template,
             _ => {
                 // 0 == 'not set'
-                let file = &self.owner.file_pool[(ast_node.get_source_file() - 1) as usize];
+                let file = self
+                    .owner
+                    .file_pool
+                    .get((ast_node.get_source_file() - 1) as usize);
                 self.owner.create_source_info_template(ast, file)
             }
         };

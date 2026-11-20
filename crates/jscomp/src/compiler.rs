@@ -160,8 +160,7 @@ pub struct Compiler {
     discard_unused_transpilation_namespace: bool,
     runtime_js_lib_manager:
         Option<Arc<std::sync::Mutex<crate::js::runtime_js_lib_manager::RuntimeJsLibManager>>>,
-    runtime_library_typed_asts:
-        Option<IndexMap<String, Arc<dyn Fn(&mut Compiler) -> NodeId + Send + Sync>>>,
+    runtime_library_typed_asts: Option<crate::serialization::runtime_libraries::RuntimeLibraries>,
     synthetic_externs_file: Arc<SourceFile>,
     synthetic_type_summary_file: Arc<SourceFile>,
     synthetic_type_summary_input: Option<CompilerInput>,
@@ -4348,43 +4347,21 @@ impl Compiler {
     ) {
         closure_rhino::check_state!(self.runtime_library_typed_asts.is_none());
 
-        let path = ["", "/runtime_libs.typedast"].join("");
-
-        let synthetic_externs_file = self.synthetic_externs_file.clone();
-        let resolve_source_map_annotations =
-            self.get_options().get_resolve_source_map_annotations();
-        let parse_inline_source_maps = self.get_options().get_parse_inline_source_maps();
-        let stream = closure_resources::jar::get_resource_as_stream(
-            "com.google.javascript.jscomp.Compiler",
-            &path,
-        )
-        .expect("runtime_libs.typedast")
-        .read_all_bytes();
-        let ast_data =
-            crate::serialization::typed_ast_deserializer::TypedAstDeserializer::deserialize_runtime_libraries(
+        self.runtime_library_typed_asts = Some(
+            crate::serialization::runtime_libraries::RuntimeLibraries::new(
                 self,
-                synthetic_externs_file,
+                self.synthetic_externs_file.clone(),
                 color_pool_builder,
-                stream,
-                resolve_source_map_annotations,
-                parse_inline_source_maps,
-            );
-
-        // Re-index the runtime libraries by file name rather than SourceFile object
-        let mut runtime_library_typed_asts: IndexMap<String, AstSupplier> =
-            IndexMap::<_, _>::default();
-        for (file, supplier) in ast_data.get_filesystem().values() {
-            runtime_library_typed_asts
-                .entry(file.get_name().to_string())
-                .or_insert_with(|| supplier.clone());
-        }
-
-        self.runtime_library_typed_asts = Some(runtime_library_typed_asts);
+            ),
+        );
     }
     // port: Compiler#loadResourceContents
     pub fn load_resource_contents(&mut self, resource_name: &str, path: &str) -> NodeId {
         if self.get_life_cycle_stage().has_color_and_simplified_jsdoc() {
-            let supplier=self.runtime_library_typed_asts.as_ref().expect("Must call initRuntimeLibraryTypedAsts before calling ensureLibraryInjected during optimizations").get(path).unwrap_or_else(||panic!("Missing precompiled .typedast for '{path}'. If this file is newly added, you may need to regenerate runtime_libs.typedast.textproto")).clone();
+            let supplier = self.runtime_library_typed_asts.as_ref()
+                .expect("Must call initRuntimeLibraryTypedAsts before calling ensureLibraryInjected during optimizations")
+                .supplier(path)
+                .unwrap_or_else(|| panic!("Missing precompiled .typedast for '{path}'. If this file is newly added, you may need to regenerate runtime_libs.typedast.textproto"));
             return supplier(self);
         }
         assert!(
