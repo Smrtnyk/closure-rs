@@ -32,7 +32,7 @@ impl WithStatementTree {
         ParseTree::new(
             ParseTreeType::WITH_STATEMENT,
             location,
-            ParseTreeData::WithStatementTree(Box::new(Self { expression, body })),
+            ParseTreeData::WithStatementTree(Self { expression, body }),
         )
     }
 }

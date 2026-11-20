@@ -31,7 +31,7 @@ impl ArrayPatternTree {
         ParseTree::new(
             ParseTreeType::ARRAY_PATTERN,
             location,
-            ParseTreeData::ArrayPatternTree(Box::new(Self { elements })),
+            ParseTreeData::ArrayPatternTree(Self { elements }),
         )
     }
 }

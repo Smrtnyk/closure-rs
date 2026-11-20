@@ -31,7 +31,7 @@ impl BlockTree {
         ParseTree::new(
             ParseTreeType::BLOCK,
             location,
-            ParseTreeData::BlockTree(Box::new(Self { statements })),
+            ParseTreeData::BlockTree(Self { statements }),
         )
     }
 }

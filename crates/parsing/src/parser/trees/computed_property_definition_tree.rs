@@ -33,7 +33,7 @@ impl ComputedPropertyDefinitionTree {
         ParseTree::new(
             ParseTreeType::COMPUTED_PROPERTY_DEFINITION,
             location,
-            ParseTreeData::ComputedPropertyDefinitionTree(Box::new(Self { property, value })),
+            ParseTreeData::ComputedPropertyDefinitionTree(Self { property, value }),
         )
     }
 }

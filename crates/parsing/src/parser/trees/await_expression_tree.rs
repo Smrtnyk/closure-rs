@@ -36,7 +36,7 @@ impl AwaitExpressionTree {
         ParseTree::new(
             ParseTreeType::AWAIT_EXPRESSION,
             location,
-            ParseTreeData::AwaitExpressionTree(Box::new(Self { expression })),
+            ParseTreeData::AwaitExpressionTree(Self { expression }),
         )
     }
 }

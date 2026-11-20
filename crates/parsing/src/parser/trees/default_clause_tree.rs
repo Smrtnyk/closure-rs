@@ -31,7 +31,7 @@ impl DefaultClauseTree {
         ParseTree::new(
             ParseTreeType::DEFAULT_CLAUSE,
             location,
-            ParseTreeData::DefaultClauseTree(Box::new(Self { statements })),
+            ParseTreeData::DefaultClauseTree(Self { statements }),
         )
     }
 }

@@ -33,7 +33,7 @@ impl TemplateSubstitutionTree {
         ParseTree::new(
             ParseTreeType::TEMPLATE_SUBSTITUTION,
             location,
-            ParseTreeData::TemplateSubstitutionTree(Box::new(Self { expression })),
+            ParseTreeData::TemplateSubstitutionTree(Self { expression }),
         )
     }
 }

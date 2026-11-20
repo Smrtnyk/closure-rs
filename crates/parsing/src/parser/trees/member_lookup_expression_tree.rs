@@ -32,10 +32,10 @@ impl MemberLookupExpressionTree {
         ParseTree::new(
             ParseTreeType::MEMBER_LOOKUP_EXPRESSION,
             location,
-            ParseTreeData::MemberLookupExpressionTree(Box::new(Self {
+            ParseTreeData::MemberLookupExpressionTree(Self {
                 operand,
                 member_expression,
-            })),
+            }),
         )
     }
 }

@@ -347,6 +347,15 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `parsing/parser/scanner.rs`, `keywords.rs`, `line_number_scanner.rs`: the scanner consumes
   owned lookahead tokens, scans UTF-16 slices for comment ends, line breaks and identifier runs,
   and recognizes unescaped keywords before allocating their spelling.
+- `parsing/parser/parser.rs` parses left-associative binary operators by precedence. The
+  exponentiation, nullish-coalescing and `in` grammar rules keep their own restrictions.
+  Identifiers carry the scanner's keyword classification into parsing and lowering.
+- `parsing/parser/trees/parse_tree.rs` stores small payloads in the parse tree's `Rc`.
+  Tokens box the larger template-literal payload. The tree constructors and typed accessors
+  preserve node identity. Rust callers that construct the raw enum variants use their new
+  payload types.
+- `parsing/ir_factory.rs` selects the validator by node token and advances past discarded
+  comments without assembling their text. Closure-unaware ranges retain their comments.
 - `parsing/js_doc_token_stream.rs`, `ir_factory.rs`: the JSDoc scanner reads the original
   comment past its opener and retains source ranges for contiguous ASCII words and annotations.
   It materializes the text on request and uses the character reader for normalization and dot

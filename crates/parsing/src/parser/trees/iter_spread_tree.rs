@@ -31,7 +31,7 @@ impl IterSpreadTree {
         ParseTree::new(
             ParseTreeType::ITER_SPREAD,
             location,
-            ParseTreeData::IterSpreadTree(Box::new(Self { expression })),
+            ParseTreeData::IterSpreadTree(Self { expression }),
         )
     }
 }

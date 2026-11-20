@@ -58,12 +58,12 @@ impl TemplateLiteralToken {
         Token {
             type_,
             location,
-            data: TokenData::TemplateLiteral(Self {
+            data: TokenData::TemplateLiteral(Box::new(Self {
                 literal: LiteralToken { value },
                 error_message: error_msg,
                 error_level,
                 error_position: position,
-            }),
+            })),
         }
     }
 

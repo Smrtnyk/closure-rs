@@ -32,7 +32,7 @@ impl CallExpressionTree {
         ParseTree::new(
             ParseTreeType::CALL_EXPRESSION,
             location,
-            ParseTreeData::CallExpressionTree(Box::new(Self { operand, arguments })),
+            ParseTreeData::CallExpressionTree(Self { operand, arguments }),
         )
     }
 }

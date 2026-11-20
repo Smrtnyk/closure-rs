@@ -31,7 +31,7 @@ impl CommaExpressionTree {
         ParseTree::new(
             ParseTreeType::COMMA_EXPRESSION,
             location,
-            ParseTreeData::CommaExpressionTree(Box::new(Self { expressions })),
+            ParseTreeData::CommaExpressionTree(Self { expressions }),
         )
     }
 }

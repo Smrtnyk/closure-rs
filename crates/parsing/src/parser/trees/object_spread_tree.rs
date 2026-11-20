@@ -31,7 +31,7 @@ impl ObjectSpreadTree {
         ParseTree::new(
             ParseTreeType::OBJECT_SPREAD,
             location,
-            ParseTreeData::ObjectSpreadTree(Box::new(Self { expression })),
+            ParseTreeData::ObjectSpreadTree(Self { expression }),
         )
     }
 }

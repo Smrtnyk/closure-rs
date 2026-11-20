@@ -31,7 +31,7 @@ impl ObjectRestTree {
         ParseTree::new(
             ParseTreeType::OBJECT_REST,
             location,
-            ParseTreeData::ObjectRestTree(Box::new(Self { assignment_target })),
+            ParseTreeData::ObjectRestTree(Self { assignment_target }),
         )
     }
 }

@@ -298,15 +298,22 @@ impl<'a> IRFactory<'a> {
     }
     // port: IRFactory#validate
     fn validate(&mut self, ast: &Ast, n: NodeId) {
-        self.validate_parameters(ast, n);
-        self.validate_break_continue(ast, n);
-        self.validate_return(ast, n);
-        self.validate_yield(ast, n);
-        self.validate_await(ast, n);
-        self.validate_new_dot_target(ast, n);
-        self.validate_label(ast, n);
-        self.validate_block_scoped_functions(ast, n);
-        self.validate_shadow_host(ast, n);
+        // Rust-only (performance divergence): the validators apply to disjoint token kinds.
+        // A shadow host is a NAME created when transform records a closure-unaware range.
+        match n.get_token(ast) {
+            Token::PARAM_LIST => self.validate_parameters(ast, n),
+            Token::BREAK | Token::CONTINUE => self.validate_break_continue(ast, n),
+            Token::RETURN => self.validate_return(ast, n),
+            Token::YIELD => self.validate_yield(ast, n),
+            Token::AWAIT | Token::FOR_AWAIT_OF => self.validate_await(ast, n),
+            Token::NEW_TARGET => self.validate_new_dot_target(ast, n),
+            Token::LABEL => self.validate_label(ast, n),
+            Token::FUNCTION => self.validate_block_scoped_functions(ast, n),
+            Token::NAME if !self.closure_unaware_code_ranges.is_empty() => {
+                self.validate_shadow_host(ast, n)
+            }
+            _ => {}
+        }
     }
     // port: IRFactory#validateShadowHost
     fn validate_shadow_host(&mut self, ast: &Ast, n: NodeId) {
@@ -755,6 +762,16 @@ impl<'a> IRFactory<'a> {
     ) -> Option<Arc<NonJSDocComment>> {
         let within_closure_unaware_code_range =
             self.within_closure_unaware_code_range(pos.line, pos.column);
+        // Outside closure-unaware code these comments only advance the tracker when ordinary
+        // comments are omitted. Their text and line gaps are needed only when attaching them.
+        if !within_closure_unaware_code_range
+            && self.config.js_doc_parsing_mode() != JsDocParsing::INCLUDE_ALL_COMMENTS
+        {
+            while self.non_jsdoc_tracker.has_pending_comment_before(pos) {
+                self.non_jsdoc_tracker.advance();
+            }
+            return None;
+        }
         let mut result = Vec::new();
         let mut first_comment: Option<Comment> = None;
         let mut last_comment: Option<Comment> = None;
@@ -2265,9 +2282,10 @@ impl<'a> IRFactory<'a> {
             self.features = self.features.with(Feature::ES3_KEYWORDS_AS_IDENTIFIERS);
             is_identifier = self.config.language_mode() == LanguageMode::ECMASCRIPT3;
         }
-        if self
-            .reserved_keywords
-            .is_some_and(|keywords| keywords.iter().any(|s| identifier == s))
+        if token.is_keyword()
+            && self
+                .reserved_keywords
+                .is_some_and(|keywords| keywords.iter().any(|s| identifier == s))
         {
             self.features = self.features.with(Feature::KEYWORDS_AS_PROPERTIES);
             is_identifier = self.config.language_mode() == LanguageMode::ECMASCRIPT3;

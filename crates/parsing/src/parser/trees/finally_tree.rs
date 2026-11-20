@@ -31,7 +31,7 @@ impl FinallyTree {
         ParseTree::new(
             ParseTreeType::FINALLY,
             location,
-            ParseTreeData::FinallyTree(Box::new(Self { block })),
+            ParseTreeData::FinallyTree(Self { block }),
         )
     }
 }

@@ -33,10 +33,10 @@ impl VariableDeclarationTree {
         ParseTree::new(
             ParseTreeType::VARIABLE_DECLARATION,
             location,
-            ParseTreeData::VariableDeclarationTree(Box::new(Self {
+            ParseTreeData::VariableDeclarationTree(Self {
                 lvalue,
                 initializer: initializer.into(),
-            })),
+            }),
         )
     }
 }

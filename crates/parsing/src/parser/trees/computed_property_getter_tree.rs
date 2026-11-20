@@ -33,11 +33,11 @@ impl ComputedPropertyGetterTree {
         ParseTree::new(
             ParseTreeType::COMPUTED_PROPERTY_GETTER,
             location,
-            ParseTreeData::ComputedPropertyGetterTree(Box::new(Self {
+            ParseTreeData::ComputedPropertyGetterTree(Self {
                 property,
                 is_static,
                 body,
-            })),
+            }),
         )
     }
 }

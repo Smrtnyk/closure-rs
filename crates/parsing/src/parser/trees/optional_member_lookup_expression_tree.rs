@@ -41,11 +41,11 @@ impl OptionalMemberLookupExpressionTree {
         ParseTree::new(
             ParseTreeType::OPT_CHAIN_MEMBER_LOOKUP_EXPRESSION,
             location,
-            ParseTreeData::OptionalMemberLookupExpressionTree(Box::new(Self {
+            ParseTreeData::OptionalMemberLookupExpressionTree(Self {
                 operand,
                 member_expression,
                 is_start_of_optional_chain,
-            })),
+            }),
         )
     }
 }

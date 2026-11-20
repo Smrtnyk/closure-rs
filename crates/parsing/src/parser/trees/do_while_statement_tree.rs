@@ -32,7 +32,7 @@ impl DoWhileStatementTree {
         ParseTree::new(
             ParseTreeType::DO_WHILE_STATEMENT,
             location,
-            ParseTreeData::DoWhileStatementTree(Box::new(Self { body, condition })),
+            ParseTreeData::DoWhileStatementTree(Self { body, condition }),
         )
     }
 }

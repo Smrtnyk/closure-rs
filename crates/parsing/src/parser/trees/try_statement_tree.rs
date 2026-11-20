@@ -38,11 +38,11 @@ impl TryStatementTree {
         ParseTree::new(
             ParseTreeType::TRY_STATEMENT,
             location,
-            ParseTreeData::TryStatementTree(Box::new(Self {
+            ParseTreeData::TryStatementTree(Self {
                 body,
                 catch_block: catch_block.into(),
                 finally_block: finally_block.into(),
-            })),
+            }),
         )
     }
 }

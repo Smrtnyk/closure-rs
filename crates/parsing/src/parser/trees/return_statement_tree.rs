@@ -31,9 +31,9 @@ impl ReturnStatementTree {
         ParseTree::new(
             ParseTreeType::RETURN_STATEMENT,
             location,
-            ParseTreeData::ReturnStatementTree(Box::new(Self {
+            ParseTreeData::ReturnStatementTree(Self {
                 expression: expression.into(),
-            })),
+            }),
         )
     }
 }

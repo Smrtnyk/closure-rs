@@ -42,12 +42,12 @@ impl OptChainCallExpressionTree {
         ParseTree::new(
             ParseTreeType::OPT_CHAIN_CALL_EXPRESSION,
             location,
-            ParseTreeData::OptChainCallExpressionTree(Box::new(Self {
+            ParseTreeData::OptChainCallExpressionTree(Self {
                 operand,
                 arguments,
                 is_start_of_optional_chain,
                 has_trailing_comma,
-            })),
+            }),
         )
     }
 }

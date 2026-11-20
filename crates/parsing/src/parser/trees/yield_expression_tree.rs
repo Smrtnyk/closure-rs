@@ -36,10 +36,10 @@ impl YieldExpressionTree {
         ParseTree::new(
             ParseTreeType::YIELD_EXPRESSION,
             location,
-            ParseTreeData::YieldExpressionTree(Box::new(Self {
+            ParseTreeData::YieldExpressionTree(Self {
                 expression: expression.into(),
                 is_yield_all,
-            })),
+            }),
         )
     }
 }
