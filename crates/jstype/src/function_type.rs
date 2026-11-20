@@ -398,7 +398,13 @@ pub fn builder() -> FunctionTypeBuilder {
 
 // port: FunctionType#FunctionType
 pub fn new(reg: &mut JSTypeRegistry, ast: &Ast, builder: FunctionTypeBuilder) -> TypeId {
-    new_with_kind(reg, ast, builder, JSTypeKind::Function, false)
+    new_with_kind(
+        reg,
+        ast,
+        builder,
+        |data| JSTypeKind::Function(Box::new(data)),
+        false,
+    )
 }
 
 pub(crate) fn new_with_kind(
