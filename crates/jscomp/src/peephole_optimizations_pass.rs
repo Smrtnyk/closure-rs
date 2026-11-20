@@ -31,7 +31,7 @@ use crate::{
     node_util::NodeUtil,
 };
 use closure_parsing::parser::feature_set::FeatureSet;
-use closure_rhino::node::NodeId;
+use closure_rhino::{node::NodeId, token::Token};
 
 pub struct PeepholeOptimizationsPass {
     pass_name: String,
@@ -39,6 +39,7 @@ pub struct PeepholeOptimizationsPass {
     // the AST.
     peephole_optimizations: Vec<Box<dyn AbstractPeepholeOptimization>>,
     retraverse_on_change: bool,
+    candidates: Option<Box<CandidateRules>>,
 }
 
 impl PeepholeOptimizationsPass {
@@ -51,7 +52,9 @@ impl PeepholeOptimizationsPass {
         pass_name: impl Into<String>,
         optimizations: Vec<Box<dyn AbstractPeepholeOptimization>>,
     ) -> Self {
+        let candidates = CandidateRules::new(&optimizations);
         Self {
+            candidates,
             pass_name: pass_name.into(),
             peephole_optimizations: optimizations,
             retraverse_on_change: true,
@@ -106,6 +109,7 @@ impl CompilerPass for PeepholeOptimizationsPass {
                         root,
                         &mut PeepCallback {
                             peephole_optimizations: &mut self.peephole_optimizations,
+                            candidates: self.candidates.as_deref(),
                         },
                     );
                 }
@@ -115,6 +119,7 @@ impl CompilerPass for PeepholeOptimizationsPass {
                         nodes,
                         &mut PeepCallback {
                             peephole_optimizations: &mut self.peephole_optimizations,
+                            candidates: self.candidates.as_deref(),
                         },
                         /* traverseNested= */ false,
                     );
@@ -134,7 +139,52 @@ impl CompilerPass for PeepholeOptimizationsPass {
     }
 }
 
+/// One bit per optimization in pass order. Unrestricted rules run for every token. A long
+/// user-provided sequence retains the ordinary loop.
+struct CandidateRules {
+    tokens: [u16; Token::PLACEHOLDER3 as usize + 1],
+    unrestricted: u16,
+}
+
+impl CandidateRules {
+    fn new(optimizations: &[Box<dyn AbstractPeepholeOptimization>]) -> Option<Box<Self>> {
+        if optimizations.len() > u16::BITS as usize {
+            return None;
+        }
+        let mut rules = Box::new(Self {
+            tokens: [0; Token::PLACEHOLDER3 as usize + 1],
+            unrestricted: 0,
+        });
+        for (index, optimization) in optimizations.iter().enumerate() {
+            let bit = 1 << index;
+            match optimization.candidate_tokens() {
+                Some(tokens) => {
+                    for &token in tokens {
+                        *rules.tokens.get_mut(token as usize)? |= bit;
+                    }
+                }
+                None => rules.unrestricted |= bit,
+            }
+        }
+        if rules.unrestricted.count_ones() as usize == optimizations.len() {
+            return None;
+        }
+        for mask in &mut rules.tokens {
+            *mask |= rules.unrestricted;
+        }
+        Some(rules)
+    }
+
+    fn for_token(&self, token: Token) -> u16 {
+        self.tokens
+            .get(token as usize)
+            .copied()
+            .unwrap_or(self.unrestricted)
+    }
+}
+
 struct PeepCallback<'a> {
+    candidates: Option<&'a CandidateRules>,
     peephole_optimizations: &'a mut [Box<dyn AbstractPeepholeOptimization>],
 }
 
@@ -152,7 +202,31 @@ impl Callback for PeepCallback<'_> {
     // port: PeepholeOptimizationsPass.PeepCallback#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
         let mut current_node = n;
-        for optim in self.peephole_optimizations.iter_mut() {
+        let mut next = 0;
+        if let Some(rules) = self.candidates {
+            let mut remaining = u16::MAX;
+            while next < self.peephole_optimizations.len() {
+                // A rewrite can return a different node or retag the current one in place.
+                // Leave foreign IDs to the ordinary callbacks, which may replace them again.
+                let Some(token) = current_node.token_if_present(t) else {
+                    break;
+                };
+                let candidates = rules.for_token(token) & remaining;
+                if candidates == 0 {
+                    return;
+                }
+                let i = candidates.trailing_zeros() as usize;
+                let Some(result) =
+                    self.peephole_optimizations[i].optimize_subtree(t.get_compiler(), current_node)
+                else {
+                    return;
+                };
+                current_node = result;
+                next = i + 1;
+                remaining = (u16::MAX << i) << 1;
+            }
+        }
+        for optim in &mut self.peephole_optimizations[next..] {
             match optim.optimize_subtree(t.get_compiler(), current_node) {
                 Some(node) => current_node = node,
                 None => return,

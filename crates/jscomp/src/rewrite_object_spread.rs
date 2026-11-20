@@ -52,7 +52,7 @@ impl RewriteObjectSpread {
     pub fn new(compiler: &mut AbstractCompiler) -> Self {
         Self {
             ast_factory: compiler.create_ast_factory(),
-            namespace: TranspilationNamespace::get(compiler),
+            namespace: TranspilationNamespace::for_es2015_pass(compiler),
             use_jscomp_assign: !compiler
                 .get_options()
                 .get_output_feature_set()

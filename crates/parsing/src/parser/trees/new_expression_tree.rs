@@ -38,11 +38,11 @@ impl NewExpressionTree {
         ParseTree::new(
             ParseTreeType::NEW_EXPRESSION,
             location,
-            ParseTreeData::NewExpressionTree(Box::new(Self {
+            ParseTreeData::NewExpressionTree(Self {
                 operand,
                 arguments: arguments.into(),
                 has_trailing_comma,
-            })),
+            }),
         )
     }
 }

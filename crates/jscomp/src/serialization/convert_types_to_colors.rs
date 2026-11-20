@@ -96,25 +96,28 @@ impl Callback for RemoveTypes {
 }
 
 /// port: ConvertTypesToColors.RemoveTypesAndApplyColors
-struct RemoveTypesAndApplyColors<'a> {
-    color_pool_shard: Arc<ShardView>,
-    type_pointers_by_jstype: &'a IndexMap<TypeId, i32>,
+struct RemoveTypesAndApplyColors {
+    // TypeId is an index in this compiler's type registry. Resolve the immutable shard
+    // once per observed type, including colors shared by many nodes.
+    colors: Vec<Option<closure_rhino::jscomp_colors::color::Color>>,
 }
 
-impl<'a> RemoveTypesAndApplyColors<'a> {
-    // port: ConvertTypesToColors.RemoveTypesAndApplyColors#<init>
-    fn new(
-        color_pool_shard: Arc<ShardView>,
-        type_pointers_by_jstype: &'a IndexMap<TypeId, i32>,
-    ) -> Self {
-        Self {
-            color_pool_shard,
-            type_pointers_by_jstype,
+impl RemoveTypesAndApplyColors {
+    fn new(shard: &ShardView, pointers: &IndexMap<TypeId, i32>) -> Self {
+        let len = pointers
+            .keys()
+            .map(|id| id.0 as usize + 1)
+            .max()
+            .unwrap_or(0);
+        let mut colors = vec![None; len];
+        for (id, &pointer) in pointers {
+            colors[id.0 as usize] = Some(shard.get_color(pointer));
         }
+        Self { colors }
     }
 }
 
-impl Callback for RemoveTypesAndApplyColors<'_> {
+impl Callback for RemoveTypesAndApplyColors {
     // port: NodeTraversal.AbstractPostOrderCallback#shouldTraverse
     fn should_traverse(
         &mut self,
@@ -133,10 +136,11 @@ impl Callback for RemoveTypesAndApplyColors<'_> {
 
         RemoveTypes::visit_node(ast, n);
 
-        if let Some(old_type) = old_type
-            && let Some(&pointer) = self.type_pointers_by_jstype.get(&old_type)
+        if let Some(color) = old_type
+            .and_then(|id| self.colors.get(id.0 as usize))
+            .and_then(Option::as_ref)
         {
-            n.set_color(ast, Some(self.color_pool_shard.get_color(pointer)));
+            n.set_color(ast, Some(color.clone()));
         }
 
         if old_type_before_cast.is_some() {
@@ -182,18 +186,15 @@ impl CompilerPass for ConvertTypesToColors {
         );
         serialize_jstypes.gather_types_on_ast(compiler, externs_and_js_root);
 
-        let type_pool = Arc::new(serialize_jstypes.get_type_pool().unwrap().clone());
+        let (type_pool, pointers) = serialize_jstypes.into_type_pool_and_pointers();
         let string_pool = Arc::new(string_pool_builder.borrow().build());
 
         let mut color_pool_builder = ColorPool::builder();
         compiler.init_runtime_library_typed_asts(Some(&mut color_pool_builder));
 
-        let mut callback = RemoveTypesAndApplyColors::new(
-            color_pool_builder.add_shard(type_pool, string_pool),
-            serialize_jstypes.get_type_pointers_by_jstype(),
-        );
-
+        let shard = color_pool_builder.add_shard(Arc::new(type_pool), string_pool);
         let color_pool = color_pool_builder.build();
+        let mut callback = RemoveTypesAndApplyColors::new(&shard, &pointers);
         NodeTraversal::traverse(compiler, externs_and_js_root, &mut callback);
 
         compiler.clear_js_type_registry();

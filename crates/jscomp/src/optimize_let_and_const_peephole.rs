@@ -119,16 +119,11 @@ impl AbstractPeepholeOptimization for OptimizeLetAndConstPeephole {
         "com.google.javascript.jscomp.OptimizeLetAndConstPeephole"
     }
 
-    // port: OptimizeLetAndConstPeephole#optimizeSubtree
-    fn optimize_subtree(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        subtree: NodeId,
-    ) -> Option<NodeId> {
-        Some(match subtree.get_token(compiler) {
+    crate::abstract_peephole_optimization::token_rules! {
+        // port: OptimizeLetAndConstPeephole#optimizeSubtree
+        fn optimize_subtree(&mut self, compiler, subtree) {
             Token::LET => self.process_let(compiler, subtree),
             Token::CONST => self.process_const(compiler, subtree),
-            _ => subtree,
-        })
+        }
     }
 }

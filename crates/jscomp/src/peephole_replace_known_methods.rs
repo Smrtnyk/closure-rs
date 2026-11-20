@@ -2003,6 +2003,10 @@ impl AbstractPeepholeOptimization for PeepholeReplaceKnownMethods {
         "com.google.javascript.jscomp.PeepholeReplaceKnownMethods"
     }
 
+    fn candidate_tokens(&self) -> Option<&'static [closure_rhino::token::Token]> {
+        Some(&[Token::CALL])
+    }
+
     // port: PeepholeReplaceKnownMethods#optimizeSubtree
     fn optimize_subtree(
         &mut self,

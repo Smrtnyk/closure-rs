@@ -32,7 +32,7 @@ impl WhileStatementTree {
         ParseTree::new(
             ParseTreeType::WHILE_STATEMENT,
             location,
-            ParseTreeData::WhileStatementTree(Box::new(Self { condition, body })),
+            ParseTreeData::WhileStatementTree(Self { condition, body }),
         )
     }
 }

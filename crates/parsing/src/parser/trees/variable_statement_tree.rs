@@ -31,7 +31,7 @@ impl VariableStatementTree {
         ParseTree::new(
             ParseTreeType::VARIABLE_STATEMENT,
             location,
-            ParseTreeData::VariableStatementTree(Box::new(Self { declarations })),
+            ParseTreeData::VariableStatementTree(Self { declarations }),
         )
     }
 }

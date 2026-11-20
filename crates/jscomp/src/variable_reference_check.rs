@@ -447,6 +447,7 @@ impl CompilerPass for VariableReferenceCheck {
         let mut scope_creator = SyntacticScopeCreator::new();
         let behavior = ReferenceCheckingBehavior::new(self);
         let mut collector = ReferenceCollector::new(compiler, behavior, &mut scope_creator);
+        collector.reuse_reference_sites();
         CompilerPass::process(&mut collector, compiler, externs, root);
     }
 }
@@ -706,13 +707,14 @@ impl Behavior for ReferenceCheckingBehavior<'_> {
         // Check all vars after finishing a scope
         let scope = t.get_scope();
         let compiler = t.get_compiler();
+        let vars = scope.get_var_iterable(compiler);
         if scope.is_function_block_scope(compiler) {
             self.vars_in_function_body.clear();
-            for v in scope.get_var_iterable(compiler) {
+            for &v in &vars {
                 self.vars_in_function_body.insert(v.get_name(compiler));
             }
         }
-        for v in scope.get_var_iterable(compiler) {
+        for v in vars {
             let reference_collection = reference_map.get_references(v);
             // TODO(moz): Figure out why this could be null
             if let Some(reference_collection) = reference_collection {

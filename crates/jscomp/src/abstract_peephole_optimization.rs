@@ -92,6 +92,33 @@ impl AbstractPeepholeOptimizationFields {
     }
 }
 
+/// Keeps the dispatch mask and the implementation of a token-based peephole in one place.
+/// A token without a rule returns the original node.
+macro_rules! token_rules {
+    ($(#[$attribute:meta])* fn optimize_subtree(&mut $this:ident, $compiler:ident, $node:ident) {
+        $( $($token:path)|+ => $action:expr, )*
+    }) => {
+        fn candidate_tokens(&self) -> Option<&'static [closure_rhino::token::Token]> {
+            Some(&[$($($token,)+)*])
+        }
+
+        $(#[$attribute])*
+        fn optimize_subtree(
+            &mut $this,
+            $compiler: &mut $crate::abstract_compiler::AbstractCompiler,
+            $node: closure_rhino::node::NodeId,
+        ) -> Option<closure_rhino::node::NodeId> {
+            let result = match $node.get_token($compiler) {
+                $( $($token)|+ => $action, )*
+                _ => return Some($node),
+            };
+            // Rules can yield a NodeId, or an Option<NodeId> when they can remove a node.
+            result.into()
+        }
+    };
+}
+pub(crate) use token_rules;
+
 pub trait AbstractPeepholeOptimization {
     /// Rust-only accessor for the base-class fields.
     fn fields(&self) -> &AbstractPeepholeOptimizationFields;
@@ -113,6 +140,13 @@ pub trait AbstractPeepholeOptimization {
         compiler: &mut AbstractCompiler,
         subtree: NodeId,
     ) -> Option<NodeId>;
+
+    /// A pass may list tokens on which `optimize_subtree` can do work. Omitted tokens must
+    /// return the input unchanged without side effects or preconditions, for every tree.
+    /// The default runs custom optimizations at every node.
+    fn candidate_tokens(&self) -> Option<&'static [closure_rhino::token::Token]> {
+        None
+    }
 
     /// Helper method for reporting an error to the compiler when applying a peephole
     /// optimization.

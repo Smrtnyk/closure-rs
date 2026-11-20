@@ -80,7 +80,7 @@ pub struct Ast { /* dense per-node arrays, never shrink */ }   // owns every nod
   `lineno_charno`, `length`, `jstype_or_color`, `original_name`, `prop_list_head`, and the
   subclass payload (`NumberNode.number: f64`, `BigIntNode.bigint: Arc<BigInt>`,
   `StringNode.str: JsString`, `TemplateLiteralSubstringNode.{cooked, raw}`). They are stored in
-  parallel dense arrays indexed by `NodeId` (`NodeLinks`, `NodeData`, `NodeCold`, `NodeType`;
+  parallel arrays indexed by `NodeId` (`NodeLinks`, `NodeData`, `NodeCold` and type or color;
   see "Performance divergences"), not in one object. The Java subclass is a `NodeKind` enum
   inside the node data; `getDouble()` on a non-number node panics like Java's
   `ClassCastException`.
@@ -347,6 +347,15 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `parsing/parser/scanner.rs`, `keywords.rs`, `line_number_scanner.rs`: the scanner consumes
   owned lookahead tokens, scans UTF-16 slices for comment ends, line breaks and identifier runs,
   and recognizes unescaped keywords before allocating their spelling.
+- `parsing/parser/parser.rs` parses left-associative binary operators by precedence. The
+  exponentiation, nullish-coalescing and `in` grammar rules keep their own restrictions.
+  Identifiers carry the scanner's keyword classification into parsing and lowering.
+- `parsing/parser/trees/parse_tree.rs` stores small payloads in the parse tree's `Rc`.
+  Tokens box the larger template-literal payload. The tree constructors and typed accessors
+  preserve node identity. Rust callers that construct the raw enum variants use their new
+  payload types.
+- `parsing/ir_factory.rs` selects the validator by node token and advances past discarded
+  comments without assembling their text. Closure-unaware ranges retain their comments.
 - `parsing/js_doc_token_stream.rs`, `ir_factory.rs`: the JSDoc scanner reads the original
   comment past its opener and retains source ranges for contiguous ASCII words and annotations.
   It materializes the text on request and uses the character reader for normalization and dot
@@ -365,16 +374,35 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   projects (`scripts/run_bench.py --write-args`; the last one covers a bundle compiled with an
   input source map), for less CPU time. Pushes and pull requests build without
   a profile; the output is the same either way.
+- `cli/command_line_runner.rs` embeds the default BUNDLE module runtime. A test recompiles the
+  runtime with the current compiler and compares every byte. Custom module resolution uses the
+  live supplier. The single-use CLI also skips per-input transpiler map output when there are
+  no compiler errors or input maps. Reusable runners retain those maps for callers.
 - `jscomp/build.rs`, `parsing/extern_snapshot.rs` and `rhino/node/snapshot.rs`: Cargo parses the
   bundled browser externs on the build host and embeds their syntax trees and JSDoc type trees.
   A compiler using the original resource text and matching parser configuration loads the
-  snapshot when it first needs that file. Loading preserves node allocation order, source
+  snapshot when it first needs that file. Bundled snapshots use fixed-width node rows and a
+  packed string table when their indices fit. With a fixed relocation, the loader writes each
+  arena column directly and shares one mask and JSDoc lookup per property list. The first
+  file to introduce the implicit template bound uses the allocation-order decoder.
+  Standalone snapshots keep their existing decoder.
+  Bundled SourceFiles obtain UTF-16 length and line count from the build and materialize their
+  text on demand. Loading preserves node allocation order, source
   positions, shared properties and type expressions. Files with diagnostics or unsupported
   parser data use the source parser. The build also checks uncommented dependency input,
   recording annotation flags for files without Closure primitives or module syntax. It
-  marks top-level qualified property declarations in source order. The scope builder
-  checks the live statement shape and applies its current name and JSDoc in the
-  compilation's type registry. Other statement shapes go through ordinary traversal.
+  marks top-level property, function, variable and assignment declarations in source order.
+  Typed scope creation replays the statement shapes from the snapshot attached to the current
+  script. It evaluates declarations, annotations, aliases and initializers against the live
+  program in source order. Empty function stubs enter their ordinary scopes and contribute their
+  parameter names and writes. Unrecognized shapes, changed scripts and appended statements use
+  the ordinary visitor.
+  The build records property names in traversal order and identifies statements that cannot
+  affect the side-effect, module and extern name-reference checks. Each loaded script keeps
+  its original last statement and the arena range of the parse, including detached type nodes.
+  Mutations to relevant links, text or annotations invalidate that script’s record. The
+  checks walk statements appended after the original prefix and resolve property roots in the
+  live scope before skipping extern name diagnostics.
 - `jscomp/parallel_parse.rs`: inputs are parsed on up to 8 worker threads into arenas of their
   own (`Ast::new_for_preparse`) while the compiler runs; `CompilerInput#parse` moves a finished
   parse into the compiler's arena (`Ast::append_preparsed`) with the node ids, object sharing
@@ -383,7 +411,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   threads as available CPUs, from `/proc/loadavg`): concurrent compiles then parse on their
   compiler threads instead of oversubscribing the CPUs.
 - `rhino/rhino_string_pool.rs`: the intern pool is 64 independently locked shards, with a
-  per-thread cache for the parser threads (Java: one weak interner). Interned strings are never
+  per-thread cache for the parser threads (Java: one weak interner). Both look up the same hash
+  of the UTF-16 spelling. The shard uses different bits from the bucket and its lookup tag,
+  and the tables borrow their keys from the canonical strings. Interned strings are never
   freed, so copying one needs no reference count (`CLOSURE_RS_REFCOUNTED_NAMES` restores
   reference-counted entries, to compare the two).
 - `rhino/js_string.rs`: a `JsString` carries its cached `hashCode` beside the reference to its
@@ -407,14 +437,28 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `declare` of syntactic scopes take the lock once.
 - `jscomp/typed_scope_creator.rs`: the never-iterated `reservedNamesForScope` and
   `assignedVarNames` remove entries with `swap_remove`.
+- A typed scope view records its parent at construction. For an ordinary type name it
+  checks declarations and reserved names along the scope chain under one arena read lock.
+  Implicit variables still use the usual slot lookup so they can be created on demand.
+- `jscomp/typed_scope_creator.rs` retains the input ID for each script and builds a full
+  property name when a declaration needs it. A function owner with a declared slot uses
+  that slot before constructing the component list for a property-chain lookup.
+- `jstype/js_type_registry.rs` resolves dotted type names one property at a time from the
+  source string, and searches namespace prefixes only when the registry has Closure namespaces.
+- `jstype/js_type.rs` stores large function, enum and proxy payloads behind their registry
+  entries. The smaller entries retain the same type handles and allocation order.
+  Prototype string-property definitions update the live copy-on-write property table.
 - `jstype/property_map.rs` `findClosest`, `object_type.rs` `getOwnSlot`/`getSlot`: the walk reads
   each property map in place instead of copying it.
 - `jscomp/compiler_input.rs`: a `CompilerInput` is one `Arc` around its fields.
 - `jscomp/rhino_error_reporter.rs` `JSErrorQueue`: the registry error queue's empty check is a
   flag load, not a lock.
-- `jscomp/compiler.rs` `get_extern_properties_js`: the extern property names are converted to JS
-  strings once per value, not on every RemoveUnusedCode run, and interned (copied without a
-  reference count).
+- `jscomp/compiler.rs` shares one set of interned extern property names between
+  RemoveUnusedCode and OptimizeCalls. Replacing the extern properties starts a new set.
+- `jscomp/guarded_callback.rs` stores conditional contexts in the traversal stack and
+  links guards to earlier stack entries by index. The polyfill finder borrows property
+  names and method candidates until it finds a match. RemoveUnusedCode stores a single
+  pending continuation or removable inline and queues multiple entries in their original order.
 - `jscomp/node_traversal.rs` `get_input`, `syntactic_scope_creator.rs` `ScopeScanner`: the
   CompilerInput found for the current input id is kept (Java keeps the object) instead of being
   looked up by id again; `ImplicitVar::js_name` makes the implicit var names once.
@@ -423,17 +467,44 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `rhino/js_string.rs`: `indexOf` scans for the needle's first unit, then compares the rest;
   `==` with an ASCII `str` compares unit by byte; `""` conversions share one empty string
   (Java's `""` literal is one interned object).
+- Type serialization visits borrowed own-property names in UTF-16 sort order. A function's
+  synthetic `prototype` entry comes first, including when its property table has the same key.
+- The JDK pattern matcher in `rhino/java_lang/regex.rs` keeps capture boundaries and loop
+  positions in one register array. Each backtracking alternative saves its input position and
+  an index into the log of changed registers. Retrying a branch restores those registers in
+  reverse order. The backtracking storage lives for one matching or search operation.
 - `jscomp/compiler_options.rs`: the conformance path regex is compiled once per process, not
   per options object (CodePrinter.Builder makes default options per `toSource`).
 - `jscomp/scope.rs` `NameArg`, `get_var_of_node`, `typed_scope.rs` `get_var`,
   `abstract_var.rs` `name_equals`: variable names are read by reference instead of copied, and
-  `TypedScope#getVar` walks the scope chain under one lock for non-implicit names;
+  `TypedScope#getVar` resolves ordinary bindings and the live owner of a qualified name
+  under one arena read. In type inference a flow-slot lookup also returns the declaration
+  it used to choose the overlay. Implicit bindings retain their on-demand construction;
   `ImplicitVar::of` checks the name's length first.
 - `jscomp/data_flow_analysis.rs` `flow`: the stored lattice element is compared with the new one
   before it is replaced instead of being copied first (Java keeps references); the
   `flowThrough` of MustBeReachingVariableDef, MaybeReachingVariableUse and
   LiveVariablesAnalysis use the owned input instead of copying it; `MustDef`'s map is shared
   copy-on-write.
+- `jscomp/process_defines.rs` uses the arena's JSDoc flags to avoid indexing globals when no
+  declaration could be a define. It builds an injected namespace at the original point and
+  collects valid constant expressions only when it has define declarations to validate. The
+  strings recorded by the arena also rule out the `CLOSURE_DEFINES` and misplaced-define
+  walks when their markers are absent. A configured zone pattern still checks script names.
+- `jscomp/transpilation_namespace.rs`, `compiler.rs`: the native CLI can omit the
+  transpiler's global index when every remaining built-in ES2015+ rewrite will skip every
+  script. A missing feature set, custom passes, ES5 output or a possible lookup keeps the
+  original declaration snapshot. Embedders keep the eager namespace.
+- `jscomp/type_inference_pass.rs` records CFG entries as the typed scopes are built and runs
+  them in the same traversal order after type resolution, saving a second AST walk. Each entry
+  retains its original node and script for diagnostics. With the built-in reverse interpreter,
+  straight-line functions run the same entry and statement transfers in control-flow order.
+  In the global graph, leading scripts of unconditional declarations and expressions each
+  occupy one vertex. Inference visits their statements in order and keeps the separate edge
+  that bypasses externs. Debug histograms and custom interpreters use the full graph.
+- `jscomp/graph/linked_directed_graph.rs` keeps the first incoming and outgoing edge in each
+  node. Additional edges and callers requesting a mutable vector use ordered vectors.
+  Control-flow construction resolves both endpoints once when checking for duplicate edges.
 - `jscomp/node_traversal.rs`: `getInput` returns the cached input without recomputing its id;
   `getChunk` is read once per script.
 - `jscomp/source_file.rs`: the source kind is mirrored in an atomic, so `getKind`/`isExtern`
@@ -444,9 +515,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `rhino/node.rs` `Ast::prop_masks`: per node, one bit per property type present in its
   property list, in a dense array, so a lookup of an absent property reads neither the node nor
   the list.
-- `rhino/node.rs` `NodeData`, `NodeCold`, `NodeType`: a node's fields are split over three
-  dense arrays, the payload and property list (read by most passes), the source position and
-  original name, and the type or color (Java: one object).
+- `rhino/node.rs` keeps payloads and property lists separate from source positions.
+  Original names use a 32-bit index into an arena table keyed by string identity. The type
+  and color array grows only through the last assigned slot, so an untyped parse allocates
+  no slots. Worker arenas remap original-name indices when joined.
 - Name lookups read the NAME node's string in place instead of copying it
   (`ScopeId::get_var_of_node`; PolyfillUsageFinder, OptimizeCalls, VarCheck,
   RemoveUnusedCode, DataFlowAnalysis#computeEscaped, InlineFunctions, GatherModuleMetadata,
@@ -455,18 +527,50 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `jscomp/scope.rs` `declare`, `allocate`: a new var or scope takes the arena lock once.
 - `jscomp/chunked_vec.rs`: the syntactic scope arena and its mirror grow in fixed-size chunks
   instead of one `Vec`, so growing never copies the scopes and vars already made.
+- `jscomp/code_consumer.rs` and `code_generator.rs` borrow punctuation across calls
+  and pass single-line tokens directly to the printer. The final printer transfers its
+  code and mapping buffers to the output. License tracking uses its exclusive state
+  while emitting nodes. ASCII letters and digits use the Java character ranges directly.
+- `sourcemap/source_map_consumer_v3.rs` decodes each incoming map into compact or
+  wide records, appending fields and carrying the decoded deltas to the next entry.
+  The JSON reader scans runs of ordinary UTF-16 units together. Resolving a file
+  and column transfers the mapping's owned strings into the result.
 - Source maps: `sourcemap/source_map_generator_v3.rs` `JavaAppendable` appends code units
   without making a JS string per write; `util.rs` `escapeString` copies unescaped runs and
   escapes directly; `jscomp/source_map.rs`, `compiler_source_excerpt_provider.rs` reuse the
   file name conversions of the previous mapping and the parsed input map
   (`SourceMapInput::get_cached_source_map`); `cli/java_io.rs` `EncodedWriter` writes UTF-8
   text to a UTF-8 stream without the UTF-16 round trip.
+- `sourcemap/source_map_generator_v3.rs` stores file and symbol indices in each mapping and
+  assigns their output IDs on first emission. The CLI writes escaped source content and buffered
+  VLQ segments directly to its writer. The API that returns a Java string retains its UTF-16
+  code units, including lone surrogates.
 - `jscomp/reference_collector.rs` `skip_externs_when_unread` (InlineVariables,
   InlineObjectLiterals): a run leaves out the externs (Java traverses them on every run) while
   every NAME in them resolves to a var declared in them, which a traversal of the externs finds
   out and the compiler keeps until a change is recorded inside the externs
   (`ChangeTracker::get_externs_change_count`).
+- `jscomp/inline_object_literals.rs` collects references for spellings that can receive an
+  object literal, including names generated by splitting another object. It also resolves hoisted
+  functions and implicit variables, and fully resolves externs while verifying their summary.
+- The reference collector reuses ordered name sites and basic-block boundaries in function
+  bodies and plain blocks for inlining, const inference, variable reference checks and
+  denormalization. It resolves each name in the current scope. Hoisted functions requiring a
+  jump use the ordinary visitor. An arena change, a replaced node payload or an externally
+  drained mutation log invalidates saved analyses.
+  `CLOSURE_RS_REFERENCE_SITES=off` disables reuse of the ordered sites.
+- `jscomp/inline_variables.rs` retains an inlining result when another variable may alias it.
+- Token-based peephole rules declare their candidates alongside the rewrite. The pass calls
+  rules in upstream order and checks the current token again after each rewrite. Custom
+  rules can run on every token.
 - `jscomp/basic_block.rs`: the basic blocks of references are `Rc`, not `Arc`.
+- `jscomp/gather_getter_and_setter_properties.rs` gathers accessors by walking the paths to
+  current getter, setter and descriptor-call sites in Java traversal order. The arena indexes
+  selected tokens on demand, adds new slots on the next scan and records retagged nodes in
+  `setToken`. Each refresh checks live strings, parents and function and class shapes, so
+  moved, renamed and detached sites retain the behavior of a fresh traversal.
+- `jscomp/timeline.rs` keeps change order in the links between events. Deleting a
+  function swaps out its index entry in constant expected time.
 - `rhino/js_string.rs` `JsStrLike::is_prefix_of`/`is_suffix_of`: `startsWith`/`endsWith` compare
   an ASCII literal with the code units byte by byte instead of converting it first.
 - `jscomp/syntactic_scope_cache.rs` (hooks in `syntactic_scope_creator.rs`, `scope.rs`,
@@ -505,6 +609,13 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `jscomp/code_printer.rs` `startSourceMapping`, `compiler_license_tracker.rs`,
   `node_util.rs` `isInSyntheticScript`: the source file name is read in place instead of being
   copied for every printed node.
+- `rhino/jsdoc_info.rs` visits type expressions directly in packed property order.
+  The extern property collector reads the type roots from the stored expressions.
+  Both public collection getters keep their original order and duplicates.
+- `jscomp/check_access_controls.rs` reuses the defining property owner for a
+  visibility check when both walks start at the same prototype. `type_validator.rs`
+  answers the null-or-undefined subtype check directly for known concrete scalars and
+  objects. Functions with an unknown native prototype use the general relation.
 - `jscomp/infer_js_doc_info.rs` `inferJSDocForProperty`: the qualified name is computed only when
   the JSDoc is attached to the property's type, its only use (Java computes it first).
 - `parsing/parser/parser.rs` `peekId`, `getTreeStartLocation`, `parseClassElements`,
@@ -537,6 +648,18 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `Behavior` field), so the per-node `beforeTraverseNode` / `afterVisitNode` hooks that a behavior
   does not override cost no call; `addReference` names the added reference by its index in the
   reference map, so `afterVisitNode` receives it without a second lookup by var.
+- `jscomp/serialization/color_pool.rs` reconciles colors using ordered references into the
+  input shards. The definitions stay in their original type pools until reconciliation and
+  diagnostics finish. This avoids copying nested object and union protos for each lookup.
+- `jscomp/serialization/convert_types_to_colors.rs` transfers the completed type shard to the
+  color builder and resolves colors once per observed registry type. Nodes share the resulting
+  lookup by TypeId. JSDoc conversion uses the same serialization rules and allocates its
+  temporary string index when an annotation actually contains a serialized string.
+- `jscomp/serialization/runtime_libraries.rs` indexes the bundled single-shard runtime at build
+  time. Each compiler registers its strings, optimization colors and synthetic extern metadata
+  during initialization, then decodes source files and scripts on first use. A file keeps its
+  identity within the compiler and each script request produces fresh nodes. Packages with path
+  aliases, source-map annotations or other shard layouts use the general TypedAST loader.
 - `jscomp/polyfill_usage_finder.rs` `Polyfills::from_jar_table`: the jar's polyfill table is parsed
   once per process and shared (Java: the RewritePolyfills, IsolatePolyfills and RemoveUnusedCode
   constructors each load and parse `js/polyfills.txt`).

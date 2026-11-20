@@ -49,7 +49,10 @@
 )]
 //! Rhino's Node API, with object identity represented by arena handles.
 pub mod snapshot;
+mod snapshot_watch;
+pub use snapshot_watch::SnapshotUse;
 
+use crate::fast_hash::IndexSet;
 use crate::input_id::InputId;
 use crate::ir::IR;
 use crate::java_lang::double_to_string;
@@ -72,6 +75,7 @@ use num_bigint::{BigInt, Sign};
 use std::{
     any::Any,
     fmt,
+    hash::{Hash, Hasher},
     num::NonZeroU32,
     ops::{Index, IndexMut},
     sync::Arc,
@@ -359,8 +363,8 @@ pub struct NodeLinks {
 #[derive(Clone, Copy)]
 struct L(NodeId);
 /// The fields of a node that most passes read: its payload (string, number) and property list.
-/// Rust-only (performance divergence): Java's other node fields live in `NodeCold` and `NodeType`,
-/// in arrays of their own (`Ast::cold`, `Ast::types`), so that the hot array stays dense.
+/// Rust-only (performance divergence): source positions and types live in their own arrays
+/// (`Ast::cold`, `Ast::types`), so that the hot array stays dense.
 #[derive(Debug)]
 pub struct NodeData {
     prop_list_head: Option<Arc<PropListItem>>,
@@ -371,19 +375,37 @@ pub struct NodeData {
 struct NodeCold {
     lineno_charno: i32,
     length: i32,
-    original_name: Option<JsString>,
+    original_name: Option<OriginalNameId>,
 }
-/// Rust-only: the type or color of a node (see `NodeData`).
-#[derive(Debug)]
-struct NodeType {
-    jstype_or_color: Option<JSTypeOrColor>,
+
+/// An index in this arena's table of original names. Zero represents an absent name in NodeCold.
+#[derive(Clone, Copy, Debug)]
+struct OriginalNameId(NonZeroU32);
+
+impl OriginalNameId {
+    fn index(self) -> usize {
+        self.0.get() as usize - 1
+    }
+}
+
+/// Keep the exact string restored from a snapshot or supplied by a string pool. Equal text
+/// from two independently allocated strings can have different Java object identities.
+#[derive(Debug, Eq)]
+struct OriginalName(JsString);
+
+impl PartialEq for OriginalName {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.ptr_eq(&other.0)
+    }
+}
+impl Hash for OriginalName {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.as_units().as_ptr().hash(state);
+    }
 }
 /// Rust-only: indexes `Ast` for a node's `NodeCold` (`ast[C(n)].length`).
 #[derive(Clone, Copy)]
 struct C(NodeId);
-/// Rust-only: indexes `Ast` for a node's `NodeType` (`ast[T(n)].jstype_or_color`).
-#[derive(Clone, Copy)]
-struct T(NodeId);
 // `Ast::prop_masks` has one bit per property type.
 const _: () = assert!(Prop::VALUES.len() <= 64);
 /// Rust-only: the `Ast::prop_masks` and `Ast::jsdocs` entries of a property list: the mask of
@@ -531,6 +553,8 @@ pub enum WatchedName {
     DeclareIcuTemplateSuffix,
     /// Exactly `CLOSURE_TOGGLE_ORDINALS`.
     ClosureToggleOrdinals,
+    /// Exactly `CLOSURE_DEFINES`.
+    ClosureDefines,
 }
 impl WatchedName {
     const fn bit(self) -> u16 {
@@ -603,6 +627,8 @@ fn watched_name_bits(s: &JsString) -> u16 {
                 const { ascii_hash_code("CLOSURE_TOGGLE_ORDINALS") },
             ) {
                 bits |= WatchedName::ClosureToggleOrdinals.bit();
+            } else if is_exactly(s, "CLOSURE_DEFINES", const { ascii_hash_code("CLOSURE_DEFINES") }) {
+                bits |= WatchedName::ClosureDefines.bit();
             }
         }
         _ => {}
@@ -617,6 +643,44 @@ fn watched_name_bits(s: &JsString) -> u16 {
 }
 // `PresenceSummary::tokens` has one bit per token.
 const _: () = assert!((Token::PLACEHOLDER3 as usize) < 192);
+/// Lazy postings for a token selection. Appends, including complete parser snapshots, are
+/// picked up at the next read. Only setToken can make an existing slot newly eligible.
+#[derive(Debug)]
+struct TokenCandidates {
+    tokens: &'static [Token],
+    includes: [bool; Token::PLACEHOLDER3 as usize + 1],
+    scanned: usize,
+    present: Vec<u64>,
+    nodes: Vec<NodeId>,
+}
+
+impl TokenCandidates {
+    fn new(tokens: &'static [Token]) -> Self {
+        let mut includes = [false; Token::PLACEHOLDER3 as usize + 1];
+        for &token in tokens {
+            includes[token as usize] = true;
+        }
+        Self {
+            tokens,
+            includes,
+            scanned: 0,
+            present: Vec::new(),
+            nodes: Vec::new(),
+        }
+    }
+
+    fn note_token(&mut self, node: NodeId, token: Token) {
+        let slot = node.arena_index();
+        if slot < self.scanned && self.includes[token as usize] {
+            let mask = 1u64 << (slot % 64);
+            if self.present[slot / 64] & mask == 0 {
+                self.present[slot / 64] |= mask;
+                self.nodes.push(node);
+            }
+        }
+    }
+}
+
 /// Rust-only (performance divergence): a record of what has ever existed in an arena, kept so
 /// that the compiler can skip a pass that only reacts to names, tokens or JSDoc flags the code
 /// does not contain (`closure_jscomp::pass_gates`; Java runs every pass).
@@ -631,10 +695,29 @@ const _: () = assert!((Token::PLACEHOLDER3 as usize) < 192);
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PresenceSummary {
     tokens: [u64; 3],
+    #[serde(
+        serialize_with = "PresenceSummary::serialize_names",
+        deserialize_with = "PresenceSummary::deserialize_names"
+    )]
     names: u16,
     jsdoc_bits: u64,
 }
 impl PresenceSummary {
+    // Older snapshots did not track CLOSURE_DEFINES and left this bit zero. On disk it
+    // denotes absence, so loading an older snapshot conservatively enables the define scan.
+    fn serialize_names<S: serde::Serializer>(
+        names: &u16,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u16(names ^ WatchedName::ClosureDefines.bit())
+    }
+    fn deserialize_names<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<u16, D::Error> {
+        let names = <u16 as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(names ^ WatchedName::ClosureDefines.bit())
+    }
+
     #[inline]
     fn note_token(&mut self, token: Token) {
         let t = token as usize;
@@ -656,11 +739,21 @@ impl PresenceSummary {
         self.jsdoc_bits |= other.jsdoc_bits;
     }
 }
+/// Position in one arena's syntax-change log. Independent readers can detect when a previous
+/// reader drained changes, or when an embedding application replaced the entire arena.
+#[derive(Default, Debug)]
+pub struct AstChangeCursor {
+    arena: Option<Arc<()>>,
+    drain: u64,
+}
+
 #[derive(Default, Debug)]
 pub struct Ast {
     nodes: Vec<NodeData>,
     cold: Vec<NodeCold>,
-    types: Vec<NodeType>,
+    /// A missing suffix has no types or colors. Untyped compilations leave the vector empty.
+    types: Vec<Option<JSTypeOrColor>>,
+    original_names: IndexSet<OriginalName>,
     /// Rust-only (performance divergence): per node, bit `p` is set when its property list holds an
     /// item of type `p`, so that looking up an absent property (the common case) reads this dense
     /// array only, neither the node nor its list. Kept in step with `prop_list_head` by
@@ -685,6 +778,11 @@ pub struct Ast {
     pub(crate) preparse_bound_first_use: Option<u32>,
     /// Rust-only (performance divergence): whether `changed_nodes` is kept (see `track_changes`).
     tracking_changes: bool,
+    change_log_id: Option<Arc<()>>,
+    change_log_drain: u64,
+    /// Lazily built by repeated syntax queries. Moving this arena also moves its index.
+    token_candidates: Option<Box<TokenCandidates>>,
+    snapshot_watches: snapshot_watch::Watches,
     /// Rust-only (performance divergence): the nodes whose children, token or string changed since
     /// the last `take_changed_nodes`, in order, without immediate repeats.
     changed_nodes: Vec<NodeId>,
@@ -700,7 +798,11 @@ impl Index<NodeId> for Ast {
 }
 impl IndexMut<NodeId> for Ast {
     fn index_mut(&mut self, n: NodeId) -> &mut NodeData {
-        &mut self.nodes[n.0.get() as usize - 1]
+        // A public writer can replace a NAME's spelling. A failed bounds check makes no edit.
+        if n.arena_index() < self.nodes.len() {
+            self.record_scope_change(n);
+        }
+        self.payload_mut(n)
     }
 }
 impl Index<C> for Ast {
@@ -714,19 +816,6 @@ impl IndexMut<C> for Ast {
     #[inline]
     fn index_mut(&mut self, n: C) -> &mut NodeCold {
         &mut self.cold[n.0.0.get() as usize - 1]
-    }
-}
-impl Index<T> for Ast {
-    type Output = NodeType;
-    #[inline]
-    fn index(&self, n: T) -> &NodeType {
-        &self.types[n.0.0.get() as usize - 1]
-    }
-}
-impl IndexMut<T> for Ast {
-    #[inline]
-    fn index_mut(&mut self, n: T) -> &mut NodeType {
-        &mut self.types[n.0.0.get() as usize - 1]
     }
 }
 impl Index<L> for Ast {
@@ -746,6 +835,52 @@ impl Ast {
     pub fn new() -> Self {
         Self::default()
     }
+
+    /// Typed payload writes invalidate parsed snapshots. Their setters record changes to
+    /// scope-relevant fields separately, so a numeric update leaves the syntax log untouched.
+    #[inline]
+    #[track_caller]
+    fn payload_mut(&mut self, node: NodeId) -> &mut NodeData {
+        self.snapshot_watches
+            .change(node, snapshot_watch::STRUCTURE);
+        &mut self.nodes[node.arena_index()]
+    }
+
+    fn original_name_id(&mut self, name: OriginalName) -> OriginalNameId {
+        let (index, _) = self.original_names.insert_full(name);
+        OriginalNameId(
+            NonZeroU32::new(u32::try_from(index + 1).expect("Too many original names")).unwrap(),
+        )
+    }
+
+    fn original_name(&self, id: OriginalNameId) -> &JsString {
+        &self.original_names[id.index()].0
+    }
+
+    #[inline]
+    fn node_type(&self, node: NodeId) -> Option<&JSTypeOrColor> {
+        let index = node.arena_index();
+        match self.types.get(index) {
+            Some(ty) => ty.as_ref(),
+            None => {
+                assert!(index < self.nodes.len());
+                None
+            }
+        }
+    }
+
+    #[inline]
+    fn set_node_type(&mut self, node: NodeId, value: Option<JSTypeOrColor>) {
+        let index = node.arena_index();
+        if let Some(slot) = self.types.get_mut(index) {
+            *slot = value;
+        } else if value.is_some() {
+            assert!(index < self.nodes.len());
+            self.types.resize_with(index + 1, || None);
+            self.types[index] = value;
+        }
+    }
+
     /// Rust-only, not in Java (performance divergence): from now on, records every node whose list
     /// of children, token or string changes (`take_changed_nodes`), so that what was computed from
     /// a part of the tree (the compiler's reused syntactic scopes) is known to be stale whether or
@@ -760,12 +895,42 @@ impl Ast {
     /// Rust-only (performance divergence): moves the nodes recorded since the last call to the end
     /// of `into`.
     pub fn take_changed_nodes(&mut self, into: &mut Vec<NodeId>) {
-        into.append(&mut self.changed_nodes);
+        if !self.changed_nodes.is_empty() {
+            self.change_log_drain = self.change_log_drain.checked_add(1).unwrap();
+            into.append(&mut self.changed_nodes);
+        }
+    }
+
+    /// Drains recorded edits and returns whether `cursor` had seen every preceding drain in
+    /// this arena. A consumer must discard its old analyses when this returns false.
+    pub fn take_changes_since(
+        &mut self,
+        cursor: &mut AstChangeCursor,
+        into: &mut Vec<NodeId>,
+    ) -> bool {
+        let id = self.change_log_id.get_or_insert_with(|| Arc::new(()));
+        let same_arena = cursor
+            .arena
+            .as_ref()
+            .is_some_and(|previous| Arc::ptr_eq(previous, id));
+        if !same_arena {
+            cursor.arena = Some(Arc::clone(id));
+        }
+        let continuous = same_arena && cursor.drain == self.change_log_drain;
+        self.take_changed_nodes(into);
+        cursor.drain = self.change_log_drain;
+        continuous
     }
     /// Rust-only (performance divergence): records that the children, token or string of `n`
     /// changed.
     #[inline]
     fn note_changed(&mut self, n: NodeId) {
+        self.snapshot_watches.change(n, snapshot_watch::STRUCTURE);
+        self.record_scope_change(n);
+    }
+
+    #[inline]
+    fn record_scope_change(&mut self, n: NodeId) {
         if self.tracking_changes && self.changed_nodes.last() != Some(&n) {
             self.changed_nodes.push(n);
         }
@@ -779,13 +944,13 @@ impl Ast {
         }
         self.prop_masks[n.0.get() as usize - 1] = mask;
         self.jsdocs[n.0.get() as usize - 1] = jsdoc;
-        self[n].prop_list_head = head;
+        self.nodes[n.arena_index()].prop_list_head = head;
     }
     /// Rust-only: takes the property list of `n`, leaving none.
     fn take_props(&mut self, n: NodeId) -> Option<Arc<PropListItem>> {
         self.prop_masks[n.0.get() as usize - 1] = 0;
         self.jsdocs[n.0.get() as usize - 1] = None;
-        self[n].prop_list_head.take()
+        self.nodes[n.arena_index()].prop_list_head.take()
     }
     /// Rust-only, not in Java (performance divergence): an arena in which a worker thread parses
     /// one input (Java parses into the one shared object graph). `append_preparsed` then moves the
@@ -805,6 +970,35 @@ impl Ast {
             ..Self::default()
         }
     }
+    /// Reads the slots that have held one of the requested tokens since this scan first ran.
+    /// The result includes detached and subsequently retagged nodes. The caller checks the
+    /// current token and its place in the tree; no pass change notifications are needed.
+    pub fn with_token_candidates<R>(
+        &mut self,
+        tokens: &'static [Token],
+        read: impl FnOnce(&Ast, &[NodeId]) -> R,
+    ) -> R {
+        if self
+            .token_candidates
+            .as_ref()
+            .is_none_or(|index| index.tokens != tokens)
+        {
+            self.token_candidates = Some(Box::new(TokenCandidates::new(tokens)));
+        }
+        let index = self.token_candidates.as_mut().unwrap();
+        index.present.resize(self.links.len().div_ceil(64), 0);
+        for (slot, link) in self.links.iter().enumerate().skip(index.scanned) {
+            if index.includes[link.token as usize] {
+                index.present[slot / 64] |= 1u64 << (slot % 64);
+                index
+                    .nodes
+                    .push(NodeId(NonZeroU32::new(slot as u32 + 1).unwrap()));
+            }
+        }
+        index.scanned = self.links.len();
+        read(self, &self.token_candidates.as_ref().unwrap().nodes)
+    }
+
     /// Rust-only: the number of nodes in the arena.
     pub fn node_count(&self) -> u32 {
         u32::try_from(self.nodes.len()).unwrap()
@@ -845,7 +1039,6 @@ impl Ast {
     /// (each item, the identity and contents of each object, and the type expressions of each
     /// JSDocInfo, which are trees of their own), and the shape of the tree.
     pub fn hash_tree_for_verification(&self, root: NodeId, state: &mut impl std::hash::Hasher) {
-        use std::hash::Hash;
         let mut stack = vec![root];
         while let Some(n) = stack.pop() {
             n.hash(state);
@@ -866,10 +1059,9 @@ impl Ast {
             cold.lineno_charno.hash(state);
             cold.length.hash(state);
             cold.original_name
-                .as_ref()
-                .map(JsString::as_units)
+                .map(|id| self.original_name(id).as_units())
                 .hash(state);
-            match &self[T(n)].jstype_or_color {
+            match self.node_type(n) {
                 None => 0u8.hash(state),
                 Some(JSTypeOrColor::JSType(t)) => (1u8, t).hash(state),
                 Some(JSTypeOrColor::Color(c)) => (2u8, c).hash(state),
@@ -928,15 +1120,28 @@ impl Ast {
             links,
             cold,
             types,
+            original_names,
             ..
         } = other;
-        let rows = nodes.into_iter().zip(links).zip(cold).zip(types).map(
-            |(((mut data, link), cold), ty)| {
+        let names: Vec<_> = original_names
+            .into_iter()
+            .map(|name| self.original_name_id(name))
+            .collect();
+        let rows = nodes
+            .into_iter()
+            .zip(links)
+            .zip(cold)
+            .map(|((mut data, link), mut cold)| {
                 let head = data.prop_list_head.take();
-                (data, link, cold, ty, head)
-            },
-        );
+                cold.original_name = cold.original_name.map(|id| names[id.index()]);
+                (data, link, cold, head)
+            });
         let (map, heads) = self.append_preparsed_nodes(other.preparse_bound_first_use, rows);
+        for (i, ty) in types.into_iter().enumerate() {
+            if ty.is_some() {
+                self.set_node_type(map.node_at(i), ty);
+            }
+        }
         // The properties last: they may refer to the bound, which now exists.
         let bound = self.implicit_template_bound.clone();
         let mut remapper = PropRemapper {
@@ -959,7 +1164,7 @@ impl Ast {
     fn append_preparsed_nodes<H>(
         &mut self,
         bound_first_use: Option<u32>,
-        rows: impl ExactSizeIterator<Item = (NodeData, NodeLinks, NodeCold, NodeType, H)>,
+        rows: impl ExactSizeIterator<Item = (NodeData, NodeLinks, NodeCold, H)>,
     ) -> (PreparsedIdMap, Vec<H>) {
         let map = PreparsedIdMap {
             base: u32::try_from(self.nodes.len()).unwrap(),
@@ -967,7 +1172,7 @@ impl Ast {
             bound_at: bound_first_use.filter(|_| self.implicit_template_bound.is_none()),
         };
         let mut heads = Vec::with_capacity(rows.len());
-        for (i, (data, link, cold, ty, head)) in rows.enumerate() {
+        for (i, (data, link, cold, head)) in rows.enumerate() {
             if map.bound_at == Some(u32::try_from(i).unwrap()) {
                 crate::js_type_expression::JSTypeExpression::implicit_template_bound(self);
             }
@@ -983,7 +1188,6 @@ impl Ast {
             });
             self.nodes.push(data);
             self.cold.push(cold);
-            self.types.push(ty);
         }
         if map.bound_at == Some(u32::try_from(heads.len()).unwrap()) {
             crate::js_type_expression::JSTypeExpression::implicit_template_bound(self);
@@ -1014,9 +1218,6 @@ impl Ast {
             lineno_charno: -1,
             length: 0,
             original_name: None,
-        });
-        self.types.push(NodeType {
-            jstype_or_color: None,
         });
         self.prop_masks.push(0);
         self.jsdocs.push(None);
@@ -1071,7 +1272,7 @@ impl Ast {
     // port: Node#newNumber
     pub fn new_number(&mut self, number: f64) -> NodeId {
         let n = self.new_node(Token::NUMBER);
-        self[n].kind = NodeKind::Number { number: 0.0 };
+        self.payload_mut(n).kind = NodeKind::Number { number: 0.0 };
         n.set_double(self, number);
         n
     }
@@ -1079,7 +1280,7 @@ impl Ast {
     // port: Node#newBigInt
     pub fn new_big_int(&mut self, bigint: impl Into<Arc<BigInt>>) -> NodeId {
         let n = self.new_node(Token::BIGINT);
-        self[n].kind = NodeKind::BigInt {
+        self.payload_mut(n).kind = NodeKind::BigInt {
             bigint: Arc::new(BigInt::from(0)),
         };
         n.set_big_int(self, bigint);
@@ -1092,7 +1293,7 @@ impl Ast {
     // port: StringNode#StringNode(Token)
     fn new_string_node(&mut self, token: Token) -> NodeId {
         let n = self.new_node(token);
-        self[n].kind = NodeKind::String {
+        self.payload_mut(n).kind = NodeKind::String {
             str: JsString::default(),
         };
         n
@@ -1140,7 +1341,7 @@ impl Ast {
             self.presence.note_string(cooked);
         }
         self.presence.note_string(&strings.raw);
-        self[n].kind = NodeKind::TemplateLiteralSubstring(Box::new(strings));
+        self.payload_mut(n).kind = NodeKind::TemplateLiteralSubstring(Box::new(strings));
     }
     // port: TemplateLiteralSubstringNode#TemplateLiteralSubstringNode(LazyInternedStringList, int, int)
     // port: Node#newTemplateLitString(LazyInternedStringList, int, int)
@@ -1278,10 +1479,17 @@ impl NodeId {
     pub fn get_token(self, ast: &Ast) -> Token {
         ast[L(self)].token
     }
+    /// Inspect a node returned by a public callback which may use an ID from another arena.
+    pub fn token_if_present(self, ast: &Ast) -> Option<Token> {
+        ast.links.get(self.arena_index()).map(|links| links.token)
+    }
     // port: Node#setToken
     pub fn set_token(self, ast: &mut Ast, token: Token) {
         ast.presence.note_token(token);
         ast[L(self)].token = token;
+        if let Some(index) = &mut ast.token_candidates {
+            index.note_token(self, token);
+        }
         ast.note_changed(self);
         if let Some(parent) = ast[L(self)].parent {
             ast.note_changed(parent);
@@ -1421,7 +1629,8 @@ impl NodeId {
         );
         check_argument!(ast[L(child)].next.is_none());
         check_argument!(ast[L(child)].previous.is_none());
-        ast.note_changed(self);
+        ast.snapshot_watches.append_child(self);
+        ast.record_scope_change(self);
         if let Some(first) = ast[L(self)].first {
             let last = ast[L(first)].previous.unwrap();
             ast[L(last)].next = Some(child);
@@ -1660,6 +1869,7 @@ impl NodeId {
             "Node has existing properties."
         );
         let head = ast[other].prop_list_head.clone();
+        ast.snapshot_watches.change(self, snapshot_watch::DOC);
         ast.set_props(self, head);
         self
     }
@@ -1778,6 +1988,9 @@ impl NodeId {
     pub fn put_prop(self, ast: &mut Ast, prop: Prop, value: Option<ObjectProp>) {
         self.remove_prop(ast, prop);
         if let Some(value) = value {
+            if prop == Prop::JSDOC_INFO {
+                ast.snapshot_watches.change(self, snapshot_watch::DOC);
+            }
             let head = ast.take_props(self);
             ast.set_props(self, Some(PropListItem::object(prop as u8, value, head)));
         }
@@ -1800,6 +2013,9 @@ impl NodeId {
         // the walk that copies references then (performance divergence).
         if self.lookup_property_ref(ast, prop).is_none() {
             return;
+        }
+        if prop == Prop::JSDOC_INFO {
+            ast.snapshot_watches.change(self, snapshot_watch::DOC);
         }
         let head = ast.take_props(self);
         ast.set_props(self, Self::rebuild_list_without_prop(head, prop));
@@ -2104,7 +2320,7 @@ impl NodeId {
     pub fn set_double(self, ast: &mut Ast, x: f64) {
         check_state!(!x.is_nan(), "%s", double_to_string(x));
         check_state!(JSCompDoubles::is_positive(x), "%s", double_to_string(x));
-        match &mut ast[self].kind {
+        match &mut ast.payload_mut(self).kind {
             NodeKind::Number { number } => *number = x,
             _ => panic!("ClassCastException"),
         }
@@ -2120,7 +2336,7 @@ impl NodeId {
     pub fn set_big_int(self, ast: &mut Ast, number: impl Into<Arc<BigInt>>) {
         let number = number.into();
         check_state!(number.sign() != Sign::Minus, "%s", number);
-        match &mut ast[self].kind {
+        match &mut ast.payload_mut(self).kind {
             NodeKind::BigInt { bigint } => *bigint = number,
             _ => panic!("ClassCastException"),
         }
@@ -2138,14 +2354,27 @@ impl NodeId {
             _ => panic!("ClassCastException"),
         }
     }
+
+    /// Returns the StringNode payload when inspecting possibly detached or repurposed nodes.
+    pub fn string_payload(self, ast: &Ast) -> Option<&JsString> {
+        match &ast[self].kind {
+            NodeKind::String { str } => Some(str),
+            _ => None,
+        }
+    }
     // port: Node#setString
     pub fn set_string(self, ast: &mut Ast, s: impl Into<JsString>) {
-        ast.note_changed(self);
+        ast.record_scope_change(self);
         Self::store_string(ast, self, RhinoStringPool::add_or_get(s));
     }
     /// Rust-only: stores the string of a string node, the one place that writes it (so that the
     /// presence summary sees it).
     fn store_string(ast: &mut Ast, n: NodeId, s: JsString) {
+        if n.is_name(ast) {
+            ast.snapshot_watches.change(n, snapshot_watch::NAME);
+        } else {
+            ast.snapshot_watches.change(n, snapshot_watch::STRUCTURE);
+        }
         let Ast {
             nodes, presence, ..
         } = ast;
@@ -2164,7 +2393,7 @@ impl NodeId {
         pool: &LazyInternedStringList,
         offset: i32,
     ) {
-        ast.note_changed(self);
+        ast.record_scope_change(self);
         Self::store_string(ast, self, pool.get(offset));
     }
     // port: Node#getRawString
@@ -2289,13 +2518,13 @@ impl NodeId {
                 sb.append(&x.to_string_with_types_utf16(ast, type_printer));
                 sb.write_char(']').unwrap();
             }
-            if let Some(original_name) = &ast[C(self)].original_name {
+            if let Some(id) = ast[C(self)].original_name {
                 sb.write_str(" [original_name: ").unwrap();
-                sb.append(original_name);
+                sb.append(ast.original_name(id));
                 sb.write_char(']').unwrap();
             }
         }
-        if print_type && let Some(ty) = &ast[T(self)].jstype_or_color {
+        if print_type && let Some(ty) = ast.node_type(self) {
             match ty {
                 JSTypeOrColor::Color(color) => write!(sb, " : {color}").unwrap(),
                 JSTypeOrColor::JSType(t) => {
@@ -2371,9 +2600,12 @@ impl NodeId {
             }
             sb.write_char('}')?;
         }
-        if let Some(name) = &ast[C(self)].original_name {
+        if let Some(id) = ast[C(self)].original_name {
             sb.write_char(',')?;
-            sb.append(&Self::create_json_pair("original_name", name));
+            sb.append(&Self::create_json_pair(
+                "original_name",
+                ast.original_name(id),
+            ));
         }
         let keys = self.get_sorted_prop_types(ast);
         if !keys.is_empty() {
@@ -2393,7 +2625,7 @@ impl NodeId {
             }
             sb.write_char('}')?;
         }
-        if let Some(ty) = &ast[T(self)].jstype_or_color {
+        if let Some(ty) = ast.node_type(self) {
             match ty {
                 JSTypeOrColor::Color(color) => {
                     sb.write_char(',')?;
@@ -2596,7 +2828,9 @@ impl NodeId {
     }
     // port: Node#getOriginalName
     pub fn get_original_name(self, ast: &Ast) -> Option<JsString> {
-        ast[C(self)].original_name.clone()
+        ast[C(self)]
+            .original_name
+            .map(|id| ast.original_name(id).clone())
     }
     // port: Node#setOriginalName
     pub fn set_original_name(self, ast: &mut Ast, s: Option<JsString>) {
@@ -2609,7 +2843,7 @@ impl NodeId {
         if let Some(s) = &s {
             ast.presence.note_string(s);
         }
-        ast[C(n)].original_name = s;
+        ast[C(n)].original_name = s.map(|s| ast.original_name_id(OriginalName(s)));
     }
     // port: Node#setOriginalNameFromStringPool
     pub fn set_original_name_from_string_pool(
@@ -2727,6 +2961,7 @@ impl NodeId {
     }
     // port: Node#setPropListHead
     pub fn set_prop_list_head(self, ast: &mut Ast, head: Option<Arc<PropListItem>>) {
+        ast.snapshot_watches.change(self, snapshot_watch::DOC);
         ast.set_props(self, head);
     }
     // port: Node#getParent
@@ -3078,9 +3313,7 @@ impl NodeId {
         {
             return false;
         }
-        if type_config == TypeComparison::COMPARE
-            && ast[T(self)].jstype_or_color != ast_b[T(node)].jstype_or_color
-        {
+        if type_config == TypeComparison::COMPARE && ast.node_type(self) != ast_b.node_type(node) {
             return false;
         }
         if js_doc_config == JsDocComparison::COMPARE
@@ -3441,8 +3674,8 @@ impl NodeId {
     fn copy_base_node_fields(ast: &mut Ast, source: NodeId, dest: NodeId, clone_type_exprs: bool) {
         ast[C(dest)].lineno_charno = ast[C(source)].lineno_charno;
         ast[C(dest)].length = ast[C(source)].length;
-        ast[T(dest)].jstype_or_color = ast[T(source)].jstype_or_color.clone();
-        ast[C(dest)].original_name = ast[C(source)].original_name.clone();
+        ast.set_node_type(dest, ast.node_type(source).cloned());
+        ast[C(dest)].original_name = ast[C(source)].original_name;
         ast[dest].prop_list_head = ast[source].prop_list_head.clone();
         ast.prop_masks[dest.0.get() as usize - 1] = ast.prop_masks[source.0.get() as usize - 1];
         ast.jsdocs[dest.0.get() as usize - 1] = ast.jsdocs[source.0.get() as usize - 1].clone();
@@ -3491,7 +3724,7 @@ impl NodeId {
     // port: Node#srcref
     pub fn srcref(self, ast: &mut Ast, other: NodeId) -> Self {
         self.set_static_source_file_from(ast, other);
-        ast[C(self)].original_name = ast[C(other)].original_name.clone();
+        ast[C(self)].original_name = ast[C(other)].original_name;
         ast[C(self)].lineno_charno = ast[C(other)].lineno_charno;
         ast[C(self)].length = ast[C(other)].length;
         self
@@ -3514,7 +3747,7 @@ impl NodeId {
             ast[C(self)].length = ast[C(other)].length;
         }
         if ast[C(self)].original_name.is_none() {
-            ast[C(self)].original_name = ast[C(other)].original_name.clone();
+            ast[C(self)].original_name = ast[C(other)].original_name;
         }
         self
     }
@@ -3530,7 +3763,7 @@ impl NodeId {
     }
     // port: Node#getJSType
     pub fn get_jstype(self, ast: &Ast) -> Option<TypeId> {
-        match &ast[T(self)].jstype_or_color {
+        match ast.node_type(self) {
             Some(JSTypeOrColor::JSType(t)) => Some(*t),
             _ => None,
         }
@@ -3546,17 +3779,16 @@ impl NodeId {
     // port: Node#setJSType
     pub fn set_jstype(self, ast: &mut Ast, x: Option<TypeId>) -> Self {
         check_state!(
-            ast[T(self)].jstype_or_color.is_none()
-                || matches!(ast[T(self)].jstype_or_color, Some(JSTypeOrColor::JSType(_))),
+            matches!(ast.node_type(self), None | Some(JSTypeOrColor::JSType(_))),
             "%s",
             self.to_string(ast)
         );
-        ast[T(self)].jstype_or_color = x.map(JSTypeOrColor::JSType);
+        ast.set_node_type(self, x.map(JSTypeOrColor::JSType));
         self
     }
     // port: Node#getColor
     pub fn get_color(self, ast: &Ast) -> Option<Color> {
-        match &ast[T(self)].jstype_or_color {
+        match ast.node_type(self) {
             Some(JSTypeOrColor::Color(c)) => Some(c.clone()),
             _ => None,
         }
@@ -3564,17 +3796,16 @@ impl NodeId {
     // port: Node#setColor
     pub fn set_color(self, ast: &mut Ast, x: Option<Color>) -> Self {
         check_state!(
-            ast[T(self)].jstype_or_color.is_none()
-                || matches!(ast[T(self)].jstype_or_color, Some(JSTypeOrColor::Color(_))),
+            matches!(ast.node_type(self), None | Some(JSTypeOrColor::Color(_))),
             "%s",
             self.to_string(ast)
         );
-        ast[T(self)].jstype_or_color = x.map(JSTypeOrColor::Color);
+        ast.set_node_type(self, x.map(JSTypeOrColor::Color));
         self
     }
     // port: Node#copyTypeFrom
     pub fn copy_type_from(self, ast: &mut Ast, other: NodeId) -> Self {
-        ast[T(self)].jstype_or_color = ast[T(other)].jstype_or_color.clone();
+        ast.set_node_type(self, ast.node_type(other).cloned());
         self
     }
     // port: Node#getJSDocInfo
@@ -4657,5 +4888,129 @@ impl crate::java_lang::JavaHashCode for NodeId {
     // Node's Java identity hash varies per JVM. Use deterministic arena identity.
     fn hash_code(&self) -> i32 {
         self.0.get() as i32
+    }
+}
+
+#[cfg(test)]
+mod arena_storage_tests {
+    use super::*;
+    use crate::jscomp_colors::standard_colors;
+
+    #[test]
+    fn old_snapshot_name_masks_keep_define_diagnostics_enabled() {
+        use serde::de::value::{Error, U16Deserializer};
+
+        let old_mask = WatchedName::Goog.bit();
+        let names =
+            PresenceSummary::deserialize_names(U16Deserializer::<Error>::new(old_mask)).unwrap();
+        assert_eq!(names, old_mask | WatchedName::ClosureDefines.bit());
+    }
+
+    #[test]
+    fn untyped_nodes_use_no_type_slots_and_names_keep_their_identity() {
+        let mut ast = Ast::new();
+        let text = JsString::from_units(vec![0xd800, 0x61]);
+        let pool = LazyInternedStringList::new(vec![text.clone()]);
+        let n = ast.new_string_with_token(Token::NAME, text.clone());
+        let expected = n.get_string(&ast);
+        n.set_original_name_from_string_pool(&mut ast, &pool, 0);
+        let copy = n.clone_node(&mut ast);
+        let dest = ast.new_node(Token::EMPTY);
+        dest.srcref_if_missing(&mut ast, copy);
+        n.set_original_name(&mut ast, None);
+        n.copy_type_from(&mut ast, copy);
+        dest.set_color(&mut ast, None);
+        n.set_jstype(&mut ast, None);
+        assert_eq!(ast.types.capacity(), 0);
+        assert_eq!(std::mem::size_of::<NodeCold>(), 12);
+        assert!(n.get_original_name(&ast).is_none());
+        assert!(dest.get_original_name(&ast).unwrap().ptr_eq(&expected));
+        assert!(copy.get_original_name(&ast).unwrap().ptr_eq(&expected));
+        n.set_original_name(&mut ast, Some(text));
+        n.set_original_name_from_name(&mut ast, n);
+        assert_eq!(ast.original_names.len(), 1);
+    }
+
+    #[test]
+    fn appending_a_worker_relocates_names_and_types_across_the_template_bound() {
+        let mut dest = Ast::new();
+        let first = dest.new_string("other");
+        first.set_original_name_from_name(&mut dest, first);
+        first.set_color(&mut dest, Some(standard_colors::NUMBER.clone()));
+
+        let mut worker = Ast::new_for_preparse();
+        let a = worker.new_string("original");
+        a.set_original_name_from_name(&mut worker, a);
+        let expected = a.get_string(&worker);
+        a.set_jstype(&mut worker, Some(TypeId(23)));
+        JSTypeExpression::implicit_template_bound(&mut worker);
+        let b = a.clone_node(&mut worker);
+        b.set_jstype(&mut worker, None);
+        b.set_color(&mut worker, Some(standard_colors::STRING.clone()));
+        let untyped = worker.new_node(Token::EMPTY);
+        let map = dest.append_preparsed(worker);
+        let (a, b, untyped) = (map.map(a), map.map(b), map.map(untyped));
+        assert_eq!(dest.original_names.len(), 2);
+        assert!(b.get_original_name(&dest).unwrap().ptr_eq(&expected));
+        assert!(a.get_original_name(&dest).unwrap().ptr_eq(&expected));
+        assert_eq!(a.get_jstype(&dest), Some(TypeId(23)));
+        assert!(b.get_color(&dest).unwrap().ptr_eq(&standard_colors::STRING));
+        assert!(
+            first
+                .get_color(&dest)
+                .unwrap()
+                .ptr_eq(&standard_colors::NUMBER)
+        );
+        assert!(untyped.get_color(&dest).is_none());
+        assert!(untyped.get_jstype(&dest).is_none());
+        assert!(
+            JSTypeExpression::implicit_template_bound(&mut dest)
+                .get_root()
+                .get_jstype(&dest)
+                .is_none()
+        );
+        a.copy_type_from(&mut dest, b);
+        assert!(a.get_color(&dest).unwrap().ptr_eq(&standard_colors::STRING));
+        b.copy_type_from(&mut dest, untyped);
+        assert!(b.get_color(&dest).is_none());
+    }
+
+    #[test]
+    fn snapshots_restore_original_name_sharing_without_merging_distinct_strings() {
+        use super::snapshot::AstSnapshot;
+
+        let source: Arc<dyn StaticSourceFile> =
+            Arc::new(SimpleSourceFile::new("sample", SourceKind::EXTERN));
+        let mut worker = Ast::new_for_preparse();
+        let first = worker.new_node(Token::EMPTY);
+        let shared = JsString::from_units(vec![0xdfff]);
+        NodeId::store_original_name(&mut worker, first, Some(shared));
+        let second = first.clone_node(&mut worker);
+        let distinct = worker.new_node(Token::EMPTY);
+        NodeId::store_original_name(
+            &mut worker,
+            distinct,
+            Some(JsString::from_units(vec![0xdfff])),
+        );
+        let root = worker.new_node_with_children3(Token::BLOCK, first, second, distinct);
+        first.set_jstype(&mut worker, Some(TypeId(1)));
+        assert!(AstSnapshot::<String>::capture(&worker, root, &source).is_none());
+        first.set_jstype(&mut worker, None);
+        let snapshot = AstSnapshot::<String>::capture(&worker, root, &source).unwrap();
+
+        let mut dest = Ast::new();
+        let previous = dest.new_string("already present");
+        previous.set_original_name_from_name(&mut dest, previous);
+        let root = snapshot.append(&mut dest, source);
+        let names: Vec<_> = root
+            .children(&dest)
+            .map(|n| n.get_original_name(&dest).unwrap())
+            .collect();
+        assert_eq!(names[0].as_units(), &[0xdfff]);
+        assert!(names[0].ptr_eq(&names[1]));
+        assert_eq!(names[0], names[2]);
+        assert!(!names[0].ptr_eq(&names[2]));
+        assert_eq!(dest.original_names.len(), 3);
+        assert_eq!(dest.types.capacity(), 0);
     }
 }

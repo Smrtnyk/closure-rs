@@ -33,6 +33,24 @@ use closure_rhino::{
     js_string::JsString,
 };
 use std::{io::Read, sync::LazyLock};
+// port: JsFileRegexParser#GOOG_PROVIDE_REQUIRE_PATTERN
+static GOOG_PROVIDE_REQUIRE_PATTERN: LazyLock<Pattern> = LazyLock::new(|| {
+    Pattern::compile(concat!(
+        r"(?:^|;)(?:[\p{L}\p{Nl}\p{Nd}$_,:{}\s]+=)?\s*",
+        r"goog\.(?<func>provide|module|require|requireType|forwardDeclare|addDependency|declareModuleId)",
+        r"\s*\(\s*(?<args>.*?)\s*\)"
+    ))
+});
+// port: JsFileRegexParser#ES6_MODULE_PATTERN
+static ES6_MODULE_PATTERN: LazyLock<Pattern> = LazyLock::new(|| {
+    Pattern::compile(concat!(
+        r"^",
+        r"(?:import|export)\b\s*",
+        r"(?:[a-zA-Z0-9$_*,{}\s]+\bfrom\s*|)",
+        r#"(?:['"]([^'"]+)['"])?"#,
+        r"\s*;"
+    ))
+});
 // port: JsFileRegexParser#ES6_EXPORT_PATTERN
 static ES6_EXPORT_PATTERN: LazyLock<Pattern> = LazyLock::new(|| Pattern::compile(r"^export\b"));
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -60,18 +78,6 @@ pub struct JsFileRegexParser {
     include_goog_base: bool,
 }
 impl JsFileRegexParser {
-    const GOOG_PROVIDE_REQUIRE_PATTERN: &'static str = concat!(
-        r"(?:^|;)(?:[\p{L}\p{Nl}\p{Nd}$_,:{}\s]+=)?\s*",
-        r"goog\.(?<func>provide|module|require|requireType|forwardDeclare|addDependency|declareModuleId)",
-        r"\s*\(\s*(?<args>.*?)\s*\)"
-    );
-    const ES6_MODULE_PATTERN: &'static str = concat!(
-        r"^",
-        r"(?:import|export)\b\s*",
-        r"(?:[a-zA-Z0-9$_*,{}\s]+\bfrom\s*|)",
-        r#"(?:['"]([^'"]+)['"])?"#,
-        r"\s*;"
-    );
     const PROVIDES_GOOG_COMMENT: &'static str = "@provideGoog";
     const EXTERNS_COMMENT: &'static str = "@externs";
     const NOCOMPILE_COMMENT: &'static str = "@nocompile";
@@ -80,8 +86,8 @@ impl JsFileRegexParser {
     pub fn new(error_manager: SharedErrorManager) -> Self {
         Self {
             base: JsFileLineParser::new(error_manager),
-            goog_matcher: Pattern::compile(Self::GOOG_PROVIDE_REQUIRE_PATTERN).matcher(""),
-            es6_matcher: Pattern::compile(Self::ES6_MODULE_PATTERN).matcher(""),
+            goog_matcher: GOOG_PROVIDE_REQUIRE_PATTERN.matcher(""),
+            es6_matcher: ES6_MODULE_PATTERN.matcher(""),
             goog_matcher_buffer: JsString::from(""),
             provides: vec![],
             requires: vec![],

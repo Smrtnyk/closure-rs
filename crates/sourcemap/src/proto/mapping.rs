@@ -108,6 +108,10 @@ impl OriginalMapping {
             mapping: self.clone(),
         }
     }
+    /// An owned mapping can transfer its strings into the builder.
+    pub fn into_builder(self) -> Builder {
+        Builder { mapping: self }
+    }
     // port: OriginalMapping#getDefaultInstance
     pub fn get_default_instance() -> &'static Self {
         static INSTANCE: std::sync::LazyLock<OriginalMapping> =

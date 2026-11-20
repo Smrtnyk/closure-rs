@@ -164,13 +164,7 @@ impl SourceExcerptProvider for CompilerSourceExcerptProvider {
             cache.relative_path = relative;
             cache.relative_path_js.clone()
         };
-        Some(
-            result
-                .to_builder()
-                .set_original_file(relative_path)
-                .set_column_position(result.get_column_position().wrapping_sub(1))
-                .build(),
-        )
+        Some(with_resolved_file(result, relative_path))
     }
 }
 use crate::source_file_mapping::SourceFileMapping;
@@ -234,21 +228,20 @@ impl SourceFileMapping for Arc<CompilerSourceExcerptProvider> {
                 return mapping;
             }
         };
-        // The mapping `get_source_mapping` builds from `result`, made once
-        // (performance divergence).
-        let mut mapping = OriginalMapping::new_builder();
-        mapping
-            .set_original_file(relative_path)
-            .set_column_position(result.get_column_position().wrapping_sub(1));
-        if result.has_line_number() {
-            mapping.set_line_number(result.get_line_number());
-        }
-        if result.has_identifier() {
-            mapping.set_identifier(result.get_identifier());
-        }
-        if result.has_precision() {
-            mapping.set_precision(result.get_precision());
-        }
-        Some(mapping.finish())
+        Some(with_resolved_file(result, relative_path))
     }
+}
+
+// Rust-only (performance divergence): resolving the file only changes its name and column.
+// Transfer the decoded mapping, including the optional identifier and precision, into the builder.
+fn with_resolved_file(
+    result: OriginalMapping,
+    relative_path: closure_rhino::js_string::JsString,
+) -> OriginalMapping {
+    let column = result.get_column_position().wrapping_sub(1);
+    let mut builder = result.into_builder();
+    builder
+        .set_original_file(relative_path)
+        .set_column_position(column);
+    builder.finish()
 }

@@ -224,6 +224,18 @@ impl JSTypeRegistry {
         source_name: &str,
         scope: Option<Arc<dyn StaticTypedScope>>,
     ) -> TypeId {
+        self.parse_type_node(ast, n, source_name, &scope)
+    }
+
+    // Recursing through a JSDoc expression only borrows its scope. Take an owned reference
+    // when a NamedType must keep resolving in that scope after this evaluation.
+    fn parse_type_node(
+        &mut self,
+        ast: &Ast,
+        n: NodeId,
+        source_name: &str,
+        scope: &Option<Arc<dyn StaticTypedScope>>,
+    ) -> TypeId {
         match n.get_token(ast) {
             Token::LC => self.create_record_type_from_nodes(
                 ast,
@@ -232,12 +244,8 @@ impl JSTypeRegistry {
                 scope,
             ),
             Token::BANG => {
-                let child = self.create_type_from_comment_node_with_location(
-                    ast,
-                    n.get_first_child(ast).unwrap(),
-                    source_name,
-                    scope,
-                );
+                let child =
+                    self.parse_type_node(ast, n.get_first_child(ast).unwrap(), source_name, scope);
                 if child.is_named_type(self) {
                     child.get_bang_type(self, ast)
                 } else {
@@ -246,42 +254,25 @@ impl JSTypeRegistry {
             }
             Token::QMARK => {
                 if let Some(first_child) = n.get_first_child(ast) {
-                    let child = self.create_type_from_comment_node_with_location(
-                        ast,
-                        first_child,
-                        source_name,
-                        scope,
-                    );
+                    let child = self.parse_type_node(ast, first_child, source_name, scope);
                     self.create_nullable_type(ast, child)
                 } else {
                     self.get_native_type(JSTypeNative::UNKNOWN_TYPE)
                 }
             }
             Token::EQUALS => {
-                let child = self.create_type_from_comment_node_with_location(
-                    ast,
-                    n.get_first_child(ast).unwrap(),
-                    source_name,
-                    scope,
-                );
+                let child =
+                    self.parse_type_node(ast, n.get_first_child(ast).unwrap(), source_name, scope);
                 self.create_optional_type(ast, child)
             }
-            Token::ITER_REST => self.create_type_from_comment_node_with_location(
-                ast,
-                n.get_first_child(ast).unwrap(),
-                source_name,
-                scope,
-            ),
+            Token::ITER_REST => {
+                self.parse_type_node(ast, n.get_first_child(ast).unwrap(), source_name, scope)
+            }
             Token::STAR => self.get_native_type(JSTypeNative::ALL_TYPE),
             Token::PIPE => {
                 let mut builder = Vec::new();
                 for child in n.children(ast) {
-                    builder.push(self.create_type_from_comment_node_with_location(
-                        ast,
-                        child,
-                        source_name,
-                        scope.clone(),
-                    ));
+                    builder.push(self.parse_type_node(ast, child, source_name, scope));
                 }
                 self.create_union_type(ast, &builder)
             }
@@ -291,7 +282,7 @@ impl JSTypeRegistry {
                 let name = n.get_first_child(ast).unwrap().get_string(ast);
                 let qname = QualifiedName::of(name.clone());
                 let root = qname.get_root(ast);
-                let scope = scope.expect("NullPointerException");
+                let scope = scope.as_ref().expect("NullPointerException");
                 let declaration_scope =
                     scope.get_topmost_scope_of_eventual_declaration(self, ast, &root);
                 let root_slot = scope.get_slot_creating_implicit_vars(self, ast, &root);
@@ -308,7 +299,7 @@ impl JSTypeRegistry {
                     }
                 {
                     return NamedTypeBuilder::new(self, JsString::from("typeof ").concat(&name))
-                        .set_scope(Some(scope))
+                        .set_scope(Some(Arc::clone(scope)))
                         .set_resolution_kind(ResolutionKind::TYPEOF)
                         .set_error_reporting_location_from(ast, n)
                         .build(self, ast);
@@ -323,16 +314,16 @@ impl JSTypeRegistry {
                 type_
             }
             Token::STRINGLIT => {
-                let mut nominal_type = self.get_type_with_location(
+                let mut nominal_type = self.lookup_type_with_location(
                     ast,
-                    scope.clone(),
-                    n.get_string(ast),
+                    scope,
+                    n.get_string_ref(ast),
                     source_name,
                     n.get_lineno(ast),
                     n.get_charno(ast),
                 );
                 let template_args =
-                    self.parse_template_args(ast, nominal_type, n, source_name, scope.clone());
+                    self.parse_template_args(ast, nominal_type, n, source_name, scope);
                 if nominal_type.is_named_type(self) && !nominal_type.is_resolved(self) {
                     if let Some(template_args) = template_args {
                         nominal_type = NamedType::to_builder(nominal_type, self)
@@ -366,12 +357,8 @@ impl JSTypeRegistry {
                 let mut current = n.get_first_child(ast).unwrap();
                 if current.is_this(ast) || current.is_new(ast) {
                     let context_node = current.get_first_child(ast).unwrap();
-                    let candidate_this_type = self.create_type_from_comment_node_with_location(
-                        ast,
-                        context_node,
-                        source_name,
-                        scope.clone(),
-                    );
+                    let candidate_this_type =
+                        self.parse_type_node(ast, context_node, source_name, scope);
                     if candidate_this_type.is_null_type(self)
                         || candidate_this_type.is_void_type(self)
                     {
@@ -400,23 +387,13 @@ impl JSTypeRegistry {
                     for arg in current.children(ast) {
                         if arg.get_token(ast) == Token::ITER_REST {
                             let type_ = if let Some(child) = arg.get_first_child(ast) {
-                                self.create_type_from_comment_node_with_location(
-                                    ast,
-                                    child,
-                                    source_name,
-                                    scope.clone(),
-                                )
+                                self.parse_type_node(ast, child, source_name, scope)
                             } else {
                                 self.get_native_type(JSTypeNative::UNKNOWN_TYPE)
                             };
                             param_builder.add_var_args(type_);
                         } else {
-                            let type_ = self.create_type_from_comment_node_with_location(
-                                ast,
-                                arg,
-                                source_name,
-                                scope.clone(),
-                            );
+                            let type_ = self.parse_type_node(ast, arg, source_name, scope);
                             if arg.get_token(ast) == Token::EQUALS {
                                 let add_success =
                                     param_builder.add_optional_params(self, ast, &[type_]);
@@ -435,12 +412,7 @@ impl JSTypeRegistry {
                     }
                     current = current.get_next(ast).unwrap();
                 }
-                let return_type = self.create_type_from_comment_node_with_location(
-                    ast,
-                    current,
-                    source_name,
-                    scope,
-                );
+                let return_type = self.parse_type_node(ast, current, source_name, scope);
                 FunctionTypeBuilder::new()
                     .with_parameters(param_builder.build())
                     .with_return_type(return_type)
@@ -481,17 +453,12 @@ impl JSTypeRegistry {
         nominal_type: TypeId,
         type_node: NodeId,
         source_name: &str,
-        scope: Option<Arc<dyn StaticTypedScope>>,
+        scope: &Option<Arc<dyn StaticTypedScope>>,
     ) -> Option<Vec<TypeId>> {
         let type_list = type_node.get_first_child(ast)?;
         let mut template_args = Vec::new();
         for template_node in type_list.children(ast) {
-            template_args.push(self.create_type_from_comment_node_with_location(
-                ast,
-                template_node,
-                source_name,
-                scope.clone(),
-            ));
+            template_args.push(self.parse_type_node(ast, template_node, source_name, scope));
         }
         let name = type_node.get_string(ast);
         let is_object = name == "Object" || name == "window.Object";
@@ -532,7 +499,7 @@ impl JSTypeRegistry {
         ast: &Ast,
         n: NodeId,
         source_name: &str,
-        scope: Option<Arc<dyn StaticTypedScope>>,
+        scope: &Option<Arc<dyn StaticTypedScope>>,
     ) -> TypeId {
         let mut builder = RecordTypeBuilder::new();
         for field_type_node in n.children(ast) {
@@ -547,11 +514,11 @@ impl JSTypeRegistry {
                 field_name = field_name.substring(1, field_name.length() - 1);
             }
             let field_type = if has_type {
-                self.create_type_from_comment_node_with_location(
+                self.parse_type_node(
                     ast,
                     field_type_node.get_last_child(ast).unwrap(),
                     source_name,
-                    scope.clone(),
+                    scope,
                 )
             } else {
                 self.get_native_type(JSTypeNative::UNKNOWN_TYPE)
@@ -1368,16 +1335,13 @@ impl JSTypeRegistry {
         if qualified_name.is_empty() {
             return None;
         }
-        if !self.is_name_defined_locally(
-            ast,
-            resolution_scope,
-            &Self::get_root_element_of_name(qualified_name),
-        ) {
+        let root_name = Self::get_root_element_of_name(qualified_name);
+        if !self.is_name_defined_locally(ast, resolution_scope, &root_name) {
             if let Some(type_) = self.resolve_via_closure_namespace(ast, qualified_name.clone()) {
                 return Some(type_);
             }
         }
-        self.resolve_via_properties(ast, resolution_scope, qualified_name)
+        self.resolve_via_properties(ast, resolution_scope, &root_name, qualified_name)
     }
     // port: JSTypeRegistry#isNameDefinedLocally
     /// Rust-only parameters: the lookup may create an implicit var (see
@@ -1399,24 +1363,25 @@ impl JSTypeRegistry {
         ast: &Ast,
         reference: impl Into<JsString>,
     ) -> Option<TypeId> {
-        let mut prefix = reference.into();
-        let mut unused_components = Vec::new();
+        let reference = reference.into();
+        if self.closure_namespaces.is_empty() {
+            return None;
+        }
+        let mut prefix = reference.clone();
         loop {
             if let Some(namespace) = self.closure_namespaces.get(&prefix).cloned() {
                 if namespace.is_legacy() {
                     return None;
                 }
-                unused_components.reverse();
                 return self.resolve_via_property_given_slot(
                     ast,
                     namespace.type_(),
                     namespace.definition_node(),
-                    &unused_components,
+                    &reference.as_units()[prefix.length()..],
                 );
             }
             let last_dot = prefix.as_units().iter().rposition(|u| *u == b'.' as u16)?;
-            unused_components.push(prefix.substring_from(last_dot + 1));
-            prefix = prefix.substring(0, last_dot);
+            prefix = reference.substring(0, last_dot);
         }
     }
     // port: JSTypeRegistry#resolveViaProperties
@@ -1424,21 +1389,17 @@ impl JSTypeRegistry {
         &mut self,
         ast: &Ast,
         declaration_scope: &dyn StaticTypedScope,
+        root_name: &JsString,
         qualified_name: &JsString,
     ) -> Option<TypeId> {
         check_argument!(!qualified_name.is_empty());
-        let slot = declaration_scope.get_own_slot_creating_implicit_vars(
-            self,
+        let slot = declaration_scope.get_own_slot_creating_implicit_vars(self, ast, root_name)?;
+        self.resolve_via_property_given_slot(
             ast,
-            &Self::get_root_element_of_name(qualified_name),
-        )?;
-        let components: Vec<JsString> = qualified_name
-            .as_units()
-            .split(|c| *c == b'.' as u16)
-            .skip(1)
-            .map(|s| JsString::from_units(s.to_vec()))
-            .collect();
-        self.resolve_via_property_given_slot(ast, slot.get_type(self), None, &components)
+            slot.get_type(self),
+            None,
+            &qualified_name.as_units()[root_name.length()..],
+        )
     }
     // port: JSTypeRegistry#resolveTypeFromNodeIfTypedef
     fn resolve_type_from_node_if_typedef(ast: &Ast, node: Option<NodeId>) -> Option<TypeId> {
@@ -1450,9 +1411,9 @@ impl JSTypeRegistry {
         ast: &Ast,
         mut slot_type: Option<TypeId>,
         definition_node: Option<NodeId>,
-        component_names: &[JsString],
+        suffix: &[u16],
     ) -> Option<TypeId> {
-        if component_names.is_empty() {
+        if suffix.is_empty() {
             if let Some(t) = Self::resolve_type_from_node_if_typedef(ast, definition_node) {
                 return Some(t);
             }
@@ -1461,12 +1422,22 @@ impl JSTypeRegistry {
         if t.is_all_type(self) || t.is_no_type(self) {
             return None;
         }
-        for (i, component) in component_names.iter().enumerate() {
+        // Rust-only (performance divergence): the suffix starts at the dot after the root
+        // or namespace. Read each component only as the live property lookup reaches it.
+        let mut components = suffix
+            .split(|&unit| unit == u16::from(b'.'))
+            .skip(1)
+            .peekable();
+        while let Some(units) = components.next() {
             let parent_obj = slot_type?.to_maybe_object_type(self)?;
-            if component.is_empty() || !parent_obj.has_own_property(self, ast, component.clone()) {
+            if units.is_empty() {
                 return None;
             }
-            if i == component_names.len() - 1 {
+            let component = JsString::from_slice(units);
+            if !parent_obj.has_own_property(self, ast, component.clone()) {
+                return None;
+            }
+            if components.peek().is_none() {
                 if let Some(t) = Self::resolve_type_from_node_if_typedef(
                     ast,
                     parent_obj.get_property_def_site(self, ast, component.clone()),
@@ -1474,7 +1445,7 @@ impl JSTypeRegistry {
                     return Some(t);
                 }
             }
-            slot_type = Some(parent_obj.get_property_type(self, ast, component.clone()));
+            slot_type = Some(parent_obj.get_property_type(self, ast, component));
         }
         let t = slot_type?;
         if t.is_function_type(self) && (t.is_constructor(self) || t.is_interface(self)) {
@@ -1830,7 +1801,25 @@ impl JSTypeRegistry {
         lineno: i32,
         charno: i32,
     ) -> TypeId {
-        let js_type_name = js_type_name.into();
+        self.lookup_type_with_location(
+            ast,
+            &scope,
+            &js_type_name.into(),
+            source_name,
+            lineno,
+            charno,
+        )
+    }
+
+    fn lookup_type_with_location(
+        &mut self,
+        ast: &Ast,
+        scope: &Option<Arc<dyn StaticTypedScope>>,
+        js_type_name: &JsString,
+        source_name: impl Into<String>,
+        lineno: i32,
+        charno: i32,
+    ) -> TypeId {
         let primitive = match js_type_name.as_units() {
             [98, 111, 111, 108, 101, 97, 110] => Some(JSTypeNative::BOOLEAN_TYPE),
             [110, 117, 109, 98, 101, 114] => Some(JSTypeNative::NUMBER_TYPE),
@@ -1851,7 +1840,7 @@ impl JSTypeRegistry {
         {
             if let Some(type_) = this_type
                 .get_template_type_map(self)
-                .get_last_template_type_key_by_name(self, &js_type_name)
+                .get_last_template_type_key_by_name(self, js_type_name)
             {
                 check_state!(
                     type_.is_template_type(self),
@@ -1861,10 +1850,17 @@ impl JSTypeRegistry {
                 return type_;
             }
         }
-        if let Some(type_) = self.get_type(ast, scope.as_deref(), js_type_name.clone()) {
+        if let Some(type_) = self.get_type_internal(ast, scope.as_deref(), js_type_name) {
             type_
         } else {
-            self.create_named_type(ast, scope, js_type_name, source_name, lineno, charno)
+            self.create_named_type(
+                ast,
+                scope.clone(),
+                js_type_name.clone(),
+                source_name,
+                lineno,
+                charno,
+            )
         }
     }
     // port: JSTypeRegistry#maybeGetTemplateTypesOfBuiltin

@@ -33,11 +33,11 @@ impl ConditionalExpressionTree {
         ParseTree::new(
             ParseTreeType::CONDITIONAL_EXPRESSION,
             location,
-            ParseTreeData::ConditionalExpressionTree(Box::new(Self {
+            ParseTreeData::ConditionalExpressionTree(Self {
                 condition,
                 left,
                 right,
-            })),
+            }),
         )
     }
 }

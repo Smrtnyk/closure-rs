@@ -29,10 +29,7 @@ use crate::{
 use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 const UNMAPPED: i32 = -1;
-use std::{
-    cell::Cell,
-    fmt::{self, Write},
-};
+use std::fmt::{self, Write};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExtensionValue {
     String(JsString),
@@ -69,12 +66,10 @@ impl<F: FnMut(&JsString, &ExtensionValue, &ExtensionValue) -> ExtensionValue> Ex
 #[derive(Default)]
 pub struct SourceMapGeneratorV3 {
     mappings: Vec<Mapping>,
-    source_file_map: IndexMap<JsString, i32>,
+    source_file_map: MappingNames,
     source_file_content_map: IndexMap<JsString, Option<JsString>>,
-    original_name_map: IndexMap<JsString, i32>,
-    last_source_file: Option<JsString>,
-    last_source_file_index: i32,
-    last_mapping: Option<usize>,
+    original_name_map: MappingNames,
+    max_used_end_line: i32,
     offset_position: FilePosition,
     prefix_position: FilePosition,
     extensions: IndexMap<JsString, ExtensionValue>,
@@ -86,19 +81,14 @@ pub struct SourceMapGeneratorV3 {
 impl SourceMapGeneratorV3 {
     // port: SourceMapGeneratorV3#SourceMapGeneratorV3
     pub fn new() -> Self {
-        Self {
-            last_source_file_index: -1,
-            ..Self::default()
-        }
+        Self::default()
     }
     // port: SourceMapGeneratorV3#reset
     pub fn reset(&mut self) {
         self.mappings.clear();
-        self.last_mapping = None;
         self.source_file_map.clear();
         self.original_name_map.clear();
-        self.last_source_file = None;
-        self.last_source_file_index = -1;
+        self.max_used_end_line = 0;
         self.offset_position = FilePosition::new(0, 0);
         self.prefix_position = FilePosition::new(0, 0);
     }
@@ -146,7 +136,10 @@ impl SourceMapGeneratorV3 {
         start_position: FilePosition,
         end_position: FilePosition,
     ) {
-        if source_name.is_none() || source_start_position.get_line() < 0 {
+        let Some(source_name) = source_name else {
+            return;
+        };
+        if source_start_position.get_line() < 0 {
             return;
         }
         let mut adjusted_start = start_position;
@@ -172,25 +165,30 @@ impl SourceMapGeneratorV3 {
                 end_position.get_column().wrapping_add(end_offset_position),
             );
         }
-        let mut mapping = Mapping::new();
-        mapping.source_file = source_name;
-        mapping.original_position = source_start_position;
-        mapping.original_name = symbol_name;
-        mapping.start_position = adjusted_start;
-        mapping.end_position = adjusted_end;
-        if let Some(last_mapping) = self.last_mapping {
-            let last_mapping = &self.mappings[last_mapping];
+        if let Some(last_mapping) = self.mappings.last() {
             let last_line = last_mapping.start_position.get_line();
             let last_column = last_mapping.start_position.get_column();
-            let next_line = mapping.start_position.get_line();
-            let next_column = mapping.start_position.get_column();
+            let next_line = adjusted_start.get_line();
+            let next_column = adjusted_start.get_column();
             assert!(
                 next_line > last_line || (next_line == last_line && next_column >= last_column),
                 "java.lang.IllegalStateException: Incorrect source mappings order, previous : ({last_line},{last_column})\nnew : ({next_line},{next_column})"
             );
         }
-        self.last_mapping = Some(self.mappings.len());
-        self.mappings.push(mapping);
+        // Consecutive mappings commonly come from the same file.
+        let source_file = match self.mappings.last() {
+            Some(last) if self.source_file_map.name(last.source_file) == &source_name => {
+                last.source_file
+            }
+            _ => self.source_file_map.intern(source_name),
+        };
+        self.mappings.push(Mapping {
+            source_file,
+            original_name: symbol_name.map_or(UNMAPPED, |name| self.original_name_map.intern(name)),
+            original_position: source_start_position,
+            start_position: adjusted_start,
+            end_position: adjusted_end,
+        });
     }
     // port: SourceMapGeneratorV3#addSourcesContent
     // Java's map value is a nullable String: a null content (e.g. a null "sourcesContent" entry of
@@ -238,27 +236,29 @@ impl SourceMapGeneratorV3 {
         }
         Ok(())
     }
-    // Preserve Java's assigned-then-used extension value.
-    #[allow(clippy::needless_late_init)]
     // port: SourceMapGeneratorV3#appendTo
     pub fn append_to(
         &mut self,
         out: &mut dyn Write,
         name: Option<JsString>,
     ) -> Result<JsString, fmt::Error> {
-        let mut appendable = JavaAppendable::new(out);
-        let out = &mut appendable;
+        let mut units = Vec::new();
+        self.write_map(&mut JavaAppendable::new(out, Some(&mut units)), name)?;
+        Ok(JsString::from_units(units))
+    }
+
+    fn write_map(&mut self, out: &mut JavaAppendable<'_>, name: Option<JsString>) -> fmt::Result {
         let max_line = self.prep_mappings()?.wrapping_add(1);
         out.write_str("{\n")?;
         Self::append_first_field(out, "version", "3")?;
         if let Some(name) = name {
-            Self::append_field(out, "file", Self::escape_string(name))?;
+            Self::append_escaped_field(out, "file", &name)?;
         }
         Self::append_field(out, "lineCount", max_line.to_string())?;
         if let Some(root) = &self.source_root_path
             && !root.is_empty()
         {
-            Self::append_field(out, "sourceRoot", Self::escape_string(root))?;
+            Self::append_escaped_field(out, "sourceRoot", root)?;
         }
         Self::append_field_start(out, "mappings")?;
         let traversal = MappingTraversal::new(&self.mappings, self.prefix_position);
@@ -268,8 +268,6 @@ impl SourceMapGeneratorV3 {
             self.merge_identical_segments,
             &mut self.source_file_map,
             &mut self.original_name_map,
-            &mut self.last_source_file,
-            &mut self.last_source_file_index,
         )
         .append_line_mappings(traversal)?;
         Self::append_field_end(out);
@@ -284,23 +282,16 @@ impl SourceMapGeneratorV3 {
         self.add_symbol_name_map(out)?;
         out.write_char(']')?;
         Self::append_field_end(out);
-        for key in self.extensions.keys() {
-            let obj_value = self.extensions.get(key).unwrap();
-            let value;
-            if let ExtensionValue::String(string) = obj_value {
-                value = Self::escape_string(string);
-            } else {
-                // Object.toString dispatch to the supported extension value types.
-                value = match obj_value {
-                    ExtensionValue::Integer(value) => value.to_string().into(),
-                    ExtensionValue::JsonElement(value) => value.to_js_string(),
-                    ExtensionValue::String(_) => unreachable!(),
-                };
+        for (key, value) in &self.extensions {
+            match value {
+                ExtensionValue::String(value) => Self::append_escaped_field(out, key, value)?,
+                ExtensionValue::Integer(value) => Self::append_field(out, key, value.to_string())?,
+                ExtensionValue::JsonElement(value) => {
+                    Self::append_field(out, key, value.to_js_string())?
+                }
             }
-            Self::append_field(out, key, value)?;
         }
-        out.write_str("\n}\n")?;
-        Ok(appendable.finish())
+        out.write_str("\n}\n")
     }
     // port: SourceMapGeneratorV3#setSourceRoot
     pub fn set_source_root(&mut self, path: impl Into<JsString>) {
@@ -342,33 +333,29 @@ impl SourceMapGeneratorV3 {
     fn add_source_name_map(&self, out: &mut JavaAppendable<'_>) -> fmt::Result {
         Self::add_name_map(out, &self.source_file_map)
     }
-    // Preserve the Java indexed content lookup.
-    #[allow(clippy::needless_range_loop)]
     // port: SourceMapGeneratorV3#addSourcesContentMap
     fn add_sources_content_map(&self, out: &mut JavaAppendable<'_>) -> fmt::Result {
-        let mut found = false;
-        let size = self.source_file_map.len();
-        let mut contents = vec![JsString::default(); size];
-        for entry in &self.source_file_map {
-            let index = *entry.1;
-            assert!((index as usize) < size, "java.lang.IllegalStateException");
-            let content = self.source_file_content_map.get(entry.0);
-            if let Some(Some(content)) = content {
-                contents[index as usize] = content.clone();
-                found = true;
-            }
-        }
-        if !found {
+        let contents = || {
+            self.source_file_map.emitted_names().map(|name| {
+                self.source_file_content_map
+                    .get(name)
+                    .and_then(Option::as_ref)
+            })
+        };
+        if !contents().any(|content| content.is_some()) {
             return Ok(());
         }
         Self::append_field_start(out, "sourcesContent")?;
         out.write_char('[')?;
-        for i in 0..size {
+        for (i, content) in contents().enumerate() {
             if i != 0 {
                 out.write_char(',')?;
             }
-            let source_content = &contents[i];
-            out.append(&Self::escape_string(source_content))?;
+            if let Some(content) = content {
+                Util::write_escaped_string(out, content)?;
+            } else {
+                out.write_str("\"\"")?;
+            }
         }
         out.write_char(']')?;
         Self::append_field_end(out);
@@ -378,24 +365,24 @@ impl SourceMapGeneratorV3 {
     fn add_symbol_name_map(&self, out: &mut JavaAppendable<'_>) -> fmt::Result {
         Self::add_name_map(out, &self.original_name_map)
     }
-    // Preserve the Java statement order.
-    #[allow(clippy::explicit_counter_loop)]
     // port: SourceMapGeneratorV3#addNameMap
-    fn add_name_map(out: &mut JavaAppendable<'_>, map: &IndexMap<JsString, i32>) -> fmt::Result {
-        let mut i = 0;
-        for entry in map {
-            let key = entry.0;
+    fn add_name_map(out: &mut JavaAppendable<'_>, map: &MappingNames) -> fmt::Result {
+        for (i, key) in map.emitted_names().enumerate() {
             if i != 0 {
                 out.write_char(',')?;
             }
-            out.append(&Self::escape_string(key))?;
-            i += 1;
+            Util::write_escaped_string(out, key)?;
         }
         Ok(())
     }
     // port: SourceMapGeneratorV3#escapeString
-    fn escape_string(value: impl Into<JsString>) -> JsString {
-        Util::escape_string(value)
+    fn append_escaped_field(
+        out: &mut JavaAppendable<'_>,
+        name: impl Into<JsString>,
+        value: &JsString,
+    ) -> fmt::Result {
+        Self::append_field_start(out, name)?;
+        Util::write_escaped_string(out, value)
     }
     // port: SourceMapGeneratorV3#appendFirstField
     fn append_first_field(
@@ -436,20 +423,14 @@ impl SourceMapGeneratorV3 {
     // port: SourceMapGeneratorV3#appendFieldEnd
     fn append_field_end(_out: &mut JavaAppendable<'_>) {}
     // port: SourceMapGeneratorV3#prepMappings
-    fn prep_mappings(&self) -> Result<i32, fmt::Error> {
+    fn prep_mappings(&mut self) -> Result<i32, fmt::Error> {
+        // Only the greatest end line of the mappings ever visited is observable. Java preserves
+        // their used flags across appends; keep that maximum until reset.
         MappingTraversal::new(&self.mappings, self.prefix_position)
-            .traverse(&mut UsedMappingCheck)?;
-        let mut id = 0;
-        let mut max_line = 0;
-        for m in &self.mappings {
-            if m.used.get() {
-                m.id.set(id);
-                id += 1;
-                let end_position_line = m.end_position.get_line();
-                max_line = max_line.max(end_position_line);
-            }
-        }
-        Ok(max_line.wrapping_add(self.prefix_position.get_line()))
+            .traverse(&mut UsedMappingCheck(&mut self.max_used_end_line))?;
+        Ok(self
+            .max_used_end_line
+            .wrapping_add(self.prefix_position.get_line()))
     }
     // port: SourceMapGeneratorV3#appendIndexMapTo
     pub fn append_index_map_to(
@@ -459,11 +440,12 @@ impl SourceMapGeneratorV3 {
         sections: &[SourceMapSection],
     ) -> Result<JsString, fmt::Error> {
         let name = name.into();
-        let mut appendable = JavaAppendable::new(out);
+        let mut units = Vec::new();
+        let mut appendable = JavaAppendable::new(out, Some(&mut units));
         let out = &mut appendable;
         out.write_str("{\n")?;
         Self::append_first_field(out, "version", "3")?;
-        Self::append_field(out, "file", Self::escape_string(name))?;
+        Self::append_escaped_field(out, "file", &name)?;
         Self::append_field_start(out, "sections")?;
         out.write_str("[\n")?;
         let mut first = true;
@@ -477,7 +459,7 @@ impl SourceMapGeneratorV3 {
             Self::append_field_start_with_first(out, "offset", true)?;
             Self::append_offset_value(out, section.line, section.column)?;
             if section.get_section_type() == SectionType::URL {
-                Self::append_field(out, "url", Self::escape_string(section.get_section_value()))?;
+                Self::append_escaped_field(out, "url", section.get_section_value())?;
             } else if section.get_section_type() == SectionType::MAP {
                 Self::append_field(out, "map", section.get_section_value())?;
             }
@@ -487,7 +469,7 @@ impl SourceMapGeneratorV3 {
         out.write_str("\n]")?;
         Self::append_field_end(out);
         out.write_str("\n}\n")?;
-        Ok(appendable.finish())
+        Ok(JsString::from_units(units))
     }
     // port: SourceMapGeneratorV3#appendOffsetValue
     fn append_offset_value(out: &mut JavaAppendable<'_>, line: i32, column: i32) -> fmt::Result {
@@ -518,28 +500,60 @@ impl crate::source_map_consumer_v3::EntryVisitor for ConsumerEntryVisitor<'_> {
     }
 }
 
+// Rust-only (performance divergence): the per-mapping record holds compact file/name keys.
+// An interned key gets its source-map index only when the traversal actually writes it. A
+// covered mapping can therefore arrive first and emit its name later, or never emit it at all.
+#[derive(Default)]
+struct MappingNames {
+    interned: IndexMap<JsString, i32>,
+    emitted: Vec<i32>,
+}
+impl MappingNames {
+    fn clear(&mut self) {
+        self.interned.clear();
+        self.emitted.clear();
+    }
+
+    fn intern(&mut self, name: JsString) -> i32 {
+        let entry = self.interned.entry(name);
+        let index = entry.index();
+        entry.or_insert(UNMAPPED);
+        i32::try_from(index).expect("too many source map names")
+    }
+
+    fn name(&self, index: i32) -> &JsString {
+        self.interned.get_index(index as usize).unwrap().0
+    }
+
+    // port: SourceMapGeneratorV3#getSourceId
+    // port: SourceMapGeneratorV3#getNameId
+    fn emitted_id(
+        &mut self,
+        index: i32,
+        output: &mut MappingBuffer<'_, '_>,
+    ) -> Result<i32, fmt::Error> {
+        let (_, id) = self.interned.get_index_mut(index as usize).unwrap();
+        if *id == UNMAPPED {
+            // With a fallible Appendable, earlier segment bytes must reach the writer before it
+            // can observe a new name on a subsequent append.
+            output.flush()?;
+            *id = self.emitted.len() as i32;
+            self.emitted.push(index);
+        }
+        Ok(*id)
+    }
+
+    fn emitted_names(&self) -> impl Iterator<Item = &JsString> {
+        self.emitted.iter().map(|&index| self.name(index))
+    }
+}
+
 struct Mapping {
-    id: Cell<i32>,
-    source_file: Option<JsString>,
+    source_file: i32,
+    original_name: i32,
     original_position: FilePosition,
     start_position: FilePosition,
     end_position: FilePosition,
-    original_name: Option<JsString>,
-    used: Cell<bool>,
-}
-impl Mapping {
-    // port: SourceMapGeneratorV3.Mapping#Mapping
-    fn new() -> Self {
-        Self {
-            id: Cell::new(UNMAPPED),
-            source_file: None,
-            original_position: FilePosition::default(),
-            start_position: FilePosition::default(),
-            end_position: FilePosition::default(),
-            original_name: None,
-            used: Cell::new(false),
-        }
-    }
 }
 
 /// Java's `MappingVisitor`; `'m` is the lifetime of the visited mappings, so that a visitor can
@@ -555,8 +569,8 @@ trait MappingVisitor<'m> {
         end_col: i32,
     ) -> fmt::Result;
 }
-struct UsedMappingCheck;
-impl<'m> MappingVisitor<'m> for UsedMappingCheck {
+struct UsedMappingCheck<'a>(&'a mut i32);
+impl<'m> MappingVisitor<'m> for UsedMappingCheck<'_> {
     // port: SourceMapGeneratorV3.UsedMappingCheck#visit
     fn visit(
         &mut self,
@@ -567,7 +581,7 @@ impl<'m> MappingVisitor<'m> for UsedMappingCheck {
         _end_col: i32,
     ) -> fmt::Result {
         if let Some(m) = m {
-            m.used.set(true);
+            *self.0 = (*self.0).max(m.end_position.get_line());
         }
         Ok(())
     }
@@ -591,7 +605,7 @@ impl<'a> MappingTraversal<'a> {
     // Preserve the Java statement order.
     #[allow(clippy::manual_while_let_some)]
     // port: SourceMapGeneratorV3.MappingTraversal#traverse
-    fn traverse(mut self, v: &mut dyn MappingVisitor<'a>) -> fmt::Result {
+    fn traverse(mut self, v: &mut impl MappingVisitor<'a>) -> fmt::Result {
         let mut stack: Vec<&'a Mapping> = Vec::new();
         for m in self.mappings {
             while stack
@@ -634,7 +648,7 @@ impl<'a> MappingTraversal<'a> {
         (l1 == l2 && c1 >= c2) || l1 > l2
     }
     // port: SourceMapGeneratorV3.MappingTraversal#maybeVisit
-    fn maybe_visit(&mut self, v: &mut dyn MappingVisitor<'a>, m: &'a Mapping) -> fmt::Result {
+    fn maybe_visit(&mut self, v: &mut impl MappingVisitor<'a>, m: &'a Mapping) -> fmt::Result {
         let next_line = self.get_adjusted_line(m.end_position);
         let next_col = self.get_adjusted_col(m.end_position);
         if self.line < next_line || (self.line == next_line && self.col < next_col) {
@@ -645,7 +659,7 @@ impl<'a> MappingTraversal<'a> {
     // port: SourceMapGeneratorV3.MappingTraversal#maybeVisitParent
     fn maybe_visit_parent(
         &mut self,
-        v: &mut dyn MappingVisitor<'a>,
+        v: &mut impl MappingVisitor<'a>,
         parent: Option<&'a Mapping>,
         m: &'a Mapping,
     ) -> fmt::Result {
@@ -663,7 +677,7 @@ impl<'a> MappingTraversal<'a> {
     // port: SourceMapGeneratorV3.MappingTraversal#visit
     fn visit(
         &mut self,
-        v: &mut dyn MappingVisitor<'a>,
+        v: &mut impl MappingVisitor<'a>,
         m: Option<&'a Mapping>,
         next_line: i32,
         next_col: i32,
@@ -682,8 +696,30 @@ impl<'a> MappingTraversal<'a> {
         Ok(())
     }
 }
+// Rust-only (performance divergence): collect ASCII mapping digits in bounded runs. The
+// underlying Appendable receives whole segments in one write.
+struct MappingBuffer<'a, 'out> {
+    dest: &'a mut JavaAppendable<'out>,
+    text: String,
+}
+impl MappingBuffer<'_, '_> {
+    fn flush(&mut self) -> fmt::Result {
+        if !self.text.is_empty() {
+            self.dest.write_str(&self.text)?;
+            self.text.clear();
+        }
+        Ok(())
+    }
+
+    fn flush_if_full(&mut self) -> fmt::Result {
+        if self.text.len() >= 4096 {
+            self.flush()?;
+        }
+        Ok(())
+    }
+}
 struct LineMapper<'a, 'out, 'm> {
-    out: &'a mut JavaAppendable<'out>,
+    out: MappingBuffer<'a, 'out>,
     max_line: i32,
     /// The outer generator's `mergeIdenticalSegments`.
     merge_identical_segments: bool,
@@ -696,10 +732,8 @@ struct LineMapper<'a, 'out, 'm> {
     /// The mapping of the last entry written, or null if that entry was unmapped. Only meaningful
     /// when the entry being visited is on previousLine.
     previous_mapping: Option<&'m Mapping>,
-    source_file_map: &'a mut IndexMap<JsString, i32>,
-    original_name_map: &'a mut IndexMap<JsString, i32>,
-    last_source_file: &'a mut Option<JsString>,
-    last_source_file_index: &'a mut i32,
+    source_file_map: &'a mut MappingNames,
+    original_name_map: &'a mut MappingNames,
 }
 impl<'m> MappingVisitor<'m> for LineMapper<'_, '_, 'm> {
     /// As each segment is visited write out the appropriate line mapping.
@@ -726,7 +760,7 @@ impl<'m> MappingVisitor<'m> for LineMapper<'_, '_, 'm> {
                 if !merge {
                     if self.previous_line == line {
                         // not the first entry for the line
-                        self.out.write_char(',')?;
+                        self.out.text.push(',');
                     }
                     self.write_entry(m, col)?;
                     self.previous_line = line;
@@ -756,13 +790,14 @@ impl<'m> LineMapper<'_, '_, 'm> {
         out: &'a mut JavaAppendable<'out>,
         max_line: i32,
         merge_identical_segments: bool,
-        source_file_map: &'a mut IndexMap<JsString, i32>,
-        original_name_map: &'a mut IndexMap<JsString, i32>,
-        last_source_file: &'a mut Option<JsString>,
-        last_source_file_index: &'a mut i32,
+        source_file_map: &'a mut MappingNames,
+        original_name_map: &'a mut MappingNames,
     ) -> LineMapper<'a, 'out, 'm> {
         LineMapper {
-            out,
+            out: MappingBuffer {
+                dest: out,
+                text: String::new(),
+            },
             max_line,
             merge_identical_segments,
             previous_line: -1,
@@ -774,37 +809,7 @@ impl<'m> LineMapper<'_, '_, 'm> {
             previous_mapping: None,
             source_file_map,
             original_name_map,
-            last_source_file,
-            last_source_file_index,
         }
-    }
-    // port: SourceMapGeneratorV3#getSourceId
-    fn get_source_id(&mut self, source_name: &JsString) -> i32 {
-        if self.last_source_file.as_ref() != Some(source_name) {
-            *self.last_source_file = Some(source_name.clone());
-            let index = self.source_file_map.get(source_name);
-            if let Some(index) = index {
-                *self.last_source_file_index = *index;
-            } else {
-                *self.last_source_file_index = self.source_file_map.len() as i32;
-                self.source_file_map
-                    .insert(source_name.clone(), *self.last_source_file_index);
-            }
-        }
-        *self.last_source_file_index
-    }
-    // port: SourceMapGeneratorV3#getNameId
-    fn get_name_id(&mut self, symbol_name: &JsString) -> i32 {
-        let original_name_index;
-        let index = self.original_name_map.get(symbol_name);
-        if let Some(index) = index {
-            original_name_index = *index;
-        } else {
-            original_name_index = self.original_name_map.len() as i32;
-            self.original_name_map
-                .insert(symbol_name.clone(), original_name_index);
-        }
-        original_name_index
     }
     /// Returns whether both mappings are non-null and have the same source file, original
     /// position, and original name, i.e. would be written as the same source map segment apart
@@ -821,31 +826,44 @@ impl<'m> LineMapper<'_, '_, 'm> {
     }
     // port: SourceMapGeneratorV3.LineMapper#writeEntry
     fn write_entry(&mut self, m: Option<&'m Mapping>, column: i32) -> fmt::Result {
-        Base64VLQ::encode(self.out, column.wrapping_sub(self.previous_column))?;
+        Base64VLQ::encode_to(
+            &mut self.out.text,
+            column.wrapping_sub(self.previous_column),
+        )?;
         self.previous_column = column;
         if let Some(m) = m {
-            let source_id = self.get_source_id(m.source_file.as_ref().unwrap());
-            Base64VLQ::encode(
-                self.out,
+            let source_id = self
+                .source_file_map
+                .emitted_id(m.source_file, &mut self.out)?;
+            Base64VLQ::encode_to(
+                &mut self.out.text,
                 source_id.wrapping_sub(self.previous_source_file_id),
             )?;
             self.previous_source_file_id = source_id;
             let srcline = m.original_position.get_line();
             let src_column = m.original_position.get_column();
-            Base64VLQ::encode(self.out, srcline.wrapping_sub(self.previous_source_line))?;
+            Base64VLQ::encode_to(
+                &mut self.out.text,
+                srcline.wrapping_sub(self.previous_source_line),
+            )?;
             self.previous_source_line = srcline;
-            Base64VLQ::encode(
-                self.out,
+            Base64VLQ::encode_to(
+                &mut self.out.text,
                 src_column.wrapping_sub(self.previous_source_column),
             )?;
             self.previous_source_column = src_column;
-            if let Some(name) = &m.original_name {
-                let name_id = self.get_name_id(name);
-                Base64VLQ::encode(self.out, name_id.wrapping_sub(self.previous_name_id))?;
+            if m.original_name != UNMAPPED {
+                let name_id = self
+                    .original_name_map
+                    .emitted_id(m.original_name, &mut self.out)?;
+                Base64VLQ::encode_to(
+                    &mut self.out.text,
+                    name_id.wrapping_sub(self.previous_name_id),
+                )?;
                 self.previous_name_id = name_id;
             }
         }
-        Ok(())
+        self.out.flush_if_full()
     }
     // port: SourceMapGeneratorV3.LineMapper#appendLineMappings
     fn append_line_mappings(&mut self, traversal: MappingTraversal<'m>) -> fmt::Result {
@@ -856,17 +874,19 @@ impl<'m> LineMapper<'_, '_, 'm> {
     // port: SourceMapGeneratorV3.LineMapper#openLine
     fn open_line(&mut self, first_entry: bool) -> fmt::Result {
         if first_entry {
-            self.out.write_char('"')?;
+            self.out.text.push('"');
         }
         Ok(())
     }
     // port: SourceMapGeneratorV3.LineMapper#closeLine
     fn close_line(&mut self, final_entry: bool) -> fmt::Result {
-        self.out.write_char(';')?;
+        self.out.text.push(';');
         if final_entry {
-            self.out.write_char('"')?;
+            self.out.text.push('"');
+            self.out.flush()
+        } else {
+            self.out.flush_if_full()
         }
-        Ok(())
     }
 }
 
@@ -878,6 +898,9 @@ impl SourceMapGenerator for SourceMapGeneratorV3 {
         name: Option<JsString>,
     ) -> Result<JsString, fmt::Error> {
         self.append_to(out, name)
+    }
+    fn write_to(&mut self, out: &mut dyn Write, name: Option<JsString>) -> fmt::Result {
+        self.write_map(&mut JavaAppendable::new(out, None), name)
     }
     // Rust trait dispatch to the single Java method body.
     fn append_index_map_to(
@@ -931,33 +954,33 @@ impl SourceMapGenerator for SourceMapGeneratorV3 {
 // the completed JsString also lets lossless callers retain the Java output.
 struct JavaAppendable<'a> {
     out: &'a mut dyn Write,
-    units: Vec<u16>,
+    units: Option<&'a mut Vec<u16>>,
 }
 impl<'a> JavaAppendable<'a> {
-    fn new(out: &'a mut dyn Write) -> Self {
-        Self {
-            out,
-            units: Vec::new(),
-        }
+    fn new(out: &'a mut dyn Write, units: Option<&'a mut Vec<u16>>) -> Self {
+        Self { out, units }
     }
     fn append(&mut self, s: &JsString) -> fmt::Result {
-        self.units.extend_from_slice(s.as_units());
+        if let Some(units) = self.units.as_mut() {
+            units.extend_from_slice(s.as_units());
+        }
         write!(self.out, "{s}")
-    }
-    fn finish(self) -> JsString {
-        JsString::from_units(self.units)
     }
 }
 impl Write for JavaAppendable<'_> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         // Rust-only: the code units are appended directly, not through a JS string
         // (performance divergence).
-        self.units.extend(s.encode_utf16());
+        if let Some(units) = self.units.as_mut() {
+            units.extend(s.encode_utf16());
+        }
         self.out.write_str(s)
     }
     fn write_char(&mut self, c: char) -> fmt::Result {
-        let mut buf = [0u16; 2];
-        self.units.extend_from_slice(c.encode_utf16(&mut buf));
+        if let Some(units) = self.units.as_mut() {
+            let mut buf = [0u16; 2];
+            units.extend_from_slice(c.encode_utf16(&mut buf));
+        }
         self.out.write_char(c)
     }
 }

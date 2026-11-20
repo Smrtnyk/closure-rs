@@ -29,6 +29,8 @@ use super::{
 pub struct IdentifierToken {
     value: JsString,
     private_identifier: bool,
+    // The parser and IRFactory also check reserved names. Keep the scanner's classification.
+    keyword: Option<Keywords>,
 }
 
 impl IdentifierToken {
@@ -36,6 +38,16 @@ impl IdentifierToken {
     // port: IdentifierToken#<init>
     #[allow(clippy::new_ret_no_self)]
     pub fn new(location: SourceRange, value: JsString) -> Token {
+        let keyword = Keywords::get_by_name(&value);
+        Self::with_keyword(location, value, keyword)
+    }
+
+    // The scanner has already classified the unescaped spelling.
+    pub(super) fn with_keyword(
+        location: SourceRange,
+        value: JsString,
+        keyword: Option<Keywords>,
+    ) -> Token {
         let private_identifier = value.starts_with("#");
         Token {
             type_: TokenType::IDENTIFIER,
@@ -43,6 +55,7 @@ impl IdentifierToken {
             data: TokenData::Identifier(Self {
                 value,
                 private_identifier,
+                keyword,
             }),
         }
     }
@@ -54,7 +67,11 @@ impl IdentifierToken {
 
     // port: IdentifierToken#isKeyword
     pub fn is_keyword(&self) -> bool {
-        Keywords::is_keyword(&self.value)
+        self.keyword.is_some()
+    }
+
+    pub(super) fn keyword(&self) -> Option<Keywords> {
+        self.keyword
     }
 
     // port: IdentifierToken#valueEquals

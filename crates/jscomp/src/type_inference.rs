@@ -155,7 +155,7 @@ trait TypeDeclaringCallback {
     /// CAST, `type_` the type we've inferred for the lvalue. Returns the updated flow scope.
     fn declare_type_in_scope(
         &mut self,
-        ti: &mut TypeInference<'_>,
+        ti: &mut InferenceTransfer<'_>,
         compiler: &mut AbstractCompiler,
         scope: FS,
         lvalue: NodeId,
@@ -164,11 +164,11 @@ trait TypeDeclaringCallback {
 }
 impl<F> TypeDeclaringCallback for F
 where
-    F: FnMut(&mut TypeInference<'_>, &mut AbstractCompiler, FS, NodeId, Option<TypeId>) -> FS,
+    F: FnMut(&mut InferenceTransfer<'_>, &mut AbstractCompiler, FS, NodeId, Option<TypeId>) -> FS,
 {
     fn declare_type_in_scope(
         &mut self,
-        ti: &mut TypeInference<'_>,
+        ti: &mut InferenceTransfer<'_>,
         compiler: &mut AbstractCompiler,
         scope: FS,
         lvalue: NodeId,
@@ -180,6 +180,13 @@ where
 
 pub struct TypeInference<'a> {
     state: DataFlowAnalysisState<NodeId>,
+    transfer: InferenceTransfer<'a>,
+    pub(crate) linear_scripts: Option<Box<crate::control_flow_analysis::LinearScripts>>,
+}
+
+/// Type inference at the entry and each reachable CFG node. The compiler pass can also
+/// run these operations directly when CFA proves that every edge is unconditional.
+struct InferenceTransfer<'a> {
     reverse_interpreter: Arc<dyn ReverseAbstractInterpreter>,
     bottom_scope: FS,
     container_scope: TypedScope, // global scope, function scope, or static block scope
@@ -217,7 +224,57 @@ impl<'a> TypeInference<'a> {
             cfg.format_node_value(compiler, entry_value.as_ref()),
             syntactic_scope.get_root_node(compiler).to_string(compiler)
         );
-        let state = DataFlowAnalysisState::new(cfg, true, true);
+        Self {
+            state: DataFlowAnalysisState::new(cfg, true, true),
+            linear_scripts: None,
+            transfer: InferenceTransfer::new(
+                compiler,
+                reverse_interpreter,
+                syntactic_scope,
+                scope_creator,
+                assertion_function_lookup,
+            ),
+        }
+    }
+
+    pub fn get_big_int_presence(compiler: &mut AbstractCompiler, type_: TypeId) -> BigIntPresence {
+        InferenceTransfer::get_big_int_presence(compiler, type_)
+    }
+
+    pub(crate) fn infer_linear_function(
+        compiler: &mut AbstractCompiler,
+        reverse_interpreter: Arc<dyn ReverseAbstractInterpreter>,
+        scope: TypedScope,
+        scope_creator: &'a mut TypedScopeCreator,
+        assertion_function_lookup: &'a AssertionFunctionLookup,
+        body: NodeId,
+        statements: &[NodeId],
+    ) {
+        let function = scope.get_root_node(compiler);
+        let mut transfer = InferenceTransfer::new(
+            compiler,
+            reverse_interpreter,
+            scope,
+            scope_creator,
+            assertion_function_lookup,
+        );
+        let entry = transfer.create_entry_lattice(compiler);
+        let function_output = transfer.flow_through(compiler, function, entry);
+        let mut flow = transfer.flow_through(compiler, body, function_output);
+        for &statement in statements {
+            flow = transfer.flow_through(compiler, statement, flow);
+        }
+    }
+}
+
+impl<'a> InferenceTransfer<'a> {
+    fn new(
+        compiler: &mut AbstractCompiler,
+        reverse_interpreter: Arc<dyn ReverseAbstractInterpreter>,
+        syntactic_scope: TypedScope,
+        scope_creator: &'a mut TypedScopeCreator,
+        assertion_function_lookup: &'a AssertionFunctionLookup,
+    ) -> Self {
         let module_import_resolver = ModuleImportResolver::new(compiler.get_module_map().cloned());
         let (reg, _) = compiler.get_type_registry_and_ast();
         let unknown_type = reg.get_native_object_type(JSTypeNative::UNKNOWN_TYPE);
@@ -228,7 +285,6 @@ impl<'a> TypeInference<'a> {
         let bottom = TypedScope::create_lattice_bottom(compiler, root);
         let bottom_scope: FS = LinkedFlowScope::create_entry_lattice(bottom);
         Self {
-            state,
             reverse_interpreter,
             bottom_scope,
             container_scope: syntactic_scope,
@@ -240,6 +296,68 @@ impl<'a> TypeInference<'a> {
             unknown_type,
             number_addition_supertype,
         }
+    }
+
+    // port: TypeInference#createEntryLattice
+    fn create_entry_lattice(&mut self, compiler: &mut AbstractCompiler) -> FS {
+        // only ever called once so we don't need to cache this computation
+        let entry: FS = LinkedFlowScope::create_entry_lattice(self.container_scope);
+        let entry_scope = self.infer_declaratively_unbound_vars_without_types(compiler, entry);
+
+        self.infer_parameters(compiler, entry_scope)
+    }
+
+    // port: TypeInference#flowThrough
+    fn flow_through(&mut self, compiler: &mut AbstractCompiler, n: NodeId, input: FS) -> FS {
+        // If we have not walked a path from <entry> to <n>, then we don't
+        // want to infer anything about this scope.
+        if same_scope(&input, &self.bottom_scope) {
+            return input;
+        }
+
+        // This method also does some logic for ES modules right before and after entering/exiting
+        // the scope rooted at the module. The reasoning for separating out this logic is that we
+        // can just ignore the actual AST nodes for IMPORT/EXPORT, in most cases, because we have
+        // already created an abstraction of imports and exports.
+        let root = NodeUtil::get_enclosing_scope_root(compiler, n).unwrap();
+        // Inferred types of ES module imports/exports aren't knowable until after TypeInference
+        // runs. First update the type of all imports in the scope, then do flow-sensitive
+        // inference, then update the implicit '*exports*' object.
+        let module = {
+            let module_map = compiler.get_module_map().cloned();
+            ModuleImportResolver::get_module_from_scope_root(module_map.as_deref(), compiler, root)
+        };
+        let syntactic_block_scope = self.scope_creator.create_scope_for_node(compiler, root);
+        if let Some(module) = &module
+            && module.metadata().is_es6_module()
+        {
+            let input_id = NodeUtil::get_input_id(compiler, n);
+            let module_input = input_id.and_then(|id| compiler.get_input(&id).cloned());
+            let scope_creator: &TypedScopeCreator = self.scope_creator;
+            let mapper = scope_creator.get_node_to_scope_mapper();
+            self.module_import_resolver.declare_es_module_imports(
+                compiler,
+                &mapper,
+                module,
+                syntactic_block_scope,
+                module_input,
+            );
+        }
+
+        // This logic is not specific to ES modules.
+        let mut output = input.with_syntactic_scope(compiler, syntactic_block_scope);
+        output = self.infer_declaratively_unbound_vars_without_types(compiler, output);
+        output = self.traverse(compiler, n, output);
+
+        self.update_module_scope(compiler, module, syntactic_block_scope);
+        output
+    }
+
+    fn join(&self, compiler: &mut AbstractCompiler, left: FS, right: FS) -> FS {
+        let mut joiner = FlowScopeJoinOp::new();
+        joiner.join_flow(compiler, left);
+        joiner.join_flow(compiler, right);
+        check_not_null!(joiner.finish())
     }
 
     // port: TypeInference#inferDeclarativelyUnboundVarsWithoutTypes
@@ -405,7 +523,7 @@ impl<'a> TypeInference<'a> {
             pattern,
             entry_flow_scope,
             inferred_type,
-            &mut |ti: &mut TypeInference<'_>,
+            &mut |ti: &mut InferenceTransfer<'_>,
                   compiler: &mut AbstractCompiler,
                   mut scope: FS,
                   lvalue: NodeId,
@@ -1470,61 +1588,28 @@ impl DataFlowAnalysis<NodeId, FS> for TypeInference<'_> {
 
     // port: TypeInference#createInitialEstimateLattice
     fn create_initial_estimate_lattice(&self) -> FS {
-        self.bottom_scope.clone()
+        self.transfer.bottom_scope.clone()
     }
 
-    // port: TypeInference#createEntryLattice
     fn create_entry_lattice(&mut self, compiler: &mut AbstractCompiler) -> FS {
-        // only ever called once so we don't need to cache this computation
-        let entry: FS = LinkedFlowScope::create_entry_lattice(self.container_scope);
-        let entry_scope = self.infer_declaratively_unbound_vars_without_types(compiler, entry);
-
-        self.infer_parameters(compiler, entry_scope)
+        self.transfer.create_entry_lattice(compiler)
     }
 
-    // port: TypeInference#flowThrough
-    fn flow_through(&mut self, compiler: &mut AbstractCompiler, n: NodeId, input: FS) -> FS {
-        // If we have not walked a path from <entry> to <n>, then we don't
-        // want to infer anything about this scope.
-        if same_scope(&input, &self.bottom_scope) {
-            return input;
-        }
-
-        // This method also does some logic for ES modules right before and after entering/exiting
-        // the scope rooted at the module. The reasoning for separating out this logic is that we
-        // can just ignore the actual AST nodes for IMPORT/EXPORT, in most cases, because we have
-        // already created an abstraction of imports and exports.
-        let root = NodeUtil::get_enclosing_scope_root(compiler, n).unwrap();
-        // Inferred types of ES module imports/exports aren't knowable until after TypeInference
-        // runs. First update the type of all imports in the scope, then do flow-sensitive
-        // inference, then update the implicit '*exports*' object.
-        let module = {
-            let module_map = compiler.get_module_map().cloned();
-            ModuleImportResolver::get_module_from_scope_root(module_map.as_deref(), compiler, root)
-        };
-        let syntactic_block_scope = self.scope_creator.create_scope_for_node(compiler, root);
-        if let Some(module) = &module
-            && module.metadata().is_es6_module()
+    fn flow_through(&mut self, compiler: &mut AbstractCompiler, node: NodeId, input: FS) -> FS {
+        let mut output = self.transfer.flow_through(compiler, node, input);
+        if node.is_script(compiler)
+            && let Some(statements) = self
+                .linear_scripts
+                .as_ref()
+                .and_then(|scripts| scripts.get(&node))
+            && !same_scope(&output, &self.transfer.bottom_scope)
         {
-            let input_id = NodeUtil::get_input_id(compiler, n);
-            let module_input = input_id.and_then(|id| compiler.get_input(&id).cloned());
-            let scope_creator: &TypedScopeCreator = self.scope_creator;
-            let mapper = scope_creator.get_node_to_scope_mapper();
-            self.module_import_resolver.declare_es_module_imports(
-                compiler,
-                &mapper,
-                module,
-                syntactic_block_scope,
-                module_input,
-            );
+            // Rust-only (performance divergence): these unconditional statements all have
+            // the script's global declaration scope. Its unbound vars were inferred on entry.
+            for &statement in statements {
+                output = self.transfer.traverse(compiler, statement, output);
+            }
         }
-
-        // This logic is not specific to ES modules.
-        let mut output = input.with_syntactic_scope(compiler, syntactic_block_scope);
-        output = self.infer_declaratively_unbound_vars_without_types(compiler, output);
-        output = self.traverse(compiler, n, output);
-
-        self.update_module_scope(compiler, module, syntactic_block_scope);
         output
     }
 
@@ -1582,6 +1667,7 @@ impl<'a> FlowBrancher<FS, TypeInference<'a>> for TypeInferenceFlowBrancher {
         compiler: &mut AbstractCompiler,
         branch: Branch,
     ) -> FS {
+        let ti = &mut ti.transfer;
         let source = self.source;
         match branch {
             Branch::ON_TRUE | Branch::ON_FALSE => {
@@ -1705,7 +1791,7 @@ impl BooleanOutcomePair {
     /// evaluated.
     fn get_joined_flow_scope(
         &mut self,
-        ti: &TypeInference<'_>,
+        ti: &InferenceTransfer<'_>,
         compiler: &mut AbstractCompiler,
     ) -> FS {
         if self.joined_scope.is_none() {
@@ -1723,7 +1809,7 @@ impl BooleanOutcomePair {
     /// Gets the outcome scope if we do know the outcome of the entire expression.
     fn get_outcome_flow_scope(
         &mut self,
-        ti: &TypeInference<'_>,
+        ti: &InferenceTransfer<'_>,
         compiler: &mut AbstractCompiler,
         node_type: Token,
         outcome: bool,
@@ -1746,7 +1832,7 @@ pub enum BigIntPresence {
     BIGINT_OR_OTHER,
 }
 
-impl TypeInference<'_> {
+impl InferenceTransfer<'_> {
     // port: TypeInference#updateScopeForAssignment(FlowScope,Node,JSType,Node,AssignmentType)
     /// Updates the scope according to the result of an assignment.
     // Java's `!(isLet && !hasChildren)` condition is kept as written.
@@ -2165,7 +2251,7 @@ impl TypeInference<'_> {
             pattern,
             scope,
             pattern_type,
-            &mut |ti: &mut TypeInference<'_>,
+            &mut |ti: &mut InferenceTransfer<'_>,
                   compiler: &mut AbstractCompiler,
                   flow_scope: FS,
                   target_node: NodeId,
@@ -2317,7 +2403,7 @@ impl TypeInference<'_> {
             );
             type_ = Some(result_type);
         } else {
-            let var = scope.get_slot(compiler, &var_name);
+            let (var, declaration) = scope.get_slot_with_declaration(compiler, &var_name);
             if let Some(var) = var {
                 // There are two situations where we don't want to use type information
                 // from the scope, even if we have it.
@@ -2326,7 +2412,8 @@ impl TypeInference<'_> {
                 // function f() { var x = 3; function g() { x = null } (x); }
                 let is_inferred = var.is_type_inferred(compiler);
                 let unflowable = is_inferred && {
-                    let declared = Self::get_declared_var(compiler, &scope, &var_name);
+                    let declared =
+                        declaration.or_else(|| Self::get_declared_var(compiler, &scope, &var_name));
                     self.is_unflowable_opt(compiler, declared)
                 };
 
@@ -2390,7 +2477,7 @@ impl TypeInference<'_> {
 
     // port: TypeInference#getBigIntPresence
     /// Utility function for determining the BigIntPresence for any type.
-    pub fn get_big_int_presence(compiler: &mut AbstractCompiler, type_: TypeId) -> BigIntPresence {
+    fn get_big_int_presence(compiler: &mut AbstractCompiler, type_: TypeId) -> BigIntPresence {
         let (reg, ast) = compiler.get_type_registry_and_ast();
         Self::get_big_int_presence_in(reg, ast, type_)
     }
@@ -2627,7 +2714,7 @@ impl TypeInference<'_> {
     }
 }
 
-impl TypeInference<'_> {
+impl InferenceTransfer<'_> {
     // port: TypeInference#traverseObjectLiteral
     fn traverse_object_literal(
         &mut self,
@@ -3150,7 +3237,7 @@ impl TypeInference<'_> {
     }
 }
 
-impl TypeInference<'_> {
+impl InferenceTransfer<'_> {
     // port: TypeInference#updateBind
     /// When "bind" is called on a function, we infer the type of the returned "bound" function by
     /// looking at the number of parameters in the call site. We also infer the "this" type of the
@@ -4003,16 +4090,17 @@ impl TypeInference<'_> {
 
         // Scopes sometimes contain inferred type info about qualified names.
         let qualified_name = n.get_qualified_name(compiler);
-        let var = match &qualified_name {
-            Some(qualified_name) => scope.get_slot(compiler, qualified_name),
-            None => None,
+        let (var, declaration) = match &qualified_name {
+            Some(name) => scope.get_slot_with_declaration(compiler, name),
+            None => (None, None),
         };
         if let Some(var) = var {
             let var_type = var.get_type(compiler);
             if let Some(var_type) = var_type {
                 let is_declared = !var.is_type_inferred(compiler);
-                let declared_var =
-                    Self::get_declared_var(compiler, scope, qualified_name.clone().unwrap());
+                let declared_var = declaration.or_else(|| {
+                    Self::get_declared_var(compiler, scope, qualified_name.as_ref().unwrap())
+                });
                 // Java's `var != getDeclaredVar(scope, qualifiedName)` (object identity).
                 is_locally_inferred = !matches!(
                     (&var, declared_var),

@@ -38,11 +38,11 @@ impl IfStatementTree {
         ParseTree::new(
             ParseTreeType::IF_STATEMENT,
             location,
-            ParseTreeData::IfStatementTree(Box::new(Self {
+            ParseTreeData::IfStatementTree(Self {
                 condition,
                 if_clause,
                 else_clause: else_clause.into(),
-            })),
+            }),
         )
     }
 }

@@ -982,12 +982,25 @@ impl CheckAccessControls {
             .default_visibility_for_files
             .get(defining_source.as_ref());
 
+        // A documented declaration can start the override check at the parent even when
+        // its effective visibility starts at the receiver. Otherwise both walks are identical.
+        let visibility_owner = if is_override != prop_ref.override_ {
+            AccessControlUtils::get_object_type(
+                reg,
+                ast,
+                reference_type,
+                prop_ref.override_,
+                property_name,
+            )
+        } else {
+            object_type
+        };
         let visibility = Self::get_effective_property_visibility(
             reg,
             ast,
             prop_ref,
-            reference_type,
-            &self.default_visibility_for_files,
+            visibility_owner,
+            file_overview_visibility,
         );
 
         if is_override {
@@ -1526,13 +1539,15 @@ impl CheckAccessControls {
     ) -> Option<PropertyReference> {
         let (reg, ast) = types(compiler);
         let parent = source_node.get_parent(ast).expect("NullPointerException");
-        let jsdoc = NodeUtil::get_best_jsdoc_info(ast, source_node);
-
         let mut builder = PropertyReference::builder();
-
         match source_node.get_token(ast) {
             Token::GETPROP => {
                 let is_l_value = NodeUtil::is_l_value(ast, source_node);
+                let jsdoc = if is_l_value {
+                    NodeUtil::get_best_jsdoc_info(ast, source_node)
+                } else {
+                    None
+                };
                 let receiver = source_node.get_first_child(ast).unwrap();
 
                 builder = builder
@@ -1606,7 +1621,7 @@ impl CheckAccessControls {
                         .set_declaration(true)
                         // TODO(b/113704668): This definition is way too loose. It was used to
                         // prevent breakages during refactoring and should be tightened.
-                        .set_override(jsdoc.is_some())
+                        .set_override(NodeUtil::get_best_jsdoc_info(ast, source_node).is_some())
                         .set_readable_type_name(ReadableTypeName::Empty); // The default is fine for class types.
 
                     let ctor_type = parent
@@ -1643,29 +1658,11 @@ impl CheckAccessControls {
         reg: &mut JSTypeRegistry,
         ast: &Ast,
         prop_ref: &PropertyReference,
-        reference_type: Option<TypeId>,
-        file_visibility_map: &FileVisibilityMap,
+        object_type: Option<TypeId>,
+        file_overview_visibility: Option<Visibility>,
     ) -> Visibility {
         let property_name = &prop_ref.name;
-        let is_override = prop_ref.override_;
-
-        let defining_source = AccessControlUtils::get_defining_source(
-            reg,
-            ast,
-            prop_ref.source_node,
-            reference_type,
-            property_name,
-        );
-        let file_overview_visibility = file_visibility_map.get(defining_source.as_ref());
-        let object_type = AccessControlUtils::get_object_type(
-            reg,
-            ast,
-            reference_type,
-            is_override,
-            property_name,
-        );
-
-        if is_override {
+        if prop_ref.override_ {
             let overridden = AccessControlUtils::get_overridden_property_visibility(
                 reg,
                 ast,

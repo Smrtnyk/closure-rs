@@ -65,6 +65,10 @@ impl AbstractPeepholeOptimization for PeepholeCollectPropertyAssignments {
         "com.google.javascript.jscomp.PeepholeCollectPropertyAssignments"
     }
 
+    fn candidate_tokens(&self) -> Option<&'static [closure_rhino::token::Token]> {
+        Some(&[Token::SCRIPT, Token::BLOCK])
+    }
+
     // port: PeepholeCollectPropertyAssignments#optimizeSubtree
     fn optimize_subtree(
         &mut self,

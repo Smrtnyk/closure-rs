@@ -39,6 +39,7 @@ use crate::{
 };
 use closure_parsing::parser::identifiers::Identifiers;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
+use closure_rhino::node::SnapshotUse;
 use closure_rhino::{
     check_not_null, check_state, js_string::JsString, node::NodeId, qualified_name::QualifiedName,
     token::Token,
@@ -862,6 +863,27 @@ impl Callback for Finder<'_> {
         }
 
         true
+    }
+
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        self.should_traverse(t, script, parent);
+        if self.outer.process_common_js_modules || !self.toggle_module_names.is_empty() {
+            return true;
+        }
+        let Some((facts, first)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames)
+        else {
+            return true;
+        };
+        if facts.may_have_module_syntax {
+            return true;
+        }
+        t.traverse_script_suffix(script, parent, first, self);
+        false
     }
 
     // port: GatherModuleMetadata.Finder#visit

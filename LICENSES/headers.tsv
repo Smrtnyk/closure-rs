@@ -47,6 +47,8 @@ crates/cli/tests/option_setup_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/tests/out_of_scope_flags_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/tests/utf16_output_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/build.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/jscomp/build/bundled_script_summary.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/jscomp/build/runtime_libraries.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/examples/compiler_whitespace_check.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/examples/d2_stderr_check.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/examples/namegen_compare.rs	322fc2ba37b98b96	Apache-2.0	-
@@ -445,6 +447,7 @@ crates/jscomp/src/recent_change.rs	28bcefc96dea6da5	Apache-2.0	closure:src/com/g
 crates/jscomp/src/reference.rs	d40299db70108d22	Apache-2.0	closure:src/com/google/javascript/jscomp/Reference.java
 crates/jscomp/src/reference_collection.rs	eef671f69991b6e7	Apache-2.0	closure:src/com/google/javascript/jscomp/ReferenceCollection.java
 crates/jscomp/src/reference_collector.rs	4712f36b4032c787	Apache-2.0	closure:src/com/google/javascript/jscomp/ReferenceCollector.java
+crates/jscomp/src/reference_collector/function_body.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/reference_map.rs	367ddf86c3a60155	Apache-2.0	closure:src/com/google/javascript/jscomp/ReferenceMap.java
 crates/jscomp/src/region.rs	d4f8bc432c3b004e	Apache-2.0	closure:src/com/google/javascript/jscomp/Region.java
 crates/jscomp/src/remove_cast_nodes.rs	bc8a7eefefbfcff1	Apache-2.0	closure:src/com/google/javascript/jscomp/RemoveCastNodes.java
@@ -505,6 +508,7 @@ crates/jscomp/src/serialization/malformed_typed_ast_exception.rs	b7d8189c35e3c89
 crates/jscomp/src/serialization/mod.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/serialization/optimization_jsdoc_proto.rs	b7f359322d431e16	Apache-2.0	closure:src/com/google/javascript/rhino/typed_ast/optimization_jsdoc.proto
 crates/jscomp/src/serialization/protobuf.rs	6f55fdc90e8720f7	BSD-3-Clause	protobuf:java/core/src/main/java/com/google/protobuf/WireFormat.java; protobuf:java/core/src/main/java/com/google/protobuf/InvalidProtocolBufferException.java; protobuf:java/core/src/main/java/com/google/protobuf/CodedInputStream.java; protobuf:java/core/src/main/java/com/google/protobuf/CodedOutputStream.java; protobuf:java/core/src/main/java/com/google/protobuf/MessageLite.java; protobuf:java/core/src/main/java/com/google/protobuf/Internal.java; protobuf:java/core/src/main/java/com/google/protobuf/Utf8.java; protobuf:java/core/src/main/java/com/google/protobuf/Descriptors.java
+crates/jscomp/src/serialization/runtime_libraries.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/serialization/script_node_deserializer.rs	c7dd9f628022a3d1	Apache-2.0	closure:src/com/google/javascript/jscomp/serialization/ScriptNodeDeserializer.java
 crates/jscomp/src/serialization/serialization_options.rs	c1445cbf66c06ef6	Apache-2.0	closure:src/com/google/javascript/jscomp/serialization/SerializationOptions.java
 crates/jscomp/src/serialization/serialize_typed_ast_pass.rs	748bf084475d0ad0	Apache-2.0	closure:src/com/google/javascript/jscomp/serialization/SerializeTypedAstPass.java
@@ -523,6 +527,9 @@ crates/jscomp/src/sorting_error_manager.rs	62b196fb7626e513	Apache-2.0	closure:s
 crates/jscomp/src/source_excerpt_provider.rs	fea7b23685d6fb7c	Apache-2.0	closure:src/com/google/javascript/jscomp/SourceExcerptProvider.java
 crates/jscomp/src/source_file.rs	b20430831788d227	Apache-2.0	closure:src/com/google/javascript/jscomp/SourceFile.java
 crates/jscomp/src/source_file/bundled_externs.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/jscomp/src/source_file/bundled_script.rs	354a859319a60a5f	Apache-2.0	closure:src/com/google/javascript/jscomp/GatherExternProperties.java
+crates/jscomp/src/source_file/declarations.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/jscomp/src/source_file/line_count.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/source_file_mapping.rs	0bfbbd16123a5ad4	Apache-2.0	closure:src/com/google/javascript/jscomp/SourceFileMapping.java
 crates/jscomp/src/source_info_check.rs	78f037cb3e2f60e4	Apache-2.0	closure:src/com/google/javascript/jscomp/SourceInfoCheck.java
 crates/jscomp/src/source_information_annotator.rs	0d6e56145c0bea97	Apache-2.0	closure:src/com/google/javascript/jscomp/SourceInformationAnnotator.java
@@ -733,7 +740,7 @@ crates/jscomp/tests/peephole_replace_known_methods_test.rs	635ddce9d40fbbd9	Apac
 crates/jscomp/tests/peephole_substitute_alternate_syntax_test.rs	d38dd753d2907b19	Apache-2.0	closure:test/com/google/javascript/jscomp/PeepholeSubstituteAlternateSyntaxTest.java; closure:test/com/google/javascript/jscomp/CompilerTestCase.java
 crates/jscomp/tests/performance_tracker_test.rs	75821b7376a367dd	Apache-2.0	closure:test/com/google/javascript/jscomp/PerformanceTrackerTest.java
 crates/jscomp/tests/phase_optimizer_test.rs	bb3a95330c2d247e	Apache-2.0	closure:test/com/google/javascript/jscomp/PhaseOptimizerTest.java
-crates/jscomp/tests/polyfill_usage_finder_test.rs	8a39e37d443c6084	Apache-2.0	closure:test/com/google/javascript/jscomp/PolyfillUsageFinderTest.java
+crates/jscomp/tests/polyfill_usage_finder_test.rs	582b6373e812b772	Apache-2.0	closure:src/com/google/javascript/jscomp/GuardedCallback.java; closure:src/com/google/javascript/jscomp/PolyfillUsageFinder.java; closure:test/com/google/javascript/jscomp/PolyfillUsageFinderTest.java
 crates/jscomp/tests/process_common_js_modules_test.rs	c09c56515c4f7d4f	Apache-2.0	closure:test/com/google/javascript/jscomp/ProcessCommonJSModulesTest.java; own:oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java; closure:test/com/google/javascript/jscomp/CompilerTestCase.java; closure:test/com/google/javascript/jscomp/ModulesTestUtils.java
 crates/jscomp/tests/process_tweaks_test.rs	1f09e95358e76623	Apache-2.0	closure:test/com/google/javascript/jscomp/ProcessTweaksTest.java; closure:test/com/google/javascript/jscomp/CompilerTestCase.java
 crates/jscomp/tests/pruning_analysis_test.rs	10ffe8f0f1a0c167	Apache-2.0	closure:test/com/google/javascript/jscomp/PruningAnalysisTest.java
@@ -1122,6 +1129,7 @@ crates/rhino/src/lib.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/src/msg.rs	a5fd83c22f83fb1e	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/Msg.java
 crates/rhino/src/node.rs	c3c966d05bcb93ea	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/Node.java
 crates/rhino/src/node/snapshot.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/rhino/src/node/snapshot_watch.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/src/non_jsdoc_comment.rs	4b4e3eb1316eb57c	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/NonJSDocComment.java
 crates/rhino/src/outcome.rs	260266ecdc6e1672	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/Outcome.java
 crates/rhino/src/pmap.rs	9b7b180a73a9d5a3	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/PMap.java

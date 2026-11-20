@@ -928,7 +928,12 @@ impl Scanner {
             );
             return self.create_token(TokenType::ERROR, begin_token);
         }
-        IdentifierToken::new(self.get_token_range(begin_token), value)
+        let location = self.get_token_range(begin_token);
+        if contains_unicode_escape {
+            IdentifierToken::new(location, value)
+        } else {
+            IdentifierToken::with_keyword(location, value, None)
+        }
     }
     // Converts unicode escapes in the given string to the equivalent unicode character. If there are
     // no escapes, returns the input unchanged. If there is an invalid escape sequence, returns null.

@@ -32,7 +32,7 @@ impl ComputedPropertyMethodTree {
         ParseTree::new(
             ParseTreeType::COMPUTED_PROPERTY_METHOD,
             location,
-            ParseTreeData::ComputedPropertyMethodTree(Box::new(Self { property, method })),
+            ParseTreeData::ComputedPropertyMethodTree(Self { property, method }),
         )
     }
 }

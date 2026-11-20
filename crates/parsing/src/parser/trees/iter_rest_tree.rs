@@ -31,7 +31,7 @@ impl IterRestTree {
         ParseTree::new(
             ParseTreeType::ITER_REST,
             location,
-            ParseTreeData::IterRestTree(Box::new(Self { assignment_target })),
+            ParseTreeData::IterRestTree(Self { assignment_target }),
         )
     }
 }

@@ -36,6 +36,8 @@ use closure_rhino::{
 };
 use std::collections::VecDeque;
 
+pub(crate) type LinearScripts = IndexMap<NodeId, Vec<NodeId>>;
+
 pub struct ControlFlowAnalysis {
     cfg: ControlFlowGraph<NodeId>,
     ast_position: Option<LinkedIdentityHashMap<Option<NodeId>, i32>>,
@@ -43,6 +45,7 @@ pub struct ControlFlowAnalysis {
     priority_counter: i32,
     should_traverse_functions: bool,
     root: NodeId,
+    linear_scripts: Option<Box<LinearScripts>>,
     exception_handler: VecDeque<NodeId>,
     // Guava LinkedHashMultimap: keys and each key's values in insertion order.
     finally_map: IndexMap<NodeId, IndexSet<Option<NodeId>>>,
@@ -115,6 +118,7 @@ impl ControlFlowAnalysis {
             priority_counter: 0,
             should_traverse_functions,
             root,
+            linear_scripts: None,
             exception_handler: VecDeque::new(),
             finally_map: IndexMap::<_, _>::default(),
         }
@@ -123,6 +127,89 @@ impl ControlFlowAnalysis {
     pub fn builder() -> Builder {
         Builder::new()
     }
+    /// A function whose CFG visits the function, its body and the listed statements once,
+    /// in source order, before the implicit return. Capture node identities before entry
+    /// inference, just as building the full CFG would.
+    pub(crate) fn linear_function(
+        compiler: &AbstractCompiler,
+        function: NodeId,
+    ) -> Option<(NodeId, Vec<NodeId>)> {
+        if !function.is_function(compiler) {
+            return None;
+        }
+        let name = function.get_first_child(compiler)?;
+        let params = name.get_next(compiler)?;
+        let body = params.get_next(compiler)?;
+        if !name.is_name(compiler)
+            || !params.is_param_list(compiler)
+            || body.get_next(compiler).is_some()
+            || !body.is_block(compiler)
+            || body.is_synthetic_block(compiler)
+        {
+            return None;
+        }
+
+        let mut statements = Vec::new();
+        for node in body.children(compiler) {
+            match node.get_token(compiler) {
+                // CFA skips nested functions, including when looking for the next statement.
+                Token::FUNCTION => continue,
+                Token::EXPR_RESULT | Token::VAR | Token::LET | Token::CONST => {}
+                Token::RETURN if node.get_next(compiler).is_none() => {}
+                _ => return None,
+            }
+            // These statement kinds are opaque to CFA. A TRY, even in a malformed
+            // expression, is considered by shouldTraverseIntoChildren before its parent.
+            if node.children(compiler).any(|child| child.is_try(compiler)) {
+                return None;
+            }
+            statements.push(node);
+        }
+        Some((body, statements))
+    }
+
+    /// In the global graph, contract each straight-line script before the first control-flow
+    /// statement into one vertex. No statement in the prefix can be reached a second time.
+    /// The separate edge from the externs root to the sources root still bypasses externs.
+    pub(crate) fn global_inference_cfg(
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+    ) -> (ControlFlowGraph<NodeId>, Box<LinearScripts>) {
+        let mut scripts = IndexMap::default();
+        'prefix: for section in root.children(compiler) {
+            if !section.is_root(compiler) {
+                break;
+            }
+            for script in section.children(compiler) {
+                if !script.is_script(compiler) {
+                    break 'prefix;
+                }
+                let mut statements = Vec::new();
+                for statement in script.children(compiler) {
+                    match statement.get_token(compiler) {
+                        // CFA skips function declarations when computing fall-through.
+                        Token::FUNCTION => continue,
+                        Token::EXPR_RESULT | Token::VAR | Token::LET | Token::CONST
+                            if !statement
+                                .children(compiler)
+                                .any(|child| child.is_try(compiler)) => {}
+                        Token::EMPTY | Token::DEBUGGER if !statement.has_children(compiler) => {}
+                        _ => break 'prefix,
+                    }
+                    statements.push(statement);
+                }
+                if !statements.is_empty() {
+                    scripts.insert(script, statements);
+                }
+            }
+        }
+
+        let mut cfa = Self::new(compiler, root, false, true);
+        cfa.linear_scripts = Some(Box::new(scripts));
+        cfa.compute_cfg(compiler, root);
+        (cfa.cfg, cfa.linear_scripts.unwrap())
+    }
+
     // port: ControlFlowAnalysis#getCfg
     pub fn get_cfg(&self) -> &ControlFlowGraph<NodeId> {
         &self.cfg
@@ -624,7 +711,8 @@ impl ControlFlowAnalysis {
     // port: ControlFlowAnalysis#handleReturn
     fn handle_return(&mut self, compiler: &AbstractCompiler, node: NodeId) {
         let mut last_jump = None;
-        for handler in self.exception_handler.clone() {
+        for i in 0..self.exception_handler.len() {
+            let handler = self.exception_handler[i];
             if handler.is_function(compiler) {
                 break;
             }
@@ -767,9 +855,15 @@ impl ControlFlowAnalysis {
     }
     // port: ControlFlowAnalysis#createEdge
     fn create_edge(&mut self, from: NodeId, branch: Branch, to: Option<NodeId>) {
-        self.cfg.create_node(Some(from));
-        self.cfg.create_node(to);
-        self.cfg.connect_if_not_found(Some(from), branch, to);
+        let graph = &mut self.cfg.graph;
+        let from = graph.create_node(Some(from));
+        let to = graph.create_node(to);
+        // Graph#connectIfNotFound checks both directions for this edge value.
+        if !graph.is_connected_in_direction_nodes(from, |edge| *edge == branch, to)
+            && !graph.is_connected_in_direction_nodes(to, |edge| *edge == branch, from)
+        {
+            graph.connect_nodes(from, branch, to);
+        }
     }
     // port: ControlFlowAnalysis#connectToPossibleExceptionHandler
     fn connect_to_possible_exception_handler(
@@ -788,11 +882,9 @@ impl ControlFlowAnalysis {
         compiler: &AbstractCompiler,
         cfg_node: NodeId,
     ) {
-        if self.exception_handler.is_empty() {
-            return;
-        }
         let mut last_jump = cfg_node;
-        for handler in self.exception_handler.clone() {
+        for i in 0..self.exception_handler.len() {
+            let handler = self.exception_handler[i];
             if handler.is_function(compiler) {
                 return;
             }
@@ -976,6 +1068,26 @@ impl Callback for ControlFlowAnalysis {
             false
         }
     }
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        if !self.should_traverse(t, script, parent) {
+            return false;
+        }
+        if self
+            .linear_scripts
+            .as_ref()
+            .is_some_and(|scripts| scripts.contains_key(&script))
+        {
+            let follow = self.compute_follow_node_with_cfa(t.get_compiler(), script);
+            self.create_edge(script, Branch::UNCOND, follow);
+            return false;
+        }
+        true
+    }
     // port: ControlFlowAnalysis#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
         let compiler = t.get_compiler();
@@ -1009,6 +1121,99 @@ impl Callback for ControlFlowAnalysis {
             | Token::MEMBER_FIELD_DEF
             | Token::COMPUTED_FIELD_DEF => {}
             _ => self.handle_stmt(compiler, n),
+        }
+    }
+}
+
+#[cfg(test)]
+mod linear_function_tests {
+    use super::*;
+    use crate::{Compiler, graph::graph::GraphEdge};
+    use closure_rhino::ir::IR;
+
+    #[test]
+    fn linear_scripts_keep_the_extern_bypass_and_stop_at_the_first_branch() {
+        let mut compiler = Compiler::new();
+        let ext = compiler.parse_test_code("var x = 1; function hoisted() {} x = {};");
+        let externs = IR::root(&mut compiler, &[ext]);
+        let sources = compiler.parse_test_code_many(vec![
+            "var y = x;".into(),
+            "if (y) y = 2;".into(),
+            "y = 'later';".into(),
+        ]);
+        let root = IR::root(&mut compiler, &[externs, sources]);
+        let (compact, scripts) = ControlFlowAnalysis::global_inference_cfg(&mut compiler, root);
+        let first_source = sources.get_first_child(&compiler).unwrap();
+        assert_eq!(
+            scripts.keys().copied().collect::<Vec<_>>(),
+            [ext, first_source]
+        );
+        assert_eq!(
+            scripts[&ext],
+            [
+                ext.get_first_child(&compiler).unwrap(),
+                ext.get_last_child(&compiler).unwrap()
+            ]
+        );
+        for statements in scripts.values() {
+            for n in statements {
+                assert!(compact.get_node(&Some(*n)).is_none());
+            }
+        }
+        let full = ControlFlowAnalysis::builder()
+            .set_cfg_root(root)
+            .compute_cfg(&mut compiler);
+        let predecessors = |cfg: &ControlFlowGraph<NodeId>| {
+            cfg.get_directed_pred_nodes(&Some(sources))
+                .into_iter()
+                .map(|node| node.get_value(cfg).unwrap())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            predecessors(&full),
+            [ext.get_last_child(&compiler).unwrap(), externs]
+        );
+        assert_eq!(predecessors(&compact), [ext, externs]);
+        let last = sources
+            .get_last_child(&compiler)
+            .unwrap()
+            .get_only_child(&compiler);
+        assert!(compact.get_node(&Some(last)).is_some());
+    }
+
+    #[test]
+    fn linear_function_nodes_follow_the_original_cfg() {
+        let mut compiler = Compiler::new();
+        let script = compiler.parse_test_code(
+            "function f(x = 1) { function g() { throw x; } var y; let z = g; x && g(); return z; }",
+        );
+        let function = script.get_only_child(&compiler);
+        let (body, statements) = ControlFlowAnalysis::linear_function(&compiler, function).unwrap();
+        let cfg = ControlFlowAnalysis::builder()
+            .set_cfg_root(function)
+            .compute_cfg(&mut compiler);
+        let mut previous = cfg.get_entry();
+        for next in [body].into_iter().chain(statements).map(Some).chain([None]) {
+            let edges = cfg.node_out_edges(previous);
+            assert_eq!(edges.len(), 1);
+            assert_eq!(*edges[0].get_value(&cfg), Branch::UNCOND);
+            previous = cfg.edge_node_b(edges[0]);
+            assert_eq!(*previous.get_value(&cfg), next);
+        }
+        assert_eq!(previous, cfg.get_implicit_return());
+        body.set_is_synthetic_block(&mut compiler, true);
+        assert!(ControlFlowAnalysis::linear_function(&compiler, function).is_none());
+
+        for code in [
+            "function f() { if (x) y(); }",
+            "function f() { return; x(); }",
+            "function f() { try { x(); } catch(e) {} }",
+        ] {
+            let script = compiler.parse_test_code(code);
+            assert!(
+                ControlFlowAnalysis::linear_function(&compiler, script.get_only_child(&compiler))
+                    .is_none()
+            );
         }
     }
 }

@@ -20,7 +20,7 @@
 
 use crate::{
     abstract_compiler::AbstractCompiler,
-    abstract_scope::AbstractScopeHandle,
+    abstract_scope::{AbstractScope, AbstractScopeHandle},
     change_tracker::ChangeTracker,
     compiler_input::CompilerInput,
     control_flow_analysis::ControlFlowAnalysis,
@@ -34,12 +34,15 @@ use crate::{
     platform::Platform,
     scope::ScopeId,
     scope_creator::ScopeCreator,
+    source_file::bundled_script::BundledScript,
     syntactic_scope_creator::SyntacticScopeCreator,
+    typed_scope::TypedScope,
 };
 use closure_rhino::{
     check_not_null, check_state,
     input_id::InputId,
-    node::{Ast, NodeId},
+    js_string::JsString,
+    node::{Ast, NodeId, SnapshotUse},
     qualified_name::QualifiedName,
     token::Token,
 };
@@ -85,6 +88,14 @@ impl CallbackHolder<'_> {
     }
 }
 
+/// Position of an inference callback in the scope-building traversal. A scope can be
+/// created earlier than its visit (e.g. for an import), so retain the traversal entry node.
+pub(crate) struct TypedScopeEntry {
+    node: NodeId,
+    script: Option<NodeId>,
+    scope: TypedScope,
+}
+
 /// Java's callback is taken out during traversal and threaded through the
 /// recursive calls, so callbacks can receive the entire mutable traversal.
 pub struct NodeTraversal<'a> {
@@ -123,8 +134,31 @@ pub trait Callback: WalkBranch {
         parent: Option<NodeId>,
     ) -> bool;
 
+    /// Called by the SCRIPT handler after it sets the input context. A callback can handle
+    /// bundled scripts here while keeping its per-node traversal predicate unconditional.
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        self.should_traverse(t, script, parent)
+    }
+
     // port: NodeTraversal.Callback#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>);
+
+    /// Rust-only: a callback may process a block's children from cached information. The
+    /// traversal has already entered the block scope, and still runs its ordinary exit and visit.
+    /// The default is inlined away in the per-callback walk.
+    fn traverse_block_children(
+        &mut self,
+        _t: &mut NodeTraversal<'_>,
+        _block: NodeId,
+        _parent: Option<NodeId>,
+    ) -> bool {
+        false
+    }
 
     // Rust-only counterpart of Java's instanceof ScopedCallback. Implementors
     // of ScopedCallback return Some(self); ordinary callbacks retain None.
@@ -632,6 +666,13 @@ static TRAVERSAL_TOKEN_CLASS: [u8; 256] = {
 };
 const HAS_HANDLER: u8 = 1;
 const MAY_CREATE_BLOCK_SCOPE: u8 = 2;
+
+/// Whether the plain, in-order child loop handles this token and never enters a scope.
+/// Reference collection can abbreviate subtrees consisting exclusively of these nodes.
+pub(crate) fn traverses_children_in_order_without_scope(token: Token) -> bool {
+    traversal_token_class(token) == 0
+}
+
 /// The class of `token`; a token beyond the table is in both classes, so it takes the general path.
 #[inline(always)]
 fn traversal_token_class(token: Token) -> u8 {
@@ -1150,6 +1191,39 @@ impl<'a> NodeTraversal<'a> {
         }
     }
 
+    pub(crate) fn typed_scope_entry(&self, scope: TypedScope) -> TypedScopeEntry {
+        TypedScopeEntry {
+            node: self.current_node.expect("scope entry node"),
+            script: self.current_script,
+            scope,
+        }
+    }
+
+    /// Rust-only (performance divergence): inference only visits CFG entries. Restore their
+    /// original positions so an error still includes the same source, node and parent.
+    pub(crate) fn replay_typed_scopes(
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+        entries: Vec<TypedScopeEntry>,
+        mut visit: impl FnMut(&mut AbstractCompiler, NodeId, TypedScope),
+    ) {
+        let mut noop = AbstractPostOrderCallback::new(
+            |_: &mut NodeTraversal<'_>, _: NodeId, _: Option<NodeId>| {},
+        );
+        let mut traversal = NodeTraversal::new(compiler, &mut noop, None, false);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            traversal.init_traversal(root);
+            for entry in entries {
+                traversal.current_node = Some(entry.node);
+                traversal.current_script = entry.script;
+                visit(traversal.compiler, entry.node, entry.scope);
+            }
+        }));
+        if let Err(error) = result {
+            traversal.throw_unexpected_exception(error);
+        }
+    }
+
     // port: NodeTraversal#traverseAtScope(AbstractScope)
     pub fn traverse_at_scope(&mut self, s: impl Into<AbstractScopeHandle>) {
         let s = s.into();
@@ -1400,6 +1474,14 @@ impl<'a> NodeTraversal<'a> {
         self.compiler_input_object.as_ref()
     }
 
+    /// A reference-site replay may use a known source input. Leave a cold lookup to the
+    /// ordinary visitor, where resolving the first name also establishes its diagnostic node.
+    pub(crate) fn has_cached_source_input(&self) -> bool {
+        self.compiler_input_object
+            .as_ref()
+            .is_some_and(|input| !input.is_extern())
+    }
+
     /// Not in Java: `getInput().getInputId()` as the shared `Arc` (the cached input is looked up
     /// by exactly this id), without hashing the id for an input lookup on every call.
     pub fn get_input_id_of_input(&mut self) -> Option<Arc<InputId>> {
@@ -1421,6 +1503,11 @@ impl<'a> NodeTraversal<'a> {
         chunk
     }
 
+    /// Match the diagnostic context of an ordinary callback when replaying its effect.
+    pub(crate) fn position_at_node(&mut self, n: NodeId) {
+        self.current_node = Some(n);
+    }
+
     // port: NodeTraversal#getCurrentNode
     pub fn get_current_node(&self) -> Option<NodeId> {
         self.current_node
@@ -1435,7 +1522,7 @@ impl<'a> NodeTraversal<'a> {
         self.current_node = Some(n);
         self.current_script = Some(n);
         self.clear_script_state();
-        if callback.should_traverse(self, n, parent) {
+        if callback.should_traverse_script(self, n, parent) {
             self.traverse_children(n, callback);
             self.current_node = Some(n);
             callback.visit(self, n, parent);
@@ -1593,12 +1680,16 @@ impl<'a> NodeTraversal<'a> {
                 self.current_hoist_scope_root = Some(n);
             }
         }
-        // Intentionally inlined, as in Java, to avoid doubling recursion depth.
-        let mut child = n.get_first_child(self);
-        while let Some(c) = child {
-            let next = c.get_next(self);
-            self.traverse_branch(c, Some(n), callback);
-            child = next;
+        if n.is_block(self) && callback.traverse_block_children(self, n, parent) {
+            self.current_node = n.get_last_child(self).or(Some(n));
+        } else {
+            // Intentionally inlined, as in Java, to avoid doubling recursion depth.
+            let mut child = n.get_first_child(self);
+            while let Some(c) = child {
+                let next = c.get_next(self);
+                self.traverse_branch(c, Some(n), callback);
+                child = next;
+            }
         }
         if creates_block_scope {
             self.pop_scope(callback);
@@ -1738,9 +1829,44 @@ impl<'a> NodeTraversal<'a> {
         self.current_hoist_scope_root = previous_hoist_scope_root;
     }
 
+    /// With synthetic block markers enabled, ordinary scope entry reads each BLOCK's live
+    /// SYNTHETIC property. That read validates the value even in a read-only visitor.
+    pub(crate) fn bundled_script_prefix(
+        &self,
+        script: NodeId,
+        usage: SnapshotUse,
+    ) -> Option<(&'static BundledScript, Option<NodeId>)> {
+        if self.may_contain_synthetic_blocks {
+            return None;
+        }
+        self.parsed_script_record(script, usage)
+    }
+
+    /// Finish a script after a callback has handled its original statement prefix.
+    /// The ordinary child walker sees every appended statement, including its live scopes.
+    pub(crate) fn traverse_script_suffix(
+        &mut self,
+        script: NodeId,
+        parent: Option<NodeId>,
+        first: Option<NodeId>,
+        callback: &mut dyn Callback,
+    ) {
+        self.traverse_children_from(script, first, callback);
+        self.current_node = Some(script);
+        callback.visit(self, script, parent);
+    }
+
     // port: NodeTraversal#traverseChildren
     fn traverse_children(&mut self, n: NodeId, callback: &mut dyn Callback) {
-        let mut child = n.get_first_child(self);
+        self.traverse_children_from(n, n.get_first_child(self), callback);
+    }
+
+    fn traverse_children_from(
+        &mut self,
+        n: NodeId,
+        mut child: Option<NodeId>,
+        callback: &mut dyn Callback,
+    ) {
         while let Some(c) = child {
             let next = c.get_next(self);
             self.traverse_branch(c, Some(n), callback);
@@ -1814,6 +1940,19 @@ impl<'a> NodeTraversal<'a> {
         let depth = self.scopes.len();
         check_state!(depth > 0);
         depth as i32 - 1
+    }
+
+    /// Test explicit global bindings without constructing a scope or creating an implicit
+    /// variable. A later ordinary NAME visit must perform any such work at its own location.
+    pub(crate) fn global_declares_all(&self, names: &[&str]) -> bool {
+        let [ScopeObject::Scope(AbstractScopeHandle::Untyped(scope))] = self.scopes.as_slice()
+        else {
+            return false;
+        };
+        let data = scope.scope_data(self.compiler);
+        names
+            .iter()
+            .all(|&name| data.vars.contains_key(&JsString::from(name)))
     }
 
     // port: NodeTraversal#getScope

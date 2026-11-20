@@ -38,13 +38,64 @@ pub struct LinkedDirectedGraph<N, E> {
     use_edge_annotations: bool,
     annotation_stacks: GraphAnnotationStacks<DiGraphNode, DiGraphEdge>,
 }
+/// Most CFG nodes have one incoming and one outgoing edge. Keep the first edge
+/// inside the node and promote the list when another edge or a mutable Vec is needed.
+enum EdgeList {
+    Inline(Option<DiGraphEdge>),
+    Many(Vec<DiGraphEdge>),
+}
+
+impl EdgeList {
+    fn as_slice(&self) -> &[DiGraphEdge] {
+        match self {
+            Self::Inline(edge) => edge.as_slice(),
+            Self::Many(edges) => edges,
+        }
+    }
+
+    fn as_mut_vec(&mut self) -> &mut Vec<DiGraphEdge> {
+        if let Self::Inline(first) = self {
+            let mut edges = Vec::with_capacity(1);
+            edges.extend(*first);
+            *self = Self::Many(edges);
+        }
+        match self {
+            Self::Many(edges) => edges,
+            Self::Inline(_) => unreachable!(),
+        }
+    }
+
+    fn push(&mut self, edge: DiGraphEdge) {
+        if let Self::Inline(slot @ None) = self {
+            *slot = Some(edge);
+        } else {
+            self.as_mut_vec().push(edge);
+        }
+    }
+
+    fn remove(&mut self, edge: DiGraphEdge) {
+        match self {
+            Self::Inline(slot) => {
+                if *slot == Some(edge) {
+                    *slot = None;
+                }
+            }
+            Self::Many(edges) => {
+                if let Some(index) = edges.iter().position(|&e| e == edge) {
+                    edges.remove(index);
+                }
+            }
+        }
+    }
+}
+
 /// Java annotated subclasses are represented by the optional annotation field;
 /// the graph's flags choose the same get/set behaviour as the Java subclass.
 pub struct LinkedDiGraphNode<N> {
     pub value: N,
     annotation: Option<Box<dyn Annotation>>,
-    in_edge_list: Vec<DiGraphEdge>,
-    out_edge_list: Vec<DiGraphEdge>,
+    in_edge_list: EdgeList,
+    out_edge_list: EdgeList,
     priority: i32,
 }
 impl<N> LinkedDiGraphNode<N> {
@@ -54,8 +105,8 @@ impl<N> LinkedDiGraphNode<N> {
         Self {
             value,
             annotation: None,
-            in_edge_list: Vec::with_capacity(1),
-            out_edge_list: Vec::with_capacity(1),
+            in_edge_list: EdgeList::Inline(None),
+            out_edge_list: EdgeList::Inline(None),
             priority: -1,
         }
     }
@@ -168,8 +219,8 @@ impl<N: Clone + Eq + Hash, E: Clone + PartialEq> LinkedDirectedGraph<N, E> {
         edge_filter: impl Fn(&E) -> bool,
         dest: DiGraphNode,
     ) -> bool {
-        let out_edges = &self.node_arena[source.0].out_edge_list;
-        let in_edges = &self.node_arena[dest.0].in_edge_list;
+        let out_edges = self.node_arena[source.0].out_edge_list.as_slice();
+        let in_edges = self.node_arena[dest.0].in_edge_list.as_slice();
         if out_edges.len() < in_edges.len() {
             for edge in out_edges {
                 let e = &self.edge_arena[edge.0];
@@ -261,19 +312,17 @@ impl<N: Clone + Eq + Hash, E: Clone + PartialEq> Graph<N, E> for LinkedDirectedG
     }
     // port: LinkedDirectedGraph#createNode
     fn create_node(&mut self, value: N) -> DiGraphNode {
-        if let Some(node) = self.nodes.get(&value) {
-            return *node;
-        }
-        let node = DiGraphNode(self.node_arena.len());
-        self.node_arena.push(LinkedDiGraphNode::new(value.clone()));
-        self.nodes.insert(value, node);
-        node
+        *self.nodes.entry(value).or_insert_with_key(|value| {
+            let node = DiGraphNode(self.node_arena.len());
+            self.node_arena.push(LinkedDiGraphNode::new(value.clone()));
+            node
+        })
     }
     // port: LinkedDirectedGraph#getEdges()
     fn get_edges(&self) -> Vec<DiGraphEdge> {
         let mut result = Vec::new();
         for node in self.nodes.values() {
-            result.extend(&self.node_arena[node.0].out_edge_list);
+            result.extend_from_slice(self.node_arena[node.0].out_edge_list.as_slice());
         }
         result
     }
@@ -287,12 +336,12 @@ impl<N: Clone + Eq + Hash, E: Clone + PartialEq> Graph<N, E> for LinkedDirectedG
     fn get_first_edge(&self, n1: &N, n2: &N) -> Option<DiGraphEdge> {
         let d1 = self.get_node_or_fail(n1);
         let d2 = self.get_node_or_fail(n2);
-        for edge in &self.node_arena[d1.0].out_edge_list {
+        for edge in self.node_arena[d1.0].out_edge_list.as_slice() {
             if self.edge_arena[edge.0].node_b == d2 {
                 return Some(*edge);
             }
         }
-        for edge in &self.node_arena[d2.0].out_edge_list {
+        for edge in self.node_arena[d2.0].out_edge_list.as_slice() {
             if self.edge_arena[edge.0].node_b == d1 {
                 return Some(*edge);
             }
@@ -302,17 +351,19 @@ impl<N: Clone + Eq + Hash, E: Clone + PartialEq> Graph<N, E> for LinkedDirectedG
     // port: LinkedDirectedGraph#getNodeDegree
     fn get_node_degree(&self, value: &N) -> i32 {
         let node = &self.node_arena[self.get_node_or_fail(value).0];
-        (node.in_edge_list.len() + node.out_edge_list.len()) as i32
+        (node.in_edge_list.as_slice().len() + node.out_edge_list.as_slice().len()) as i32
     }
     // port: LinkedDirectedGraph#getNeighborNodes
     fn get_neighbor_nodes(&self, value: &N) -> Vec<DiGraphNode> {
         let node = self.get_node(value).expect("");
         let data = &self.node_arena[node.0];
-        let mut result = Vec::with_capacity(data.in_edge_list.len() + data.out_edge_list.len());
-        for e in &data.in_edge_list {
+        let mut result = Vec::with_capacity(
+            data.in_edge_list.as_slice().len() + data.out_edge_list.as_slice().len(),
+        );
+        for e in data.in_edge_list.as_slice() {
             result.push(self.edge_arena[e.0].node_a);
         }
-        for e in &data.out_edge_list {
+        for e in data.out_edge_list.as_slice() {
             result.push(self.edge_arena[e.0].node_b);
         }
         result
@@ -368,6 +419,7 @@ impl<N: Clone + Eq + Hash, E: Clone + PartialEq> DiGraph<N, E> for LinkedDirecte
         let d2 = self.get_node_or_fail(n2);
         self.node_arena[d1.0]
             .out_edge_list
+            .as_slice()
             .iter()
             .copied()
             .filter(|e| self.edge_arena[e.0].node_b == d2)
@@ -375,11 +427,15 @@ impl<N: Clone + Eq + Hash, E: Clone + PartialEq> DiGraph<N, E> for LinkedDirecte
     }
     // port: LinkedDirectedGraph#getOutEdges
     fn get_out_edges(&self, value: &N) -> &[DiGraphEdge] {
-        &self.node_arena[self.get_node_or_fail(value).0].out_edge_list
+        self.node_arena[self.get_node_or_fail(value).0]
+            .out_edge_list
+            .as_slice()
     }
     // port: LinkedDirectedGraph#getInEdges
     fn get_in_edges(&self, value: &N) -> &[DiGraphEdge] {
-        &self.node_arena[self.get_node_or_fail(value).0].in_edge_list
+        self.node_arena[self.get_node_or_fail(value).0]
+            .in_edge_list
+            .as_slice()
     }
     // port: LinkedDirectedGraph#getDirectedPredNodes(N)
     fn get_directed_pred_nodes(&self, value: &N) -> Vec<DiGraphNode> {
@@ -394,14 +450,8 @@ impl<N: Clone + Eq + Hash, E: Clone + PartialEq> DiGraph<N, E> for LinkedDirecte
         let src = self.get_node_or_fail(n1);
         let dest = self.get_node_or_fail(n2);
         for edge in self.get_edges_in_direction(n1, n2) {
-            let out = &mut self.node_arena[src.0].out_edge_list;
-            if let Some(i) = out.iter().position(|e| *e == edge) {
-                out.remove(i);
-            }
-            let ins = &mut self.node_arena[dest.0].in_edge_list;
-            if let Some(i) = ins.iter().position(|e| *e == edge) {
-                ins.remove(i);
-            }
+            self.node_arena[src.0].out_edge_list.remove(edge);
+            self.node_arena[dest.0].in_edge_list.remove(edge);
         }
     }
     // port: LinkedDirectedGraph#isConnectedInDirection(N,N)
@@ -414,19 +464,19 @@ impl<N: Clone + Eq + Hash, E: Clone + PartialEq> DiGraph<N, E> for LinkedDirecte
     }
     // port: LinkedDiGraphNode#getOutEdges
     fn node_out_edges(&self, node: DiGraphNode) -> &[DiGraphEdge] {
-        &self.node_arena[node.0].out_edge_list
+        self.node_arena[node.0].out_edge_list.as_slice()
     }
     // port: LinkedDiGraphNode#getInEdges
     fn node_in_edges(&self, node: DiGraphNode) -> &[DiGraphEdge] {
-        &self.node_arena[node.0].in_edge_list
+        self.node_arena[node.0].in_edge_list.as_slice()
     }
     // port: LinkedDiGraphNode#getOutEdges
     fn node_out_edges_mut(&mut self, node: DiGraphNode) -> &mut Vec<DiGraphEdge> {
-        &mut self.node_arena[node.0].out_edge_list
+        self.node_arena[node.0].out_edge_list.as_mut_vec()
     }
     // port: LinkedDiGraphNode#getInEdges
     fn node_in_edges_mut(&mut self, node: DiGraphNode) -> &mut Vec<DiGraphEdge> {
-        &mut self.node_arena[node.0].in_edge_list
+        self.node_arena[node.0].in_edge_list.as_mut_vec()
     }
     // port: LinkedDiGraphNode#getPriority
     fn node_priority(&self, node: DiGraphNode) -> i32 {
@@ -514,5 +564,44 @@ impl DiGraphEdge {
             graph.node_to_string(graph.edge_node_a(self)),
             graph.node_to_string(graph.edge_node_b(self))
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inline_edges_survive_promotion_and_mutable_list_access() {
+        let mut graph = LinkedDirectedGraph::<i32, i32>::new_with_value_to_strings(
+            true,
+            true,
+            ToString::to_string,
+            ToString::to_string,
+        );
+        let a = graph.create_node(1);
+        let b = graph.create_node(2);
+        let c = graph.create_node(3);
+        graph.connect_nodes(a, 1, b);
+        assert_eq!(b.get_in_edges_mut(&mut graph).as_slice(), [DiGraphEdge(0)]);
+        graph.connect_nodes(a, 2, c);
+        assert_eq!(graph.node_out_edges(a), [DiGraphEdge(0), DiGraphEdge(1)]);
+        a.get_out_edges_mut(&mut graph).reverse();
+        assert_eq!(graph.get_edges(), [DiGraphEdge(1), DiGraphEdge(0)]);
+        graph.disconnect_in_direction(&1, &3);
+        assert_eq!(graph.node_out_edges(a), [DiGraphEdge(0)]);
+        assert!(graph.node_in_edges(c).is_empty());
+        graph.connect_nodes(c, 3, c);
+        assert_eq!(graph.node_in_edges(c), [DiGraphEdge(2)]);
+        assert_eq!(graph.node_out_edges(c), [DiGraphEdge(2)]);
+
+        graph.connect_nodes(a, 1, b);
+        assert_eq!(
+            graph.get_edges_in_direction(&1, &2),
+            [DiGraphEdge(0), DiGraphEdge(3)]
+        );
+        graph.disconnect_in_direction(&1, &2);
+        assert!(graph.node_out_edges(a).is_empty());
+        assert!(graph.node_in_edges(b).is_empty());
     }
 }

@@ -48,10 +48,8 @@ impl GatherGetterAndSetterProperties {
 
     // port: GatherGetterAndSetterProperties#update
     pub fn update(compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
-        // TODO(nickreid): We probably don't need to re-gather from the externs. They don't change so
-        // the first collection should be good forever.
-        // For now we traverse both trees every time because there's no reason we have to treat them
-        // differently.
+        // Java scans the live externs and sources anew, including for callers that provided
+        // different roots or changed a descriptor between optimizer passes.
         check_state!(externs.get_parent(compiler) == root.get_parent(compiler));
         let accessor_summary = if compiler
             .get_options()
@@ -70,7 +68,26 @@ impl GatherGetterAndSetterProperties {
         compiler: &mut AbstractCompiler,
         root: NodeId,
     ) -> IndexMap<JsString, PropertyAccessKind> {
-        let mut gather_callback = GatherCallback::new();
+        const TOKENS: &[Token] = &[
+            Token::SCRIPT,
+            Token::FUNCTION,
+            Token::CLASS,
+            Token::CLASS_MEMBERS,
+            Token::GETTER_DEF,
+            Token::SETTER_DEF,
+            Token::GETPROP,
+        ];
+        let mut gather_callback = if root.is_root(compiler)
+            && compiler
+                .get_options_opt()
+                .is_some_and(|options| options.get_synthetic_block_start_marker().is_none())
+        {
+            compiler.with_token_candidates(TOKENS, GatherCallback::from_candidates)
+        } else {
+            // A subtree request is already small. A traversal with synthetic blocks enabled also
+            // reads each BLOCK's SYNTHETIC property, which can throw on a malformed public AST.
+            GatherCallback::default()
+        };
         NodeTraversal::traverse(compiler, root, &mut gather_callback);
         gather_callback.properties
     }
@@ -90,14 +107,76 @@ impl CompilerPass for GatherGetterAndSetterProperties {
 }
 
 // port: GatherGetterAndSetterProperties.GatherCallback
+#[derive(Default)]
 struct GatherCallback {
+    // An empty mask requests the ordinary traversal.
+    paths: Vec<u64>,
     properties: IndexMap<JsString, PropertyAccessKind>,
 }
 
 impl GatherCallback {
-    fn new() -> Self {
+    /// Mark the paths to observable visits. NodeTraversal supplies Java's order even within
+    /// classes with computed keys. Paths are rebuilt from live links and values on each request.
+    fn from_candidates(ast: &Ast, candidates: &[NodeId]) -> Self {
+        let mut paths = vec![0u64; (ast.node_count() as usize).div_ceil(64)];
+        for &n in candidates {
+            match n.get_token(ast) {
+                // The SCRIPT handler checks for an interrupt before asking whether to descend.
+                Token::SCRIPT => {
+                    if let Some(parent) = n.get_parent(ast) {
+                        Self::mark_path(ast, &mut paths, parent);
+                    }
+                    continue;
+                }
+                // The function handler visits its first three children and inspects a declaration's
+                // name. A well-formed function without a marked descendant needs no visit.
+                Token::FUNCTION => {
+                    if n.get_first_child(ast).is_some_and(|name| {
+                        (!name.is_name(ast) || name.string_payload(ast).is_some())
+                            && name
+                                .get_next(ast)
+                                .and_then(|params| params.get_next(ast))
+                                .is_some()
+                    }) {
+                        continue;
+                    }
+                }
+                Token::CLASS | Token::CLASS_MEMBERS | Token::GETTER_DEF | Token::SETTER_DEF => {}
+                Token::GETPROP => {
+                    let Some(call) = n.get_parent(ast) else {
+                        continue;
+                    };
+                    if !call.is_call(ast) || call.get_first_child(ast) != Some(n) {
+                        continue;
+                    }
+                    if n.string_payload(ast).is_some_and(|name| {
+                        name != "create" && name != "defineProperty" && name != "defineProperties"
+                    }) {
+                        continue;
+                    }
+                    Self::mark_path(ast, &mut paths, call);
+                    continue;
+                }
+                _ => continue,
+            }
+            Self::mark_path(ast, &mut paths, n);
+        }
         Self {
+            paths,
             properties: IndexMap::<_, _>::default(),
+        }
+    }
+
+    fn mark_path(ast: &Ast, paths: &mut [u64], n: NodeId) {
+        let mut current = Some(n);
+        while let Some(node) = current {
+            let slot = node.arena_index();
+            let mask = 1u64 << (slot % 64);
+            if paths[slot / 64] & mask != 0 {
+                break;
+            }
+            paths[slot / 64] |= mask;
+            current = node.get_parent(ast);
         }
     }
 
@@ -178,10 +257,11 @@ impl Callback for GatherCallback {
     fn should_traverse(
         &mut self,
         _t: &mut NodeTraversal<'_>,
-        _n: NodeId,
+        n: NodeId,
         _parent: Option<NodeId>,
     ) -> bool {
-        true
+        let slot = n.arena_index();
+        self.paths.is_empty() || self.paths[slot / 64] & (1u64 << (slot % 64)) != 0
     }
 
     // port: GatherGetterAndSetterProperties.GatherCallback#visit
@@ -200,5 +280,89 @@ impl Callback for GatherCallback {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Compiler;
+    use closure_rhino::ir::IR;
+
+    fn gather_both(compiler: &mut Compiler, root: NodeId) -> Vec<(String, PropertyAccessKind)> {
+        let selected = GatherGetterAndSetterProperties::gather(compiler, root);
+        let mut full = GatherCallback::default();
+        NodeTraversal::traverse(compiler, root, &mut full);
+        assert!(selected.iter().eq(full.properties.iter()));
+        selected
+            .into_iter()
+            .map(|(name, kind)| (name.to_string(), kind))
+            .collect()
+    }
+
+    #[test]
+    fn indexed_refresh_keeps_computed_member_order() {
+        let mut compiler = Compiler::new();
+        let script = compiler.parse_test_code(
+            r#"
+          const o = {get first() {}};
+          class C {
+            [Object.defineProperty({}, 'key1', {get() {}})]() {
+              Object.defineProperty({}, 'body', {set(v) {}});
+            }
+            [Object.defineProperty({}, 'key2', {get() {}})]() {}
+          }
+          Object.create(null, {first: {set(v) {}}, last: {get() {}}});
+        "#,
+        );
+        let root = IR::root(&mut compiler, &[script]);
+        use PropertyAccessKind::*;
+        assert_eq!(
+            gather_both(&mut compiler, root),
+            [
+                ("first".into(), GETTER_AND_SETTER),
+                ("key1".into(), GETTER_ONLY),
+                ("key2".into(), GETTER_ONLY),
+                ("body".into(), SETTER_ONLY),
+                ("last".into(), GETTER_ONLY)
+            ]
+        );
+    }
+
+    #[test]
+    fn indexed_refresh_reads_unreported_edits_and_new_nodes() {
+        let mut compiler = Compiler::new();
+        let script = compiler.parse_test_code("Object.other({}, 'live', {get() {}});");
+        let root = IR::root(&mut compiler, &[script]);
+        let stmt = script.get_first_child(&compiler).unwrap();
+        let call = stmt.get_first_child(&compiler).unwrap();
+        let callee = call.get_first_child(&compiler).unwrap();
+        let old_name = IR::name(&mut compiler, "before");
+        let other = IR::script(&mut compiler);
+        assert!(gather_both(&mut compiler, root).is_empty());
+        callee.set_string(&mut compiler, "defineProperty");
+        assert_eq!(
+            gather_both(&mut compiler, root),
+            [("live".into(), PropertyAccessKind::GETTER_ONLY)]
+        );
+        old_name.set_token(&mut compiler, Token::SETTER_DEF);
+        other.add_child_to_back(&mut compiler, old_name);
+        root.add_child_to_front(&mut compiler, other);
+        assert_eq!(gather_both(&mut compiler, root).len(), 2);
+        old_name.set_string(&mut compiler, "live");
+        assert_eq!(
+            gather_both(&mut compiler, root),
+            [("live".into(), PropertyAccessKind::GETTER_AND_SETTER)]
+        );
+        stmt.detach(&mut compiler);
+        let new_site = compiler.new_string_with_token(Token::GETTER_DEF, "new");
+        script.add_child_to_back(&mut compiler, new_site);
+        assert_eq!(
+            gather_both(&mut compiler, root),
+            [
+                ("live".into(), PropertyAccessKind::SETTER_ONLY),
+                ("new".into(), PropertyAccessKind::GETTER_ONLY)
+            ]
+        );
     }
 }

@@ -108,7 +108,7 @@ pub(crate) fn start(compiler: &mut AbstractCompiler, inputs: &[CompilerInput]) {
             continue;
         }
         let source_file = input.get_source_file();
-        let Ok(code) = source_file.load_code_uncached() else {
+        let Ok(code) = source_file.read_source_uncached() else {
             continue;
         };
         let context = if source_file.is_extern() {
@@ -120,6 +120,7 @@ pub(crate) fn start(compiler: &mut AbstractCompiler, inputs: &[CompilerInput]) {
         if source_file.extern_snapshot(&config, &code).is_some() {
             continue;
         }
+        let code = code.into_text();
         let kind = StaticSourceFile::get_kind(source_file);
         job_of.insert(input.clone(), jobs.len());
         jobs.push(Job {

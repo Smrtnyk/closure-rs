@@ -36,10 +36,10 @@ impl CatchTree {
         ParseTree::new(
             ParseTreeType::CATCH,
             location,
-            ParseTreeData::CatchTree(Box::new(Self {
+            ParseTreeData::CatchTree(Self {
                 exception: exception.into(),
                 catch_body,
-            })),
+            }),
         )
     }
 }

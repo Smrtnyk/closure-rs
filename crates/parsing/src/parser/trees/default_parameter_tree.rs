@@ -32,7 +32,7 @@ impl DefaultParameterTree {
         ParseTree::new(
             ParseTreeType::DEFAULT_PARAMETER,
             location,
-            ParseTreeData::DefaultParameterTree(Box::new(Self { lhs, default_value })),
+            ParseTreeData::DefaultParameterTree(Self { lhs, default_value }),
         )
     }
 }

@@ -117,18 +117,20 @@ impl JSTypeData {
         }
     }
 }
+// Rust-only storage: a few large object implementations live behind boxes so that every
+// boolean, union or other small type in the registry need not occupy a function-sized slot.
 pub(crate) enum JSTypeKind {
     All(crate::all_type::AllTypeData),
     Arrow(crate::arrow_type::ArrowTypeData),
     Boolean(crate::boolean_type::BooleanTypeData),
     BigInt(crate::big_int_type::BigIntTypeData),
-    Enum(crate::enum_type::EnumTypeData),
+    Enum(Box<crate::enum_type::EnumTypeData>),
     EnumElement(crate::enum_element_type::EnumElementTypeData),
-    Function(crate::function_type::FunctionTypeData),
+    Function(Box<crate::function_type::FunctionTypeData>),
     InstanceObject(crate::instance_object_type::InstanceObjectTypeData),
-    Named(crate::named_type::NamedTypeData),
-    No(crate::no_type::NoTypeData),
-    NoObject(crate::no_object_type::NoObjectTypeData),
+    Named(Box<crate::named_type::NamedTypeData>),
+    No(Box<crate::no_type::NoTypeData>),
+    NoObject(Box<crate::no_object_type::NoObjectTypeData>),
     NoResolved(crate::no_resolved_type::NoResolvedTypeData),
     Null(crate::null_type::NullTypeData),
     Number(crate::number_type::NumberTypeData),
@@ -139,7 +141,7 @@ pub(crate) enum JSTypeKind {
     Symbol(crate::symbol_type::SymbolTypeData),
     KnownSymbol(crate::known_symbol_type::KnownSymbolTypeData),
     Template(crate::template_type::TemplateTypeData),
-    Templatized(crate::templatized_type::TemplatizedTypeData),
+    Templatized(Box<crate::templatized_type::TemplatizedTypeData>),
     Union(crate::union_type::UnionTypeData),
     Unknown(crate::unknown_type::UnknownTypeData),
     Void(crate::void_type::VoidTypeData),

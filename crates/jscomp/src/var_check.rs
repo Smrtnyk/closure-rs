@@ -34,6 +34,7 @@ use closure_rhino::check_state;
 use closure_rhino::fast_hash::IndexSet;
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
+use closure_rhino::node::SnapshotUse;
 use closure_rhino::node::{Ast, NodeId, Prop};
 use closure_rhino::static_source_file::SourceKind;
 use closure_rhino::token::Token;
@@ -578,6 +579,29 @@ impl Callback for NameRefInExternsCheck<'_> {
         // Type summaries are generated from code rather than hand-written,
         // so warning about name references there would usually not be helpful.
         !n.is_script(t) || !NodeUtil::is_from_type_summary(t, n)
+    }
+
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        if NodeUtil::is_from_type_summary(t, script) {
+            return false;
+        }
+        let Some((facts, first)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames)
+        else {
+            return true;
+        };
+        let Some(roots) = facts.global_property_roots else {
+            return true;
+        };
+        if !roots.is_empty() && !t.global_declares_all(roots) {
+            return true;
+        }
+        t.traverse_script_suffix(script, parent, first, self);
+        false
     }
 
     // port: VarCheck.NameRefInExternsCheck#visit

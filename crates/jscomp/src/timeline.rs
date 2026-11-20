@@ -98,7 +98,9 @@ impl<T: Clone + Eq + Hash> Timeline<T> {
 
     // port: Timeline#remove
     pub fn remove(&mut self, value: &T) {
-        let event = self.events_by_value.shift_remove(value);
+        // The links between events determine iteration order. Removing a lookup entry
+        // can swap in the last entry without shifting every later value.
+        let event = self.events_by_value.swap_remove(value);
         if let Some(event) = event {
             let next_event = self.events[event].next_event;
             let previous_event = self.events[event].previous_event;

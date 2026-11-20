@@ -417,3 +417,126 @@ fn test_invalid_entry_values_throws() {
             .contains("Unexpected number of values for entry:2")
     );
 }
+
+// Rust regression: the next compact delta is relative to the unpacked ID, including its
+// 0xffff sentinel. A 65,535-element table switches the consumer to full-width IDs.
+#[test]
+fn compact_sentinels_and_wide_mapping_ids() {
+    let mut consumer = SourceMapConsumerV3::new();
+    consumer
+        .parse(r#"{"version":3,"sources":["s"],"names":["name"],"mappings":"A+//DAA+//D,CCCCC"}"#)
+        .unwrap();
+    assert!(consumer.get_mapping_for_line(1, 1).is_none());
+    let mapped = consumer.get_mapping_for_line(1, 2).unwrap();
+    assert_eq!(mapped.get_original_file(), "s");
+    assert_eq!(mapped.get_identifier(), "name");
+    assert_eq!(mapped.get_line_number(), 2);
+    assert_eq!(mapped.get_column_position(), 2);
+
+    consumer
+        .parse(format!(
+            r#"{{"version":3,"sources":["s"],"names":[{}"wide"],"mappings":"AAAA8//D,CAAA"}}"#,
+            "null,".repeat(65_534),
+        ))
+        .unwrap();
+    assert_eq!(
+        consumer
+            .get_mapping_for_line(1, 1)
+            .unwrap()
+            .get_identifier(),
+        "wide"
+    );
+    assert!(
+        !consumer
+            .get_mapping_for_line(1, 2)
+            .unwrap()
+            .has_identifier()
+    );
+}
+
+// Rust regression: the Java consumer distinguishes malformed field counts, failed base64
+// reads, validation failures and an attempted write to a zero-length initial entry array.
+#[test]
+fn malformed_entry_exception_order() {
+    let cases = [
+        (
+            "A",
+            r#","lineCount":0"#,
+            "java.lang.ArrayIndexOutOfBoundsException: Index 0 out of bounds for length 0",
+        ),
+        (
+            "AAA",
+            r#","lineCount":0"#,
+            "com.google.debugging.sourcemap.SourceMapParseException: Unexpected number of values for entry:3",
+        ),
+        (
+            "AAAAAA",
+            "",
+            "java.lang.ArrayIndexOutOfBoundsException: Index 5 out of bounds for length 5",
+        ),
+        (
+            "AAAAA!",
+            "",
+            "java.lang.StringIndexOutOfBoundsException: Index 6 out of bounds for length 6",
+        ),
+        (
+            r"AAAAA\ud800",
+            "",
+            "java.lang.ArrayIndexOutOfBoundsException: Index 55296 out of bounds for length 256",
+        ),
+        (
+            "AAAAA",
+            "",
+            r#"java.lang.NullPointerException: Cannot read the array length because "this.this$0.names" is null"#,
+        ),
+        ("ACAA", "", "java.lang.IllegalStateException"),
+        (
+            ";;;;;A",
+            r#","lineCount":0"#,
+            "java.lang.IllegalStateException: line=5, lineCount=0",
+        ),
+    ];
+    for (mappings, fields, expected) in cases {
+        let json = format!(r#"{{"version":3,"sources":["s"],"mappings":"{mappings}"{fields}}}"#);
+        let result = std::panic::catch_unwind(|| SourceMapConsumerV3::new().parse(json));
+        let message = match result {
+            Ok(result) => result.unwrap_err().java_to_string(),
+            Err(panic) => closure_sourcemap::panic_message(panic),
+        };
+        assert_eq!(message, expected, "{mappings}");
+    }
+}
+
+// Rust regression: quoted runs may end at any SIMD lane or Gson buffer boundary. Escaped
+// and literal UTF-16 units, and the reported line and column after them, must agree with Java.
+#[test]
+fn quoted_strings_across_buffer_boundaries() {
+    let prefix = "{'version':3,'file':'";
+    for offset in 1014..1034 {
+        let padding = "x".repeat(offset - prefix.len());
+        let head = JsString::from(format!("{prefix}{padding}"));
+        let lone = JsString::from_units(vec![0xd800]);
+        let mut consumer = SourceMapConsumerV3::new();
+        consumer
+            .parse(
+                head.concat(&lone)
+                    .concat(&r#"\uDC01\'\\\n',"sources":[],"mappings":""}"#.into()),
+            )
+            .unwrap();
+        assert_eq!(
+            consumer.get_file().unwrap(),
+            JsString::from(padding.as_str())
+                .concat(&lone)
+                .concat(&JsString::from_units(vec![0xdc01, 39, 92, 10]))
+        );
+
+        let invalid = format!("{prefix}{padding}\\n\\uD800\nabc\\q'}}");
+        assert_eq!(
+            SourceMapConsumerV3::new()
+                .parse(invalid)
+                .unwrap_err()
+                .get_message(),
+            "JSON parse exception: com.google.gson.JsonSyntaxException: com.google.gson.stream.MalformedJsonException: Invalid escape sequence at line 2 column 6 path $.file"
+        );
+    }
+}

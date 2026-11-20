@@ -32,7 +32,8 @@ pub enum TokenData {
     Identifier(IdentifierToken),
     Literal(LiteralToken),
     StringLiteral(StringLiteralToken),
-    TemplateLiteral(TemplateLiteralToken),
+    // Template diagnostics include a message and position. Only a template token needs them.
+    TemplateLiteral(Box<TemplateLiteralToken>),
 }
 
 /// A Token in a javascript file.

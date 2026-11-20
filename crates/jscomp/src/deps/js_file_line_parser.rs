@@ -49,8 +49,11 @@ use closure_rhino::{
 use std::{
     fmt,
     io::{self, BufRead, BufReader, Read},
-    sync::{Arc, Mutex},
+    sync::{Arc, LazyLock, Mutex},
 };
+// port: JsFileLineParser#STRING_LITERAL_PATTERN
+static STRING_LITERAL_PATTERN: LazyLock<Pattern> =
+    LazyLock::new(|| Pattern::compile(r#"\s*(?:'((?:\\.|[^'\\])*)'|"((?:\\.|[^"\\])*)")\s*"#));
 pub static PARSE_WARNING: DiagnosticType =
     DiagnosticType::warning("DEPS_PARSE_WARNING", "{0}\n{1}");
 pub static PARSE_ERROR: DiagnosticType = DiagnosticType::error("DEPS_PARSE_ERROR", "{0}\n{1}");
@@ -100,13 +103,11 @@ pub trait LineParser {
     }
 }
 impl JsFileLineParser {
-    const STRING_LITERAL_PATTERN: &'static str =
-        r#"\s*(?:'((?:\\.|[^'\\])*)'|"((?:\\.|[^"\\])*)")\s*"#;
     // port: JsFileLineParser#JsFileLineParser
     pub fn new(error_manager: SharedErrorManager) -> Self {
         Self {
             shortcut_mode: false,
-            value_matcher: Pattern::compile(Self::STRING_LITERAL_PATTERN).matcher(""),
+            value_matcher: STRING_LITERAL_PATTERN.matcher(""),
             file_path: String::new(),
             line_num: 0,
             error_manager,

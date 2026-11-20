@@ -34,7 +34,7 @@ impl DynamicImportTree {
         ParseTree::new(
             ParseTreeType::DYNAMIC_IMPORT_EXPRESSION,
             location,
-            ParseTreeData::DynamicImportTree(Box::new(Self { argument })),
+            ParseTreeData::DynamicImportTree(Self { argument }),
         )
     }
 }

@@ -59,9 +59,16 @@ impl JSDocSerializer {
         ast: &mut Ast,
         jsdoc: Option<&JSDocInfo>,
     ) -> Option<Arc<JSDocInfo>> {
-        let mut string_pool = StringPool::builder();
-        let serialized = Self::serialize_jsdoc(jsdoc, &mut string_pool);
-        Self::deserialize_jsdoc(ast, serialized.as_ref(), &string_pool.build())
+        // Most annotations carry only tags or disappear entirely. Allocate a private
+        // index only when the wire representation actually references a string.
+        let mut strings = None;
+        let serialized = Self::serialize_with(jsdoc?, |s| {
+            strings.get_or_insert_with(StringPool::builder).put(s)
+        })?;
+        match strings {
+            Some(pool) => Self::deserialize_jsdoc(ast, Some(&serialized), &pool.build()),
+            None => Self::deserialize_jsdoc(ast, Some(&serialized), &StringPool::empty()),
+        }
     }
 
     // port: JSDocSerializer#serializeJsdoc
@@ -69,8 +76,13 @@ impl JSDocSerializer {
         jsdoc: Option<&JSDocInfo>,
         string_pool: &mut StringPoolBuilder,
     ) -> Option<OptimizationJsdoc> {
-        let jsdoc = jsdoc?;
+        Self::serialize_with(jsdoc?, |s| string_pool.put(s))
+    }
 
+    fn serialize_with(
+        jsdoc: &JSDocInfo,
+        mut put: impl FnMut(JsString) -> i32,
+    ) -> Option<OptimizationJsdoc> {
         let mut builder = OptimizationJsdoc::new_builder();
 
         if jsdoc.has_file_overview() {
@@ -78,7 +90,7 @@ impl JSDocSerializer {
         }
 
         if let Some(license) = jsdoc.get_license() {
-            builder = builder.set_license_text_pointer(string_pool.put(license));
+            builder = builder.set_license_text_pointer(put(license));
         }
 
         if jsdoc.is_sass_generated_css_ts() {
@@ -179,14 +191,13 @@ impl JSDocSerializer {
 
         // Used by ReplaceMessages
         if let Some(description) = jsdoc.get_description() {
-            builder = builder.set_description_pointer(string_pool.put(description));
+            builder = builder.set_description_pointer(put(description));
         }
         if let Some(alternate_message_id) = jsdoc.get_alternate_message_id() {
-            builder =
-                builder.set_alternate_message_id_pointer(string_pool.put(alternate_message_id));
+            builder = builder.set_alternate_message_id_pointer(put(alternate_message_id));
         }
         if let Some(meaning) = jsdoc.get_meaning() {
-            builder = builder.set_meaning_pointer(string_pool.put(meaning));
+            builder = builder.set_meaning_pointer(put(meaning));
         }
         if jsdoc.has_suppression("messageConventions") {
             builder = builder.add_kind(JsdocTag::JSDOC_SUPPRESS_MESSAGE_CONVENTION);
@@ -198,9 +209,11 @@ impl JSDocSerializer {
             builder = builder.add_kind(JsdocTag::JSDOC_USED_VIA_DOT_CONSTRUCTOR);
         }
         if let Some(mode) = jsdoc.get_per_file_closure_unaware_mode() {
-            builder = builder.set_closure_unaware_mode_pointer(
-                string_pool.put(Self::closure_unaware_mode_name(mode)),
-            );
+            builder =
+                builder
+                    .set_closure_unaware_mode_pointer(put(
+                        Self::closure_unaware_mode_name(mode).into()
+                    ));
         }
 
         let result = builder.build();

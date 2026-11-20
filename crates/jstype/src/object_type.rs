@@ -674,17 +674,11 @@ impl ObjectType for TypeId {
         self,
         reg: &JSTypeRegistry,
     ) -> closure_rhino::fast_hash::IndexSet<JsString> {
-        if matches!(
-            reg.data(self).kind,
-            JSTypeKind::Function(_) | JSTypeKind::NoObject(_) | JSTypeKind::No(_)
-        ) {
-            crate::function_type::get_own_property_names(self, reg)
-        } else {
-            self.get_property_map(reg)
-                .get_own_property_names()
-                .into_iter()
-                .collect()
-        }
+        let mut names = closure_rhino::fast_hash::IndexSet::<_>::default();
+        for_each_own_property_name(self, reg, |name| {
+            names.insert(name.clone());
+        });
+        names
     }
     // port: ObjectType#getOwnPropertyKeys
     fn get_own_property_keys(self, reg: &JSTypeRegistry) -> Vec<PropertyKey> {
@@ -873,6 +867,18 @@ impl ObjectType for TypeId {
         } else {
             None
         }
+    }
+}
+
+/// Visit the strings returned by ObjectType#getOwnPropertyNames in the same order.
+pub fn for_each_own_property_name(t: TypeId, reg: &JSTypeRegistry, visit: impl FnMut(&JsString)) {
+    if matches!(
+        reg.data(t).kind,
+        JSTypeKind::Function(_) | JSTypeKind::NoObject(_) | JSTypeKind::No(_)
+    ) {
+        crate::function_type::for_each_own_property_name(t, reg, visit);
+    } else {
+        t.get_property_map(reg).for_each_own_property_name(visit);
     }
 }
 

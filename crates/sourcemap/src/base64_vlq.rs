@@ -55,6 +55,14 @@ impl Base64VLQ {
     }
     // port: Base64VLQ#encode
     pub fn encode(out: &mut dyn std::fmt::Write, value: i32) -> std::fmt::Result {
+        Self::encode_to(out, value)
+    }
+
+    // A concrete writer lets the mapping generator append digits directly to its buffer.
+    pub(crate) fn encode_to(
+        out: &mut (impl std::fmt::Write + ?Sized),
+        value: i32,
+    ) -> std::fmt::Result {
         let mut value = Self::to_vlq_signed(value);
         loop {
             let mut digit = value & Self::VLQ_BASE_MASK;
@@ -71,6 +79,12 @@ impl Base64VLQ {
     }
     // port: Base64VLQ#decode
     pub fn decode(input: &mut dyn CharIterator) -> i32 {
+        Self::decode_from(input)
+    }
+
+    // Rust-only (performance divergence): the consumer reads its concrete UTF-16 iterator
+    // directly. The Java-compatible entry point above also accepts other iterators.
+    pub(crate) fn decode_from(input: &mut (impl CharIterator + ?Sized)) -> i32 {
         let mut result = 0i32;
         let mut shift = 0u32;
         loop {

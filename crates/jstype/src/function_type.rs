@@ -398,7 +398,13 @@ pub fn builder() -> FunctionTypeBuilder {
 
 // port: FunctionType#FunctionType
 pub fn new(reg: &mut JSTypeRegistry, ast: &Ast, builder: FunctionTypeBuilder) -> TypeId {
-    new_with_kind(reg, ast, builder, JSTypeKind::Function, false)
+    new_with_kind(
+        reg,
+        ast,
+        builder,
+        |data| JSTypeKind::Function(Box::new(data)),
+        false,
+    )
 }
 
 pub(crate) fn new_with_kind(
@@ -1077,11 +1083,30 @@ pub fn get_own_property_names(
     reg: &JSTypeRegistry,
 ) -> closure_rhino::fast_hash::IndexSet<JsString> {
     let mut names = closure_rhino::fast_hash::IndexSet::<_>::default();
-    if reg.function_data(t).prototype_slot.is_some() {
-        names.insert("prototype".into());
-    }
-    names.extend(reg.prototype_data(t).properties.get_own_property_names());
+    for_each_own_property_name(t, reg, |name| {
+        names.insert(name.clone());
+    });
     names
+}
+
+pub(crate) fn for_each_own_property_name(
+    t: TypeId,
+    reg: &JSTypeRegistry,
+    mut visit: impl FnMut(&JsString),
+) {
+    let has_prototype = reg.function_data(t).prototype_slot.is_some();
+    let properties = &reg.prototype_data(t).properties;
+    if has_prototype {
+        let prototype = JsString::from("prototype");
+        visit(&prototype);
+        properties.for_each_own_property_name(|name| {
+            if name != &prototype {
+                visit(name);
+            }
+        });
+    } else {
+        properties.for_each_own_property_name(visit);
+    }
 }
 // port: FunctionType#setPrototypeBasedOn
 fn set_prototype_based_on_with_node(

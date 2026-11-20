@@ -321,6 +321,10 @@ impl GlobalNamespace {
         self.get_name_index(compiler).values().copied().collect()
     }
 
+    pub(crate) fn is_generated(&self) -> bool {
+        self.generated
+    }
+
     // port: GlobalNamespace#ensureGenerated
     fn ensure_generated(&mut self, compiler: &mut AbstractCompiler) {
         if !self.generated {

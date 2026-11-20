@@ -67,7 +67,7 @@ use crate::{
     compiler_pass::CompilerPass,
     diagnostic::log_file::LogFile,
     node_util::NodeUtil,
-    polyfill_usage_finder::{PolyfillUsage, PolyfillUsageFinder, Polyfills},
+    polyfill_usage_finder::{PolyfillUsageFinder, Polyfills},
     scope::ScopeId,
     syntactic_scope_creator::SyntacticScopeCreator,
     var::VarId,
@@ -80,7 +80,7 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 
 /// Properties that are implicitly used as part of the JS language.
 const IMPLICITLY_USED_PROPERTIES: [&str; 5] =
@@ -120,6 +120,7 @@ pub struct RemoveUnusedCode {
     var_info_map: IndexMap<VarId, VarInfoId>,
 
     pinned_property_names: IndexSet<JsString>,
+    extern_properties: Arc<IndexSet<JsString>>,
 
     /// Stores Removable objects for each property name that is currently considered removable.
     removables_for_property_names: JavaHashMultimap<RemovableId>,
@@ -183,6 +184,7 @@ impl RemoveUnusedCode {
             preserve_function_expression_names: builder.preserve_function_expression_names,
             worklist: VecDeque::new(),
             var_info_map: IndexMap::<_, _>::default(),
+            extern_properties: Arc::default(),
             pinned_property_names: IMPLICITLY_USED_PROPERTIES
                 .iter()
                 .map(|s| JsString::from(*s))
@@ -427,10 +429,14 @@ impl CompilerPass for RemoveUnusedCode {
     fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
         check_state!(compiler.get_life_cycle_stage().is_normalized());
         let extern_properties = compiler
-            .get_extern_properties_js()
+            .get_extern_property_set_js()
             .expect("compiler.getExternProperties() is null");
-        self.pinned_property_names
-            .extend(extern_properties.iter().cloned());
+        // Keep the previous set pinned when a caller reuses this pass with different externs.
+        if !Arc::ptr_eq(&self.extern_properties, extern_properties) {
+            self.pinned_property_names
+                .extend(self.extern_properties.iter().cloned());
+            self.extern_properties = Arc::clone(extern_properties);
+        }
 
         let removal_log_file =
             compiler.create_or_reopen_indexed_log("RemoveUnusedCode", "removals.log", &[]);
@@ -473,17 +479,12 @@ impl RemoveUnusedCode {
         }
 
         // Accumulate guarded usages of polyfills before removal starts.
-        let mut guarded = Vec::new();
-        self.polyfill_usage_finder.traverse_only_guarded(
-            compiler,
-            root,
-            &mut |_compiler: &mut AbstractCompiler, polyfill_usage: PolyfillUsage| {
-                guarded.push(polyfill_usage)
-            },
-        );
-        for polyfill_usage in guarded {
-            self.store_polyfill(polyfill_usage);
-        }
+        let guarded_usages = &mut self.guarded_usages;
+        self.polyfill_usage_finder
+            .traverse_only_guarded(compiler, root, &mut |_, usage| {
+                // port: RemoveUnusedCode#storePolyfill
+                guarded_usages.insert(usage.node());
+            });
 
         self.worklist.push_back(Continuation::new(root, scope));
         while let Some(continuation) = self.worklist.pop_front() {
@@ -492,14 +493,9 @@ impl RemoveUnusedCode {
 
         self.remove_unreferenced_vars_and_polyfills(compiler);
         self.remove_independently_removable_properties(compiler);
-        for fparam_scope in self.all_function_param_scopes.clone() {
-            self.remove_unreferenced_function_args(compiler, fparam_scope);
+        for index in 0..self.all_function_param_scopes.len() {
+            self.remove_unreferenced_function_args(compiler, self.all_function_param_scopes[index]);
         }
-    }
-
-    // port: RemoveUnusedCode#storePolyfill
-    fn store_polyfill(&mut self, polyfill_usage: PolyfillUsage) {
-        self.guarded_usages.insert(polyfill_usage.node());
     }
 
     // port: RemoveUnusedCode#removeIndependentlyRemovableProperties
@@ -1174,6 +1170,33 @@ struct Continuation {
     scope: ScopeId,
 }
 
+/// Most deferred values and most variables have at most one continuation or removable.
+#[derive(Default)]
+enum Pending<T> {
+    #[default]
+    Empty,
+    One(T),
+    Many(Vec<T>),
+}
+
+impl<T: Copy> Pending<T> {
+    fn push(&mut self, value: T) {
+        match self {
+            Self::Empty => *self = Self::One(value),
+            Self::One(first) => *self = Self::Many(vec![*first, value]),
+            Self::Many(values) => values.push(value),
+        }
+    }
+
+    fn as_slice(&self) -> &[T] {
+        match self {
+            Self::Empty => &[],
+            Self::One(first) => std::slice::from_ref(first),
+            Self::Many(values) => values,
+        }
+    }
+}
+
 impl Continuation {
     // port: RemoveUnusedCode.Continuation#Continuation
     fn new(node: NodeId, scope: ScopeId) -> Self {
@@ -1250,7 +1273,7 @@ impl<V: Copy + Eq> JavaHashMultimap<V> {
 
     // port: HashMultimap#removeAll
     fn remove_all(&mut self, key: &JsString) -> Vec<V> {
-        match self.values.shift_remove(key) {
+        match self.values.swap_remove(key) {
             None => Vec::new(),
             Some(values) => {
                 self.remove_node(key);
@@ -2168,7 +2191,9 @@ impl RemoveUnusedCode {
         compiler: &mut AbstractCompiler,
         property_name: JsString,
     ) {
-        if self.pinned_property_names.insert(property_name.clone()) {
+        if self.pinned_property_names.insert(property_name.clone())
+            && !self.extern_properties.contains(&property_name)
+        {
             // Continue traversal of all of the property name's values and no longer consider them
             // for removal.
             for removable in self
@@ -2191,6 +2216,7 @@ impl RemoveUnusedCode {
             let property_name = self.removable_get_property_name(compiler, removable);
 
             if self.pinned_property_names.contains(&property_name)
+                || self.extern_properties.contains(&property_name)
                 || compiler
                     .get_coding_convention()
                     .is_exported(&property_name, /* local= */ false)
@@ -2493,9 +2519,8 @@ impl RemoveUnusedCode {
     /// variables as well.
     // port: RemoveUnusedCode#removeUnreferencedVarsAndPolyfills
     fn remove_unreferenced_vars_and_polyfills(&mut self, compiler: &mut AbstractCompiler) {
-        let entries: Vec<(VarId, VarInfoId)> =
-            self.var_info_map.iter().map(|(k, v)| (*k, *v)).collect();
-        for (var, var_info) in entries {
+        for index in 0..self.var_info_map.len() {
+            let (&var, &var_info) = self.var_info_map.get_index(index).unwrap();
             if !self.var_info_is_removable(var_info) {
                 continue;
             }
@@ -2785,7 +2810,7 @@ enum RemovableKind {
 /// Represents a portion of the AST that can be removed.
 // port: RemoveUnusedCode.Removable
 struct Removable {
-    continuations: Vec<Continuation>,
+    continuations: Pending<Continuation>,
 
     /// If this object represents an assignment of a value to a property. This is the name of
     /// the property.
@@ -2798,7 +2823,6 @@ struct Removable {
     is_prototype_dot_property_reference: bool,
     is_this_dot_property_reference: bool,
 
-    continuations_are_applied: bool,
     is_removed: bool,
 
     kind: RemovableKind,
@@ -2813,7 +2837,6 @@ impl Removable {
             is_prototype_dot_property_reference: builder.is_prototype_dot_property_reference,
             is_this_dot_property_reference: builder.is_this_dot_property_reference,
             target_node,
-            continuations_are_applied: false,
             is_removed: false,
             kind,
         }
@@ -2932,16 +2955,11 @@ impl RemoveUnusedCode {
 
     // port: RemoveUnusedCode.Removable#applyContinuations
     fn removable_apply_continuations(&mut self, removable: RemovableId) {
-        let r = &mut self.removables[removable.0];
-        if !r.continuations_are_applied {
-            r.continuations_are_applied = true;
-            for c in r.continuations.drain(..) {
-                // Enqueue the continuation for processing.
-                // Don't invoke the continuation immediately, because that can lead to concurrent
-                // modification of data structures.
-                self.worklist.push_back(c);
-            }
-        }
+        // Emptying the list also records that the continuations have been applied.
+        // Enqueue them in their original order, after the current traversal.
+        let continuations = std::mem::take(&mut self.removables[removable.0].continuations);
+        self.worklist
+            .extend(continuations.as_slice().iter().copied());
     }
 
     /// True if this object represents assignment to a variable.
@@ -3255,7 +3273,7 @@ impl RemoveUnusedCode {
 // port: RemoveUnusedCode.RemovableBuilder
 #[derive(Default)]
 struct RemovableBuilder {
-    continuations: Vec<Continuation>,
+    continuations: Pending<Continuation>,
 
     property_name: Option<JsString>,
     is_prototype_dot_property_reference: bool,
@@ -4220,7 +4238,7 @@ struct RealVarInfo {
     ///
     /// NOTE: Once we realize that we cannot remove the variable, this list will be cleared and no
     /// more will be added.
-    removables: Vec<RemovableId>,
+    removables: Pending<RemovableId>,
 
     is_entirely_removable: bool,
 
@@ -4246,7 +4264,7 @@ impl RealVarInfo {
     fn new(var_name: JsString) -> Self {
         Self {
             var_name,
-            removables: Vec::new(),
+            removables: Pending::Empty,
             is_entirely_removable: true,
             has_non_local_or_non_literal_value: false,
             has_function_or_class_literal_value: false,
@@ -4390,7 +4408,7 @@ impl RemoveUnusedCode {
                         let reason = reason_supplier.take().map_or_else(String::new, |f| f(ast));
                         format!("{var_name}: {reason}")
                     });
-                    for r in removables {
+                    for &r in removables.as_slice() {
                         self.consider_for_independent_removal(compiler, r);
                     }
                 }
@@ -4443,11 +4461,10 @@ impl RemoveUnusedCode {
             // port: RemoveUnusedCode.RealVarInfo#removeAllRemovables
             VarInfo::Real(real) => {
                 check_state!(real.is_entirely_removable);
-                let removables = real.removables.clone();
-                for removable in removables {
+                let removables = std::mem::take(&mut real.removables);
+                for &removable in removables.as_slice() {
                     self.removable_remove(compiler, removable);
                 }
-                self.real_var_info(var_info).removables.clear();
             }
         }
     }

@@ -25,6 +25,14 @@ pub trait SourceMapGenerator {
         out: &mut dyn std::fmt::Write,
         name: Option<JsString>,
     ) -> Result<JsString, std::fmt::Error>;
+    /// Write the map to its scalar destination without retaining a second UTF-16 result.
+    fn write_to(
+        &mut self,
+        out: &mut dyn std::fmt::Write,
+        name: Option<JsString>,
+    ) -> std::fmt::Result {
+        self.append_to(out, name).map(|_| ())
+    }
     // port: SourceMapGenerator#appendIndexMapTo
     fn append_index_map_to(
         &self,

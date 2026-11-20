@@ -24,6 +24,7 @@ pub mod jsdoc_serializer;
 pub mod malformed_typed_ast_exception;
 pub mod optimization_jsdoc_proto;
 pub mod protobuf;
+pub(crate) mod runtime_libraries;
 pub mod script_node_deserializer;
 pub mod serialization_options;
 pub mod serialize_typed_ast_pass;

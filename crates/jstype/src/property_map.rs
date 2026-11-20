@@ -72,9 +72,6 @@ impl PropertyTable {
     pub(crate) fn get(&self, name: &JsString) -> Option<PropertyId> {
         self.0.get(name).copied()
     }
-    pub(crate) fn contains_key(&self, name: &JsString) -> bool {
-        self.0.contains_key(name)
-    }
     pub(crate) fn len(&self) -> usize {
         self.0.len()
     }
@@ -107,7 +104,7 @@ impl PropertyTable {
 pub struct PropertyMap {
     pub(crate) parent_source: Option<TypeId>,
     // Java's PropertyMap is a reference type; callers here clone it to release the registry
-    // borrow. The maps are shared copy-on-write (Arc::make_mut in put_property_raw) so a clone
+    // borrow. The maps are shared copy-on-write (Arc::make_mut on insertion) so a clone
     // is O(1) instead of a deep copy; the snapshot semantics are unchanged.
     pub(crate) properties: Arc<PropertyTable>,
     pub(crate) known_symbols: Option<Arc<Vec<(TypeId, PropertyId)>>>,
@@ -320,6 +317,19 @@ impl PropertyMap {
     pub fn get_own_property_names(&self) -> BTreeSet<JsString> {
         self.properties.key_set()
     }
+    /// Visit the keys in Java TreeMap order without constructing an owned set.
+    pub(crate) fn for_each_own_property_name(&self, mut visit: impl FnMut(&JsString)) {
+        let keys = self.properties.0.keys();
+        if keys.len() <= 1 {
+            keys.for_each(visit);
+        } else {
+            let mut sorted: Vec<_> = keys.collect();
+            sorted.sort_unstable();
+            for name in sorted {
+                visit(name);
+            }
+        }
+    }
     // port: PropertyMap#getOwnKnownSymbols
     pub fn get_own_known_symbols(&self) -> Vec<TypeId> {
         self.known_symbols
@@ -399,28 +409,13 @@ impl PropertyMap {
     ) {
         let name = name.into();
         let old_prop = self.get_own_property(reg, ast, &name);
-        if let (PropertyKey::String(_), Some(old_prop)) = (&name, old_prop) {
-            let info = old_prop.get_jsdoc_info(reg);
-            new_prop.set_jsdoc_info(reg, info);
-        }
-        self.put_property_raw(reg, ast, name, new_prop);
-    }
-    pub(crate) fn put_property_raw(
-        &mut self,
-        reg: &mut JSTypeRegistry,
-        ast: &Ast,
-        name: PropertyKey,
-        new_prop: PropertyId,
-    ) {
-        check_state!(!self.immutable_empty);
         match name {
             PropertyKey::String(n) => {
-                if !self.properties.contains_key(&n) {
-                    self.increment_cached_key_set_counter();
-                }
-                Arc::make_mut(&mut self.properties).insert(n, new_prop);
+                Self::inherit_string_property_jsdoc(reg, new_prop, old_prop);
+                self.store_string_property(n, new_prop, old_prop);
             }
             PropertyKey::Symbol(symbol) => {
+                check_state!(!self.immutable_empty);
                 let found = self.known_symbols.as_ref().and_then(|items| {
                     items.iter().position(|(key, _)| {
                         key.hash_code(reg) == symbol.hash_code(reg) && key.equals(reg, ast, symbol)
@@ -441,6 +436,40 @@ impl PropertyMap {
             }
         }
     }
+    fn inherit_string_property_jsdoc(
+        reg: &mut JSTypeRegistry,
+        new: PropertyId,
+        old: Option<PropertyId>,
+    ) {
+        if let Some(old) = old {
+            let info = old.get_jsdoc_info(reg);
+            new.set_jsdoc_info(reg, info);
+        }
+    }
+
+    fn store_string_property(&mut self, name: JsString, new: PropertyId, old: Option<PropertyId>) {
+        check_state!(!self.immutable_empty);
+        if old.is_none() {
+            self.increment_cached_key_set_counter();
+        }
+        Arc::make_mut(&mut self.properties).insert(name, new);
+    }
+
+    /// String keys need the registry only to copy JSDoc from a previous property. Keep the
+    /// map in its owner while doing this, then write the real table after releasing that borrow.
+    pub(crate) fn put_prototype_string(
+        reg: &mut JSTypeRegistry,
+        owner: TypeId,
+        name: JsString,
+        new: PropertyId,
+    ) {
+        let old = reg.prototype_data(owner).properties.properties.get(&name);
+        Self::inherit_string_property_jsdoc(reg, new, old);
+        reg.prototype_data_mut(owner)
+            .properties
+            .store_string_property(name, new, old);
+    }
+
     // port: PropertyMap#values
     pub fn values(&self) -> Vec<PropertyId> {
         self.properties.sorted_values()

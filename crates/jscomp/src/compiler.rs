@@ -36,7 +36,8 @@ use crate::{
     thread_safe_delegating_error_manager::ThreadSafeDelegatingErrorManager,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
-use closure_rhino::fast_hash::IndexMap;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
+use closure_rhino::js_string::JsString;
 use closure_rhino::{
     input_id::InputId,
     ir::IR,
@@ -56,6 +57,13 @@ pub type InputSourceMaps = closure_rhino::java_lang::concurrent_hash_map::Concur
 >;
 
 pub type AstSupplier = Arc<dyn Fn(&mut Compiler) -> NodeId + Send + Sync>;
+
+#[derive(Default)]
+struct ExternPropertiesJs {
+    by_name: std::sync::OnceLock<Arc<IndexSet<JsString>>>,
+    ordered: std::sync::OnceLock<Vec<JsString>>,
+}
+
 /// Java's LinkedHashSet and the anonymous AbstractSet selected by initOptions.
 #[derive(Default)]
 pub struct ForwardDeclaredTypes {
@@ -120,13 +128,14 @@ pub struct Compiler {
     has_reg_exp_global_references: bool,
     run_j2cl_passes: bool,
     extern_properties: Option<closure_rhino::fast_hash::IndexSet<String>>,
-    /// Rust-only: `extern_properties` as JS strings, made once per value (RemoveUnusedCode reads
-    /// them on every run).
-    extern_properties_js: std::sync::OnceLock<Vec<closure_rhino::js_string::JsString>>,
+    /// The JavaScript names for the current extern property set, shared by optimizer passes.
+    extern_properties_js: ExternPropertiesJs,
     /// Rust-only (crates/DESIGN.md, "Performance divergences"): whether the reference collection of
     /// the externs can be skipped, while the externs are unchanged.
     pub(crate) externs_reference_summary:
         Option<crate::reference_collector::ExternsReferenceSummary>,
+    /// Ordered reference sites in function bodies inspected by InlineVariables.
+    pub(crate) function_reference_sites: crate::reference_collector::FunctionReferenceCache,
     accessor_summary: Option<Arc<crate::accessor_summary::AccessorSummary>>,
     unique_name_id: Arc<std::sync::atomic::AtomicI32>,
     unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier,
@@ -148,10 +157,10 @@ pub struct Compiler {
     module_metadata_map: Option<Arc<crate::modules::module_metadata_map::ModuleMetadataMap>>,
     module_map: Option<Arc<crate::modules::module_map::ModuleMap>>,
     transpilation_namespace: Option<crate::global_namespace::GlobalNamespace>,
+    discard_unused_transpilation_namespace: bool,
     runtime_js_lib_manager:
         Option<Arc<std::sync::Mutex<crate::js::runtime_js_lib_manager::RuntimeJsLibManager>>>,
-    runtime_library_typed_asts:
-        Option<IndexMap<String, Arc<dyn Fn(&mut Compiler) -> NodeId + Send + Sync>>>,
+    runtime_library_typed_asts: Option<crate::serialization::runtime_libraries::RuntimeLibraries>,
     synthetic_externs_file: Arc<SourceFile>,
     synthetic_type_summary_file: Arc<SourceFile>,
     synthetic_type_summary_input: Option<CompilerInput>,
@@ -240,8 +249,9 @@ impl Compiler {
             has_reg_exp_global_references: true,
             run_j2cl_passes: false,
             extern_properties: None,
-            extern_properties_js: std::sync::OnceLock::new(),
+            extern_properties_js: ExternPropertiesJs::default(),
             externs_reference_summary: None,
+            function_reference_sites: Default::default(),
             accessor_summary: None,
             unique_name_id: Arc::new(std::sync::atomic::AtomicI32::new(0)),
             unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier::default(),
@@ -261,6 +271,7 @@ impl Compiler {
             module_metadata_map: None,
             module_map: None,
             transpilation_namespace: None,
+            discard_unused_transpilation_namespace: false,
             runtime_js_lib_manager: None,
             runtime_library_typed_asts: None,
             synthetic_externs_file: Arc::new(SourceFile::from_code_with_kind(
@@ -1403,6 +1414,7 @@ impl Compiler {
         self.externs_root = Some(externs);
         self.change_tracker.set_externs_root(externs);
         self.externs_reference_summary = None;
+        self.function_reference_sites = Default::default();
         self.extern_and_js_root = Some(IR::root(self, &[externs, js]));
     }
     // port: Compiler#getChunkGraph
@@ -1725,6 +1737,7 @@ impl Compiler {
     // port: Compiler#setPassConfig
     pub fn set_pass_config(&mut self, passes: Box<dyn crate::pass_config::PassConfig>) {
         assert!(self.passes.is_none(), "setPassConfig was already called");
+        self.discard_unused_transpilation_namespace = false;
         self.passes = Some(passes);
     }
     // port: Compiler#whitespaceOnlyPasses
@@ -3314,22 +3327,36 @@ impl Compiler {
         properties: closure_rhino::fast_hash::IndexSet<String>,
     ) {
         self.extern_properties = Some(properties);
-        self.extern_properties_js = std::sync::OnceLock::new();
+        self.extern_properties_js = ExternPropertiesJs::default();
     }
     // port: Compiler#getExternProperties
     pub fn get_extern_properties(&self) -> Option<&closure_rhino::fast_hash::IndexSet<String>> {
         self.extern_properties.as_ref()
     }
-    /// Rust-only: `get_extern_properties` as JS strings, interned so that copying one needs no
-    /// reference count (RemoveUnusedCode and OptimizeCalls copy them all on every run).
-    pub fn get_extern_properties_js(&self) -> Option<&[closure_rhino::js_string::JsString]> {
+    /// Rust-only: extern property membership as interned JS strings, shared across passes
+    /// until `set_extern_properties` replaces the collection.
+    pub(crate) fn get_extern_property_set_js(&self) -> Option<&Arc<IndexSet<JsString>>> {
         let properties = self.extern_properties.as_ref()?;
-        Some(self.extern_properties_js.get_or_init(|| {
-            properties
-                .iter()
-                .map(|s| closure_rhino::rhino_string_pool::RhinoStringPool::add_or_get(s.as_str()))
-                .collect()
+        Some(self.extern_properties_js.by_name.get_or_init(|| {
+            Arc::new(
+                properties
+                    .iter()
+                    .map(|s| {
+                        closure_rhino::rhino_string_pool::RhinoStringPool::add_or_get(s.as_str())
+                    })
+                    .collect(),
+            )
         }))
+    }
+
+    /// Rust-only: the interned JS strings in the original extern property order.
+    pub fn get_extern_properties_js(&self) -> Option<&[JsString]> {
+        let properties = self.get_extern_property_set_js()?;
+        Some(
+            self.extern_properties_js
+                .ordered
+                .get_or_init(|| properties.iter().cloned().collect()),
+        )
     }
     // port: Compiler#getAccessorSummary
     pub fn get_accessor_summary(&self) -> Option<&Arc<crate::accessor_summary::AccessorSummary>> {
@@ -3569,6 +3596,16 @@ impl Compiler {
         }
         self.abstract_interpreter.clone().unwrap()
     }
+    /// Built-in reverse interpreters produce only LinkedFlowScopes. A caller-supplied
+    /// interpreter can provide a lattice with observable equality or lifetime behavior.
+    pub(crate) fn owns_reverse_abstract_interpreter(
+        &self,
+        interpreter: &Arc<dyn crate::reverse_abstract_interpreter::ReverseAbstractInterpreter>,
+    ) -> bool {
+        self.abstract_interpreter
+            .as_ref()
+            .is_some_and(|own| Arc::ptr_eq(own, interpreter))
+    }
     // port: Compiler#getTypeValidator
     pub fn get_type_validator(&mut self) -> std::sync::Arc<crate::type_validator::TypeValidator> {
         if self.type_validator.is_none() {
@@ -3590,18 +3627,82 @@ impl Compiler {
             panic!("Can't ask for type mismatches before type checking.");
         }
     }
+    /// Rust-only: the native entry point owns this compiler until process exit. Only its
+    /// built-in transpilation passes can observe the namespace before the compiler is discarded.
+    pub fn discard_unused_transpilation_namespace_at_exit(&mut self) {
+        assert!(self.passes.is_none());
+        self.discard_unused_transpilation_namespace = true;
+    }
+
+    /// Called at the original point where a built-in ES2015+ transpilation pass would capture
+    /// the namespace. Runtime injection, class normalization and async-context instrumentation
+    /// have already run. Every remaining namespace consumer in `add_transpilation_passes`
+    /// either requires ES5 output or checks one of these script features before rewriting.
+    /// With none present, the remaining passes only remove features. Later optimization passes
+    /// never request the namespace. Dynamic-import rewriting, which runs earlier, uses the
+    /// ordinary eager getter.
+    pub(crate) fn prepare_transpilation_namespace_for_es2015_pass(&mut self) {
+        if self.transpilation_namespace.is_some() {
+            return;
+        }
+        if self.discard_unused_transpilation_namespace {
+            const TRIGGERS: FeatureSet = FeatureSet::from_features(&[
+                Feature::ASYNC_GENERATORS,
+                Feature::FOR_AWAIT_OF,
+                Feature::OBJECT_LITERALS_WITH_SPREAD,
+                Feature::OBJECT_PATTERN_REST,
+                Feature::ASYNC_FUNCTIONS,
+                Feature::EXPONENT_OP,
+            ]);
+            let options = self.get_options();
+            let output = options.get_output_feature_set();
+            let features_without_rewrites = output.without(TRIGGERS);
+            if !options.has_custom_passes()
+                && !options.get_skip_non_transpilation_passes()
+                && !options.get_merged_precompiled_libraries()
+                && !options.is_property_renaming_only_compilation_mode()
+                && output.contains(FeatureSet::ES2015)
+                && self.get_js_root().is_some_and(|root| {
+                    root.children(self).all(|script| {
+                        crate::node_util::NodeUtil::get_feature_set_of_script(self, script)
+                            .is_some_and(|features| features_without_rewrites.contains(features))
+                    })
+                })
+            {
+                // The namespace allocates a detached ROOT. Keep its NodeId in the original order.
+                self.transpilation_namespace = Some(self.new_transpilation_namespace());
+                return;
+            }
+        }
+        self.get_transpilation_namespace();
+    }
+
+    fn new_transpilation_namespace(&mut self) -> crate::global_namespace::GlobalNamespace {
+        let mut namespace = crate::global_namespace::GlobalNamespace::new(
+            self,
+            self.externs_root.unwrap(),
+            self.js_root.unwrap(),
+        );
+        namespace.set_should_traverse_script_predicate(Arc::new(|compiler, script| {
+            script.is_from_externs(compiler)
+                || script.is_first_child_of(compiler, compiler.get_js_root())
+        }));
+        namespace
+    }
+
     // port: Compiler#getTranspilationNamespace
     pub fn get_transpilation_namespace(&mut self) -> &mut crate::global_namespace::GlobalNamespace {
-        if self.transpilation_namespace.is_none() {
-            let js = self.js_root.unwrap();
-            let mut gn =
-                crate::global_namespace::GlobalNamespace::new(self, self.externs_root.unwrap(), js);
-            gn.set_should_traverse_script_predicate(Arc::new(|compiler, script| {
-                script.is_from_externs(compiler)
-                    || script.is_first_child_of(compiler, compiler.get_js_root())
-            }));
-            gn.get_name_forest(self);
-            self.transpilation_namespace = Some(gn);
+        if self
+            .transpilation_namespace
+            .as_ref()
+            .is_none_or(|ns| !ns.is_generated())
+        {
+            let mut namespace = self
+                .transpilation_namespace
+                .take()
+                .unwrap_or_else(|| self.new_transpilation_namespace());
+            namespace.get_name_forest(self);
+            self.transpilation_namespace = Some(namespace);
         }
         self.transpilation_namespace.as_mut().unwrap()
     }
@@ -4246,43 +4347,21 @@ impl Compiler {
     ) {
         closure_rhino::check_state!(self.runtime_library_typed_asts.is_none());
 
-        let path = ["", "/runtime_libs.typedast"].join("");
-
-        let synthetic_externs_file = self.synthetic_externs_file.clone();
-        let resolve_source_map_annotations =
-            self.get_options().get_resolve_source_map_annotations();
-        let parse_inline_source_maps = self.get_options().get_parse_inline_source_maps();
-        let stream = closure_resources::jar::get_resource_as_stream(
-            "com.google.javascript.jscomp.Compiler",
-            &path,
-        )
-        .expect("runtime_libs.typedast")
-        .read_all_bytes();
-        let ast_data =
-            crate::serialization::typed_ast_deserializer::TypedAstDeserializer::deserialize_runtime_libraries(
+        self.runtime_library_typed_asts = Some(
+            crate::serialization::runtime_libraries::RuntimeLibraries::new(
                 self,
-                synthetic_externs_file,
+                self.synthetic_externs_file.clone(),
                 color_pool_builder,
-                stream,
-                resolve_source_map_annotations,
-                parse_inline_source_maps,
-            );
-
-        // Re-index the runtime libraries by file name rather than SourceFile object
-        let mut runtime_library_typed_asts: IndexMap<String, AstSupplier> =
-            IndexMap::<_, _>::default();
-        for (file, supplier) in ast_data.get_filesystem().values() {
-            runtime_library_typed_asts
-                .entry(file.get_name().to_string())
-                .or_insert_with(|| supplier.clone());
-        }
-
-        self.runtime_library_typed_asts = Some(runtime_library_typed_asts);
+            ),
+        );
     }
     // port: Compiler#loadResourceContents
     pub fn load_resource_contents(&mut self, resource_name: &str, path: &str) -> NodeId {
         if self.get_life_cycle_stage().has_color_and_simplified_jsdoc() {
-            let supplier=self.runtime_library_typed_asts.as_ref().expect("Must call initRuntimeLibraryTypedAsts before calling ensureLibraryInjected during optimizations").get(path).unwrap_or_else(||panic!("Missing precompiled .typedast for '{path}'. If this file is newly added, you may need to regenerate runtime_libs.typedast.textproto")).clone();
+            let supplier = self.runtime_library_typed_asts.as_ref()
+                .expect("Must call initRuntimeLibraryTypedAsts before calling ensureLibraryInjected during optimizations")
+                .supplier(path)
+                .unwrap_or_else(|| panic!("Missing precompiled .typedast for '{path}'. If this file is newly added, you may need to regenerate runtime_libs.typedast.textproto"));
             return supplier(self);
         }
         assert!(
@@ -4435,7 +4514,7 @@ impl Compiler {
                 .map(|(key, (_, supplier))| (key, supplier))
                 .collect(),
         );
-        self.extern_properties_js = std::sync::OnceLock::new();
+        self.extern_properties_js = ExternPropertiesJs::default();
         self.extern_properties = Some(
             ast_data
                 .get_extern_properties()
@@ -5020,7 +5099,7 @@ impl Compiler {
         ));
 
         // Restore TypedAST and related fields
-        self.extern_properties_js = std::sync::OnceLock::new();
+        self.extern_properties_js = ExternPropertiesJs::default();
         self.extern_properties = Some(
             deserialized_ast
                 .get_extern_properties()
@@ -5034,6 +5113,7 @@ impl Compiler {
         self.externs_root = Some(externs_root);
         self.change_tracker.set_externs_root(externs_root);
         self.externs_reference_summary = None;
+        self.function_reference_sites = Default::default();
         self.js_root = Some(js_root);
         self.inputs_by_id.clear();
         self.excerpt_provider.files.lock().unwrap().clear();
@@ -5152,5 +5232,197 @@ impl Compiler {
             "Multiple entries with same key: %s",
             key
         );
+    }
+}
+
+#[cfg(test)]
+mod transpilation_namespace_tests {
+    use super::*;
+    use crate::abstract_compiler::LifeCycleStage;
+    use crate::ast_factory::AstFactoryStaticScope;
+    use crate::compiler_pass::CompilerPass;
+    use crate::es6_rewrite_spread_expressions::Es6RewriteSpreadExpressions;
+    use crate::es7_rewrite_exponential_operator::Es7RewriteExponentialOperator;
+    use crate::rewrite_async_iteration::RewriteAsyncIteration;
+    use crate::transpilation_namespace::TranspilationNamespace;
+    use closure_rhino::jscomp_colors::{color_registry::ColorRegistry, standard_colors};
+    use closure_rhino::node::Prop;
+
+    fn parse(output: LanguageMode, externs: &str, sources: &[&str]) -> Compiler {
+        let mut compiler = Compiler::new();
+        let mut options = CompilerOptions::new();
+        options.set_language_in(LanguageMode::ECMASCRIPT_NEXT);
+        options.set_language_out(output);
+        let inputs: Vec<_> = sources
+            .iter()
+            .enumerate()
+            .map(|(index, source)| {
+                Arc::new(SourceFile::from_code(&format!("input{index}.js"), *source))
+            })
+            .collect();
+        compiler.init(
+            &[Arc::new(SourceFile::from_code("externs.js", externs))],
+            &inputs,
+            options,
+        );
+        compiler.parse_inputs();
+        assert!(compiler.get_errors().is_empty());
+        compiler.set_life_cycle_stage(LifeCycleStage::NORMALIZED);
+        compiler
+    }
+
+    #[test]
+    fn only_the_terminal_pipeline_skips_an_unused_namespace() {
+        let mut compiler = parse(LanguageMode::ECMASCRIPT_2015, "", &["var before;"]);
+        compiler.discard_unused_transpilation_namespace_at_exit();
+        let before = compiler.node_count();
+        RewriteAsyncIteration::create(&mut compiler);
+        assert_eq!(compiler.node_count(), before + 1); // GlobalNamespace's detached ROOT
+        assert!(
+            !compiler
+                .transpilation_namespace
+                .as_ref()
+                .unwrap()
+                .is_generated()
+        );
+
+        assert!(compiler.get_transpilation_namespace().is_generated());
+
+        let mut inspectable = parse(LanguageMode::ECMASCRIPT_2015, "", &["var before;"]);
+        RewriteAsyncIteration::create(&mut inspectable);
+        let script = inspectable.get_script_node("input0.js").unwrap();
+        let original = script.get_first_first_child(&inspectable).unwrap();
+        let replacement = IR::name(&mut inspectable, "before");
+        original.replace_with(&mut inspectable, replacement);
+        let namespace = TranspilationNamespace::get(&mut inspectable);
+        assert_eq!(
+            namespace.get_slot_declaration_node(&mut inspectable, &"before".into()),
+            Some(Some(original))
+        );
+    }
+
+    #[test]
+    fn a_script_with_unknown_features_keeps_the_eager_snapshot() {
+        let mut compiler = parse(LanguageMode::ECMASCRIPT_2015, "", &["var n;"]);
+        compiler.discard_unused_transpilation_namespace_at_exit();
+        let script = compiler.get_script_node("input0.js").unwrap();
+        script.set_feature_set(&mut compiler, None);
+        RewriteAsyncIteration::create(&mut compiler);
+        assert!(
+            compiler
+                .transpilation_namespace
+                .as_ref()
+                .unwrap()
+                .is_generated()
+        );
+    }
+
+    #[test]
+    fn a_custom_pass_can_observe_the_namespace() {
+        let mut compiler = parse(LanguageMode::ECMASCRIPT_2015, "", &["var n;"]);
+        compiler.discard_unused_transpilation_namespace_at_exit();
+        compiler.get_options_mut().add_custom_pass(
+            crate::custom_pass_execution_time::CustomPassExecutionTime::AFTER_OPTIMIZATION_LOOP,
+            Arc::new(std::sync::Mutex::new(
+                crate::remove_cast_nodes::RemoveCastNodes::new(),
+            )),
+        );
+        RewriteAsyncIteration::create(&mut compiler);
+        assert!(
+            compiler
+                .transpilation_namespace
+                .as_ref()
+                .unwrap()
+                .is_generated()
+        );
+    }
+
+    #[test]
+    fn consumers_use_the_original_first_script_and_extern_declarations() {
+        for (output, name, sources, from_externs) in [
+            (
+                LanguageMode::ECMASCRIPT_2015,
+                "Math",
+                ["var Math = {pow: function() {}};", "2 ** 3;"],
+                false,
+            ),
+            (
+                LanguageMode::ECMASCRIPT5,
+                "Function",
+                ["var n;", "new C(...[1, 2]);"],
+                true,
+            ),
+        ] {
+            let mut compiler = parse(output, "var Function;", &sources);
+            compiler.discard_unused_transpilation_namespace_at_exit();
+            let externs = compiler.get_externs_root().unwrap();
+            let root = compiler.get_js_root().unwrap();
+            let use_script = compiler.get_script_node("input1.js").unwrap();
+            let declaration_script = if from_externs {
+                compiler.get_script_node("externs.js").unwrap()
+            } else {
+                compiler.get_script_node("input0.js").unwrap()
+            };
+            let original = declaration_script.get_first_first_child(&compiler).unwrap();
+            original.put_boolean_prop(&mut compiler, Prop::IS_CONSTANT_NAME, true);
+            if !from_externs {
+                compiler.color_registry = Some(Arc::new(
+                    ColorRegistry::builder()
+                        .set_default_native_colors_for_testing()
+                        .build(),
+                ));
+                compiler.set_type_checking_has_run(true);
+                original.set_color(&mut compiler, Some(standard_colors::TOP_OBJECT.clone()));
+                let pow = original.get_first_first_child(&compiler).unwrap();
+                pow.set_color(&mut compiler, Some(standard_colors::STRING.clone()));
+                let exponent = use_script.get_first_first_child(&compiler).unwrap();
+                exponent.set_color(&mut compiler, Some(standard_colors::NUMBER.clone()));
+            }
+            // The async-iteration constructor is the first getter in the ES2015 pass group.
+            // Replace the declaration before the exponent/spread pass performs the first lookup.
+            RewriteAsyncIteration::create(&mut compiler);
+            let replacement = IR::name(&mut compiler, name);
+            original.replace_with(&mut compiler, replacement);
+
+            if from_externs {
+                Es6RewriteSpreadExpressions::new(&mut compiler).process(
+                    &mut compiler,
+                    externs,
+                    root,
+                );
+            } else {
+                Es7RewriteExponentialOperator::new(&mut compiler).process(
+                    &mut compiler,
+                    externs,
+                    root,
+                );
+            }
+            let expression = use_script.get_first_first_child(&compiler).unwrap();
+            if !from_externs {
+                let callee = expression.get_first_child(&compiler).unwrap();
+                assert!(callee.matches_qualified_name(&compiler, "Math.pow"));
+                assert_eq!(
+                    callee.get_color(&compiler),
+                    Some(standard_colors::STRING.clone())
+                );
+            }
+            let mut reference = expression;
+            while !reference.is_name(&compiler) {
+                reference = reference.get_first_child(&compiler).unwrap();
+            }
+            assert_eq!(reference.get_string(&compiler), name);
+            if !from_externs {
+                assert_eq!(
+                    reference.get_color(&compiler),
+                    Some(standard_colors::TOP_OBJECT.clone())
+                );
+            }
+            assert!(reference.get_boolean_prop(&compiler, Prop::IS_CONSTANT_NAME));
+            assert_eq!(
+                TranspilationNamespace::get(&mut compiler)
+                    .get_slot_declaration_node(&mut compiler, &name.into()),
+                Some(Some(original))
+            );
+        }
     }
 }

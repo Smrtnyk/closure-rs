@@ -447,3 +447,169 @@ class Foo {
     );
     assert!(*checked.borrow());
 }
+
+// The collector normally discovers a name while walking the tree. Compare that walk with the
+// ordered sites using declaration nodes, use-site scope roots and the identity of every basic
+// block (including its ancestors). ScopeId, VarId and the Rc addresses can change between passes.
+#[derive(Debug, PartialEq, Eq)]
+struct BindingSites {
+    declaration: Option<NodeId>,
+    scope: NodeId,
+    references: Vec<ReferenceSite>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ReferenceSite {
+    node: NodeId,
+    scope: NodeId,
+    blocks: Vec<(NodeId, usize)>,
+}
+
+struct ScopeExitBehavior {
+    reuse_sites: bool,
+    // On exit from this scope, change a name still to be visited in the calling function.
+    change: Option<(NodeId, NodeId)>,
+}
+
+impl Behavior for ScopeExitBehavior {
+    fn can_reuse_function_reference_sites(&self) -> bool {
+        self.reuse_sites
+    }
+
+    fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, _: &dyn ReferenceMap) {
+        if let Some((scope, name)) = self.change
+            && t.get_scope_root() == Some(scope)
+        {
+            name.set_string(t, "early");
+        }
+    }
+}
+
+fn binding_sites(
+    compiler: &mut Compiler,
+    script: NodeId,
+    reuse_sites: bool,
+    change: Option<(NodeId, NodeId)>,
+) -> Vec<BindingSites> {
+    compiler.before_pass("referenceSitesTest");
+    let mut creator = SyntacticScopeCreator::new();
+    let mut collector = ReferenceCollector::new(
+        compiler,
+        ScopeExitBehavior {
+            reuse_sites,
+            change,
+        },
+        &mut creator,
+    );
+    collector.process(compiler, script);
+    let mut block_ids = IndexMap::<_, _>::default();
+    collector
+        .get_all_symbols()
+        .into_iter()
+        .map(|var| {
+            let refs = &collector.get_references(var).unwrap().references;
+            let references = refs
+                .iter()
+                .map(|r| {
+                    let mut ancestry = Vec::new();
+                    let mut block = r.get_basic_block();
+                    while let Some(b) = block {
+                        let next_id = block_ids.len();
+                        let id = *block_ids.entry(Rc::as_ptr(b)).or_insert(next_id);
+                        ancestry.push((b.get_root(), id));
+                        block = b.get_parent();
+                    }
+                    ReferenceSite {
+                        node: r.get_node(),
+                        scope: r.get_scope().unwrap().get_root_node(compiler),
+                        blocks: ancestry,
+                    }
+                })
+                .collect();
+            BindingSites {
+                declaration: var.get_name_node(compiler),
+                scope: var.get_scope_root(compiler),
+                references,
+            }
+        })
+        .collect()
+}
+
+#[test]
+fn ordered_sites_rebind_captures_and_invalidate_unreported_edits() {
+    let mut c = Compiler::new();
+    let script = c.parse_test_code(
+        "var x; function outer() { return function(y) { return y && (x ? y : x) + arguments[0]; }; }",
+    );
+    let global = script.get_first_first_child(&c).unwrap();
+    let outer = script.get_last_child(&c).unwrap();
+    let params = outer.get_second_child(&c).unwrap();
+    let old = binding_sites(&mut c, script, true, None);
+    assert_eq!(old, binding_sites(&mut c, script, false, None));
+    let old_x = old.iter().find(|v| v.declaration == Some(global)).unwrap();
+    assert_eq!(old_x.references.len(), 3);
+
+    // The inner function's sites have not changed. The previously global uses now capture the
+    // new parameter of its ancestor, so reusing old bindings would be incorrect.
+    let captured = closure_rhino::ir::IR::name(&mut c, "x");
+    params.add_child_to_back(&mut c, captured);
+    let rebound = binding_sites(&mut c, script, true, None);
+    assert_eq!(rebound, binding_sites(&mut c, script, false, None));
+    let new_x = rebound
+        .iter()
+        .find(|v| v.declaration == Some(captured))
+        .unwrap();
+    assert_eq!(new_x.references.len(), 3);
+    assert_eq!(new_x.references[1].node, old_x.references[1].node);
+    assert_eq!(new_x.references[2].node, old_x.references[2].node);
+
+    // Replace one of two equal spellings inside a conditional arm without a compiler change
+    // report. Replay must pick up the new node, binding and basic-block ancestry.
+    let changed = new_x.references[2].node;
+    let replacement = closure_rhino::ir::IR::name(&mut c, "y");
+    changed.replace_with(&mut c, replacement);
+    let edited = binding_sites(&mut c, script, true, None);
+    assert_eq!(edited, binding_sites(&mut c, script, false, None));
+    assert!(
+        edited
+            .iter()
+            .any(|v| v.references.iter().any(|r| r.node == replacement))
+    );
+    assert!(
+        edited
+            .iter()
+            .all(|v| v.references.iter().all(|r| r.node != changed))
+    );
+}
+
+#[test]
+fn cached_body_honors_a_new_forward_hoist_that_mutates_its_remaining_references() {
+    let mut c = Compiler::new();
+    let script = c.parse_test_code(
+        "var early, later; function target() {} function caller() { return early + target() + later; }",
+    );
+    let early = script.get_first_first_child(&c).unwrap();
+    let target = script.get_second_child(&c).unwrap();
+    let caller = script.get_last_child(&c).unwrap();
+    let body = caller.get_last_child(&c).unwrap();
+    let sum = body.get_first_first_child(&c).unwrap();
+    let pending = sum.get_last_child(&c).unwrap();
+    let warm = binding_sites(&mut c, script, true, None);
+    assert_eq!(warm, binding_sites(&mut c, script, false, None));
+
+    // The cached caller is unchanged. Its target has moved after it, however, and the jump
+    // into target now invokes the inliner's mutating scope-exit hook mid-expression.
+    target.detach(&mut c);
+    script.add_child_to_back(&mut c, target);
+    let edit = Some((target, pending));
+    let replay = binding_sites(&mut c, script, true, edit);
+    assert_eq!(pending.get_string_ref(&c), &JsString::from("early"));
+    let early_refs = &replay
+        .iter()
+        .find(|v| v.declaration == Some(early))
+        .unwrap()
+        .references;
+    assert!(early_refs.iter().any(|r| r.node == pending));
+    pending.set_string(&mut c, "later");
+    assert_eq!(replay, binding_sites(&mut c, script, false, edit));
+}

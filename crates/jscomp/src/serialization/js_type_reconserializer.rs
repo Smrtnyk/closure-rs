@@ -472,13 +472,18 @@ impl JSTypeReconserializer {
                 is_closure_assert |= Self::is_closure_assert(fn_type.get_closure_primitive(reg));
             }
 
-            for own_property in obj_type.get_own_property_names(reg) {
-                // TODO(b/169899789): consider omitting common, well-known properties like
-                // "prototype" to save space.
-                if (self.should_propagate_property_name)(&own_property) {
-                    own_properties.insert(self.string_pool_builder.borrow_mut().put(own_property));
-                }
-            }
+            closure_jstype::object_type::for_each_own_property_name(
+                obj_type,
+                reg,
+                |own_property| {
+                    // TODO(b/169899789): consider omitting common, well-known properties like
+                    // "prototype" to save space.
+                    if (self.should_propagate_property_name)(own_property) {
+                        own_properties
+                            .insert(self.string_pool_builder.borrow_mut().put(own_property));
+                    }
+                },
+            );
 
             is_invalidating |= self
                 .invalidating_types

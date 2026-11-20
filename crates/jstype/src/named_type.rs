@@ -643,7 +643,7 @@ fn create(reg: &mut JSTypeRegistry, ast: &Ast, builder: NamedTypeBuilder) -> Typ
         template_types: builder.template_types,
         restrict_by_null: builder.restrict_by_null,
     };
-    let id = reg.alloc(JSTypeKind::Named(data), None);
+    let id = reg.alloc(JSTypeKind::Named(Box::new(data)), None);
     reg.finish_construction(id, ast);
     id
 }

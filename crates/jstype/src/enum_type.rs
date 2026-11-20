@@ -138,7 +138,10 @@ fn new(reg: &mut JSTypeRegistry, ast: &Ast, builder: EnumTypeBuilder) -> TypeId 
         source: builder.source,
         goog_module_id: builder.goog_module_id,
     };
-    let t = reg.alloc(JSTypeKind::Enum(data), builder.prototype.template_type_map);
+    let t = reg.alloc(
+        JSTypeKind::Enum(Box::new(data)),
+        builder.prototype.template_type_map,
+    );
     crate::prototype_object_type::initialize_after_allocation(t, reg);
     let element = crate::enum_element_type::new(
         reg,

@@ -30,7 +30,7 @@
 )]
 
 use crate::abstract_compiler::AbstractCompiler;
-use crate::abstract_scope::AbstractScopeHandle;
+use crate::abstract_scope::{AbstractScopeHandle, ImplicitVar};
 use crate::closure_coding_convention::ClosureCodingConvention;
 use crate::coding_convention::CodingConvention;
 use crate::compiler_input::CompilerInput;
@@ -44,7 +44,7 @@ use crate::modules::export::Export;
 use crate::modules::module::Module;
 use crate::modules::module_map::ModuleMap;
 use crate::modules::module_metadata_map::{ModuleMetadataMap, ModuleType};
-use crate::node_traversal::{Callback, NodeTraversal, ScopedCallback};
+use crate::node_traversal::{Callback, NodeTraversal, ScopedCallback, WalkBranch};
 use crate::node_util::NodeUtil;
 use crate::process_closure_provides_and_requires::{
     ProcessClosureProvidesAndRequires, ProvidedName,
@@ -52,6 +52,7 @@ use crate::process_closure_provides_and_requires::{
 use crate::scope::as_static_scope;
 use crate::scope_creator::ASSERT_NO_SCOPES_CREATED;
 use crate::scoped_name::{ScopedName, Simple};
+use crate::source_file::declarations::{self, Declaration, DocSite};
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use crate::type_check::{MULTIPLE_VAR_DEF, TypeCheck};
 use crate::type_validator::TypeValidator;
@@ -74,7 +75,7 @@ use closure_rhino::{
     input_id::InputId,
     js_string::JsString,
     jsdoc_info::JSDocInfo,
-    node::{NodeId, Prop},
+    node::{NodeId, Prop, SnapshotUse},
     qualified_name::QualifiedName,
     token::Token,
 };
@@ -750,14 +751,16 @@ impl TypedScopeCreator {
 
         let externs = root.get_first_child(compiler).unwrap();
         let js = root.get_last_child(compiler).unwrap();
-        let mut first_order_function_analyzer = FirstOrderFunctionAnalyzer::new(self);
+        let mut first_order_function_analyzer = FirstOrderFunctionAnalyzer::new(self, externs);
         NodeTraversal::builder()
             .set_compiler(compiler)
             .set_callback(&mut first_order_function_analyzer)
             .set_scope_creator(&mut scope_creator)
             .traverse_roots(externs, js);
 
-        let mut identify_enums_and_typedefs = IdentifyEnumsAndTypedefsAsNonNullable::new();
+        let mut identify_enums_and_typedefs = IdentifyEnumsAndTypedefsAsNonNullable {
+            bundled_statements: first_order_function_analyzer.enum_statements,
+        };
         NodeTraversal::builder()
             .set_compiler(compiler)
             .set_callback(&mut identify_enums_and_typedefs)
@@ -2660,12 +2663,8 @@ impl<'a> AbstractScopeBuilder<'a> {
             };
         } else {
             let owner_name = NodeUtil::get_best_l_value_name(compiler, owner_node);
-            if owner_name.is_some() {
-                let looked_up = lookup_qualified_name(
-                    compiler,
-                    self.current_scope,
-                    &QualifiedName::of(owner_name.clone().unwrap()),
-                );
+            if let Some(owner_name) = &owner_name {
+                let looked_up = rhino::lookup_dotted_name(compiler, self.current_scope, owner_name);
                 let (reg, _) = compiler.get_type_registry_and_ast();
                 owner_type = object_type::cast(reg, looked_up);
             }
@@ -2967,7 +2966,11 @@ impl Callback for AbstractScopeBuilder<'_> {
         n: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
-        self.input_id = t.get_input_id();
+        // Rust-only (performance divergence): the traversal selects an input on entering a
+        // script or starting at a scope within it. Descendant callbacks share that input.
+        if parent.is_none() || n.is_script(t) {
+            self.input_id = t.get_input_id();
+        }
 
         let compiler = t.get_compiler();
         if n.is_function(compiler)
@@ -2977,23 +2980,26 @@ impl Callback for AbstractScopeBuilder<'_> {
             check_not_null!(self.input_id.as_ref());
             self.source_name = NodeUtil::get_source_name(compiler, n);
         }
-        if n.is_script(compiler) {
-            self.bundled_declarations = if self.kind == ScopeBuilderKind::NormalScopeBuilder
-                && self.current_scope.is_global(compiler)
-            {
-                t.get_input()
-                    .and_then(|input| input.get_source_file().bundled_property_declarations())
-                    .map(|records| (n, records.iter()))
-            } else {
-                None
-            };
-        }
         if parent.is_none() || self.in_current_scope(t) {
             self.visit_preorder(t, n, parent);
+            if parent.is_none()
+                && self.kind == ScopeBuilderKind::FunctionScopeBuilder
+                && declarations::is_plain_function_stub(t, n)
+                && t.get_compiler()
+                    .get_options_opt()
+                    .is_some_and(|opts| opts.get_synthetic_block_start_marker().is_none())
+            {
+                // Entry has already validated the input and declared the function parameters
+                // and templates. Plain NAME parameters and an empty body add no literal types.
+                self.visit(t, n, parent);
+                return false;
+            }
             if let Some((script, records)) = &mut self.bundled_declarations
                 && Some(*script) == parent
-                && records.next() == Some(&1)
-                && let Some(property) = Self::bare_property_declaration(t, n)
+                && records
+                    .next()
+                    .is_some_and(|&r| declarations::kind(r) == declarations::PROPERTY)
+                && let Some(property) = declarations::bare_property(t, n)
             {
                 // NAME and the intermediate GETPROPs of a bare name have no scope-building
                 // work. Run the ordinary declaration and statement actions in postorder.
@@ -3020,10 +3026,76 @@ impl Callback for AbstractScopeBuilder<'_> {
         false
     }
 
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        self.bundled_declarations = None;
+        if !self.should_traverse(t, script, parent) {
+            return false;
+        }
+        if self.kind != ScopeBuilderKind::NormalScopeBuilder
+            || !self.current_scope.is_global(t.get_compiler())
+        {
+            return true;
+        }
+        let Some((facts, suffix)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames)
+        else {
+            // Input records are hints on a changed tree. Check the current shape before using one.
+            self.bundled_declarations = t
+                .get_input()
+                .and_then(|input| input.bundled_declarations(script))
+                .map(|records| (script, records.iter()));
+            return true;
+        };
+        let mut child = script.get_first_child(t);
+        for &record in facts.declarations {
+            let statement = child.expect("recorded extern statement");
+            child = statement.get_next(t);
+            if record == declarations::OTHER {
+                self.walk_branch(t, statement, Some(script));
+                continue;
+            }
+            // Empty function stubs contribute their literal type to the global builder. Their
+            // parameters and body belong to the nested scopes built later. A literal initializer
+            // can enqueue a @lends action for the enclosing statement.
+            if let Some(value) = declarations::initializer(t, statement, record) {
+                t.position_at_node(value);
+                if record & declarations::HAS_FUNCTION != 0 {
+                    check_not_null!(self.input_id.as_ref());
+                    self.source_name = NodeUtil::get_source_name(t, value);
+                    self.define_function_literal(t.get_compiler(), value);
+                } else {
+                    self.attach_literal_types(t.get_compiler(), value);
+                }
+            }
+            match declarations::kind(record) {
+                declarations::PROPERTY => {
+                    let property = statement.get_first_child(t).unwrap();
+                    t.position_at_node(property);
+                    let info = property.get_jsdoc_info(t);
+                    self.maybe_declare_qualified_name(t, info, property, statement, None);
+                }
+                declarations::ASSIGNMENT => {
+                    let assign = statement.get_first_child(t).unwrap();
+                    t.position_at_node(assign);
+                    self.visit(t, assign, Some(statement));
+                }
+                _ => {}
+            }
+            t.position_at_node(statement);
+            self.visit(t, statement, Some(script));
+        }
+        debug_assert_eq!(child, suffix);
+        t.traverse_script_suffix(script, parent, suffix, self);
+        false
+    }
+
     // port: TypedScopeCreator.AbstractScopeBuilder#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
         let is_scope_root = parent.is_none();
-        self.input_id = t.get_input_id();
         if !is_scope_root || !n.is_class(t.get_compiler()) {
             // Do not type literals or visit class scope roots
             self.attach_literal_types(t.get_compiler(), n);
@@ -3049,30 +3121,6 @@ impl Callback for AbstractScopeBuilder<'_> {
 }
 
 impl AbstractScopeBuilder<'_> {
-    /// Earlier passes can insert, move or rewrite statements. A live bare property can
-    /// be declared directly even when its name has changed. Other shapes need traversal.
-    fn bare_property_declaration(
-        ast: &closure_rhino::node::Ast,
-        statement: NodeId,
-    ) -> Option<NodeId> {
-        if !statement.is_expr_result(ast) || !statement.has_one_child(ast) {
-            return None;
-        }
-        let property = statement.get_first_child(ast)?;
-        if !property.is_get_prop(ast) {
-            return None;
-        }
-        let mut node = property;
-        while node.is_get_prop(ast) {
-            if !node.has_one_child(ast) {
-                return None;
-            }
-            node = node.get_first_child(ast)?;
-        }
-        (node.is_name(ast) && !node.has_children(ast) && !node.get_string_ref(ast).is_empty())
-            .then_some(property)
-    }
-
     // Rust-only: `deferredActions.put(key, runnable)` (LinkedHashMultimap: entries keep their
     // global insertion order).
     fn put_deferred_action(&mut self, key: NodeId, action: DeferredAction) {
@@ -4018,11 +4066,15 @@ impl AbstractScopeBuilder<'_> {
         let compiler = t.get_compiler();
         let owner_node = n.get_first_child(compiler).expect("NullPointerException");
         let owner_name = owner_node.get_qualified_name(compiler);
-        let q_name = n.get_qualified_name(compiler);
         let prop_name = n.get_string(compiler);
-        check_argument!(q_name.is_some() && owner_name.is_some());
-        let q_name = q_name.unwrap();
+        check_argument!(owner_name.is_some());
         let owner_name = owner_name.unwrap();
+        // Rust-only (performance divergence): a declared prototype member only uses the
+        // owner's slot. Assemble the complete name when looking it up or storing it.
+        let qualified_name = |compiler: &AbstractCompiler| {
+            n.get_qualified_name(compiler)
+                .expect("NullPointerException")
+        };
 
         // Precedence of type information on GETPROPs:
         // 1) @type annotation / @enum annotation
@@ -4050,7 +4102,9 @@ impl AbstractScopeBuilder<'_> {
         // So if F does not have an explicitly declared super type,
         // allow F.prototype to be redefined arbitrarily.
         if prop_name == "prototype" {
-            let q_var = self.current_scope.get_var(compiler, q_name.clone());
+            let q_var = self
+                .current_scope
+                .get_var(compiler, qualified_name(compiler));
             if q_var.is_some() {
                 let q_var = q_var.unwrap();
                 // If the programmer has declared that F inherits from Super,
@@ -4108,7 +4162,7 @@ impl AbstractScopeBuilder<'_> {
 
         let inferred = self.is_qualified_name_inferred(
             compiler,
-            Some(q_name.clone()),
+            &owner_name,
             n,
             info,
             rhs_value,
@@ -4143,7 +4197,7 @@ impl AbstractScopeBuilder<'_> {
                 let scope = self.get_l_value_root_scope(compiler, Some(n));
                 SlotDefiner::new()
                     .for_declaration_node(Some(n))
-                    .for_variable_name(q_name)
+                    .for_variable_name(qualified_name(compiler))
                     .in_scope(scope)
                     .with_type(value_type)
                     .allow_later_type_inference(inferred)
@@ -4172,18 +4226,26 @@ impl AbstractScopeBuilder<'_> {
     fn is_qualified_name_inferred(
         &mut self,
         compiler: &mut AbstractCompiler,
-        q_name: Option<JsString>,
+        owner_name: &JsString,
         n: NodeId,
         info: Option<Arc<JSDocInfo>>,
         rhs_value: Option<NodeId>,
         value_type: TypeId,
     ) -> bool {
         // Prototypes of constructors and interfaces are always declared.
-        let prototype_suffix = JsString::from(".prototype");
-        if q_name.is_some() && q_name.as_ref().unwrap().ends_with(&prototype_suffix) {
-            let q_name_ref = q_name.as_ref().unwrap();
-            let class_name =
-                q_name_ref.substring(0, q_name_ref.last_index_of(&prototype_suffix) as usize);
+        let property = n.get_string_ref(compiler);
+        let class_name = if property == "prototype" {
+            Some(owner_name.clone())
+        } else if property.ends_with(".prototype") {
+            // A synthesized GETPROP can contain multiple dotted components in one token.
+            let name = n
+                .get_qualified_name(compiler)
+                .expect("NullPointerException");
+            Some(name.substring(0, name.length() - ".prototype".len()))
+        } else {
+            None
+        };
+        if let Some(class_name) = class_name {
             let slot = self.current_scope.get_var(compiler, class_name);
             let class_type = if slot.is_none() {
                 None
@@ -4237,7 +4299,10 @@ impl AbstractScopeBuilder<'_> {
         // If this qname is already declared then treat this definition as inferred.
         let owner_scope = self.get_l_value_root_scope(compiler, Some(n));
         // ownerScope is never null (getLValueRootScope returns a scope).
-        if owner_scope.has_own_slot(compiler, q_name.as_ref().expect("NullPointerException")) {
+        let q_name = n
+            .get_qualified_name(compiler)
+            .expect("NullPointerException");
+        if owner_scope.has_own_slot(compiler, &q_name) {
             return true;
         }
 
@@ -4256,7 +4321,7 @@ impl AbstractScopeBuilder<'_> {
         if self
             .creator
             .escaped_var_names
-            .contains(&<dyn ScopedName>::of(q_name.unwrap(), Some(owner_root)))
+            .contains(&<dyn ScopedName>::of(q_name, Some(owner_root)))
         {
             return true;
         }
@@ -5800,12 +5865,115 @@ impl AbstractScopeBuilder<'_> {
 // port: TypedScopeCreator.FirstOrderFunctionAnalyzer
 struct FirstOrderFunctionAnalyzer<'a> {
     creator: &'a mut TypedScopeCreator,
+    externs: NodeId,
+    /// Current statements requiring the immediately following enum/typedef traversal, in order.
+    enum_statements: IndexMap<NodeId, Vec<NodeId>>,
 }
 
 impl<'a> FirstOrderFunctionAnalyzer<'a> {
     // Rust-only: Java's inner class reads the enclosing TypedScopeCreator's fields.
-    fn new(creator: &'a mut TypedScopeCreator) -> Self {
-        Self { creator }
+    fn new(creator: &'a mut TypedScopeCreator, externs: NodeId) -> Self {
+        Self {
+            creator,
+            externs,
+            enum_statements: IndexMap::default(),
+        }
+    }
+
+    /// Global reads and writes do no first-order work. An empty function with only plain
+    /// parameters reserves each distinct name and assigns each occurrence in its own scope.
+    /// Implicit bindings can depend on the containing scopes and use the ordinary visitor.
+    fn record_stub(&mut self, t: &NodeTraversal<'_>, function: NodeId) -> bool {
+        let params = function.get_second_child(t).unwrap();
+        if !params.has_children(t) {
+            return true;
+        }
+        if params
+            .children(t)
+            .any(|p| ImplicitVar::of(p.get_string_ref(t)).is_some())
+        {
+            return false;
+        }
+        let reserved = self
+            .creator
+            .reserved_names_for_scope
+            .entry(function)
+            .or_default();
+        let start = reserved.len();
+        for param in params.children(t) {
+            let name = param.get_string(t);
+            if !reserved[start..].contains(&name) {
+                reserved.push(name.clone());
+            }
+            let scoped = <dyn ScopedName>::of(name, Some(function));
+            *self.creator.assigned_var_names.entry(scoped).or_default() += 1;
+        }
+        true
+    }
+
+    fn visit_bundled_script(&mut self, t: &mut NodeTraversal<'_>, script: NodeId) -> bool {
+        let prefix = t.bundled_script_prefix(script, SnapshotUse::SyntaxNamesAndJsDoc);
+        let records = if let Some((facts, _)) = prefix {
+            facts.declarations
+        } else if let Some(records) = t
+            .get_input()
+            .and_then(|input| input.bundled_declarations(script))
+        {
+            records
+        } else {
+            return false;
+        };
+        let mut enum_statements = Vec::new();
+        let mut records = records.iter();
+        let mut child = script.get_first_child(t);
+        if let Some((_, suffix)) = prefix {
+            for &record in &mut records {
+                let statement = child.expect("recorded extern statement");
+                child = statement.get_next(t);
+                if record == declarations::OTHER
+                    || (record & declarations::HAS_FUNCTION != 0
+                        && !self.record_stub(
+                            t,
+                            declarations::initializer(t, statement, record).unwrap(),
+                        ))
+                {
+                    self.walk_branch(t, statement, Some(script));
+                    enum_statements.push(statement);
+                } else if record & declarations::CHECK_NON_NULLABLE != 0 {
+                    enum_statements.push(statement);
+                }
+            }
+            debug_assert_eq!(child, suffix);
+        }
+        while let Some(statement) = child {
+            child = statement.get_next(t);
+            let record = records.next().copied().unwrap_or(declarations::OTHER);
+            let declaration = Declaration::read(t, statement, record);
+            if let Some(declaration) = declaration
+                && declaration
+                    .function
+                    .is_none_or(|function| self.record_stub(t, function))
+            {
+                let info = match declaration.doc {
+                    DocSite::None => None,
+                    DocSite::On(n) => n.get_jsdoc_info_ref(t).map(Arc::as_ref),
+                    DocSite::BestForName(name) => NodeUtil::get_best_jsdoc_info_node(t, name)
+                        .and_then(|n| n.get_jsdoc_info_ref(t))
+                        .map(Arc::as_ref),
+                };
+                if declaration.possible_alias
+                    || info.is_some_and(|i| i.has_enum_parameter_type() || i.has_typedef_type())
+                {
+                    enum_statements.push(statement);
+                }
+            } else {
+                // Rewrites may insert statements, move a recorded one, or add to a function body.
+                self.walk_branch(t, statement, Some(script));
+                enum_statements.push(statement);
+            }
+        }
+        self.enum_statements.insert(script, enum_statements);
+        true
     }
 }
 
@@ -5837,6 +6005,15 @@ impl Callback for FirstOrderFunctionAnalyzer<'_> {
         _parent: Option<NodeId>,
     ) -> bool {
         true
+    }
+
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        n: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        !(parent == Some(self.externs) && t.in_global_scope() && self.visit_bundled_script(t, n))
     }
 
     // port: TypedScopeCreator.FirstOrderFunctionAnalyzer#visit
@@ -5951,14 +6128,11 @@ const WELL_KNOWN_SYMBOLS: [&str; 12] = [
 ///
 /// The Java `registry` field is reached through the compiler (DESIGN.md section 6).
 // port: TypedScopeCreator.IdentifyEnumsAndTypedefsAsNonNullable
-struct IdentifyEnumsAndTypedefsAsNonNullable;
+struct IdentifyEnumsAndTypedefsAsNonNullable {
+    bundled_statements: IndexMap<NodeId, Vec<NodeId>>,
+}
 
 impl IdentifyEnumsAndTypedefsAsNonNullable {
-    // port: TypedScopeCreator.IdentifyEnumsAndTypedefsAsNonNullable#IdentifyEnumsAndTypedefsAsNonNullable
-    fn new() -> Self {
-        Self
-    }
-
     // port: TypedScopeCreator.IdentifyEnumsAndTypedefsAsNonNullable#identifyEnumOrTypedefDeclaration
     fn identify_enum_or_typedef_declaration(
         &mut self,
@@ -6014,6 +6188,23 @@ impl Callback for IdentifyEnumsAndTypedefsAsNonNullable {
         _n: NodeId,
         _parent: Option<NodeId>,
     ) -> bool {
+        true
+    }
+
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        n: NodeId,
+        _parent: Option<NodeId>,
+    ) -> bool {
+        if let Some(statements) = self.bundled_statements.swap_remove(&n) {
+            // Both initial-scope callbacks only read the tree. Resolve every candidate in its
+            // original position, with the current scope and all preceding registry updates.
+            for statement in statements {
+                self.walk_branch(t, statement, Some(n));
+            }
+            return false;
+        }
         true
     }
 
@@ -6104,8 +6295,40 @@ use rhino::lookup_qualified_name;
 
 #[cfg(test)]
 mod bundled_declaration_tests {
-    use super::AbstractScopeBuilder;
+    use super::*;
+    use crate::{
+        compiler::Compiler,
+        compiler_options::{CompilerOptions, LanguageMode},
+        source_file::SourceFile,
+    };
+    use closure_resources::compiler_options::Environment;
+    use closure_rhino::static_source_file::StaticSourceFile;
     use closure_rhino::{ir::IR, node::Ast};
+
+    #[test]
+    #[should_panic(expected = "ClassCastException")]
+    fn empty_scope_validates_its_live_source() {
+        use closure_rhino::node::{ObjectProp, Prop};
+
+        let mut compiler = Compiler::new();
+        compiler.init(
+            &[],
+            &[Arc::new(SourceFile::from_code("app.js", "var x;"))],
+            CompilerOptions::new(),
+        );
+        let root = compiler.parse_inputs().unwrap();
+        let script = compiler.get_script_node("app.js").unwrap();
+        let mut creator = TypedScopeCreator::new(&mut compiler);
+        let global = creator.create_scope(&mut compiler, root, None);
+        let empty = IR::block(&mut compiler);
+        script.add_child_to_back(&mut compiler, empty);
+        empty.put_prop(
+            &mut compiler,
+            Prop::SOURCE_FILE,
+            Some(ObjectProp::Node(empty)),
+        );
+        creator.create_scope(&mut compiler, empty, Some(global));
+    }
 
     #[test]
     fn replay_checks_the_current_property_chain() {
@@ -6114,13 +6337,10 @@ mod bundled_declaration_tests {
         let owner = IR::getprop(&mut ast, base, "prototype");
         let property = IR::getprop(&mut ast, owner, "location");
         let statement = IR::expr_result(&mut ast, property);
-        assert_eq!(
-            AbstractScopeBuilder::bare_property_declaration(&ast, statement),
-            Some(property)
-        );
+        assert_eq!(declarations::bare_property(&ast, statement), Some(property));
 
         owner.set_string(&mut ast, "other");
-        let live = AbstractScopeBuilder::bare_property_declaration(&ast, statement).unwrap();
+        let live = declarations::bare_property(&ast, statement).unwrap();
         assert_eq!(
             live.get_qualified_name(&ast).unwrap(),
             "Window.other.location"
@@ -6128,9 +6348,176 @@ mod bundled_declaration_tests {
         owner.set_string(&mut ast, "prototype");
         let literal = IR::number(&mut ast, 1.0);
         base.replace_with(&mut ast, literal);
+        assert_eq!(declarations::bare_property(&ast, statement), None);
+    }
+
+    #[test]
+    fn initial_declarations_follow_live_scopes_and_alias_order() {
+        fn gather(bundled: bool) -> TypedScopeCreator {
+            let mut compiler = Compiler::new();
+            let mut options = CompilerOptions::new();
+            options.set_language_in(LanguageMode::ECMASCRIPT_NEXT);
+            let file = SourceFile::bundled_externs(Environment::BROWSER)
+                .into_iter()
+                .find(|file| file.get_name().ends_with("/w3c_abort.js"))
+                .unwrap();
+            let path = file.get_name().to_owned();
+            let file = if bundled {
+                file
+            } else {
+                SourceFile::from_code(&path, file.get_code().unwrap())
+            };
+            let seed = SourceFile::from_code("seed.js", "/** @typedef {number} */ var Seed;");
+            let source = SourceFile::from_code("app.js", "const FromSource = InferredAlias;");
+            let module = SourceFile::from_code(
+                "module.js",
+                "export const wrap = x => { const inner = x; return inner; };",
+            );
+            compiler.init(
+                &[Arc::new(seed), Arc::new(file)],
+                &[Arc::new(source), Arc::new(module)],
+                options,
+            );
+            let root = compiler.parse_inputs().unwrap();
+            let script = compiler.get_script_node(&path).unwrap();
+            let input = compiler
+                .get_input(&script.get_input_id(&compiler).unwrap())
+                .unwrap();
+            assert_eq!(input.bundled_declarations(script).is_some(), bundled);
+
+            let statements: Vec<_> = script.children(&compiler).collect();
+            let find = |name: &str| {
+                statements
+                    .iter()
+                    .find_map(|&statement| {
+                        let expr = statement.get_first_child(&compiler)?;
+                        let lhs = if expr.is_assign(&compiler) {
+                            expr.get_first_child(&compiler)?
+                        } else {
+                            expr
+                        };
+                        lhs.matches_qualified_name(&compiler, name)
+                            .then_some(statement)
+                    })
+                    .unwrap()
+            };
+            let duplicates = find("AbortSignal.prototype.addEventListener");
+            let implicit = find("AbortSignal.prototype.removeEventListener");
+            let later_body = find("AbortSignal.prototype.dispatchEvent");
+            let before = find("AbortSignal.abort");
+            let from_seed = find("AbortSignal.timeout");
+            let arrow = find("AbortSignal.any");
+            let property = find("AbortSignal.prototype.aborted")
+                .get_first_child(&compiler)
+                .unwrap();
+
+            let stub = |c: &Compiler, stmt: NodeId| {
+                stmt.get_first_child(c)
+                    .unwrap()
+                    .get_second_child(c)
+                    .unwrap()
+            };
+            let duplicate_stub = stub(&compiler, duplicates);
+            let duplicate_params = duplicate_stub.get_second_child(&compiler).unwrap();
+            duplicate_params
+                .get_second_child(&compiler)
+                .unwrap()
+                .set_string(&mut compiler, "type");
+            duplicate_stub.set_is_arrow_function(&mut compiler, true);
+            let implicit_stub = stub(&compiler, implicit);
+            implicit_stub
+                .get_second_child(&compiler)
+                .unwrap()
+                .get_first_child(&compiler)
+                .unwrap()
+                .set_string(&mut compiler, "arguments");
+
+            let edits = compiler.parse_test_code(
+                "function body() { function capture() { evt = 1; } return 2; }
+                 /** @const */ AbortSignal.before = AbortSignal.prototype.Later;
+                 /** @const */ AbortSignal.fromSeed = Seed;
+                 AbortSignal.arrow = (x) => x;
+                 /** @const */ AbortSignal.after = AbortSignal.prototype.Later;
+                 var InferredAlias = AbortSignal.after;",
+            );
+            let edits: Vec<_> = edits.children(&compiler).collect();
+            let changed_stub = stub(&compiler, later_body);
+            let old_body = changed_stub.get_last_child(&compiler).unwrap();
+            let body = edits[0]
+                .get_last_child(&compiler)
+                .unwrap()
+                .detach(&mut compiler);
+            old_body.replace_with(&mut compiler, body);
+            for (old, new) in [(before, edits[1]), (from_seed, edits[2]), (arrow, edits[3])] {
+                new.detach(&mut compiler);
+                old.replace_with(&mut compiler, new);
+            }
+            let seed = compiler
+                .get_script_node("seed.js")
+                .unwrap()
+                .get_first_first_child(&compiler)
+                .unwrap();
+            let typedef = NodeUtil::get_best_jsdoc_info(&compiler, seed).unwrap();
+            property.set_string(&mut compiler, "Later");
+            property.set_jsdoc_info(&mut compiler, Some(typedef));
+            for &new in &edits[4..] {
+                new.detach(&mut compiler);
+                script.add_child_to_back(&mut compiler, new);
+            }
+            edits[5]
+                .get_first_child(&compiler)
+                .unwrap()
+                .set_inferred_constant_var(&mut compiler, true);
+
+            let mut creator = TypedScopeCreator::new(&mut compiler);
+            creator.create_initial_scope(&mut compiler, root);
+            assert_eq!(
+                creator.reserved_names_for_scope[&duplicate_stub],
+                [JsString::from("type"), "opt_options".into()]
+            );
+            assert_eq!(
+                creator.assigned_var_names[&Simple::new("type".into(), Some(duplicate_stub))],
+                2
+            );
+            assert!(
+                creator
+                    .escaped_var_names
+                    .contains(&Simple::new("evt".into(), Some(changed_stub)))
+            );
+            assert!(
+                creator
+                    .functions_with_non_empty_returns
+                    .contains(&changed_stub)
+            );
+            let (registry, ast) = compiler.get_type_registry_and_ast();
+            for (name, expected) in [
+                ("Seed", true),
+                ("AbortSignal.before", false),
+                ("AbortSignal.fromSeed", true),
+                ("AbortSignal.prototype.Later", true),
+                ("AbortSignal.after", true),
+                ("InferredAlias", true),
+                ("FromSource", true),
+            ] {
+                assert_eq!(
+                    registry.is_non_nullable_name(ast, None, name),
+                    expected,
+                    "{name}"
+                );
+            }
+            creator
+        }
+        let bundled = gather(true);
+        let parsed = gather(false);
         assert_eq!(
-            AbstractScopeBuilder::bare_property_declaration(&ast, statement),
-            None
+            bundled.reserved_names_for_scope,
+            parsed.reserved_names_for_scope
+        );
+        assert_eq!(bundled.assigned_var_names, parsed.assigned_var_names);
+        assert_eq!(bundled.escaped_var_names, parsed.escaped_var_names);
+        assert_eq!(
+            bundled.functions_with_non_empty_returns,
+            parsed.functions_with_non_empty_returns
         );
     }
 }

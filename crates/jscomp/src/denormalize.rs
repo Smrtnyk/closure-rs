@@ -73,8 +73,9 @@ impl Denormalize {
             .is_none()
         {
             let mut scope_creator = SyntacticScopeCreator::new();
-            ReferenceCollector::new(compiler, &mut *self, &mut scope_creator)
-                .process(compiler, root);
+            let mut collector = ReferenceCollector::new(compiler, &mut *self, &mut scope_creator);
+            collector.reuse_reference_sites();
+            collector.process(compiler, root);
         }
     }
 

@@ -152,14 +152,26 @@ impl ShardView {
         *self.pools.lock().unwrap() = None;
     }
 
-    fn type_pool(&self) -> Arc<TypePool> {
-        self.pools.lock().unwrap().as_ref().unwrap().0.clone()
-    }
-
-    fn string_pool(&self) -> Arc<StringPool> {
-        self.pools.lock().unwrap().as_ref().unwrap().1.clone()
+    fn pools(&self) -> (Arc<TypePool>, Arc<StringPool>) {
+        self.pools.lock().unwrap().as_ref().unwrap().clone()
     }
 }
+
+struct ShardInputs {
+    index: usize,
+    view: Arc<ShardView>,
+    types: Arc<TypePool>,
+    strings: Arc<StringPool>,
+}
+
+/// Borrow the original definitions for the duration of reconciliation. Both row order and
+/// the order of contributing shards are significant for colors and diagnostics.
+struct Definition<'a> {
+    shard: &'a ShardInputs,
+    proto: &'a TypeProto,
+}
+
+type Definitions<'a> = IndexMap<ColorId, Vec<Definition<'a>>>;
 
 /// port: ColorPool.Builder
 ///
@@ -170,9 +182,8 @@ pub struct Builder {
     proto_to_shard: IndexMap<usize, (Arc<TypePool>, Arc<ShardView>)>,
     id_to_color: IndexMap<ColorId, Color>,
     registry: color_registry::Builder,
-    /// HashBasedTable<ColorId, ShardView, TypeProto> (linked rows and columns); the column key is
-    /// the shard's index in `proto_to_shard`.
-    id_to_proto: IndexMap<ColorId, IndexMap<usize, TypeProto>>,
+    // Java uses a nonempty definition table as the guard against building twice.
+    has_proto_rows: bool,
     for_testing: bool,
 
     reconcilation_debug_stack: Vec<ColorId>,
@@ -195,7 +206,7 @@ impl Builder {
             proto_to_shard: IndexMap::<_, _>::default(),
             id_to_color,
             registry: ColorRegistry::builder(),
-            id_to_proto: IndexMap::<_, _>::default(),
+            has_proto_rows: false,
             for_testing: false,
             reconcilation_debug_stack: Vec::new(),
         }
@@ -223,7 +234,7 @@ impl Builder {
         type_pool: Arc<TypePool>,
         string_pool: Arc<StringPool>,
     ) -> Arc<ShardView> {
-        check_state!(self.id_to_proto.is_empty(), "build has already been called");
+        check_state!(!self.has_proto_rows, "build has already been called");
 
         let key = Arc::as_ptr(&type_pool) as usize;
         if let Some((_, existing)) = self.proto_to_shard.get(&key) {
@@ -260,30 +271,43 @@ impl Builder {
 
     // port: ColorPool.Builder#build
     pub fn build(&mut self) -> Arc<ColorPool> {
-        check_state!(self.id_to_proto.is_empty(), "build has already been called");
+        check_state!(!self.has_proto_rows, "build has already been called");
 
-        for (shard_index, (_, shard)) in self.proto_to_shard.values().enumerate() {
-            let type_pool = shard.type_pool();
-            for i in 0..type_pool.get_type_count() {
-                let id = shard.trimmed_offset_to_id[i as usize];
-                self.id_to_proto
-                    .entry(id)
+        let shards: Vec<_> = self
+            .proto_to_shard
+            .values()
+            .enumerate()
+            .map(|(index, (_, view))| {
+                let (types, strings) = view.pools();
+                ShardInputs {
+                    index,
+                    view: view.clone(),
+                    types,
+                    strings,
+                }
+            })
+            .collect();
+        let mut rows = Definitions::default();
+        for shard in &shards {
+            for (i, proto) in shard.types.get_type_list().iter().enumerate() {
+                let id = shard.view.trimmed_offset_to_id[i];
+                rows.entry(id)
                     .or_default()
-                    .insert(shard_index, type_pool.get_type(i).clone());
+                    .push(Definition { shard, proto });
+                self.has_proto_rows = true;
             }
         }
 
         for id in standard_colors::AXIOMATIC_COLORS.keys() {
             MalformedTypedAstException::check_well_formed_with_param(
-                !self.id_to_proto.contains_key(id),
+                !rows.contains_key(id),
                 "Found serialized definiton for axiomatic color",
                 id,
             );
         }
 
-        let row_keys: Vec<ColorId> = self.id_to_proto.keys().copied().collect();
-        for id in row_keys {
-            self.lookup_or_reconcile_color(id);
+        for &id in rows.keys() {
+            self.lookup_or_reconcile_color(id, &rows);
         }
 
         for &color_id in color_registry::REQUIRED_IDS.iter() {
@@ -295,9 +319,9 @@ impl Builder {
             self.registry.set_native_color(color);
         }
 
-        for (_, shard) in self.proto_to_shard.values() {
-            let type_pool = shard.type_pool();
-            for edge in type_pool.get_disambiguation_edges_list() {
+        for inputs in &shards {
+            let shard = &inputs.view;
+            for edge in inputs.types.get_disambiguation_edges_list() {
                 let subtype = self.id_to_color
                     [&shard.get_id(validate_pointer(edge.get_subtype(), shard))]
                     .clone();
@@ -328,7 +352,7 @@ impl Builder {
     }
 
     // port: ColorPool.Builder#lookupOrReconcileColor
-    fn lookup_or_reconcile_color(&mut self, id: ColorId) -> Color {
+    fn lookup_or_reconcile_color(&mut self, id: ColorId, rows: &Definitions) -> Color {
         self.reconcilation_debug_stack.push(id);
         if let Some(existing) = self.id_to_color.get(&id) {
             if existing.ptr_eq(&PENDING_COLOR) {
@@ -336,11 +360,13 @@ impl Builder {
                     .reconcilation_debug_stack
                     .iter()
                     .map(|id| {
-                        let row = self.id_to_proto.get(id);
+                        let row = rows.get(id);
                         let entries: Vec<String> = row
                             .into_iter()
                             .flatten()
-                            .map(|(shard, proto)| format!("ShardView#{shard}={proto:?}"))
+                            .map(|entry| {
+                                format!("ShardView#{}={:?}", entry.shard.index, entry.proto)
+                            })
                             .collect();
                         format!("{{{}}}", entries.join(", "))
                     })
@@ -357,21 +383,11 @@ impl Builder {
         }
         self.id_to_color.insert(id, PENDING_COLOR.clone());
 
-        let view_to_proto: Vec<(Arc<ShardView>, TypeProto)> = self
-            .id_to_proto
-            .get(&id)
-            .into_iter()
-            .flatten()
-            .map(|(shard_index, proto)| {
-                (self.proto_to_shard[*shard_index].1.clone(), proto.clone())
-            })
-            .collect();
-        let sample = view_to_proto.first().map(|(_, proto)| proto.clone());
-        let sample = check_not_null!(sample, "%s", id);
-
+        let row = check_not_null!(rows.get(&id), "%s", id);
+        let sample = row[0].proto;
         let result = match sample.get_kind_case() {
-            TypeProtoKindCase::OBJECT => self.reconcile_object_protos(id, &view_to_proto),
-            TypeProtoKindCase::UNION => self.reconcile_union_protos(id, &view_to_proto),
+            TypeProtoKindCase::OBJECT => self.reconcile_object_protos(id, row, rows),
+            TypeProtoKindCase::UNION => self.reconcile_union_protos(id, row, rows),
             _ => panic!("{sample:?}"),
         };
 
@@ -384,7 +400,8 @@ impl Builder {
     fn reconcile_object_protos(
         &mut self,
         id: ColorId,
-        view_to_proto: &[(Arc<ShardView>, TypeProto)],
+        row: &[Definition<'_>],
+        rows: &Definitions,
     ) -> Color {
         let mut instance_colors: IndexSet<Color> = IndexSet::<_>::default();
         let mut prototypes: IndexSet<Color> = IndexSet::<_>::default();
@@ -394,13 +411,14 @@ impl Builder {
         let mut is_invalidating = false;
         let mut properties_keep_original_name = false;
 
-        for (shard, proto) in view_to_proto {
+        for Definition { shard, proto } in row {
             check_state!(proto.has_object());
             let obj_proto = proto.get_object();
 
             let instance_type_ids = obj_proto.get_instance_type_list();
             for &instance_type_pointer in instance_type_ids {
-                let color = self.lookup_or_reconcile_color(shard.get_id(instance_type_pointer));
+                let color =
+                    self.lookup_or_reconcile_color(shard.view.get_id(instance_type_pointer), rows);
                 instance_colors.insert(color);
             }
 
@@ -418,12 +436,12 @@ impl Builder {
 
             let prototype_ids = obj_proto.get_prototype_list();
             for &prototype_pointer in prototype_ids {
-                let color = self.lookup_or_reconcile_color(shard.get_id(prototype_pointer));
+                let color =
+                    self.lookup_or_reconcile_color(shard.view.get_id(prototype_pointer), rows);
                 prototypes.insert(color);
             }
-            let string_pool = shard.string_pool();
             for i in 0..obj_proto.get_own_property_count() {
-                own_properties.insert(string_pool.get(obj_proto.get_own_property(i)));
+                own_properties.insert(shard.strings.get(obj_proto.get_own_property(i)));
             }
         }
 
@@ -443,15 +461,16 @@ impl Builder {
     fn reconcile_union_protos(
         &mut self,
         id: ColorId,
-        view_to_proto: &[(Arc<ShardView>, TypeProto)],
+        row: &[Definition<'_>],
+        rows: &Definitions,
     ) -> Color {
         let mut union: IndexSet<Color> = IndexSet::<_>::default();
-        for (shard, proto) in view_to_proto {
+        for Definition { shard, proto } in row {
             check_state!(proto.has_union(), "%s", format!("{proto:?}"));
             let union_member_list = proto.get_union().get_union_member_list();
             for &member_pointer in union_member_list {
-                let member_id = shard.get_id(member_pointer);
-                let member = self.lookup_or_reconcile_color(member_id);
+                let member_id = shard.view.get_id(member_pointer);
+                let member = self.lookup_or_reconcile_color(member_id, rows);
                 MalformedTypedAstException::check_well_formed_with_param(
                     !member.is_union(),
                     "Reconciling union with non-union",

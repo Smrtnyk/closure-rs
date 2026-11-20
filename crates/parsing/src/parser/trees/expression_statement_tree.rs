@@ -31,7 +31,7 @@ impl ExpressionStatementTree {
         ParseTree::new(
             ParseTreeType::EXPRESSION_STATEMENT,
             location,
-            ParseTreeData::ExpressionStatementTree(Box::new(Self { expression })),
+            ParseTreeData::ExpressionStatementTree(Self { expression }),
         )
     }
 }

@@ -33,11 +33,11 @@ impl ForOfStatementTree {
         ParseTree::new(
             ParseTreeType::FOR_OF_STATEMENT,
             location,
-            ParseTreeData::ForOfStatementTree(Box::new(Self {
+            ParseTreeData::ForOfStatementTree(Self {
                 initializer,
                 collection,
                 body,
-            })),
+            }),
         )
     }
 }

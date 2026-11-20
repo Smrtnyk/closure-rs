@@ -24,24 +24,75 @@ use closure_rhino::{
 };
 use std::{fmt::Write, fs, path::PathBuf, sync::Arc};
 
+#[allow(dead_code)] // The target reads these fields from the generated data.
+#[path = "src/source_file/bundled_script.rs"]
+mod bundled_script;
+#[path = "build/bundled_script_summary.rs"]
+mod bundled_script_summary;
+#[allow(dead_code)] // The target compiler consumes the fields of a verified declaration.
+#[path = "src/source_file/declarations.rs"]
+mod declarations;
+#[path = "src/source_file/line_count.rs"]
+mod line_count;
 #[path = "src/deps/js_file_line_parser/lines.rs"]
 mod lines;
 
-/// One byte per top-level statement, in source order. Mark bare qualified property
-/// declarations. Their names and JSDoc will be read from the live tree.
-fn property_declarations(
+#[allow(dead_code, clippy::upper_case_acronyms)] // Java protobuf enum names.
+#[path = "src/serialization/protobuf.rs"]
+mod protobuf;
+#[path = "build/runtime_libraries.rs"]
+mod runtime_libraries;
+#[allow(non_camel_case_types)]
+#[path = "src/serialization/source_file_proto.rs"]
+mod source_file_proto;
+
+/// One record per top-level statement, including unrecognized statements to preserve positions.
+fn declaration_records(
     ast: &closure_rhino::node::Ast,
     script: closure_rhino::node::NodeId,
 ) -> Vec<u8> {
+    use closure_rhino::token::Token;
+    use declarations::*;
     script
         .children(ast)
         .map(|statement| {
-            u8::from(
-                statement.is_expr_result(ast)
-                    && statement.get_first_child(ast).is_some_and(|property| {
-                        property.is_get_prop(ast) && property.is_qualified_name(ast)
-                    }),
-            )
+            let record = match statement.get_token(ast) {
+                Token::FUNCTION => FUNCTION,
+                Token::VAR | Token::LET | Token::CONST => VARIABLE,
+                Token::EXPR_RESULT
+                    if statement
+                        .get_first_child(ast)
+                        .is_some_and(|n| n.is_assign(ast)) =>
+                {
+                    ASSIGNMENT
+                }
+                Token::EXPR_RESULT => PROPERTY,
+                _ => OTHER,
+            };
+            let Some(declaration) = Declaration::read(ast, statement, record) else {
+                return OTHER;
+            };
+            let info = match declaration.doc {
+                DocSite::None => None,
+                DocSite::On(node) => node.get_jsdoc_info_ref(ast),
+                // The NAME in this shape has a single VAR, LET or CONST parent at script level.
+                DocSite::BestForName(name) => name
+                    .get_jsdoc_info_ref(ast)
+                    .or_else(|| statement.get_jsdoc_info_ref(ast)),
+            };
+            let check_non_nullable = declaration.possible_alias
+                || info.is_some_and(|doc| doc.has_enum_parameter_type() || doc.has_typedef_type());
+            record
+                | if declaration.function.is_some() {
+                    HAS_FUNCTION
+                } else {
+                    0
+                }
+                | if check_non_nullable {
+                    CHECK_NON_NULLABLE
+                } else {
+                    0
+                }
         })
         .collect()
 }
@@ -77,30 +128,61 @@ fn plain_dependency_flags(code: JsString) -> Option<(bool, bool)> {
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/deps/js_file_line_parser/lines.rs");
+    println!("cargo:rerun-if-changed=src/source_file/line_count.rs");
+    println!("cargo:rerun-if-changed=src/source_file/declarations.rs");
     let out = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    runtime_libraries::generate(&out);
     let mut lookup = String::from("match name {\n");
     let mut dependencies = String::from("match name {\n");
     let mut declarations = String::from("match name {\n");
+    println!("cargo:rerun-if-changed=src/source_file/bundled_script.rs");
+    println!("cargo:rerun-if-changed=build/bundled_script_summary.rs");
+    let mut summaries = String::from("match name {\n");
+    let mut sizes = String::from("match name {\n");
     for (i, file) in AbstractCommandLineRunner::get_builtin_externs(Environment::BROWSER)
         .into_iter()
         .enumerate()
     {
         let source = Arc::new(SimpleSourceFile::new(&file.path, SourceKind::EXTERN));
         let code: JsString = file.get_code().into();
+        // The ordinary SourceFile read path also handles BOM removal. Keep files needing
+        // that normalization there, including its interaction with snapshot eligibility.
+        if code.as_units().first() != Some(&0xfeff) {
+            writeln!(
+                sizes,
+                "{:?} => Some(({}, {})),",
+                file.path,
+                code.length() as i32,
+                line_count::num_lines(code.as_units())
+            )
+            .unwrap();
+        }
         if let Some(flags) = plain_dependency_flags(code.clone()) {
             writeln!(dependencies, "{:?} => Some({flags:?}),", file.path).unwrap();
         }
-        if let Some((bytes, records)) =
-            closure_parsing::extern_snapshot::generate_with_ast(source, code, property_declarations)
+        let declaration_file = format!("extern-{i}-declarations.bin");
+        if let Some((bytes, (records, summary))) =
+            closure_parsing::extern_snapshot::generate_bundled_with_ast(
+                source,
+                code,
+                |ast, root| {
+                    (
+                        declaration_records(ast, root),
+                        bundled_script_summary::generate(ast, root, &declaration_file),
+                    )
+                },
+            )
         {
+            fs::write(out.join(&declaration_file), &records).unwrap();
+            if let Some(summary) = summary {
+                writeln!(summaries, "{:?} => Some(&{summary}),", file.path).unwrap();
+            }
             let filename = format!("extern-{i}.bin");
             fs::write(out.join(&filename), bytes).unwrap();
-            if records.contains(&1) {
-                let properties = format!("extern-{i}-properties.bin");
-                fs::write(out.join(&properties), records).unwrap();
+            if records.iter().any(|&record| record != declarations::OTHER) {
                 writeln!(
                     declarations,
-                    "{:?} => Some(include_bytes!({properties:?})),",
+                    "{:?} => Some(include_bytes!({declaration_file:?})),",
                     file.path
                 )
                 .unwrap();
@@ -113,10 +195,14 @@ fn main() {
             .unwrap();
         }
     }
+    summaries.push_str("_ => None,\n}\n");
+    fs::write(out.join("bundled_script_summaries.rs"), summaries).unwrap();
     lookup.push_str("_ => None,\n}\n");
     fs::write(out.join("bundled_externs.rs"), lookup).unwrap();
     dependencies.push_str("_ => None,\n}\n");
     fs::write(out.join("bundled_extern_dependencies.rs"), dependencies).unwrap();
     declarations.push_str("_ => None,\n}\n");
     fs::write(out.join("bundled_extern_declarations.rs"), declarations).unwrap();
+    sizes.push_str("_ => None,\n}\n");
+    fs::write(out.join("bundled_extern_sizes.rs"), sizes).unwrap();
 }

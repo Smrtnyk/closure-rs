@@ -606,12 +606,42 @@ impl Pattern {
         Matcher::new(self.compiled.clone(), input.into())
     }
 }
-#[derive(Clone)]
-struct State {
+/// A backtracking branch resumes with the capture and loop values it saw at the split.
+struct Alternative {
     node: usize,
     pos: usize,
-    groups: Vec<Option<usize>>,
-    locals: Vec<Option<usize>>,
+    checkpoint: usize,
+}
+
+#[derive(Default)]
+struct Backtracking {
+    alternatives: Vec<Alternative>,
+    changes: Vec<(usize, Option<usize>)>,
+}
+
+impl Backtracking {
+    fn set(&mut self, registers: &mut [Option<usize>], index: usize, value: usize) {
+        let previous = registers[index].replace(value);
+        if !self.alternatives.is_empty() {
+            self.changes.push((index, previous));
+        }
+    }
+
+    fn save(&mut self, node: usize, pos: usize) {
+        self.alternatives.push(Alternative {
+            node,
+            pos,
+            checkpoint: self.changes.len(),
+        });
+    }
+
+    fn resume(&mut self, registers: &mut [Option<usize>]) -> Option<(usize, usize)> {
+        let alternative = self.alternatives.pop()?;
+        for (index, value) in self.changes.drain(alternative.checkpoint..).rev() {
+            registers[index] = value;
+        }
+        Some((alternative.node, alternative.pos))
+    }
 }
 pub struct Matcher {
     compiled: Arc<Compiled>,
@@ -620,14 +650,14 @@ pub struct Matcher {
     to: usize,
     first: Option<usize>,
     last: usize,
-    groups: Vec<Option<usize>>,
+    registers: Vec<Option<usize>>,
     hit_end: bool,
 }
 impl Matcher {
     // port: Matcher#Matcher
     fn new(compiled: Arc<Compiled>, input: JsString) -> Self {
         let to = input.length();
-        let groups = vec![None; (compiled.groups + 1) * 2];
+        let registers = vec![None; (compiled.groups + 1) * 2 + compiled.locals];
         Self {
             compiled,
             input,
@@ -635,7 +665,7 @@ impl Matcher {
             to,
             first: None,
             last: 0,
-            groups,
+            registers,
             hit_end: false,
         }
     }
@@ -646,7 +676,7 @@ impl Matcher {
         self.to = self.input.length();
         self.first = None;
         self.last = 0;
-        self.groups.fill(None);
+        self.registers.fill(None);
         self.hit_end = false;
         self
     }
@@ -658,7 +688,7 @@ impl Matcher {
         );
         self.first = None;
         self.last = 0;
-        self.groups.fill(None);
+        self.registers.fill(None);
         self.from = start;
         self.to = end;
         self
@@ -683,22 +713,23 @@ impl Matcher {
         }
         start = start.max(self.from);
         if start > self.to {
-            self.groups.fill(None);
+            self.registers.fill(None);
             return false;
         }
         self.hit_end = false;
+        let mut backtracking = Backtracking::default();
         if self.compiled.anchored {
-            let ok = self.run(start, false);
+            let ok = self.run(start, false, &mut backtracking);
             if !ok {
                 self.first = None;
-                self.groups.fill(None);
+                self.registers.fill(None);
             }
             return ok;
         }
         while start <= self.to.saturating_sub(self.compiled.min_length)
             && self.compiled.min_length <= self.to
         {
-            if self.run(start, false) {
+            if self.run(start, false, &mut backtracking) {
                 return true;
             }
             if start == self.to.saturating_sub(self.compiled.min_length) {
@@ -716,116 +747,110 @@ impl Matcher {
             }
         }
         self.first = None;
-        self.groups.fill(None);
+        self.registers.fill(None);
         self.hit_end = true;
         false
     }
     // port: Matcher#match
     fn match_at(&mut self, start: usize, end_anchor: bool) -> bool {
         self.hit_end = false;
-        self.groups.fill(None);
-        let result = self.run(start, end_anchor);
+        let result = self.run(start, end_anchor, &mut Backtracking::default());
         if !result {
             self.first = None;
         }
         result
     }
     // port: Pattern.Node#match, Pattern.Branch#match, Pattern.Loop#match
-    fn run(&mut self, start: usize, end_anchor: bool) -> bool {
-        let mut stack = vec![State {
-            node: self.compiled.root,
-            pos: start,
-            groups: vec![None; (self.compiled.groups + 1) * 2],
-            locals: vec![None; self.compiled.locals],
-        }];
-        while let Some(mut state) = stack.pop() {
+    fn run(&mut self, start: usize, end_anchor: bool, backtracking: &mut Backtracking) -> bool {
+        self.registers.fill(None);
+        backtracking.alternatives.clear();
+        backtracking.changes.clear();
+        let local_start = (self.compiled.groups + 1) * 2;
+        let mut node = self.compiled.root;
+        let mut pos = start;
+        loop {
             loop {
-                match &self.compiled.nodes[state.node] {
+                match &self.compiled.nodes[node] {
                     Node::Accept => {
-                        if end_anchor && state.pos != self.to {
+                        if end_anchor && pos != self.to {
                             break;
                         }
-                        state.groups[0] = Some(start);
-                        state.groups[1] = Some(state.pos);
-                        self.groups = state.groups;
+                        self.registers[0] = Some(start);
+                        self.registers[1] = Some(pos);
                         self.first = Some(start);
-                        self.last = state.pos;
+                        self.last = pos;
                         return true;
                     }
                     Node::Char(p, next) => {
-                        if state.pos >= self.to {
+                        if pos >= self.to {
                             self.hit_end = true;
                             break;
                         }
                         let cp = if p.is_bmp() {
-                            self.input.char_at(state.pos) as u32
+                            self.input.char_at(pos) as u32
                         } else {
-                            self.input.code_point_at(state.pos)
+                            self.input.code_point_at(pos)
                         };
                         let width = if cp > 0xffff { 2 } else { 1 };
-                        if state.pos + width > self.to {
+                        if pos + width > self.to {
                             self.hit_end = true;
                             break;
                         }
                         if !p.is(cp) {
                             break;
                         }
-                        state.pos += width;
-                        state.node = *next;
+                        pos += width;
+                        node = *next;
                     }
                     Node::Begin(next) => {
-                        if state.pos != self.from {
+                        if pos != self.from {
                             break;
                         }
-                        state.node = *next;
+                        node = *next;
                     }
                     Node::Dollar(next) => {
-                        let rest = &self.input.as_units()[state.pos..self.to];
+                        let rest = &self.input.as_units()[pos..self.to];
                         if !rest.is_empty()
                             && rest != [13, 10]
                             && !(rest.len() == 1
                                 && matches!(rest[0], 10 | 13 | 0x85 | 0x2028 | 0x2029)
-                                && !(rest[0] == 10
-                                    && state.pos > 0
-                                    && self.input.char_at(state.pos - 1) == 13))
+                                && !(rest[0] == 10 && pos > 0 && self.input.char_at(pos - 1) == 13))
                         {
                             break;
                         }
                         self.hit_end = true;
-                        state.node = *next;
+                        node = *next;
                     }
                     // port: Pattern.End#match (`\z`; anchoring bounds)
                     Node::End(next) => {
-                        if state.pos != self.to {
+                        if pos != self.to {
                             break;
                         }
                         self.hit_end = true;
-                        state.node = *next;
+                        node = *next;
                     }
                     Node::Bound(next) => {
-                        let left = state.pos > self.from && self.bound_word_before(state.pos);
-                        let right = state.pos < self.to && self.bound_word_at(state.pos);
-                        if state.pos >= self.to {
+                        let left = pos > self.from && self.bound_word_before(pos);
+                        let right = pos < self.to && self.bound_word_at(pos);
+                        if pos >= self.to {
                             self.hit_end = true;
                         }
                         if left == right {
                             break;
                         }
-                        state.node = *next;
+                        node = *next;
                     }
                     Node::Split(first, second) => {
-                        let mut other = state.clone();
-                        other.node = *second;
-                        stack.push(other);
-                        state.node = *first;
+                        backtracking.save(*second, pos);
+                        node = *first;
                     }
                     Node::GroupHead(group, next) => {
-                        state.groups[group * 2] = Some(state.pos);
-                        state.node = *next;
+                        backtracking.set(&mut self.registers, group * 2, pos);
+                        node = *next;
                     }
                     Node::GroupTail(group, next) => {
-                        state.groups[group * 2 + 1] = Some(state.pos);
-                        state.node = *next;
+                        backtracking.set(&mut self.registers, group * 2 + 1, pos);
+                        node = *next;
                     }
                     Node::Loop {
                         body,
@@ -833,20 +858,21 @@ impl Matcher {
                         lazy,
                         local,
                     } => {
-                        if state.locals[*local] == Some(state.pos) {
-                            state.node = *next;
+                        if self.registers[local_start + local] == Some(pos) {
+                            node = *next;
                             continue;
                         }
-                        state.locals[*local] = Some(state.pos);
-                        let mut other = state.clone();
-                        other.node = if *lazy { *body } else { *next };
-                        stack.push(other);
-                        state.node = if *lazy { *next } else { *body };
+                        backtracking.set(&mut self.registers, local_start + local, pos);
+                        backtracking.save(if *lazy { *body } else { *next }, pos);
+                        node = if *lazy { *next } else { *body };
                     }
                 }
             }
+            let Some(resume) = backtracking.resume(&mut self.registers) else {
+                return false;
+            };
+            (node, pos) = resume;
         }
-        false
     }
     // port: Pattern.Bound#check
     fn bound_word_before(&self, pos: usize) -> bool {
@@ -887,7 +913,7 @@ impl Matcher {
     pub fn group_units(&self, group: usize) -> Option<JsString> {
         assert!(self.first.is_some(), "No match found");
         assert!(group <= self.compiled.groups, "No group {group}");
-        match (self.groups[group * 2], self.groups[group * 2 + 1]) {
+        match (self.registers[group * 2], self.registers[group * 2 + 1]) {
             (Some(a), Some(b)) => Some(self.input.substring(a, b)),
             _ => None,
         }
@@ -1011,6 +1037,25 @@ mod tests {
             assert_eq!(m.hit_end(), hit_end, "hitEnd {pattern} on {input:?}");
         }
     }
+    #[test]
+    fn captures_follow_the_backtracking_branch() {
+        let mut matcher = Pattern::compile("((ab)|(a))+b").matcher("aab");
+        assert!(matcher.matches());
+        assert_eq!(matcher.group(1).as_deref(), Some("a"));
+        assert_eq!(matcher.group(2), None);
+        assert_eq!(matcher.group(3).as_deref(), Some("a"));
+        assert!(matcher.hit_end());
+
+        let mut matcher = Pattern::compile("((a)?b)+?c").matcher("abbc");
+        assert!(matcher.find());
+        assert_eq!(matcher.group(1).as_deref(), Some("b"));
+        assert_eq!(matcher.group(2).as_deref(), Some("a"));
+        assert!(!matcher.hit_end());
+        assert!(!matcher.find());
+        assert!(matcher.reset("bc").looking_at());
+        assert_eq!(matcher.group(2), None);
+    }
+
     // port: String#charAt (fixture encoding)
     fn decode(s: &str) -> JsString {
         JsString::from_units(

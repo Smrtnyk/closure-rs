@@ -45,7 +45,7 @@
 use crate::abstract_compiler::AbstractCompiler;
 use crate::typed_scope::TypedScope;
 use closure_jstype::{TypeId, prelude::*};
-use closure_rhino::qualified_name::QualifiedName;
+use closure_rhino::{js_string::JsString, qualified_name::QualifiedName};
 
 /// `scope.lookupQualifiedName(qname)` on a TypedScope, which inherits the StaticTypedScope
 /// default method. It runs over the mutable TypedScope API, so `getSlot` goes through
@@ -56,28 +56,38 @@ pub(super) fn lookup_qualified_name(
     scope: TypedScope,
     qname: &QualifiedName,
 ) -> Option<TypeId> {
-    let joined = {
-        let (_, ast) = compiler.get_type_registry_and_ast();
-        qname.join(ast)
-    };
-    let slot = scope.get_slot(compiler, joined);
-    if slot.is_some() && !slot.unwrap().is_type_inferred(compiler) {
-        return slot.unwrap().get_type(compiler);
-    } else if !{
-        let (_, ast) = compiler.get_type_registry_and_ast();
-        qname.is_simple(ast)
-    } {
-        let owner = {
-            let (_, ast) = compiler.get_type_registry_and_ast();
-            qname.get_owner(ast).expect("NullPointerException")
-        };
-        let type_ = lookup_qualified_name(compiler, scope, &owner);
-        let (reg, ast) = compiler.get_type_registry_and_ast();
-        if type_.is_some() && !type_.unwrap().is_unknown_type(reg, ast) {
-            return type_
-                .unwrap()
-                .find_property_type(reg, ast, qname.get_component(ast));
-        }
+    let joined = qname.join(compiler);
+    lookup_name(compiler, scope, &joined, || qname.clone())
+}
+
+/// Rust-only (performance divergence): the full name is often already a declared slot.
+/// Split it into interned components only when walking the owner's properties.
+pub(super) fn lookup_dotted_name(
+    compiler: &mut AbstractCompiler,
+    scope: TypedScope,
+    name: &JsString,
+) -> Option<TypeId> {
+    lookup_name(compiler, scope, name, || QualifiedName::of(name.clone()))
+}
+
+fn lookup_name(
+    compiler: &mut AbstractCompiler,
+    scope: TypedScope,
+    joined: &JsString,
+    qname: impl FnOnce() -> QualifiedName,
+) -> Option<TypeId> {
+    if let Some(slot) = scope.get_slot(compiler, joined)
+        && !slot.is_type_inferred(compiler)
+    {
+        return slot.get_type(compiler);
     }
-    None
+    let qname = qname();
+    let owner = qname.get_owner(compiler)?;
+    let owner_type = lookup_qualified_name(compiler, scope, &owner)?;
+    let (reg, ast) = compiler.get_type_registry_and_ast();
+    if owner_type.is_unknown_type(reg, ast) {
+        None
+    } else {
+        owner_type.find_property_type(reg, ast, qname.get_component(ast))
+    }
 }

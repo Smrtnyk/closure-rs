@@ -464,3 +464,133 @@ fn test_add_feature_to_enclosing_script() {
         ]))
     );
 }
+
+#[derive(Default)]
+struct RewriteToken {
+    fields: AbstractPeepholeOptimizationFields,
+    rule: Option<(&'static [Token], Token)>,
+    replace: bool,
+}
+
+impl AbstractPeepholeOptimization for RewriteToken {
+    base_methods!("RewriteToken");
+
+    fn candidate_tokens(&self) -> Option<&'static [Token]> {
+        self.rule.map(|(tokens, _)| tokens)
+    }
+
+    fn optimize_subtree(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        node: NodeId,
+    ) -> Option<NodeId> {
+        let Some((tokens, target)) = self.rule else {
+            return Some(node);
+        };
+        if !tokens.contains(&node.get_token(compiler)) {
+            return Some(node);
+        }
+        let result = if self.replace {
+            let replacement = compiler.ast.new_node(target);
+            replacement.srcref(compiler, node);
+            node.replace_with(compiler, replacement);
+            replacement
+        } else {
+            node.set_token(compiler, target);
+            node
+        };
+        self.report_change_to_enclosing_scope(compiler, result);
+        Some(result)
+    }
+}
+
+#[test]
+fn rechecks_tokens_after_in_place_and_replacement_rewrites() {
+    for extra in [0, 17] {
+        let mut t = PeepholeOptimizationsPassTest::new();
+        t.set_current_peephole_passes(move || {
+            let mut passes: PassList = Vec::new();
+            for _ in 0..extra {
+                passes.push(Box::new(RewriteToken::default()));
+            }
+            for (tokens, to, replace) in [
+                (&[Token::TRUE][..], Token::FALSE, false),
+                (&[Token::FALSE][..], Token::NULL, true),
+                (&[Token::NULL][..], Token::THIS, false),
+            ] {
+                passes.push(Box::new(RewriteToken {
+                    rule: Some((tokens, to)),
+                    replace,
+                    ..Default::default()
+                }));
+            }
+            passes
+        });
+        t.test("x(true);", "x(this);");
+    }
+}
+
+struct ForeignResult {
+    fields: AbstractPeepholeOptimizationFields,
+    foreign: NodeId,
+    original: Rc<std::cell::Cell<Option<NodeId>>>,
+    recover: bool,
+}
+
+impl AbstractPeepholeOptimization for ForeignResult {
+    base_methods!("ForeignResult");
+
+    fn candidate_tokens(&self) -> Option<&'static [Token]> {
+        if self.recover {
+            None
+        } else {
+            Some(&[Token::TRUE])
+        }
+    }
+
+    fn optimize_subtree(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        node: NodeId,
+    ) -> Option<NodeId> {
+        if self.recover {
+            if node == self.foreign {
+                self.original.take()
+            } else {
+                Some(node)
+            }
+        } else if node.is_true(compiler) {
+            self.original.set(Some(node));
+            Some(self.foreign)
+        } else {
+            Some(node)
+        }
+    }
+}
+
+#[test]
+fn a_custom_rule_can_return_or_recover_a_foreign_node() {
+    let mut other = closure_rhino::node::Ast::new();
+    let foreign = (0..2048)
+        .map(|_| other.new_node(Token::EMPTY))
+        .last()
+        .unwrap();
+    for recover in [false, true] {
+        let mut t = PeepholeOptimizationsPassTest::new();
+        t.set_current_peephole_passes(move || {
+            let original = Rc::new(std::cell::Cell::new(None));
+            let make = |recover| ForeignResult {
+                fields: Default::default(),
+                foreign,
+                original: original.clone(),
+                recover,
+            };
+            let mut passes: PassList = vec![Box::new(make(false))];
+            if recover {
+                passes.push(Box::new(make(true)));
+            }
+            passes
+        });
+        t.test_same("x(true);");
+    }
+}

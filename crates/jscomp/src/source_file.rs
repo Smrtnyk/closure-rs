@@ -19,6 +19,9 @@
 // Keep Java nested conditionals and nested loader class names.
 #![allow(clippy::collapsible_if, clippy::enum_variant_names)]
 mod bundled_externs;
+pub(crate) mod bundled_script;
+pub(crate) mod declarations;
+mod line_count;
 
 use crate::{
     js_comp_zip_file_cache::JSCompZipFileCache,
@@ -42,7 +45,7 @@ use std::{
 };
 #[derive(Debug)]
 struct State {
-    code: Option<JsString>,
+    code: Option<SourceCode>,
     line_offsets: Option<Arc<[i32]>>,
     num_lines: i32,
     num_bytes: i32,
@@ -60,6 +63,30 @@ pub struct SourceFile {
     /// Rust-only (performance divergence): `kind` (also in `state`) as an atomic, so that the
     /// frequent `getKind`/`isExtern` reads take no lock.
     kind_code: std::sync::atomic::AtomicU8,
+}
+
+/// A preloaded file has stable string identity across reads, including after the cache is
+/// cleared. For embedded resources, a snapshot or dependency lookup can consume the read
+/// without ever needing its UTF-16 code units.
+#[derive(Clone, Debug)]
+pub(crate) enum SourceCode {
+    Text(JsString),
+    Bundled(Arc<bundled_externs::BundledSource>),
+}
+
+impl SourceCode {
+    pub(crate) fn as_text(&self) -> &JsString {
+        match self {
+            Self::Text(text) => text,
+            Self::Bundled(resource) => resource.text(),
+        }
+    }
+    pub(crate) fn into_text(self) -> JsString {
+        match self {
+            Self::Text(text) => text,
+            Self::Bundled(resource) => resource.text().clone(),
+        }
+    }
 }
 impl SourceFile {
     // port: SourceFile#SourceFile
@@ -104,7 +131,7 @@ impl SourceFile {
     // port: SourceFile#getNumLines
     pub fn get_num_lines(&self) -> i32 {
         let unknown = self.state.lock().unwrap().num_lines < 0;
-        if unknown && self.get_code().is_err() {
+        if unknown && self.read_source().is_err() {
             return 0;
         }
         self.state.lock().unwrap().num_lines
@@ -112,20 +139,14 @@ impl SourceFile {
     // port: SourceFile#getNumBytes
     pub fn get_num_bytes(&self) -> i32 {
         let unknown = self.state.lock().unwrap().num_bytes < 0;
-        if unknown && self.get_code().is_err() {
+        if unknown && self.read_source().is_err() {
             return 0;
         }
         self.state.lock().unwrap().num_bytes
     }
     // port: SourceFile#isLineTerminator
     pub(crate) fn is_line_terminator(ch: u16) -> bool {
-        matches!(
-            ch,
-            0x0A // Line Feed
-                | 0x0D // Carriage Return
-                | 0x2028 // Line Separator
-                | 0x2029 // Paragraph Separator
-        )
+        line_count::is_line_terminator(ch)
     }
     // port: SourceFile#findLineOffsets
     fn find_line_offsets(&self) -> Arc<[i32]> {
@@ -160,6 +181,9 @@ impl SourceFile {
     }
     // port: SourceFile#getCode
     pub fn get_code(&self) -> Result<JsString, IOException> {
+        self.read_source().map(SourceCode::into_text)
+    }
+    pub(crate) fn read_source(&self) -> Result<SourceCode, IOException> {
         if self.state.lock().unwrap().code.is_none() {
             let _lock = self
                 .load_lock
@@ -174,19 +198,24 @@ impl SourceFile {
     /// Rust-only: the code `get_code` returns, without caching it in this SourceFile (for
     /// `parallel_parse`, which must not change the file's state).
     pub fn load_code_uncached(&self) -> Result<JsString, IOException> {
+        self.read_source_uncached().map(SourceCode::into_text)
+    }
+    pub(crate) fn read_source_uncached(&self) -> Result<SourceCode, IOException> {
         if let Some(code) = self.state.lock().unwrap().code.clone() {
             return Ok(code);
         }
-        let mut code = self.loader.load_uncached_code()?;
+        let code = self.loader.load_uncached_code()?;
         // set_code_and_do_bookkeeping
-        if code.as_units().first() == Some(&0xfeff) {
-            code = code.substring_from(1);
+        if let SourceCode::Text(text) = &code
+            && text.as_units().first() == Some(&0xfeff)
+        {
+            return Ok(SourceCode::Text(text.substring_from(1)));
         }
         Ok(code)
     }
     // port: SourceFile#setCodeDeprecated
     pub fn set_code_deprecated(&self, code: impl Into<JsString>) {
-        self.set_code_and_do_bookkeeping(Some(code.into()));
+        self.set_code_and_do_bookkeeping(Some(SourceCode::Text(code.into())));
     }
     // port: SourceFile#getCodeReader
     pub fn get_code_reader(&self) -> Result<JsString, IOException> {
@@ -204,29 +233,20 @@ impl SourceFile {
         self.get_code()
     }
     // port: SourceFile#setCodeAndDoBookkeeping
-    fn set_code_and_do_bookkeeping(&self, source_code: Option<JsString>) {
+    fn set_code_and_do_bookkeeping(&self, source_code: Option<SourceCode>) {
         let mut state = self.state.lock().unwrap();
         state.code = None;
         state.line_offsets = None;
         if let Some(mut source_code) = source_code {
-            if source_code.as_units().first() == Some(&0xfeff) {
-                source_code = source_code.substring_from(1);
-            }
-            state.num_bytes = source_code.length() as i32;
-            let units = source_code.as_units();
-            let mut num_lines = 1; // there is always at least one line
-            let mut i = 0;
-            while i < units.len() {
-                let ch = units[i];
-                if Self::is_line_terminator(ch) {
-                    if ch == 0x0D && i + 1 < units.len() && units[i + 1] == 0x0A {
-                        i += 1;
+            (state.num_bytes, state.num_lines) = match &mut source_code {
+                SourceCode::Text(text) => {
+                    if text.as_units().first() == Some(&0xfeff) {
+                        *text = text.substring_from(1);
                     }
-                    num_lines += 1;
+                    (text.length() as i32, line_count::num_lines(text.as_units()))
                 }
-                i += 1;
-            }
-            state.num_lines = num_lines;
+                SourceCode::Bundled(resource) => resource.size(),
+            };
             state.code = Some(source_code);
         }
     }
@@ -765,7 +785,7 @@ impl Builder {
             };
             return SourceFile::new(
                 CodeLoader::Preloaded {
-                    preloaded_code: code,
+                    preloaded_code: SourceCode::Text(code),
                 },
                 display_path,
                 self.kind,
@@ -813,7 +833,7 @@ impl Builder {
 enum CodeLoader {
     // port: SourceFile.CodeLoader.Preloaded#Preloaded
     Preloaded {
-        preloaded_code: JsString,
+        preloaded_code: SourceCode,
     },
     // port: SourceFile.CodeLoader.StubSourceFileCodeLoader#StubSourceFileCodeLoader
     StubSourceFileCodeLoader,
@@ -834,7 +854,7 @@ impl CodeLoader {
     // port: SourceFile.CodeLoader.StubSourceFileCodeLoader#loadUncachedCode
     // port: SourceFile.CodeLoader.OnDisk#loadUncachedCode
     // port: SourceFile.CodeLoader.AtZip#loadUncachedCode
-    fn load_uncached_code(&self) -> Result<JsString, IOException> {
+    fn load_uncached_code(&self) -> Result<SourceCode, IOException> {
         match self {
             Self::Preloaded { preloaded_code } => Ok(preloaded_code.clone()),
             Self::StubSourceFileCodeLoader => {
@@ -843,13 +863,16 @@ impl CodeLoader {
             Self::OnDisk { relative_path, .. } => {
                 let path = relative_path.to_string_lossy();
                 let bytes = fs::read(relative_path).map_err(|e| IOException::from_io(e, &path))?;
-                self.get_charset().decode(&bytes, false).map_err(|_| {
-                    IOException::new(format!(
-                        "Failed to read: {path}, is this input UTF-8 encoded?"
-                    ))
-                })
+                self.get_charset()
+                    .decode(&bytes, false)
+                    .map(SourceCode::Text)
+                    .map_err(|_| {
+                        IOException::new(format!(
+                            "Failed to read: {path}, is this input UTF-8 encoded?"
+                        ))
+                    })
             }
-            Self::AtZip { .. } => Ok(self.open_uncached_reader()?.unwrap()),
+            Self::AtZip { .. } => Ok(SourceCode::Text(self.open_uncached_reader()?.unwrap())),
         }
     }
     // port: SourceFile.CodeLoader#openUncachedReader
@@ -897,9 +920,8 @@ impl CodeLoader {
     // port: SourceFile.CodeLoader.AtZip#toProtoLocationBuilder
     fn to_proto_location_builder(&self, file_name: &str) -> SourceFileProto {
         match self {
-            Self::Preloaded { preloaded_code } => {
-                SourceFileProto::new_builder().set_preloaded_contents(preloaded_code.clone())
-            }
+            Self::Preloaded { preloaded_code } => SourceFileProto::new_builder()
+                .set_preloaded_contents(preloaded_code.clone().into_text()),
             Self::StubSourceFileCodeLoader => SourceFileProto::new_builder()
                 .set_filename(file_name)
                 .set_stub_file(true),

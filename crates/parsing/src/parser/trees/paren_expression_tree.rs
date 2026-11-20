@@ -31,7 +31,7 @@ impl ParenExpressionTree {
         ParseTree::new(
             ParseTreeType::PAREN_EXPRESSION,
             location,
-            ParseTreeData::ParenExpressionTree(Box::new(Self { expression })),
+            ParseTreeData::ParenExpressionTree(Self { expression }),
         )
     }
 }

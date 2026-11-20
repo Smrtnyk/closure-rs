@@ -92,7 +92,7 @@ pub(crate) fn create(
         is_specialized_only_with_unknown: maybe_is_specialized_only_with_unknown,
         replacer,
     };
-    let id = reg.alloc(JSTypeKind::Templatized(data), Some(map));
+    let id = reg.alloc(JSTypeKind::Templatized(Box::new(data)), Some(map));
     reg.finish_construction(id, ast);
     id
 }

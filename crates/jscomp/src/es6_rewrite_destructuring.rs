@@ -131,7 +131,7 @@ impl Es6RewriteDestructuring {
         let compiler = builder.compiler;
         let rewrite_mode = builder.rewrite_mode;
         let ast_factory = compiler.create_ast_factory();
-        let namespace = TranspilationNamespace::get(compiler);
+        let namespace = TranspilationNamespace::for_es2015_pass(compiler);
         let use_jscomp_assign = !compiler
             .get_options()
             .get_output_feature_set()

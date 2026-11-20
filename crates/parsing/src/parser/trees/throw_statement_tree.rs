@@ -31,9 +31,9 @@ impl ThrowStatementTree {
         ParseTree::new(
             ParseTreeType::THROW_STATEMENT,
             location,
-            ParseTreeData::ThrowStatementTree(Box::new(Self {
+            ParseTreeData::ThrowStatementTree(Self {
                 value: value.into(),
-            })),
+            }),
         )
     }
 }

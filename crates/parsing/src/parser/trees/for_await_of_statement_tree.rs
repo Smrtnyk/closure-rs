@@ -34,11 +34,11 @@ impl ForAwaitOfStatementTree {
         ParseTree::new(
             ParseTreeType::FOR_AWAIT_OF_STATEMENT,
             location,
-            ParseTreeData::ForAwaitOfStatementTree(Box::new(Self {
+            ParseTreeData::ForAwaitOfStatementTree(Self {
                 initializer,
                 collection,
                 body,
-            })),
+            }),
         )
     }
 }

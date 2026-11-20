@@ -1301,14 +1301,10 @@ impl AbstractPeepholeOptimization for PeepholeMinimizeConditions {
         "com.google.javascript.jscomp.PeepholeMinimizeConditions"
     }
 
-    /// Tries to apply our various peephole minimizations on the passed in node.
-    // port: PeepholeMinimizeConditions#optimizeSubtree
-    fn optimize_subtree(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        node: NodeId,
-    ) -> Option<NodeId> {
-        match node.get_token(compiler) {
+    crate::abstract_peephole_optimization::token_rules! {
+        // port: PeepholeMinimizeConditions#optimizeSubtree
+        /// Tries to apply our various peephole minimizations on the passed in node.
+        fn optimize_subtree(&mut self, compiler, node) {
             Token::THROW | Token::RETURN => {
                 let result = self.try_remove_redundant_exit(compiler, node);
                 if result != Some(node) {
@@ -1317,44 +1313,39 @@ impl AbstractPeepholeOptimization for PeepholeMinimizeConditions {
                 Some(self.try_replace_exit_with_break(compiler, node))
                 // TODO(johnlenz): Maybe remove redundant BREAK and CONTINUE. Overlaps
                 // with MinimizeExitPoints.
-            }
+            },
             Token::NOT => {
                 let first = node.get_first_child(compiler).unwrap();
                 self.try_minimize_condition(compiler, first);
                 Some(self.try_minimize_not(compiler, node))
-            }
+            },
             Token::IF => {
                 let first = node.get_first_child(compiler).unwrap();
                 self.perform_condition_substitutions(compiler, first);
                 Some(self.try_minimize_if(compiler, node))
-            }
+            },
             Token::EXPR_RESULT => {
                 let first = node.get_first_child(compiler).unwrap();
                 self.perform_condition_substitutions(compiler, first);
                 Some(self.try_minimize_expr_result(compiler, node))
-            }
+            },
             Token::HOOK => {
                 let first = node.get_first_child(compiler).unwrap();
                 self.perform_condition_substitutions(compiler, first);
                 Some(self.try_minimize_hook(compiler, node))
-            }
+            },
             Token::WHILE | Token::DO => {
                 let cond = NodeUtil::get_condition_expression(compiler, node).unwrap();
                 self.try_minimize_condition(compiler, cond);
                 Some(node)
-            }
+            },
             Token::FOR => {
                 self.try_join_for_condition(compiler, node);
                 let cond = NodeUtil::get_condition_expression(compiler, node).unwrap();
                 self.try_minimize_condition(compiler, cond);
                 Some(node)
-            }
+            },
             Token::BLOCK => Some(self.try_replace_if(compiler, node)),
-            _ =>
-            // Nothing changed
-            {
-                Some(node)
-            }
         }
     }
 }

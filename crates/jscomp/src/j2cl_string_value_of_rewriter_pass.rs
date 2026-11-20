@@ -75,6 +75,10 @@ impl AbstractPeepholeOptimization for J2clStringValueOfRewriterPass {
         self.should_run_j2cl_passes = J2clSourceFileChecker::should_run_j2cl_passes(compiler);
     }
 
+    fn candidate_tokens(&self) -> Option<&'static [closure_rhino::token::Token]> {
+        Some(&[])
+    }
+
     // port: J2clStringValueOfRewriterPass#optimizeSubtree
     fn optimize_subtree(
         &mut self,

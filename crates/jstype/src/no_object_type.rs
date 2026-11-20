@@ -70,7 +70,7 @@ impl NoObjectType {
                 .with_kind(Kind::NONE)
                 .with_returns_own_instance_type()
                 .for_native_type(),
-            |function| JSTypeKind::NoObject(NoObjectTypeData { function }),
+            |function| JSTypeKind::NoObject(Box::new(NoObjectTypeData { function })),
             true,
         )
     }

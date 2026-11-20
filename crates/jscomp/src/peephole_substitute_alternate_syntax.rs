@@ -708,14 +708,10 @@ impl AbstractPeepholeOptimization for PeepholeSubstituteAlternateSyntax {
         "com.google.javascript.jscomp.PeepholeSubstituteAlternateSyntax"
     }
 
-    /// Tries apply our various peephole minimizations on the passed in node.
-    // port: PeepholeSubstituteAlternateSyntax#optimizeSubtree
-    fn optimize_subtree(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        node: NodeId,
-    ) -> Option<NodeId> {
-        Some(match node.get_token(compiler) {
+    crate::abstract_peephole_optimization::token_rules! {
+        // port: PeepholeSubstituteAlternateSyntax#optimizeSubtree
+        /// Tries apply our various peephole minimizations on the passed in node.
+        fn optimize_subtree(&mut self, compiler, node) {
             Token::ASSIGN_SUB => self.reduce_substraction_assignment(compiler, node),
             Token::TRUE | Token::FALSE => self.reduce_true_false(compiler, node),
             Token::NEW => {
@@ -726,7 +722,7 @@ impl AbstractPeepholeOptimization for PeepholeSubstituteAlternateSyntax {
                     // tryFoldStandardConstructors() may convert a NEW node into a CALL node
                     self.try_reduce_call(compiler, result)
                 }
-            }
+            },
             Token::CALL => self.try_reduce_call(compiler, node),
             Token::RETURN => self.try_reduce_return(compiler, node),
             Token::EXPR_RESULT => {
@@ -735,7 +731,7 @@ impl AbstractPeepholeOptimization for PeepholeSubstituteAlternateSyntax {
                 } else {
                     node
                 }
-            }
+            },
             Token::NAME => self.try_replace_undefined(compiler, node),
             Token::ARRAYLIT => self.try_minimize_array_literal(compiler, node),
             Token::GETPROP => self.try_minimize_window_refs(compiler, node),
@@ -752,8 +748,7 @@ impl AbstractPeepholeOptimization for PeepholeSubstituteAlternateSyntax {
                 } else {
                     self.try_rotate_commutative_operator(compiler, node)
                 }
-            }
-            _ => node,
-        })
+            },
+        }
     }
 }

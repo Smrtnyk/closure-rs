@@ -67,9 +67,9 @@ impl NoType {
                 .with_returns_own_instance_type()
                 .for_native_type(),
             |function| {
-                JSTypeKind::No(NoTypeData {
+                JSTypeKind::No(Box::new(NoTypeData {
                     no_object: NoObjectTypeData { function },
-                })
+                }))
             },
             true,
         )

@@ -2211,6 +2211,39 @@ fn test_bundle_output_ignores_syntax_errors() {
     assert_eq!(output, format!("//{first}\nvar a; syntax error!\n"));
 }
 
+#[test]
+fn bundle_runner_keeps_public_source_map_cache() {
+    let files = TempFiles::new();
+    let source = "export const value = '𝄞';";
+    let input = files.create_js_file("module", source);
+    let args = [
+        "--compilation_level=BUNDLE".into(),
+        format!("--js_output_file={}", files.0.join("out.js").display()),
+        format!("--js={input}"),
+    ];
+    let runner = || {
+        CommandLineRunner::new(
+            &args,
+            Box::new(std::io::empty()),
+            Box::new(std::io::sink()),
+            Box::new(std::io::sink()),
+        )
+        .unwrap()
+    };
+    let mut reusable = runner();
+    assert_eq!(reusable.run(), 0);
+    let map = reusable.get_bundler().unwrap().get_source_map(&input);
+    let json: serde_json::Value = serde_json::from_str(&map.to_string_lossy()).unwrap();
+    assert_eq!(json["sourcesContent"][0], source);
+    assert!(!json["mappings"].as_str().unwrap().is_empty());
+
+    // A caller can keep a shared bundler even when it then gives up ownership of the runner.
+    let mut consumed = runner();
+    let observed = consumed.get_bundler().unwrap().clone();
+    assert_eq!(consumed.run_for_process_exit(), 0);
+    assert_eq!(observed.get_source_map(&input), map);
+}
+
 // port: CommandLineRunnerTest#testGlobJs6
 #[test]
 fn test_glob_js6() {

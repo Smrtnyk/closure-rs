@@ -595,7 +595,7 @@ impl ReferenceMap {
 struct ReferenceMapBuildingCallback<'a> {
     /// Rust-only: Java's set of extern property names, as JS strings (compared without
     /// converting each property name, performance divergence).
-    extern_props: IndexSet<JsString>,
+    extern_props: std::sync::Arc<IndexSet<JsString>>,
     references: &'a mut ReferenceMap,
     global_scope: Option<ScopeId>,
     // The enclosing OptimizeCalls instance's `considerExterns` field (Java inner class).
@@ -611,8 +611,8 @@ impl<'a> ReferenceMapBuildingCallback<'a> {
     ) -> Self {
         Self {
             extern_props: compiler
-                .get_extern_properties_js()
-                .map(|props| props.iter().cloned().collect())
+                .get_extern_property_set_js()
+                .cloned()
                 .unwrap_or_default(),
             references,
             global_scope: None,

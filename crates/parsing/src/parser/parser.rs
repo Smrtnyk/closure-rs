@@ -2813,7 +2813,7 @@ impl Parser {
     // port: Parser#parseShortCircuit
     fn parse_short_circuit(&mut self, expression_in: Expression) -> P<Tree> {
         let start = self.get_tree_start_location();
-        let left = self.parse_logical_or(expression_in)?;
+        let left = self.parse_binary(expression_in, Self::LOGICAL_OR)?;
         if self.peek(TokenType::QUESTION_QUESTION) {
             if left.type_ == ParseTreeType::BINARY_OPERATOR {
                 let binary_tree = left.as_binary_operator();
@@ -2840,7 +2840,7 @@ impl Parser {
     ) -> P<Tree> {
         while self.peek(TokenType::QUESTION_QUESTION) {
             let operator = required(self.eat(TokenType::QUESTION_QUESTION))?;
-            let right = self.parse_bitwise_or(expression_in)?;
+            let right = self.parse_binary(expression_in, Self::BITWISE_OR)?;
             left = BinaryOperatorTree::new(
                 self.get_tree_location(start.clone()),
                 left,
@@ -2856,200 +2856,57 @@ impl Parser {
         }
         Ok(left)
     }
-    // 11.11 Logical OR
-    // port: Parser#parseLogicalOR
-    fn parse_logical_or(&mut self, expression_in: Expression) -> P<Tree> {
-        let start = self.get_tree_start_location();
-        let mut left = self.parse_logical_and(expression_in)?;
-        while self.peek(TokenType::OR) {
-            let operator = required(self.eat(TokenType::OR))?;
-            let right = self.parse_logical_and(expression_in)?;
-            left = BinaryOperatorTree::new(
-                self.get_tree_location(start.clone()),
-                left,
-                operator,
-                right,
-            );
-        }
-        Ok(left)
-    }
-    // 11.11 Logical AND
-    // port: Parser#parseLogicalAND
-    fn parse_logical_and(&mut self, expression_in: Expression) -> P<Tree> {
-        let start = self.get_tree_start_location();
-        let mut left = self.parse_bitwise_or(expression_in)?;
-        while self.peek(TokenType::AND) {
-            let operator = required(self.eat(TokenType::AND))?;
-            let right = self.parse_bitwise_or(expression_in)?;
-            left = BinaryOperatorTree::new(
-                self.get_tree_location(start.clone()),
-                left,
-                operator,
-                right,
-            );
-        }
-        Ok(left)
-    }
-    // 11.10 Bitwise OR
-    // port: Parser#parseBitwiseOR
-    fn parse_bitwise_or(&mut self, expression_in: Expression) -> P<Tree> {
-        let start = self.get_tree_start_location();
-        let mut left = self.parse_bitwise_xor(expression_in)?;
-        while self.peek(TokenType::BAR) {
-            let operator = required(self.eat(TokenType::BAR))?;
-            let right = self.parse_bitwise_xor(expression_in)?;
-            left = BinaryOperatorTree::new(
-                self.get_tree_location(start.clone()),
-                left,
-                operator,
-                right,
-            );
-        }
-        Ok(left)
-    }
-    // 11.10 Bitwise XOR
-    // port: Parser#parseBitwiseXOR
-    fn parse_bitwise_xor(&mut self, expression_in: Expression) -> P<Tree> {
-        let start = self.get_tree_start_location();
-        let mut left = self.parse_bitwise_and(expression_in)?;
-        while self.peek(TokenType::CARET) {
-            let operator = required(self.eat(TokenType::CARET))?;
-            let right = self.parse_bitwise_and(expression_in)?;
-            left = BinaryOperatorTree::new(
-                self.get_tree_location(start.clone()),
-                left,
-                operator,
-                right,
-            );
-        }
-        Ok(left)
-    }
-    // 11.10 Bitwise AND
-    // port: Parser#parseBitwiseAND
-    fn parse_bitwise_and(&mut self, expression_in: Expression) -> P<Tree> {
-        let start = self.get_tree_start_location();
-        let mut left = self.parse_equality(expression_in)?;
-        while self.peek(TokenType::AMPERSAND) {
-            let operator = required(self.eat(TokenType::AMPERSAND))?;
-            let right = self.parse_equality(expression_in)?;
-            left = BinaryOperatorTree::new(
-                self.get_tree_location(start.clone()),
-                left,
-                operator,
-                right,
-            );
-        }
-        Ok(left)
-    }
-    // 11.9 Equality Expression
-    // port: Parser#parseEquality
-    fn parse_equality(&mut self, expression_in: Expression) -> P<Tree> {
-        let start = self.get_tree_start_location();
-        let mut left = self.parse_relational(expression_in)?;
-        while self.peek_equality_operator() {
-            let operator = self.next_token();
-            let right = self.parse_relational(expression_in)?;
-            left = BinaryOperatorTree::new(
-                self.get_tree_location(start.clone()),
-                left,
-                operator,
-                right,
-            );
-        }
-        Ok(left)
-    }
-    // port: Parser#peekEqualityOperator
-    fn peek_equality_operator(&mut self) -> bool {
-        matches!(
-            self.peek_type(),
-            TokenType::EQUAL_EQUAL
-                | TokenType::NOT_EQUAL
-                | TokenType::EQUAL_EQUAL_EQUAL
-                | TokenType::NOT_EQUAL_EQUAL
-        )
-    }
-    // 11.8 Relational
-    // port: Parser#parseRelational
-    fn parse_relational(&mut self, expression_in: Expression) -> P<Tree> {
-        let start = self.get_tree_start_location();
-        let mut left = self.parse_shift_expression()?;
-        while self.peek_relational_operator(expression_in) {
-            let operator = self.next_token();
-            let right = self.parse_shift_expression()?;
-            left = BinaryOperatorTree::new(
-                self.get_tree_location(start.clone()),
-                left,
-                operator,
-                right,
-            );
-        }
-        Ok(left)
-    }
-    // port: Parser#peekRelationalOperator
-    fn peek_relational_operator(&mut self, expression_in: Expression) -> bool {
-        match self.peek_type() {
-            TokenType::OPEN_ANGLE
-            | TokenType::CLOSE_ANGLE
-            | TokenType::GREATER_EQUAL
-            | TokenType::LESS_EQUAL
-            | TokenType::INSTANCEOF => true,
-            TokenType::IN => expression_in == Expression::NORMAL,
-            _ => false,
-        }
-    }
-    // 11.7 Shift Expression
-    // port: Parser#parseShiftExpression
-    fn parse_shift_expression(&mut self) -> P<Tree> {
-        let start = self.get_tree_start_location();
-        let mut left = self.parse_additive_expression()?;
-        while self.peek_shift_operator() {
-            let operator = self.next_token();
-            let right = self.parse_additive_expression()?;
-            left = BinaryOperatorTree::new(
-                self.get_tree_location(start.clone()),
-                left,
-                operator,
-                right,
-            );
-        }
-        Ok(left)
-    }
-    // port: Parser#peekShiftOperator
-    fn peek_shift_operator(&mut self) -> bool {
-        matches!(
-            self.peek_type(),
-            TokenType::LEFT_SHIFT | TokenType::RIGHT_SHIFT | TokenType::UNSIGNED_RIGHT_SHIFT
-        )
-    }
-    // 11.6 Additive Expression
-    // port: Parser#parseAdditiveExpression
-    fn parse_additive_expression(&mut self) -> P<Tree> {
-        let start = self.get_tree_start_location();
-        let mut left = self.parse_multiplicative_expression()?;
-        while self.peek_additive_operator() {
-            let operator = self.next_token();
-            let right = self.parse_multiplicative_expression()?;
-            left = BinaryOperatorTree::new(
-                self.get_tree_location(start.clone()),
-                left,
-                operator,
-                right,
-            );
-        }
-        Ok(left)
-    }
-    // port: Parser#peekAdditiveOperator
-    fn peek_additive_operator(&mut self) -> bool {
-        matches!(self.peek_type(), TokenType::PLUS | TokenType::MINUS)
-    }
-    // 11.5 Multiplicative Expression
-    // port: Parser#parseMultiplicativeExpression
-    fn parse_multiplicative_expression(&mut self) -> P<Tree> {
+    // Rust-only (performance divergence): the left-associative levels of the Java binary
+    // expression grammar share one precedence-climbing loop. Each right operand consumes
+    // only tighter operators. Exponentiation and nullish coalescing retain their own grammar
+    // and error handling.
+    fn parse_binary(&mut self, expression_in: Expression, minimum: u8) -> P<Tree> {
         let start = self.get_tree_start_location();
         let mut left = self.parse_exponentiation_expression()?;
-        while self.peek_multiplicative_operator() {
+        loop {
+            let precedence = match self.peek_type() {
+                // port: Parser#parseLogicalOR
+                TokenType::OR => Self::LOGICAL_OR,
+                // port: Parser#parseLogicalAND
+                TokenType::AND => 2,
+                // port: Parser#parseBitwiseOR
+                TokenType::BAR => Self::BITWISE_OR,
+                // port: Parser#parseBitwiseXOR
+                TokenType::CARET => 4,
+                // port: Parser#parseBitwiseAND
+                TokenType::AMPERSAND => 5,
+                // port: Parser#parseEquality
+                // port: Parser#peekEqualityOperator
+                TokenType::EQUAL_EQUAL
+                | TokenType::NOT_EQUAL
+                | TokenType::EQUAL_EQUAL_EQUAL
+                | TokenType::NOT_EQUAL_EQUAL => 6,
+                // port: Parser#parseRelational
+                // port: Parser#peekRelationalOperator
+                TokenType::OPEN_ANGLE
+                | TokenType::CLOSE_ANGLE
+                | TokenType::GREATER_EQUAL
+                | TokenType::LESS_EQUAL
+                | TokenType::INSTANCEOF => 7,
+                TokenType::IN if expression_in == Expression::NORMAL => 7,
+                // port: Parser#parseShiftExpression
+                // port: Parser#peekShiftOperator
+                TokenType::LEFT_SHIFT
+                | TokenType::RIGHT_SHIFT
+                | TokenType::UNSIGNED_RIGHT_SHIFT => 8,
+                // port: Parser#parseAdditiveExpression
+                // port: Parser#peekAdditiveOperator
+                TokenType::PLUS | TokenType::MINUS => 9,
+                // port: Parser#parseMultiplicativeExpression
+                // port: Parser#peekMultiplicativeOperator
+                TokenType::STAR | TokenType::SLASH | TokenType::PERCENT => 10,
+                _ => break,
+            };
+            if precedence < minimum {
+                break;
+            }
             let operator = self.next_token();
-            let right = self.parse_exponentiation_expression()?;
+            let right = self.parse_binary(expression_in, precedence + 1)?;
             left = BinaryOperatorTree::new(
                 self.get_tree_location(start.clone()),
                 left,
@@ -3059,13 +2916,8 @@ impl Parser {
         }
         Ok(left)
     }
-    // port: Parser#peekMultiplicativeOperator
-    fn peek_multiplicative_operator(&mut self) -> bool {
-        matches!(
-            self.peek_type(),
-            TokenType::STAR | TokenType::SLASH | TokenType::PERCENT
-        )
-    }
+    const LOGICAL_OR: u8 = 1;
+    const BITWISE_OR: u8 = 3;
     // port: Parser#parseExponentiationExpression
     fn parse_exponentiation_expression(&mut self) -> P<Tree> {
         let start = self.get_tree_start_location();
@@ -3874,9 +3726,7 @@ impl Parser {
         let token = self.scanner.peek_token_ref_at(index);
         let mut type_to_check = token.type_;
         if type_to_check == TokenType::IDENTIFIER {
-            let value = token.get_maybe_private_value();
-            let k = Keywords::get_by_name(value);
-            let Some(k) = k else {
+            let Some(k) = token.as_identifier().keyword() else {
                 return true;
             };
             // Swap the type to the matched keyword's type
@@ -3938,11 +3788,12 @@ impl Parser {
         let token = self.next_token();
         if token.type_ == TokenType::IDENTIFIER {
             Some(token)
-        } else if Keywords::is_keyword_type(token.type_) {
-            let value = Keywords::get_by_type(token.type_)
-                .unwrap()
-                .to_string_utf16();
-            Some(IdentifierToken::new(token.location, value))
+        } else if let Some(keyword) = Keywords::get_by_type(token.type_) {
+            Some(IdentifierToken::with_keyword(
+                token.location,
+                keyword.to_string_utf16(),
+                Some(keyword),
+            ))
         } else {
             self.report_expected_error(Some(&token), TokenType::IDENTIFIER.to_string_utf16());
             None

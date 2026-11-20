@@ -104,6 +104,7 @@ impl CompilerPass for InlineVariables {
             }),
         );
         // Rust-only (performance divergence): vars declared in the externs are never inlined.
+        callback.reuse_reference_sites();
         callback.skip_externs_when_unread();
         CompilerPass::process(&mut callback, compiler, externs, root);
     }
@@ -240,7 +241,7 @@ struct InliningBehavior {
     ///
     /// This is necessary in order for aliases of those variables to determine whether they may
     /// be inlined.
-    current_scope_handled_var_analyses_map: IndexMap<VarKey, InlineVarAnalysis>,
+    current_scope_handled_var_analyses_map: HandledVarAnalyses,
 
     /// Records alias variables that are waiting for the original variables to be handled.
     ///
@@ -252,6 +253,10 @@ struct InliningBehavior {
 }
 
 impl Behavior for InliningBehavior {
+    fn can_reuse_function_reference_sites(&self) -> bool {
+        true
+    }
+
     // port: InlineVariables.InliningBehavior#afterExitScope
     fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, reference_map: &dyn ReferenceMap) {
         self.do_inlines_for_scope(t, reference_map);
@@ -276,7 +281,7 @@ impl InliningBehavior {
     fn new(mode: Mode) -> Self {
         Self {
             mode,
-            current_scope_handled_var_analyses_map: IndexMap::<_, _>::default(),
+            current_scope_handled_var_analyses_map: HandledVarAnalyses::default(),
             var_to_alias_retry_handlers_map: IndexMap::<_, _>::default(),
             experts: Vec::new(),
         }
@@ -312,8 +317,7 @@ impl InliningBehavior {
                 let aliased_var = analysis.get_aliased_var();
                 let aliased_var_analysis = self
                     .current_scope_handled_var_analyses_map
-                    .get(&VarKey::of(compiler, aliased_var))
-                    .copied();
+                    .get(compiler, aliased_var);
                 if let Some(aliased_var_analysis) = aliased_var_analysis {
                     // We've actually already completed the aliased Var
                     self.handle_aliased_var_completion(
@@ -335,7 +339,7 @@ impl InliningBehavior {
                 }
                 // Record the results for aliases we may find later
                 self.current_scope_handled_var_analyses_map
-                    .insert(VarKey::of(compiler, v), analysis);
+                    .insert(v, analysis);
                 // Retry any aliases we saw before handling this Var
                 self.retry_aliases(compiler, v, analysis);
             }
@@ -382,9 +386,12 @@ impl InliningBehavior {
         aliased_var: VarId,
         aliased_var_analysis: InlineVarAnalysis,
     ) {
+        if self.var_to_alias_retry_handlers_map.is_empty() {
+            return;
+        }
         let handlers = self
             .var_to_alias_retry_handlers_map
-            .shift_remove(&VarKey::of(compiler, aliased_var))
+            .swap_remove(&VarKey::of(compiler, aliased_var))
             .unwrap_or_default();
         for alias_inline_retry_handler in handlers {
             self.handle_aliased_var_completion(
@@ -419,7 +426,7 @@ impl InliningBehavior {
             new_analysis.perform_inline(compiler, &self.experts);
         }
         self.current_scope_handled_var_analyses_map
-            .insert(VarKey::of(compiler, handler.v), new_analysis);
+            .insert(handler.v, new_analysis);
         self.retry_aliases(compiler, handler.v, new_analysis);
     }
 
@@ -852,6 +859,34 @@ impl InliningBehavior {
     // port: InlineVariables.InliningBehavior#isValidReference
     fn is_valid_reference(ast: &Ast, reference: &Reference) -> bool {
         !reference.is_declaration(ast) && !reference.is_lvalue(ast)
+    }
+}
+
+/// Most scopes complete every variable without looking up a previous analysis. Keep their
+/// completions in order and index them only when an alias asks. A fresh Var for the same name
+/// and scope root must find the same result, including a completion from a nested scope.
+#[derive(Default)]
+struct HandledVarAnalyses {
+    pending: Vec<(VarId, InlineVarAnalysis)>,
+    indexed: IndexMap<VarKey, InlineVarAnalysis>,
+}
+
+impl HandledVarAnalyses {
+    fn clear(&mut self) {
+        self.pending.clear();
+        self.indexed.clear();
+    }
+
+    fn insert(&mut self, var: VarId, analysis: InlineVarAnalysis) {
+        self.pending.push((var, analysis));
+    }
+
+    fn get(&mut self, compiler: &AbstractCompiler, var: VarId) -> Option<InlineVarAnalysis> {
+        for (completed, analysis) in self.pending.drain(..) {
+            self.indexed
+                .insert(VarKey::of(compiler, completed), analysis);
+        }
+        self.indexed.get(&VarKey::of(compiler, var)).copied()
     }
 }
 

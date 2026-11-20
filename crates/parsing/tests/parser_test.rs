@@ -12489,6 +12489,50 @@ fn test_import_meta_as_dot_property() {
     assert_node_equality(&h.ast, tmp4, tree.get_first_child(&h.ast).unwrap());
 }
 
+#[test]
+fn mixed_binary_precedence_and_associativity() {
+    let mut h = Harness::new();
+    let source = "a || b && c | d ^ e & f === g < h << i + j * k";
+    let tree = h.parse(source);
+    let mut expr = tree.get_first_first_child(&h.ast).unwrap();
+    for (i, operator) in [
+        Token::OR,
+        Token::AND,
+        Token::BITOR,
+        Token::BITXOR,
+        Token::BITAND,
+        Token::SHEQ,
+        Token::LT,
+        Token::LSH,
+        Token::ADD,
+        Token::MUL,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_eq!(expr.get_token(&h.ast), operator);
+        let left = expr.get_first_child(&h.ast).unwrap();
+        assert_eq!(
+            left.get_string_ref(&h.ast).as_units(),
+            &[u16::from(b'a' + i as u8)]
+        );
+        assert_eq!(expr.get_charno(&h.ast), left.get_charno(&h.ast));
+        assert_eq!(
+            expr.get_length(&h.ast),
+            source.len() as i32 - left.get_charno(&h.ast)
+        );
+        expr = expr.get_second_child(&h.ast).unwrap();
+    }
+    assert_eq!(expr.get_string_ref(&h.ast), "k");
+
+    let tree = h.parse("a - b + c");
+    let root = tree.get_first_first_child(&h.ast).unwrap();
+    assert_eq!(root.get_token(&h.ast), Token::ADD);
+    let left = root.get_first_child(&h.ast).unwrap();
+    assert_eq!(left.get_token(&h.ast), Token::SUB);
+    assert_eq!(left.get_length(&h.ast), 5);
+}
+
 // port: ParserTest#testNullishCoalesce
 #[test]
 fn test_nullish_coalesce() {

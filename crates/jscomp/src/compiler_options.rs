@@ -2893,6 +2893,9 @@ impl CompilerOptions {
             .or_default()
             .insert(CompilerPassRef(custom_pass));
     }
+    pub(crate) fn has_custom_passes(&self) -> bool {
+        self.custom_passes.is_some()
+    }
     // port: CompilerOptions#getCustomPassesAt
     pub fn get_custom_passes_at(
         &self,

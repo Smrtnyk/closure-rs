@@ -31,7 +31,7 @@ impl ObjectPatternTree {
         ParseTree::new(
             ParseTreeType::OBJECT_PATTERN,
             location,
-            ParseTreeData::ObjectPatternTree(Box::new(Self { fields })),
+            ParseTreeData::ObjectPatternTree(Self { fields }),
         )
     }
 }

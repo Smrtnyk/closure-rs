@@ -39,11 +39,11 @@ impl ComputedPropertyFieldTree {
         ParseTree::new(
             ParseTreeType::COMPUTED_PROPERTY_FIELD,
             location,
-            ParseTreeData::ComputedPropertyFieldTree(Box::new(Self {
+            ParseTreeData::ComputedPropertyFieldTree(Self {
                 property,
                 is_static,
                 initializer: initializer.into(),
-            })),
+            }),
         )
     }
 }
