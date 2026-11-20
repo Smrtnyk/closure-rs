@@ -618,6 +618,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `Behavior` field), so the per-node `beforeTraverseNode` / `afterVisitNode` hooks that a behavior
   does not override cost no call; `addReference` names the added reference by its index in the
   reference map, so `afterVisitNode` receives it without a second lookup by var.
+- `jscomp/serialization/color_pool.rs` reconciles colors using ordered references into the
+  input shards. The definitions stay in their original type pools until reconciliation and
+  diagnostics finish. This avoids copying nested object and union protos for each lookup.
 - `jscomp/serialization/convert_types_to_colors.rs` transfers the completed type shard to the
   color builder and resolves colors once per observed registry type. Nodes share the resulting
   lookup by TypeId. JSDoc conversion uses the same serialization rules and allocates its
