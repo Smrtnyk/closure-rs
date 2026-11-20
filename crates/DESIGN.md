@@ -459,6 +459,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `rhino/js_string.rs`: `indexOf` scans for the needle's first unit, then compares the rest;
   `==` with an ASCII `str` compares unit by byte; `""` conversions share one empty string
   (Java's `""` literal is one interned object).
+- The JDK pattern matcher in `rhino/java_lang/regex.rs` keeps capture boundaries and loop
+  positions in one register array. Each backtracking alternative saves its input position and
+  an index into the log of changed registers. Retrying a branch restores those registers in
+  reverse order. The backtracking storage lives for one matching or search operation.
 - `jscomp/compiler_options.rs`: the conformance path regex is compiled once per process, not
   per options object (CodePrinter.Builder makes default options per `toSource`).
 - `jscomp/scope.rs` `NameArg`, `get_var_of_node`, `typed_scope.rs` `get_var`,
