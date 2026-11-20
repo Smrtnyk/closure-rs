@@ -2663,12 +2663,8 @@ impl<'a> AbstractScopeBuilder<'a> {
             };
         } else {
             let owner_name = NodeUtil::get_best_l_value_name(compiler, owner_node);
-            if owner_name.is_some() {
-                let looked_up = lookup_qualified_name(
-                    compiler,
-                    self.current_scope,
-                    &QualifiedName::of(owner_name.clone().unwrap()),
-                );
+            if let Some(owner_name) = &owner_name {
+                let looked_up = rhino::lookup_dotted_name(compiler, self.current_scope, owner_name);
                 let (reg, _) = compiler.get_type_registry_and_ast();
                 owner_type = object_type::cast(reg, looked_up);
             }
@@ -2970,7 +2966,11 @@ impl Callback for AbstractScopeBuilder<'_> {
         n: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
-        self.input_id = t.get_input_id();
+        // Rust-only (performance divergence): the traversal selects an input on entering a
+        // script or starting at a scope within it. Descendant callbacks share that input.
+        if parent.is_none() || n.is_script(t) {
+            self.input_id = t.get_input_id();
+        }
 
         let compiler = t.get_compiler();
         if n.is_function(compiler)
@@ -3026,7 +3026,6 @@ impl Callback for AbstractScopeBuilder<'_> {
     // port: TypedScopeCreator.AbstractScopeBuilder#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
         let is_scope_root = parent.is_none();
-        self.input_id = t.get_input_id();
         if !is_scope_root || !n.is_class(t.get_compiler()) {
             // Do not type literals or visit class scope roots
             self.attach_literal_types(t.get_compiler(), n);
@@ -3997,11 +3996,15 @@ impl AbstractScopeBuilder<'_> {
         let compiler = t.get_compiler();
         let owner_node = n.get_first_child(compiler).expect("NullPointerException");
         let owner_name = owner_node.get_qualified_name(compiler);
-        let q_name = n.get_qualified_name(compiler);
         let prop_name = n.get_string(compiler);
-        check_argument!(q_name.is_some() && owner_name.is_some());
-        let q_name = q_name.unwrap();
+        check_argument!(owner_name.is_some());
         let owner_name = owner_name.unwrap();
+        // Rust-only (performance divergence): a declared prototype member only uses the
+        // owner's slot. Assemble the complete name when looking it up or storing it.
+        let qualified_name = |compiler: &AbstractCompiler| {
+            n.get_qualified_name(compiler)
+                .expect("NullPointerException")
+        };
 
         // Precedence of type information on GETPROPs:
         // 1) @type annotation / @enum annotation
@@ -4029,7 +4032,9 @@ impl AbstractScopeBuilder<'_> {
         // So if F does not have an explicitly declared super type,
         // allow F.prototype to be redefined arbitrarily.
         if prop_name == "prototype" {
-            let q_var = self.current_scope.get_var(compiler, q_name.clone());
+            let q_var = self
+                .current_scope
+                .get_var(compiler, qualified_name(compiler));
             if q_var.is_some() {
                 let q_var = q_var.unwrap();
                 // If the programmer has declared that F inherits from Super,
@@ -4087,7 +4092,7 @@ impl AbstractScopeBuilder<'_> {
 
         let inferred = self.is_qualified_name_inferred(
             compiler,
-            Some(q_name.clone()),
+            &owner_name,
             n,
             info,
             rhs_value,
@@ -4122,7 +4127,7 @@ impl AbstractScopeBuilder<'_> {
                 let scope = self.get_l_value_root_scope(compiler, Some(n));
                 SlotDefiner::new()
                     .for_declaration_node(Some(n))
-                    .for_variable_name(q_name)
+                    .for_variable_name(qualified_name(compiler))
                     .in_scope(scope)
                     .with_type(value_type)
                     .allow_later_type_inference(inferred)
@@ -4151,18 +4156,26 @@ impl AbstractScopeBuilder<'_> {
     fn is_qualified_name_inferred(
         &mut self,
         compiler: &mut AbstractCompiler,
-        q_name: Option<JsString>,
+        owner_name: &JsString,
         n: NodeId,
         info: Option<Arc<JSDocInfo>>,
         rhs_value: Option<NodeId>,
         value_type: TypeId,
     ) -> bool {
         // Prototypes of constructors and interfaces are always declared.
-        let prototype_suffix = JsString::from(".prototype");
-        if q_name.is_some() && q_name.as_ref().unwrap().ends_with(&prototype_suffix) {
-            let q_name_ref = q_name.as_ref().unwrap();
-            let class_name =
-                q_name_ref.substring(0, q_name_ref.last_index_of(&prototype_suffix) as usize);
+        let property = n.get_string_ref(compiler);
+        let class_name = if property == "prototype" {
+            Some(owner_name.clone())
+        } else if property.ends_with(".prototype") {
+            // A synthesized GETPROP can contain multiple dotted components in one token.
+            let name = n
+                .get_qualified_name(compiler)
+                .expect("NullPointerException");
+            Some(name.substring(0, name.length() - ".prototype".len()))
+        } else {
+            None
+        };
+        if let Some(class_name) = class_name {
             let slot = self.current_scope.get_var(compiler, class_name);
             let class_type = if slot.is_none() {
                 None
@@ -4216,7 +4229,10 @@ impl AbstractScopeBuilder<'_> {
         // If this qname is already declared then treat this definition as inferred.
         let owner_scope = self.get_l_value_root_scope(compiler, Some(n));
         // ownerScope is never null (getLValueRootScope returns a scope).
-        if owner_scope.has_own_slot(compiler, q_name.as_ref().expect("NullPointerException")) {
+        let q_name = n
+            .get_qualified_name(compiler)
+            .expect("NullPointerException");
+        if owner_scope.has_own_slot(compiler, &q_name) {
             return true;
         }
 
@@ -4235,7 +4251,7 @@ impl AbstractScopeBuilder<'_> {
         if self
             .creator
             .escaped_var_names
-            .contains(&<dyn ScopedName>::of(q_name.unwrap(), Some(owner_root)))
+            .contains(&<dyn ScopedName>::of(q_name, Some(owner_root)))
         {
             return true;
         }
