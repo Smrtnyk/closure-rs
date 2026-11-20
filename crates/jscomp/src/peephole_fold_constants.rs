@@ -2749,33 +2749,68 @@ impl AbstractPeepholeOptimization for PeepholeFoldConstants {
         "com.google.javascript.jscomp.PeepholeFoldConstants"
     }
 
-    // port: PeepholeFoldConstants#optimizeSubtree
-    fn optimize_subtree(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        subtree: NodeId,
-    ) -> Option<NodeId> {
-        Some(match subtree.get_token(compiler) {
+    crate::abstract_peephole_optimization::token_rules! {
+        // port: PeepholeFoldConstants#optimizeSubtree
+        fn optimize_subtree(&mut self, compiler, subtree) {
             Token::OPTCHAIN_CALL | Token::CALL => {
                 self.try_fold_useless_object_dot_define_properties_call(compiler, subtree)
-            }
+            },
             Token::NEW => self.try_fold_ctor_call(compiler, subtree),
             Token::TYPEOF => self.try_fold_typeof(compiler, subtree),
             Token::ITER_SPREAD => self.try_fold_spread(compiler, subtree),
             Token::ARRAYLIT | Token::OBJECTLIT => {
                 self.try_flatten_array_or_object_lit(compiler, subtree)
-            }
+            },
             Token::NOT | Token::POS | Token::NEG | Token::BITNOT => {
                 self.try_reduce_operands_for_op(compiler, subtree);
                 self.try_fold_unary_operator(compiler, subtree)
-            }
+            },
             Token::VOID => self.try_reduce_void(compiler, subtree),
             Token::OPTCHAIN_GETPROP | Token::GETPROP => self.try_fold_get_prop(compiler, subtree),
             Token::TEMPLATELIT => self.try_fold_template_literal_substitutions(compiler, subtree),
-            _ => {
+            // Java sends the remaining operators to its operand-reduction and binary rules.
+            Token::GETELEM
+                | Token::OPTCHAIN_GETELEM
+                | Token::INSTANCEOF
+                | Token::AND
+                | Token::OR
+                | Token::COALESCE
+                | Token::LSH
+                | Token::RSH
+                | Token::URSH
+                | Token::ASSIGN
+                | Token::ASSIGN_BITOR
+                | Token::ASSIGN_BITXOR
+                | Token::ASSIGN_BITAND
+                | Token::ASSIGN_LSH
+                | Token::ASSIGN_RSH
+                | Token::ASSIGN_URSH
+                | Token::ASSIGN_ADD
+                | Token::ASSIGN_SUB
+                | Token::ASSIGN_MUL
+                | Token::ASSIGN_DIV
+                | Token::ASSIGN_MOD
+                | Token::ASSIGN_EXPONENT
+                | Token::ADD
+                | Token::SUB
+                | Token::DIV
+                | Token::MOD
+                | Token::MUL
+                | Token::EXPONENT
+                | Token::BITAND
+                | Token::BITOR
+                | Token::BITXOR
+                | Token::LT
+                | Token::GT
+                | Token::LE
+                | Token::GE
+                | Token::EQ
+                | Token::NE
+                | Token::SHEQ
+                | Token::SHNE => {
                 self.try_reduce_operands_for_op(compiler, subtree);
                 self.try_fold_binary_operator(compiler, subtree)
-            }
-        })
+            },
+        }
     }
 }

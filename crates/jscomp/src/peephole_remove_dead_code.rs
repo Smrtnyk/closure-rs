@@ -582,13 +582,9 @@ impl AbstractPeepholeOptimization for PeepholeRemoveDeadCode {
         "com.google.javascript.jscomp.PeepholeRemoveDeadCode"
     }
 
-    // port: PeepholeRemoveDeadCode#optimizeSubtree
-    fn optimize_subtree(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        subtree: NodeId,
-    ) -> Option<NodeId> {
-        match subtree.get_token(compiler) {
+    crate::abstract_peephole_optimization::token_rules! {
+        // port: PeepholeRemoveDeadCode#optimizeSubtree
+        fn optimize_subtree(&mut self, compiler, subtree) {
             Token::ASSIGN => Some(self.try_fold_assignment(compiler, subtree)),
             Token::COMMA => Some(self.try_fold_comma(compiler, subtree)),
             Token::SCRIPT | Token::BLOCK => self.try_optimize_block(compiler, subtree),
@@ -601,33 +597,32 @@ impl AbstractPeepholeOptimization for PeepholeRemoveDeadCode {
                 // potentially contain WHILE (denormalized).
                 // TODO: Ideally, we should optimize this case instead of returning
                 Some(subtree)
-            }
+            },
             Token::FOR => {
                 let condition = NodeUtil::get_condition_expression(compiler, subtree);
                 if let Some(condition) = condition {
                     self.try_fold_for_condition(compiler, condition);
                 }
                 self.try_fold_for(compiler, subtree)
-            }
+            },
             Token::DO => {
                 let folded_do = self.try_fold_do_away(compiler, subtree);
                 if folded_do.is_do(compiler) {
                     return Some(self.try_fold_empty_do(compiler, folded_do));
                 }
                 Some(folded_do)
-            }
+            },
             Token::TRY => self.try_fold_try(compiler, subtree),
             Token::LABEL => self.try_fold_label(compiler, subtree),
             Token::ARRAY_PATTERN => Some(self.try_optimize_array_pattern(compiler, subtree)),
             Token::OBJECT_PATTERN => Some(self.try_optimize_object_pattern(compiler, subtree)),
             Token::VAR | Token::CONST | Token::LET => {
                 Some(self.try_optimize_name_declaration(compiler, subtree))
-            }
+            },
             Token::DEFAULT_VALUE => Some(self.try_remove_default_value(compiler, subtree)),
             Token::OPTCHAIN_GETPROP | Token::OPTCHAIN_CALL | Token::OPTCHAIN_GETELEM => {
                 Some(self.try_remove_optional_chaining(compiler, subtree))
-            }
-            _ => Some(subtree),
+            },
         }
     }
 }

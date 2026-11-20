@@ -1467,6 +1467,10 @@ impl NodeId {
     pub fn get_token(self, ast: &Ast) -> Token {
         ast[L(self)].token
     }
+    /// Inspect a node returned by a public callback which may use an ID from another arena.
+    pub fn token_if_present(self, ast: &Ast) -> Option<Token> {
+        ast.links.get(self.arena_index()).map(|links| links.token)
+    }
     // port: Node#setToken
     pub fn set_token(self, ast: &mut Ast, token: Token) {
         ast.presence.note_token(token);
