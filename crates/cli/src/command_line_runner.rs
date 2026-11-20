@@ -37,7 +37,6 @@ use closure_jscomp::{
     property_renaming_policy::PropertyRenamingPolicy,
     variable_renaming_policy::VariableRenamingPolicy,
 };
-
 use closure_rhino::fast_hash::IndexMap;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum FormattingOption {
@@ -2494,12 +2493,17 @@ use crate::args4j::{
 };
 use crate::stand_in::chrome_coding_convention::ChromeCodingConvention;
 use closure_jscomp::compiler::Compiler;
+use closure_jscomp::deps::module_loader::ModuleLoader;
+use closure_jscomp::transpile::base_transpiler::{
+    BaseTranspiler, CompileResult, CompilerSupplier, CompilerSupplierApi,
+};
 use closure_jscomp::{
     closure_coding_convention::ClosureCodingConvention, coding_convention::CodingConvention,
     coding_conventions::CodingConventions, compilation_level::CompilationLevel,
     dependency_options::DependencyOptions,
 };
 use closure_rhino::fast_hash::IndexSet;
+use closure_rhino::{java_lang::uri::URI, js_string::JsString};
 use std::sync::Arc;
 use std::{
     io::{Read, Write},
@@ -4212,7 +4216,55 @@ impl CommandLineRunner {
     }
 }
 
+/// The CLI fixes the output feature set for ES modules. Only the default resolution
+/// settings use the checked-in result of compiling the built-in modules library.
+struct BundleCompilerSupplier {
+    compiler: CompilerSupplier,
+    process_exits_after_run: bool,
+}
+
+const BUNDLE_RUNTIME: &str = include_str!("bundle_runtime.js");
+
+impl CompilerSupplierApi for BundleCompilerSupplier {
+    fn runtime(&self, library: &str) -> JsString {
+        if library == "modules"
+            && self.compiler.module_resolution == ResolutionMode::BROWSER
+            && self.compiler.module_roots == [ModuleLoader::DEFAULT_FILENAME_PREFIX]
+            && self.compiler.prefix_replacements.is_empty()
+        {
+            let (_, source) = BUNDLE_RUNTIME.split_once("*/\n").unwrap();
+            return JsString::from(source);
+        }
+        self.compiler.runtime(library)
+    }
+
+    fn compile(&self, path: &URI, code: &JsString) -> CompileResult {
+        if self.process_exits_after_run {
+            self.compiler.compile_for_bundle_output(path, code)
+        } else {
+            self.compiler.compile(path, code)
+        }
+    }
+}
+
 impl CommandLineRunner {
+    fn bundle_compiler_supplier(&self) -> Result<CompilerSupplier, RunnerException> {
+        let module_roots = if self.flags.module_root.is_empty() {
+            vec![ModuleLoader::DEFAULT_FILENAME_PREFIX.into()]
+        } else {
+            self.flags.module_root.clone()
+        };
+        let options = self.create_options()?;
+        Ok(CompilerSupplier::with_module_options(
+            LanguageMode::ECMASCRIPT_NEXT
+                .to_feature_set()
+                .without(closure_parsing::parser::feature_set::Feature::MODULES),
+            options.get_module_resolution_mode(),
+            module_roots,
+            options.get_browser_resolver_prefix_replacements().clone(),
+        ))
+    }
+
     // port: CommandLineRunner#getBundler
     #[allow(clippy::unnecessary_unwrap)] // Avoid retaining the cache borrow while constructing its replacement.
     pub fn get_bundler(
@@ -4221,23 +4273,14 @@ impl CommandLineRunner {
         if self.bundler.is_some() {
             return Ok(self.bundler.as_ref().unwrap());
         }
-        let module_roots = if self.flags.module_root.is_empty() {
-            vec![closure_jscomp::deps::module_loader::ModuleLoader::DEFAULT_FILENAME_PREFIX.into()]
-        } else {
-            self.flags.module_root.clone()
+        let supplier = BundleCompilerSupplier {
+            compiler: self.bundle_compiler_supplier()?,
+            process_exits_after_run: self.process_exits_after_run,
         };
-        let options = self.create_options()?;
         self.bundler = Some(closure_jscomp::deps::closure_bundler::ClosureBundler::new(
             closure_jscomp::transpile::transpiler::NULL.clone(),
-            Arc::new(closure_jscomp::transpile::base_transpiler::BaseTranspiler::new(
-                Arc::new(closure_jscomp::transpile::base_transpiler::CompilerSupplier::with_module_options(
-                    LanguageMode::ECMASCRIPT_NEXT
-                        .to_feature_set()
-                        .without(closure_parsing::parser::feature_set::Feature::MODULES),
-                    options.get_module_resolution_mode(),
-                    module_roots,
-                    options.get_browser_resolver_prefix_replacements().clone(),
-                )),
+            Arc::new(BaseTranspiler::new(
+                Arc::new(supplier),
                 /* runtimeLibraryName= */ "",
             )),
         ));
@@ -4696,5 +4739,54 @@ impl crate::abstract_command_line_runner::RunnerMethods<Compiler, CompilerOption
     // port: CommandLineRunner#addAllowlistWarningsGuard
     fn add_allow_list_warnings_guard(options: &mut CompilerOptions, file: &str) {
         CommandLineRunner::add_allow_list_warnings_guard(options, file);
+    }
+}
+
+#[cfg(test)]
+mod bundle_runtime_tests {
+    use super::*;
+
+    #[test]
+    fn bundle_runtime_matches_compiler() {
+        let runner = CommandLineRunner::new(
+            &[
+                "--compilation_level=BUNDLE".into(),
+                "--js_output_file=out.js".into(),
+            ],
+            Box::new(std::io::empty()),
+            Box::new(std::io::sink()),
+            Box::new(std::io::sink()),
+        )
+        .unwrap();
+        let supplier = runner.bundle_compiler_supplier().unwrap();
+        assert_eq!(supplier.module_resolution, ResolutionMode::BROWSER);
+        assert_eq!(
+            supplier.module_roots,
+            [ModuleLoader::DEFAULT_FILENAME_PREFIX]
+        );
+        assert!(supplier.prefix_replacements.is_empty());
+        // A precompiled library also has to preserve the supplier's diagnostic stream.
+        let mut compiler = supplier.compiler();
+        let mut options = supplier.options();
+        options.set_force_library_injection(vec!["modules".into()]);
+        let result = compiler.compile_single(
+            supplier.create_trivial_externs(),
+            supplier.create_empty_source(),
+            options,
+        );
+        assert!(result.errors.is_empty() && result.warnings.is_empty());
+        let current = compiler.to_source();
+        assert_eq!(current, supplier.runtime("modules"));
+        let (notice, stored) = BUNDLE_RUNTIME.split_once("*/\n").unwrap();
+        if std::env::var("CLOSURE_RS_UPDATE_BUNDLE_RUNTIME").as_deref() == Ok("1") {
+            let source = String::from_utf16(current.as_units()).unwrap();
+            let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/bundle_runtime.js");
+            std::fs::write(path, format!("{notice}*/\n{source}")).unwrap();
+        } else {
+            assert!(
+                current == stored,
+                "The bundle runtime changed. Regenerate it with the command in bundle_runtime.js."
+            );
+        }
     }
 }

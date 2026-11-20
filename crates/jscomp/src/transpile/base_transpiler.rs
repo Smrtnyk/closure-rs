@@ -224,23 +224,23 @@ impl CompilerSupplier {
     pub fn create_empty_source(&self) -> Arc<SourceFile> {
         Arc::new(SourceFile::from_code("empty.js", ""))
     }
-}
 
-impl CompilerSupplierApi for CompilerSupplier {
     /// Throws `TranspilationException` (with `std::panic::panic_any`) when the compile reports
     /// errors.
     // port: BaseTranspiler.CompilerSupplier#compile
-    fn compile(&self, path: &URI, code: &JsString) -> CompileResult {
+    fn compile_result(&self, path: &URI, code: &JsString, keep_map: bool) -> CompileResult {
         let mut compiler = self.compiler();
-        let result = compiler.compile_single(
+        let mut result = compiler.compile_single(
             self.create_trivial_externs(),
             Arc::new(SourceFile::from_code(&path.to_string(), code.clone())),
             self.options(),
         );
+        if !keep_map {
+            Self::discard_unobserved_output_map(&mut compiler, &mut result);
+        }
         let source = compiler.to_source();
         let mut source_map = String::new();
         if let Some(result_source_map) = &result.source_map {
-            // impossible, and not a big deal even if it did happen.
             let _ = result_source_map
                 .lock()
                 .unwrap()
@@ -264,6 +264,29 @@ impl CompilerSupplierApi for CompilerSupplier {
                 JsString::from("")
             },
         )
+    }
+
+    /// The native CLI consumes the transpiled source and has no reader for the per-file map.
+    pub fn compile_for_bundle_output(&self, path: &URI, code: &JsString) -> CompileResult {
+        self.compile_result(path, code, false)
+    }
+
+    fn discard_unobserved_output_map(compiler: &mut Compiler, result: &mut crate::result::Result) {
+        // Preserve parsing, source annotations and all compiler passes. An input map can
+        // report diagnostics even from the printer, so keep its full mapping path.
+        if result.errors.is_empty() && compiler.get_input_source_maps().is_empty() {
+            compiler
+                .get_options_mut()
+                .set_source_map_output_path(String::new());
+            result.source_map = None;
+        }
+    }
+}
+
+impl CompilerSupplierApi for CompilerSupplier {
+    // port: BaseTranspiler.CompilerSupplier#compile
+    fn compile(&self, path: &URI, code: &JsString) -> CompileResult {
+        self.compile_result(path, code, true)
     }
 
     // port: BaseTranspiler.CompilerSupplier#runtime

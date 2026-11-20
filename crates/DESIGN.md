@@ -365,6 +365,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   projects (`scripts/run_bench.py --write-args`; the last one covers a bundle compiled with an
   input source map), for less CPU time. Pushes and pull requests build without
   a profile; the output is the same either way.
+- `cli/command_line_runner.rs` embeds the default BUNDLE module runtime. A test recompiles the
+  runtime with the current compiler and compares every byte. Custom module resolution uses the
+  live supplier. The single-use CLI also skips per-input transpiler map output when there are
+  no compiler errors or input maps. Reusable runners retain those maps for callers.
 - `jscomp/build.rs`, `parsing/extern_snapshot.rs` and `rhino/node/snapshot.rs`: Cargo parses the
   bundled browser externs on the build host and embeds their syntax trees and JSDoc type trees.
   A compiler using the original resource text and matching parser configuration loads the
