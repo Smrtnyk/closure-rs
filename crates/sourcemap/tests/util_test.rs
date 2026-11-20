@@ -31,3 +31,23 @@ fn test_append_hex_java_script_representation() {
     test_append_hex_java_script_representation_with_expected(b'\0' as u16, "\\u0000");
     test_append_hex_java_script_representation_with_expected('¡' as u16, "\\u00a1");
 }
+
+// Rust-only regression for stream boundaries and Java's case-insensitive HTML escape.
+#[test]
+fn escapes_wtf16_and_html_across_writes() {
+    use closure_rhino::js_string::JsString;
+
+    for n in 1014..1025 {
+        let prefix = "x".repeat(n);
+        let mut input: Vec<_> = prefix.encode_utf16().collect();
+        input.extend("<!-- --> ]]> </ſcrİpT </scrip <Z>\u{7f}".encode_utf16());
+        input.extend([0xd800, 0x0a, 0xdc00, 0xd83d, 0xde00]);
+        let expected = format!(
+            "\"{prefix}\\u003c!-- --\\u003e ]]\\u003e \\u003c/\\u017fcr\\u0130pT </scrip <Z>\u{7f}\\ud800\\n\\udc00\\ud83d\\ude00\""
+        );
+        assert_eq!(
+            Util::escape_string(JsString::from_units(input)),
+            expected.as_str()
+        );
+    }
+}

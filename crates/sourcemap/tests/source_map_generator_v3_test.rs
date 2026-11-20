@@ -333,3 +333,93 @@ fn test_source_root() {
         "http://url/path"
     );
 }
+
+// Rust-only regression for first-emitted names, repeated serialization and the scalar writer.
+#[test]
+fn mapping_names_follow_output_order_across_appends_and_reset() {
+    use closure_sourcemap::source_map_generator::SourceMapGenerator;
+
+    fn add(map: &mut SourceMapGeneratorV3, source: &str, symbol: &str, start: i32, end: i32) {
+        map.add_mapping(
+            Some(source.into()),
+            Some(symbol.into()),
+            FilePosition::new(0, 0),
+            FilePosition::new(0, start),
+            FilePosition::new(0, end),
+        );
+    }
+    fn output(map: &mut SourceMapGeneratorV3) -> String {
+        let mut scalar = String::new();
+        map.write_to(&mut scalar, None).unwrap();
+        let mut text = String::new();
+        let lossless = map.append_to(&mut text, None).unwrap();
+        assert_eq!(text, scalar);
+        assert_eq!(lossless.to_string(), text);
+        assert!(lossless.as_units().contains(&0xd800));
+        text
+    }
+    let mut map = SourceMapGeneratorV3::new();
+    let raw_key = JsString::from_units(vec![b'x' as u16, b'_' as u16, 0xd800]);
+    map.add_extension(raw_key, ExtensionValue::Integer(1))
+        .unwrap();
+    map.add_sources_content("outer", Some("content".into()));
+    add(&mut map, "outer", "parent", 0, 12);
+    add(&mut map, "unused", "hidden", 0, 0);
+    add(&mut map, "inner", "child", 0, 5);
+    let text = output(&mut map);
+    assert!(text.contains(r#""sources":["inner","outer"]"#));
+    assert!(text.contains(r#""sourcesContent":["","content"]"#));
+    assert!(text.contains(r#""names":["child","parent"]"#));
+    // This inner mapping covers the previous child. Its already-emitted name keeps its ID.
+    add(&mut map, "new", "sibling", 0, 5);
+    let text = output(&mut map);
+    assert!(text.contains(r#""sources":["inner","outer","new"]"#));
+    assert!(text.contains(r#""names":["child","parent","sibling"]"#));
+    map.reset();
+    add(&mut map, "outer", "parent", 0, 2);
+    let text = output(&mut map);
+    assert!(text.contains(r#""sources":["outer"]"#));
+    assert!(text.contains(r#""sourcesContent":["content"]"#));
+    assert!(text.contains(r#""names":["parent"]"#));
+}
+
+// Rust-only regression for a writer failing between the fields of a mapping.
+#[test]
+fn writer_failure_preserves_only_names_reached_by_the_append() {
+    struct Limited(usize);
+    impl std::fmt::Write for Limited {
+        fn write_str(&mut self, s: &str) -> std::fmt::Result {
+            self.0 = self.0.checked_sub(s.len()).ok_or(std::fmt::Error)?;
+            Ok(())
+        }
+    }
+
+    fn add(map: &mut SourceMapGeneratorV3, name: &str) {
+        map.add_mapping(
+            Some(name.into()),
+            Some(name.into()),
+            FilePosition::new(0, 0),
+            FilePosition::new(0, 0),
+            FilePosition::new(0, 10),
+        );
+    }
+    // A mapped entry begins with generated column, source id, line, column, then name id.
+    let header = "{\n\"version\":3,\n\"lineCount\":1,\n\"mappings\":\"";
+    for (written_digits, sources, names) in [
+        (0, r#"["new"]"#, r#"["new"]"#),
+        (1, r#"["old","new"]"#, r#"["new"]"#),
+        (4, r#"["old","new"]"#, r#"["old","new"]"#),
+    ] {
+        let mut map = SourceMapGeneratorV3::new();
+        add(&mut map, "old");
+        assert!(
+            map.append_to(&mut Limited(header.len() + written_digits), None)
+                .is_err()
+        );
+        add(&mut map, "new");
+        let mut out = String::new();
+        map.append_to(&mut out, None).unwrap();
+        assert!(out.contains(&format!(r#""sources":{sources}"#)));
+        assert!(out.contains(&format!(r#""names":{names}"#)));
+    }
+}

@@ -32,7 +32,7 @@ use crate::{
 };
 use num_bigint::BigInt;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{num::NonZeroU32, sync::Arc};
 
 #[derive(Serialize, Deserialize)]
 pub struct AstSnapshot<F> {
@@ -64,6 +64,110 @@ enum Kind {
     BigInt(Vec<u8>),
     String(usize),
     Template { raw: usize, cooked: Option<usize> },
+}
+
+/// The built-in externs fit in 16-bit local node, string and property indices. Keep their
+/// rows at a fixed stride so the target can read each one directly from the embedded bytes.
+/// Zero represents an absent link, property or string. Non-string payloads and original
+/// names are sparse. Larger inputs retain the ordinary snapshot encoding.
+#[derive(Serialize, Deserialize)]
+pub struct BundledAstSnapshot<F, B> {
+    arena: AstSnapshot<F>,
+    rows: Option<PackedRows<B>>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct PackedRows<B> {
+    bytes: B,
+    string_bytes: B,
+    string_count: usize,
+    tokens: Vec<crate::token::Token>,
+    other_kinds: Vec<Kind>,
+    original_names: Vec<(usize, usize)>,
+}
+
+const ROW_BYTES: usize = 21;
+const OTHER_KIND: u16 = u16::MAX;
+
+impl<F: super::OpaqueProp + Clone> BundledAstSnapshot<F, &[u8]> {
+    pub fn append(self, ast: &mut Ast, source: Arc<dyn StaticSourceFile>) -> NodeId {
+        match self.rows {
+            Some(rows) => {
+                let strings = rows.strings();
+                self.arena.append_rows(ast, source, rows.nodes(), strings)
+            }
+            None => self.arena.append(ast, source),
+        }
+    }
+}
+
+impl PackedRows<&[u8]> {
+    /// Decode code units into reusable scratch. Interned entries hit the pool by content
+    /// without first allocating a temporary Java string. Non-interned entries remain
+    /// separate allocations even if their code units are equal.
+    fn strings(&self) -> Vec<JsString> {
+        let mut bytes = self.string_bytes;
+        let mut units = Vec::new();
+        let mut strings = Vec::with_capacity(self.string_count);
+        while let Some((header, rest)) = bytes.split_first_chunk::<4>() {
+            let header = u32::from_le_bytes(*header);
+            let len = (header >> 2) as usize;
+            let narrow = header & 2 != 0;
+            let (data, rest) = rest.split_at(if narrow { len } else { len * 2 });
+            bytes = rest;
+            units.clear();
+            if narrow {
+                units.extend(data.iter().copied().map(u16::from));
+            } else {
+                units.extend(
+                    data.as_chunks::<2>()
+                        .0
+                        .iter()
+                        .copied()
+                        .map(u16::from_le_bytes),
+                );
+            }
+            strings.push(if header & 1 != 0 {
+                RhinoStringPool::add_or_get_units(&units)
+            } else {
+                JsString::from_slice(&units)
+            });
+        }
+        assert!(bytes.is_empty() && strings.len() == self.string_count);
+        strings
+    }
+
+    fn nodes(self) -> impl ExactSizeIterator<Item = Node> {
+        let (rows, remainder) = self.bytes.as_chunks::<ROW_BYTES>();
+        assert!(remainder.is_empty(), "incomplete bundled extern row");
+        let mut kinds = self.other_kinds.into_iter();
+        let mut names = self.original_names.into_iter().peekable();
+        rows.iter().enumerate().map(move |(i, row)| {
+            let word = |at| u16::from_le_bytes([row[at], row[at + 1]]);
+            let link = |at| NonZeroU32::new(u32::from(word(at))).map(NodeId);
+            let kind = match word(18) {
+                0 => Kind::Plain,
+                OTHER_KIND => kinds.next().expect("bundled extern payload"),
+                id => Kind::String(usize::from(id - 1)),
+            };
+            Node {
+                links: NodeLinks {
+                    token: self.tokens[usize::from(row[20])],
+                    parent: link(0),
+                    first: link(2),
+                    next: link(4),
+                    previous: link(6),
+                },
+                lineno_charno: i32::from_le_bytes(row[8..12].try_into().unwrap()),
+                length: i32::from_le_bytes(row[12..16].try_into().unwrap()),
+                head: word(16).checked_sub(1).map(usize::from),
+                kind,
+                original_name: names
+                    .next_if(|(index, _)| *index == i)
+                    .map(|(_, name)| name),
+            }
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -167,7 +271,7 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
             strings: enc
                 .strings
                 .into_values()
-                .map(|s| (s.is_interned(), s.as_units().to_vec()))
+                .map(|s| (RhinoStringPool::is_pool_entry(&s), s.as_units().to_vec()))
                 .collect(),
             features: enc.features.into_values().collect(),
             expression_roots: enc.expressions.into_values().collect(),
@@ -177,10 +281,78 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
         })
     }
 
+    /// Use the compact row and string representation when all local indices fit. Larger
+    /// files still carry their complete captured representation.
+    pub fn for_bundle(mut self) -> BundledAstSnapshot<F, Vec<u8>> {
+        let rows = self.take_packed_rows();
+        BundledAstSnapshot { arena: self, rows }
+    }
+
+    fn take_packed_rows(&mut self) -> Option<PackedRows<Vec<u8>>> {
+        if self.nodes.len() > u16::MAX as usize
+            || self.strings.len() >= OTHER_KIND as usize
+            || self.properties.len() > u16::MAX as usize
+            || self
+                .strings
+                .iter()
+                .any(|(_, units)| units.len() > (u32::MAX >> 2) as usize)
+        {
+            return None;
+        }
+        let mut bytes = Vec::with_capacity(self.nodes.len() * ROW_BYTES);
+        let string_count = self.strings.len();
+        let mut string_bytes = Vec::new();
+        for (interned, units) in self.strings.drain(..) {
+            let narrow = units.iter().all(|unit| *unit <= u16::from(u8::MAX));
+            let header = (units.len() as u32) << 2 | (u32::from(narrow) << 1) | u32::from(interned);
+            string_bytes.extend_from_slice(&header.to_le_bytes());
+            if narrow {
+                string_bytes.extend(units.into_iter().map(|unit| unit as u8));
+            } else {
+                string_bytes.extend(units.into_iter().flat_map(u16::to_le_bytes));
+            }
+        }
+        let mut tokens = IndexMap::<_, _>::default();
+        let mut other_kinds = Vec::new();
+        let mut original_names = Vec::new();
+        for (i, node) in self.nodes.drain(..).enumerate() {
+            let link = node.links;
+            for id in [link.parent, link.first, link.next, link.previous] {
+                bytes.extend_from_slice(&(id.map_or(0, |n| n.0.get()) as u16).to_le_bytes());
+            }
+            bytes.extend_from_slice(&node.lineno_charno.to_le_bytes());
+            bytes.extend_from_slice(&node.length.to_le_bytes());
+            bytes.extend_from_slice(&(node.head.map_or(0, |i| i + 1) as u16).to_le_bytes());
+            let kind = match node.kind {
+                Kind::Plain => 0,
+                Kind::String(i) => (i + 1) as u16,
+                kind => {
+                    other_kinds.push(kind);
+                    OTHER_KIND
+                }
+            };
+            bytes.extend_from_slice(&kind.to_le_bytes());
+            let entry = tokens.entry(link.token);
+            bytes.push(u8::try_from(entry.index()).expect("number of Rhino tokens"));
+            entry.or_insert(());
+            if let Some(name) = node.original_name {
+                original_names.push((i, name));
+            }
+        }
+        Some(PackedRows {
+            bytes,
+            string_bytes,
+            string_count,
+            tokens: tokens.into_keys().collect(),
+            other_kinds,
+            original_names,
+        })
+    }
+
     /// Instantiate in the destination arena at the point where the compiler asks for this file.
-    pub fn append(self, ast: &mut Ast, source: Arc<dyn StaticSourceFile>) -> NodeId {
-        let strings: Vec<_> = self
-            .strings
+    pub fn append(mut self, ast: &mut Ast, source: Arc<dyn StaticSourceFile>) -> NodeId {
+        let nodes = std::mem::take(&mut self.nodes);
+        let strings = std::mem::take(&mut self.strings)
             .into_iter()
             .map(|(interned, units)| {
                 let s = JsString::from_units(units);
@@ -191,12 +363,22 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
                 }
             })
             .collect();
+        self.append_rows(ast, source, nodes.into_iter(), strings)
+    }
+
+    fn append_rows(
+        self,
+        ast: &mut Ast,
+        source: Arc<dyn StaticSourceFile>,
+        nodes: impl ExactSizeIterator<Item = Node>,
+        strings: Vec<JsString>,
+    ) -> NodeId {
         let string = |id: usize| strings[id].clone();
         ast.presence.merge(&self.presence);
         // The bundled parses normally carry no original names. Collect only the populated
         // slots so they can be installed with their final node ids after the append.
         let mut original_names = Vec::new();
-        let rows = self.nodes.into_iter().enumerate().map(|(i, node)| {
+        let rows = nodes.enumerate().map(|(i, node)| {
             if let Some(name) = node.original_name {
                 original_names.push((i, name));
             }
@@ -232,10 +414,17 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
         for (i, name) in original_names {
             NodeId::store_original_name(ast, map.node_at(i), Some(string(name)));
         }
+        let mut expression_source: Option<Arc<str>> = None;
         let expressions: Vec<_> = self
             .expression_roots
             .into_iter()
-            .map(|root| Arc::new(JSTypeExpression::new(map.map(root), source.get_name())))
+            .map(|root| {
+                let name = expression_source.get_or_insert_with(|| source.get_name().into());
+                Arc::new(JSTypeExpression::with_shared_source(
+                    map.map(root),
+                    name.clone(),
+                ))
+            })
             .collect();
         let expr = |id: usize| match id.checked_sub(1) {
             Some(i) => expressions[i].clone(),
@@ -456,5 +645,59 @@ impl<F: super::OpaqueProp + Clone> Encoder<'_, F> {
                 )
                 .0,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        simple_source_file::SimpleSourceFile, static_source_file::SourceKind, token::Token,
+    };
+
+    #[test]
+    fn packed_indices_stop_before_a_string_or_link_would_wrap() {
+        let source: Arc<dyn StaticSourceFile> =
+            Arc::new(SimpleSourceFile::new("test", SourceKind::EXTERN));
+        let mut ast = Ast::new_for_preparse();
+        let root = ast.new_node(Token::BLOCK);
+        let empty = || Node {
+            links: NodeLinks {
+                token: Token::EMPTY,
+                parent: None,
+                first: None,
+                next: None,
+                previous: None,
+            },
+            lineno_charno: -1,
+            length: 0,
+            original_name: None,
+            kind: Kind::Plain,
+            head: None,
+        };
+        let mut snapshot = AstSnapshot::<String>::capture(&ast, root, &source).unwrap();
+        snapshot.nodes.resize_with(u16::MAX as usize + 1, empty);
+        assert!(snapshot.take_packed_rows().is_none());
+        snapshot.nodes.pop();
+        snapshot
+            .strings
+            .resize_with(OTHER_KIND as usize, || (false, Vec::new()));
+        assert!(snapshot.take_packed_rows().is_none());
+        snapshot.strings.pop();
+        let max_id = NodeId(NonZeroU32::new(u32::from(u16::MAX)).unwrap());
+        snapshot.nodes[0].links.first = Some(max_id);
+        snapshot.nodes[0].kind = Kind::String(snapshot.strings.len() - 1);
+        let packed = snapshot.take_packed_rows().unwrap();
+        let packed = PackedRows {
+            bytes: packed.bytes.as_slice(),
+            string_bytes: packed.string_bytes.as_slice(),
+            string_count: packed.string_count,
+            tokens: packed.tokens,
+            other_kinds: packed.other_kinds,
+            original_names: packed.original_names,
+        };
+        let first = packed.nodes().next().unwrap();
+        assert_eq!(first.links.first, Some(max_id));
+        assert!(matches!(first.kind, Kind::String(i) if i == OTHER_KIND as usize - 2));
     }
 }

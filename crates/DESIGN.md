@@ -368,7 +368,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `jscomp/build.rs`, `parsing/extern_snapshot.rs` and `rhino/node/snapshot.rs`: Cargo parses the
   bundled browser externs on the build host and embeds their syntax trees and JSDoc type trees.
   A compiler using the original resource text and matching parser configuration loads the
-  snapshot when it first needs that file. Loading preserves node allocation order, source
+  snapshot when it first needs that file. Bundled snapshots use fixed-width node rows and a
+  packed string table when their indices fit. Standalone snapshots keep their existing decoder.
+  Bundled SourceFiles obtain UTF-16 length and line count from the build and materialize their
+  text on demand. Loading preserves node allocation order, source
   positions, shared properties and type expressions. Files with diagnostics or unsupported
   parser data use the source parser. The build also checks uncommented dependency input,
   recording annotation flags for files without Closure primitives or module syntax. It
@@ -436,7 +439,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   copy-on-write.
 - `jscomp/process_defines.rs` uses the arena's JSDoc flags to avoid indexing globals when no
   declaration could be a define. It builds an injected namespace at the original point and
-  collects valid constant expressions only when it has define declarations to validate.
+  collects valid constant expressions only when it has define declarations to validate. The
+  strings recorded by the arena also rule out the `CLOSURE_DEFINES` and misplaced-define
+  walks when their markers are absent. A configured zone pattern still checks script names.
 - `jscomp/transpilation_namespace.rs`, `compiler.rs`: the native CLI can omit the
   transpiler's global index when every remaining built-in ES2015+ rewrite will skip every
   script. A missing feature set, custom passes, ES5 output or a possible lookup keeps the
@@ -472,6 +477,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   file name conversions of the previous mapping and the parsed input map
   (`SourceMapInput::get_cached_source_map`); `cli/java_io.rs` `EncodedWriter` writes UTF-8
   text to a UTF-8 stream without the UTF-16 round trip.
+- `sourcemap/source_map_generator_v3.rs` stores file and symbol indices in each mapping and
+  assigns their output IDs on first emission. The CLI writes escaped source content and buffered
+  VLQ segments directly to its writer. The API that returns a Java string retains its UTF-16
+  code units, including lone surrogates.
 - `jscomp/reference_collector.rs` `skip_externs_when_unread` (InlineVariables,
   InlineObjectLiterals): a run leaves out the externs (Java traverses them on every run) while
   every NAME in them resolves to a var declared in them, which a traversal of the externs finds

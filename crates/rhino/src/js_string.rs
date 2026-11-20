@@ -93,6 +93,13 @@ impl JsString {
         let units: &'static [u16] = Box::leak(self.as_units().into());
         Self(Repr::Interned(self.hash_bits(), units))
     }
+    /// A pool entry for code units read directly from a snapshot.
+    pub(crate) fn interned_copy(units: &[u16]) -> Self {
+        Self(Repr::Interned(
+            Self::java_hash(units),
+            Box::leak(units.into()),
+        ))
+    }
     /// Rust-only: the code units of an interned string, which live for the rest of the process.
     pub(crate) fn static_units(&self) -> &'static [u16] {
         match self.0 {

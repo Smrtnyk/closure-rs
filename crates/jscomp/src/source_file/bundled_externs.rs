@@ -16,6 +16,35 @@
 
 //! Built-in externs and their build-generated parser snapshots.
 use super::*;
+use std::sync::OnceLock;
+
+#[derive(Debug)]
+pub(crate) struct BundledSource {
+    bytes: &'static [u8],
+    num_units: i32,
+    num_lines: i32,
+    text: OnceLock<JsString>,
+}
+
+impl BundledSource {
+    pub(super) fn text(&self) -> &JsString {
+        self.text
+            .get_or_init(|| closure_resources::jar::decode_utf8(self.bytes).into())
+    }
+
+    pub(super) fn size(&self) -> (i32, i32) {
+        (self.num_units, self.num_lines)
+    }
+}
+
+impl SourceCode {
+    fn matches(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Bundled(a), Self::Bundled(b)) if Arc::ptr_eq(a, b) => true,
+            _ => self.as_text() == other.as_text(),
+        }
+    }
+}
 
 impl SourceFile {
     /// The source text and snapshot come from the same embedded resource. A user file with
@@ -27,26 +56,46 @@ impl SourceFile {
         AbstractCommandLineRunner::get_builtin_externs(env)
             .into_iter()
             .map(|resource| {
-                let mut file = Self::from_code(&resource.path, resource.get_code());
+                let name = resource.get_name();
+                let sizes = if env == Environment::BROWSER {
+                    include!(concat!(env!("OUT_DIR"), "/bundled_extern_sizes.rs"))
+                } else {
+                    None
+                };
+                let mut file = if let Some((num_units, num_lines)) = sizes {
+                    let preloaded_code = SourceCode::Bundled(Arc::new(BundledSource {
+                        bytes: resource.content,
+                        num_units,
+                        num_lines,
+                        text: OnceLock::new(),
+                    }));
+                    Self::new(
+                        CodeLoader::Preloaded { preloaded_code },
+                        resource.path,
+                        SourceKind::STRONG,
+                    )
+                } else {
+                    Self::from_code(name, resource.get_code())
+                };
                 file.bundled_browser_extern = env == Environment::BROWSER;
                 file
             })
             .collect()
     }
 
-    fn is_original_bundled_extern(&self, code: Option<&JsString>) -> bool {
+    fn is_original_bundled_extern(&self, code: Option<&SourceCode>) -> bool {
         if !self.bundled_browser_extern || !self.is_extern() {
             return false;
         }
         let state = self.state.lock().unwrap();
         let code = code.or(state.code.as_ref());
         !state.is_closure_unaware_code
-            && matches!(&self.loader, CodeLoader::Preloaded { preloaded_code } if code.is_none_or(|code| preloaded_code == code))
+            && matches!(&self.loader, CodeLoader::Preloaded { preloaded_code } if code.is_none_or(|code| preloaded_code.matches(code)))
     }
 
     pub(crate) fn bundled_dependency_info(
         &self,
-        code: &JsString,
+        code: &SourceCode,
     ) -> Option<crate::deps::simple_dependency_info::SimpleDependencyInfo> {
         if !self.is_original_bundled_extern(Some(code)) {
             return None;
@@ -65,7 +114,7 @@ impl SourceFile {
     pub(crate) fn extern_snapshot(
         &self,
         config: &closure_parsing::config::Config,
-        code: &JsString,
+        code: &SourceCode,
     ) -> Option<&'static [u8]> {
         if !self.is_original_bundled_extern(Some(code))
             || config != &*closure_parsing::extern_snapshot::CONFIG
@@ -113,12 +162,12 @@ mod tests {
         let mut checked_es6 = false;
         for file in SourceFile::bundled_externs(Environment::BROWSER) {
             file.set_kind(SourceKind::EXTERN);
-            let code = file.get_code().unwrap();
+            let code = file.read_source().unwrap();
             if let Some(info) = file.bundled_dependency_info(&code) {
                 let name = file.get_name();
                 let expected = JsFileRegexParser::new(errors.clone())
                     .set_include_goog_base(true)
-                    .parse_file(name, name, code);
+                    .parse_file(name, name, code.into_text());
                 assert_eq!(info, expected, "{name}");
                 checked_es6 |= name == "externs.zip//es6.js";
             }
@@ -143,17 +192,17 @@ mod tests {
         for file in SourceFile::bundled_externs(Environment::BROWSER) {
             file.set_kind(SourceKind::EXTERN);
             let file = Arc::new(file);
-            let code = file.get_code().unwrap();
+            let code = file.read_source().unwrap();
             let Some(bytes) = file.extern_snapshot(&extern_snapshot::CONFIG, &code) else {
                 // A future bundled file can require diagnostics or a source-only property.
-                assert!(extern_snapshot::generate(file.clone(), code).is_none());
+                assert!(extern_snapshot::generate(file.clone(), code.into_text()).is_none());
                 continue;
             };
             tested_type_transformations |= file.get_name() == "externs.zip//es6.js";
             let expected = ParserRunner::parse(
                 &mut parsed,
                 file.clone(),
-                code,
+                code.into_text(),
                 &extern_snapshot::CONFIG,
                 &mut AlwaysThrowsErrorReporter,
             );
@@ -218,7 +267,7 @@ mod tests {
     #[test]
     fn only_matching_resource_text_kind_and_config_use_the_snapshot() {
         let file = SourceFile::bundled_externs(Environment::BROWSER).remove(0);
-        let code = file.get_code().unwrap();
+        let code = file.read_source().unwrap();
         let config = &*closure_parsing::extern_snapshot::CONFIG;
         assert!(file.extern_snapshot(config, &code).is_none());
         file.set_kind(SourceKind::EXTERN);
@@ -240,22 +289,22 @@ mod tests {
             assert!(file.extern_snapshot(&other, &code).is_none());
         }
         let lookalike =
-            SourceFile::from_code_with_kind(file.get_name(), code.clone(), SourceKind::EXTERN);
+            SourceFile::from_code_with_kind(file.get_name(), code.as_text(), SourceKind::EXTERN);
         assert!(lookalike.extern_snapshot(config, &code).is_none());
         assert!(lookalike.bundled_dependency_info(&code).is_none());
         assert!(lookalike.bundled_property_declarations().is_none());
         file.set_code_deprecated("var replacement;");
         assert!(
-            file.bundled_dependency_info(&file.get_code().unwrap())
+            file.bundled_dependency_info(&file.read_source().unwrap())
                 .is_none()
         );
         assert!(
-            file.extern_snapshot(config, &file.get_code().unwrap())
+            file.extern_snapshot(config, &file.read_source().unwrap())
                 .is_none()
         );
         file.clear_cached_source();
         assert!(
-            file.extern_snapshot(config, &file.get_code().unwrap())
+            file.extern_snapshot(config, &file.read_source().unwrap())
                 .is_some()
         );
         file.mark_as_closure_unaware_code();
@@ -277,6 +326,40 @@ mod tests {
         assert!(file.bundled_property_declarations().is_none());
         file.clear_cached_source();
         assert_eq!(file.bundled_property_declarations(), Some(records));
+    }
+
+    #[test]
+    fn cached_sizes_and_overrides_preserve_utf16_source_reads() {
+        use closure_resources::abstract_command_line_runner::AbstractCommandLineRunner;
+        let resources = AbstractCommandLineRunner::get_builtin_externs(Environment::BROWSER);
+        for (file, resource) in SourceFile::bundled_externs(Environment::BROWSER)
+            .into_iter()
+            .zip(resources)
+        {
+            let expected = SourceFile::from_code(&resource.path, resource.get_code());
+            assert!(!file.has_source_in_memory());
+            assert_eq!(file.get_num_lines(), expected.get_num_lines());
+            assert_eq!(file.get_num_bytes(), expected.get_num_bytes());
+            assert!(file.has_source_in_memory());
+            if let CodeLoader::Preloaded {
+                preloaded_code: SourceCode::Bundled(source),
+            } = &file.loader
+            {
+                assert!(source.text.get().is_none());
+            }
+            let original = file.get_code().unwrap();
+            assert_eq!(original, expected.get_code().unwrap());
+            assert_eq!(file.get_proto(), expected.get_proto());
+            file.set_code_deprecated("\u{feff}x\u{1f642}\r\n\u{2028}\u{2029}");
+            assert_eq!((file.get_num_bytes(), file.get_num_lines()), (7, 4));
+            file.clear_cached_source();
+            assert!(!file.has_source_in_memory());
+            assert!(file.load_code_uncached().unwrap().ptr_eq(&original));
+            assert!(!file.has_source_in_memory());
+            assert!(file.get_code().unwrap().ptr_eq(&original));
+            assert_eq!(file.get_num_lines(), expected.get_num_lines());
+            assert_eq!(file.get_num_bytes(), expected.get_num_bytes());
+        }
     }
     #[test]
     fn files_requiring_parse_diagnostics_use_source() {

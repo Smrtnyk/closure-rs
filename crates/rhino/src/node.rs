@@ -551,6 +551,8 @@ pub enum WatchedName {
     DeclareIcuTemplateSuffix,
     /// Exactly `CLOSURE_TOGGLE_ORDINALS`.
     ClosureToggleOrdinals,
+    /// Exactly `CLOSURE_DEFINES`.
+    ClosureDefines,
 }
 impl WatchedName {
     const fn bit(self) -> u16 {
@@ -623,6 +625,8 @@ fn watched_name_bits(s: &JsString) -> u16 {
                 const { ascii_hash_code("CLOSURE_TOGGLE_ORDINALS") },
             ) {
                 bits |= WatchedName::ClosureToggleOrdinals.bit();
+            } else if is_exactly(s, "CLOSURE_DEFINES", const { ascii_hash_code("CLOSURE_DEFINES") }) {
+                bits |= WatchedName::ClosureDefines.bit();
             }
         }
         _ => {}
@@ -651,10 +655,29 @@ const _: () = assert!((Token::PLACEHOLDER3 as usize) < 192);
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PresenceSummary {
     tokens: [u64; 3],
+    #[serde(
+        serialize_with = "PresenceSummary::serialize_names",
+        deserialize_with = "PresenceSummary::deserialize_names"
+    )]
     names: u16,
     jsdoc_bits: u64,
 }
 impl PresenceSummary {
+    // Older snapshots did not track CLOSURE_DEFINES and left this bit zero. On disk it
+    // denotes absence, so loading an older snapshot conservatively enables the define scan.
+    fn serialize_names<S: serde::Serializer>(
+        names: &u16,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u16(names ^ WatchedName::ClosureDefines.bit())
+    }
+    fn deserialize_names<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<u16, D::Error> {
+        let names = <u16 as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(names ^ WatchedName::ClosureDefines.bit())
+    }
+
     #[inline]
     fn note_token(&mut self, token: Token) {
         let t = token as usize;
@@ -4717,6 +4740,16 @@ impl crate::java_lang::JavaHashCode for NodeId {
 mod arena_storage_tests {
     use super::*;
     use crate::jscomp_colors::standard_colors;
+
+    #[test]
+    fn old_snapshot_name_masks_keep_define_diagnostics_enabled() {
+        use serde::de::value::{Error, U16Deserializer};
+
+        let old_mask = WatchedName::Goog.bit();
+        let names =
+            PresenceSummary::deserialize_names(U16Deserializer::<Error>::new(old_mask)).unwrap();
+        assert_eq!(names, old_mask | WatchedName::ClosureDefines.bit());
+    }
 
     #[test]
     fn untyped_nodes_use_no_type_slots_and_names_keep_their_identity() {

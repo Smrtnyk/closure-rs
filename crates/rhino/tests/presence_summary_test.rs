@@ -24,7 +24,7 @@ use closure_rhino::node::{Ast, WatchedName};
 use closure_rhino::token::Token;
 use std::hash::Hasher;
 
-const ALL_NAMES: [WatchedName; 8] = [
+const ALL_NAMES: [WatchedName; 9] = [
     WatchedName::Goog,
     WatchedName::GoogDollarPrefix,
     WatchedName::GoogColonPrefix,
@@ -33,6 +33,7 @@ const ALL_NAMES: [WatchedName; 8] = [
     WatchedName::JscompScopePrefix,
     WatchedName::DeclareIcuTemplateSuffix,
     WatchedName::ClosureToggleOrdinals,
+    WatchedName::ClosureDefines,
 ];
 
 fn seen_names(ast: &Ast) -> Vec<WatchedName> {
@@ -65,6 +66,7 @@ fn watched_names_are_matched_exactly() {
     assert_eq!(names_of("declareIcuTemplate"), [DeclareIcuTemplateSuffix]);
     assert_eq!(names_of("mydeclareIcuTemplate"), [DeclareIcuTemplateSuffix]);
     assert_eq!(names_of("CLOSURE_TOGGLE_ORDINALS"), [ClosureToggleOrdinals]);
+    assert_eq!(names_of("CLOSURE_DEFINES"), [ClosureDefines]);
     for other in [
         "",
         "g",
@@ -81,6 +83,8 @@ fn watched_names_are_matched_exactly() {
         "eclareIcuTemplate",
         "CLOSURE_TOGGLE_ORDINALSX",
         "CLOSURE_TOGGLE_ORDINAL",
+        "CLOSURE_DEFINE",
+        "CLOSURE_DEFINES_EXTRA",
     ] {
         assert_eq!(names_of(other), [], "{other}");
     }

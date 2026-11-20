@@ -26,7 +26,10 @@ use crate::{
 use closure_rhino::{
     error_reporter::ErrorReporter,
     js_string::JsString,
-    node::{Ast, NodeId, snapshot::AstSnapshot},
+    node::{
+        Ast, NodeId,
+        snapshot::{AstSnapshot, BundledAstSnapshot},
+    },
     static_source_file::StaticSourceFile,
 };
 use std::sync::{Arc, LazyLock};
@@ -35,8 +38,8 @@ pub static CONFIG: LazyLock<Config> =
     LazyLock::new(|| ParserRunner::create_config(LanguageMode::ES_NEXT, None, StrictMode::STRICT));
 
 #[derive(serde::Serialize, serde::Deserialize)]
-struct Script {
-    arena: AstSnapshot<FeatureSet>,
+struct Script<A = AstSnapshot<FeatureSet>> {
+    arena: A,
     features: FeatureSet,
 }
 
@@ -50,6 +53,35 @@ pub fn generate_with_ast<T>(
     code: JsString,
     inspect: impl FnOnce(&Ast, NodeId) -> T,
 ) -> Option<(Vec<u8>, T)> {
+    let (script, data) = capture(file, code, inspect)?;
+    Some((
+        postcard::to_allocvec(&script).expect("serialize extern"),
+        data,
+    ))
+}
+
+/// The embedded copy can use borrowed fixed-width rows. Keep generating and accepting the
+/// original serde format for standalone snapshots.
+pub fn generate_bundled_with_ast<T>(
+    file: Arc<dyn StaticSourceFile>,
+    code: JsString,
+    inspect: impl FnOnce(&Ast, NodeId) -> T,
+) -> Option<(Vec<u8>, T)> {
+    let (script, data) = capture(file, code, inspect)?;
+    let script = Script {
+        arena: script.arena.for_bundle(),
+        features: script.features,
+    };
+    // A legacy snapshot starts with its nonzero root id, never a zero byte.
+    let bytes = postcard::to_allocvec(&(0u8, script));
+    Some((bytes.expect("serialize bundled extern"), data))
+}
+
+fn capture<T>(
+    file: Arc<dyn StaticSourceFile>,
+    code: JsString,
+    inspect: impl FnOnce(&Ast, NodeId) -> T,
+) -> Option<(Script, T)> {
     let mut ast = Ast::new_for_preparse();
     let mut diagnostics = Diagnostics::default();
     let result =
@@ -64,19 +96,24 @@ pub fn generate_with_ast<T>(
     let root = result.ast?;
     let arena = AstSnapshot::capture(&ast, root, &file)?;
     Some((
-        postcard::to_allocvec(&Script {
+        Script {
             arena,
             features: result.features,
-        })
-        .expect("serialize bundled extern"),
+        },
         inspect(&ast, root),
     ))
 }
 
-pub fn load(bytes: &'static [u8], ast: &mut Ast, file: Arc<dyn StaticSourceFile>) -> ParseResult {
-    let script: Script = postcard::from_bytes(bytes).expect("build-generated extern snapshot");
-    let root = script.arena.append(ast, file);
-    ParseResult::new(Some(root), Vec::new(), script.features, None)
+pub fn load(bytes: &[u8], ast: &mut Ast, file: Arc<dyn StaticSourceFile>) -> ParseResult {
+    let (root, features) = if let Some(packed) = bytes.strip_prefix(&[0]) {
+        let script: Script<BundledAstSnapshot<FeatureSet, &[u8]>> =
+            postcard::from_bytes(packed).expect("build-generated packed extern");
+        (script.arena.append(ast, file), script.features)
+    } else {
+        let script: Script = postcard::from_bytes(bytes).expect("build-generated extern snapshot");
+        (script.arena.append(ast, file), script.features)
+    };
+    ParseResult::new(Some(root), Vec::new(), features, None)
 }
 
 #[derive(Default)]
@@ -93,5 +130,46 @@ impl ErrorReporter for Diagnostics {
     }
     fn warning_js_string(&mut self, _: &JsString, _: &str, _: i32, _: i32) {
         self.0 = true;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use closure_rhino::{
+        node::{JsDocComparison, RecursionMode, SideEffectComparison, TypeComparison},
+        simple_source_file::SimpleSourceFile,
+        static_source_file::SourceKind,
+    };
+
+    #[test]
+    fn standalone_and_packed_snapshots_keep_literals_and_unpaired_surrogates() {
+        let file: Arc<dyn StaticSourceFile> =
+            Arc::new(SimpleSourceFile::new("test.js", SourceKind::EXTERN));
+        let mut units: Vec<_> = "var values = [17.25, 12345678901234567890n, `a\u{1f642}`, '"
+            .encode_utf16()
+            .collect();
+        units.extend([0x00ff, 0xdfff, 0x0101]);
+        units.extend("'];".encode_utf16());
+        let code = JsString::from_units(units);
+        let ordinary = generate(file.clone(), code.clone()).unwrap();
+        let (packed, ()) = generate_bundled_with_ast(file.clone(), code, |_, _| ()).unwrap();
+        assert_ne!(ordinary[0], 0);
+        assert_eq!(packed[0], 0);
+        let mut a = Ast::new();
+        let mut b = Ast::new();
+        let expected = load(&ordinary, &mut a, file.clone());
+        let actual = load(&packed, &mut b, file);
+        assert_eq!(expected.features, actual.features);
+        assert_eq!(expected.ast, actual.ast);
+        assert!(expected.ast.unwrap().is_equivalent_to_across_with_options(
+            &a,
+            &b,
+            actual.ast.unwrap(),
+            RecursionMode::DEEP,
+            TypeComparison::COMPARE,
+            JsDocComparison::COMPARE,
+            SideEffectComparison::COMPARE,
+        ));
     }
 }

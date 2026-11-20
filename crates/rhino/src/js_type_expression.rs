@@ -48,13 +48,32 @@ use crate::{
     static_source_file::SourceKind,
     token::Token,
 };
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 pub const IMPLICIT_TEMPLATE_BOUND_SOURCE: &str = "<IMPLICIT_TEMPLATE_BOUND>";
 #[derive(Debug)]
 pub struct JSTypeExpression {
     root: NodeId,
-    source_name: String,
+    source_name: SourceName,
+}
+
+#[derive(Clone)]
+enum SourceName {
+    Owned(String),
+    Shared(Arc<str>),
+}
+impl SourceName {
+    fn as_str(&self) -> &str {
+        match self {
+            Self::Owned(s) => s,
+            Self::Shared(s) => s,
+        }
+    }
+}
+impl fmt::Debug for SourceName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_str().fmt(f)
+    }
 }
 impl JSTypeExpression {
     /// Java's constructor for a `root` without a parent (which Java keeps as is); every caller
@@ -62,7 +81,14 @@ impl JSTypeExpression {
     pub fn new(root: NodeId, source_name: impl Into<String>) -> Self {
         Self {
             root,
-            source_name: source_name.into(),
+            source_name: SourceName::Owned(source_name.into()),
+        }
+    }
+    /// All captured expressions in an extern use the same immutable source name.
+    pub(crate) fn with_shared_source(root: NodeId, name: Arc<str>) -> Self {
+        Self {
+            root,
+            source_name: SourceName::Shared(name),
         }
     }
     /// A root that has a parent is cloned, so that the expression owns a detached tree.
@@ -112,7 +138,7 @@ impl JSTypeExpression {
     ) -> Self {
         let old_expr_root = self.root.clone_tree(ast);
         let new_expr_root = Self::replace_names(ast, Some(old_expr_root), names).unwrap();
-        Self::new(new_expr_root, self.source_name.clone())
+        self.with_root(new_expr_root)
     }
     // port: JSTypeExpression#replaceNames
     fn replace_names(
@@ -183,7 +209,7 @@ impl JSTypeExpression {
             let root = expr.root.clone_tree(ast);
             let equals = ast.new_node_with_child(Token::EQUALS, root);
             equals.clone_props_from(ast, expr.root);
-            Arc::new(Self::new(equals, expr.source_name.clone()))
+            Arc::new(expr.with_root(equals))
         }
     }
     // port: JSTypeExpression#makeVarArgs
@@ -194,7 +220,7 @@ impl JSTypeExpression {
             let root = expr.root.clone_tree(ast);
             let equals = ast.new_node_with_child(Token::ITER_REST, root);
             equals.clone_props_from(ast, expr.root);
-            Arc::new(Self::new(equals, expr.source_name.clone()))
+            Arc::new(expr.with_root(equals))
         }
     }
     // port: JSTypeExpression#isOptionalArg
@@ -220,7 +246,7 @@ impl JSTypeExpression {
     }
     // port: JSTypeExpression#getSourceName
     pub fn get_source_name(&self) -> &str {
-        &self.source_name
+        self.source_name.as_str()
     }
     // port: JSTypeExpression#toString
     pub fn to_string(&self, ast: &Ast) -> String {
@@ -242,13 +268,13 @@ impl JSTypeExpression {
     }
     // port: JSTypeExpression#copy
     pub fn copy(&self, ast: &mut Ast) -> Self {
-        Self::new(self.root.clone_tree(ast), self.source_name.clone())
+        self.with_root(self.root.clone_tree(ast))
     }
     // port: JSTypeExpression#isExplicitUnknownTemplateBound
     pub fn is_explicit_unknown_template_bound(&self, ast: &Ast) -> bool {
         self.root.get_token(ast) == Token::QMARK
             && !self.root.has_children(ast)
-            && self.source_name != IMPLICIT_TEMPLATE_BOUND_SOURCE
+            && self.get_source_name() != IMPLICIT_TEMPLATE_BOUND_SOURCE
     }
     // port: JSTypeExpression#getRecordPropertyNames
     pub fn get_record_property_names(&self, ast: &Ast) -> IndexSet<JsString> {

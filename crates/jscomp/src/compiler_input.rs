@@ -164,7 +164,7 @@ impl CompilerInput {
     }
     // port: CompilerInput.JsAst#parse
     fn parse(&self, compiler: &mut AbstractCompiler) {
-        match self.source_file.get_code() {
+        match self.source_file.read_source() {
             Ok(code) => {
                 let config = compiler.get_parser_config(if self.source_file.is_extern() {
                     ConfigContext::EXTERNS
@@ -187,7 +187,7 @@ impl CompilerInput {
                         Vec::new(),
                     )
                 } else if let Some(parsed) =
-                    crate::parallel_parse::take(compiler, self, &config, &code)
+                    crate::parallel_parse::take(compiler, self, &config, code.as_text())
                 {
                     parsed
                 } else {
@@ -197,7 +197,7 @@ impl CompilerInput {
                     let result = ParserRunner::parse(
                         &mut compiler.ast,
                         self.source_file.clone(),
-                        code,
+                        code.into_text(),
                         &config,
                         &mut reporter,
                     );
@@ -522,7 +522,7 @@ impl CompilerInput {
         if crate::deps::js_file_regex_parser::JsFileRegexParser::is_supported()
             && compiler.prefer_regex_parser()
         {
-            match self.get_code() {
+            match self.source_file.read_source() {
                 Ok(code) => {
                     if let Some(info) = self.source_file.bundled_dependency_info(&code) {
                         return (info, true);
@@ -533,7 +533,7 @@ impl CompilerInput {
                     let info = parser
                         .set_module_loader(compiler.get_module_loader().clone())
                         .set_include_goog_base(true)
-                        .parse_file(self.get_name(), self.get_name(), code);
+                        .parse_file(self.get_name(), self.get_name(), code.into_text());
                     (info, true)
                 }
                 Err(error) => {

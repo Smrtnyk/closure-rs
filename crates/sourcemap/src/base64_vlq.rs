@@ -55,6 +55,14 @@ impl Base64VLQ {
     }
     // port: Base64VLQ#encode
     pub fn encode(out: &mut dyn std::fmt::Write, value: i32) -> std::fmt::Result {
+        Self::encode_to(out, value)
+    }
+
+    // A concrete writer lets the mapping generator append digits directly to its buffer.
+    pub(crate) fn encode_to(
+        out: &mut (impl std::fmt::Write + ?Sized),
+        value: i32,
+    ) -> std::fmt::Result {
         let mut value = Self::to_vlq_signed(value);
         loop {
             let mut digit = value & Self::VLQ_BASE_MASK;

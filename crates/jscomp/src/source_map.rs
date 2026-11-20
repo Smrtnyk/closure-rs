@@ -344,7 +344,7 @@ impl SourceMap {
         name: impl Into<JsString>,
     ) -> fmt::Result {
         let name = self.fixup_source_location(&name.into());
-        self.generator.append_to(out, Some(name)).map(|_| ())
+        self.generator.write_to(out, Some(name))
     }
     // port: SourceMap#reset
     pub fn reset(&mut self) {

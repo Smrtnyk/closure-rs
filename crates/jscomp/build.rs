@@ -24,6 +24,8 @@ use closure_rhino::{
 };
 use std::{fmt::Write, fs, path::PathBuf, sync::Arc};
 
+#[path = "src/source_file/line_count.rs"]
+mod line_count;
 #[path = "src/deps/js_file_line_parser/lines.rs"]
 mod lines;
 
@@ -77,22 +79,38 @@ fn plain_dependency_flags(code: JsString) -> Option<(bool, bool)> {
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/deps/js_file_line_parser/lines.rs");
+    println!("cargo:rerun-if-changed=src/source_file/line_count.rs");
     let out = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
     let mut lookup = String::from("match name {\n");
     let mut dependencies = String::from("match name {\n");
     let mut declarations = String::from("match name {\n");
+    let mut sizes = String::from("match name {\n");
     for (i, file) in AbstractCommandLineRunner::get_builtin_externs(Environment::BROWSER)
         .into_iter()
         .enumerate()
     {
         let source = Arc::new(SimpleSourceFile::new(&file.path, SourceKind::EXTERN));
         let code: JsString = file.get_code().into();
+        // The ordinary SourceFile read path also handles BOM removal. Keep files needing
+        // that normalization there, including its interaction with snapshot eligibility.
+        if code.as_units().first() != Some(&0xfeff) {
+            writeln!(
+                sizes,
+                "{:?} => Some(({}, {})),",
+                file.path,
+                code.length() as i32,
+                line_count::num_lines(code.as_units())
+            )
+            .unwrap();
+        }
         if let Some(flags) = plain_dependency_flags(code.clone()) {
             writeln!(dependencies, "{:?} => Some({flags:?}),", file.path).unwrap();
         }
-        if let Some((bytes, records)) =
-            closure_parsing::extern_snapshot::generate_with_ast(source, code, property_declarations)
-        {
+        if let Some((bytes, records)) = closure_parsing::extern_snapshot::generate_bundled_with_ast(
+            source,
+            code,
+            property_declarations,
+        ) {
             let filename = format!("extern-{i}.bin");
             fs::write(out.join(&filename), bytes).unwrap();
             if records.contains(&1) {
@@ -119,4 +137,6 @@ fn main() {
     fs::write(out.join("bundled_extern_dependencies.rs"), dependencies).unwrap();
     declarations.push_str("_ => None,\n}\n");
     fs::write(out.join("bundled_extern_declarations.rs"), declarations).unwrap();
+    sizes.push_str("_ => None,\n}\n");
+    fs::write(out.join("bundled_extern_sizes.rs"), sizes).unwrap();
 }

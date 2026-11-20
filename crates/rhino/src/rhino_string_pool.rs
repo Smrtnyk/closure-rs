@@ -85,6 +85,17 @@ impl RhinoStringPool {
     pub fn unchecked_equals(a: &JsString, b: &JsString) -> bool {
         a.ptr_eq(b)
     }
+    /// A snapshot must restore canonical identity even when the pool uses reference-counted
+    /// entries. A private string with the same spelling remains a separate object.
+    pub(crate) fn is_pool_entry(s: &JsString) -> bool {
+        s.is_interned()
+            || (refcounted_names()
+                && shard(s.as_units())
+                    .lock()
+                    .unwrap()
+                    .get(s.as_units())
+                    .is_some_and(|entry| s.ptr_eq(entry)))
+    }
     // port: RhinoStringPool#addOrGet
     pub fn add_or_get(s: impl Into<JsString>) -> JsString {
         let s = s.into();
@@ -120,15 +131,30 @@ impl RhinoStringPool {
         result
     }
     fn add_or_get_shared(s: JsString) -> JsString {
-        let mut pool = shard(s.as_units()).lock().unwrap();
-        if let Some(interned) = pool.get(s.as_units()) {
+        Self::intern_units(s.as_units(), || {
+            if refcounted_names() {
+                s.clone()
+            } else {
+                s.leak_interned()
+            }
+        })
+    }
+    /// Intern a bundled spelling without allocating a temporary string on a pool hit.
+    pub(crate) fn add_or_get_units(units: &[u16]) -> JsString {
+        Self::intern_units(units, || {
+            if refcounted_names() {
+                JsString::from_slice(units)
+            } else {
+                JsString::interned_copy(units)
+            }
+        })
+    }
+    fn intern_units(units: &[u16], new: impl FnOnce() -> JsString) -> JsString {
+        let mut pool = shard(units).lock().unwrap();
+        if let Some(interned) = pool.get(units) {
             return interned.clone();
         }
-        let interned = if refcounted_names() {
-            s
-        } else {
-            s.leak_interned()
-        };
+        let interned = new();
         pool.insert(static_key(&interned), interned.clone());
         interned
     }

@@ -43,7 +43,7 @@ use closure_rhino::js_string::JsString;
 use closure_rhino::js_type_expression::JSTypeExpression;
 use closure_rhino::jscomp_base::tri::Tri;
 use closure_rhino::jsdoc_info::{Bit, JSDocInfo};
-use closure_rhino::node::NodeId;
+use closure_rhino::node::{NodeId, WatchedName};
 use closure_rhino::token::Token;
 use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
@@ -536,7 +536,12 @@ impl ProcessDefines {
     /// Finds all defines, and creates a [`Define`] data structure for each one.
     // port: ProcessDefines#collectDefines
     fn collect_defines(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
-        if self.recognize_closure_defines {
+        // Rust-only (performance divergence): the collector only observes top-level
+        // CLOSURE_DEFINES assignments and script names matched by the configured pattern.
+        if self.recognize_closure_defines
+            && (self.zone_input_pattern.is_some()
+                || compiler.has_seen_name(WatchedName::ClosureDefines))
+        {
             let mut collector = ClosureDefinesCollector { outer: self };
             NodeTraversal::builder()
                 .set_compiler(compiler)
@@ -773,6 +778,15 @@ impl ProcessDefines {
     #[allow(clippy::collapsible_if)] // Java's nested ifs
     fn report_invalid_define_locations(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
         if !self.mode.check() {
+            return;
+        }
+        // Each diagnostic below requires one of these spellings or the JSDoc bit.
+        let check_goog =
+            self.recognize_closure_defines && compiler.has_seen_name(WatchedName::Goog);
+        if !check_goog
+            && !compiler.has_seen_jsdoc_bit(Bit::DEFINE)
+            && !compiler.has_seen_name(WatchedName::ClosureDefines)
+        {
             return;
         }
 
