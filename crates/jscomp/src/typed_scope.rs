@@ -519,61 +519,43 @@ impl TypedScope {
 
     // port: TypedScope#getVar
     fn get_var_by_ref(self, compiler: &mut AbstractCompiler, name: &JsString) -> Option<TypedVar> {
-        let own_slot = self.get_own_slot(compiler, name);
-        if own_slot.is_some() {
-            // Micro-optimization: variables declared directly in this scope cannot have been
-            // shadowed.
-            return own_slot;
-        } else if self.get_parent(compiler).is_none() {
-            return None;
+        // Rust-only (performance divergence): inspect ordinary bindings under one arena read.
+        // getOwnSlot can create an implicit variable, so release the guard on those paths.
+        let arena = TypedScopeArena::read(compiler);
+        if let Some(&var) = arena.scopes[self.index()].abstract_scope.vars.get(name) {
+            return Some(var);
         }
-        // Find the root name and its slot.
-        let dot = name.index_of_char(u16::from(b'.'));
-        if dot < 0 {
-            // Use the superclass method to skip string checks.
-            return self.abstract_get_var(compiler, name);
-        }
-        let root_name = name.substring(0, dot as usize);
-        // Use the superclass method to skip string checks.
-        let root_var = self.abstract_get_var(compiler, &root_name);
-        match root_var {
-            None => {
-                // Default to the global scope because externs may have qualified names with
-                // undeclared roots.
-                self.get_parent(compiler)
-                    .unwrap()
-                    .get_global_scope(compiler)
-                    .get_own_slot(compiler, name)
-            }
-            Some(root_var) => {
-                // Qualified names 'a.b.c' are declared in the same scope as 'a', never a child
-                // scope, which is why calling `getOwnSlot` is sufficient.
-                root_var.get_scope(compiler).get_own_slot(compiler, name)
-            }
-        }
-    }
-
-    // port: AbstractScope#getVar
-    /// Rust-only fast path (performance divergence): for a name no implicit slot can match,
-    /// getOwnSlot only reads each scope's declared vars, so the chain is walked under one read
-    /// lock.
-    fn abstract_get_var(
-        self,
-        compiler: &mut AbstractCompiler,
-        name: &JsString,
-    ) -> Option<TypedVar> {
         if ImplicitVar::of(name).is_some() {
+            drop(arena);
             return abstract_scope_get_var(self, compiler, name);
         }
-        let arena = TypedScopeArena::read(compiler);
-        let mut scope = Some(self);
-        while let Some(current) = scope {
-            if let Some(var) = arena.scopes[current.index()].abstract_scope.vars.get(name) {
-                return Some(*var);
-            }
-            scope = compiler.typed_scope_mirror[current.index()].parent;
+        let parent = self.get_parent(compiler)?;
+        let dot = name.index_of_char(u16::from(b'.'));
+        if dot < 0 {
+            // The current scope was checked above.
+            return arena.find_declared_var(parent, name).0;
         }
-        None
+        let root_name = name.substring(0, dot as usize);
+        if ImplicitVar::of(&root_name).is_some() {
+            drop(arena);
+            let owner = abstract_scope_get_var(self, compiler, &root_name).map_or_else(
+                || self.get_global_scope(compiler),
+                |var| var.get_scope(compiler),
+            );
+            return owner.get_own_slot(compiler, name);
+        }
+
+        let (root_var, last_scope) = arena.find_declared_var(self, &root_name);
+        // An undeclared root uses the global scope. When found, the slot's live owner may
+        // differ from the scope where the binding was encountered.
+        let owner = root_var.map_or(last_scope, |var| {
+            closure_rhino::check_not_null!(arena.vars[var.index()].abstract_var.scope)
+        });
+        arena.scopes[owner.index()]
+            .abstract_scope
+            .vars
+            .get(name)
+            .copied()
     }
 
     // port: TypedScope#getTypeThroughNamespace
@@ -820,6 +802,24 @@ impl TypedScopeArena {
                 parent: data.parent,
             })))
         })
+    }
+
+    /// Find an explicit lexical binding and the last scope examined (global on a miss).
+    fn find_declared_var(
+        &self,
+        mut scope: TypedScope,
+        name: &JsString,
+    ) -> (Option<TypedVar>, TypedScope) {
+        loop {
+            let data = &self.scopes[scope.index()];
+            if let Some(&var) = data.abstract_scope.vars.get(name) {
+                return (Some(var), scope);
+            }
+            let Some(parent) = data.parent else {
+                return (None, scope);
+            };
+            scope = parent;
+        }
     }
 
     // port: AbstractScope#getOwnSlot
@@ -1276,6 +1276,40 @@ mod tests {
     use super::*;
     use crate::compiler::Compiler;
     use closure_rhino::ir::IR;
+
+    #[test]
+    fn qualified_lookup_uses_the_live_owner_of_the_root_binding() {
+        let mut compiler = Compiler::new();
+        let script = compiler.parse_test_code("function f() { let y; }");
+        let global = TypedScope::create_global_scope(&mut compiler, script);
+        let function = script.get_only_child(&compiler);
+        let local = TypedScope::new(&mut compiler, global, function);
+        let body = function.get_last_child(&compiler).unwrap();
+        let block = TypedScope::new(&mut compiler, local, body);
+
+        let outer = global.declare(&mut compiler, "ns", None, None, None, true);
+        let global_prop = global.declare(&mut compiler, "ns.x", None, None, None, true);
+        let inner = local.declare(&mut compiler, "ns", None, None, None, true);
+        let local_prop = local.declare(&mut compiler, "ns.x", None, None, None, true);
+        assert_eq!(Some(local_prop), block.get_var(&mut compiler, "ns.x"));
+
+        // A binding can point to a slot owned by another scope.
+        local
+            .scope_data_mut(&mut compiler)
+            .vars
+            .insert("ns".into(), outer);
+        assert_eq!(Some(outer), block.get_var(&mut compiler, "ns"));
+        assert_eq!(Some(global_prop), block.get_var(&mut compiler, "ns.x"));
+        assert_eq!(Some(local_prop), local.get_var(&mut compiler, "ns.x"));
+
+        local
+            .scope_data_mut(&mut compiler)
+            .vars
+            .insert("ns".into(), inner);
+        local.undeclare(&mut compiler, inner);
+        global.undeclare(&mut compiler, outer);
+        assert_eq!(Some(global_prop), block.get_var(&mut compiler, "ns.x"));
+    }
 
     #[test]
     fn declaration_view_follows_reservations_and_live_shadowing() {

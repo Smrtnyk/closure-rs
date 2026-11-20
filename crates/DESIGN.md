@@ -457,7 +457,8 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   per options object (CodePrinter.Builder makes default options per `toSource`).
 - `jscomp/scope.rs` `NameArg`, `get_var_of_node`, `typed_scope.rs` `get_var`,
   `abstract_var.rs` `name_equals`: variable names are read by reference instead of copied, and
-  `TypedScope#getVar` walks the scope chain under one lock for non-implicit names;
+  `TypedScope#getVar` resolves ordinary bindings and the live owner of a qualified name
+  under one arena read. Implicit bindings retain their on-demand construction;
   `ImplicitVar::of` checks the name's length first.
 - `jscomp/data_flow_analysis.rs` `flow`: the stored lattice element is compared with the new one
   before it is replaced instead of being copied first (Java keeps references); the
