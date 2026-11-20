@@ -426,6 +426,8 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `declare` of syntactic scopes take the lock once.
 - `jscomp/typed_scope_creator.rs`: the never-iterated `reservedNamesForScope` and
   `assignedVarNames` remove entries with `swap_remove`.
+- `jstype/js_type_registry.rs` resolves dotted type names one property at a time from the
+  source string, and searches namespace prefixes only when the registry has Closure namespaces.
 - `jstype/property_map.rs` `findClosest`, `object_type.rs` `getOwnSlot`/`getSlot`: the walk reads
   each property map in place instead of copying it.
 - `jscomp/compiler_input.rs`: a `CompilerInput` is one `Arc` around its fields.

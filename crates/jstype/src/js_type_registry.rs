@@ -1368,16 +1368,13 @@ impl JSTypeRegistry {
         if qualified_name.is_empty() {
             return None;
         }
-        if !self.is_name_defined_locally(
-            ast,
-            resolution_scope,
-            &Self::get_root_element_of_name(qualified_name),
-        ) {
+        let root_name = Self::get_root_element_of_name(qualified_name);
+        if !self.is_name_defined_locally(ast, resolution_scope, &root_name) {
             if let Some(type_) = self.resolve_via_closure_namespace(ast, qualified_name.clone()) {
                 return Some(type_);
             }
         }
-        self.resolve_via_properties(ast, resolution_scope, qualified_name)
+        self.resolve_via_properties(ast, resolution_scope, &root_name, qualified_name)
     }
     // port: JSTypeRegistry#isNameDefinedLocally
     /// Rust-only parameters: the lookup may create an implicit var (see
@@ -1399,24 +1396,25 @@ impl JSTypeRegistry {
         ast: &Ast,
         reference: impl Into<JsString>,
     ) -> Option<TypeId> {
-        let mut prefix = reference.into();
-        let mut unused_components = Vec::new();
+        let reference = reference.into();
+        if self.closure_namespaces.is_empty() {
+            return None;
+        }
+        let mut prefix = reference.clone();
         loop {
             if let Some(namespace) = self.closure_namespaces.get(&prefix).cloned() {
                 if namespace.is_legacy() {
                     return None;
                 }
-                unused_components.reverse();
                 return self.resolve_via_property_given_slot(
                     ast,
                     namespace.type_(),
                     namespace.definition_node(),
-                    &unused_components,
+                    &reference.as_units()[prefix.length()..],
                 );
             }
             let last_dot = prefix.as_units().iter().rposition(|u| *u == b'.' as u16)?;
-            unused_components.push(prefix.substring_from(last_dot + 1));
-            prefix = prefix.substring(0, last_dot);
+            prefix = reference.substring(0, last_dot);
         }
     }
     // port: JSTypeRegistry#resolveViaProperties
@@ -1424,21 +1422,17 @@ impl JSTypeRegistry {
         &mut self,
         ast: &Ast,
         declaration_scope: &dyn StaticTypedScope,
+        root_name: &JsString,
         qualified_name: &JsString,
     ) -> Option<TypeId> {
         check_argument!(!qualified_name.is_empty());
-        let slot = declaration_scope.get_own_slot_creating_implicit_vars(
-            self,
+        let slot = declaration_scope.get_own_slot_creating_implicit_vars(self, ast, root_name)?;
+        self.resolve_via_property_given_slot(
             ast,
-            &Self::get_root_element_of_name(qualified_name),
-        )?;
-        let components: Vec<JsString> = qualified_name
-            .as_units()
-            .split(|c| *c == b'.' as u16)
-            .skip(1)
-            .map(|s| JsString::from_units(s.to_vec()))
-            .collect();
-        self.resolve_via_property_given_slot(ast, slot.get_type(self), None, &components)
+            slot.get_type(self),
+            None,
+            &qualified_name.as_units()[root_name.length()..],
+        )
     }
     // port: JSTypeRegistry#resolveTypeFromNodeIfTypedef
     fn resolve_type_from_node_if_typedef(ast: &Ast, node: Option<NodeId>) -> Option<TypeId> {
@@ -1450,9 +1444,9 @@ impl JSTypeRegistry {
         ast: &Ast,
         mut slot_type: Option<TypeId>,
         definition_node: Option<NodeId>,
-        component_names: &[JsString],
+        suffix: &[u16],
     ) -> Option<TypeId> {
-        if component_names.is_empty() {
+        if suffix.is_empty() {
             if let Some(t) = Self::resolve_type_from_node_if_typedef(ast, definition_node) {
                 return Some(t);
             }
@@ -1461,12 +1455,22 @@ impl JSTypeRegistry {
         if t.is_all_type(self) || t.is_no_type(self) {
             return None;
         }
-        for (i, component) in component_names.iter().enumerate() {
+        // Rust-only (performance divergence): the suffix starts at the dot after the root
+        // or namespace. Read each component only as the live property lookup reaches it.
+        let mut components = suffix
+            .split(|&unit| unit == u16::from(b'.'))
+            .skip(1)
+            .peekable();
+        while let Some(units) = components.next() {
             let parent_obj = slot_type?.to_maybe_object_type(self)?;
-            if component.is_empty() || !parent_obj.has_own_property(self, ast, component.clone()) {
+            if units.is_empty() {
                 return None;
             }
-            if i == component_names.len() - 1 {
+            let component = JsString::from_slice(units);
+            if !parent_obj.has_own_property(self, ast, component.clone()) {
+                return None;
+            }
+            if components.peek().is_none() {
                 if let Some(t) = Self::resolve_type_from_node_if_typedef(
                     ast,
                     parent_obj.get_property_def_site(self, ast, component.clone()),
@@ -1474,7 +1478,7 @@ impl JSTypeRegistry {
                     return Some(t);
                 }
             }
-            slot_type = Some(parent_obj.get_property_type(self, ast, component.clone()));
+            slot_type = Some(parent_obj.get_property_type(self, ast, component));
         }
         let t = slot_type?;
         if t.is_function_type(self) && (t.is_constructor(self) || t.is_interface(self)) {
