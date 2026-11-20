@@ -45,7 +45,10 @@
 //! scans anew on every reuse too and panics when the two scopes differ.
 
 use crate::{abstract_compiler::AbstractCompiler, node_util::NodeUtil, scope::ScopeId};
-use closure_rhino::{fast_hash::IndexMap, node::NodeId};
+use closure_rhino::{
+    fast_hash::IndexMap,
+    node::{AstChangeCursor, NodeId},
+};
 use std::{
     num::NonZeroU32,
     sync::{Arc, LazyLock},
@@ -185,6 +188,7 @@ pub(crate) struct SyntacticScopeCache {
     stamps: Vec<u32>,
     /// The number of `record_changes` rounds that found changed nodes.
     round: u32,
+    cursor: AstChangeCursor,
     /// Scratch list of changed nodes.
     changed: Vec<NodeId>,
     /// The kept scope of each root node, by node: 0 for none, else the scope's index + 1.
@@ -201,7 +205,23 @@ impl SyntacticScopeCache {
     /// AST, so unlike the compiler's change reports this misses none.
     fn record_changes(compiler: &mut AbstractCompiler) {
         let mut changed = std::mem::take(&mut compiler.syntactic_scope_cache.changed);
-        compiler.ast.take_changed_nodes(&mut changed);
+        if !compiler
+            .ast
+            .take_changes_since(&mut compiler.syntactic_scope_cache.cursor, &mut changed)
+        {
+            // Public callers can move whole arenas or drain the log between compiler passes.
+            // In either case its old node IDs and stamps no longer identify reusable analyses.
+            let old = std::mem::take(&mut compiler.syntactic_scope_cache.by_root);
+            for scope in old.into_iter().filter_map(NonZeroU32::new) {
+                ScopeId(scope).set_kept(compiler, false);
+            }
+            let cache = &mut compiler.syntactic_scope_cache;
+            cache.entries.clear();
+            cache.global_scripts.clear();
+            cache.script_declarations.clear();
+            cache.stamps.clear();
+            compiler.function_reference_sites = Default::default();
+        }
         if !changed.is_empty() {
             let cache = &mut compiler.syntactic_scope_cache;
             cache.round += 1;

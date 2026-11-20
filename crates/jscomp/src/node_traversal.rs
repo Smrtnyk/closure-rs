@@ -1474,6 +1474,14 @@ impl<'a> NodeTraversal<'a> {
         self.compiler_input_object.as_ref()
     }
 
+    /// A reference-site replay may use a known source input. Leave a cold lookup to the
+    /// ordinary visitor, where resolving the first name also establishes its diagnostic node.
+    pub(crate) fn has_cached_source_input(&self) -> bool {
+        self.compiler_input_object
+            .as_ref()
+            .is_some_and(|input| !input.is_extern())
+    }
+
     /// Not in Java: `getInput().getInputId()` as the shared `Arc` (the cached input is looked up
     /// by exactly this id), without hashing the id for an input lookup on every call.
     pub fn get_input_id_of_input(&mut self) -> Option<Arc<InputId>> {

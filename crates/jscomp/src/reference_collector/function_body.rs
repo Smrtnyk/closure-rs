@@ -15,7 +15,7 @@
  */
 
 //! Rust-only (performance divergence): the ordered NAME sites and basic-block boundaries in a
-//! function body whose descendants use NodeTraversal's plain child loop. The body itself still
+//! block whose descendants use NodeTraversal's plain child loop. The block itself still
 //! runs through NodeTraversal, including scope creation and its mutating exit callback.
 
 use super::is_non_local_module_specifier_name;
@@ -82,7 +82,11 @@ impl FunctionBodySites {
         if (n.is_name(ast) || n.is_import_star(ast))
             && !is_non_local_module_specifier_name(ast, n, parent)
         {
-            let name = names.entry(n.get_string_ref(ast));
+            let Some(spelling) = n.string_payload(ast) else {
+                // The ordinary walk validates malformed public NAME nodes at their visit.
+                return false;
+            };
+            let name = names.entry(spelling);
             let slot = u32::try_from(name.index()).unwrap();
             name.or_insert(n);
             sites.push(Site::Reference(n, slot));
@@ -120,5 +124,49 @@ impl FunctionReferenceCache {
             .bodies
             .insert(body, (stamp, sites.clone()));
         sites
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use closure_rhino::token::Token;
+
+    fn block(ast: &mut Ast, left: &str, right: &str) -> (NodeId, NodeId) {
+        let a = ast.new_string_with_token(Token::NAME, left);
+        let b = ast.new_string_with_token(Token::NAME, right);
+        (ast.new_node_with_children2(Token::BLOCK, a, b), b)
+    }
+
+    #[test]
+    fn replay_tracks_public_payload_changes_missed_drains_and_arena_replacement() {
+        let mut compiler = AbstractCompiler::new();
+        let (root, b) = block(&mut compiler.ast, "x", "x");
+        let count = |c: &mut AbstractCompiler| {
+            FunctionReferenceCache::sites(c, root)
+                .unwrap()
+                .first_names
+                .len()
+        };
+        assert_eq!(count(&mut compiler), 1);
+
+        let mut other = Ast::new();
+        let new = other.new_string_with_token(Token::NAME, "y");
+        std::mem::swap(&mut compiler.ast[b], &mut other[new]);
+        assert_eq!(count(&mut compiler), 2);
+        b.set_string(&mut compiler.ast, "x");
+        let mut changes = Vec::new();
+        compiler.ast.take_changed_nodes(&mut changes);
+        assert!(!changes.is_empty());
+        assert_eq!(count(&mut compiler), 1);
+
+        let mut replacement = Ast::new();
+        let (same_id, _) = block(&mut replacement, "a", "b");
+        assert_eq!(same_id, root);
+        std::mem::swap(&mut compiler.ast, &mut replacement);
+        assert_eq!(count(&mut compiler), 2);
+        let malformed = other.new_node(Token::EMPTY);
+        std::mem::swap(&mut compiler.ast[b], &mut other[malformed]);
+        assert!(FunctionReferenceCache::sites(&mut compiler, root).is_none());
     }
 }

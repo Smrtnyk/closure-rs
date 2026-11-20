@@ -104,6 +104,7 @@ impl CompilerPass for InlineVariables {
             }),
         );
         // Rust-only (performance divergence): vars declared in the externs are never inlined.
+        callback.reuse_reference_sites();
         callback.skip_externs_when_unread();
         CompilerPass::process(&mut callback, compiler, externs, root);
     }

@@ -135,6 +135,7 @@ impl CompilerPass for InferConsts {
             ReferenceCollector::DO_NOTHING_BEHAVIOR,
             &mut scope_creator,
         );
+        collector.reuse_reference_sites();
         collector.process(compiler, js);
 
         for v in collector.get_all_symbols() {

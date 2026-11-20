@@ -87,6 +87,9 @@ pub struct CollectorCallback<'a, B: Behavior> {
 
     narrow_scope: Option<ScopeId>,
 
+    /// Internal users with a pure filter and no per-node hooks can replay plain blocks.
+    reuse_sites: bool,
+
     /// Scratch for one single-scope body's current bindings and reference-map indices.
     body_bindings: Vec<(Option<VarId>, Option<usize>)>,
 
@@ -181,6 +184,7 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
                 collected_hoisted_functions: IndexSet::<_>::default(),
                 narrow_scope: None,
                 body_bindings: Vec::new(),
+                reuse_sites: false,
                 may_skip_externs: false,
                 skipped_externs: None,
                 externs_refer_only_to_externs: None,
@@ -232,6 +236,12 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
     /// until the externs change.
     pub fn skip_externs_when_unread(&mut self) {
         self.callback.may_skip_externs = true;
+    }
+
+    /// Opt in for an internal traversal whose behavior only observes scope exits and whose
+    /// filter is pure. Public collectors can pass a predicate that observes every occurrence.
+    pub(crate) fn reuse_reference_sites(&mut self) {
+        self.callback.reuse_sites = true;
     }
 
     /// Gets the variables that were referenced in this callback.
@@ -403,13 +413,15 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         if body.first_names.is_empty() {
             return true;
         }
-        let scope = t.get_scope();
+        let mut scope = None;
         self.body_bindings.clear();
         for &name in &body.first_names {
+            t.position_at_node(name);
             if !self.needs_name(t, name) {
                 self.body_bindings.push((None, None));
                 continue;
             }
+            let scope = *scope.get_or_insert_with(|| t.get_scope());
             let var = scope.get_var_of_node(t.get_compiler(), name);
             if self.collect_hoisted_functions_in_reference_order
                 && var.is_some_and(|v| self.pending_hoisted_function(t.get_compiler(), v).is_some())
@@ -422,7 +434,8 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         // Each spelling now has one stable binding until the end of this body. Insertion at its
         // first occurrence preserves the reference map's insertion order in all inlining modes.
         let mut has_references = false;
-        for (var, index) in &mut self.body_bindings {
+        for ((var, index), &name) in self.body_bindings.iter_mut().zip(&body.first_names) {
+            t.position_at_node(name);
             if let Some(v) = var.filter(|&v| {
                 (self.var_filter)(t.get_compiler(), v)
                     && self.behavior.needs_variable(t.get_compiler(), v)
@@ -438,6 +451,7 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                 match *site {
                     Site::Reference(name, binding) => {
                         if let Some(index) = self.body_bindings[binding as usize].1 {
+                            t.position_at_node(name);
                             let block = self.block_stack.back().expect("getLast").clone();
                             self.reference_map[index].add(Reference::new(name, t, block));
                         }
@@ -519,11 +533,12 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
         block: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
-        self.behavior.can_reuse_function_reference_sites()
+        (self.reuse_sites
+            || (self.behavior.can_reuse_function_reference_sites()
+                && parent.is_some_and(|p| p.is_function(t))))
             && *REUSE_REFERENCE_SITES
-            && parent.is_some_and(|p| p.is_function(t))
             && block.has_children(t)
-            && t.get_input().is_some_and(|input| !input.is_extern())
+            && t.has_cached_source_input()
             && self.collect_body_from_sites(t, block)
     }
 

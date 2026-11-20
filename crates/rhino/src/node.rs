@@ -739,6 +739,14 @@ impl PresenceSummary {
         self.jsdoc_bits |= other.jsdoc_bits;
     }
 }
+/// Position in one arena's syntax-change log. Independent readers can detect when a previous
+/// reader drained changes, or when an embedding application replaced the entire arena.
+#[derive(Default, Debug)]
+pub struct AstChangeCursor {
+    arena: Option<Arc<()>>,
+    drain: u64,
+}
+
 #[derive(Default, Debug)]
 pub struct Ast {
     nodes: Vec<NodeData>,
@@ -770,6 +778,8 @@ pub struct Ast {
     pub(crate) preparse_bound_first_use: Option<u32>,
     /// Rust-only (performance divergence): whether `changed_nodes` is kept (see `track_changes`).
     tracking_changes: bool,
+    change_log_id: Option<Arc<()>>,
+    change_log_drain: u64,
     /// Lazily built by repeated syntax queries. Moving this arena also moves its index.
     token_candidates: Option<Box<TokenCandidates>>,
     snapshot_watches: snapshot_watch::Watches,
@@ -788,8 +798,8 @@ impl Index<NodeId> for Ast {
 }
 impl IndexMut<NodeId> for Ast {
     fn index_mut(&mut self, n: NodeId) -> &mut NodeData {
-        // An external caller can replace an entire node payload through this interface.
-        self.snapshot_watches.change(n, snapshot_watch::STRUCTURE);
+        // An external caller can replace the whole payload, including a NAME's spelling.
+        self.note_changed(n);
         &mut self.nodes[n.0.get() as usize - 1]
     }
 }
@@ -873,7 +883,31 @@ impl Ast {
     /// Rust-only (performance divergence): moves the nodes recorded since the last call to the end
     /// of `into`.
     pub fn take_changed_nodes(&mut self, into: &mut Vec<NodeId>) {
-        into.append(&mut self.changed_nodes);
+        if !self.changed_nodes.is_empty() {
+            self.change_log_drain = self.change_log_drain.checked_add(1).unwrap();
+            into.append(&mut self.changed_nodes);
+        }
+    }
+
+    /// Drains recorded edits and returns whether `cursor` had seen every preceding drain in
+    /// this arena. A consumer must discard its old analyses when this returns false.
+    pub fn take_changes_since(
+        &mut self,
+        cursor: &mut AstChangeCursor,
+        into: &mut Vec<NodeId>,
+    ) -> bool {
+        let id = self.change_log_id.get_or_insert_with(|| Arc::new(()));
+        let same_arena = cursor
+            .arena
+            .as_ref()
+            .is_some_and(|previous| Arc::ptr_eq(previous, id));
+        if !same_arena {
+            cursor.arena = Some(Arc::clone(id));
+        }
+        let continuous = same_arena && cursor.drain == self.change_log_drain;
+        self.take_changed_nodes(into);
+        cursor.drain = self.change_log_drain;
+        continuous
     }
     /// Rust-only (performance divergence): records that the children, token or string of `n`
     /// changed.
