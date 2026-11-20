@@ -30,6 +30,12 @@ impl TranspilationNamespace {
         compiler.get_transpilation_namespace();
         Self
     }
+
+    /// Internal constructors of the feature-gated passes in `TranspilationPasses`.
+    pub(crate) fn for_es2015_pass(compiler: &mut AbstractCompiler) -> Self {
+        compiler.prepare_transpilation_namespace_for_es2015_pass();
+        Self
+    }
 }
 
 impl AstFactoryStaticScope<AbstractCompiler> for TranspilationNamespace {

@@ -33,7 +33,7 @@ use crate::{
     control_flow_graph::ControlFlowGraph,
     data_flow_analysis::DataFlowAnalysis,
     graph::{adjacency_graph::AdjacencyGraph, graph_node::GraphNode},
-    node_traversal::{AbstractScopedCallback, NodeTraversal},
+    node_traversal::{AbstractScopedCallback, NodeTraversal, TypedScopeEntry},
     reverse_abstract_interpreter::ReverseAbstractInterpreter,
     scope::ScopeId,
     scope_creator::ScopeCreator,
@@ -96,6 +96,7 @@ impl TypeInferencePass {
         compiler: &mut AbstractCompiler,
         inference_root: NodeId,
     ) -> TypedScope {
+        let mut cfg_scopes = Vec::new();
         // Type analysis happens in two major phases.
         // 1) Finding all the symbols.
         // 2) Propagating all the inferred types.
@@ -136,7 +137,7 @@ impl TypeInferencePass {
             {
                 let mut scope_creator = SharedTypedScopeCreator(&self.scope_creator);
                 // FirstScopeBuildingCallback
-                let mut callback = first_scope_building_callback();
+                let mut callback = first_scope_building_callback(&mut cfg_scopes);
                 NodeTraversal::builder()
                     .set_compiler(compiler)
                     .set_callback(&mut callback)
@@ -153,37 +154,17 @@ impl TypeInferencePass {
         }
         self.scope_creator.borrow_mut().finish_and_freeze(compiler);
 
-        {
-            let top_scope = self.top_scope.unwrap();
-            let mut scope_creator = SharedTypedScopeCreator(&self.scope_creator);
-            let this: &TypeInferencePass = self;
-            let mut callback = AbstractScopedCallback::with_scope_callbacks(
-                |_t: &mut NodeTraversal<'_>, _n: NodeId, _parent: Option<NodeId>| {
-                    // Do nothing
-                },
-                // port: TypeInferencePass.SecondScopeBuildingCallback#enterScope
-                |t: &mut NodeTraversal<'_>| {
-                    // Only infer the entry root, rather than the scope root.
-                    // This ensures that incremental compilation only touches the root
-                    // that's been swapped out.
-                    let scope = t.get_typed_scope();
-                    let compiler = t.get_compiler();
-                    if scope.is_cfg_root_scope(compiler) && !scope.is_module_scope(compiler) {
-                        // ignore scopes that don't have their own CFGs and module scopes, which
-                        // are visited as if they were a regular script.
-                        let current_node = t.get_current_node().unwrap();
-                        this.infer_scope(t.get_compiler(), current_node, scope);
-                    }
-                },
-                |_t: &mut NodeTraversal<'_>| {},
-            );
-            NodeTraversal::builder()
-                .set_compiler(compiler)
-                .set_callback(&mut callback)
-                .set_scope_creator(&mut scope_creator)
-                .build()
-                .traverse_with_scope(inference_root, top_scope);
-        }
+        // port: TypeInferencePass.SecondScopeBuildingCallback#enterScope
+        // Rust-only (performance divergence): type resolution leaves the scope roots and AST
+        // structure in place. Run the CFGs in their observed preorder after types are frozen.
+        NodeTraversal::replay_typed_scopes(
+            compiler,
+            inference_root,
+            cfg_scopes,
+            |compiler, node, scope| {
+                self.infer_scope(compiler, node, scope);
+            },
+        );
 
         // Normalize TypedVars to have the '?' type instead of null after inference is complete.
         // This currently cannot be done any earlier because it breaks inference of variables
@@ -271,8 +252,9 @@ impl TypeInferencePass {
 }
 
 // port: TypeInferencePass.FirstScopeBuildingCallback
-fn first_scope_building_callback()
--> AbstractScopedCallback<'static, impl FnMut(&mut NodeTraversal<'_>, NodeId, Option<NodeId>)> {
+fn first_scope_building_callback(
+    cfg_scopes: &mut Vec<TypedScopeEntry>,
+) -> AbstractScopedCallback<'_, impl FnMut(&mut NodeTraversal<'_>, NodeId, Option<NodeId>)> {
     AbstractScopedCallback::with_scope_callbacks(
         // port: TypeInferencePass.FirstScopeBuildingCallback#visit
         |_t: &mut NodeTraversal<'_>, _n: NodeId, _parent: Option<NodeId>| {
@@ -280,7 +262,11 @@ fn first_scope_building_callback()
         },
         // port: TypeInferencePass.FirstScopeBuildingCallback#enterScope
         |t: &mut NodeTraversal<'_>| {
-            t.get_typed_scope();
+            let scope = t.get_typed_scope();
+            let compiler = t.get_compiler();
+            if scope.is_cfg_root_scope(compiler) && !scope.is_module_scope(compiler) {
+                cfg_scopes.push(t.typed_scope_entry(scope));
+            }
         },
         |_t: &mut NodeTraversal<'_>| {},
     )

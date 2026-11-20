@@ -445,6 +445,7 @@ crates/jscomp/src/recent_change.rs	28bcefc96dea6da5	Apache-2.0	closure:src/com/g
 crates/jscomp/src/reference.rs	d40299db70108d22	Apache-2.0	closure:src/com/google/javascript/jscomp/Reference.java
 crates/jscomp/src/reference_collection.rs	eef671f69991b6e7	Apache-2.0	closure:src/com/google/javascript/jscomp/ReferenceCollection.java
 crates/jscomp/src/reference_collector.rs	4712f36b4032c787	Apache-2.0	closure:src/com/google/javascript/jscomp/ReferenceCollector.java
+crates/jscomp/src/reference_collector/function_body.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/reference_map.rs	367ddf86c3a60155	Apache-2.0	closure:src/com/google/javascript/jscomp/ReferenceMap.java
 crates/jscomp/src/region.rs	d4f8bc432c3b004e	Apache-2.0	closure:src/com/google/javascript/jscomp/Region.java
 crates/jscomp/src/remove_cast_nodes.rs	bc8a7eefefbfcff1	Apache-2.0	closure:src/com/google/javascript/jscomp/RemoveCastNodes.java

@@ -2926,6 +2926,7 @@ pub struct CommandLineRunner {
     pub parser: CmdLineParser,
     errors: bool,
     run_compiler: bool,
+    process_exits_after_run: bool,
     bundler: Option<closure_jscomp::deps::closure_bundler::ClosureBundler>,
     compiler_error_receiver: std::cell::RefCell<Option<std::sync::mpsc::Receiver<Vec<u8>>>>,
 }
@@ -2961,6 +2962,7 @@ impl CommandLineRunner {
             parser: CmdLineParser::new(OPTIONS),
             errors: false,
             run_compiler: false,
+            process_exits_after_run: false,
             bundler: None,
             compiler_error_receiver: std::cell::RefCell::new(None),
         };
@@ -3522,7 +3524,12 @@ impl CommandLineRunner {
     pub fn create_compiler(&self) -> Compiler {
         let (sender, receiver) = std::sync::mpsc::channel();
         *self.compiler_error_receiver.borrow_mut() = Some(receiver);
-        Compiler::new_with_output_stream(Some(Box::new(crate::java_io::StreamProxy(sender))))
+        let mut compiler =
+            Compiler::new_with_output_stream(Some(Box::new(crate::java_io::StreamProxy(sender))));
+        if self.process_exits_after_run {
+            compiler.discard_unused_transpilation_namespace_at_exit();
+        }
+        compiler
     }
     // port: AbstractCommandLineRunner#doRun (injectable stream adapter)
     pub fn do_run(&mut self) -> Result<i32, RunnerException> {
@@ -3815,6 +3822,23 @@ impl CommandLineRunner {
         exit_status.map_err(|e| {
             e.at(crate::java_frames::ABSTRACT_COMMAND_LINE_RUNNER_DO_RUN_PROCESS_RESULTS)
         })
+    }
+    /// Runs the native entry point, which discards the compiler when the process exits.
+    /// A caller that keeps the runner can inspect its compiler after `run()`.
+    pub fn run_for_process_exit(mut self) -> i32 {
+        self.process_exits_after_run = true;
+        let mut code = 0;
+        if self.should_run_compiler() {
+            code = self.run();
+        }
+        if self.has_errors() {
+            code = -1;
+        }
+        let _ = self.base.default_js_output.flush();
+        let _ = self.base.err.flush();
+        // Like process::exit, skip freeing the compiler just before the process ends.
+        std::mem::forget(self);
+        code
     }
     // port: AbstractCommandLineRunner#run
     pub fn run(&mut self) -> i32 {

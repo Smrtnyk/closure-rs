@@ -3199,3 +3199,14 @@ fn test_rerun_traverses_externs_that_refer_to_code() {
         srcs("var x = f(); z = x;"),
     ]);
 }
+
+#[test]
+fn test_repeated_local_inlining_with_conditional_capture() {
+    let mut t = InlineVariablesTest::set_up();
+    t.hooks.inline_locals_only = true;
+    t.hooks.num_repetitions = 2;
+    t.test(
+        "function keep(a, flag) { var alias = a; use(flag && alias, alias); }",
+        "function keep(a, flag) { use(flag && a, a); }",
+    );
+}

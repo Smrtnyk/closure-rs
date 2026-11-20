@@ -327,7 +327,7 @@ impl RewriteAsyncFunctions {
     // port: RewriteAsyncFunctions#create
     pub fn create(compiler: &mut AbstractCompiler) -> Self {
         let ast_factory = compiler.create_ast_factory();
-        let namespace = TranspilationNamespace::get(compiler);
+        let namespace = TranspilationNamespace::for_es2015_pass(compiler);
         Self::new(ast_factory, namespace)
     }
 

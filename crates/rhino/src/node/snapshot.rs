@@ -19,8 +19,8 @@
 //! expressions and strings. Only parser-produced values can be captured.
 
 use super::{
-    Ast, NodeCold, NodeData, NodeId, NodeKind, NodeLinks, NodeType, ObjectProp, PresenceSummary,
-    Prop, PropListItem, PropValue, TemplateLiteralStrings,
+    Ast, NodeCold, NodeData, NodeId, NodeKind, NodeLinks, ObjectProp, PresenceSummary, Prop,
+    PropListItem, PropValue, TemplateLiteralStrings,
 };
 use crate::{
     fast_hash::IndexMap,
@@ -122,7 +122,7 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
     /// Capture only a parse whose object graph can be faithfully represented. Files with other
     /// property kinds continue to use the source parser when the bundled externs change.
     pub fn capture(ast: &Ast, root: NodeId, source: &Arc<dyn StaticSourceFile>) -> Option<Self> {
-        if !ast.preparse || ast.types.iter().any(|ty| ty.jstype_or_color.is_some()) {
+        if !ast.preparse || ast.types.iter().any(Option::is_some) {
             return None;
         }
         let mut enc = Encoder {
@@ -150,7 +150,9 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
                 links,
                 lineno_charno: cold.lineno_charno,
                 length: cold.length,
-                original_name: cold.original_name.as_ref().map(|s| enc.string(s)),
+                original_name: cold
+                    .original_name
+                    .map(|id| enc.string(ast.original_name(id))),
                 kind,
                 head: match &data.prop_list_head {
                     Some(head) => Some(enc.property(head)?),
@@ -191,7 +193,13 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
             .collect();
         let string = |id: usize| strings[id].clone();
         ast.presence.merge(&self.presence);
-        let rows = self.nodes.into_iter().map(|node| {
+        // The bundled parses normally carry no original names. Collect only the populated
+        // slots so they can be installed with their final node ids after the append.
+        let mut original_names = Vec::new();
+        let rows = self.nodes.into_iter().enumerate().map(|(i, node)| {
+            if let Some(name) = node.original_name {
+                original_names.push((i, name));
+            }
             let kind = match node.kind {
                 Kind::Plain => NodeKind::Node,
                 Kind::Number(number) => NodeKind::Number { number },
@@ -215,15 +223,15 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
                 NodeCold {
                     lineno_charno: node.lineno_charno,
                     length: node.length,
-                    original_name: node.original_name.map(string),
-                },
-                NodeType {
-                    jstype_or_color: None,
+                    original_name: None,
                 },
                 node.head,
             )
         });
         let (map, heads) = ast.append_preparsed_nodes(self.bound_first_use, rows);
+        for (i, name) in original_names {
+            NodeId::store_original_name(ast, map.node_at(i), Some(string(name)));
+        }
         let expressions: Vec<_> = self
             .expression_roots
             .into_iter()

@@ -235,6 +235,20 @@ impl SyntacticScopeCache {
             .is_some_and(|stamp| *stamp >= round)
     }
 
+    /// The last round that changed this node or a descendant in its change scope. A caller
+    /// relying on the whole subtree must exclude nested functions and scripts (each has its own
+    /// change scope). As for syntactic scopes, this observes edits even during a running pass.
+    pub(crate) fn subtree_stamp(compiler: &mut AbstractCompiler, root: NodeId) -> u32 {
+        compiler.ast.track_changes();
+        Self::record_changes(compiler);
+        compiler
+            .syntactic_scope_cache
+            .stamps
+            .get(root.arena_index())
+            .copied()
+            .unwrap_or(0)
+    }
+
     /// The round from which a change makes a scope scanned now stale.
     pub(crate) fn scan_round(compiler: &mut AbstractCompiler) -> u32 {
         compiler.ast.track_changes();

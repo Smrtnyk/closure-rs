@@ -46,7 +46,7 @@ fn main() -> std::process::ExitCode {
 
 /// The body of `CommandLineRunner#main` up to `System.exit`: the exit code.
 fn run(args: &[String]) -> i32 {
-    let mut runner = match CommandLineRunner::new_system(args) {
+    let runner = match CommandLineRunner::new_system(args) {
         Ok(runner) => runner,
         Err(error) => {
             eprintln!(
@@ -58,17 +58,5 @@ fn run(args: &[String]) -> i32 {
             return 1;
         }
     };
-    let mut code = 0;
-    if runner.should_run_compiler() {
-        code = runner.run();
-    }
-    if runner.has_errors() {
-        code = -1;
-    }
-    use std::io::Write;
-    let _ = runner.base.default_js_output.flush();
-    let _ = runner.base.err.flush();
-    // Like process::exit, skip freeing the compiler's whole state just before the process ends.
-    std::mem::forget(runner);
-    code
+    runner.run_for_process_exit()
 }

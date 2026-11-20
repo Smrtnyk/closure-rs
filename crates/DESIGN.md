@@ -80,7 +80,7 @@ pub struct Ast { /* dense per-node arrays, never shrink */ }   // owns every nod
   `lineno_charno`, `length`, `jstype_or_color`, `original_name`, `prop_list_head`, and the
   subclass payload (`NumberNode.number: f64`, `BigIntNode.bigint: Arc<BigInt>`,
   `StringNode.str: JsString`, `TemplateLiteralSubstringNode.{cooked, raw}`). They are stored in
-  parallel dense arrays indexed by `NodeId` (`NodeLinks`, `NodeData`, `NodeCold`, `NodeType`;
+  parallel arrays indexed by `NodeId` (`NodeLinks`, `NodeData`, `NodeCold` and type or color;
   see "Performance divergences"), not in one object. The Java subclass is a `NodeKind` enum
   inside the node data; `getDouble()` on a non-number node panics like Java's
   `ClassCastException`.
@@ -434,6 +434,16 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `flowThrough` of MustBeReachingVariableDef, MaybeReachingVariableUse and
   LiveVariablesAnalysis use the owned input instead of copying it; `MustDef`'s map is shared
   copy-on-write.
+- `jscomp/process_defines.rs` uses the arena's JSDoc flags to avoid indexing globals when no
+  declaration could be a define. It builds an injected namespace at the original point and
+  collects valid constant expressions only when it has define declarations to validate.
+- `jscomp/transpilation_namespace.rs`, `compiler.rs`: the native CLI can omit the
+  transpiler's global index when every remaining built-in ES2015+ rewrite will skip every
+  script. A missing feature set, custom passes, ES5 output or a possible lookup keeps the
+  original declaration snapshot. Embedders keep the eager namespace.
+- `jscomp/type_inference_pass.rs` records CFG entries as the typed scopes are built and runs
+  them in the same traversal order after type resolution, saving a second AST walk. Each entry
+  retains its original node and script for diagnostics.
 - `jscomp/node_traversal.rs`: `getInput` returns the cached input without recomputing its id;
   `getChunk` is read once per script.
 - `jscomp/source_file.rs`: the source kind is mirrored in an atomic, so `getKind`/`isExtern`
@@ -444,9 +454,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `rhino/node.rs` `Ast::prop_masks`: per node, one bit per property type present in its
   property list, in a dense array, so a lookup of an absent property reads neither the node nor
   the list.
-- `rhino/node.rs` `NodeData`, `NodeCold`, `NodeType`: a node's fields are split over three
-  dense arrays, the payload and property list (read by most passes), the source position and
-  original name, and the type or color (Java: one object).
+- `rhino/node.rs` keeps payloads and property lists separate from source positions.
+  Original names use a 32-bit index into an arena table keyed by string identity. The type
+  and color array grows only through the last assigned slot, so an untyped parse allocates
+  no slots. Worker arenas remap original-name indices when joined.
 - Name lookups read the NAME node's string in place instead of copying it
   (`ScopeId::get_var_of_node`; PolyfillUsageFinder, OptimizeCalls, VarCheck,
   RemoveUnusedCode, DataFlowAnalysis#computeEscaped, InlineFunctions, GatherModuleMetadata,
@@ -466,6 +477,11 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   every NAME in them resolves to a var declared in them, which a traversal of the externs finds
   out and the compiler keeps until a change is recorded inside the externs
   (`ChangeTracker::get_externs_change_count`).
+- `jscomp/reference_collector/function_body.rs`: InlineVariables caches ordered name sites
+  and basic-block boundaries for single-scope function bodies. The AST mutation journal
+  invalidates changed bodies. Each pass resolves names in the current scope and takes the
+  ordinary traversal if it needs to jump to a hoisted function. Set
+  `CLOSURE_RS_REFERENCE_SITES=off` to compare with the full traversal.
 - `jscomp/basic_block.rs`: the basic blocks of references are `Rc`, not `Arc`.
 - `rhino/js_string.rs` `JsStrLike::is_prefix_of`/`is_suffix_of`: `startsWith`/`endsWith` compare
   an ASCII literal with the code units byte by byte instead of converting it first.

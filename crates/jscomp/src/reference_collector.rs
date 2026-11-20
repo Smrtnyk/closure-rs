@@ -18,6 +18,11 @@
 
 //! Port of `ReferenceCollector.java`.
 
+mod function_body;
+
+pub(crate) use function_body::FunctionReferenceCache;
+use function_body::Site;
+
 use crate::abstract_compiler::AbstractCompiler;
 use crate::basic_block::BasicBlock;
 use crate::compiler_pass::CompilerPass;
@@ -76,6 +81,9 @@ pub struct CollectorCallback<'a, B: Behavior> {
     collected_hoisted_functions: IndexSet<NodeId>,
 
     narrow_scope: Option<ScopeId>,
+
+    /// Scratch for one single-scope body's current bindings and reference-map indices.
+    body_bindings: Vec<(Option<VarId>, Option<usize>)>,
 
     /// Rust-only (performance divergence): `process(externs, root)` may skip the externs (see
     /// `skip_externs_when_unread`).
@@ -159,6 +167,7 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
                 collect_hoisted_functions_in_reference_order,
                 collected_hoisted_functions: IndexSet::<_>::default(),
                 narrow_scope: None,
+                body_bindings: Vec::new(),
                 may_skip_externs: false,
                 skipped_externs: None,
                 externs_refer_only_to_externs: None,
@@ -300,29 +309,38 @@ fn create_traversal_builder<'b>(
 }
 
 impl<B: Behavior> CollectorCallback<'_, B> {
+    /// If this reference would recursively collect a hoisted function, return that function
+    /// and the scope containing its declaration. Even a filtered-out reference can cause a jump.
+    fn pending_hoisted_function(
+        &self,
+        compiler: &AbstractCompiler,
+        var: VarId,
+    ) -> Option<(NodeId, ScopeId)> {
+        let function = var.get_parent_node(compiler)?;
+        if !NodeUtil::is_hoisted_function_declaration(compiler, function)
+            || self.collected_hoisted_functions.contains(&function)
+        {
+            return None;
+        }
+        let scope = var.get_scope(compiler);
+        if self
+            .narrow_scope
+            .is_some_and(|narrow| narrow.get_depth(compiler) > scope.get_depth(compiler))
+            || self
+                .skipped_externs
+                .is_some_and(|externs| is_inside(compiler, function, externs))
+        {
+            return None;
+        }
+        Some((function, scope))
+    }
+
     // port: ReferenceCollector#maybeJumpToHoistedFunction
     fn maybe_jump_to_hoisted_function(&mut self, var: VarId, t: &mut NodeTraversal<'_>) {
-        let fn_node = var.get_parent_node(t.get_compiler());
-        let var_scope = var.get_scope(t.get_compiler());
-        let Some(fn_node) = fn_node else {
+        let Some((fn_node, var_scope)) = self.pending_hoisted_function(t.get_compiler(), var)
+        else {
             return;
         };
-        if !NodeUtil::is_hoisted_function_declaration(t.get_compiler(), fn_node)
-            // If we're only traversing a narrow scope, do not try to climb outside.
-            || self.narrow_scope.is_some_and(|narrow_scope| {
-                narrow_scope.get_depth(t.get_compiler()) > var_scope.get_depth(t.get_compiler())
-            })
-            || self.collected_hoisted_functions.contains(&fn_node)
-        {
-            return;
-        }
-        // Rust-only (performance divergence): the traversal of skipped externs would have collected
-        // this function.
-        if let Some(externs) = self.skipped_externs
-            && is_inside(t.get_compiler(), fn_node, externs)
-        {
-            return;
-        }
 
         // Replace the block stack with a new one matching the hoist position.
         //
@@ -355,6 +373,56 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         let fn_scope = scope_creator.create_scope(compiler, fn_node, Some(var_scope));
         create_traversal_builder(compiler, self, scope_creator).traverse_at_scope(fn_scope);
         self.block_stack = old_block_stack;
+    }
+
+    /// Rebind every spelling against this traversal's actual scope. A pending jump can invoke a
+    /// mutating scope-exit callback in the middle of this body. In that case collect the whole
+    /// body normally, before adding any reference or changing the block stack.
+    fn collect_body_from_sites(&mut self, t: &mut NodeTraversal<'_>, body: NodeId) -> bool {
+        let Some(body) = FunctionReferenceCache::sites(t.get_compiler(), body) else {
+            return false;
+        };
+        if body.first_names.is_empty() {
+            return true;
+        }
+        let scope = t.get_scope();
+        self.body_bindings.clear();
+        for &name in &body.first_names {
+            let var = scope.get_var_of_node(t.get_compiler(), name);
+            if self.collect_hoisted_functions_in_reference_order
+                && var.is_some_and(|v| self.pending_hoisted_function(t.get_compiler(), v).is_some())
+            {
+                return false;
+            }
+            self.body_bindings.push((var, None));
+        }
+
+        // Each spelling now has one stable binding until the end of this body. Insertion at its
+        // first occurrence preserves the reference map's insertion order in all inlining modes.
+        let mut has_references = false;
+        for (var, index) in &mut self.body_bindings {
+            if let Some(v) = var.filter(|&v| (self.var_filter)(t.get_compiler(), v)) {
+                let entry = self.reference_map.entry(v);
+                *index = Some(entry.index());
+                entry.or_default();
+                has_references = true;
+            }
+        }
+        if has_references {
+            for site in &body.sites {
+                match *site {
+                    Site::Reference(name, binding) => {
+                        if let Some(index) = self.body_bindings[binding as usize].1 {
+                            let block = self.block_stack.back().expect("getLast").clone();
+                            self.reference_map[index].add(Reference::new(name, t, block));
+                        }
+                    }
+                    Site::EnterBlock(n) => self.push_new_block(t, n),
+                    Site::ExitBlock(n) => self.pop_last_block(t, n),
+                }
+            }
+        }
+        true
     }
 
     // port: ReferenceCollector#pushNewBlock
@@ -418,6 +486,19 @@ fn is_non_local_module_specifier_name(ast: &Ast, n: NodeId, parent: NodeId) -> b
 }
 
 impl<B: Behavior> Callback for CollectorCallback<'_, B> {
+    fn traverse_block_children(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        block: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        self.behavior.can_reuse_function_reference_sites()
+            && parent.is_some_and(|p| p.is_function(t))
+            && block.has_children(t)
+            && t.get_input().is_some_and(|input| !input.is_extern())
+            && self.collect_body_from_sites(t, block)
+    }
+
     /// Updates block stack.
     // port: ReferenceCollector.CollectorCallback#shouldTraverse
     fn should_traverse(
@@ -557,6 +638,13 @@ impl ReferenceMap for CollectedReferenceMap<'_> {
 /// Behaviors that rely on strict AST or statement order (such as grouping references by top-level
 /// statement) should ensure `collect_hoisted_functions_in_reference_order` is false.
 pub trait Behavior {
+    /// Rust-only: opt in when the behavior observes only scope exits and its variable filter
+    /// depends only on the binding and AST. ReferenceCollector may then reuse ordered sites in a
+    /// single-scope function body and evaluate the filter once per spelling in that body.
+    fn can_reuse_function_reference_sites(&self) -> bool {
+        false
+    }
+
     /// Called before traversing a node.
     // port: ReferenceCollector.Behavior#beforeTraverseNode
     fn before_traverse_node(

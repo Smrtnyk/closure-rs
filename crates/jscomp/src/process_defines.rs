@@ -42,7 +42,7 @@ use closure_rhino::java_lang::pattern::Pattern;
 use closure_rhino::js_string::JsString;
 use closure_rhino::js_type_expression::JSTypeExpression;
 use closure_rhino::jscomp_base::tri::Tri;
-use closure_rhino::jsdoc_info::JSDocInfo;
+use closure_rhino::jsdoc_info::{Bit, JSDocInfo};
 use closure_rhino::node::NodeId;
 use closure_rhino::token::Token;
 use std::cell::RefCell;
@@ -545,7 +545,15 @@ impl ProcessDefines {
         }
         let namespace = self.namespace();
         let mut namespace = namespace.borrow_mut();
-        for name in namespace.get_all_symbols(compiler) {
+        // Rust-only (performance divergence): every selected declaration needs @define.
+        // An injected namespace can outlive this pass; materialize it at Java's original point.
+        let names = if self.namespace_supplier.is_some() || compiler.has_seen_jsdoc_bit(Bit::DEFINE)
+        {
+            namespace.get_all_symbols(compiler)
+        } else {
+            Vec::new()
+        };
+        for name in names {
             let gn = &*namespace;
             let Some(mut declaration) = self.select_define_declaration(compiler, gn, name) else {
                 continue;
@@ -1144,7 +1152,9 @@ impl CompilerPass for ProcessDefines {
         self.init_namespace(compiler, externs, root);
         self.collect_defines(compiler, root);
         self.report_invalid_define_locations(compiler, root);
-        self.collect_valid_define_value_expressions(compiler);
+        if self.mode.check() && !self.define_by_define_name.is_empty() {
+            self.collect_valid_define_value_expressions(compiler);
+        }
         self.validate_define_declarations(compiler);
         self.override_defines(compiler);
         self.validate_defines(compiler);
@@ -1352,5 +1362,50 @@ impl Define {
             value_parent,
             value,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Compiler, compiler_options::CompilerOptions, source_file::SourceFile};
+
+    #[test]
+    fn injected_namespace_captures_the_tree_even_without_defines() {
+        let mut compiler = Compiler::new();
+        let input = Arc::new(SourceFile::from_code("input.js", "var before = 1;"));
+        compiler.init(&[], &[input], CompilerOptions::new());
+        compiler.parse_inputs();
+        let root = compiler.get_js_root().unwrap();
+        let externs = compiler.get_externs_root().unwrap();
+        let namespace = Rc::new(RefCell::new(GlobalNamespace::new(
+            &mut compiler,
+            externs,
+            root,
+        )));
+        let shared = Rc::clone(&namespace);
+        Builder::new(&compiler)
+            .set_mode(Mode::OPTIMIZE)
+            .inject_namespace(Box::new(move || Some(Rc::clone(&shared))))
+            .build(&mut compiler)
+            .process(&mut compiler, externs, root);
+
+        let script = root.get_first_child(&compiler).unwrap();
+        let declaration = script.get_first_child(&compiler).unwrap();
+        declaration
+            .get_first_child(&compiler)
+            .unwrap()
+            .set_string(&mut compiler, "after");
+        let mut namespace = namespace.borrow_mut();
+        assert!(
+            namespace
+                .get_slot(&mut compiler, &JsString::from("before"))
+                .is_some()
+        );
+        assert!(
+            namespace
+                .get_slot(&mut compiler, &JsString::from("after"))
+                .is_none()
+        );
     }
 }

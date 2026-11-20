@@ -35,6 +35,7 @@ use crate::{
     scope::ScopeId,
     scope_creator::ScopeCreator,
     syntactic_scope_creator::SyntacticScopeCreator,
+    typed_scope::TypedScope,
 };
 use closure_rhino::{
     check_not_null, check_state,
@@ -85,6 +86,14 @@ impl CallbackHolder<'_> {
     }
 }
 
+/// Position of an inference callback in the scope-building traversal. A scope can be
+/// created earlier than its visit (e.g. for an import), so retain the traversal entry node.
+pub(crate) struct TypedScopeEntry {
+    node: NodeId,
+    script: Option<NodeId>,
+    scope: TypedScope,
+}
+
 /// Java's callback is taken out during traversal and threaded through the
 /// recursive calls, so callbacks can receive the entire mutable traversal.
 pub struct NodeTraversal<'a> {
@@ -125,6 +134,18 @@ pub trait Callback: WalkBranch {
 
     // port: NodeTraversal.Callback#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>);
+
+    /// Rust-only: a callback may process a block's children from cached information. The
+    /// traversal has already entered the block scope, and still runs its ordinary exit and visit.
+    /// The default is inlined away in the per-callback walk.
+    fn traverse_block_children(
+        &mut self,
+        _t: &mut NodeTraversal<'_>,
+        _block: NodeId,
+        _parent: Option<NodeId>,
+    ) -> bool {
+        false
+    }
 
     // Rust-only counterpart of Java's instanceof ScopedCallback. Implementors
     // of ScopedCallback return Some(self); ordinary callbacks retain None.
@@ -632,6 +653,13 @@ static TRAVERSAL_TOKEN_CLASS: [u8; 256] = {
 };
 const HAS_HANDLER: u8 = 1;
 const MAY_CREATE_BLOCK_SCOPE: u8 = 2;
+
+/// Whether the plain, in-order child loop handles this token and never enters a scope.
+/// Reference collection can abbreviate subtrees consisting exclusively of these nodes.
+pub(crate) fn traverses_children_in_order_without_scope(token: Token) -> bool {
+    traversal_token_class(token) == 0
+}
+
 /// The class of `token`; a token beyond the table is in both classes, so it takes the general path.
 #[inline(always)]
 fn traversal_token_class(token: Token) -> u8 {
@@ -1150,6 +1178,39 @@ impl<'a> NodeTraversal<'a> {
         }
     }
 
+    pub(crate) fn typed_scope_entry(&self, scope: TypedScope) -> TypedScopeEntry {
+        TypedScopeEntry {
+            node: self.current_node.expect("scope entry node"),
+            script: self.current_script,
+            scope,
+        }
+    }
+
+    /// Rust-only (performance divergence): inference only visits CFG entries. Restore their
+    /// original positions so an error still includes the same source, node and parent.
+    pub(crate) fn replay_typed_scopes(
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+        entries: Vec<TypedScopeEntry>,
+        mut visit: impl FnMut(&mut AbstractCompiler, NodeId, TypedScope),
+    ) {
+        let mut noop = AbstractPostOrderCallback::new(
+            |_: &mut NodeTraversal<'_>, _: NodeId, _: Option<NodeId>| {},
+        );
+        let mut traversal = NodeTraversal::new(compiler, &mut noop, None, false);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            traversal.init_traversal(root);
+            for entry in entries {
+                traversal.current_node = Some(entry.node);
+                traversal.current_script = entry.script;
+                visit(traversal.compiler, entry.node, entry.scope);
+            }
+        }));
+        if let Err(error) = result {
+            traversal.throw_unexpected_exception(error);
+        }
+    }
+
     // port: NodeTraversal#traverseAtScope(AbstractScope)
     pub fn traverse_at_scope(&mut self, s: impl Into<AbstractScopeHandle>) {
         let s = s.into();
@@ -1593,12 +1654,16 @@ impl<'a> NodeTraversal<'a> {
                 self.current_hoist_scope_root = Some(n);
             }
         }
-        // Intentionally inlined, as in Java, to avoid doubling recursion depth.
-        let mut child = n.get_first_child(self);
-        while let Some(c) = child {
-            let next = c.get_next(self);
-            self.traverse_branch(c, Some(n), callback);
-            child = next;
+        if n.is_block(self) && callback.traverse_block_children(self, n, parent) {
+            self.current_node = n.get_last_child(self).or(Some(n));
+        } else {
+            // Intentionally inlined, as in Java, to avoid doubling recursion depth.
+            let mut child = n.get_first_child(self);
+            while let Some(c) = child {
+                let next = c.get_next(self);
+                self.traverse_branch(c, Some(n), callback);
+                child = next;
+            }
         }
         if creates_block_scope {
             self.pop_scope(callback);
