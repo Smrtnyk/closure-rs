@@ -567,6 +567,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `rhino/jsdoc_info.rs` visits type expressions directly in packed property order.
   The extern property collector reads the type roots from the stored expressions.
   Both public collection getters keep their original order and duplicates.
+- `jscomp/check_access_controls.rs` reuses the defining property owner for a
+  visibility check when both walks start at the same prototype. `type_validator.rs`
+  answers the null-or-undefined subtype check directly for known concrete scalars and
+  objects. Functions with an unknown native prototype use the general relation.
 - `jscomp/infer_js_doc_info.rs` `inferJSDocForProperty`: the qualified name is computed only when
   the JSDoc is attached to the property's type, its only use (Java computes it first).
 - `parsing/parser/parser.rs` `peekId`, `getTreeStartLocation`, `parseClassElements`,

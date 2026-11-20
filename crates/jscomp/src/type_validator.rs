@@ -741,7 +741,7 @@ impl TypeValidator {
         let (reg, ast) = compiler.get_type_registry_and_ast();
         if !type_.is_no_type(reg)
             && !type_.is_unknown_type(reg, ast)
-            && type_.is_subtype_of(reg, ast, self.null_or_undefined)
+            && self.is_subtype_of_null_or_undefined(reg, ast, type_)
             && !Self::contains_forward_declared_unresolved_name(reg, ast, type_)
         {
             // There's one edge case right now that we don't handle well, and
@@ -763,6 +763,36 @@ impl TypeValidator {
             return false;
         }
         true
+    }
+
+    /// Called after excluding unknown and bottom. Ordinary objects and scalar values
+    /// cannot be either null or void. Function subtyping also considers the native
+    /// Function.prototype, which a registry can make unknown.
+    fn is_subtype_of_null_or_undefined(
+        &self,
+        reg: &mut JSTypeRegistry,
+        ast: &Ast,
+        type_: TypeId,
+    ) -> bool {
+        use closure_jstype::js_type_class::JSTypeClass;
+        match type_.get_type_class(reg) {
+            JSTypeClass::PROTOTYPE_OBJECT
+            | JSTypeClass::INSTANCE_OBJECT
+            | JSTypeClass::RECORD
+            | JSTypeClass::BOOLEAN
+            | JSTypeClass::BIGINT
+            | JSTypeClass::NUMBER
+            | JSTypeClass::STRING
+            | JSTypeClass::SYMBOL => false,
+            JSTypeClass::FUNCTION
+                if !reg
+                    .get_native_type(JSTypeNative::FUNCTION_PROTOTYPE)
+                    .is_unknown_type(reg, ast) =>
+            {
+                false
+            }
+            _ => type_.is_subtype_of(reg, ast, self.null_or_undefined),
+        }
     }
 
     // port: TypeValidator#containsForwardDeclaredUnresolvedName
@@ -2017,5 +2047,39 @@ impl WithDefaultCase<bool> for WellFormedTemplatizedTypeVerifier {
     ) -> bool {
         !template_type.contains_cycle(reg, ast)
             && template_type.get_bound(reg).visit(reg, ast, self)
+    }
+}
+
+#[cfg(test)]
+mod nullish_subtype_tests {
+    use super::*;
+    use crate::compiler::Compiler;
+
+    #[test]
+    fn nullish_subtype_check_matches_general_relation() {
+        let mut compiler = Compiler::new();
+        compiler.init_compiler_options_if_testing();
+        let validator = compiler.get_type_validator();
+        let (reg, ast) = compiler.get_type_registry_and_ast();
+        let null_void = reg.get_native_type(JSTypeNative::NULL_VOID);
+        let function_prototype = reg.get_native_type(JSTypeNative::FUNCTION_PROTOTYPE);
+        let unknown = reg.get_native_type(UNKNOWN_TYPE);
+        let function = reg.get_native_type(JSTypeNative::FUNCTION_TYPE);
+        for native in JSTypeNative::VALUES {
+            let ty = reg.get_native_type(native);
+            if !ty.is_no_type(reg) && !ty.is_unknown_type(reg, ast) {
+                assert_eq!(
+                    validator.is_subtype_of_null_or_undefined(reg, ast, ty),
+                    ty.is_subtype_of(reg, ast, null_void),
+                    "{native:?}"
+                );
+            }
+        }
+
+        // The general function subtype rule falls back to the current native prototype.
+        reg.reset_implicit_prototype(function_prototype, Some(unknown));
+        assert!(function_prototype.is_unknown_type(reg, ast));
+        assert!(function.is_subtype_of(reg, ast, null_void));
+        assert!(validator.is_subtype_of_null_or_undefined(reg, ast, function));
     }
 }
