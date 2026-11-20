@@ -27,6 +27,23 @@ pub(crate) const PROPERTY: u8 = 1;
 pub(crate) const FUNCTION: u8 = 2;
 pub(crate) const VARIABLE: u8 = 3;
 pub(crate) const ASSIGNMENT: u8 = 4;
+const KIND_MASK: u8 = 7;
+pub(crate) const HAS_FUNCTION: u8 = 8;
+pub(crate) const CHECK_NON_NULLABLE: u8 = 16;
+
+pub(crate) fn kind(record: u8) -> u8 {
+    record & KIND_MASK
+}
+
+/// Bind the recorded initializer to this statement of the verified syntax prefix.
+pub(crate) fn initializer(ast: &Ast, statement: NodeId, record: u8) -> Option<NodeId> {
+    match kind(record) {
+        FUNCTION => Some(statement),
+        VARIABLE => statement.get_first_child(ast)?.get_first_child(ast),
+        ASSIGNMENT => statement.get_first_child(ast)?.get_second_child(ast),
+        _ => None,
+    }
+}
 
 pub(crate) enum DocSite {
     None,
@@ -86,7 +103,7 @@ impl Declaration {
     /// Recheck the build record against the current statement. Return all sites at which
     /// its two initial-scope visitors can have observable effects.
     pub(crate) fn read(ast: &Ast, statement: NodeId, record: u8) -> Option<Self> {
-        let (doc, initializer) = match record {
+        let (doc, initializer) = match kind(record) {
             PROPERTY => (DocSite::On(bare_property(ast, statement)?), None),
             FUNCTION if is_function_stub(ast, statement, true) => {
                 return Some(Self {

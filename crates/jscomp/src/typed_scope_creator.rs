@@ -75,7 +75,7 @@ use closure_rhino::{
     input_id::InputId,
     js_string::JsString,
     jsdoc_info::JSDocInfo,
-    node::{NodeId, Prop},
+    node::{NodeId, Prop, SnapshotUse},
     qualified_name::QualifiedName,
     token::Token,
 };
@@ -2995,7 +2995,9 @@ impl Callback for AbstractScopeBuilder<'_> {
             self.visit_preorder(t, n, parent);
             if let Some((script, records)) = &mut self.bundled_declarations
                 && Some(*script) == parent
-                && records.next() == Some(&declarations::PROPERTY)
+                && records
+                    .next()
+                    .is_some_and(|&r| declarations::kind(r) == declarations::PROPERTY)
                 && let Some(property) = declarations::bare_property(t, n)
             {
                 // NAME and the intermediate GETPROPs of a bare name have no scope-building
@@ -3020,6 +3022,66 @@ impl Callback for AbstractScopeBuilder<'_> {
             self.creator
                 .create_scope(t.get_compiler(), n, Some(function_scope));
         }
+        false
+    }
+
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        if !self.should_traverse(t, script, parent) {
+            return false;
+        }
+        if self.bundled_declarations.is_none() {
+            return true;
+        }
+        let Some((_, suffix)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames) else {
+            // The per-statement fallback still recognizes a live bare property chain.
+            return true;
+        };
+        let (_, records) = self.bundled_declarations.take().unwrap();
+        let mut child = script.get_first_child(t);
+        for &record in records {
+            let statement = child.expect("recorded extern statement");
+            child = statement.get_next(t);
+            if record == declarations::OTHER {
+                self.walk_branch(t, statement, Some(script));
+                continue;
+            }
+            // Empty function stubs contribute their literal type to the global builder. Their
+            // parameters and body belong to the nested scopes built later. A literal initializer
+            // can enqueue a @lends action for the enclosing statement.
+            if let Some(value) = declarations::initializer(t, statement, record) {
+                t.position_at_node(value);
+                if record & declarations::HAS_FUNCTION != 0 {
+                    check_not_null!(self.input_id.as_ref());
+                    self.source_name = NodeUtil::get_source_name(t, value);
+                    self.define_function_literal(t.get_compiler(), value);
+                } else {
+                    self.attach_literal_types(t.get_compiler(), value);
+                }
+            }
+            match declarations::kind(record) {
+                declarations::PROPERTY => {
+                    let property = statement.get_first_child(t).unwrap();
+                    t.position_at_node(property);
+                    let info = property.get_jsdoc_info(t);
+                    self.maybe_declare_qualified_name(t, info, property, statement, None);
+                }
+                declarations::ASSIGNMENT => {
+                    let assign = statement.get_first_child(t).unwrap();
+                    t.position_at_node(assign);
+                    self.visit(t, assign, Some(statement));
+                }
+                _ => {}
+            }
+            t.position_at_node(statement);
+            self.visit(t, statement, Some(script));
+        }
+        debug_assert_eq!(child, suffix);
+        t.traverse_script_suffix(script, parent, suffix, self);
         false
     }
 
@@ -5845,6 +5907,26 @@ impl<'a> FirstOrderFunctionAnalyzer<'a> {
         let mut enum_statements = Vec::new();
         let mut records = records.iter();
         let mut child = script.get_first_child(t);
+        if let Some((_, suffix)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxNamesAndJsDoc)
+        {
+            for &record in &mut records {
+                let statement = child.expect("recorded extern statement");
+                child = statement.get_next(t);
+                if record == declarations::OTHER
+                    || (record & declarations::HAS_FUNCTION != 0
+                        && !self.record_stub(
+                            t,
+                            declarations::initializer(t, statement, record).unwrap(),
+                        ))
+                {
+                    self.walk_branch(t, statement, Some(script));
+                    enum_statements.push(statement);
+                } else if record & declarations::CHECK_NON_NULLABLE != 0 {
+                    enum_statements.push(statement);
+                }
+            }
+            debug_assert_eq!(child, suffix);
+        }
         while let Some(statement) = child {
             child = statement.get_next(t);
             let record = records.next().copied().unwrap_or(declarations::OTHER);

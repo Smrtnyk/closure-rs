@@ -403,6 +403,10 @@ mod tests {
             assert!(!recording.calls.lock().unwrap().is_empty());
         }
 
+        results(compiler, root, pass)
+    }
+
+    fn results(mut compiler: Compiler, root: NodeId, pass: TypeInferencePass) -> InferenceResult {
         let mut nodes = Vec::new();
         let mut pending = vec![root];
         while let Some(node) = pending.pop() {
@@ -438,6 +442,114 @@ mod tests {
             nodes,
             slots,
             diagnostics,
+        }
+    }
+
+    #[test]
+    fn bundled_declarations_match_live_scope_and_type_construction() {
+        use crate::{
+            compiler_options::{CompilerOptions, LanguageMode},
+            source_file::{SourceFile, bundled_script::BundledScript},
+        };
+        use closure_resources::compiler_options::Environment;
+        use closure_rhino::{node::SnapshotUse, static_source_file::StaticSourceFile};
+
+        #[derive(Clone, Copy, PartialEq)]
+        enum Edit {
+            Append,
+            JsDoc,
+            BodyAndProperty,
+        }
+
+        fn run(bundled: bool, edit: Edit) -> InferenceResult {
+            let mut compiler = Compiler::new();
+            let mut options = CompilerOptions::new();
+            options.set_language_in(LanguageMode::ECMASCRIPT_NEXT);
+            let file = SourceFile::bundled_externs(Environment::BROWSER)
+                .into_iter()
+                .find(|f| f.get_name().ends_with("/w3c_abort.js"))
+                .unwrap();
+            let name = file.get_name().to_owned();
+            let file = if bundled {
+                file
+            } else {
+                SourceFile::from_code(&name, file.get_code().unwrap())
+            };
+            let src = SourceFile::from_code(
+                "app.js",
+                "/** @constructor */ function SourceOnly() {}
+                 /** @typedef {number} */ var SourceNumber;
+                 var result = AbortSignal.later(new SourceOnly());",
+            );
+            compiler.init(&[Arc::new(file)], &[Arc::new(src)], options);
+            let root = compiler.parse_inputs().unwrap();
+            let script = compiler.get_script_node(&name).unwrap();
+            let extra = compiler.parse_synthetic_code(
+                "appended",
+                "/** @type {SourceNumber} */ AbortSignal.extra;
+                 /** @param {!SourceOnly} value
+                  * @return {!SourceOnly} */
+                 AbortSignal.later = function(value) {};
+                 function appended(arg) { function nested() { return arg; } return nested(); }",
+            );
+            while let Some(n) = extra.get_first_child(&compiler) {
+                n.detach(&mut compiler);
+                script.add_child_to_back(&mut compiler, n);
+            }
+            let prop = script
+                .children(&compiler)
+                .find_map(|n| {
+                    let expr = n.get_first_child(&compiler)?;
+                    expr.matches_qualified_name(&compiler, "AbortSignal.prototype.aborted")
+                        .then_some(expr)
+                })
+                .unwrap();
+            if edit != Edit::Append {
+                let source_typedef = compiler
+                    .get_script_node("app.js")
+                    .unwrap()
+                    .get_second_child(&compiler)
+                    .unwrap()
+                    .get_jsdoc_info(&compiler);
+                assert!(source_typedef.as_ref().unwrap().has_typedef_type());
+                prop.set_jsdoc_info(&mut compiler, source_typedef);
+            }
+            if edit == Edit::BodyAndProperty {
+                let stub = script
+                    .children(&compiler)
+                    .find_map(|n| {
+                        let assign = n.get_first_child(&compiler)?;
+                        let lhs = assign.get_first_child(&compiler)?;
+                        lhs.matches_qualified_name(&compiler, "AbortSignal.timeout")
+                            .then(|| assign.get_second_child(&compiler).unwrap())
+                    })
+                    .unwrap();
+                let body = stub.get_last_child(&compiler).unwrap();
+                let ret = IR::return_node(&mut compiler);
+                body.add_child_to_back(&mut compiler, ret);
+                prop.set_string(&mut compiler, "alternate");
+            }
+            assert_eq!(
+                compiler
+                    .parsed_script_record::<BundledScript>(script, SnapshotUse::SyntaxAndNames)
+                    .is_some(),
+                bundled && edit != Edit::BodyAndProperty
+            );
+            assert_eq!(
+                compiler
+                    .parsed_script_record::<BundledScript>(script, SnapshotUse::SyntaxNamesAndJsDoc)
+                    .is_some(),
+                bundled && edit == Edit::Append
+            );
+            let creator = TypedScopeCreator::new(&mut compiler);
+            let interpreter = compiler.get_reverse_abstract_interpreter();
+            let mut pass = TypeInferencePass::new(&mut compiler, interpreter, creator);
+            pass.infer_all_scopes(&mut compiler, root);
+            results(compiler, root, pass)
+        }
+
+        for edit in [Edit::Append, Edit::JsDoc, Edit::BodyAndProperty] {
+            assert_eq!(run(true, edit), run(false, edit));
         }
     }
 

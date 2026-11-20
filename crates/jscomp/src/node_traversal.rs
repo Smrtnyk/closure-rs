@@ -1495,6 +1495,11 @@ impl<'a> NodeTraversal<'a> {
         chunk
     }
 
+    /// Match the diagnostic context of an ordinary callback when replaying its effect.
+    pub(crate) fn position_at_node(&mut self, n: NodeId) {
+        self.current_node = Some(n);
+    }
+
     // port: NodeTraversal#getCurrentNode
     pub fn get_current_node(&self) -> Option<NodeId> {
         self.current_node

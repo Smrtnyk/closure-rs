@@ -69,11 +69,30 @@ fn declaration_records(
                 Token::EXPR_RESULT => PROPERTY,
                 _ => OTHER,
             };
-            if Declaration::read(ast, statement, record).is_some() {
-                record
-            } else {
-                OTHER
-            }
+            let Some(declaration) = Declaration::read(ast, statement, record) else {
+                return OTHER;
+            };
+            let info = match declaration.doc {
+                DocSite::None => None,
+                DocSite::On(node) => node.get_jsdoc_info_ref(ast),
+                // The NAME in this shape has a single VAR, LET or CONST parent at script level.
+                DocSite::BestForName(name) => name
+                    .get_jsdoc_info_ref(ast)
+                    .or_else(|| statement.get_jsdoc_info_ref(ast)),
+            };
+            let check_non_nullable = declaration.possible_alias
+                || info.is_some_and(|doc| doc.has_enum_parameter_type() || doc.has_typedef_type());
+            record
+                | if declaration.function.is_some() {
+                    HAS_FUNCTION
+                } else {
+                    0
+                }
+                | if check_non_nullable {
+                    CHECK_NON_NULLABLE
+                } else {
+                    0
+                }
         })
         .collect()
 }
