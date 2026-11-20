@@ -150,12 +150,27 @@ mod tests {
         };
         assert_eq!(count(&mut compiler), 1);
 
+        let number = compiler.ast.new_number(1.0);
+        number.set_double(&mut compiler.ast, 2.0);
+        let mut changes = Vec::new();
+        compiler.ast.take_changed_nodes(&mut changes);
+        assert!(changes.is_empty());
+
         let mut other = Ast::new();
+        for _ in 0..compiler.ast.node_count() {
+            other.new_node(Token::EMPTY);
+        }
         let new = other.new_string_with_token(Token::NAME, "y");
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let _ = &mut compiler.ast[new];
+            }))
+            .is_err()
+        );
+        assert_eq!(count(&mut compiler), 1);
         std::mem::swap(&mut compiler.ast[b], &mut other[new]);
         assert_eq!(count(&mut compiler), 2);
         b.set_string(&mut compiler.ast, "x");
-        let mut changes = Vec::new();
         compiler.ast.take_changed_nodes(&mut changes);
         assert!(!changes.is_empty());
         assert_eq!(count(&mut compiler), 1);

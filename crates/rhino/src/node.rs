@@ -798,9 +798,11 @@ impl Index<NodeId> for Ast {
 }
 impl IndexMut<NodeId> for Ast {
     fn index_mut(&mut self, n: NodeId) -> &mut NodeData {
-        // An external caller can replace the whole payload, including a NAME's spelling.
-        self.note_changed(n);
-        &mut self.nodes[n.0.get() as usize - 1]
+        // A public writer can replace a NAME's spelling. A failed bounds check makes no edit.
+        if n.arena_index() < self.nodes.len() {
+            self.record_scope_change(n);
+        }
+        self.payload_mut(n)
     }
 }
 impl Index<C> for Ast {
@@ -832,6 +834,15 @@ impl IndexMut<L> for Ast {
 impl Ast {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Typed payload writes invalidate parsed snapshots. Their setters record changes to
+    /// scope-relevant fields separately, so a numeric update leaves the syntax log untouched.
+    #[inline]
+    fn payload_mut(&mut self, node: NodeId) -> &mut NodeData {
+        self.snapshot_watches
+            .change(node, snapshot_watch::STRUCTURE);
+        &mut self.nodes[node.arena_index()]
     }
 
     fn original_name_id(&mut self, name: OriginalName) -> OriginalNameId {
@@ -1260,7 +1271,7 @@ impl Ast {
     // port: Node#newNumber
     pub fn new_number(&mut self, number: f64) -> NodeId {
         let n = self.new_node(Token::NUMBER);
-        self[n].kind = NodeKind::Number { number: 0.0 };
+        self.payload_mut(n).kind = NodeKind::Number { number: 0.0 };
         n.set_double(self, number);
         n
     }
@@ -1268,7 +1279,7 @@ impl Ast {
     // port: Node#newBigInt
     pub fn new_big_int(&mut self, bigint: impl Into<Arc<BigInt>>) -> NodeId {
         let n = self.new_node(Token::BIGINT);
-        self[n].kind = NodeKind::BigInt {
+        self.payload_mut(n).kind = NodeKind::BigInt {
             bigint: Arc::new(BigInt::from(0)),
         };
         n.set_big_int(self, bigint);
@@ -1281,7 +1292,7 @@ impl Ast {
     // port: StringNode#StringNode(Token)
     fn new_string_node(&mut self, token: Token) -> NodeId {
         let n = self.new_node(token);
-        self[n].kind = NodeKind::String {
+        self.payload_mut(n).kind = NodeKind::String {
             str: JsString::default(),
         };
         n
@@ -1329,7 +1340,7 @@ impl Ast {
             self.presence.note_string(cooked);
         }
         self.presence.note_string(&strings.raw);
-        self[n].kind = NodeKind::TemplateLiteralSubstring(Box::new(strings));
+        self.payload_mut(n).kind = NodeKind::TemplateLiteralSubstring(Box::new(strings));
     }
     // port: TemplateLiteralSubstringNode#TemplateLiteralSubstringNode(LazyInternedStringList, int, int)
     // port: Node#newTemplateLitString(LazyInternedStringList, int, int)
@@ -2308,7 +2319,7 @@ impl NodeId {
     pub fn set_double(self, ast: &mut Ast, x: f64) {
         check_state!(!x.is_nan(), "%s", double_to_string(x));
         check_state!(JSCompDoubles::is_positive(x), "%s", double_to_string(x));
-        match &mut ast[self].kind {
+        match &mut ast.payload_mut(self).kind {
             NodeKind::Number { number } => *number = x,
             _ => panic!("ClassCastException"),
         }
@@ -2324,7 +2335,7 @@ impl NodeId {
     pub fn set_big_int(self, ast: &mut Ast, number: impl Into<Arc<BigInt>>) {
         let number = number.into();
         check_state!(number.sign() != Sign::Minus, "%s", number);
-        match &mut ast[self].kind {
+        match &mut ast.payload_mut(self).kind {
             NodeKind::BigInt { bigint } => *bigint = number,
             _ => panic!("ClassCastException"),
         }
