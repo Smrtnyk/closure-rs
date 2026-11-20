@@ -143,6 +143,39 @@ mod tests {
     };
 
     #[test]
+    fn legacy_packed_snapshots_recover_flags_from_a_transplanted_node_payload() {
+        use closure_rhino::{
+            jsdoc_info::{Bit, JSDocInfo},
+            token::Token,
+        };
+
+        let file: Arc<dyn StaticSourceFile> =
+            Arc::new(SimpleSourceFile::new("replacement.js", SourceKind::EXTERN));
+        let mut worker = Ast::new_for_preparse();
+        let root = worker.new_node(Token::EMPTY);
+        let mut other = Ast::new();
+        let annotated = other.new_node(Token::EMPTY);
+        let mut builder = JSDocInfo::builder();
+        builder.record_constructor();
+        annotated.set_jsdoc_info(&mut other, builder.build());
+        std::mem::swap(&mut worker[root], &mut other[annotated]);
+        assert!(!worker.has_seen_jsdoc_bit(Bit::CONSTRUCTOR));
+        let arena = AstSnapshot::<FeatureSet>::capture(&worker, root, &file).unwrap();
+        let legacy = postcard::to_allocvec(&(
+            0u8,
+            Script {
+                arena: arena.for_bundle(),
+                features: FeatureSet::BARE_MINIMUM,
+            },
+        ))
+        .unwrap();
+        let mut restored = Ast::new();
+        let node = load(&legacy, &mut restored, file).ast.unwrap();
+        assert!(restored.has_seen_jsdoc_bit(Bit::CONSTRUCTOR));
+        assert!(node.get_jsdoc_info_ref(&restored).unwrap().is_constructor());
+    }
+
+    #[test]
     fn relocated_packed_properties_keep_their_identity_and_can_be_edited() {
         use closure_rhino::{js_type_expression::JSTypeExpression, node::Prop, token::Token};
 

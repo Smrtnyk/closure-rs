@@ -955,15 +955,17 @@ impl JSDocInfo {
         Self {
             property_bits: bits,
             property_keys_bitset: keys,
-            property_values: Self::pack_property_values(values),
+            property_values: Self::pack_property_values(values.into_iter()),
         }
     }
     // port: JSDocInfo#packPropertyValues
-    fn pack_property_values(mut values: Vec<PropertyValue>) -> PackedPropertyValues {
+    fn pack_property_values(
+        mut values: impl ExactSizeIterator<Item = PropertyValue>,
+    ) -> PackedPropertyValues {
         match values.len() {
             0 => PackedPropertyValues::Empty,
-            1 => PackedPropertyValues::Single(values.pop().unwrap()),
-            _ => PackedPropertyValues::Multiple(values),
+            1 => PackedPropertyValues::Single(values.next().unwrap()),
+            _ => PackedPropertyValues::Multiple(values.collect()),
         }
     }
     /// Rust-only (performance divergence): a copy whose type expressions are replaced by `map_expr`
@@ -1036,7 +1038,7 @@ impl JSDocInfo {
     pub(crate) fn from_snapshot_properties(
         bits: u64,
         keys: u64,
-        values: Vec<PropertyValue>,
+        values: impl ExactSizeIterator<Item = PropertyValue>,
     ) -> Self {
         Self {
             property_bits: bits,

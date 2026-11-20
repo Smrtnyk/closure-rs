@@ -226,10 +226,15 @@ impl PackedRows<&[u8]> {
             rows.iter()
                 .map(|row| properties[usize::from(word(row, 16))].1),
         );
-        ast.jsdocs.extend(
-            rows.iter()
-                .map(|row| properties[usize::from(word(row, 16))].2.clone()),
-        );
+        ast.jsdocs.extend(rows.iter().map(|row| {
+            let doc = &properties[usize::from(word(row, 16))].2;
+            if let Some(info) = doc {
+                // Raw public NodeData replacement can transplant a property list from
+                // another arena without adding its flags to the source presence summary.
+                ast.presence.note_jsdoc(info);
+            }
+            doc.clone()
+        }));
         for (i, name) in self.original_names {
             NodeId::store_original_name(ast, map.node_at(i), Some(strings[name].clone()));
         }
@@ -540,48 +545,42 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
             .docs
             .into_iter()
             .map(|doc| {
-                let values = doc
-                    .values
-                    .into_iter()
-                    .map(|v| match v {
-                        DocValue::Null => PropertyValue::Null,
-                        DocValue::Visibility(v) => PropertyValue::Visibility(v),
-                        DocValue::Type(e) => PropertyValue::TypeExpr(e.map(expr)),
-                        DocValue::Types(v) => {
-                            PropertyValue::TypeList(v.into_iter().map(expr).collect())
-                        }
-                        DocValue::TypeMap(v) => PropertyValue::TypeMap(
-                            v.into_iter()
-                                .map(|(k, e)| (string(k), e.map(expr)))
-                                .collect(),
-                        ),
-                        DocValue::NodeMap(v) => PropertyValue::NodeMap(
-                            v.into_iter()
-                                .map(|(k, n)| (string(k), map.map(n)))
-                                .collect(),
-                        ),
-                        DocValue::Int(n) => PropertyValue::Int(n),
-                        DocValue::IdGenerator(g) => PropertyValue::IdGenerator(g),
-                        DocValue::String(s) => PropertyValue::Str(string(s)),
-                        DocValue::Strings(v) => {
-                            PropertyValue::StrList(v.into_iter().map(string).collect())
-                        }
-                        DocValue::StringMap(v) => PropertyValue::StrMap(
-                            v.into_iter().map(|(k, s)| (string(k), string(s))).collect(),
-                        ),
-                        DocValue::Suppressions(v) => PropertyValue::Suppressions(
-                            v.into_iter()
-                                .map(|(keys, s)| {
-                                    (keys.into_iter().map(string).collect(), string(s))
-                                })
-                                .collect(),
-                        ),
-                        DocValue::StringSet(v) => {
-                            PropertyValue::StrSet(v.into_iter().map(string).collect())
-                        }
-                        DocValue::ClosureUnawareMode(m) => PropertyValue::ClosureUnawareMode(m),
-                    })
-                    .collect();
+                let values = doc.values.into_iter().map(|v| match v {
+                    DocValue::Null => PropertyValue::Null,
+                    DocValue::Visibility(v) => PropertyValue::Visibility(v),
+                    DocValue::Type(e) => PropertyValue::TypeExpr(e.map(expr)),
+                    DocValue::Types(v) => {
+                        PropertyValue::TypeList(v.into_iter().map(expr).collect())
+                    }
+                    DocValue::TypeMap(v) => PropertyValue::TypeMap(
+                        v.into_iter()
+                            .map(|(k, e)| (string(k), e.map(expr)))
+                            .collect(),
+                    ),
+                    DocValue::NodeMap(v) => PropertyValue::NodeMap(
+                        v.into_iter()
+                            .map(|(k, n)| (string(k), map.map(n)))
+                            .collect(),
+                    ),
+                    DocValue::Int(n) => PropertyValue::Int(n),
+                    DocValue::IdGenerator(g) => PropertyValue::IdGenerator(g),
+                    DocValue::String(s) => PropertyValue::Str(string(s)),
+                    DocValue::Strings(v) => {
+                        PropertyValue::StrList(v.into_iter().map(string).collect())
+                    }
+                    DocValue::StringMap(v) => PropertyValue::StrMap(
+                        v.into_iter().map(|(k, s)| (string(k), string(s))).collect(),
+                    ),
+                    DocValue::Suppressions(v) => PropertyValue::Suppressions(
+                        v.into_iter()
+                            .map(|(keys, s)| (keys.into_iter().map(string).collect(), string(s)))
+                            .collect(),
+                    ),
+                    DocValue::StringSet(v) => {
+                        PropertyValue::StrSet(v.into_iter().map(string).collect())
+                    }
+                    DocValue::ClosureUnawareMode(m) => PropertyValue::ClosureUnawareMode(m),
+                });
                 Arc::new(JSDocInfo::from_snapshot_properties(
                     doc.bits, doc.keys, values,
                 ))
