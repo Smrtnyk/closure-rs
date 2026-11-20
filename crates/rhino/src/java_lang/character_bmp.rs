@@ -39,12 +39,21 @@ fn in_ranges(ranges: &[(u16, u16)], ch: u16) -> bool {
 }
 
 // port: Character#isLetter(char)
+#[inline]
 pub fn is_letter(ch: u16) -> bool {
+    // Rust-only (performance divergence): Java's ASCII letters need no BMP range lookup.
+    if ch < 128 {
+        return (ch as u8).is_ascii_alphabetic();
+    }
     in_ranges(character_bmp_data::IS_LETTER, ch)
 }
 
 // port: Character#isDigit(char)
+#[inline]
 pub fn is_digit(ch: u16) -> bool {
+    if ch < 128 {
+        return (ch as u8).is_ascii_digit();
+    }
     in_ranges(character_bmp_data::IS_DIGIT, ch)
 }
 

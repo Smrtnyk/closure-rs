@@ -489,6 +489,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `jscomp/scope.rs` `declare`, `allocate`: a new var or scope takes the arena lock once.
 - `jscomp/chunked_vec.rs`: the syntactic scope arena and its mirror grow in fixed-size chunks
   instead of one `Vec`, so growing never copies the scopes and vars already made.
+- `jscomp/code_consumer.rs` and `code_generator.rs` borrow punctuation across calls
+  and pass single-line tokens directly to the printer. The final printer transfers its
+  code and mapping buffers to the output. License tracking uses its exclusive state
+  while emitting nodes. ASCII letters and digits use the Java character ranges directly.
 - Source maps: `sourcemap/source_map_generator_v3.rs` `JavaAppendable` appends code units
   without making a JS string per write; `util.rs` `escapeString` copies unescaped runs and
   escapes directly; `jscomp/source_map.rs`, `compiler_source_excerpt_provider.rs` reuse the

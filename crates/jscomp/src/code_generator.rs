@@ -27,6 +27,7 @@
     unused_mut,
     unused_parens
 )] // Retain Java branches and local declarations.
+use crate::code_consumer::ascii_token;
 use crate::{
     code_consumer::CodeConsumer, compiler_options::CompilerOptions,
     js_doc_info_printer::JSDocInfoPrinter, node_util::NodeUtil,
@@ -568,7 +569,7 @@ pub trait CodeGeneration<'a> {
                     || context.at_arrow_function_body())
                     && first.unwrap().is_object_pattern(ast);
                 if node.is_assign(ast) && needs_parens {
-                    self.add(&("(").into());
+                    self.add(ascii_token(b'('));
                 }
                 if NodeUtil::is_assignment_op(ast, node) || type_ == Token::EXPONENT {
                     // Assignment operators and '**' are the only right-associative binary operators
@@ -588,7 +589,7 @@ pub trait CodeGeneration<'a> {
                     );
                 }
                 if node.is_assign(ast) && needs_parens {
-                    self.add(&(")").into());
+                    self.add(ascii_token(b')'));
                 }
                 return;
             }
@@ -631,9 +632,9 @@ pub trait CodeGeneration<'a> {
 
                     if (!first.unwrap().is_empty(ast)) {
                         // optional catch binding
-                        self.add(&("(").into());
+                        self.add(ascii_token(b'('));
                         self.add_node(ast, first.unwrap());
-                        self.add(&(")").into());
+                        self.add(ascii_token(b')'));
                     }
 
                     self.add_node(ast, last.unwrap());
@@ -660,9 +661,9 @@ pub trait CodeGeneration<'a> {
                         if (self.code_generator().preserve_type_annotations
                             && first.unwrap().get_jsdoc_info_ref(ast).is_some())
                         {
-                            self.add(&("(").into());
+                            self.add(ascii_token(b'('));
                             self.add_node(ast, first.unwrap());
-                            self.add(&(")").into());
+                            self.add(ascii_token(b')'));
                         } else {
                             self.add_node(ast, first.unwrap());
                         }
@@ -770,14 +771,14 @@ pub trait CodeGeneration<'a> {
                     }
                 }
                 Token::ARRAYLIT => {
-                    self.add(&("[").into());
+                    self.add(ascii_token(b'['));
                     self.add_array_list(ast, first);
-                    self.add(&("]").into());
+                    self.add(ascii_token(b']'));
                 }
                 Token::ARRAY_PATTERN => {
-                    self.add(&("[").into());
+                    self.add(ascii_token(b'['));
                     self.add_array_list(ast, first);
-                    self.add(&("]").into());
+                    self.add(ascii_token(b']'));
                     self.maybe_add_type_decl(ast, node);
                 }
                 Token::PARAM_LIST => {
@@ -789,9 +790,9 @@ pub trait CodeGeneration<'a> {
                     {
                         self.add_node(ast, first.unwrap());
                     } else {
-                        self.add(&("(").into());
+                        self.add(ascii_token(b'('));
                         self.add_list(ast, first);
-                        self.add(&(")").into());
+                        self.add(ascii_token(b')'));
                     }
                 }
                 Token::DEFAULT_VALUE => {
@@ -909,7 +910,7 @@ pub trait CodeGeneration<'a> {
                         self.add(&("default").into());
                     }
                     if (node.get_boolean_prop(ast, NodeId::EXPORT_ALL_FROM)) {
-                        self.add(&("*").into());
+                        self.add(ascii_token(b'*'));
                         check_state!(
                             first.is_some() && first.unwrap().is_empty(ast),
                             "%s",
@@ -948,14 +949,14 @@ pub trait CodeGeneration<'a> {
                         .end_statement(has_trailing_comment_on_same_line);
                 }
                 Token::EXPORT_SPECS | Token::IMPORT_SPECS => {
-                    self.add(&("{").into());
+                    self.add(ascii_token(b'{'));
                     for c in node.children(ast) {
                         if (Some(c) != first) {
                             self.code_generator_mut().cc.list_separator();
                         }
                         self.add_node(ast, c);
                     }
-                    self.add(&("}").into());
+                    self.add(ascii_token(b'}'));
                 }
                 Token::EXPORT_SPEC | Token::IMPORT_SPEC => {
                     self.add_node(ast, first.unwrap());
@@ -968,14 +969,14 @@ pub trait CodeGeneration<'a> {
                     self.add_node(ast, last.unwrap());
                 }
                 Token::IMPORT_STAR => {
-                    self.add(&("*").into());
+                    self.add(ascii_token(b'*'));
                     self.add(&("as").into());
                     self.add(&(node.get_string(ast)));
                 }
                 Token::DYNAMIC_IMPORT => {
                     self.add(&("import(").into());
                     self.add_expr(ast, first.unwrap(), NodeUtil::precedence(type_), context);
-                    self.add(&(")").into());
+                    self.add(ascii_token(b')'));
                 }
                 Token::IMPORT_META => self.add(&("import.meta").into()),
 
@@ -984,7 +985,7 @@ pub trait CodeGeneration<'a> {
                     check_state!(child_count == 3, "%s", node.to_string(ast));
                     let mut class_needs_parens = (context == Context::START_OF_EXPR);
                     if (class_needs_parens) {
-                        self.add(&("(").into());
+                        self.add(ascii_token(b'('));
                     }
 
                     let mut name = first.unwrap();
@@ -1024,7 +1025,7 @@ pub trait CodeGeneration<'a> {
                         self.add_node(ast, child);
                         while let Some(next) = child.get_next(ast) {
                             child = next;
-                            self.add(&(",").into());
+                            self.add(ascii_token(b','));
                             self.code_generator_mut().cc.maybe_insert_space();
                             self.add_node(ast, child);
                         }
@@ -1035,7 +1036,7 @@ pub trait CodeGeneration<'a> {
                         .end_class(context == Context::STATEMENT);
 
                     if (class_needs_parens) {
-                        self.add(&(")").into());
+                        self.add(ascii_token(b')'));
                     }
                 }
                 Token::CLASS_MEMBERS | Token::INTERFACE_MEMBERS | Token::NAMESPACE_ELEMENTS => {
@@ -1052,7 +1053,7 @@ pub trait CodeGeneration<'a> {
                     for c in node.children(ast) {
                         self.add_node(ast, c);
                         if (c.get_next(ast).is_some()) {
-                            self.add(&(",").into());
+                            self.add(ascii_token(b','));
                         }
                         self.code_generator_mut().cc.end_line();
                     }
@@ -1092,7 +1093,7 @@ pub trait CodeGeneration<'a> {
                             "%s",
                             node.to_string(ast)
                         );
-                        self.add(&("*").into());
+                        self.add(ascii_token(b'*'));
                     }
 
                     match type_ {
@@ -1204,11 +1205,11 @@ pub trait CodeGeneration<'a> {
                             init = first;
                         }
                         Token::COMPUTED_FIELD_DEF => {
-                            self.add(&("[").into());
+                            self.add(ascii_token(b'['));
                             // Must use addExpr() with a priority of 1, because comma expressions aren't allowed.
                             // https://www.ecma-international.org/ecma-262/9.0/index.html#prod-ComputedPropertyName
                             self.add_expr(ast, first.unwrap(), 1, Context::OTHER);
-                            self.add(&("]").into());
+                            self.add(ascii_token(b']'));
                             init = node.get_second_child(ast);
                         }
                         _ => {}
@@ -1218,7 +1219,7 @@ pub trait CodeGeneration<'a> {
                         self.code_generator_mut().cc.add_op("=", true);
                         self.add_expr(ast, init.unwrap(), 1, Context::OTHER);
                     }
-                    self.add(&(";").into());
+                    self.add(ascii_token(b';'));
                 }
                 Token::SCRIPT | Token::MODULE_BODY | Token::BLOCK | Token::ROOT => {
                     if node.get_class(ast) != "com.google.javascript.rhino.Node" {
@@ -1271,7 +1272,7 @@ pub trait CodeGeneration<'a> {
                     check_state!(child_count == 4, "%s", node.to_string(ast));
                     self.add(&("for").into());
                     self.code_generator_mut().cc.maybe_insert_space();
-                    self.add(&("(").into());
+                    self.add(ascii_token(b'('));
                     if (NodeUtil::is_name_declaration(ast, first)) {
                         self.add_node_with_context(
                             ast,
@@ -1281,12 +1282,12 @@ pub trait CodeGeneration<'a> {
                     } else {
                         self.add_expr(ast, first.unwrap(), 0, Context::IN_FOR_INIT_CLAUSE);
                     }
-                    self.add(&(";").into());
+                    self.add(ascii_token(b';'));
                     if (!first.unwrap().get_next(ast).unwrap().is_empty(ast)) {
                         self.code_generator_mut().cc.maybe_insert_space();
                     }
                     self.add_node(ast, first.unwrap().get_next(ast).unwrap());
-                    self.add(&(";").into());
+                    self.add(ascii_token(b';'));
                     if (!first
                         .unwrap()
                         .get_next(ast)
@@ -1301,7 +1302,7 @@ pub trait CodeGeneration<'a> {
                         ast,
                         first.unwrap().get_next(ast).unwrap().get_next(ast).unwrap(),
                     );
-                    self.add(&(")").into());
+                    self.add(ascii_token(b')'));
                     self.add_non_empty_statement(
                         ast,
                         last.unwrap(),
@@ -1313,11 +1314,11 @@ pub trait CodeGeneration<'a> {
                     check_state!(child_count == 3, "%s", node.to_string(ast));
                     self.add(&("for").into());
                     self.code_generator_mut().cc.maybe_insert_space();
-                    self.add(&("(").into());
+                    self.add(ascii_token(b'('));
                     self.add_node(ast, first.unwrap());
                     self.add(&("in").into());
                     self.add_node(ast, first.unwrap().get_next(ast).unwrap());
-                    self.add(&(")").into());
+                    self.add(ascii_token(b')'));
                     self.add_non_empty_statement(
                         ast,
                         last.unwrap(),
@@ -1329,7 +1330,7 @@ pub trait CodeGeneration<'a> {
                     check_state!(child_count == 3, "%s", node.to_string(ast));
                     self.add(&("for").into());
                     self.code_generator_mut().cc.maybe_insert_space();
-                    self.add(&("(").into());
+                    self.add(ascii_token(b'('));
                     self.add_node(ast, first.unwrap());
                     self.code_generator_mut().cc.maybe_insert_space();
                     self.add(&("of").into());
@@ -1342,7 +1343,7 @@ pub trait CodeGeneration<'a> {
                         NodeUtil::precedence(Token::ASSIGN),
                         Context::OTHER,
                     );
-                    self.add(&(")").into());
+                    self.add(ascii_token(b')'));
                     self.add_non_empty_statement(
                         ast,
                         last.unwrap(),
@@ -1354,7 +1355,7 @@ pub trait CodeGeneration<'a> {
                     check_state!(child_count == 3, "%s", node.to_string(ast));
                     self.add(&("for await").into());
                     self.code_generator_mut().cc.maybe_insert_space();
-                    self.add(&("(").into());
+                    self.add(ascii_token(b'('));
                     self.add_node(ast, first.unwrap());
                     self.code_generator_mut().cc.maybe_insert_space();
                     self.add(&("of").into());
@@ -1367,7 +1368,7 @@ pub trait CodeGeneration<'a> {
                         NodeUtil::precedence(Token::ASSIGN),
                         Context::OTHER,
                     );
-                    self.add(&(")").into());
+                    self.add(ascii_token(b')'));
                     self.add_non_empty_statement(
                         ast,
                         last.unwrap(),
@@ -1382,9 +1383,9 @@ pub trait CodeGeneration<'a> {
                     self.code_generator_mut().cc.maybe_insert_space();
                     self.add(&("while").into());
                     self.code_generator_mut().cc.maybe_insert_space();
-                    self.add(&("(").into());
+                    self.add(ascii_token(b'('));
                     self.add_node(ast, last.unwrap());
-                    self.add(&(")").into());
+                    self.add(ascii_token(b')'));
                     let has_trailing_comment_on_same_line =
                         self.has_trailing_comment_on_same_line(ast, node);
                     self.code_generator_mut()
@@ -1395,9 +1396,9 @@ pub trait CodeGeneration<'a> {
                     check_state!(child_count == 2, "%s", node.to_string(ast));
                     self.add(&("while").into());
                     self.code_generator_mut().cc.maybe_insert_space();
-                    self.add(&("(").into());
+                    self.add(ascii_token(b'('));
                     self.add_node(ast, first.unwrap());
-                    self.add(&(")").into());
+                    self.add(ascii_token(b')'));
                     self.add_non_empty_statement(
                         ast,
                         last.unwrap(),
@@ -1448,11 +1449,11 @@ pub trait CodeGeneration<'a> {
                     let mut needs_parens =
                         first.unwrap().is_number(ast) || break_out_of_optional_chain;
                     if (needs_parens) {
-                        self.add(&("(").into());
+                        self.add(ascii_token(b'('));
                     }
                     self.add_expr(ast, first.unwrap(), NodeUtil::precedence(type_), context);
                     if (needs_parens) {
-                        self.add(&(")").into());
+                        self.add(ascii_token(b')'));
                     }
                     if (self.code_generator().quote_keyword_properties
                         && TokenStream::is_keyword(&node.get_string(ast)))
@@ -1467,7 +1468,7 @@ pub trait CodeGeneration<'a> {
                                 .concat(&"\"]".into())),
                         );
                     } else {
-                        self.add(&(".").into());
+                        self.add(ascii_token(b'.'));
                         self.add_getprop_identifier(ast, node);
                     }
                 }
@@ -1482,9 +1483,9 @@ pub trait CodeGeneration<'a> {
                     if (node.is_optional_chain_start(ast)) {
                         self.add(&("?.").into());
                     }
-                    self.add(&("[").into());
+                    self.add(ascii_token(b'['));
                     self.add_node(ast, first.unwrap().get_next(ast).unwrap());
-                    self.add(&("]").into());
+                    self.add(ascii_token(b']'));
                 }
                 Token::GETELEM => {
                     check_state!(
@@ -1495,21 +1496,21 @@ pub trait CodeGeneration<'a> {
                     );
                     let mut needs_parens = NodeUtil::is_opt_chain_node(ast, first.unwrap());
                     if (needs_parens) {
-                        self.add(&("(").into());
+                        self.add(ascii_token(b'('));
                     }
                     self.add_expr(ast, first.unwrap(), NodeUtil::precedence(type_), context);
                     if (needs_parens) {
-                        self.add(&(")").into());
+                        self.add(ascii_token(b')'));
                     }
-                    self.add(&("[").into());
+                    self.add(ascii_token(b'['));
                     self.add_node(ast, first.unwrap().get_next(ast).unwrap());
-                    self.add(&("]").into());
+                    self.add(ascii_token(b']'));
                 }
                 Token::WITH => {
                     check_state!(child_count == 2, "%s", node.to_string(ast));
                     self.add(&("with(").into());
                     self.add_node(ast, first.unwrap());
-                    self.add(&(")").into());
+                    self.add(ascii_token(b')'));
                     self.add_non_empty_statement(
                         ast,
                         last.unwrap(),
@@ -1550,7 +1551,7 @@ pub trait CodeGeneration<'a> {
                             NodeUtil::precedence(Token::COMMA),
                             Context::OTHER,
                         );
-                        self.add(&(")").into());
+                        self.add(ascii_token(b')'));
                     } else {
                         self.add_expr(ast, first.unwrap(), NodeUtil::precedence(type_), context);
                     }
@@ -1558,16 +1559,16 @@ pub trait CodeGeneration<'a> {
                     if (node.is_optional_chain_start(ast)) {
                         self.add(&("?.").into());
                     }
-                    self.add(&("(").into());
+                    self.add(ascii_token(b'('));
                     self.add_list(ast, args);
-                    self.add(&(")").into());
+                    self.add(ascii_token(b')'));
                 }
                 Token::CALL => {
                     self.add_invocation_target(ast, node, context);
 
-                    self.add(&("(").into());
+                    self.add(ascii_token(b'('));
                     self.add_list(ast, first.unwrap().get_next(ast));
-                    self.add(&(")").into());
+                    self.add(ascii_token(b')'));
                 }
                 Token::IF => {
                     check_state!(
@@ -1584,9 +1585,9 @@ pub trait CodeGeneration<'a> {
 
                     self.add(&("if").into());
                     self.code_generator_mut().cc.maybe_insert_space();
-                    self.add(&("(").into());
+                    self.add(ascii_token(b'('));
                     self.add_node(ast, first.unwrap());
-                    self.add(&(")").into());
+                    self.add(ascii_token(b')'));
 
                     if (has_else) {
                         self.add_non_empty_statement(
@@ -1636,7 +1637,7 @@ pub trait CodeGeneration<'a> {
                     self.add(&("yield").into());
                     if (node.is_yield_all(ast)) {
                         first.unwrap();
-                        self.add(&("*").into());
+                        self.add(ascii_token(b'*'));
                     }
                     if (first.is_some()) {
                         self.code_generator_mut().cc.maybe_insert_space();
@@ -1672,7 +1673,7 @@ pub trait CodeGeneration<'a> {
                         if (!first.unwrap().is_label_name(ast)) {
                             panic!("Unexpected token type. Should be LABEL_NAME.");
                         }
-                        self.add(&(" ").into());
+                        self.add(ascii_token(b' '));
                         self.add_node(ast, first.unwrap());
                     }
                     let has_trailing_comment_on_same_line =
@@ -1697,7 +1698,7 @@ pub trait CodeGeneration<'a> {
                         if (!first.unwrap().is_label_name(ast)) {
                             panic!("Unexpected token type. Should be LABEL_NAME.");
                         }
-                        self.add(&(" ").into());
+                        self.add(ascii_token(b' '));
                         self.add_node(ast, first.unwrap());
                     }
                     let has_trailing_comment_on_same_line =
@@ -1746,17 +1747,17 @@ pub trait CodeGeneration<'a> {
                     // '()' is optional when no arguments are present
                     let mut next = first.unwrap().get_next(ast);
                     if (next.is_some()) {
-                        self.add(&("(").into());
+                        self.add(ascii_token(b'('));
                         self.add_list(ast, next);
-                        self.add(&(")").into());
+                        self.add(ascii_token(b')'));
                     } else {
                         if (self
                             .code_generator_mut()
                             .cc
                             .should_preserve_extras(ast, node))
                         {
-                            self.add(&("(").into());
-                            self.add(&(")").into());
+                            self.add(ascii_token(b'('));
+                            self.add(ascii_token(b')'));
                         }
                     }
                 }
@@ -1779,9 +1780,9 @@ pub trait CodeGeneration<'a> {
                     let mut needs_parens =
                         context == Context::START_OF_EXPR || context.at_arrow_function_body();
                     if (needs_parens) {
-                        self.add(&("(").into());
+                        self.add(ascii_token(b'('));
                     }
-                    self.add(&("{").into());
+                    self.add(ascii_token(b'{'));
                     for c in node.children(ast) {
                         if (Some(c) != first) {
                             self.code_generator_mut().cc.list_separator();
@@ -1797,9 +1798,9 @@ pub trait CodeGeneration<'a> {
                     if (first.is_some() && node.has_trailing_comma(ast)) {
                         self.code_generator_mut().cc.optional_list_separator();
                     }
-                    self.add(&("}").into());
+                    self.add(ascii_token(b'}'));
                     if (needs_parens) {
-                        self.add(&(")").into());
+                        self.add(ascii_token(b')'));
                     }
                 }
                 Token::COMPUTED_PROP => {
@@ -1817,15 +1818,15 @@ pub trait CodeGeneration<'a> {
                             self.add(&("async").into());
                         }
                         if (last.unwrap().get_boolean_prop(ast, NodeId::GENERATOR_FN)) {
-                            self.add(&("*").into());
+                            self.add(ascii_token(b'*'));
                         }
                     }
-                    self.add(&("[").into());
+                    self.add(ascii_token(b'['));
 
                     // Must use addExpr() with a priority of 1, because comma expressions aren't allowed.
                     // https://www.ecma-international.org/ecma-262/9.0/index.html#prod-ComputedPropertyName
                     self.add_expr(ast, first.unwrap(), 1, Context::OTHER);
-                    self.add(&("]").into());
+                    self.add(ascii_token(b']'));
 
                     // TODO(martinprobst): There's currently no syntax for properties in object literals that
                     // have type declarations on them (a la `{foo: number: 12}`). This comes up for, e.g.,
@@ -1854,7 +1855,7 @@ pub trait CodeGeneration<'a> {
                                 !is_in_class,
                                 "initializers should only exist in object literals, not classes"
                             );
-                            self.code_generator_mut().cc.add(&(":").into());
+                            self.code_generator_mut().cc.add(ascii_token(b':'));
 
                             // Must use addExpr() with a priority of 1, because a comma expression here would cause
                             // a syntax error within the object literal.
@@ -1877,7 +1878,7 @@ pub trait CodeGeneration<'a> {
                 Token::SWITCH => {
                     self.add(&("switch(").into());
                     self.add_node(ast, first.unwrap());
-                    self.add(&(")").into());
+                    self.add(ascii_token(b')'));
                     self.add_node_with_context(ast, last.unwrap(), context);
                 }
                 Token::SWITCH_BODY => {
@@ -1904,7 +1905,7 @@ pub trait CodeGeneration<'a> {
                         panic!("Unexpected token type. Should be LABEL_NAME.");
                     }
                     self.add_node(ast, first.unwrap());
-                    self.add(&(":").into());
+                    self.add(ascii_token(b':'));
                     if (!last.unwrap().is_block(ast)) {
                         self.code_generator_mut().cc.maybe_insert_space();
                     }
@@ -1917,10 +1918,10 @@ pub trait CodeGeneration<'a> {
                 }
                 Token::CAST => {
                     if (self.code_generator().preserve_type_annotations) {
-                        self.add(&("(").into());
+                        self.add(ascii_token(b'('));
                         self.add_node(ast, first.unwrap());
                         // drop context because of added parentheses
-                        self.add(&(")").into());
+                        self.add(ascii_token(b')'));
                     } else {
                         self.add_node_with_context(ast, first.unwrap(), context);
                     }
@@ -1969,30 +1970,30 @@ pub trait CodeGeneration<'a> {
                 }
                 Token::FUNCTION_TYPE => {
                     let mut return_type = first.unwrap();
-                    self.add(&("(").into());
+                    self.add(ascii_token(b'('));
                     self.add_list(ast, first.unwrap().get_next(ast));
-                    self.add(&(")").into());
+                    self.add(ascii_token(b')'));
                     self.code_generator_mut().cc.add_op("=>", true);
                     self.add_node(ast, return_type);
                 }
                 Token::UNION_TYPE => self.add_list_with_separator(ast, first, "|"),
                 Token::RECORD_TYPE => {
-                    self.add(&("{").into());
+                    self.add(ascii_token(b'{'));
                     self.add_list_full(ast, first, false, Context::OTHER, ",");
-                    self.add(&("}").into());
+                    self.add(ascii_token(b'}'));
                 }
                 Token::PARAMETERIZED_TYPE => {
                     // First child is the type that's parameterized, later children are the arguments.
                     self.add_node(ast, first.unwrap());
-                    self.add(&("<").into());
+                    self.add(ascii_token(b'<'));
                     self.add_list(ast, first.unwrap().get_next(ast));
-                    self.add(&(">").into());
+                    self.add(ascii_token(b'>'));
                 }
                 // CLASS -> NAME,EXPR|EMPTY,BLOCK
                 Token::GENERIC_TYPE_LIST => {
-                    self.add(&("<").into());
+                    self.add(ascii_token(b'<'));
                     self.add_list_full(ast, first, false, Context::STATEMENT, ",");
-                    self.add(&(">").into());
+                    self.add(ascii_token(b'>'));
                 }
                 Token::GENERIC_TYPE => {
                     self.add_identifier(node.get_string(ast));
@@ -2017,7 +2018,7 @@ pub trait CodeGeneration<'a> {
                         self.add_node(ast, super_type);
                         while let Some(next) = super_type.get_next(ast) {
                             super_type = next;
-                            self.add(&(",").into());
+                            self.add(ascii_token(b','));
                             self.code_generator_mut().cc.maybe_insert_space();
                             self.add_node(ast, super_type);
                         }
@@ -2058,9 +2059,9 @@ pub trait CodeGeneration<'a> {
                     self.process_end(ast, node, context);
                 }
                 Token::INDEX_SIGNATURE => {
-                    self.add(&("[").into());
+                    self.add(ascii_token(b'['));
                     self.add_node(ast, first.unwrap());
-                    self.add(&("]").into());
+                    self.add(ascii_token(b']'));
                     self.maybe_add_type_decl(ast, node);
                     let has_trailing_comment_on_same_line =
                         self.has_trailing_comment_on_same_line(ast, node);
@@ -2140,10 +2141,10 @@ pub trait CodeGeneration<'a> {
                 NodeUtil::precedence(Token::COMMA),
                 Context::OTHER,
             );
-            self.add(&(")").into());
+            self.add(ascii_token(b')'));
         } else {
             if needs_parens {
-                self.add(&("(").into());
+                self.add(ascii_token(b'('));
             }
             self.add_expr(
                 ast,
@@ -2152,7 +2153,7 @@ pub trait CodeGeneration<'a> {
                 context,
             );
             if needs_parens {
-                self.add(&(")").into());
+                self.add(ascii_token(b')'));
             }
         }
     }
@@ -2242,7 +2243,7 @@ pub trait CodeGeneration<'a> {
         );
         let func_needs_parens = self.arrow_function_needs_parens(ast, n);
         if func_needs_parens {
-            self.add(&("(").into());
+            self.add(ascii_token(b'('));
         }
         self.maybe_add_generic_types(ast, first);
         if n.is_async_function(ast) {
@@ -2268,7 +2269,7 @@ pub trait CodeGeneration<'a> {
             .cc
             .end_function(context == Context::STATEMENT);
         if func_needs_parens {
-            self.add(&(")").into());
+            self.add(ascii_token(b')'));
         }
     }
 
@@ -2283,7 +2284,7 @@ pub trait CodeGeneration<'a> {
     ) {
         let func_needs_parens = context == Context::START_OF_EXPR;
         if func_needs_parens {
-            self.add(&("(").into());
+            self.add(ascii_token(b'('));
         }
         self.add(
             &(if n.is_async_function(ast) {
@@ -2294,7 +2295,7 @@ pub trait CodeGeneration<'a> {
             .into(),
         );
         if n.is_generator_function(ast) {
-            self.add(&("*").into());
+            self.add(ascii_token(b'*'));
             if !first.get_string_ref(ast).is_empty() {
                 self.code_generator_mut().cc.maybe_insert_space();
             }
@@ -2309,7 +2310,7 @@ pub trait CodeGeneration<'a> {
             .cc
             .end_function(context == Context::STATEMENT);
         if func_needs_parens {
-            self.add(&(")").into());
+            self.add(ascii_token(b')'));
         }
     }
 
@@ -2323,7 +2324,7 @@ pub trait CodeGeneration<'a> {
     // port: CodeGenerator#maybeAddTypeDecl
     fn maybe_add_type_decl(&mut self, ast: &Ast, n: NodeId) {
         if let Some(ty) = n.get_declared_type_expression(ast) {
-            self.add(&(":").into());
+            self.add(ascii_token(b':'));
             self.code_generator_mut().cc.maybe_insert_space();
             self.add_node(ast, ty);
         }
@@ -2339,7 +2340,7 @@ pub trait CodeGeneration<'a> {
     // port: CodeGenerator#maybeAddOptional
     fn maybe_add_optional(&mut self, ast: &Ast, n: NodeId) {
         if n.get_boolean_prop(ast, NodeId::OPT_ES6_TYPED) {
-            self.add(&("?").into());
+            self.add(ascii_token(b'?'));
         }
     }
     /// We could use addList recursively here, but sometimes we produce very deeply nested operators
@@ -2467,9 +2468,9 @@ pub trait CodeGeneration<'a> {
     // port: CodeGenerator#addExpr
     fn add_expr(&mut self, ast: &Ast, n: NodeId, min_precedence: i32, context: Context) {
         if self.op_requires_parentheses(ast, n, min_precedence, context) {
-            self.add(&("(").into());
+            self.add(ascii_token(b'('));
             self.add_node_with_context(ast, n, Context::OTHER);
-            self.add(&(")").into());
+            self.add(ascii_token(b')'));
         } else {
             self.add_node_with_context(ast, n, context);
         }
@@ -2607,21 +2608,21 @@ pub trait CodeGeneration<'a> {
             // NOTE: the only time a STRING_KEY node does *not* have children is when it's
             // inside a TypeScript enum.  We should change these to their own ENUM_KEY token
             // so that the bifurcating logic can be removed from STRING_KEY.
-            self.add(&(":").into());
+            self.add(ascii_token(b':'));
             self.add_expr(ast, n.get_first_child(ast).unwrap(), 1, Context::OTHER);
         }
     }
 
     // port: CodeGenerator#addObjectPattern
     fn add_object_pattern(&mut self, ast: &Ast, n: NodeId) {
-        self.add(&("{").into());
+        self.add(ascii_token(b'{'));
         for child in n.children(ast) {
             if Some(child) != n.get_first_child(ast) {
                 self.code_generator_mut().cc.list_separator();
             }
             self.add_node(ast, child);
         }
-        self.add(&("}").into());
+        self.add(ascii_token(b'}'));
     }
     /// Adds a comma-separated list as is specified by an ARRAYLIT node.
     ///
@@ -2690,7 +2691,7 @@ pub trait CodeGeneration<'a> {
             self.add(&(content.concat(&"\n".into())));
         } else if node_line_number == comment_end_position.line {
             // e.g. ``` /* comment */ let x; ```
-            self.add(&(content.concat(&" ".into())));
+            self.add(&(content.concat(ascii_token(b' '))));
         } else {
             // e.g.
             // ```

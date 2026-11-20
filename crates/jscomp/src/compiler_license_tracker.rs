@@ -66,7 +66,8 @@ impl LicenseTracker for SeenSetLicenseTracker {
         let Some(file) = node.get_static_source_file_ref(ast) else {
             return;
         };
-        let mut state = self.state.lock().unwrap();
+        // Rust-only (performance divergence): tracking has exclusive access to this tracker.
+        let state = self.state.get_mut().unwrap();
         // The name is copied only when it changes (most nodes are in the last seen file).
         if file.get_name() == state.last_seen_file {
             return;
@@ -198,7 +199,8 @@ impl LicenseTracker for ChunkGraphAwareLicenseTracker {
         let Some(source_file) = node.get_static_source_file_ref(ast) else {
             return;
         };
-        let mut state = self.state.lock().unwrap();
+        // Rust-only (performance divergence): tracking has exclusive access to this tracker.
+        let state = self.state.get_mut().unwrap();
         // The name is copied only when it changes (most nodes are in the last seen file).
         if state.last_seen_file == source_file.get_name() {
             return;

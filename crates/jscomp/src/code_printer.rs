@@ -17,6 +17,7 @@
 //   src/com/google/javascript/jscomp/CodePrinter.java.
 
 #![allow(clippy::collapsible_if, clippy::too_many_arguments)] // Retain Java control flow and signatures.
+use crate::code_consumer::ascii_token;
 use crate::{
     code_consumer::{CodeConsumer, CodeConsumerState},
     compiler_options::CompilerOptions,
@@ -100,25 +101,28 @@ impl<'a> MappedCodePrinter<'a> {
     /// useful if createSrcMap was true for this MappedCodePrinter.
     // port: CodePrinter.MappedCodePrinter#getSourceMappings
     pub fn get_source_mappings(&self, code: &JsString) -> Option<Vec<Mapping>> {
-        if !self.create_src_map {
-            return None;
-        }
+        self.all_mappings
+            .clone()
+            .map(|mappings| Self::adjust_mappings(code, mappings))
+    }
+    fn adjust_mappings(code: &JsString, mut mappings: Vec<Mapping>) -> Vec<Mapping> {
         let line_lengths = Self::compute_line_lengths(code);
-        let mut fixed_mappings = Vec::new();
-        for mapping in self.all_mappings.as_ref().unwrap() {
-            let adjusted = Mapping {
-                node: mapping.node,
-                start: mapping.start,
-                end: Some(Self::adjust_end_position(
-                    &line_lengths,
-                    mapping
-                        .end
-                        .expect("NullPointerException: source mapping end"),
-                )),
-            };
-            fixed_mappings.push(adjusted);
+        for mapping in &mut mappings {
+            mapping.end = Some(Self::adjust_end_position(
+                &line_lengths,
+                mapping
+                    .end
+                    .expect("NullPointerException: source mapping end"),
+            ));
         }
-        Some(fixed_mappings)
+        mappings
+    }
+    // Rust-only (performance divergence): after the final token, the builder owns both
+    // buffers. Reuse them while adjusting line ends. Public getters can still be read again.
+    fn finish(self) -> SourceAndMappings {
+        let source = JsString::from_units(self.code);
+        let mappings = self.all_mappings.map(|m| Self::adjust_mappings(&source, m));
+        SourceAndMappings { source, mappings }
     }
     /// Reports to the code consumer that the given line has been cut at the given position, i.e. a
     /// \n has been inserted there. All mappings in the source maps after that position will be
@@ -459,7 +463,7 @@ impl CodeConsumer for PrettyCodePrinter<'_> {
     // port: CodePrinter.PrettyCodePrinter#appendBlockStart
     fn append_block_start(&mut self) {
         self.maybe_insert_space();
-        self.add(&"{".into());
+        self.add(ascii_token(b'{'));
         self.indent += 1;
     }
     // port: CodePrinter.PrettyCodePrinter#appendBlockEnd
@@ -467,7 +471,7 @@ impl CodeConsumer for PrettyCodePrinter<'_> {
         self.maybe_end_statement();
         self.end_line();
         self.indent -= 1;
-        self.add(&"}".into());
+        self.add(ascii_token(b'}'));
     }
     // port: CodePrinter.PrettyCodePrinter#listSeparator
     fn list_separator(&mut self) {
@@ -476,7 +480,7 @@ impl CodeConsumer for PrettyCodePrinter<'_> {
     }
     // port: CodePrinter.PrettyCodePrinter#optionalListSeparator
     fn optional_list_separator(&mut self) {
-        self.add(&",".into());
+        self.add(ascii_token(b','));
         self.maybe_line_break();
     }
     // port: CodePrinter.PrettyCodePrinter#endFunction
@@ -491,7 +495,7 @@ impl CodeConsumer for PrettyCodePrinter<'_> {
     }
     // port: CodePrinter.PrettyCodePrinter#beginCaseBody
     fn begin_case_body(&mut self) {
-        self.append(&":".into());
+        self.append(ascii_token(b':'));
         self.indent += 1;
         self.end_line();
     }
@@ -502,11 +506,11 @@ impl CodeConsumer for PrettyCodePrinter<'_> {
     // port: CodePrinter.PrettyCodePrinter#appendOp
     fn append_op(&mut self, op: &str, bin_op: bool) {
         if self.get_last_char() != b' ' as u16 && bin_op && !op.starts_with(',') {
-            self.add(&" ".into());
+            self.add(ascii_token(b' '));
         }
         self.add(&op.into());
         if bin_op {
-            self.add(&" ".into());
+            self.add(ascii_token(b' '));
         }
     }
     /// If the body of a for loop or the then clause of an if statement has a single statement,
@@ -549,7 +553,7 @@ impl CodeConsumer for PrettyCodePrinter<'_> {
     // port: CodePrinter.PrettyCodePrinter#maybeInsertSpace
     fn maybe_insert_space(&mut self) {
         if self.get_last_char() != b' ' as u16 && self.get_last_char() != b'\n' as u16 {
-            self.add(&" ".into());
+            self.add(ascii_token(b' '));
         }
     }
     /// @return Whether the a line break should be added after the specified
@@ -580,7 +584,7 @@ impl CodeConsumer for PrettyCodePrinter<'_> {
         _needs_semicolon: bool,
         has_trailing_comment_on_same_line: bool,
     ) {
-        self.add(&";".into());
+        self.add(ascii_token(b';'));
         if !has_trailing_comment_on_same_line {
             self.end_line();
         }
@@ -926,16 +930,16 @@ impl<'a> Builder<'a> {
     }
 }
 trait MappedConsumer<'a>: CodeConsumer {
-    fn mapped(&self) -> &MappedCodePrinter<'a>;
+    fn into_mapped(self: Box<Self>) -> MappedCodePrinter<'a>;
 }
 impl<'a> MappedConsumer<'a> for CompactCodePrinter<'a> {
-    fn mapped(&self) -> &MappedCodePrinter<'a> {
-        &self.mapped
+    fn into_mapped(self: Box<Self>) -> MappedCodePrinter<'a> {
+        self.mapped
     }
 }
 impl<'a> MappedConsumer<'a> for PrettyCodePrinter<'a> {
-    fn mapped(&self) -> &MappedCodePrinter<'a> {
-        &self.mapped
+    fn into_mapped(self: Box<Self>) -> MappedCodePrinter<'a> {
+        self.mapped
     }
 }
 /// Converts a tree to JS code
@@ -984,11 +988,5 @@ fn to_source(
         cg.add_node(ast, root);
     }
     mcp.end_file();
-    let source = mcp.mapped().get_code();
-    let mappings = if options.should_gather_source_map_info() {
-        mcp.mapped().get_source_mappings(&source)
-    } else {
-        None
-    };
-    SourceAndMappings { source, mappings }
+    mcp.into_mapped().finish()
 }

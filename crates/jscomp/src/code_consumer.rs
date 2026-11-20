@@ -24,6 +24,14 @@ use closure_rhino::{
     node::{Ast, NodeId},
 };
 use num_bigint::BigInt;
+use std::sync::OnceLock;
+
+// Rust-only (performance divergence): Java passes the same string literal for punctuation.
+// Borrow the UTF-16 token across printer and cost-estimator calls.
+pub(crate) fn ascii_token(c: u8) -> &'static JsString {
+    static TOKENS: [OnceLock<JsString>; 128] = [const { OnceLock::new() }; 128];
+    TOKENS[c as usize].get_or_init(|| JsString::from_slice(&[u16::from(c)]))
+}
 
 #[derive(Default)]
 pub struct CodeConsumerState {
@@ -80,7 +88,7 @@ pub trait CodeConsumer {
         if (is_word_char(c) || c == b'\\' as u16) && is_word_char(self.get_last_char()) {
             // need space to separate. This is not pretty printing.
             // For example: "return foo;"
-            self.append(&" ".into());
+            self.append(ascii_token(b' '));
         } else if c == b'/' as u16
             && (self.get_last_char() == b'/' as u16 || self.get_last_char() == b'<' as u16)
         {
@@ -89,7 +97,7 @@ pub trait CodeConsumer {
             // REGEXP DIV REGEXP
             // is valid and should print like
             // / // / /
-            self.append(&" ".into());
+            self.append(ascii_token(b' '));
         } else if (c == b'"' as u16 || c == b'\'' as u16) && is_word_char(self.get_last_char()) {
             self.maybe_insert_space();
         }
@@ -100,6 +108,11 @@ pub trait CodeConsumer {
         // should also be considering them.
         let mut start_of_line = 0;
         let mut end_of_line = newcode.index_of_char(b'\n' as u16);
+        if end_of_line < 0 {
+            // Rust-only (performance divergence): the whole token is already borrowed.
+            self.append(newcode);
+            return;
+        }
         while end_of_line >= 0 {
             if end_of_line as usize > start_of_line {
                 // Append line only if it is non-empty.
@@ -134,11 +147,11 @@ pub trait CodeConsumer {
     }
     // port: CodeConsumer#appendBlockStart
     fn append_block_start(&mut self) {
-        self.append(&"{".into());
+        self.append(ascii_token(b'{'));
     }
     // port: CodeConsumer#appendBlockEnd
     fn append_block_end(&mut self) {
-        self.append(&"}".into());
+        self.append(ascii_token(b'}'));
     }
     // port: CodeConsumer#startNewLine
     fn start_new_line(&mut self) {}
@@ -155,7 +168,7 @@ pub trait CodeConsumer {
     // port: CodeConsumer#beginBlock
     fn begin_block(&mut self) {
         if self.state().statement_needs_ended {
-            self.append(&";".into());
+            self.append(ascii_token(b';'));
             self.maybe_line_break();
         }
         self.append_block_start();
@@ -176,7 +189,7 @@ pub trait CodeConsumer {
     }
     // port: CodeConsumer#listSeparator
     fn list_separator(&mut self) {
-        self.add(&",".into());
+        self.add(ascii_token(b','));
         self.maybe_line_break();
     }
     // port: CodeConsumer#optionalListSeparator
@@ -195,7 +208,7 @@ pub trait CodeConsumer {
         has_trailing_comment_on_same_line: bool,
     ) {
         if need_semi_colon {
-            self.append(&";".into());
+            self.append(ascii_token(b';'));
             if !has_trailing_comment_on_same_line {
                 self.maybe_line_break();
             }
@@ -210,7 +223,7 @@ pub trait CodeConsumer {
     fn maybe_end_statement(&mut self) {
         // Add a ';' if we need to.
         if self.state().statement_needs_ended {
-            self.append(&";".into());
+            self.append(ascii_token(b';'));
             self.maybe_line_break();
             self.end_line();
             self.state_mut().statement_needs_ended = false;
@@ -232,7 +245,7 @@ pub trait CodeConsumer {
     }
     // port: CodeConsumer#beginCaseBody
     fn begin_case_body(&mut self) {
-        self.append(&":".into());
+        self.append(ascii_token(b':'));
     }
     // port: CodeConsumer#endCaseBody
     fn end_case_body(&mut self) {}
@@ -257,7 +270,7 @@ pub trait CodeConsumer {
         // append it without sanitizing in the generic way {@link #add()} would.
         check_state!(self.state().template_lit_sub_depth > 0);
         check_state!(self.state().template_lit_depth == self.state().template_lit_sub_depth);
-        self.append(&"}".into());
+        self.append(ascii_token(b'}'));
         self.state_mut().template_lit_sub_depth -= 1;
     }
     // port: CodeConsumer#endTemplateLit
@@ -274,7 +287,10 @@ pub trait CodeConsumer {
     }
     // port: CodeConsumer#appendOp
     fn append_op(&mut self, op: &str, _bin_op: bool) {
-        self.append(&op.into());
+        match op.as_bytes() {
+            [c] if c.is_ascii() => self.append(ascii_token(*c)),
+            _ => self.append(&op.into()),
+        }
     }
     // port: CodeConsumer#addOp
     fn add_op(&mut self, op: &str, bin_op: bool) {
@@ -284,15 +300,15 @@ pub trait CodeConsumer {
         if (first == b'+' as u16 || first == b'-' as u16) && prev == first {
             // This is not pretty printing. This is to prevent misparsing of
             // things like "x + ++y" or "x++ + ++y"
-            self.append(&" ".into());
+            self.append(ascii_token(b' '));
         } else if java_lang::is_letter(first) && is_word_char(prev) {
             // Make sure there is a space after e.g. instanceof , typeof
-            self.append(&" ".into());
+            self.append(ascii_token(b' '));
         } else if (prev == b'-' as u16 && first == b'>' as u16)
             || (prev == b'<' as u16 && first == b'!' as u16)
         {
             // Make sure that we don't emit "<!--" or "-->"
-            self.append(&" ".into());
+            self.append(ascii_token(b' '));
         }
         // Allow formatting around the operator.
         self.append_op(op, bin_op);
