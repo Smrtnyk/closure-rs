@@ -20,7 +20,7 @@
 
 use crate::{
     abstract_compiler::AbstractCompiler,
-    abstract_scope::AbstractScopeHandle,
+    abstract_scope::{AbstractScope, AbstractScopeHandle},
     change_tracker::ChangeTracker,
     compiler_input::CompilerInput,
     control_flow_analysis::ControlFlowAnalysis,
@@ -41,6 +41,7 @@ use crate::{
 use closure_rhino::{
     check_not_null, check_state,
     input_id::InputId,
+    js_string::JsString,
     node::{Ast, NodeId, SnapshotUse},
     qualified_name::QualifiedName,
     token::Token,
@@ -1926,6 +1927,19 @@ impl<'a> NodeTraversal<'a> {
         let depth = self.scopes.len();
         check_state!(depth > 0);
         depth as i32 - 1
+    }
+
+    /// Test explicit global bindings without constructing a scope or creating an implicit
+    /// variable. A later ordinary NAME visit must perform any such work at its own location.
+    pub(crate) fn global_declares_all(&self, names: &[&str]) -> bool {
+        let [ScopeObject::Scope(AbstractScopeHandle::Untyped(scope))] = self.scopes.as_slice()
+        else {
+            return false;
+        };
+        let data = scope.scope_data(self.compiler);
+        names
+            .iter()
+            .all(|&name| data.vars.contains_key(&JsString::from(name)))
     }
 
     // port: NodeTraversal#getScope

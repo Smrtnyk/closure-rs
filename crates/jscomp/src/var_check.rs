@@ -597,19 +597,8 @@ impl Callback for NameRefInExternsCheck<'_> {
         let Some(roots) = facts.global_property_roots else {
             return true;
         };
-        if !roots.is_empty() {
-            if !t.in_global_scope() {
-                return true;
-            }
-            let scope = t.get_scope();
-            // These roots are accessed at global scope. A missing declaration needs the
-            // original visit so that warnings, name synthesis and ordering use the live AST.
-            if !roots
-                .iter()
-                .all(|&name| scope.get_var(t.get_compiler(), name).is_some())
-            {
-                return true;
-            }
+        if !roots.is_empty() && !t.global_declares_all(roots) {
+            return true;
         }
         t.traverse_script_suffix(script, parent, first, self);
         false

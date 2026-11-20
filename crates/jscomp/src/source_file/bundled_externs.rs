@@ -508,6 +508,64 @@ mod tests {
     }
 
     #[test]
+    fn lazy_scope_creation_reports_the_original_property_root() {
+        use crate::{
+            compiler::Compiler,
+            compiler_options::{CompilerOptions, LanguageMode},
+            compiler_pass::CompilerPass,
+            var_check::VarCheck,
+        };
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
+        fn failure(battery: SourceFile) -> String {
+            let mut options = CompilerOptions::new();
+            options.set_language_in(LanguageMode::ECMASCRIPT_NEXT);
+            let mut compiler = Compiler::new();
+            let module = SourceFile::from_code_with_kind(
+                "other.js",
+                "goog.loadModule(function() {});",
+                SourceKind::EXTERN,
+            );
+            compiler.init(
+                &[Arc::new(battery), Arc::new(module)],
+                &[Arc::new(SourceFile::from_code("app.js", ""))],
+                options,
+            );
+            compiler.parse_inputs();
+            let externs = compiler.get_externs_root().unwrap();
+            let root = compiler.get_js_root().unwrap();
+            let panic = catch_unwind(AssertUnwindSafe(|| {
+                VarCheck::new(&compiler).process(&mut compiler, externs, root);
+            }))
+            .unwrap_err();
+            panic
+                .downcast_ref::<String>()
+                .cloned()
+                .unwrap_or_else(|| panic.downcast_ref::<&str>().unwrap().to_string())
+        }
+
+        let file = SourceFile::bundled_externs(Environment::BROWSER)
+            .into_iter()
+            .find(|f| f.get_name() == "externs.zip//w3c_batterystatus.js")
+            .unwrap();
+        let ordinary = SourceFile::from_code_with_kind(
+            file.get_name(),
+            file.get_code().unwrap(),
+            SourceKind::EXTERN,
+        );
+        let expected = failure(ordinary);
+        assert!(
+            expected.contains("Node(NAME BatteryManager): externs.zip//w3c_batterystatus.js:37:0"),
+            "{expected}"
+        );
+        assert!(
+            expected.contains("Parent(GETPROP prototype): externs.zip//w3c_batterystatus.js:37:15"),
+            "{expected}"
+        );
+        assert_eq!(failure(file), expected);
+    }
+
+    #[test]
     fn missing_global_property_roots_preserve_original_extern_diagnostics() {
         use crate::{
             check_level::CheckLevel,
