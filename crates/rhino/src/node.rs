@@ -839,6 +839,7 @@ impl Ast {
     /// Typed payload writes invalidate parsed snapshots. Their setters record changes to
     /// scope-relevant fields separately, so a numeric update leaves the syntax log untouched.
     #[inline]
+    #[track_caller]
     fn payload_mut(&mut self, node: NodeId) -> &mut NodeData {
         self.snapshot_watches
             .change(node, snapshot_watch::STRUCTURE);
