@@ -18,12 +18,13 @@
 
 use crate::{
     abstract_compiler::AbstractCompiler,
+    abstract_scope::ImplicitVar,
     compiler_pass::CompilerPass,
     node_traversal::NodeTraversal,
     node_util::NodeUtil,
     reference::Reference,
     reference_collection::ReferenceCollection,
-    reference_collector::{Behavior, ReferenceCollector},
+    reference_collector::{Behavior, ExternsReferenceSummary, ReferenceCollector},
     reference_map::ReferenceMap,
     scope::ScopeId,
     syntactic_scope_creator::SyntacticScopeCreator,
@@ -32,7 +33,12 @@ use crate::{
 use closure_parsing::parser::feature_set::Feature;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
-    check_state, ir::IR, js_string::JsString, node::NodeId, token::Token, token_stream::TokenStream,
+    check_state,
+    ir::IR,
+    js_string::JsString,
+    node::{Ast, NodeId},
+    token::Token,
+    token_stream::TokenStream,
 };
 use std::sync::Arc;
 
@@ -57,15 +63,93 @@ impl InlineObjectLiterals {
     }
 }
 
+/// The pass can split a binding only if some declaration or assignment supplies an OBJECTLIT.
+/// Keep every binding of those spellings. Function names must still resolve for the collector's
+/// hoisted jumps, and the four implicit names must still materialize their slots.
+#[derive(Default)]
+struct CandidateNames {
+    assigned_objects: IndexSet<JsString>,
+    to_resolve: IndexSet<JsString>,
+}
+
+impl CandidateNames {
+    fn collect(compiler: &AbstractCompiler, externs: NodeId, root: NodeId) -> Option<Self> {
+        // The global scope scans this common parent. A reference can jump to a hoisted
+        // function in a sibling of either traversal root. Leave invalid roots to NodeTraversal.
+        let scope_root = externs.get_parent(compiler)?;
+        if root.get_parent(compiler) != Some(scope_root) {
+            return None;
+        }
+        let skip_externs = ExternsReferenceSummary::can_skip(compiler, externs);
+        let mut names = Self::default();
+        let mut pending: Vec<_> = scope_root
+            .children(compiler)
+            .filter(|&n| !(skip_externs && n == externs))
+            .collect();
+        while let Some(node) = pending.pop() {
+            if node.is_object_lit(compiler)
+                && let Some(parent) = node.get_parent(compiler)
+            {
+                let lhs = if parent.is_assign(compiler) {
+                    parent.get_first_child(compiler)
+                } else {
+                    Some(parent)
+                };
+                if let Some(lhs) = lhs
+                    && (lhs.is_name(compiler) || lhs.is_import_star(compiler))
+                {
+                    names.assigned_objects.insert(lhs.get_string(compiler));
+                }
+            } else if node.is_function(compiler)
+                && let Some(name) = node.get_first_child(compiler)
+                && name.is_name(compiler)
+                && !name.get_string_ref(compiler).is_empty()
+            {
+                names.to_resolve.insert(name.get_string(compiler));
+            }
+            pending.extend(node.children(compiler));
+        }
+        names
+            .to_resolve
+            .extend(names.assigned_objects.iter().cloned());
+        names.to_resolve.extend(
+            [
+                ImplicitVar::ARGUMENTS,
+                ImplicitVar::EXPORTS,
+                ImplicitVar::SUPER,
+                ImplicitVar::THIS,
+            ]
+            .map(ImplicitVar::js_name),
+        );
+        Some(names)
+    }
+
+    /// Splitting a property can introduce an object initializer or turn a property assignment
+    /// into a name assignment. Every new target has VAR_PREFIX. Include existing references
+    /// to those spellings even before the scope-exit callback that creates the assignment.
+    fn generated(name: &JsString) -> bool {
+        name.starts_with(InlineObjectLiterals::VAR_PREFIX)
+    }
+}
+
 impl CompilerPass for InlineObjectLiterals {
     // port: InlineObjectLiterals#process
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
-        let mut behavior = InliningBehavior {
+        let candidates = CandidateNames::collect(compiler, externs, root);
+        if candidates
+            .as_ref()
+            .is_some_and(|names| names.assigned_objects.is_empty())
+        {
+            return;
+        }
+        let behavior = InliningBehavior {
+            candidates,
+            referenced_scopes: IndexSet::default(),
             safe_name_id_supplier: self.safe_name_id_supplier.clone(),
             stale_vars: IndexSet::<_>::default(),
         };
         let mut scope_creator = SyntacticScopeCreator::new();
-        let mut callback = ReferenceCollector::new(compiler, &mut behavior, &mut scope_creator);
+        let mut callback = ReferenceCollector::new(compiler, behavior, &mut scope_creator);
         // Rust-only (performance divergence): vars declared in the externs are never inlined.
         callback.skip_externs_when_unread();
         CompilerPass::process(&mut callback, compiler, externs, root);
@@ -76,6 +160,8 @@ impl CompilerPass for InlineObjectLiterals {
 /// in that scope, and inlines any that we can.
 // port: InlineObjectLiterals.InliningBehavior
 struct InliningBehavior {
+    candidates: Option<CandidateNames>,
+    referenced_scopes: IndexSet<NodeId>,
     // Java: the outer class's safeNameIdSupplier, read by this inner class.
     safe_name_id_supplier: Arc<dyn Fn() -> String + Send + Sync>,
     /// A list of variables that should not be inlined, because their reference information is out
@@ -86,8 +172,39 @@ struct InliningBehavior {
 }
 
 impl Behavior for InliningBehavior {
+    fn can_reuse_function_reference_sites(&self) -> bool {
+        true
+    }
+
+    fn needs_name(&self, ast: &Ast, node: NodeId) -> bool {
+        let name = node.get_string_ref(ast);
+        self.candidates
+            .as_ref()
+            .is_none_or(|names| names.to_resolve.contains(name) || CandidateNames::generated(name))
+    }
+
+    fn needs_variable(&mut self, compiler: &AbstractCompiler, var: VarId) -> bool {
+        if var.is_global(compiler) || var.is_extern(compiler) {
+            return false;
+        }
+        if let Some(names) = &self.candidates {
+            let name = var.get_name(compiler);
+            if !names.assigned_objects.contains(&name) && !CandidateNames::generated(&name) {
+                return false;
+            }
+        }
+        self.referenced_scopes.insert(var.get_scope_root(compiler));
+        true
+    }
+
     // port: InlineObjectLiterals.InliningBehavior#afterExitScope
     fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, reference_map: &dyn ReferenceMap) {
+        if !self
+            .referenced_scopes
+            .contains(&t.get_scope_root().unwrap())
+        {
+            return;
+        }
         let scope = t.get_scope();
         let compiler = t.get_compiler();
         for v in scope.get_var_iterable(compiler) {

@@ -54,11 +54,6 @@ use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::{check_argument, check_not_null, check_state};
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::LazyLock;
-
-// Diagnostic comparison with the full ReferenceCollector walk, like CLOSURE_RS_SCOPE_CACHE.
-static REUSE_REFERENCE_SITES: LazyLock<bool> =
-    LazyLock::new(|| std::env::var("CLOSURE_RS_REFERENCE_SITES").as_deref() != Ok("off"));
 
 pub struct InlineVariables {
     mode: Mode,
@@ -258,7 +253,7 @@ struct InliningBehavior {
 
 impl Behavior for InliningBehavior {
     fn can_reuse_function_reference_sites(&self) -> bool {
-        *REUSE_REFERENCE_SITES
+        true
     }
 
     // port: InlineVariables.InliningBehavior#afterExitScope

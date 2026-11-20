@@ -39,6 +39,11 @@ use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::{Ast, NodeId};
 use std::collections::VecDeque;
 use std::rc::Rc;
+use std::sync::LazyLock;
+
+// Diagnostic comparison with the full ReferenceCollector walk, like CLOSURE_RS_SCOPE_CACHE.
+static REUSE_REFERENCE_SITES: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("CLOSURE_RS_REFERENCE_SITES").as_deref() != Ok("off"));
 
 /// A helper class for passes that want to access all information about where a variable is
 /// referenced and declared at once and then make a decision as to how it should be handled,
@@ -106,6 +111,14 @@ pub struct ExternsReferenceSummary {
 }
 
 impl ExternsReferenceSummary {
+    pub(crate) fn can_skip(compiler: &AbstractCompiler, externs: NodeId) -> bool {
+        compiler.get_externs_root() == Some(externs)
+            && compiler.externs_reference_summary.is_some_and(|summary| {
+                summary.refers_only_to_externs
+                    && summary.externs_version == Self::externs_version(compiler, externs)
+            })
+    }
+
     fn externs_version(compiler: &AbstractCompiler, externs: NodeId) -> (NodeId, u64, i32) {
         (
             externs,
@@ -309,6 +322,11 @@ fn create_traversal_builder<'b>(
 }
 
 impl<B: Behavior> CollectorCallback<'_, B> {
+    fn needs_name(&self, ast: &Ast, node: NodeId) -> bool {
+        // Building the extern summary needs every binding even if this behavior ignores it.
+        self.externs_refer_only_to_externs == Some(true) || self.behavior.needs_name(ast, node)
+    }
+
     /// If this reference would recursively collect a hoisted function, return that function
     /// and the scope containing its declaration. Even a filtered-out reference can cause a jump.
     fn pending_hoisted_function(
@@ -388,6 +406,10 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         let scope = t.get_scope();
         self.body_bindings.clear();
         for &name in &body.first_names {
+            if !self.needs_name(t, name) {
+                self.body_bindings.push((None, None));
+                continue;
+            }
             let var = scope.get_var_of_node(t.get_compiler(), name);
             if self.collect_hoisted_functions_in_reference_order
                 && var.is_some_and(|v| self.pending_hoisted_function(t.get_compiler(), v).is_some())
@@ -401,7 +423,10 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         // first occurrence preserves the reference map's insertion order in all inlining modes.
         let mut has_references = false;
         for (var, index) in &mut self.body_bindings {
-            if let Some(v) = var.filter(|&v| (self.var_filter)(t.get_compiler(), v)) {
+            if let Some(v) = var.filter(|&v| {
+                (self.var_filter)(t.get_compiler(), v)
+                    && self.behavior.needs_variable(t.get_compiler(), v)
+            }) {
                 let entry = self.reference_map.entry(v);
                 *index = Some(entry.index());
                 entry.or_default();
@@ -448,7 +473,9 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         n: NodeId,
         t: &mut NodeTraversal<'_>,
     ) -> Option<(usize, usize)> {
-        if !(self.var_filter)(t.get_compiler(), v) {
+        if !(self.var_filter)(t.get_compiler(), v)
+            || !self.behavior.needs_variable(t.get_compiler(), v)
+        {
             return None;
         }
 
@@ -493,6 +520,7 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
         parent: Option<NodeId>,
     ) -> bool {
         self.behavior.can_reuse_function_reference_sites()
+            && *REUSE_REFERENCE_SITES
             && parent.is_some_and(|p| p.is_function(t))
             && block.has_children(t)
             && t.get_input().is_some_and(|input| !input.is_extern())
@@ -537,6 +565,7 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
         let mut added_reference = None;
         if (n.is_name(t) || n.is_import_star(t))
+            && self.needs_name(t, n)
             && !is_non_local_module_specifier_name(t, n, parent.unwrap())
         {
             let scope = t.get_scope();
@@ -638,6 +667,18 @@ impl ReferenceMap for CollectedReferenceMap<'_> {
 /// Behaviors that rely on strict AST or statement order (such as grouping references by top-level
 /// statement) should ensure `collect_hoisted_functions_in_reference_order` is false.
 pub trait Behavior {
+    /// Whether this NAME needs to be resolved. A behavior that narrows lookup must
+    /// retain every possible hoisted target and implicit slot as well as its own references.
+    fn needs_name(&self, _ast: &Ast, _node: NodeId) -> bool {
+        true
+    }
+
+    /// A behavior may select the resolved bindings it consumes and remember their scopes.
+    /// Cached function bodies call this once per spelling instead of once per occurrence.
+    fn needs_variable(&mut self, _compiler: &AbstractCompiler, _var: VarId) -> bool {
+        true
+    }
+
     /// Rust-only: opt in when the behavior observes only scope exits and its variable filter
     /// depends only on the binding and AST. ReferenceCollector may then reuse ordered sites in a
     /// single-scope function body and evaluate the filter once per spelling in that body.
@@ -678,6 +719,12 @@ pub trait Behavior {
 
 // Rust-only forwarding so callers can lend a behavior they keep using afterwards.
 impl<T: Behavior + ?Sized> Behavior for &mut T {
+    fn needs_name(&self, ast: &Ast, node: NodeId) -> bool {
+        (**self).needs_name(ast, node)
+    }
+    fn needs_variable(&mut self, compiler: &AbstractCompiler, var: VarId) -> bool {
+        (**self).needs_variable(compiler, var)
+    }
     fn before_traverse_node(
         &mut self,
         t: &mut NodeTraversal<'_>,

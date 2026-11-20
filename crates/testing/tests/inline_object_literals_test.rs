@@ -1349,3 +1349,22 @@ fn test_per_iteration_uninitialized_let_capture() {
         ),
     );
 }
+
+// The collector jumps to a referenced hoisted function before visiting the next statement.
+// Both bindings are excluded from object inlining, but the jump determines generated name order.
+#[test]
+fn hoisted_calls_order_object_splits() {
+    let mut t = Test::new();
+    t.test(
+        concat!(
+            "later(); earlier();",
+            "function earlier(){var a = {x: 1}; f(a.x);}",
+            "function later(){var b = {y: 2}; f(b.y);}",
+        ),
+        concat!(
+            "later(); earlier();",
+            "function earlier(){var JSCompiler_object_inline_x_1 = 1; f(JSCompiler_object_inline_x_1);}",
+            "function later(){var JSCompiler_object_inline_y_0 = 2; f(JSCompiler_object_inline_y_0);}",
+        ),
+    );
+}
