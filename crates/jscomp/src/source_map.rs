@@ -272,7 +272,9 @@ impl SourceMap {
                 }
             }
         }
-        source_file_name = self.fixup_source_location(&source_file_name);
+        if !self.prefix_mappings.is_empty() {
+            source_file_name = self.fixup_source_location(&source_file_name);
+        }
         // Rhino source lines are one based but for v3 source maps, we make
         // them zero based.
         let line_base_offset = 1;
@@ -291,8 +293,8 @@ impl SourceMap {
     }
     // port: SourceMap#getOriginalName
     fn get_original_name(ast: &Ast, node: NodeId) -> Option<JsString> {
-        if node.get_original_name(ast).is_some() {
-            return node.get_original_name(ast);
+        if let Some(original_name) = node.get_original_name(ast) {
+            return Some(original_name);
         }
         // If this is the name identifier of a function declaration/expression and the name node itself
         // has no originalName, fall back to the enclosing FUNCTION node's originalName.

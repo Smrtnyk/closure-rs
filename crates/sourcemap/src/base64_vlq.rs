@@ -79,6 +79,12 @@ impl Base64VLQ {
     }
     // port: Base64VLQ#decode
     pub fn decode(input: &mut dyn CharIterator) -> i32 {
+        Self::decode_from(input)
+    }
+
+    // Rust-only (performance divergence): the consumer reads its concrete UTF-16 iterator
+    // directly. The Java-compatible entry point above also accepts other iterators.
+    pub(crate) fn decode_from(input: &mut (impl CharIterator + ?Sized)) -> i32 {
         let mut result = 0i32;
         let mut shift = 0u32;
         loop {

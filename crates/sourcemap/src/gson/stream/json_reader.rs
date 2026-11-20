@@ -36,6 +36,20 @@ pub enum JsonToken {
     NULL,
     END_DOCUMENT,
 }
+/// Count UTF-16 units before the closing quote, an escape, or a literal newline.
+fn quoted_run_length(units: &[u16], quote: u16) -> usize {
+    let special = |c: u16| (c == quote) | (c == b'\\' as u16) | (c == b'\n' as u16);
+    let mut blocks = units.chunks_exact(8);
+    for (index, block) in blocks.by_ref().enumerate() {
+        // A fixed-size reduction lets LLVM compare eight UTF-16 units at once.
+        if block.iter().fold(false, |any, &c| any | special(c)) {
+            return index * 8 + block.iter().position(|&c| special(c)).unwrap();
+        }
+    }
+    let tail = blocks.remainder();
+    units.len() - tail.len() + tail.iter().position(|&c| special(c)).unwrap_or(tail.len())
+}
+
 pub struct JsonReader {
     // Java Reader is a StringReader on this package's only input path.
     input: JsString,
@@ -648,15 +662,19 @@ impl JsonReader {
             let mut l = self.limit;
             let mut start = p;
             while p < l {
+                // Rust-only (performance divergence): skip ordinary UTF-16 runs together.
+                // The Gson branches below handle all escapes, newlines and buffer refills.
+                p += quoted_run_length(&self.buffer[p..l], quote);
+                if p == l {
+                    break;
+                }
                 let c = self.buffer[p];
                 p += 1;
                 if c == quote {
                     self.pos = p;
                     let len = p - start - 1;
                     if builder.is_none() {
-                        return Ok(JsString::from_units(
-                            self.buffer[start..start + len].to_vec(),
-                        ));
+                        return Ok(JsString::from_slice(&self.buffer[start..start + len]));
                     }
                     builder
                         .as_mut()

@@ -493,6 +493,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   and pass single-line tokens directly to the printer. The final printer transfers its
   code and mapping buffers to the output. License tracking uses its exclusive state
   while emitting nodes. ASCII letters and digits use the Java character ranges directly.
+- `sourcemap/source_map_consumer_v3.rs` decodes each incoming map into compact or
+  wide records, appending fields and carrying the decoded deltas to the next entry.
+  The JSON reader scans runs of ordinary UTF-16 units together. Resolving a file
+  and column transfers the mapping's owned strings into the result.
 - Source maps: `sourcemap/source_map_generator_v3.rs` `JavaAppendable` appends code units
   without making a JS string per write; `util.rs` `escapeString` copies unescaped runs and
   escapes directly; `jscomp/source_map.rs`, `compiler_source_excerpt_provider.rs` reuse the

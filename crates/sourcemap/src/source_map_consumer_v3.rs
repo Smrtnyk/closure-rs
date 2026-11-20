@@ -85,9 +85,10 @@ impl SourceMapConsumerV3 {
         }
         self.line_count = source_map_object.get_line_count();
         self.source_root = source_map_object.get_source_root();
-        self.sources = source_map_object.get_sources().clone();
-        self.sources_content = source_map_object.get_sources_content().clone();
-        self.names = source_map_object.get_names().clone();
+        // Rust-only (performance divergence): the parsed object belongs to the consumer.
+        self.sources = source_map_object.sources;
+        self.sources_content = source_map_object.sources_content;
+        self.names = source_map_object.names;
         let sources = self.sources.as_ref().unwrap_or_else(|| panic!("java.lang.NullPointerException: Cannot read the array length because \"this.sources\" is null"));
         let use_compact_mappings =
             sources.len() < 65535 && self.names.as_ref().is_none_or(|names| names.len() < 65535);
@@ -96,12 +97,11 @@ impl SourceMapConsumerV3 {
         } else {
             1000
         };
-        if let Some(mappings) = source_map_object.get_mappings() {
+        if let Some(mappings) = &source_map_object.mappings {
             estimated_entries = estimated_entries.max((mappings.length() / 6) as i32);
         }
-        self.extensions
-            .extend(source_map_object.get_extensions().clone());
-        let line_map = source_map_object.get_mappings().unwrap_or_else(|| panic!("java.lang.NullPointerException: Cannot invoke \"String.length()\" because \"content\" is null"));
+        self.extensions.extend(source_map_object.extensions);
+        let line_map = source_map_object.mappings.unwrap_or_else(|| panic!("java.lang.NullPointerException: Cannot invoke \"String.length()\" because \"content\" is null"));
         self.mappings = Some(
             MappingBuilder::new(
                 line_map,
@@ -312,7 +312,7 @@ impl SourceMapConsumerV3 {
                         .unwrap_or_else(|| panic!("java.lang.NullPointerException")),
                 );
             }
-            Some(x.build())
+            Some(x.finish())
         }
     }
     // Preserve the Java statement order.
@@ -532,12 +532,7 @@ impl Mappings {
     // port: SourceMapConsumerV3.Mappings#getSourceFileId
     fn get_source_file_id(&self, index: i32) -> i32 {
         if self.entry_size == 4 {
-            let val = *array_get(&self.flat_entries, index + 3) >> 16;
-            return if val == -1 || (val & 0xffff) == 0xffff {
-                UNMAPPED
-            } else {
-                val & 0xffff
-            };
+            return unpack_id(*array_get(&self.flat_entries, index + 3) >> 16);
         }
         *array_get(&self.flat_entries, index + 3)
     }
@@ -552,8 +547,7 @@ impl Mappings {
     // port: SourceMapConsumerV3.Mappings#getNameId
     fn get_name_id(&self, index: i32) -> i32 {
         if self.entry_size == 4 {
-            let val = *array_get(&self.flat_entries, index + 3) & 0xffff;
-            return if val == 0xffff { UNMAPPED } else { val };
+            return unpack_id(*array_get(&self.flat_entries, index + 3));
         }
         *array_get(&self.flat_entries, index + 4)
     }
@@ -566,6 +560,13 @@ impl Mappings {
         *array_get(&self.line_start, line)
     }
 }
+fn unpack_id(id: i32) -> i32 {
+    match id & 0xffff {
+        0xffff => UNMAPPED,
+        other => other,
+    }
+}
+
 struct MappingBuilder<'a> {
     content: StringCharIterator,
     flat_entries: Vec<i32>,
@@ -599,7 +600,9 @@ impl<'a> MappingBuilder<'a> {
         if length < 0 {
             panic!("java.lang.NegativeArraySizeException: {length}");
         }
-        let flat_entries = vec![0; length as usize];
+        // Entries are appended in order. Keep Java's capacity estimate without filling
+        // unused slots, and retain its zero-length array write exception in set_entry.
+        let flat_entries = Vec::with_capacity(length as usize);
         let estimated_lines = if line_count >= 0 { line_count } else { 1000 };
         let length = estimated_lines.wrapping_add(1);
         if length < 0 {
@@ -623,7 +626,17 @@ impl<'a> MappingBuilder<'a> {
         }
     }
     // port: SourceMapConsumerV3.MappingBuilder#build
-    fn build(mut self) -> Result<Mappings, Error> {
+    fn build(self) -> Result<Mappings, Error> {
+        if self.entry_size == 4 {
+            self.build_entries::<4>()
+        } else {
+            self.build_entries::<5>()
+        }
+    }
+
+    // Rust-only (performance divergence): the compact or wide record layout is fixed for a
+    // whole map. Read each relative entry, validate it, and append its absolute fields once.
+    fn build_entries<const WIDTH: usize>(mut self) -> Result<Mappings, Error> {
         let mut temp = [0; Self::MAX_ENTRY_VALUES];
         let mut entries_count = 0;
         let mut lines_count = 0;
@@ -641,27 +654,8 @@ impl<'a> MappingBuilder<'a> {
                     *array_get_mut(&mut temp, entry_values) = value;
                     entry_values += 1;
                 }
-                self.set_entry(
-                    entries_count,
-                    &temp,
-                    entry_values,
-                    self.previous_col,
-                    self.previous_src_id,
-                    self.previous_src_line,
-                    self.previous_src_column,
-                    self.previous_name_id,
-                )?;
-                self.validate_entry(entries_count, self.line);
-                self.previous_col = self.get_generated_column(entries_count);
-                if entry_values >= 4 {
-                    self.previous_src_id = self.get_source_file_id(entries_count);
-                    self.previous_src_line = self.get_source_line(entries_count);
-                    self.previous_src_column = self.get_source_column(entries_count);
-                }
-                if entry_values == 5 {
-                    self.previous_name_id = self.get_name_id(entries_count);
-                }
-                entries_count += self.entry_size;
+                self.set_entry::<WIDTH>(&temp[..entry_values as usize])?;
+                entries_count += WIDTH as i32;
                 self.try_consume_token(b',' as u16);
             }
         }
@@ -689,192 +683,70 @@ impl<'a> MappingBuilder<'a> {
         *array_get_mut(&mut self.line_start, line) = entries_count;
     }
     // port: SourceMapConsumerV3.MappingBuilder#setEntry
-    #[allow(clippy::too_many_arguments)]
-    fn set_entry(
-        &mut self,
-        entries_count: i32,
-        vals: &[i32; 5],
-        entry_values: i32,
-        previous_col: i32,
-        previous_src_id: i32,
-        previous_src_line: i32,
-        previous_src_column: i32,
-        previous_name_id: i32,
-    ) -> Result<(), Error> {
-        if entries_count + self.entry_size > self.flat_entries.len() as i32 {
-            self.flat_entries.resize(self.flat_entries.len() * 2, 0);
-        }
-        if self.entry_size == 4 {
-            self.set_entry_compact(
-                entries_count,
-                vals,
-                entry_values,
-                previous_col,
-                previous_src_id,
-                previous_src_line,
-                previous_src_column,
-                previous_name_id,
-            )?;
-        } else {
-            self.set_entry_normal(
-                entries_count,
-                vals,
-                entry_values,
-                previous_col,
-                previous_src_id,
-                previous_src_line,
-                previous_src_column,
-                previous_name_id,
-            )?;
-        }
-        Ok(())
-    }
     // port: SourceMapConsumerV3.MappingBuilder#setEntryCompact
-    #[allow(clippy::too_many_arguments)]
-    fn set_entry_compact(
-        &mut self,
-        entries_count: i32,
-        vals: &[i32; 5],
-        entry_values: i32,
-        previous_col: i32,
-        previous_src_id: i32,
-        previous_src_line: i32,
-        previous_src_column: i32,
-        previous_name_id: i32,
-    ) -> Result<(), Error> {
-        match entry_values {
-            1 => {
-                *array_get_mut(&mut self.flat_entries, entries_count) =
-                    vals[0].wrapping_add(previous_col);
-                *array_get_mut(&mut self.flat_entries, entries_count + 1) = UNMAPPED;
-                *array_get_mut(&mut self.flat_entries, entries_count + 2) = UNMAPPED;
-                *array_get_mut(&mut self.flat_entries, entries_count + 3) = UNMAPPED;
-            }
-            4 => {
-                *array_get_mut(&mut self.flat_entries, entries_count) =
-                    vals[0].wrapping_add(previous_col);
-                *array_get_mut(&mut self.flat_entries, entries_count + 1) =
-                    vals[2].wrapping_add(previous_src_line);
-                *array_get_mut(&mut self.flat_entries, entries_count + 2) =
-                    vals[3].wrapping_add(previous_src_column);
-                let src_id = vals[1].wrapping_add(previous_src_id);
-                *array_get_mut(&mut self.flat_entries, entries_count + 3) =
-                    src_id.wrapping_shl(16) | 0xffff;
-            }
-            5 => {
-                *array_get_mut(&mut self.flat_entries, entries_count) =
-                    vals[0].wrapping_add(previous_col);
-                *array_get_mut(&mut self.flat_entries, entries_count + 1) =
-                    vals[2].wrapping_add(previous_src_line);
-                *array_get_mut(&mut self.flat_entries, entries_count + 2) =
-                    vals[3].wrapping_add(previous_src_column);
-                let src_id = vals[1].wrapping_add(previous_src_id);
-                let name_id = vals[4].wrapping_add(previous_name_id);
-                *array_get_mut(&mut self.flat_entries, entries_count + 3) =
-                    src_id.wrapping_shl(16) | (name_id & 0xffff);
-            }
-            _ => {
-                return Err(Error::new(format!(
-                    "Unexpected number of values for entry:{entry_values}"
-                )));
-            }
-        }
-        Ok(())
-    }
     // port: SourceMapConsumerV3.MappingBuilder#setEntryNormal
-    #[allow(clippy::too_many_arguments)]
-    fn set_entry_normal(
-        &mut self,
-        entries_count: i32,
-        vals: &[i32; 5],
-        entry_values: i32,
-        previous_col: i32,
-        previous_src_id: i32,
-        previous_src_line: i32,
-        previous_src_column: i32,
-        previous_name_id: i32,
-    ) -> Result<(), Error> {
-        match entry_values {
-            1 => {
-                *array_get_mut(&mut self.flat_entries, entries_count) =
-                    vals[0].wrapping_add(previous_col);
-                *array_get_mut(&mut self.flat_entries, entries_count + 1) = UNMAPPED;
-                *array_get_mut(&mut self.flat_entries, entries_count + 2) = UNMAPPED;
-                *array_get_mut(&mut self.flat_entries, entries_count + 3) = UNMAPPED;
-                *array_get_mut(&mut self.flat_entries, entries_count + 4) = UNMAPPED;
-            }
-            4 => {
-                *array_get_mut(&mut self.flat_entries, entries_count) =
-                    vals[0].wrapping_add(previous_col);
-                *array_get_mut(&mut self.flat_entries, entries_count + 1) =
-                    vals[2].wrapping_add(previous_src_line);
-                *array_get_mut(&mut self.flat_entries, entries_count + 2) =
-                    vals[3].wrapping_add(previous_src_column);
-                *array_get_mut(&mut self.flat_entries, entries_count + 3) =
-                    vals[1].wrapping_add(previous_src_id);
-                *array_get_mut(&mut self.flat_entries, entries_count + 4) = UNMAPPED;
-            }
-            5 => {
-                *array_get_mut(&mut self.flat_entries, entries_count) =
-                    vals[0].wrapping_add(previous_col);
-                *array_get_mut(&mut self.flat_entries, entries_count + 1) =
-                    vals[2].wrapping_add(previous_src_line);
-                *array_get_mut(&mut self.flat_entries, entries_count + 2) =
-                    vals[3].wrapping_add(previous_src_column);
-                *array_get_mut(&mut self.flat_entries, entries_count + 3) =
-                    vals[1].wrapping_add(previous_src_id);
-                *array_get_mut(&mut self.flat_entries, entries_count + 4) =
-                    vals[4].wrapping_add(previous_name_id);
+    // port: SourceMapConsumerV3.MappingBuilder#getGeneratedColumn
+    // port: SourceMapConsumerV3.MappingBuilder#getSourceLine
+    // port: SourceMapConsumerV3.MappingBuilder#getSourceColumn
+    // port: SourceMapConsumerV3.MappingBuilder#getSourceFileId
+    // port: SourceMapConsumerV3.MappingBuilder#getNameId
+    fn set_entry<const WIDTH: usize>(&mut self, values: &[i32]) -> Result<(), Error> {
+        let mut source = UNMAPPED;
+        let mut name = UNMAPPED;
+        let mut line = UNMAPPED;
+        let mut column = UNMAPPED;
+        match values {
+            [_] => {}
+            [_, ds, dl, dc, rest @ ..] => {
+                source = self.previous_src_id.wrapping_add(*ds);
+                line = self.previous_src_line.wrapping_add(*dl);
+                column = self.previous_src_column.wrapping_add(*dc);
+                if let [dn] = rest {
+                    name = self.previous_name_id.wrapping_add(*dn);
+                }
             }
             _ => {
                 return Err(Error::new(format!(
-                    "Unexpected number of values for entry:{entry_values}"
+                    "Unexpected number of values for entry:{}",
+                    values.len()
                 )));
             }
         }
+        self.previous_col = self.previous_col.wrapping_add(values[0]);
+        if self.flat_entries.capacity() == 0 {
+            // Java doubles this zero-length array and then tries to write its first slot.
+            panic!("java.lang.ArrayIndexOutOfBoundsException: Index 0 out of bounds for length 0");
+        }
+        if WIDTH == 4 {
+            let packed = source.wrapping_shl(16) | (name & 0xffff);
+            self.flat_entries
+                .extend_from_slice(&[self.previous_col, line, column, packed]);
+            // Subsequent deltas use the *unpacked* IDs, including the 0xffff sentinel.
+            source = unpack_id(source);
+            name = unpack_id(name);
+        } else {
+            self.flat_entries
+                .extend_from_slice(&[self.previous_col, line, column, source, name]);
+        }
+        self.validate_entry(source, name);
+        if values.len() >= 4 {
+            self.previous_src_id = source;
+            self.previous_src_line = line;
+            self.previous_src_column = column;
+        }
+        if values.len() == 5 {
+            self.previous_name_id = name;
+        }
         Ok(())
-    }
-    // port: SourceMapConsumerV3.MappingBuilder#getGeneratedColumn
-    fn get_generated_column(&self, index: i32) -> i32 {
-        *array_get(&self.flat_entries, index)
-    }
-    // port: SourceMapConsumerV3.MappingBuilder#getSourceFileId
-    fn get_source_file_id(&self, index: i32) -> i32 {
-        if self.entry_size == 4 {
-            let val = *array_get(&self.flat_entries, index + 3) >> 16;
-            return if val == -1 || (val & 0xffff) == 0xffff {
-                UNMAPPED
-            } else {
-                val & 0xffff
-            };
-        }
-        *array_get(&self.flat_entries, index + 3)
-    }
-    // port: SourceMapConsumerV3.MappingBuilder#getSourceLine
-    fn get_source_line(&self, index: i32) -> i32 {
-        *array_get(&self.flat_entries, index + 1)
-    }
-    // port: SourceMapConsumerV3.MappingBuilder#getSourceColumn
-    fn get_source_column(&self, index: i32) -> i32 {
-        *array_get(&self.flat_entries, index + 2)
-    }
-    // port: SourceMapConsumerV3.MappingBuilder#getNameId
-    fn get_name_id(&self, index: i32) -> i32 {
-        if self.entry_size == 4 {
-            let val = *array_get(&self.flat_entries, index + 3) & 0xffff;
-            return if val == 0xffff { UNMAPPED } else { val };
-        }
-        *array_get(&self.flat_entries, index + 4)
     }
     // port: SourceMapConsumerV3.MappingBuilder#validateEntry
-    fn validate_entry(&self, entries_count: i32, line: i32) {
+    fn validate_entry(&self, source_file_id: i32, name_id: i32) {
+        let line = self.line;
         assert!(
             self.line_count < 0 || line < self.line_count,
             "java.lang.IllegalStateException: line={line}, lineCount={}",
             self.line_count
         );
-        let source_file_id = self.get_source_file_id(entries_count);
-        let name_id = self.get_name_id(entries_count);
         assert!(
             source_file_id == UNMAPPED || source_file_id < self.sources.len() as i32,
             "java.lang.IllegalStateException"
@@ -909,7 +781,7 @@ impl<'a> MappingBuilder<'a> {
     }
     // port: SourceMapConsumerV3.MappingBuilder#nextValue
     fn next_value(&mut self) -> i32 {
-        Base64VLQ::decode(&mut self.content)
+        Base64VLQ::decode_from(&mut self.content)
     }
 }
 // Trivial mutable array access bridge preserving Java exception text.
