@@ -40,7 +40,8 @@
 
 //! Interning pool used by Rhino nodes.
 use crate::js_string::JsString;
-use std::hash::{Hash, Hasher};
+use indexmap::map::raw_entry_v1::{RawEntryApiV1, RawEntryMut};
+use std::hash::{BuildHasher, Hash, Hasher};
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::{Mutex, OnceLock};
 
@@ -49,11 +50,28 @@ pub struct RhinoStringPool;
 // by hash, so that inputs parsed on several threads (jscomp `parallel_parse`) rarely wait for each
 // other; which shard holds a string never matters, only that equal strings share one entry. Entries
 // are never removed: an interned string lives for the rest of the process (see `JsString`).
-type Interner = crate::fast_hash::IndexMap<&'static [u16], JsString>;
-const SHARD_BITS: u32 = 6;
+// Keep just the canonical object. Lookups borrow its WTF-16 code units, including when
+// the optional reference-counted pool is active.
+#[derive(PartialEq, Eq)]
+struct PoolEntry(JsString);
+
+impl Hash for PoolEntry {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.as_units().hash(state);
+    }
+}
+
+impl std::borrow::Borrow<[u16]> for PoolEntry {
+    fn borrow(&self) -> &[u16] {
+        self.0.as_units()
+    }
+}
+
+type Interner = crate::fast_hash::IndexMap<PoolEntry, ()>;
+const SHARD_BITS: usize = 6;
 static INTERNER: OnceLock<Vec<Mutex<Interner>>> = OnceLock::new();
 thread_local! {
-    static THREAD_CACHE: std::cell::RefCell<Option<crate::fast_hash::IndexMap<&'static [u16], JsString>>> =
+    static THREAD_CACHE: std::cell::RefCell<Option<Interner>> =
         const { std::cell::RefCell::new(None) };
 }
 /// Rust-only: with `CLOSURE_RS_REFCOUNTED_NAMES` set in the environment, the pool keeps the
@@ -62,23 +80,19 @@ fn refcounted_names() -> bool {
     static ON: OnceLock<bool> = OnceLock::new();
     *ON.get_or_init(|| std::env::var_os("CLOSURE_RS_REFCOUNTED_NAMES").is_some())
 }
-/// Rust-only: the key of a pool entry.
-fn static_key(interned: &JsString) -> &'static [u16] {
-    if interned.is_interned() {
-        interned.static_units()
-    } else {
-        Box::leak(interned.as_units().into())
-    }
+fn hash_units(units: &[u16]) -> u64 {
+    crate::fast_hash::FastBuildHasher::default().hash_one(units)
 }
-fn shard(units: &[u16]) -> &'static Mutex<Interner> {
+
+fn shard(hash: u64) -> &'static Mutex<Interner> {
     let shards = INTERNER.get_or_init(|| {
         (0..1 << SHARD_BITS)
             .map(|_| Mutex::new(Interner::default()))
             .collect()
     });
-    let mut hasher = crate::fast_hash::FastHasher::default();
-    units.hash(&mut hasher);
-    &shards[(hasher.finish() >> (64 - SHARD_BITS)) as usize]
+    // The table uses low bits for the bucket and high bits for the control tag. Keep
+    // both available within each shard.
+    &shards[(hash >> 32) as usize & ((1 << SHARD_BITS) - 1)]
 }
 impl RhinoStringPool {
     // port: RhinoStringPool#uncheckedEquals
@@ -89,36 +103,49 @@ impl RhinoStringPool {
     /// entries. A private string with the same spelling remains a separate object.
     pub(crate) fn is_pool_entry(s: &JsString) -> bool {
         s.is_interned()
-            || (refcounted_names()
-                && shard(s.as_units())
+            || (refcounted_names() && {
+                let units = s.as_units();
+                let hash = hash_units(units);
+                shard(hash)
                     .lock()
                     .unwrap()
-                    .get(s.as_units())
-                    .is_some_and(|entry| s.ptr_eq(entry)))
+                    .raw_entry_v1()
+                    .from_key_hashed_nocheck(hash, units)
+                    .is_some_and(|(entry, ())| s.ptr_eq(&entry.0))
+            })
     }
     // port: RhinoStringPool#addOrGet
     pub fn add_or_get(s: impl Into<JsString>) -> JsString {
         let s = s.into();
-        // Rust-only: an interned string is its own pool entry.
         if s.is_interned() {
             return s;
         }
-        // Rust-only: a parser thread's own cache of pool entries (see `with_thread_cache`).
-        if let Some(cached) = THREAD_CACHE
-            .with_borrow(|cache| cache.as_ref().map(|cache| cache.get(s.as_units()).cloned()))
-        {
-            return cached.unwrap_or_else(|| {
-                let interned = Self::add_or_get_shared(s);
-                THREAD_CACHE.with_borrow_mut(|cache| {
-                    cache
-                        .as_mut()
-                        .unwrap()
-                        .insert(static_key(&interned), interned.clone())
-                });
-                interned
-            });
-        }
-        Self::add_or_get_shared(s)
+        let units = s.as_units();
+        Self::intern_cached(units, || {
+            if refcounted_names() {
+                s.clone()
+            } else {
+                s.leak_interned()
+            }
+        })
+    }
+
+    fn intern_cached(units: &[u16], new: impl FnOnce() -> JsString) -> JsString {
+        let hash = hash_units(units);
+        THREAD_CACHE.with_borrow_mut(|cache| match cache {
+            Some(cache) => match cache
+                .raw_entry_mut_v1()
+                .from_key_hashed_nocheck(hash, units)
+            {
+                RawEntryMut::Occupied(found) => found.key().0.clone(),
+                RawEntryMut::Vacant(vacant) => {
+                    let s = Self::intern_shared(units, hash, new);
+                    vacant.insert_hashed_nocheck(hash, PoolEntry(s.clone()), ());
+                    s
+                }
+            },
+            None => Self::intern_shared(units, hash, new),
+        })
     }
     /// Rust-only (performance divergence): runs `f` with a cache, private to this thread, in front
     /// of the shared pool. The cache holds pool entries (so it returns exactly what the pool would)
@@ -130,18 +157,9 @@ impl RhinoStringPool {
         THREAD_CACHE.set(previous);
         result
     }
-    fn add_or_get_shared(s: JsString) -> JsString {
-        Self::intern_units(s.as_units(), || {
-            if refcounted_names() {
-                s.clone()
-            } else {
-                s.leak_interned()
-            }
-        })
-    }
     /// Intern a bundled spelling without allocating a temporary string on a pool hit.
     pub(crate) fn add_or_get_units(units: &[u16]) -> JsString {
-        Self::intern_units(units, || {
+        Self::intern_shared(units, hash_units(units), || {
             if refcounted_names() {
                 JsString::from_slice(units)
             } else {
@@ -149,14 +167,17 @@ impl RhinoStringPool {
             }
         })
     }
-    fn intern_units(units: &[u16], new: impl FnOnce() -> JsString) -> JsString {
-        let mut pool = shard(units).lock().unwrap();
-        if let Some(interned) = pool.get(units) {
-            return interned.clone();
+
+    fn intern_shared(units: &[u16], hash: u64, new: impl FnOnce() -> JsString) -> JsString {
+        let mut pool = shard(hash).lock().unwrap();
+        match pool.raw_entry_mut_v1().from_key_hashed_nocheck(hash, units) {
+            RawEntryMut::Occupied(found) => found.key().0.clone(),
+            RawEntryMut::Vacant(vacant) => {
+                let interned = new();
+                vacant.insert_hashed_nocheck(hash, PoolEntry(interned.clone()), ());
+                interned
+            }
         }
-        let interned = new();
-        pool.insert(static_key(&interned), interned.clone());
-        interned
     }
     // port: RhinoStringPool#RhinoStringPool
     fn new() -> Self {

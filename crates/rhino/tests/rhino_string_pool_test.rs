@@ -138,3 +138,38 @@ fn write_only_bitset_multiple_sets_to_true_all_return_true() {
     assert!(bitset.get(3));
     assert!(!bitset.get(4));
 }
+
+#[test]
+fn worker_caches_return_the_same_wtf16_entries_and_distinguish_hash_collisions() {
+    // Aa and BB deliberately have the same Java hashCode, also with the same suffix.
+    let names = [
+        JsString::from_units(vec![65, 97, 0xdfff]),
+        JsString::from_units(vec![66, 66, 0xdfff]),
+    ];
+    assert_eq!(names[0].hash_code(), names[1].hash_code());
+    let workers: Vec<_> = (0..4)
+        .map(|_| {
+            let names = names.clone();
+            std::thread::spawn(move || {
+                RhinoStringPool::with_thread_cache(|| {
+                    names.map(|name| {
+                        let entry = RhinoStringPool::add_or_get(&name);
+                        let duplicate = JsString::from_slice(name.as_units());
+                        let cached = RhinoStringPool::add_or_get(&duplicate);
+                        assert!(entry.ptr_eq(&cached));
+                        RhinoStringPool::with_thread_cache(|| {
+                            assert!(RhinoStringPool::add_or_get(duplicate).ptr_eq(&entry));
+                        });
+                        entry
+                    })
+                })
+            })
+        })
+        .collect();
+    for worker in workers {
+        let [a, b] = worker.join().unwrap();
+        assert!(!a.ptr_eq(&b));
+        assert!(a.ptr_eq(&RhinoStringPool::add_or_get(&names[0])));
+        assert!(b.ptr_eq(&RhinoStringPool::add_or_get(&names[1])));
+    }
+}

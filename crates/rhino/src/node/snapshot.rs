@@ -19,8 +19,8 @@
 //! expressions and strings. Only parser-produced values can be captured.
 
 use super::{
-    Ast, NodeCold, NodeData, NodeId, NodeKind, NodeLinks, ObjectProp, PresenceSummary, Prop,
-    PropListItem, PropValue, TemplateLiteralStrings,
+    Ast, NodeCold, NodeData, NodeId, NodeKind, NodeLinks, ObjectProp, PreparsedIdMap,
+    PresenceSummary, Prop, PropListItem, PropValue, TemplateLiteralStrings,
 };
 use crate::{
     fast_hash::IndexMap,
@@ -89,12 +89,37 @@ struct PackedRows<B> {
 const ROW_BYTES: usize = 21;
 const OTHER_KIND: u16 = u16::MAX;
 
+impl Kind {
+    fn restore(self, strings: &[JsString]) -> NodeKind {
+        let string = |id: usize| strings[id].clone();
+        match self {
+            Kind::Plain => NodeKind::Node,
+            Kind::Number(number) => NodeKind::Number { number },
+            Kind::BigInt(bytes) => NodeKind::BigInt {
+                bigint: Arc::new(BigInt::from_signed_bytes_le(&bytes)),
+            },
+            Kind::String(id) => NodeKind::String { str: string(id) },
+            Kind::Template { raw, cooked } => {
+                NodeKind::TemplateLiteralSubstring(Box::new(TemplateLiteralStrings {
+                    raw: string(raw),
+                    cooked: cooked.map(string),
+                }))
+            }
+        }
+    }
+}
+
 impl<F: super::OpaqueProp + Clone> BundledAstSnapshot<F, &[u8]> {
     pub fn append(self, ast: &mut Ast, source: Arc<dyn StaticSourceFile>) -> NodeId {
         match self.rows {
             Some(rows) => {
                 let strings = rows.strings();
-                self.arena.append_rows(ast, source, rows.nodes(), strings)
+                if self.arena.bound_first_use.is_some() && ast.implicit_template_bound.is_none() {
+                    // This parse introduces the singleton in the middle of its local node IDs.
+                    self.arena.append_rows(ast, source, rows.nodes(), strings)
+                } else {
+                    rows.append(ast, self.arena, source, strings)
+                }
             }
             None => self.arena.append(ast, source),
         }
@@ -135,6 +160,80 @@ impl PackedRows<&[u8]> {
         }
         assert!(bytes.is_empty() && strings.len() == self.string_count);
         strings
+    }
+
+    /// With no implicit bound to insert, each local link has the same relocation. Fill the
+    /// arena columns in place and restore each shared property list's summary once.
+    fn append<F: super::OpaqueProp + Clone>(
+        self,
+        ast: &mut Ast,
+        arena: AstSnapshot<F>,
+        source: Arc<dyn StaticSourceFile>,
+        strings: Vec<JsString>,
+    ) -> NodeId {
+        let (rows, remainder) = self.bytes.as_chunks::<ROW_BYTES>();
+        assert!(remainder.is_empty(), "incomplete bundled extern row");
+        let base = ast.node_count();
+        base.checked_add(u32::try_from(rows.len()).unwrap())
+            .expect("Node arena capacity exceeded");
+        let map = PreparsedIdMap {
+            base,
+            bound_at: None,
+        };
+        let root = map.map(arena.root);
+        ast.presence.merge(&arena.presence);
+        let lists = arena.property_lists(ast, source, map, &strings);
+        // Packed property indices are one-based. Slot zero describes nodes without properties.
+        let mut properties = Vec::with_capacity(lists.len() + 1);
+        properties.push((None, 0, None));
+        properties.extend(lists.into_iter().map(|head| {
+            let (mask, doc) = super::prop_list_summary(Some(&head));
+            (Some(head), mask, doc)
+        }));
+        let word = |row: &[u8; ROW_BYTES], at| u16::from_le_bytes([row[at], row[at + 1]]);
+        let link =
+            |local| NonZeroU32::new(u32::from(local)).map(|n| NodeId(n.checked_add(base).unwrap()));
+        ast.links.extend(rows.iter().map(|row| NodeLinks {
+            token: self.tokens[usize::from(row[20])],
+            parent: link(word(row, 0)),
+            first: link(word(row, 2)),
+            next: link(word(row, 4)),
+            previous: link(word(row, 6)),
+        }));
+        ast.cold.extend(rows.iter().map(|row| NodeCold {
+            lineno_charno: i32::from_le_bytes(row[8..12].try_into().unwrap()),
+            length: i32::from_le_bytes(row[12..16].try_into().unwrap()),
+            original_name: None,
+        }));
+        let mut other_kinds = self.other_kinds.into_iter();
+        ast.nodes.extend(rows.iter().map(|row| {
+            let kind = match word(row, 18) {
+                0 => NodeKind::Node,
+                OTHER_KIND => other_kinds
+                    .next()
+                    .expect("bundled extern payload")
+                    .restore(&strings),
+                id => NodeKind::String {
+                    str: strings[usize::from(id - 1)].clone(),
+                },
+            };
+            NodeData {
+                kind,
+                prop_list_head: properties[usize::from(word(row, 16))].0.clone(),
+            }
+        }));
+        ast.prop_masks.extend(
+            rows.iter()
+                .map(|row| properties[usize::from(word(row, 16))].1),
+        );
+        ast.jsdocs.extend(
+            rows.iter()
+                .map(|row| properties[usize::from(word(row, 16))].2.clone()),
+        );
+        for (i, name) in self.original_names {
+            NodeId::store_original_name(ast, map.node_at(i), Some(strings[name].clone()));
+        }
+        root
     }
 
     fn nodes(self) -> impl ExactSizeIterator<Item = Node> {
@@ -382,20 +481,7 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
             if let Some(name) = node.original_name {
                 original_names.push((i, name));
             }
-            let kind = match node.kind {
-                Kind::Plain => NodeKind::Node,
-                Kind::Number(number) => NodeKind::Number { number },
-                Kind::BigInt(bytes) => NodeKind::BigInt {
-                    bigint: Arc::new(BigInt::from_signed_bytes_le(&bytes)),
-                },
-                Kind::String(id) => NodeKind::String { str: string(id) },
-                Kind::Template { raw, cooked } => {
-                    NodeKind::TemplateLiteralSubstring(Box::new(TemplateLiteralStrings {
-                        raw: string(raw),
-                        cooked: cooked.map(string),
-                    }))
-                }
-            };
+            let kind = node.kind.restore(&strings);
             (
                 NodeData {
                     kind,
@@ -414,6 +500,23 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
         for (i, name) in original_names {
             NodeId::store_original_name(ast, map.node_at(i), Some(string(name)));
         }
+        let root = map.map(self.root);
+        let properties = self.property_lists(ast, source, map, &strings);
+        for (i, head) in heads.into_iter().enumerate() {
+            if let Some(index) = head {
+                ast.set_props(map.node_at(i), Some(properties[index].clone()));
+            }
+        }
+        root
+    }
+    fn property_lists(
+        self,
+        ast: &Ast,
+        source: Arc<dyn StaticSourceFile>,
+        map: PreparsedIdMap,
+        strings: &[JsString],
+    ) -> Vec<Arc<PropListItem>> {
+        let string = |id: usize| strings[id].clone();
         let mut expression_source: Option<Arc<str>> = None;
         let expressions: Vec<_> = self
             .expression_roots
@@ -505,12 +608,7 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
                 next,
             }));
         }
-        for (i, head) in heads.into_iter().enumerate() {
-            if let Some(index) = head {
-                ast.set_props(map.node_at(i), Some(properties[index].clone()));
-            }
-        }
-        map.map(self.root)
+        properties
     }
 }
 

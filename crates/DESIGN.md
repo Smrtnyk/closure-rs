@@ -382,7 +382,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   bundled browser externs on the build host and embeds their syntax trees and JSDoc type trees.
   A compiler using the original resource text and matching parser configuration loads the
   snapshot when it first needs that file. Bundled snapshots use fixed-width node rows and a
-  packed string table when their indices fit. Standalone snapshots keep their existing decoder.
+  packed string table when their indices fit. With a fixed relocation, the loader writes each
+  arena column directly and shares one mask and JSDoc lookup per property list. The first
+  file to introduce the implicit template bound uses the allocation-order decoder.
+  Standalone snapshots keep their existing decoder.
   Bundled SourceFiles obtain UTF-16 length and line count from the build and materialize their
   text on demand. Loading preserves node allocation order, source
   positions, shared properties and type expressions. Files with diagnostics or unsupported
@@ -408,7 +411,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   threads as available CPUs, from `/proc/loadavg`): concurrent compiles then parse on their
   compiler threads instead of oversubscribing the CPUs.
 - `rhino/rhino_string_pool.rs`: the intern pool is 64 independently locked shards, with a
-  per-thread cache for the parser threads (Java: one weak interner). Interned strings are never
+  per-thread cache for the parser threads (Java: one weak interner). Both look up the same hash
+  of the UTF-16 spelling. The shard uses different bits from the bucket and its lookup tag,
+  and the tables borrow their keys from the canonical strings. Interned strings are never
   freed, so copying one needs no reference count (`CLOSURE_RS_REFCOUNTED_NAMES` restores
   reference-counted entries, to compare the two).
 - `rhino/js_string.rs`: a `JsString` carries its cached `hashCode` beside the reference to its

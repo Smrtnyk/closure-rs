@@ -100,13 +100,6 @@ impl JsString {
             Box::leak(units.into()),
         ))
     }
-    /// Rust-only: the code units of an interned string, which live for the rest of the process.
-    pub(crate) fn static_units(&self) -> &'static [u16] {
-        match self.0 {
-            Repr::Interned(_, units) => units,
-            Repr::Shared(..) => panic!("not an interned string"),
-        }
-    }
     fn hash_bits(&self) -> u32 {
         match &self.0 {
             Repr::Interned(hash, _) | Repr::Shared(hash, _) => *hash,

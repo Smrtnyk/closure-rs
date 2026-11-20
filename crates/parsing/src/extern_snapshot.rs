@@ -143,6 +143,77 @@ mod tests {
     };
 
     #[test]
+    fn relocated_packed_properties_keep_their_identity_and_can_be_edited() {
+        use closure_rhino::{js_type_expression::JSTypeExpression, node::Prop, token::Token};
+
+        let file: Arc<dyn StaticSourceFile> =
+            Arc::new(SimpleSourceFile::new("docs.js", SourceKind::EXTERN));
+        let code = JsString::from(
+            "/** @template T */ function Box() {}\n/** @type {number} */ var value;",
+        );
+        let ordinary = generate(file.clone(), code.clone()).unwrap();
+        let (packed, ()) = generate_bundled_with_ast(file.clone(), code, |_, _| ()).unwrap();
+        for preexisting_bound in [false, true] {
+            let mut a = Ast::new();
+            let mut b = Ast::new();
+            for arena in [&mut a, &mut b] {
+                arena.new_node(Token::EMPTY);
+                if preexisting_bound {
+                    JSTypeExpression::implicit_template_bound(arena);
+                }
+            }
+            let expected = load(&ordinary, &mut a, file.clone()).ast.unwrap();
+            let root = load(&packed, &mut b, file.clone()).ast.unwrap();
+            assert_eq!(expected, root);
+            assert_eq!(a.node_count(), b.node_count());
+            let var = root.get_last_child(&b).unwrap();
+            let annotated = [var, var.get_only_child(&b)]
+                .into_iter()
+                .find(|n| n.get_jsdoc_info_ref(&b).is_some())
+                .unwrap();
+            let original_doc = annotated.get_jsdoc_info(&b).unwrap();
+            let ty = original_doc.get_type().unwrap().get_root();
+            assert!(ty.get_parent(&b).is_none());
+            assert_eq!(
+                ty,
+                annotated
+                    .get_jsdoc_info(&a)
+                    .unwrap()
+                    .get_type()
+                    .unwrap()
+                    .get_root()
+            );
+            assert!(Arc::ptr_eq(
+                annotated.get_static_source_file_ref(&b).unwrap(),
+                &file
+            ));
+            let copy = annotated.clone_node(&mut b);
+            let head = annotated.get_prop_list_head_for_testing(&b).unwrap();
+            assert!(Arc::ptr_eq(
+                &copy.get_prop_list_head_for_testing(&b).unwrap(),
+                &head
+            ));
+            assert!(Arc::ptr_eq(
+                copy.get_jsdoc_info_ref(&b).unwrap(),
+                &original_doc
+            ));
+
+            annotated.remove_prop(&mut b, Prop::JSDOC_INFO);
+            annotated.set_static_source_file(&mut b, None);
+            assert!(annotated.get_jsdoc_info_ref(&b).is_none());
+            assert!(annotated.get_static_source_file_ref(&b).is_none());
+            assert!(Arc::ptr_eq(
+                copy.get_static_source_file_ref(&b).unwrap(),
+                &file
+            ));
+            assert!(Arc::ptr_eq(
+                copy.get_jsdoc_info_ref(&b).unwrap(),
+                &original_doc
+            ));
+        }
+    }
+
+    #[test]
     fn standalone_and_packed_snapshots_keep_literals_and_unpaired_surrogates() {
         let file: Arc<dyn StaticSourceFile> =
             Arc::new(SimpleSourceFile::new("test.js", SourceKind::EXTERN));
