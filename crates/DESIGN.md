@@ -513,6 +513,8 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   ordinary traversal if it needs to jump to a hoisted function.
   `CLOSURE_RS_REFERENCE_SITES=off` disables reuse of the ordered sites.
 - `jscomp/basic_block.rs`: the basic blocks of references are `Rc`, not `Arc`.
+- `jscomp/timeline.rs` keeps change order in the links between events. Deleting a
+  function swaps out its index entry in constant expected time.
 - `rhino/js_string.rs` `JsStrLike::is_prefix_of`/`is_suffix_of`: `startsWith`/`endsWith` compare
   an ASCII literal with the code units byte by byte instead of converting it first.
 - `jscomp/syntactic_scope_cache.rs` (hooks in `syntactic_scope_creator.rs`, `scope.rs`,
