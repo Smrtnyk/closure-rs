@@ -132,6 +132,17 @@ pub trait Callback: WalkBranch {
         parent: Option<NodeId>,
     ) -> bool;
 
+    /// Called by the SCRIPT handler after it sets the input context. A callback can handle
+    /// bundled scripts here while keeping its per-node traversal predicate unconditional.
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        self.should_traverse(t, script, parent)
+    }
+
     // port: NodeTraversal.Callback#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>);
 
@@ -1496,7 +1507,7 @@ impl<'a> NodeTraversal<'a> {
         self.current_node = Some(n);
         self.current_script = Some(n);
         self.clear_script_state();
-        if callback.should_traverse(self, n, parent) {
+        if callback.should_traverse_script(self, n, parent) {
             self.traverse_children(n, callback);
             self.current_node = Some(n);
             callback.visit(self, n, parent);

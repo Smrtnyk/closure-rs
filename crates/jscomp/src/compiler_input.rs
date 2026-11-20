@@ -83,6 +83,7 @@ pub(crate) struct CompilerInputData {
 #[derive(Default)]
 struct JsAst {
     root: Option<NodeId>,
+    from_bundled_snapshot: bool,
     features: Option<FeatureSet>,
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -174,10 +175,11 @@ impl CompilerInput {
                 // Install the extern or worker result when this input is requested, preserving
                 // shared arena ids and diagnostic order. A caller tracking individual parser
                 // mutations needs the source parse.
-                let (result, errors) = if let Some(bytes) =
-                    self.source_file.extern_snapshot(&config, &code)
-                    && !compiler.ast.is_tracking_changes()
-                {
+                let snapshot = self
+                    .source_file
+                    .extern_snapshot(&config, &code)
+                    .filter(|_| !compiler.ast.is_tracking_changes());
+                let (result, errors) = if let Some(bytes) = snapshot {
                     (
                         closure_parsing::extern_snapshot::load(
                             bytes,
@@ -209,6 +211,7 @@ impl CompilerInput {
                 {
                     let mut state = self.state.lock().unwrap();
                     state.ast.root = result.ast;
+                    state.ast.from_bundled_snapshot = snapshot.is_some();
                     state.ast.features = Some(result.features);
                 }
                 if compiler.get_options().preserves_detailed_source_info() {
@@ -262,17 +265,33 @@ impl CompilerInput {
     pub fn get_source_file(&self) -> &SourceFile {
         &self.source_file
     }
+    /// The records describe only the script loaded from the matching embedded snapshot.
+    /// Parsing an override releases its cached text too, so source identity alone is insufficient.
+    pub(crate) fn bundled_declarations(&self, script: NodeId) -> Option<&'static [u8]> {
+        let state = self.state.lock().unwrap();
+        if !state.ast.from_bundled_snapshot || state.ast.root != Some(script) {
+            return None;
+        }
+        drop(state);
+        self.source_file.bundled_declarations()
+    }
+
     // port: CompilerInput#clearAst
     // port: CompilerInput.JsAst#clearAst
     pub fn clear_ast(&self) {
-        self.state.lock().unwrap().ast.root = None;
+        let mut state = self.state.lock().unwrap();
+        state.ast.root = None;
+        state.ast.from_bundled_snapshot = false;
+        drop(state);
         self.source_file.clear_cached_source();
     }
     // port: CompilerInput#initShadowAst
     pub fn init_shadow_ast(&self, compiler: &AbstractCompiler, shadow_script: NodeId) {
         assert!(shadow_script.is_script(compiler));
         assert!(shadow_script.get_is_in_closure_unaware_subtree(compiler));
-        self.state.lock().unwrap().ast.root = Some(shadow_script);
+        let mut state = self.state.lock().unwrap();
+        state.ast.root = Some(shadow_script);
+        state.ast.from_bundled_snapshot = false;
     }
     // port: CompilerInput#setCompiler
     pub fn set_compiler(&self, _compiler: &AbstractCompiler) {

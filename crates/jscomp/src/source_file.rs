@@ -19,6 +19,7 @@
 // Keep Java nested conditionals and nested loader class names.
 #![allow(clippy::collapsible_if, clippy::enum_variant_names)]
 mod bundled_externs;
+pub(crate) mod declarations;
 mod line_count;
 
 use crate::{

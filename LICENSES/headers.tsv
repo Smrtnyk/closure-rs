@@ -524,6 +524,7 @@ crates/jscomp/src/sorting_error_manager.rs	62b196fb7626e513	Apache-2.0	closure:s
 crates/jscomp/src/source_excerpt_provider.rs	fea7b23685d6fb7c	Apache-2.0	closure:src/com/google/javascript/jscomp/SourceExcerptProvider.java
 crates/jscomp/src/source_file.rs	b20430831788d227	Apache-2.0	closure:src/com/google/javascript/jscomp/SourceFile.java
 crates/jscomp/src/source_file/bundled_externs.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/jscomp/src/source_file/declarations.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/source_file/line_count.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/source_file_mapping.rs	0bfbbd16123a5ad4	Apache-2.0	closure:src/com/google/javascript/jscomp/SourceFileMapping.java
 crates/jscomp/src/source_info_check.rs	78f037cb3e2f60e4	Apache-2.0	closure:src/com/google/javascript/jscomp/SourceInfoCheck.java

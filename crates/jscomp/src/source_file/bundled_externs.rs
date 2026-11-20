@@ -125,7 +125,7 @@ impl SourceFile {
         include!(concat!(env!("OUT_DIR"), "/bundled_externs.rs"))
     }
 
-    pub(crate) fn bundled_property_declarations(&self) -> Option<&'static [u8]> {
+    pub(crate) fn bundled_declarations(&self) -> Option<&'static [u8]> {
         // When the parser has released the cached source, the next read would retrieve
         // the original embedded resource. Avoid loading it just to make this check.
         if !self.is_original_bundled_extern(None) {
@@ -292,7 +292,7 @@ mod tests {
             SourceFile::from_code_with_kind(file.get_name(), code.as_text(), SourceKind::EXTERN);
         assert!(lookalike.extern_snapshot(config, &code).is_none());
         assert!(lookalike.bundled_dependency_info(&code).is_none());
-        assert!(lookalike.bundled_property_declarations().is_none());
+        assert!(lookalike.bundled_declarations().is_none());
         file.set_code_deprecated("var replacement;");
         assert!(
             file.bundled_dependency_info(&file.read_source().unwrap())
@@ -319,13 +319,55 @@ mod tests {
             .unwrap();
         file.set_kind(SourceKind::EXTERN);
         file.clear_cached_source();
-        let records = file.bundled_property_declarations().unwrap();
-        assert!(records.contains(&1));
+        let records = file.bundled_declarations().unwrap();
+        assert!(records.contains(&declarations::PROPERTY));
         assert!(file.state.lock().unwrap().code.is_none());
         file.set_code_deprecated("var replacement;");
-        assert!(file.bundled_property_declarations().is_none());
+        assert!(file.bundled_declarations().is_none());
         file.clear_cached_source();
-        assert_eq!(file.bundled_property_declarations(), Some(records));
+        assert_eq!(file.bundled_declarations(), Some(records));
+    }
+
+    #[test]
+    fn declarations_require_the_snapshot_loaded_for_this_script() {
+        use crate::{
+            compiler::Compiler,
+            compiler_input::CompilerInput,
+            compiler_options::{CompilerOptions, LanguageMode},
+        };
+
+        let file = Arc::new(
+            SourceFile::bundled_externs(Environment::BROWSER)
+                .into_iter()
+                .find(|file| file.get_name() == "externs.zip//es6.js")
+                .unwrap(),
+        );
+        let input = CompilerInput::new_with_extern(file.clone(), true);
+        let mut compiler = Compiler::new();
+        let mut options = CompilerOptions::new();
+        options.set_language_in(LanguageMode::ECMASCRIPT_NEXT);
+        compiler.init_options(options);
+        let original = input.get_ast_root(&mut compiler);
+        assert!(input.bundled_declarations(original).is_some());
+
+        input.clear_ast();
+        file.set_code_deprecated("var replacement;");
+        let replacement = input.get_ast_root(&mut compiler);
+        assert!(!file.has_source_in_memory());
+        assert!(file.bundled_declarations().is_some());
+        assert!(input.bundled_declarations(replacement).is_none());
+        assert!(input.bundled_declarations(original).is_none());
+
+        input.clear_ast();
+        let reloaded = input.get_ast_root(&mut compiler);
+        assert!(input.bundled_declarations(reloaded).is_some());
+        assert!(input.bundled_declarations(replacement).is_none());
+        let shadow = closure_rhino::ir::IR::script(&mut compiler);
+        shadow.set_static_source_file(&mut compiler, Some(file));
+        shadow.set_is_in_closure_unaware_subtree(&mut compiler, true);
+        input.init_shadow_ast(&compiler, shadow);
+        assert!(input.bundled_declarations(shadow).is_none());
+        assert!(input.bundled_declarations(reloaded).is_none());
     }
 
     #[test]

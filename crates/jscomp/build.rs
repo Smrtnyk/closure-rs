@@ -24,26 +24,42 @@ use closure_rhino::{
 };
 use std::{fmt::Write, fs, path::PathBuf, sync::Arc};
 
+#[allow(dead_code)] // The target compiler consumes the fields of a verified declaration.
+#[path = "src/source_file/declarations.rs"]
+mod declarations;
 #[path = "src/source_file/line_count.rs"]
 mod line_count;
 #[path = "src/deps/js_file_line_parser/lines.rs"]
 mod lines;
 
-/// One byte per top-level statement, in source order. Mark bare qualified property
-/// declarations. Their names and JSDoc will be read from the live tree.
-fn property_declarations(
+/// One record per top-level statement, including unrecognized statements to preserve positions.
+fn declaration_records(
     ast: &closure_rhino::node::Ast,
     script: closure_rhino::node::NodeId,
 ) -> Vec<u8> {
+    use closure_rhino::token::Token;
+    use declarations::*;
     script
         .children(ast)
         .map(|statement| {
-            u8::from(
-                statement.is_expr_result(ast)
-                    && statement.get_first_child(ast).is_some_and(|property| {
-                        property.is_get_prop(ast) && property.is_qualified_name(ast)
-                    }),
-            )
+            let record = match statement.get_token(ast) {
+                Token::FUNCTION => FUNCTION,
+                Token::VAR | Token::LET | Token::CONST => VARIABLE,
+                Token::EXPR_RESULT
+                    if statement
+                        .get_first_child(ast)
+                        .is_some_and(|n| n.is_assign(ast)) =>
+                {
+                    ASSIGNMENT
+                }
+                Token::EXPR_RESULT => PROPERTY,
+                _ => OTHER,
+            };
+            if Declaration::read(ast, statement, record).is_some() {
+                record
+            } else {
+                OTHER
+            }
         })
         .collect()
 }
@@ -80,6 +96,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/deps/js_file_line_parser/lines.rs");
     println!("cargo:rerun-if-changed=src/source_file/line_count.rs");
+    println!("cargo:rerun-if-changed=src/source_file/declarations.rs");
     let out = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
     let mut lookup = String::from("match name {\n");
     let mut dependencies = String::from("match name {\n");
@@ -109,12 +126,12 @@ fn main() {
         if let Some((bytes, records)) = closure_parsing::extern_snapshot::generate_bundled_with_ast(
             source,
             code,
-            property_declarations,
+            declaration_records,
         ) {
             let filename = format!("extern-{i}.bin");
             fs::write(out.join(&filename), bytes).unwrap();
-            if records.contains(&1) {
-                let properties = format!("extern-{i}-properties.bin");
+            if records.iter().any(|&record| record != declarations::OTHER) {
+                let properties = format!("extern-{i}-declarations.bin");
                 fs::write(out.join(&properties), records).unwrap();
                 writeln!(
                     declarations,
