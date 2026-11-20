@@ -252,9 +252,13 @@ pub fn define_property(
         return false;
     }
     let new_prop = reg.alloc_property(PropertyData::new(name.clone(), type_, inferred, node));
-    let mut properties = std::mem::take(&mut reg.prototype_data_mut(t).properties);
-    properties.put_property(reg, ast, name.clone(), new_prop);
-    reg.prototype_data_mut(t).properties = properties;
+    if let PropertyKey::String(n) = name {
+        PropertyMap::put_prototype_string(reg, t, n.clone(), new_prop);
+    } else {
+        let mut properties = std::mem::take(&mut reg.prototype_data_mut(t).properties);
+        properties.put_property(reg, ast, name.clone(), new_prop);
+        reg.prototype_data_mut(t).properties = properties;
+    }
     true
 }
 // port: PrototypeObjectType#setPropertyJSDocInfo

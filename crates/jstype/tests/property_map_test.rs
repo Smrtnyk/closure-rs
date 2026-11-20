@@ -261,3 +261,36 @@ fn look_up_keys_from_parent_symbol_key() {
         .get_type(&f.reg);
     assert!(type_.equals(&mut f.reg, &f.ast, f.number_type));
 }
+
+#[test]
+fn declaring_over_an_inferred_string_property_keeps_its_jsdoc_and_previous_map() {
+    let mut f = set_up();
+    let owner = f.reg.create_anonymous_object_type(&f.ast, None);
+    let name = PropertyKey::from("value");
+    owner.define_inferred_property(&mut f.reg, &f.ast, &name, f.number_type, None);
+    let mut builder = closure_rhino::jsdoc_info::JSDocInfo::builder();
+    builder.record_deprecated();
+    let info = builder.build().unwrap();
+    owner.set_property_jsdoc_info(&mut f.reg, &f.ast, &name, Some(info.clone()));
+    let before = owner.get_property_map(&f.reg).clone();
+    let inferred = before.get_own_property(&mut f.reg, &f.ast, &name).unwrap();
+    let keys = before.get_all_keys(&mut f.reg, &f.ast);
+
+    let string_type = f.reg.get_native_type(JSTypeNative::STRING_TYPE);
+    owner.define_declared_property(&mut f.reg, &f.ast, &name, string_type, None);
+    let live = owner.get_property_map(&f.reg).clone();
+    let declared = live.get_own_property(&mut f.reg, &f.ast, &name).unwrap();
+    assert_ne!(inferred, declared);
+    assert!(inferred.is_type_inferred(&f.reg));
+    assert!(!declared.is_type_inferred(&f.reg));
+    assert_eq!(declared.get_type(&f.reg), string_type);
+    assert!(Arc::ptr_eq(
+        &declared.get_jsdoc_info(&f.reg).unwrap(),
+        &info
+    ));
+    assert_eq!(
+        before.get_own_property(&mut f.reg, &f.ast, &name),
+        Some(inferred)
+    );
+    assert_eq!(keys, live.get_all_keys(&mut f.reg, &f.ast));
+}
