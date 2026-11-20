@@ -125,6 +125,13 @@ impl SourceFile {
         include!(concat!(env!("OUT_DIR"), "/bundled_externs.rs"))
     }
 
+    /// Only consumed together with the watch registered when this exact embedded parse was loaded.
+    pub(crate) fn bundled_script_summary(&self) -> Option<&'static bundled_script::BundledScript> {
+        use bundled_script::BundledScript;
+        let name = self.get_name();
+        include!(concat!(env!("OUT_DIR"), "/bundled_script_summaries.rs"))
+    }
+
     pub(crate) fn bundled_declarations(&self) -> Option<&'static [u8]> {
         // When the parser has released the cached source, the next read would retrieve
         // the original embedded resource. Avoid loading it just to make this check.
@@ -312,6 +319,105 @@ mod tests {
     }
 
     #[test]
+    fn gathered_properties_follow_appended_statements_and_edits_to_detached_type_nodes() {
+        use super::bundled_script::BundledScript;
+        use crate::{
+            compiler::Compiler,
+            compiler_input::CompilerInput,
+            compiler_options::{CompilerOptions, LanguageMode},
+            compiler_pass::CompilerPass,
+            gather_extern_properties::{GatherExternProperties, Mode},
+        };
+        use closure_rhino::{
+            ir::IR,
+            js_type_expression::JSTypeExpression,
+            jsdoc_info::JSDocInfo,
+            node::{NodeId, SnapshotUse},
+        };
+
+        fn load(file: SourceFile) -> (Compiler, NodeId) {
+            let mut compiler = Compiler::new();
+            let mut options = CompilerOptions::new();
+            options.set_language_in(LanguageMode::ECMASCRIPT_NEXT);
+            compiler.init_options(options);
+            let input = CompilerInput::new_with_extern(file, true);
+            let script = input.get_ast_root(&mut compiler);
+            (compiler, script)
+        }
+        fn collect(pair: &mut (Compiler, NodeId), mode: Mode) -> Vec<String> {
+            let (compiler, script) = pair;
+            compiler.set_extern_properties(IndexSet::default());
+            GatherExternProperties::new(compiler, mode).process(compiler, *script, *script);
+            compiler
+                .get_extern_properties()
+                .unwrap()
+                .iter()
+                .cloned()
+                .collect()
+        }
+        fn append(pair: &mut (Compiler, NodeId)) {
+            let (compiler, script) = pair;
+            let name = IR::name(compiler, "window");
+            let prop = IR::getprop(compiler, name, "appendedProperty");
+            let field = IR::string_key(compiler, "appendedField");
+            let ty = compiler.new_node_with_child(Token::LB, field);
+            let mut doc = JSDocInfo::builder();
+            doc.record_type(Some(Arc::new(JSTypeExpression::new(ty, "extern.js"))));
+            prop.set_jsdoc_info(compiler, doc.build());
+            let stmt = IR::expr_result(compiler, prop);
+            script.add_child_to_back(compiler, stmt);
+        }
+        fn change_old_jsdoc_field(pair: &mut (Compiler, NodeId)) {
+            let (compiler, script) = pair;
+            let mut nodes = vec![*script];
+            while let Some(n) = nodes.pop() {
+                if n.is_string_key(compiler) && n.get_string_ref(compiler) == "identifier" {
+                    n.set_string(compiler, "changedTypeField");
+                    return;
+                }
+                nodes.extend(n.children(compiler));
+                if let Some(doc) = n.get_jsdoc_info_ref(compiler) {
+                    nodes.extend(doc.get_type_nodes());
+                }
+            }
+            panic!("fixture contains the identifier record field");
+        }
+        let bundled = SourceFile::bundled_externs(Environment::BROWSER)
+            .into_iter()
+            .find(|f| f.get_name() == "externs.zip//w3c_touch_event.js")
+            .unwrap();
+        let ordinary = SourceFile::from_code(bundled.get_name(), bundled.get_code().unwrap());
+        let mut oracle = load(ordinary);
+        let mut target = load(bundled);
+        assert!(BundledScript::prefix(&target.0, target.1, SnapshotUse::SyntaxAndJsDoc).is_some());
+        for mode in [Mode::CHECK, Mode::OPTIMIZE, Mode::CHECK_AND_OPTIMIZE] {
+            assert_eq!(collect(&mut target, mode), collect(&mut oracle, mode));
+        }
+        append(&mut target);
+        append(&mut oracle);
+        assert!(
+            BundledScript::prefix(&target.0, target.1, SnapshotUse::Syntax)
+                .unwrap()
+                .1
+                .is_some()
+        );
+        for (mode, last) in [
+            (Mode::CHECK, "appendedField"),
+            (Mode::OPTIMIZE, "appendedProperty"),
+        ] {
+            let got = collect(&mut target, mode);
+            assert_eq!(got, collect(&mut oracle, mode));
+            assert_eq!(got.last().unwrap(), last);
+        }
+        change_old_jsdoc_field(&mut target);
+        change_old_jsdoc_field(&mut oracle);
+        assert!(BundledScript::prefix(&target.0, target.1, SnapshotUse::SyntaxAndJsDoc).is_none());
+        let fields = collect(&mut target, Mode::CHECK);
+        assert_eq!(fields, collect(&mut oracle, Mode::CHECK));
+        assert!(fields.iter().any(|s| s == "changedTypeField"));
+    }
+
+    #[test]
     fn declarations_preserve_the_source_cache_and_respect_overrides() {
         let file = SourceFile::bundled_externs(Environment::BROWSER)
             .into_iter()
@@ -326,6 +432,61 @@ mod tests {
         assert!(file.bundled_declarations().is_none());
         file.clear_cached_source();
         assert_eq!(file.bundled_declarations(), Some(records));
+    }
+
+    #[test]
+    fn missing_global_property_roots_preserve_original_extern_diagnostics() {
+        use crate::{
+            check_level::CheckLevel,
+            compiler::Compiler,
+            compiler_options::{CompilerOptions, LanguageMode},
+            compiler_pass::CompilerPass,
+            diagnostic_groups::EXTERNS_VALIDATION,
+            var_check::VarCheck,
+        };
+
+        fn warnings(battery: SourceFile, extra: &str) -> Vec<String> {
+            let mut options = CompilerOptions::new();
+            options.set_language_in(LanguageMode::ECMASCRIPT_NEXT);
+            options.set_warning_level(EXTERNS_VALIDATION.clone(), CheckLevel::WARNING);
+            let mut compiler = Compiler::new();
+            let extras = SourceFile::from_code_with_kind("extra.js", extra, SourceKind::EXTERN);
+            compiler.init(
+                &[Arc::new(extras), Arc::new(battery)],
+                &[Arc::new(SourceFile::from_code("app.js", ""))],
+                options,
+            );
+            compiler.parse_inputs();
+            let externs = compiler.get_externs_root().unwrap();
+            let root = compiler.get_js_root().unwrap();
+            VarCheck::new(&compiler).process(&mut compiler, externs, root);
+            compiler
+                .get_warnings()
+                .into_iter()
+                .map(|w| w.to_string())
+                .collect()
+        }
+
+        for (extra, missing) in [("", true), ("var Navigator;", false)] {
+            let bundled = SourceFile::bundled_externs(Environment::BROWSER)
+                .into_iter()
+                .find(|f| f.get_name() == "externs.zip//w3c_batterystatus.js")
+                .unwrap();
+            let roots = bundled
+                .bundled_script_summary()
+                .unwrap()
+                .global_property_roots
+                .unwrap();
+            assert!(roots.contains(&"Navigator"));
+            let ordinary = SourceFile::from_code_with_kind(
+                bundled.get_name(),
+                bundled.get_code().unwrap(),
+                SourceKind::EXTERN,
+            );
+            let expected = warnings(ordinary, extra);
+            assert_eq!(expected.iter().any(|w| w.contains("Navigator")), missing);
+            assert_eq!(warnings(bundled, extra), expected);
+        }
     }
 
     #[test]

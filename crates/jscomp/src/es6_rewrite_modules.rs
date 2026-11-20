@@ -24,6 +24,7 @@
 //! Also rewrites any goog.{require,requireType,forwardDeclare,goog.module.get} calls that are
 //! either in an ES module or of an ES module using goog.declareModuleId.
 #![allow(clippy::needless_return, clippy::needless_late_init)] // Preserve Java statement order.
+use crate::source_file::bundled_script::BundledScript;
 use crate::{
     abstract_compiler::AbstractCompiler,
     ast_factory::AstFactory,
@@ -55,6 +56,7 @@ use crate::{
 use closure_jstype::{TypeId, js_type_native::JSTypeNative, static_typed_scope::StaticTypedScope};
 use closure_parsing::parser::feature_set::Feature;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
+use closure_rhino::node::SnapshotUse;
 use closure_rhino::{
     check_argument, check_not_null, check_state,
     js_string::JsString,
@@ -1144,6 +1146,22 @@ impl Callback for RewriteRequiresForEs6Modules<'_> {
         _parent: Option<NodeId>,
     ) -> bool {
         true
+    }
+
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        let Some((facts, first)) = BundledScript::prefix(t, script, SnapshotUse::Syntax) else {
+            return true;
+        };
+        if facts.may_have_calls {
+            return true;
+        }
+        t.traverse_script_suffix(script, parent, first, self);
+        false
     }
 
     // port: Es6RewriteModules.RewriteRequiresForEs6Modules#visit

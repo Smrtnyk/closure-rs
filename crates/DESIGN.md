@@ -394,6 +394,12 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   visitor resolves current JSDoc declarations and possible aliases in their original order,
   including additions from earlier passes. The scope builder declares bare qualified properties
   from their current names and JSDoc. Other shapes use ordinary traversal.
+  The build records property names in traversal order and identifies statements that cannot
+  affect the side-effect, module and extern name-reference checks. Each loaded script keeps
+  its original last statement and the arena range of the parse, including detached type nodes.
+  Mutations to relevant links, text or annotations invalidate that script’s record. The
+  checks walk statements appended after the original prefix and resolve property roots in the
+  live scope before skipping extern name diagnostics.
 - `jscomp/parallel_parse.rs`: inputs are parsed on up to 8 worker threads into arenas of their
   own (`Ast::new_for_preparse`) while the compiler runs; `CompilerInput#parse` moves a finished
   parse into the compiler's arena (`Ast::append_preparsed`) with the node ids, object sharing

@@ -1814,9 +1814,31 @@ impl<'a> NodeTraversal<'a> {
         self.current_hoist_scope_root = previous_hoist_scope_root;
     }
 
+    /// Finish a script after a callback has handled its original statement prefix.
+    /// The ordinary child walker sees every appended statement, including its live scopes.
+    pub(crate) fn traverse_script_suffix(
+        &mut self,
+        script: NodeId,
+        parent: Option<NodeId>,
+        first: Option<NodeId>,
+        callback: &mut dyn Callback,
+    ) {
+        self.traverse_children_from(script, first, callback);
+        self.current_node = Some(script);
+        callback.visit(self, script, parent);
+    }
+
     // port: NodeTraversal#traverseChildren
     fn traverse_children(&mut self, n: NodeId, callback: &mut dyn Callback) {
-        let mut child = n.get_first_child(self);
+        self.traverse_children_from(n, n.get_first_child(self), callback);
+    }
+
+    fn traverse_children_from(
+        &mut self,
+        n: NodeId,
+        mut child: Option<NodeId>,
+        callback: &mut dyn Callback,
+    ) {
         while let Some(c) = child {
             let next = c.get_next(self);
             self.traverse_branch(c, Some(n), callback);

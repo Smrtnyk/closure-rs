@@ -49,6 +49,8 @@
 )]
 //! Rhino's Node API, with object identity represented by arena handles.
 pub mod snapshot;
+mod snapshot_watch;
+pub use snapshot_watch::SnapshotUse;
 
 use crate::fast_hash::IndexSet;
 use crate::input_id::InputId;
@@ -770,6 +772,7 @@ pub struct Ast {
     tracking_changes: bool,
     /// Lazily built by repeated syntax queries. Moving this arena also moves its index.
     token_candidates: Option<Box<TokenCandidates>>,
+    snapshot_watches: snapshot_watch::Watches,
     /// Rust-only (performance divergence): the nodes whose children, token or string changed since
     /// the last `take_changed_nodes`, in order, without immediate repeats.
     changed_nodes: Vec<NodeId>,
@@ -785,6 +788,8 @@ impl Index<NodeId> for Ast {
 }
 impl IndexMut<NodeId> for Ast {
     fn index_mut(&mut self, n: NodeId) -> &mut NodeData {
+        // An external caller can replace an entire node payload through this interface.
+        self.snapshot_watches.change(n, snapshot_watch::STRUCTURE);
         &mut self.nodes[n.0.get() as usize - 1]
     }
 }
@@ -874,6 +879,12 @@ impl Ast {
     /// changed.
     #[inline]
     fn note_changed(&mut self, n: NodeId) {
+        self.snapshot_watches.change(n, snapshot_watch::STRUCTURE);
+        self.record_scope_change(n);
+    }
+
+    #[inline]
+    fn record_scope_change(&mut self, n: NodeId) {
         if self.tracking_changes && self.changed_nodes.last() != Some(&n) {
             self.changed_nodes.push(n);
         }
@@ -887,13 +898,13 @@ impl Ast {
         }
         self.prop_masks[n.0.get() as usize - 1] = mask;
         self.jsdocs[n.0.get() as usize - 1] = jsdoc;
-        self[n].prop_list_head = head;
+        self.nodes[n.arena_index()].prop_list_head = head;
     }
     /// Rust-only: takes the property list of `n`, leaving none.
     fn take_props(&mut self, n: NodeId) -> Option<Arc<PropListItem>> {
         self.prop_masks[n.0.get() as usize - 1] = 0;
         self.jsdocs[n.0.get() as usize - 1] = None;
-        self[n].prop_list_head.take()
+        self.nodes[n.arena_index()].prop_list_head.take()
     }
     /// Rust-only, not in Java (performance divergence): an arena in which a worker thread parses
     /// one input (Java parses into the one shared object graph). `append_preparsed` then moves the
@@ -1568,7 +1579,8 @@ impl NodeId {
         );
         check_argument!(ast[L(child)].next.is_none());
         check_argument!(ast[L(child)].previous.is_none());
-        ast.note_changed(self);
+        ast.snapshot_watches.append_child(self);
+        ast.record_scope_change(self);
         if let Some(first) = ast[L(self)].first {
             let last = ast[L(first)].previous.unwrap();
             ast[L(last)].next = Some(child);
@@ -1807,6 +1819,7 @@ impl NodeId {
             "Node has existing properties."
         );
         let head = ast[other].prop_list_head.clone();
+        ast.snapshot_watches.change(self, snapshot_watch::DOC);
         ast.set_props(self, head);
         self
     }
@@ -1925,6 +1938,9 @@ impl NodeId {
     pub fn put_prop(self, ast: &mut Ast, prop: Prop, value: Option<ObjectProp>) {
         self.remove_prop(ast, prop);
         if let Some(value) = value {
+            if prop == Prop::JSDOC_INFO {
+                ast.snapshot_watches.change(self, snapshot_watch::DOC);
+            }
             let head = ast.take_props(self);
             ast.set_props(self, Some(PropListItem::object(prop as u8, value, head)));
         }
@@ -1947,6 +1963,9 @@ impl NodeId {
         // the walk that copies references then (performance divergence).
         if self.lookup_property_ref(ast, prop).is_none() {
             return;
+        }
+        if prop == Prop::JSDOC_INFO {
+            ast.snapshot_watches.change(self, snapshot_watch::DOC);
         }
         let head = ast.take_props(self);
         ast.set_props(self, Self::rebuild_list_without_prop(head, prop));
@@ -2295,12 +2314,17 @@ impl NodeId {
     }
     // port: Node#setString
     pub fn set_string(self, ast: &mut Ast, s: impl Into<JsString>) {
-        ast.note_changed(self);
+        ast.record_scope_change(self);
         Self::store_string(ast, self, RhinoStringPool::add_or_get(s));
     }
     /// Rust-only: stores the string of a string node, the one place that writes it (so that the
     /// presence summary sees it).
     fn store_string(ast: &mut Ast, n: NodeId, s: JsString) {
+        if n.is_name(ast) {
+            ast.snapshot_watches.change(n, snapshot_watch::NAME);
+        } else {
+            ast.snapshot_watches.change(n, snapshot_watch::STRUCTURE);
+        }
         let Ast {
             nodes, presence, ..
         } = ast;
@@ -2319,7 +2343,7 @@ impl NodeId {
         pool: &LazyInternedStringList,
         offset: i32,
     ) {
-        ast.note_changed(self);
+        ast.record_scope_change(self);
         Self::store_string(ast, self, pool.get(offset));
     }
     // port: Node#getRawString
@@ -2887,6 +2911,7 @@ impl NodeId {
     }
     // port: Node#setPropListHead
     pub fn set_prop_list_head(self, ast: &mut Ast, head: Option<Arc<PropListItem>>) {
+        ast.snapshot_watches.change(self, snapshot_watch::DOC);
         ast.set_props(self, head);
     }
     // port: Node#getParent

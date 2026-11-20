@@ -18,6 +18,7 @@
 //   src/com/google/javascript/jscomp/CheckSideEffects.java,
 //   src/com/google/javascript/jscomp/NodeTraversal.java.
 
+use crate::source_file::bundled_script::BundledScript;
 use crate::{
     abstract_compiler::AbstractCompiler,
     compiler_pass::CompilerPass,
@@ -27,6 +28,7 @@ use crate::{
     node_util::NodeUtil,
 };
 use closure_rhino::fast_hash::IndexSet;
+use closure_rhino::node::SnapshotUse;
 use closure_rhino::{
     check_state,
     ir::IR,
@@ -324,6 +326,24 @@ impl Callback for GetNoSideEffectExterns<'_> {
         _parent: Option<NodeId>,
     ) -> bool {
         true
+    }
+
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        let Some((facts, first)) =
+            BundledScript::prefix(t, script, SnapshotUse::SyntaxNamesAndJsDoc)
+        else {
+            return true;
+        };
+        if facts.check_function_annotations {
+            return true;
+        }
+        t.traverse_script_suffix(script, parent, first, self);
+        false
     }
 
     // port: CheckSideEffects.GetNoSideEffectExterns#visit

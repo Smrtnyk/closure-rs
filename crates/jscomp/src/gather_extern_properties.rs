@@ -22,11 +22,9 @@ use crate::abstract_compiler::AbstractCompiler;
 use crate::compiler_pass::CompilerPass;
 use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
-use closure_rhino::check_state;
+use crate::source_file::bundled_script::{BundledScript, gather_type_fields, property};
 use closure_rhino::fast_hash::IndexSet;
-use closure_rhino::jsdoc_info::JSDocInfo;
-use closure_rhino::node::{Ast, NodeId};
-use closure_rhino::token::Token;
+use closure_rhino::node::{NodeId, SnapshotUse};
 
 /// Gathers property names defined in externs.
 ///
@@ -87,67 +85,6 @@ impl GatherExternProperties {
             mode,
         }
     }
-
-    // port: GatherExternProperties#gatherPropertiesFromJSDocInfo
-    fn gather_properties_from_jsdoc_info(&mut self, ast: &Ast, js_doc_info: &JSDocInfo) {
-        js_doc_info.for_each_type_node(|node| {
-            self.gather_properties_from_js_type_expression_node(ast, node)
-        });
-    }
-
-    // port: GatherExternProperties#gatherPropertiesFromJsTypeExpressionNode
-    fn gather_properties_from_js_type_expression_node(
-        &mut self,
-        ast: &Ast,
-        js_type_expression_node: NodeId,
-    ) {
-        match js_type_expression_node.get_token(ast) {
-            Token::LB => {
-                self.gather_properties_from_js_doc_record_type(ast, js_type_expression_node)
-            }
-            _ => {
-                let mut child = js_type_expression_node.get_first_child(ast);
-                while let Some(c) = child {
-                    self.gather_properties_from_js_type_expression_node(ast, c);
-                    child = c.get_next(ast);
-                }
-            }
-        }
-    }
-
-    // port: GatherExternProperties#gatherPropertiesFromJsDocRecordType
-    fn gather_properties_from_js_doc_record_type(&mut self, ast: &Ast, js_doc_record_node: NodeId) {
-        check_state!(
-            js_doc_record_node.get_token(ast) == Token::LB,
-            &js_doc_record_node.to_string(ast)
-        );
-        let mut field_node = js_doc_record_node.get_first_child(ast);
-        while let Some(field) = field_node {
-            let field_name_node: NodeId;
-            let field_type_node: Option<NodeId>;
-            if field.get_token(ast) == Token::COLON {
-                field_name_node = field.get_first_child(ast).unwrap();
-                field_type_node = field_name_node.get_next(ast);
-            } else {
-                field_name_node = field;
-                field_type_node = None;
-            }
-            check_state!(
-                field_name_node.is_string_key(ast),
-                &field_name_node.to_string(ast)
-            );
-            let mut field_name = field_name_node.get_string(ast);
-            // TODO(bradfordcsmith): The JSDoc parser should do this.
-            if field_name.starts_with("'") || field_name.starts_with("\"") {
-                field_name = field_name.substring(1, field_name.length() - 1);
-            }
-            self.extern_properties.insert(field_name.to_string_lossy());
-            if let Some(field_type_node) = field_type_node {
-                self.gather_properties_from_js_type_expression_node(ast, field_type_node);
-            }
-            field_node = field.get_next(ast);
-        }
-    }
 }
 
 impl CompilerPass for GatherExternProperties {
@@ -169,36 +106,45 @@ impl Callback for GatherExternProperties {
         !n.is_script(t) || !NodeUtil::is_from_type_summary(t, n)
     }
 
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        if NodeUtil::is_from_type_summary(t, script) {
+            return false;
+        }
+        let names = match self.mode {
+            Mode::CHECK => BundledScript::prefix(t, script, SnapshotUse::SyntaxAndJsDoc)
+                .map(|(s, first)| (s.type_fields, first)),
+            Mode::OPTIMIZE => BundledScript::prefix(t, script, SnapshotUse::Syntax)
+                .map(|(s, first)| (s.properties, first)),
+            // This mode interleaves type and syntax fields in the same set.
+            Mode::CHECK_AND_OPTIMIZE => None,
+        };
+        let Some((names, first)) = names else {
+            return true;
+        };
+        self.extern_properties
+            .extend(names.iter().map(|&name| name.to_owned()));
+        t.traverse_script_suffix(script, parent, first, self);
+        false
+    }
+
     // port: GatherExternProperties#visit
-    #[allow(clippy::collapsible_match)] // Retain Java control flow.
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        if self.mode.optimize() {
-            match n.get_token(t) {
-                Token::GETPROP => {
-                    // Gathers "name" from (someObject.name).
-                    self.extern_properties
-                        .insert(n.get_string(t).to_string_lossy());
-                }
-                Token::STRING_KEY => {
-                    if parent.unwrap().is_object_lit(t) {
-                        self.extern_properties
-                            .insert(n.get_string(t).to_string_lossy());
-                    }
-                }
-                Token::MEMBER_FUNCTION_DEF
-                | Token::MEMBER_FIELD_DEF
-                | Token::GETTER_DEF
-                | Token::SETTER_DEF => {
-                    self.extern_properties
-                        .insert(n.get_string(t).to_string_lossy());
-                }
-                _ => {}
-            }
+        if self.mode.optimize()
+            && let Some(name) = property(t, n, parent)
+        {
+            self.extern_properties.insert(name.to_string_lossy());
         }
         if self.mode.check()
             && let Some(js_doc_info) = n.get_jsdoc_info_ref(t)
         {
-            self.gather_properties_from_jsdoc_info(t, js_doc_info);
+            js_doc_info.for_each_type_node(|root| {
+                gather_type_fields(&mut self.extern_properties, t, root)
+            });
         }
     }
 }

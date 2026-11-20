@@ -47,6 +47,7 @@ crates/cli/tests/option_setup_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/tests/out_of_scope_flags_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/cli/tests/utf16_output_test.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/build.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/jscomp/build/bundled_script_summary.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/build/runtime_libraries.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/examples/compiler_whitespace_check.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/examples/d2_stderr_check.rs	322fc2ba37b98b96	Apache-2.0	-
@@ -526,6 +527,7 @@ crates/jscomp/src/sorting_error_manager.rs	62b196fb7626e513	Apache-2.0	closure:s
 crates/jscomp/src/source_excerpt_provider.rs	fea7b23685d6fb7c	Apache-2.0	closure:src/com/google/javascript/jscomp/SourceExcerptProvider.java
 crates/jscomp/src/source_file.rs	b20430831788d227	Apache-2.0	closure:src/com/google/javascript/jscomp/SourceFile.java
 crates/jscomp/src/source_file/bundled_externs.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/jscomp/src/source_file/bundled_script.rs	354a859319a60a5f	Apache-2.0	closure:src/com/google/javascript/jscomp/GatherExternProperties.java
 crates/jscomp/src/source_file/declarations.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/source_file/line_count.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/jscomp/src/source_file_mapping.rs	0bfbbd16123a5ad4	Apache-2.0	closure:src/com/google/javascript/jscomp/SourceFileMapping.java
@@ -1127,6 +1129,7 @@ crates/rhino/src/lib.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/src/msg.rs	a5fd83c22f83fb1e	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/Msg.java
 crates/rhino/src/node.rs	c3c966d05bcb93ea	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/Node.java
 crates/rhino/src/node/snapshot.rs	322fc2ba37b98b96	Apache-2.0	-
+crates/rhino/src/node/snapshot_watch.rs	322fc2ba37b98b96	Apache-2.0	-
 crates/rhino/src/non_jsdoc_comment.rs	4b4e3eb1316eb57c	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/NonJSDocComment.java
 crates/rhino/src/outcome.rs	260266ecdc6e1672	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/Outcome.java
 crates/rhino/src/pmap.rs	9b7b180a73a9d5a3	(MPL-1.1 OR GPL-2.0-or-later)	closure:src/com/google/javascript/rhino/PMap.java

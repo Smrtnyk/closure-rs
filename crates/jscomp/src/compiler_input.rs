@@ -180,14 +180,18 @@ impl CompilerInput {
                     .extern_snapshot(&config, &code)
                     .filter(|_| !compiler.ast.is_tracking_changes());
                 let (result, errors) = if let Some(bytes) = snapshot {
-                    (
-                        closure_parsing::extern_snapshot::load(
-                            bytes,
-                            &mut compiler.ast,
-                            self.source_file.clone(),
-                        ),
-                        Vec::new(),
-                    )
+                    let start = compiler.ast.node_count();
+                    let result = closure_parsing::extern_snapshot::load(
+                        bytes,
+                        &mut compiler.ast,
+                        self.source_file.clone(),
+                    );
+                    if let (Some(root), Some(data)) =
+                        (result.ast, self.source_file.bundled_script_summary())
+                    {
+                        compiler.ast.watch_parsed_nodes(start, root, data);
+                    }
+                    (result, Vec::new())
                 } else if let Some(parsed) =
                     crate::parallel_parse::take(compiler, self, &config, code.as_text())
                 {

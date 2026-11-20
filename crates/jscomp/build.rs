@@ -24,6 +24,11 @@ use closure_rhino::{
 };
 use std::{fmt::Write, fs, path::PathBuf, sync::Arc};
 
+#[allow(dead_code)] // The target reads these fields from the generated data.
+#[path = "src/source_file/bundled_script.rs"]
+mod bundled_script;
+#[path = "build/bundled_script_summary.rs"]
+mod bundled_script_summary;
 #[allow(dead_code)] // The target compiler consumes the fields of a verified declaration.
 #[path = "src/source_file/declarations.rs"]
 mod declarations;
@@ -111,6 +116,9 @@ fn main() {
     let mut lookup = String::from("match name {\n");
     let mut dependencies = String::from("match name {\n");
     let mut declarations = String::from("match name {\n");
+    println!("cargo:rerun-if-changed=src/source_file/bundled_script.rs");
+    println!("cargo:rerun-if-changed=build/bundled_script_summary.rs");
+    let mut summaries = String::from("match name {\n");
     let mut sizes = String::from("match name {\n");
     for (i, file) in AbstractCommandLineRunner::get_builtin_externs(Environment::BROWSER)
         .into_iter()
@@ -133,11 +141,21 @@ fn main() {
         if let Some(flags) = plain_dependency_flags(code.clone()) {
             writeln!(dependencies, "{:?} => Some({flags:?}),", file.path).unwrap();
         }
-        if let Some((bytes, records)) = closure_parsing::extern_snapshot::generate_bundled_with_ast(
-            source,
-            code,
-            declaration_records,
-        ) {
+        if let Some((bytes, (records, summary))) =
+            closure_parsing::extern_snapshot::generate_bundled_with_ast(
+                source,
+                code,
+                |ast, root| {
+                    (
+                        declaration_records(ast, root),
+                        bundled_script_summary::generate(ast, root),
+                    )
+                },
+            )
+        {
+            if let Some(summary) = summary {
+                writeln!(summaries, "{:?} => Some(&{summary}),", file.path).unwrap();
+            }
             let filename = format!("extern-{i}.bin");
             fs::write(out.join(&filename), bytes).unwrap();
             if records.iter().any(|&record| record != declarations::OTHER) {
@@ -158,6 +176,8 @@ fn main() {
             .unwrap();
         }
     }
+    summaries.push_str("_ => None,\n}\n");
+    fs::write(out.join("bundled_script_summaries.rs"), summaries).unwrap();
     lookup.push_str("_ => None,\n}\n");
     fs::write(out.join("bundled_externs.rs"), lookup).unwrap();
     dependencies.push_str("_ => None,\n}\n");
