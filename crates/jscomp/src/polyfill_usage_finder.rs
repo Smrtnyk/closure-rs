@@ -93,16 +93,24 @@ impl Polyfill {
     }
 }
 
+#[derive(Debug)]
+struct MethodPolyfills {
+    guard_name: JsString,
+    definitions: Vec<Arc<Polyfill>>,
+}
+
 /// Maps from polyfill names to the actual Polyfill object.
 // port: PolyfillUsageFinder.Polyfills
 #[derive(Debug)]
 pub struct Polyfills {
     // Map of method polyfills, keyed by native method name.
-    methods: IndexMap<JsString, Vec<Arc<Polyfill>>>,
+    methods: IndexMap<JsString, MethodPolyfills>,
     // Map of static polyfills, keyed by fully-qualified native name.
     statics: IndexMap<JsString, Arc<Polyfill>>,
     // Set of suffixes of qualified names.
     suffixes: IndexSet<JsString>,
+    // Possible first components of static polyfills and explicit global prefixes.
+    roots: IndexSet<JsString>,
     // Map of all polyfills, keyed by their native version (the first ECMAScript spec version in
     // which they are defined)
     by_native_version: IndexMap<String, Vec<Arc<Polyfill>>>,
@@ -119,10 +127,38 @@ impl Polyfills {
             .keys()
             .map(|arg| arg.substring_from((arg.last_index_of_char(u16::from(b'.')) + 1) as usize))
             .collect::<IndexSet<_>>();
+        let roots = statics
+            .keys()
+            .map(
+                |name| match name.as_units().iter().position(|&c| c == u16::from(b'.')) {
+                    None => name.clone(),
+                    Some(end) => name.substring(0, end),
+                },
+            )
+            .chain(
+                GLOBAL_NAMES
+                    .into_iter()
+                    .map(|prefix| JsString::from(prefix.split_once('.').unwrap().0)),
+            )
+            .collect();
+        let methods = methods
+            .into_iter()
+            .map(|(name, definitions)| {
+                let guard_name = JsString::from(".").concat(&name);
+                (
+                    name,
+                    MethodPolyfills {
+                        guard_name,
+                        definitions,
+                    },
+                )
+            })
+            .collect();
         Self {
             methods,
             statics,
             suffixes,
+            roots,
             by_native_version,
         }
     }
@@ -411,26 +447,34 @@ impl PolyfillUsageFinder {
             // doesn't match any of the known polyfills.
             return None;
         }
-        let last_component = get_prop_node.get_string(traversal);
-        // NOTE: We are not using isQualifiedName() and getQualifiedName() here, because we want to
-        // locate the owner node and also have this code work for optional chains.
-        let mut components: VecDeque<JsString> = VecDeque::new();
-        components.push_front(last_component);
+        // Find the receiver before building a qualified name. Most matching suffixes occur
+        // on ordinary expressions or on names that cannot begin a static polyfill.
         let mut owner_node = get_prop_node
             .get_first_child(traversal)
             .expect("getprop owner");
         while owner_node.is_get_prop(traversal) || owner_node.is_opt_chain_get_prop(traversal) {
-            components.push_front(owner_node.get_string(traversal));
             owner_node = owner_node
                 .get_first_child(traversal)
                 .expect("getprop owner");
         }
         if !owner_node.is_name(traversal) {
-            // Static polyfills are always fully qualified names beginning with a NAME node.
-            // e.g. `Array.from` or `globalThis.Promise`
             return None;
         }
-        let root_name = owner_node.get_string(traversal);
+        let root_name = owner_node.get_string_ref(traversal);
+        // A synthetic NAME can itself contain dots. The complete textual lookup below
+        // handles that case, as well as optional chains.
+        if !self.polyfills.roots.contains(root_name)
+            && !root_name.as_units().contains(&u16::from(b'.'))
+        {
+            return None;
+        }
+        let root_name = root_name.clone();
+        let mut components = VecDeque::new();
+        let mut part = get_prop_node;
+        while part != owner_node {
+            components.push_front(part.get_string(traversal));
+            part = part.get_first_child(traversal).expect("getprop owner");
+        }
         components.push_front(root_name.clone());
         let full_name = join_dot(&components);
         let global_prefix = find_global_prefix(&full_name);
@@ -443,7 +487,7 @@ impl PolyfillUsageFinder {
             let polyfill = self
                 .polyfills
                 .statics
-                .get(&full_name.substring_from(global_prefix.length()));
+                .get(&full_name.substring_from(global_prefix.len()));
             if let Some(polyfill) = polyfill {
                 return Some(PolyfillUsage::create_explicit(
                     polyfill.clone(),
@@ -564,7 +608,6 @@ impl<'a, 'c> Traverser<'a, 'c> {
             .polyfills
             .statics
             .get(name_node.get_string_ref(traversal))
-            .cloned()
         else {
             // no polyfill exists for this name
             return;
@@ -574,11 +617,11 @@ impl<'a, 'c> Traverser<'a, 'c> {
         if self.outer.is_polyfill_visible_in_scope(traversal, &name)
             && self
                 .include_guarded_usages
-                .should_include(self.is_guarded(name.clone()))
+                .should_include(self.base.is_guarded(name.clone()))
         {
             (self.polyfill_consumer)(
                 traversal.get_compiler(),
-                PolyfillUsage::create_non_explicit(polyfill, name_node, name),
+                PolyfillUsage::create_non_explicit(polyfill.clone(), name_node, name),
             );
         }
     }
@@ -602,29 +645,27 @@ impl<'a, 'c> Traverser<'a, 'c> {
             // several possible method polyfills.
             // e.g. `obj.includes(x)` could be a usage of `Array.prototype.includes` or
             // `String.prototype.includes`.
-            let property_name = get_prop_node.get_string(traversal);
-            let method_polyfills = self
+            let Some(methods) = self
                 .outer
                 .polyfills
                 .methods
-                .get(&property_name)
-                .cloned()
-                .unwrap_or_default();
-            // Note that we use ".foo" as the guard check for methods to keep them distinct in case
-            // there is also a static "foo" polyfill.
-            if !method_polyfills.is_empty()
-                && self
-                    .include_guarded_usages
-                    .should_include(self.is_guarded(JsString::from(".").concat(&property_name)))
+                .get(get_prop_node.get_string_ref(traversal))
+            else {
+                return;
+            };
+            if self
+                .include_guarded_usages
+                .should_include(self.base.is_guarded(methods.guard_name.clone()))
             {
-                for polyfill in method_polyfills {
-                    // isDisjointFromIterator check is guarded by the shouldDisambiguateProperties
-                    // flag. (Rust-only: the owner is read only when the check runs.)
+                let property_name = get_prop_node.get_string(traversal);
+                for polyfill in &methods.definitions {
+                    // The iterator test only applies to the exact owner "Iterator".
                     if self.outer.disambiguate_properties
+                        && polyfill.native_symbol.starts_with("Iterator.prototype.")
                         && self.outer.is_disjoint_from_iterator(
                             traversal,
                             get_prop_node,
-                            get_method_owner(&polyfill.native_symbol).as_deref(),
+                            Some("Iterator"),
                         )
                     {
                         continue;
@@ -632,7 +673,7 @@ impl<'a, 'c> Traverser<'a, 'c> {
                     (self.polyfill_consumer)(
                         traversal.get_compiler(),
                         PolyfillUsage::create_non_explicit(
-                            polyfill,
+                            polyfill.clone(),
                             get_prop_node,
                             property_name.clone(),
                         ),
@@ -668,14 +709,10 @@ impl GuardedCallbackSubclass for Traverser<'_, '_> {
 }
 
 // port: PolyfillUsageFinder#findGlobalPrefix
-fn find_global_prefix(qualified_name: &JsString) -> Option<JsString> {
-    for global in GLOBAL_NAMES {
-        let global = JsString::from(global);
-        if qualified_name.starts_with(&global) {
-            return Some(global);
-        }
-    }
-    None
+fn find_global_prefix(qualified_name: &JsString) -> Option<&'static str> {
+    GLOBAL_NAMES
+        .into_iter()
+        .find(|&global| qualified_name.starts_with(global))
 }
 
 // port: PolyfillUsageFinder#GLOBAL_NAMES
@@ -698,14 +735,6 @@ const STANDARD_COLLECTION_IDS: [ColorId; 14] = [
     standard_colors::READONLY_SET_ID,
     standard_colors::READONLY_SET_PROTOTYPE_ID,
 ];
-
-// port: PolyfillUsageFinder#getMethodOwner
-fn get_method_owner(native_symbol: &JsString) -> Option<String> {
-    let native_symbol = native_symbol.to_string_lossy();
-    native_symbol
-        .find(".prototype.")
-        .map(|proto_idx| native_symbol[..proto_idx].to_string())
-}
 
 impl PolyfillUsageFinder {
     // port: PolyfillUsageFinder#isDisjointFromIterator(Node,String)

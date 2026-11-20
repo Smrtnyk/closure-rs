@@ -735,7 +735,7 @@ crates/jscomp/tests/peephole_replace_known_methods_test.rs	635ddce9d40fbbd9	Apac
 crates/jscomp/tests/peephole_substitute_alternate_syntax_test.rs	d38dd753d2907b19	Apache-2.0	closure:test/com/google/javascript/jscomp/PeepholeSubstituteAlternateSyntaxTest.java; closure:test/com/google/javascript/jscomp/CompilerTestCase.java
 crates/jscomp/tests/performance_tracker_test.rs	75821b7376a367dd	Apache-2.0	closure:test/com/google/javascript/jscomp/PerformanceTrackerTest.java
 crates/jscomp/tests/phase_optimizer_test.rs	bb3a95330c2d247e	Apache-2.0	closure:test/com/google/javascript/jscomp/PhaseOptimizerTest.java
-crates/jscomp/tests/polyfill_usage_finder_test.rs	8a39e37d443c6084	Apache-2.0	closure:test/com/google/javascript/jscomp/PolyfillUsageFinderTest.java
+crates/jscomp/tests/polyfill_usage_finder_test.rs	582b6373e812b772	Apache-2.0	closure:src/com/google/javascript/jscomp/GuardedCallback.java; closure:src/com/google/javascript/jscomp/PolyfillUsageFinder.java; closure:test/com/google/javascript/jscomp/PolyfillUsageFinderTest.java
 crates/jscomp/tests/process_common_js_modules_test.rs	c09c56515c4f7d4f	Apache-2.0	closure:test/com/google/javascript/jscomp/ProcessCommonJSModulesTest.java; own:oracle/replay/src/com/google/javascript/jscomp/ReplayDsl.java; closure:test/com/google/javascript/jscomp/CompilerTestCase.java; closure:test/com/google/javascript/jscomp/ModulesTestUtils.java
 crates/jscomp/tests/process_tweaks_test.rs	1f09e95358e76623	Apache-2.0	closure:test/com/google/javascript/jscomp/ProcessTweaksTest.java; closure:test/com/google/javascript/jscomp/CompilerTestCase.java
 crates/jscomp/tests/pruning_analysis_test.rs	10ffe8f0f1a0c167	Apache-2.0	closure:test/com/google/javascript/jscomp/PruningAnalysisTest.java

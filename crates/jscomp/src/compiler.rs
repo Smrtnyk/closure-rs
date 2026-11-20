@@ -36,7 +36,8 @@ use crate::{
     thread_safe_delegating_error_manager::ThreadSafeDelegatingErrorManager,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
-use closure_rhino::fast_hash::IndexMap;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
+use closure_rhino::js_string::JsString;
 use closure_rhino::{
     input_id::InputId,
     ir::IR,
@@ -56,6 +57,13 @@ pub type InputSourceMaps = closure_rhino::java_lang::concurrent_hash_map::Concur
 >;
 
 pub type AstSupplier = Arc<dyn Fn(&mut Compiler) -> NodeId + Send + Sync>;
+
+#[derive(Default)]
+struct ExternPropertiesJs {
+    by_name: std::sync::OnceLock<Arc<IndexSet<JsString>>>,
+    ordered: std::sync::OnceLock<Vec<JsString>>,
+}
+
 /// Java's LinkedHashSet and the anonymous AbstractSet selected by initOptions.
 #[derive(Default)]
 pub struct ForwardDeclaredTypes {
@@ -120,9 +128,8 @@ pub struct Compiler {
     has_reg_exp_global_references: bool,
     run_j2cl_passes: bool,
     extern_properties: Option<closure_rhino::fast_hash::IndexSet<String>>,
-    /// Rust-only: `extern_properties` as JS strings, made once per value (RemoveUnusedCode reads
-    /// them on every run).
-    extern_properties_js: std::sync::OnceLock<Vec<closure_rhino::js_string::JsString>>,
+    /// The JavaScript names for the current extern property set, shared by optimizer passes.
+    extern_properties_js: ExternPropertiesJs,
     /// Rust-only (crates/DESIGN.md, "Performance divergences"): whether the reference collection of
     /// the externs can be skipped, while the externs are unchanged.
     pub(crate) externs_reference_summary:
@@ -243,7 +250,7 @@ impl Compiler {
             has_reg_exp_global_references: true,
             run_j2cl_passes: false,
             extern_properties: None,
-            extern_properties_js: std::sync::OnceLock::new(),
+            extern_properties_js: ExternPropertiesJs::default(),
             externs_reference_summary: None,
             function_reference_sites: Default::default(),
             accessor_summary: None,
@@ -3321,22 +3328,36 @@ impl Compiler {
         properties: closure_rhino::fast_hash::IndexSet<String>,
     ) {
         self.extern_properties = Some(properties);
-        self.extern_properties_js = std::sync::OnceLock::new();
+        self.extern_properties_js = ExternPropertiesJs::default();
     }
     // port: Compiler#getExternProperties
     pub fn get_extern_properties(&self) -> Option<&closure_rhino::fast_hash::IndexSet<String>> {
         self.extern_properties.as_ref()
     }
-    /// Rust-only: `get_extern_properties` as JS strings, interned so that copying one needs no
-    /// reference count (RemoveUnusedCode and OptimizeCalls copy them all on every run).
-    pub fn get_extern_properties_js(&self) -> Option<&[closure_rhino::js_string::JsString]> {
+    /// Rust-only: extern property membership as interned JS strings, shared across passes
+    /// until `set_extern_properties` replaces the collection.
+    pub(crate) fn get_extern_property_set_js(&self) -> Option<&Arc<IndexSet<JsString>>> {
         let properties = self.extern_properties.as_ref()?;
-        Some(self.extern_properties_js.get_or_init(|| {
-            properties
-                .iter()
-                .map(|s| closure_rhino::rhino_string_pool::RhinoStringPool::add_or_get(s.as_str()))
-                .collect()
+        Some(self.extern_properties_js.by_name.get_or_init(|| {
+            Arc::new(
+                properties
+                    .iter()
+                    .map(|s| {
+                        closure_rhino::rhino_string_pool::RhinoStringPool::add_or_get(s.as_str())
+                    })
+                    .collect(),
+            )
         }))
+    }
+
+    /// Rust-only: the interned JS strings in the original extern property order.
+    pub fn get_extern_properties_js(&self) -> Option<&[JsString]> {
+        let properties = self.get_extern_property_set_js()?;
+        Some(
+            self.extern_properties_js
+                .ordered
+                .get_or_init(|| properties.iter().cloned().collect()),
+        )
     }
     // port: Compiler#getAccessorSummary
     pub fn get_accessor_summary(&self) -> Option<&Arc<crate::accessor_summary::AccessorSummary>> {
@@ -4516,7 +4537,7 @@ impl Compiler {
                 .map(|(key, (_, supplier))| (key, supplier))
                 .collect(),
         );
-        self.extern_properties_js = std::sync::OnceLock::new();
+        self.extern_properties_js = ExternPropertiesJs::default();
         self.extern_properties = Some(
             ast_data
                 .get_extern_properties()
@@ -5101,7 +5122,7 @@ impl Compiler {
         ));
 
         // Restore TypedAST and related fields
-        self.extern_properties_js = std::sync::OnceLock::new();
+        self.extern_properties_js = ExternPropertiesJs::default();
         self.extern_properties = Some(
             deserialized_ast
                 .get_extern_properties()

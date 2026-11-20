@@ -1,4 +1,5 @@
 /*
+ * Copyright 2016 The Closure Compiler Authors.
  * Copyright 2020 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +15,8 @@
  * limitations under the License.
  */
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
+//   src/com/google/javascript/jscomp/GuardedCallback.java,
+//   src/com/google/javascript/jscomp/PolyfillUsageFinder.java,
 //   test/com/google/javascript/jscomp/PolyfillUsageFinderTest.java.
 
 //! Port of PolyfillUsageFinderTest.java: unit tests for PolyfillUsageFinder.
@@ -32,6 +35,65 @@ use closure_rhino::{
 };
 use closure_testing::testing::test_externs_builder::TestExternsBuilder;
 use std::sync::Arc;
+
+#[test]
+#[should_panic(expected = "INTERNAL COMPILER ERROR.")]
+fn guarded_traversal_checks_the_parent_of_a_detached_expression() {
+    let mut compiler = Compiler::new();
+    compiler.init_compiler_options_if_testing();
+    let one = IR::number(&mut compiler, 1.0);
+    let two = IR::number(&mut compiler, 2.0);
+    let addition = IR::add(&mut compiler, one, two);
+    let table = Arc::new(Polyfills::from_table("Map es6 es3 es6/map"));
+    let finder = PolyfillUsageFinder::new(&compiler, table, false);
+    finder.traverse_including_guarded(&mut compiler, addition, &mut |_, _| {});
+}
+
+// port: GuardedCallback#isGuarded
+#[test]
+fn nested_conditional_guards_expire_before_sibling_statements() {
+    let mut condition = String::from("Map");
+    for _ in 0..48 {
+        condition = format!("({condition} && flag)");
+    }
+    let source = format!("if ({condition}) use(Map);\nuse(Map);");
+    let mut finder = TestPolyfillUsageFinder::builder()
+        .with_polyfill_table_lines("Map es6 es3 es6/map")
+        .for_source_lines(&source)
+        .build();
+
+    let guarded = finder.get_guarded_usages();
+    let unguarded = finder.get_unguarded_usages();
+    assert_eq!(guarded.len(), 2);
+    assert_eq!(unguarded.len(), 1);
+    assert_eq!(unguarded[0].node().get_lineno(&finder.compiler), 2);
+}
+
+// port: PolyfillUsageFinder#maybeCreateStaticPolyfillUsageForGetPropChain
+#[test]
+fn static_polyfills_match_explicit_globals_and_synthetic_dotted_names() {
+    let mut finder = TestPolyfillUsageFinder::builder()
+        .with_polyfill_table_lines("Nested.Path.value es6 es3 nested/value")
+        .for_source_lines(
+            "use(Nested.Path.value, another.Path.value, synthetic.value, window.Nested?.Path.value);",
+        )
+        .build();
+    let names = find_all_nodes(&finder.compiler, finder.root_node, |ast, n| {
+        n.is_name(ast) && n.get_string_ref(ast) == "synthetic"
+    });
+    names[0].set_string(&mut finder.compiler, "Nested.Path");
+
+    let usages = finder.get_all_usages();
+    assert_eq!(usages.len(), 3);
+    assert!(
+        usages
+            .iter()
+            .all(|usage| usage.name() == "Nested.Path.value")
+    );
+    assert!(!usages[0].is_explicit_global());
+    assert!(!usages[1].is_explicit_global());
+    assert!(usages[2].is_explicit_global());
+}
 
 /// Covers testing of most common cases.
 ///

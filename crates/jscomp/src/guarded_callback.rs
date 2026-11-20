@@ -31,7 +31,7 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use std::{hash::Hash, rc::Rc};
+use std::hash::Hash;
 
 pub struct GuardedCallback<T> {
     // Map from short-circuiting conditional nodes (AND, OR, COALESCE, IF, and HOOK) to
@@ -55,7 +55,7 @@ pub struct GuardedCallback<T> {
     // specifically, whether it is inherently safe, and a link to one or
     // more conditional nodes in the current statement directly above it
     // (for registering safe resources as guards).
-    context_stack: Vec<Rc<Context>>,
+    context_stack: Vec<Context>,
 }
 
 impl<T: Clone + Eq + Hash> Default for GuardedCallback<T> {
@@ -172,23 +172,20 @@ impl<T: Clone + Eq + Hash> GuardedCallback<T> {
         match parent {
             None => {
                 // The first node gets an empty context.
-                self.context_stack.push(Context::empty());
+                self.context_stack.push(Context::EMPTY);
             }
             Some(parent) => {
                 // Before traversing any children, we update the stack
-                let top = self.context_stack.last().expect("context stack").clone();
+                let top = *self.context_stack.last().expect("context stack");
                 self.context_stack
-                    .push(Context::descend(&top, compiler, parent, n));
+                    .push(top.descend(self.context_stack.len(), compiler, parent, n));
 
                 // If the parent has any guards registered on it, then add them to both
                 // `guarded` and `installedGuards`.
-                if CAN_HAVE_GUARDS.contains(&parent.get_token(compiler))
-                    && self.registered_guards.contains_key(&parent)
+                if !self.registered_guards.is_empty()
+                    && CAN_HAVE_GUARDS.contains(&parent.get_token(compiler))
+                    && let Some(resources) = self.registered_guards.swap_remove(&parent)
                 {
-                    let resources = self
-                        .registered_guards
-                        .shift_remove(&parent)
-                        .unwrap_or_default();
                     for resource in resources {
                         *self.guarded.entry(resource.clone()).or_insert(0) += 1;
                         self.installed_guards
@@ -213,13 +210,14 @@ impl<T: Clone + Eq + Hash> GuardedCallback<T> {
         // Remove any guards registered on this node by its children, which are no longer
         // relevant.  This happens first because these were registered on a "parent", but
         // now this is that parent (i.e. `n` here vs `parent` in isGuarded).
-        if parent.is_some()
+        if !self.installed_guards.is_empty()
+            && parent.is_some()
             && CAN_HAVE_GUARDS.contains(&n.get_token(traversal))
-            && self.installed_guards.contains_key(&n)
+            && let Some(installed) = self.installed_guards.swap_remove(&n)
         {
             // Multiset#removeAll removes every occurrence of each element.
-            for resource in self.installed_guards.shift_remove(&n).unwrap_or_default() {
-                self.guarded.shift_remove(&resource);
+            for resource in installed {
+                self.guarded.swap_remove(&resource);
             }
         }
 
@@ -269,18 +267,21 @@ impl<T: Clone + Eq + Hash> GuardedCallback<T> {
         // typeof.  We walk up the ancestor tree through a small set of
         // node types and if this is detected to be a guard, then the
         // conditional node is marked as a guard for this polyfill.
-        let mut context = Some(self.context_stack.last().expect("context stack").clone());
-        if !context.as_ref().unwrap().safe {
+        let mut context = *self.context_stack.last().expect("context stack");
+        if !context.safe {
             return false;
         }
 
         // Loop over all the linked conditionals and register this as a guard.
-        while let Some(c) = context.as_ref().filter(|c| c.conditional.is_some()) {
+        while let Some(conditional) = context.conditional {
             self.registered_guards
-                .entry(c.conditional.unwrap())
+                .entry(conditional)
                 .or_default()
                 .insert(resource.clone());
-            context = c.linked.clone();
+            if context.linked == 0 {
+                break;
+            }
+            context = self.context_stack[context.linked - 1];
         }
         true
     }
@@ -294,65 +295,35 @@ impl<T: Clone + Eq + Hash> GuardedCallback<T> {
 // The context of a node, keeping track of whether it is safe for
 // possibly-undefined values, and whether there are any conditionals
 // upstream in the tree.
+#[derive(Clone, Copy)]
 struct Context {
-    // The most recent conditional.
     conditional: Option<NodeId>,
-    // Whether this position is safe for an undefined type.
     safe: bool,
-    // A very naive linked list for storing additional conditional nodes.
-    linked: Option<Rc<Context>>,
-}
-
-thread_local! {
-    // An empty instance: unsafe and with no linked conditional nodes.
-    // port: GuardedCallback.Context#EMPTY
-    static EMPTY: Rc<Context> = Rc::new(Context::new(None, false, None));
+    // One-based depth of the previous conditional's context, or zero. A link always
+    // points into the active ancestor stack, including when expressions propagate it.
+    linked: usize,
 }
 
 impl Context {
-    // port: GuardedCallback.Context#Context
-    fn new(conditional: Option<NodeId>, safe: bool, linked: Option<Rc<Context>>) -> Self {
-        Self {
-            conditional,
-            safe,
-            linked,
-        }
-    }
-
     // port: GuardedCallback.Context#EMPTY
-    fn empty() -> Rc<Context> {
-        EMPTY.with(Rc::clone)
-    }
+    const EMPTY: Self = Self {
+        conditional: None,
+        safe: false,
+        linked: 0,
+    };
 
-    // Returns a new Context with a new conditional node and safety status.
-    // If the current context already has a conditional, then it is linked
-    // so that both can be marked when necessary.
     // port: GuardedCallback.Context#link
-    fn link(this: &Rc<Context>, new_conditional: NodeId, new_safe: bool) -> Rc<Context> {
-        Rc::new(Context::new(
-            Some(new_conditional),
-            new_safe,
-            if this.conditional.is_some() {
-                Some(this.clone())
-            } else {
-                None
-            },
-        ))
+    fn link(self, depth: usize, new_conditional: NodeId, new_safe: bool) -> Self {
+        Self {
+            conditional: Some(new_conditional),
+            safe: new_safe,
+            linked: if self.conditional.is_some() { depth } else { 0 },
+        }
     }
 
-    // Returns a new Context with a different safety bit, but doesn't
-    // change anything else.
     // port: GuardedCallback.Context#propagate
-    fn propagate(this: &Rc<Context>, new_safe: bool) -> Rc<Context> {
-        if new_safe == this.safe {
-            this.clone()
-        } else {
-            Rc::new(Context::new(
-                this.conditional,
-                new_safe,
-                this.linked.clone(),
-            ))
-        }
+    fn propagate(self, safe: bool) -> Self {
+        Self { safe, ..self }
     }
 
     // Returns a new context given the current context and the next parent
@@ -360,33 +331,34 @@ impl Context {
     // first child or not.
     // port: GuardedCallback.Context#descend
     fn descend(
-        this: &Rc<Context>,
+        self,
+        depth: usize,
         compiler: &AbstractCompiler,
         parent: NodeId,
         child: NodeId,
-    ) -> Rc<Context> {
+    ) -> Self {
         let first = Some(child) == parent.get_first_child(compiler);
         match parent.get_token(compiler) {
             Token::CAST => {
                 // Casts are irrelevant.
-                this.clone()
+                self
             }
             Token::COMMA => {
                 // `Promise, whatever` is safe.
                 // `whatever, Promise` is same as outer context.
                 if Some(child) == parent.get_last_child(compiler) {
-                    this.clone()
+                    self
                 } else {
-                    Self::propagate(this, true)
+                    self.propagate(true)
                 }
             }
             Token::AND => {
                 // `Promise && whatever` never returns Promise itself, so it is safe.
                 // `whatever && Promise` may return Promise, so return outer context.
                 if first {
-                    Self::link(this, parent, true)
+                    self.link(depth, parent, true)
                 } else {
-                    this.clone()
+                    self
                 }
             }
             Token::OR | Token::COALESCE => {
@@ -395,18 +367,18 @@ impl Context {
                 // `whatever || Promise` and `whatever ?? Promise`
                 // is same as outer context.
                 if first {
-                    Self::link(this, parent, false)
+                    self.link(depth, parent, false)
                 } else {
-                    this.clone()
+                    self
                 }
             }
             Token::HOOK => {
                 // `Promise ? whatever : whatever` is a safe conditional.
                 // `whatever ? Promise : whatever` (etc) is same as outer context.
                 if first {
-                    Self::link(this, parent, true)
+                    self.link(depth, parent, true)
                 } else {
-                    this.clone()
+                    self
                 }
             }
             Token::IF => {
@@ -414,47 +386,47 @@ impl Context {
                 // `if (whatever) { ... }` is nothing.
                 // TODO(sdh): Handle do/while/for/for-of/for-in?
                 if first {
-                    Self::link(this, parent, true)
+                    self.link(depth, parent, true)
                 } else {
-                    Self::empty()
+                    Self::EMPTY
                 }
             }
             Token::INSTANCEOF | Token::ASSIGN => {
                 // `Promise instanceof whatever` is safe, `whatever instanceof Promise` is not.
                 // `Promise = whatever` is a bad idea, but it's safe w.r.t. polyfills.
-                Self::propagate(this, first)
+                self.propagate(first)
             }
             Token::TYPEOF | Token::NOT | Token::EQ | Token::NE | Token::SHEQ | Token::SHNE => {
                 // `typeof Promise` is always safe, as is `Promise == whatever`, etc.
-                Self::propagate(this, true)
+                self.propagate(true)
             }
             Token::CALL => {
                 // `String(Promise)` is safe, `Promise(whatever)` or `whatever(Promise)` is not.
-                Self::propagate(this, !first && is_property_test_function(compiler, parent))
+                self.propagate(!first && is_property_test_function(compiler, parent))
             }
             Token::ROOT => {
                 // This case causes problems for isStatement() so handle it separately.
-                Self::empty()
+                Self::EMPTY
             }
             Token::OPTCHAIN_CALL | Token::OPTCHAIN_GETELEM | Token::OPTCHAIN_GETPROP => {
                 if first {
                     // thisNode?.rest.of.chain
                     // OR firstChild?.thisNode.rest.of.chain
                     // For the first case `thisNode` should be considered intrinsically guarded.
-                    Self::link(this, parent, parent.is_optional_chain_start(compiler))
+                    self.link(depth, parent, parent.is_optional_chain_start(compiler))
                 } else {
                     // `first?.(thisNode)`
                     // or `first?.[thisNode]`
                     // or `first?.thisNode`
-                    Self::propagate(this, false)
+                    self.propagate(false)
                 }
             }
             _ => {
                 // Expressions propagate linked conditionals; statements do not.
                 if NodeUtil::is_statement(compiler, parent) {
-                    Self::empty()
+                    Self::EMPTY
                 } else {
-                    Self::propagate(this, false)
+                    self.propagate(false)
                 }
             }
         }
