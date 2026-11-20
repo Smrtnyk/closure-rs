@@ -160,6 +160,7 @@ fn main() {
         if let Some(flags) = plain_dependency_flags(code.clone()) {
             writeln!(dependencies, "{:?} => Some({flags:?}),", file.path).unwrap();
         }
+        let declaration_file = format!("extern-{i}-declarations.bin");
         if let Some((bytes, (records, summary))) =
             closure_parsing::extern_snapshot::generate_bundled_with_ast(
                 source,
@@ -167,22 +168,21 @@ fn main() {
                 |ast, root| {
                     (
                         declaration_records(ast, root),
-                        bundled_script_summary::generate(ast, root),
+                        bundled_script_summary::generate(ast, root, &declaration_file),
                     )
                 },
             )
         {
+            fs::write(out.join(&declaration_file), &records).unwrap();
             if let Some(summary) = summary {
                 writeln!(summaries, "{:?} => Some(&{summary}),", file.path).unwrap();
             }
             let filename = format!("extern-{i}.bin");
             fs::write(out.join(&filename), bytes).unwrap();
             if records.iter().any(|&record| record != declarations::OTHER) {
-                let properties = format!("extern-{i}-declarations.bin");
-                fs::write(out.join(&properties), records).unwrap();
                 writeln!(
                     declarations,
-                    "{:?} => Some(include_bytes!({properties:?})),",
+                    "{:?} => Some(include_bytes!({declaration_file:?})),",
                     file.path
                 )
                 .unwrap();

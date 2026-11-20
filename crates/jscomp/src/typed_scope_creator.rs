@@ -955,30 +955,7 @@ impl TypedScopeCreator {
         kind: ScopeBuilderKind,
         scope: TypedScope,
     ) {
-        let root = scope.get_root_node(compiler);
-        // An empty ordinary block has neither declarations nor deferred statement actions.
-        if root.is_block(compiler)
-            && !root.has_children(compiler)
-            && scope.get_module(compiler).is_none()
-        {
-            return;
-        }
-        let mut builder = AbstractScopeBuilder::new(self, compiler, kind, scope);
-        if kind == ScopeBuilderKind::FunctionScopeBuilder
-            && declarations::is_plain_function_stub(compiler, root)
-            && compiler
-                .get_options_opt()
-                .is_some_and(|opts| opts.get_synthetic_block_start_marker().is_none())
-        {
-            // The function scope declares its name, parameters and templates at entry. Visiting
-            // plain parameter NAMEs and an empty body adds no literal types or nested declarations.
-            builder.input_id = NodeUtil::get_input_id(compiler, root);
-            check_not_null!(builder.input_id.as_ref());
-            builder.source_name = NodeUtil::get_source_name(compiler, root);
-            builder.handle_function_inputs(compiler);
-        } else {
-            builder.build(compiler);
-        }
+        AbstractScopeBuilder::new(self, compiler, kind, scope).build(compiler);
     }
 }
 
@@ -3003,19 +2980,20 @@ impl Callback for AbstractScopeBuilder<'_> {
             check_not_null!(self.input_id.as_ref());
             self.source_name = NodeUtil::get_source_name(compiler, n);
         }
-        if n.is_script(compiler) {
-            self.bundled_declarations = if self.kind == ScopeBuilderKind::NormalScopeBuilder
-                && self.current_scope.is_global(compiler)
-            {
-                t.get_input()
-                    .and_then(|input| input.bundled_declarations(n))
-                    .map(|records| (n, records.iter()))
-            } else {
-                None
-            };
-        }
         if parent.is_none() || self.in_current_scope(t) {
             self.visit_preorder(t, n, parent);
+            if parent.is_none()
+                && self.kind == ScopeBuilderKind::FunctionScopeBuilder
+                && declarations::is_plain_function_stub(t, n)
+                && t.get_compiler()
+                    .get_options_opt()
+                    .is_some_and(|opts| opts.get_synthetic_block_start_marker().is_none())
+            {
+                // Entry has already validated the input and declared the function parameters
+                // and templates. Plain NAME parameters and an empty body add no literal types.
+                self.visit(t, n, parent);
+                return false;
+            }
             if let Some((script, records)) = &mut self.bundled_declarations
                 && Some(*script) == parent
                 && records
@@ -3054,19 +3032,26 @@ impl Callback for AbstractScopeBuilder<'_> {
         script: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
+        self.bundled_declarations = None;
         if !self.should_traverse(t, script, parent) {
             return false;
         }
-        if self.bundled_declarations.is_none() {
+        if self.kind != ScopeBuilderKind::NormalScopeBuilder
+            || !self.current_scope.is_global(t.get_compiler())
+        {
             return true;
         }
-        let Some((_, suffix)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames) else {
-            // The per-statement fallback still recognizes a live bare property chain.
+        let Some((facts, suffix)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames)
+        else {
+            // Input records are hints on a changed tree. Check the current shape before using one.
+            self.bundled_declarations = t
+                .get_input()
+                .and_then(|input| input.bundled_declarations(script))
+                .map(|records| (script, records.iter()));
             return true;
         };
-        let (_, records) = self.bundled_declarations.take().unwrap();
         let mut child = script.get_first_child(t);
-        for &record in records {
+        for &record in facts.declarations {
             let statement = child.expect("recorded extern statement");
             child = statement.get_next(t);
             if record == declarations::OTHER {
@@ -5926,12 +5911,22 @@ impl<'a> FirstOrderFunctionAnalyzer<'a> {
         true
     }
 
-    fn visit_bundled_script(&mut self, t: &mut NodeTraversal<'_>, script: NodeId, records: &[u8]) {
+    fn visit_bundled_script(&mut self, t: &mut NodeTraversal<'_>, script: NodeId) -> bool {
+        let prefix = t.bundled_script_prefix(script, SnapshotUse::SyntaxNamesAndJsDoc);
+        let records = if let Some((facts, _)) = prefix {
+            facts.declarations
+        } else if let Some(records) = t
+            .get_input()
+            .and_then(|input| input.bundled_declarations(script))
+        {
+            records
+        } else {
+            return false;
+        };
         let mut enum_statements = Vec::new();
         let mut records = records.iter();
         let mut child = script.get_first_child(t);
-        if let Some((_, suffix)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxNamesAndJsDoc)
-        {
+        if let Some((_, suffix)) = prefix {
             for &record in &mut records {
                 let statement = child.expect("recorded extern statement");
                 child = statement.get_next(t);
@@ -5978,6 +5973,7 @@ impl<'a> FirstOrderFunctionAnalyzer<'a> {
             }
         }
         self.enum_statements.insert(script, enum_statements);
+        true
     }
 }
 
@@ -6017,16 +6013,7 @@ impl Callback for FirstOrderFunctionAnalyzer<'_> {
         n: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
-        if parent == Some(self.externs)
-            && t.in_global_scope()
-            && let Some(records) = t
-                .get_input()
-                .and_then(|input| input.bundled_declarations(n))
-        {
-            self.visit_bundled_script(t, n, records);
-            return false;
-        }
-        true
+        !(parent == Some(self.externs) && t.in_global_scope() && self.visit_bundled_script(t, n))
     }
 
     // port: TypedScopeCreator.FirstOrderFunctionAnalyzer#visit
@@ -6317,6 +6304,31 @@ mod bundled_declaration_tests {
     use closure_resources::compiler_options::Environment;
     use closure_rhino::static_source_file::StaticSourceFile;
     use closure_rhino::{ir::IR, node::Ast};
+
+    #[test]
+    #[should_panic(expected = "ClassCastException")]
+    fn empty_scope_validates_its_live_source() {
+        use closure_rhino::node::{ObjectProp, Prop};
+
+        let mut compiler = Compiler::new();
+        compiler.init(
+            &[],
+            &[Arc::new(SourceFile::from_code("app.js", "var x;"))],
+            CompilerOptions::new(),
+        );
+        let root = compiler.parse_inputs().unwrap();
+        let script = compiler.get_script_node("app.js").unwrap();
+        let mut creator = TypedScopeCreator::new(&mut compiler);
+        let global = creator.create_scope(&mut compiler, root, None);
+        let empty = IR::block(&mut compiler);
+        script.add_child_to_back(&mut compiler, empty);
+        empty.put_prop(
+            &mut compiler,
+            Prop::SOURCE_FILE,
+            Some(ObjectProp::Node(empty)),
+        );
+        creator.create_scope(&mut compiler, empty, Some(global));
+    }
 
     #[test]
     fn replay_checks_the_current_property_chain() {

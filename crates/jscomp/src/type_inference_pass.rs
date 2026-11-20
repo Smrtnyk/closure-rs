@@ -296,17 +296,12 @@ impl Callback for FirstScopeBuildingCallback<'_> {
         script: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
-        let Some((_, suffix)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames) else {
-            return true;
-        };
-        let Some(records) = t
-            .get_input()
-            .and_then(|input| input.bundled_declarations(script))
+        let Some((facts, suffix)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames)
         else {
             return true;
         };
         let mut child = script.get_first_child(t);
-        for &record in records {
+        for &record in facts.declarations {
             let statement = child.expect("recorded extern statement");
             child = statement.get_next(t);
             if record == declarations::OTHER {
@@ -504,6 +499,7 @@ mod tests {
             Append,
             JsDoc,
             BodyAndProperty,
+            Transplant,
         }
 
         fn run(bundled: bool, edit: Edit) -> InferenceResult {
@@ -549,7 +545,7 @@ mod tests {
                         .then_some(expr)
                 })
                 .unwrap();
-            if edit != Edit::Append {
+            if matches!(edit, Edit::JsDoc | Edit::BodyAndProperty) {
                 let source_typedef = compiler
                     .get_script_node("app.js")
                     .unwrap()
@@ -574,6 +570,37 @@ mod tests {
                 body.add_child_to_back(&mut compiler, ret);
                 prop.set_string(&mut compiler, "alternate");
             }
+            if edit == Edit::Transplant {
+                // CompilerInput retains its own numeric script root when another compiler's
+                // complete arena replaces this one. The donor's watched record travels with it.
+                let other = SourceFile::bundled_externs(Environment::BROWSER)
+                    .into_iter()
+                    .find(|f| f.get_name().ends_with("/w3c_selection.js"))
+                    .unwrap();
+                let other_name = other.get_name().to_owned();
+                let mut owner = Compiler::new();
+                let mut options = CompilerOptions::new();
+                options.set_language_in(LanguageMode::ECMASCRIPT_NEXT);
+                owner.init(&[Arc::new(other)], &[], options);
+                owner.parse_inputs().unwrap();
+                let old = owner.get_script_node(&other_name).unwrap();
+                assert_eq!(old, script);
+                let id = old.get_input_id(&owner).unwrap();
+                let records = owner
+                    .get_input(&id)
+                    .unwrap()
+                    .bundled_declarations(old)
+                    .unwrap();
+                if bundled {
+                    let (facts, _) = compiler
+                        .parsed_script_record::<BundledScript>(script, SnapshotUse::SyntaxAndNames)
+                        .unwrap();
+                    assert_ne!(facts.declarations.len(), records.len());
+                }
+                std::mem::swap(&mut owner.ast, &mut compiler.ast);
+                compiler = owner;
+                script.set_input_id(&mut compiler, Some(id));
+            }
             assert_eq!(
                 compiler
                     .parsed_script_record::<BundledScript>(script, SnapshotUse::SyntaxAndNames)
@@ -584,7 +611,7 @@ mod tests {
                 compiler
                     .parsed_script_record::<BundledScript>(script, SnapshotUse::SyntaxNamesAndJsDoc)
                     .is_some(),
-                bundled && edit == Edit::Append
+                bundled && matches!(edit, Edit::Append | Edit::Transplant)
             );
             let creator = TypedScopeCreator::new(&mut compiler);
             let interpreter = compiler.get_reverse_abstract_interpreter();
@@ -593,7 +620,12 @@ mod tests {
             results(compiler, root, pass)
         }
 
-        for edit in [Edit::Append, Edit::JsDoc, Edit::BodyAndProperty] {
+        for edit in [
+            Edit::Append,
+            Edit::JsDoc,
+            Edit::BodyAndProperty,
+            Edit::Transplant,
+        ] {
             assert_eq!(run(true, edit), run(false, edit));
         }
     }

@@ -28,6 +28,7 @@ use closure_rhino::{
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BundledScript {
+    pub(crate) declarations: &'static [u8],
     pub(crate) properties: &'static [&'static str],
     pub(crate) type_fields: &'static [&'static str],
     pub(crate) check_function_annotations: bool,

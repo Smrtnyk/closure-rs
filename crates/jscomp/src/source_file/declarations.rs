@@ -74,39 +74,45 @@ pub(crate) fn bare_property(ast: &Ast, statement: NodeId) -> Option<NodeId> {
     (property.is_get_prop(ast) && bare_name(ast, property)).then_some(property)
 }
 
-pub(crate) fn is_plain_function_stub(ast: &Ast, function: NodeId) -> bool {
+fn stub_parameters(ast: &Ast, function: NodeId) -> Option<NodeId> {
     if !function.is_function(ast) {
-        return false;
+        return None;
     }
-    let Some(body) = function.get_last_child(ast) else {
-        return false;
-    };
+    let body = function.get_last_child(ast)?;
     if !body.is_block(ast) || body.has_children(ast) {
-        return false;
+        return None;
     }
-    let Some(name) = function.get_first_child(ast) else {
-        return false;
-    };
-    let Some(params) = name.get_next(ast) else {
-        return false;
-    };
-    name.is_name(ast)
+    let name = function.get_first_child(ast)?;
+    let params = name.get_next(ast)?;
+    (name.is_name(ast)
         && !name.has_children(ast)
         && params.is_param_list(ast)
-        && params.get_next(ast) == Some(body)
-        && params.children(ast).all(|param| {
-            param.is_name(ast) && !param.has_children(ast) && !param.get_string_ref(ast).is_empty()
-        })
+        && params.get_next(ast) == Some(body))
+    .then_some(params)
+}
+
+pub(crate) fn is_plain_function_stub(ast: &Ast, function: NodeId) -> bool {
+    stub_parameters(ast, function).is_some_and(|params| {
+        params
+            .children(ast)
+            .all(|param| param.is_name(ast) && !param.has_children(ast))
+    })
 }
 
 fn is_function_stub(ast: &Ast, function: NodeId, declaration: bool) -> bool {
-    is_plain_function_stub(ast, function)
-        && function
+    stub_parameters(ast, function).is_some_and(|params| {
+        function
             .get_first_child(ast)
             .unwrap()
             .get_string_ref(ast)
             .is_empty()
             != declaration
+            && params.children(ast).all(|param| {
+                param.is_name(ast)
+                    && !param.has_children(ast)
+                    && !param.get_string_ref(ast).is_empty()
+            })
+    })
 }
 
 impl Declaration {

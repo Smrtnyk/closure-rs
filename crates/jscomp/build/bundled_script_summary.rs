@@ -22,6 +22,7 @@ use crate::bundled_script;
 pub(super) fn generate(
     ast: &closure_rhino::node::Ast,
     script: closure_rhino::node::NodeId,
+    declaration_file: &str,
 ) -> Option<String> {
     use closure_rhino::{
         fast_hash::IndexSet,
@@ -155,6 +156,6 @@ pub(super) fn generate(
     };
     let check_functions = records.protector || ast.has_seen_jsdoc_bit(Bit::NOSIDEEFFECTS);
     Some(format!(
-        "BundledScript {{ properties: &{properties:?}, type_fields: &{fields:?}, check_function_annotations: {check_functions}, may_have_calls: {may_have_calls}, may_have_module_syntax: {may_have_module_syntax}, global_property_roots: {global_property_roots} }}"
+        "BundledScript {{ declarations: include_bytes!({declaration_file:?}), properties: &{properties:?}, type_fields: &{fields:?}, check_function_annotations: {check_functions}, may_have_calls: {may_have_calls}, may_have_module_syntax: {may_have_module_syntax}, global_property_roots: {global_property_roots} }}"
     ))
 }
