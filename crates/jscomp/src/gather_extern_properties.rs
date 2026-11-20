@@ -90,9 +90,9 @@ impl GatherExternProperties {
 
     // port: GatherExternProperties#gatherPropertiesFromJSDocInfo
     fn gather_properties_from_jsdoc_info(&mut self, ast: &Ast, js_doc_info: &JSDocInfo) {
-        for js_type_expression_node in js_doc_info.get_type_nodes() {
-            self.gather_properties_from_js_type_expression_node(ast, js_type_expression_node);
-        }
+        js_doc_info.for_each_type_node(|node| {
+            self.gather_properties_from_js_type_expression_node(ast, node)
+        });
     }
 
     // port: GatherExternProperties#gatherPropertiesFromJsTypeExpressionNode
@@ -195,11 +195,10 @@ impl Callback for GatherExternProperties {
                 _ => {}
             }
         }
-        // (The mode is tested first, so the JSDoc is only copied when it is read.)
         if self.mode.check()
-            && let Some(js_doc_info) = n.get_jsdoc_info(t)
+            && let Some(js_doc_info) = n.get_jsdoc_info_ref(t)
         {
-            self.gather_properties_from_jsdoc_info(t, &js_doc_info);
+            self.gather_properties_from_jsdoc_info(t, js_doc_info);
         }
     }
 }

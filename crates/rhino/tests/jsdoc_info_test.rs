@@ -373,6 +373,35 @@ fn test_get_type_nodes_excludes_null() {
     let nodes = info.get_type_nodes();
     assert!(nodes.is_empty());
 }
+#[test]
+fn type_roots_follow_property_and_parameter_order() {
+    let mut ast = Ast::new();
+    let result = from_string(&mut ast, "Result").unwrap();
+    let interface = from_string(&mut ast, "Interface").unwrap();
+    let parameter = from_string(&mut ast, "Value").unwrap();
+    let mut builder = JSDocInfo::builder();
+    assert!(builder.record_parameter("z", Some(parameter.clone())));
+    assert!(builder.record_parameter("untyped", None));
+    assert!(builder.record_parameter("a", Some(result.clone())));
+    assert!(builder.record_implemented_interface(&ast, Some(interface.clone())));
+    assert!(builder.record_return_type(Some(result.clone())));
+    let info = builder.build().unwrap();
+
+    let roots = [
+        result.get_root(),
+        interface.get_root(),
+        parameter.get_root(),
+        result.get_root(),
+    ];
+    assert_eq!(info.get_type_nodes(), roots);
+    assert_eq!(
+        info.get_type_expressions()
+            .iter()
+            .map(|expr| expr.get_root())
+            .collect::<Vec<_>>(),
+        roots
+    );
+}
 // port: JSDocInfoTest#testContainsDeclaration_implements
 #[test]
 fn test_contains_declaration_implements() {

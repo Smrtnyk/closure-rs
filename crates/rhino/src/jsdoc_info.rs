@@ -580,12 +580,9 @@ impl Property {
     }
     // port: Property#getTypeExpressions
     pub fn get_type_expressions(self, value: &PropertyValue) -> Vec<Arc<JSTypeExpression>> {
-        match value {
-            PropertyValue::TypeExpr(v) => v.iter().cloned().collect(),
-            PropertyValue::TypeList(v) => v.clone(),
-            PropertyValue::TypeMap(v) => v.values().flatten().cloned().collect(),
-            _ => vec![],
-        }
+        let mut expressions = Vec::new();
+        value.for_each_type_expression(&mut |expression| expressions.push(Arc::clone(expression)));
+        expressions
     }
 }
 // port: TypeProperty#equalValues
@@ -623,6 +620,15 @@ pub enum PropertyValue {
     ClosureUnawareMode(PerFileClosureUnawareMode),
 }
 impl PropertyValue {
+    fn for_each_type_expression(&self, visit: &mut impl FnMut(&Arc<JSTypeExpression>)) {
+        match self {
+            Self::TypeExpr(Some(expression)) => visit(expression),
+            Self::TypeList(expressions) => expressions.iter().for_each(visit),
+            Self::TypeMap(expressions) => expressions.values().flatten().for_each(visit),
+            _ => {}
+        }
+    }
+
     // port: Property#isDefault
     fn is_default(&self) -> bool {
         match self {
@@ -1011,13 +1017,20 @@ impl JSDocInfo {
             },
         }
     }
-    pub(crate) fn snapshot_properties(&self) -> (u64, u64, &[PropertyValue]) {
-        let values = match &self.property_values {
-            PackedPropertyValues::Empty => &[][..],
+    fn property_values(&self) -> &[PropertyValue] {
+        match &self.property_values {
+            PackedPropertyValues::Empty => &[],
             PackedPropertyValues::Single(v) => std::slice::from_ref(v),
-            PackedPropertyValues::Multiple(v) => v.as_slice(),
-        };
-        (self.property_bits, self.property_keys_bitset, values)
+            PackedPropertyValues::Multiple(v) => v,
+        }
+    }
+
+    pub(crate) fn snapshot_properties(&self) -> (u64, u64, &[PropertyValue]) {
+        (
+            self.property_bits,
+            self.property_keys_bitset,
+            self.property_values(),
+        )
     }
 
     pub(crate) fn from_snapshot_properties(
@@ -1724,22 +1737,29 @@ impl JSDocInfo {
     }
     // port: JSDocInfo#getTypeExpressions
     pub fn get_type_expressions(&self) -> Vec<Arc<JSTypeExpression>> {
-        PROPERTIES
-            .iter()
-            .flat_map(|p| {
-                p.get(self)
-                    .map(|v| p.get_type_expressions(v))
-                    .unwrap_or_default()
-            })
-            .collect()
+        let mut expressions = Vec::new();
+        self.for_each_type_expression(|expression| expressions.push(Arc::clone(expression)));
+        expressions
     }
     // port: JSDocInfo#getTypeNodes
     pub fn get_type_nodes(&self) -> Vec<NodeId> {
-        self.get_type_expressions()
-            .iter()
-            .map(|t| t.get_root())
-            .collect()
+        let mut nodes = Vec::new();
+        self.for_each_type_node(|node| nodes.push(node));
+        nodes
     }
+
+    /// Visits the roots in the same order as `get_type_nodes`, including repeated roots.
+    pub fn for_each_type_node(&self, mut visit: impl FnMut(NodeId)) {
+        self.for_each_type_expression(|expression| visit(expression.get_root()));
+    }
+
+    fn for_each_type_expression(&self, mut visit: impl FnMut(&Arc<JSTypeExpression>)) {
+        // The packed values are already in the declaration order of PROPERTIES.
+        for value in self.property_values() {
+            value.for_each_type_expression(&mut visit);
+        }
+    }
+
     // port: JSDocInfo#hasSideEffectsArgumentsAnnotation
     pub fn has_side_effects_arguments_annotation(&self) -> bool {
         let modifies = self.get_modifies();

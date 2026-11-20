@@ -553,6 +553,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `jscomp/code_printer.rs` `startSourceMapping`, `compiler_license_tracker.rs`,
   `node_util.rs` `isInSyntheticScript`: the source file name is read in place instead of being
   copied for every printed node.
+- `rhino/jsdoc_info.rs` visits type expressions directly in packed property order.
+  The extern property collector reads the type roots from the stored expressions.
+  Both public collection getters keep their original order and duplicates.
 - `jscomp/infer_js_doc_info.rs` `inferJSDocForProperty`: the qualified name is computed only when
   the JSDoc is attached to the property's type, its only use (Java computes it first).
 - `parsing/parser/parser.rs` `peekId`, `getTreeStartLocation`, `parseClassElements`,
