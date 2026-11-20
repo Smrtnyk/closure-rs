@@ -149,6 +149,14 @@ impl SerializeTypesToPointers {
         &self.type_pointers_by_jstype
     }
 
+    /// Transfer the completed shard to the color conversion pass.
+    pub(super) fn into_type_pool_and_pointers(self) -> (TypePool, IndexMap<TypeId, i32>) {
+        (
+            self.type_pool.expect("types already gathered"),
+            self.type_pointers_by_jstype,
+        )
+    }
+
     // port: SerializeTypesToPointers#getTypePool
     pub fn get_type_pool(&self) -> Option<&TypePool> {
         self.type_pool.as_ref()
