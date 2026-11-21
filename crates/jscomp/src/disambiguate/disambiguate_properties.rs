@@ -35,7 +35,7 @@
 //! Port of `disambiguate/DisambiguateProperties.java`.
 
 use super::{
-    cluster_propagator::ClusterPropagator,
+    cluster_propagator::{ClusterPropagator, RenamePropagation},
     color_find_property_references::ColorFindPropertyReferences,
     color_graph_builder::{ColorGraph, ColorGraphBuilder, EdgeReason},
     color_graph_node::{
@@ -113,6 +113,9 @@ impl CompilerPass for DisambiguateProperties {
             |_graph| LowestCommonAncestorFinder::new(),
             Arc::clone(&self.registry),
         );
+        let compact = !compiler.is_debug_logging_enabled()
+            && !compiler.has_performance_tracker()
+            && self.properties_that_must_disambiguate.is_empty();
         let mut propagator = ClusterPropagator::new();
         let mut renamer: UseSiteRenamer<'_, AbstractCompiler> = UseSiteRenamer::new(Box::new(
             /* mutationCb= */
@@ -131,10 +134,7 @@ impl CompilerPass for DisambiguateProperties {
                         .is_property_rename_function(compiler, n)
                 }),
             );
-            if !compiler.is_debug_logging_enabled()
-                && !compiler.has_performance_tracker()
-                && self.properties_that_must_disambiguate.is_empty()
-            {
+            if compact {
                 find_refs.defer_extern_only_renames();
             }
             let externs_parent = externs.get_parent(compiler).unwrap();
@@ -187,13 +187,17 @@ impl CompilerPass for DisambiguateProperties {
         });
 
         self.invalidate_based_on_type(&flattener, &mut arena);
+        let mut rename_propagation = compact.then(|| RenamePropagation::new(&mut arena));
 
         FixedPointGraphTraversal::new_traversal(
             |_graph: &mut ColorGraph,
              src: ColorGraphNodeId,
              e: EdgeReason,
              dest: ColorGraphNodeId| {
-                propagator.traverse_edge(&mut arena, src, Some(e), dest)
+                match &mut rename_propagation {
+                    Some(p) => p.traverse_edge(&mut arena, src, dest),
+                    None => propagator.traverse_edge(&mut arena, src, Some(e), dest),
+                }
             },
         )
         .compute_fixed_point(&mut graph);

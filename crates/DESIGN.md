@@ -563,8 +563,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `CLOSURE_RS_REFERENCE_SITES=off` disables reuse of the ordered sites.
 - `jscomp/disambiguate` records property uses in traversal order. When diagnostics do not need
   the full graph, properties used only in externs omit their rename sites and union-find work.
-  Their type associations still propagate in the original order, which determines the names
-  chosen for source properties.
+  Extern-only memberships propagate in sparse 64-property words. An edge still schedules
+  its destination when any membership is new. Source properties retain their insertion
+  and union order, which determines their output names.
 - `jscomp/function_argument_injector.rs` collects modified parameters, nested closures and
   uses of the enclosing receiver in one walk for `InlineFunctions`. Modified names retain
   first-use order, and only arrows inherit the receiver of an enclosing function.
