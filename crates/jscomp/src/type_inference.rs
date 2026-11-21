@@ -251,6 +251,26 @@ impl<'a> TypeInference<'a> {
         statements: &[NodeId],
     ) {
         let function = scope.get_root_node(compiler);
+        // Empty extern declarations have no body transfer or module action. For plain
+        // names, entry inference only assigns the resolved signature to the AST and TypedVars.
+        if !body.has_children(compiler)
+            && function.is_from_externs(compiler)
+            && function.get_parent(compiler).is_some_and(|p| {
+                matches!(
+                    p.get_token(compiler),
+                    Token::SCRIPT | Token::NAME | Token::ASSIGN
+                )
+            })
+        {
+            let params = function.get_second_child(compiler).unwrap();
+            if params
+                .children(compiler)
+                .all(|p| p.is_name(compiler) && !p.has_children(compiler))
+            {
+                Self::infer_extern_stub_parameters(compiler, function, scope, params);
+                return;
+            }
+        }
         let mut transfer = InferenceTransfer::new(
             compiler,
             reverse_interpreter,
@@ -263,6 +283,30 @@ impl<'a> TypeInference<'a> {
         let mut flow = transfer.flow_through(compiler, body, function_output);
         for &statement in statements {
             flow = transfer.flow_through(compiler, statement, flow);
+        }
+    }
+    fn infer_extern_stub_parameters(
+        compiler: &mut AbstractCompiler,
+        function: NodeId,
+        scope: TypedScope,
+        params: NodeId,
+    ) {
+        let function_type = function.get_jstype(compiler);
+        let registry = compiler.get_type_registry();
+        let signature =
+            closure_jstype::js_type::to_maybe_function_type(registry, function_type).unwrap();
+        let parameters = signature.get_parameters(registry);
+        let unknown = registry.get_native_object_type(JSTypeNative::UNKNOWN_TYPE);
+        let mut node = params.get_first_child(compiler);
+        let mut types = parameters.iter();
+        while let Some(param) = node {
+            let inferred = types
+                .next()
+                .map(|parameter| parameter.get_jstype())
+                .or_else(|| param.get_jstype(compiler))
+                .unwrap_or(unknown);
+            InferenceTransfer::set_named_parameter_type(compiler, scope, param, Some(inferred));
+            node = param.get_next(compiler);
         }
     }
 }
@@ -578,8 +622,31 @@ impl<'a> InferenceTransfer<'a> {
         inferred_type: Option<TypeId>,
         mut entry_flow_scope: FS,
     ) -> FS {
+        let inferred = Self::set_named_parameter_type(
+            compiler,
+            self.container_scope,
+            param_name,
+            inferred_type,
+        );
+        if !inferred && has_default_value {
+            // If this is a declared type with a default value, update the LinkedFlowScope slots
+            // but not the actual TypedVar. This is similar to what would happen if the default
+            // value was moved into an assignment in the fn body
+            entry_flow_scope =
+                self.redeclare_simple_var(compiler, entry_flow_scope, param_name, inferred_type);
+        }
+        entry_flow_scope
+    }
+
+    /// Write the parameter node and its inferred slot in declaration order.
+    fn set_named_parameter_type(
+        compiler: &mut AbstractCompiler,
+        scope: TypedScope,
+        param_name: NodeId,
+        inferred_type: Option<TypeId>,
+    ) -> bool {
         let name = param_name.get_string(compiler);
-        let var = self.container_scope.get_var(compiler, name);
+        let var = scope.get_var(compiler, name);
         let var = check_not_null!(
             var,
             "Missing var for parameter %s",
@@ -588,16 +655,11 @@ impl<'a> InferenceTransfer<'a> {
 
         param_name.set_jstype(compiler, inferred_type);
 
-        if var.is_type_inferred(compiler) {
+        let inferred = var.is_type_inferred(compiler);
+        if inferred {
             var.set_type(compiler, inferred_type);
-        } else if has_default_value {
-            // If this is a declared type with a default value, update the LinkedFlowScope slots
-            // but not the actual TypedVar. This is similar to what would happen if the default
-            // value was moved into an assignment in the fn body
-            entry_flow_scope =
-                self.redeclare_simple_var(compiler, entry_flow_scope, param_name, inferred_type);
         }
-        entry_flow_scope
+        inferred
     }
 
     // port: TypeInference#updateModuleScope

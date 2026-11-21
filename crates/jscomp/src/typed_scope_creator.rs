@@ -561,11 +561,11 @@ impl TypedScopeCreator {
                 reserved_names.shift_remove(&JsString::from("exports"));
             }
 
-            new_scope = TypedScope::new_with_reserved_names(
+            new_scope = TypedScope::new_child(
                 compiler,
                 typed_parent.unwrap(),
                 root,
-                &reserved_names,
+                reserved_names,
                 module.clone(),
             );
         }
@@ -897,7 +897,7 @@ impl TypedScopeCreator {
         }
 
         // Resolve types and attach them to scope slots.
-        for scope in self.get_all_memoized_scopes() {
+        for &scope in self.memoized.values().rev() {
             for var in scope.get_var_iterable(compiler) {
                 var.resolve_type(compiler);
             }

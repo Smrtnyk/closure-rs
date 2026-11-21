@@ -439,6 +439,12 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `declare` of syntactic scopes take the lock once.
 - `jscomp/typed_scope_creator.rs`: the never-iterated `reservedNamesForScope` and
   `assignedVarNames` remove entries with `swap_remove`.
+- Function type construction reads the ordered JSDoc parameter map in place. Named
+  parameters match by name and destructuring parameters by position. Out-of-order
+  matches are tracked so unused annotations are reported in declaration order.
+- Typed scopes take ownership of their reserved names when the scope builder creates
+  them. The type registry reads an existing resolution result after checking the resolver
+  phase. It obtains the error reporter when a type still needs resolution.
 - A typed scope view records its parent at construction. For an ordinary type name it
   checks declarations and reserved names along the scope chain under one arena read lock.
   Implicit variables still use the usual slot lookup so they can be created on demand.
@@ -501,6 +507,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   them in the same traversal order after type resolution, saving a second AST walk. Each entry
   retains its original node and script for diagnostics. With the built-in reverse interpreter,
   straight-line functions run the same entry and statement transfers in control-flow order.
+  For an empty extern function declared in a script, variable or assignment, plain named
+  parameters take their types directly from the live signature. Entry inference updates each
+  parameter node and inferred slot in order. Default and destructured parameters, ES rest
+  syntax and nonempty bodies run their usual transfers.
   In the global graph, leading scripts of unconditional declarations and expressions each
   occupy one vertex. Inference visits their statements in order and keeps the separate edge
   that bypasses externs. Debug histograms and custom interpreters use the full graph.

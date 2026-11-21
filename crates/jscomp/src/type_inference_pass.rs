@@ -631,6 +631,74 @@ mod tests {
     }
 
     #[test]
+    fn extern_parameter_types_and_slots_match_the_full_flow_graph() {
+        use crate::{
+            compiler_options::{CompilerOptions, LanguageMode},
+            source_file::SourceFile,
+        };
+        fn run(force_graph: bool) -> InferenceResult {
+            let mut compiler = Compiler::new();
+            let mut options = CompilerOptions::new();
+            options.set_language_in(LanguageMode::ECMASCRIPT_NEXT);
+            let ext = SourceFile::from_code(
+                "extern.js",
+                r#"
+                /** @constructor */ function API() {}
+                /** @param {!Later} second
+                 * @param {boolean} missingFirst
+                 * @param {number=} first
+                 * @param {boolean} missingLast
+                 * @return {!Later} */
+                API.prototype.read = function(first, second, extra) {};
+                /** @param {T} value
+                 * @return {T}
+                 * @template T */
+                var identity = function(value) {};
+                /** @param {...string} values */ function collect(values) {}
+                function inline(/** number */ n) {}
+                function noParams() {}
+                /** @param {{key: number}} object */ function unpack({key}) {}
+                function defaulted(x = 3, ...rest) {}
+            "#,
+            );
+            let src = SourceFile::from_code(
+                "user.js",
+                r#"
+                /** @constructor */ function Later() {}
+                this.result = identity(new API().read(1, new Later()));
+            "#,
+            );
+            compiler.init(&[Arc::new(ext)], &[Arc::new(src)], options);
+            let root = compiler.parse_inputs().unwrap();
+            let script = compiler.get_script_node("extern.js").unwrap();
+            assert!(
+                script
+                    .get_first_child(&compiler)
+                    .unwrap()
+                    .is_from_externs(&compiler)
+            );
+            let creator = TypedScopeCreator::new(&mut compiler);
+            let interpreter = compiler.get_reverse_abstract_interpreter();
+            let mut pass = TypeInferencePass::new(&mut compiler, interpreter, creator);
+            if force_graph {
+                pass.use_linear_flow = false;
+            }
+            pass.infer_all_scopes(&mut compiler, root);
+            results(compiler, root, pass)
+        }
+        let direct = run(false);
+        let unused: Vec<_> = direct
+            .diagnostics
+            .iter()
+            .filter(|d| d.starts_with("JSC_INEXISTENT_PARAM"))
+            .collect();
+        assert_eq!(unused.len(), 2);
+        assert!(unused[0].contains("missingFirst"));
+        assert!(unused[1].contains("missingLast"));
+        assert_eq!(direct, run(true));
+    }
+
+    #[test]
     fn linear_flow_matches_graph_types_slots_and_diagnostics() {
         let direct = infer_with_recording(false);
         assert!(

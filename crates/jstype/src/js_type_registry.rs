@@ -1067,6 +1067,11 @@ impl JSTypeRegistry {
     pub fn get_error_reporter(&self) -> SharedErrorReporter {
         self.reporter.clone()
     }
+    /// The result already installed by JSType.resolve, with the same resolver phase check.
+    pub(crate) fn cached_resolution(&self, ty: TypeId) -> Option<TypeId> {
+        self.resolver.assert_legal_to_resolve_types();
+        self.data(ty).resolve_result
+    }
     // port: JSTypeRegistry#getResolver
     pub fn get_resolver(&mut self) -> &mut JSTypeResolver {
         &mut self.resolver

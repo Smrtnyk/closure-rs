@@ -63,7 +63,6 @@ pub struct TypedScope(pub(crate) NonZeroU32);
 pub(crate) struct TypedScopeData {
     pub(crate) abstract_scope: AbstractScopeData<TypedVar>,
     pub(crate) parent: Option<TypedScope>,
-    pub(crate) depth: i32,
     pub(crate) module: Option<Arc<Module>>,
     /// Whether this is a bottom scope for the purposes of type inference.
     pub(crate) is_bottom: bool,
@@ -209,7 +208,7 @@ impl TypedScope {
 
     // port: TypedScope#TypedScope(TypedScope, Node)
     pub fn new(compiler: &mut AbstractCompiler, parent: TypedScope, root_node: NodeId) -> Self {
-        Self::new_with_reserved_names(compiler, parent, root_node, &IndexSet::<_>::default(), None)
+        Self::new_child(compiler, parent, root_node, IndexSet::default(), None)
     }
 
     // port: TypedScope#TypedScope(TypedScope, Node, Set, Module)
@@ -220,57 +219,67 @@ impl TypedScope {
         reserved_names: &IndexSet<JsString>,
         module: Option<Arc<Module>>,
     ) -> Self {
-        let scope = Self::allocate(compiler, root_node);
+        Self::new_child(compiler, parent, root_node, reserved_names.clone(), module)
+    }
+
+    pub(crate) fn new_child(
+        compiler: &mut AbstractCompiler,
+        parent: TypedScope,
+        root_node: NodeId,
+        reserved_names: IndexSet<JsString>,
+        module: Option<Arc<Module>>,
+    ) -> Self {
+        let scope = Self::allocate(
+            compiler,
+            root_node,
+            Some(parent),
+            reserved_names,
+            module,
+            false,
+        );
         scope.check_child_scope(compiler, parent);
-        let depth = parent.data(compiler).depth + 1;
-        let meta = &mut compiler.typed_scope_mirror[scope.index()];
-        meta.parent = Some(parent);
-        meta.depth = depth;
-        let mut data = scope.data_mut(compiler);
-        data.parent = Some(parent);
-        data.depth = depth;
-        data.is_bottom = false;
-        data.reserved_names = if reserved_names.is_empty() {
-            IndexSet::<_>::default()
-        } else {
-            reserved_names.clone()
-        };
-        data.module = module;
         scope
     }
 
     // port: TypedScope#TypedScope(Node, boolean)
     fn new_root(compiler: &mut AbstractCompiler, root_node: NodeId, is_bottom: bool) -> Self {
-        let scope = Self::allocate(compiler, root_node);
+        let scope = Self::allocate(
+            compiler,
+            root_node,
+            None,
+            IndexSet::default(),
+            None,
+            is_bottom,
+        );
         scope.check_root_scope(compiler);
-        let mut data = scope.data_mut(compiler);
-        data.parent = None;
-        data.depth = 0;
-        data.is_bottom = is_bottom;
-        data.reserved_names = IndexSet::<_>::default();
-        data.module = None;
         scope
     }
 
-    // Rust-only allocation separates arena identity from the Java constructor bodies.
-    fn allocate(compiler: &mut AbstractCompiler, root_node: NodeId) -> Self {
+    fn allocate(
+        compiler: &mut AbstractCompiler,
+        root_node: NodeId,
+        parent: Option<TypedScope>,
+        reserved_names: IndexSet<JsString>,
+        module: Option<Arc<Module>>,
+        is_bottom: bool,
+    ) -> Self {
+        let depth = parent.map_or(0, |parent| parent.get_depth(compiler) + 1);
         let mut arena = TypedScopeArena::write(compiler);
         let scopes = &mut arena.scopes;
         let scope = Self(NonZeroU32::new(u32::try_from(scopes.len() + 1).unwrap()).unwrap());
         scopes.push(TypedScopeData {
             abstract_scope: AbstractScopeData::new(root_node),
-            parent: None,
-            depth: 0,
-            module: None,
-            is_bottom: false,
-            reserved_names: IndexSet::<_>::default(),
+            parent,
+            module,
+            is_bottom,
+            reserved_names,
             view: OnceLock::new(),
         });
         drop(arena);
         compiler.typed_scope_mirror.push(TypedScopeMeta {
             root_node,
-            parent: None,
-            depth: 0,
+            parent,
+            depth,
             view: OnceLock::new(),
         });
         scope
@@ -293,23 +302,24 @@ impl TypedScope {
 
     // port: TypedScope#validateCompletelyBuilt
     pub fn validate_completely_built(self, compiler: &mut AbstractCompiler) {
-        let reserved_names = self.data(compiler).reserved_names.clone();
+        let mut scope = self.data_mut(compiler);
+        if scope.reserved_names.is_empty() {
+            scope.reserved_names = IndexSet::default();
+            return;
+        }
+        let remaining = scope
+            .reserved_names
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(", ");
+        drop(scope);
         check_state!(
-            reserved_names.is_empty(),
+            false,
             "Expected %s to have no reserved names, found: %s. This probably indicates a bug in TypedScopeCreator where it is failing to declare a variable.",
             self.to_string(compiler),
-            format!(
-                "[{}]",
-                reserved_names
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
+            format!("[{remaining}]")
         );
-        // let a (16-bit) VM garbage collect 64 bytes per TypedScope. (ImmutableSet.of() returns a
-        // singleton)
-        self.data_mut(compiler).reserved_names = IndexSet::<_>::default();
     }
 
     // port: TypedScope#isBottom
