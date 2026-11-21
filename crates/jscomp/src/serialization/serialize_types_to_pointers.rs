@@ -109,21 +109,20 @@ impl SerializeTypesToPointers {
     // port: SerializeTypesToPointers#gatherTypesOnAst
     pub fn gather_types_on_ast(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
         check_state!(self.type_pool.is_none(), "Cannot call process() twice");
-        NodeTraversal::traverse(
-            compiler,
-            root,
-            &mut PropertySearchCallback {
-                properties_referenced_in_ast: &self.properties_referenced_in_ast,
-            },
-        );
+        // Property filtering begins in generate_type_pool, after every type has been
+        // discovered. Collect both inputs in postorder while preserving the first visit to
+        // each type. Closure-unaware shadows contribute types only.
+        let mut properties = IndexSet::default();
         NodeTraversal::traverse(
             compiler,
             root,
             &mut TypeSearchCallback {
                 jstype_reconserializer: &mut self.jstype_reconserializer,
                 type_pointers_by_jstype: &mut self.type_pointers_by_jstype,
+                properties: Some(&mut properties),
             },
         );
+        *self.properties_referenced_in_ast.borrow_mut() = properties;
 
         // these types are only used when debug logging is enabled, but we always serialize them as
         // not to have a different TypePool with and without debug logging.
@@ -262,59 +261,29 @@ fn gson_to_json(mismatches: &[TypeMismatchJson]) -> String {
     writer.into_string().to_string_lossy()
 }
 
-/// port: SerializeTypesToPointers.PropertySearchCallback
-///
-/// Finds all unquoted property names referenced outside @typeSummary files
-///
-/// Only property names found in this traversal will be serialized onto a color's list of "own
-/// properties". Properties referenced only inside `@typeSummary` files may be excluded because
-/// they don't matter for optimization of this library's srcs.
-struct PropertySearchCallback<'a> {
-    properties_referenced_in_ast: &'a Rc<RefCell<IndexSet<JsString>>>,
-}
-
-impl Callback for PropertySearchCallback<'_> {
-    // port: SerializeTypesToPointers.PropertySearchCallback#shouldTraverse
-    fn should_traverse(
-        &mut self,
-        t: &mut NodeTraversal<'_>,
-        n: NodeId,
-        _parent: Option<NodeId>,
-    ) -> bool {
-        let ast: &Ast = t.get_compiler();
-        !n.is_script(ast) || !NodeUtil::is_from_type_summary(ast, n)
-    }
-
-    // port: SerializeTypesToPointers.PropertySearchCallback#visit
-    #[allow(clippy::collapsible_match)] // Java's switch case with its nested if
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-        let ast: &Ast = t.get_compiler();
-        match n.get_token(ast) {
-            // "name" from (someObject.name)
-            // "name" from (someObject?.name)
-            Token::GETPROP | Token::OPTCHAIN_GETPROP => {
-                self.properties_referenced_in_ast
-                    .borrow_mut()
-                    .insert(n.get_string(ast).clone());
-            }
-            // "name" from obj = {name: 0}
-            // "name" from class C { name() {} }
-            // "name" from class C { name = 0; }
-            // "name" from class C { get name() {} }
-            // "name" from class C { set name(n) {} }
-            Token::STRING_KEY
-            | Token::MEMBER_FUNCTION_DEF
-            | Token::MEMBER_FIELD_DEF
-            | Token::GETTER_DEF
-            | Token::SETTER_DEF => {
-                if !n.is_quoted_string_key(ast) {
-                    self.properties_referenced_in_ast
-                        .borrow_mut()
-                        .insert(n.get_string(ast).clone());
-                }
-            }
-            _ => {}
+// port: SerializeTypesToPointers.PropertySearchCallback#visit
+fn collect_property(properties: &mut IndexSet<JsString>, ast: &Ast, n: NodeId) {
+    match n.get_token(ast) {
+        // "name" from (someObject.name)
+        // "name" from (someObject?.name)
+        Token::GETPROP | Token::OPTCHAIN_GETPROP => {
+            properties.insert(n.get_string(ast));
         }
+        // "name" from obj = {name: 0}
+        // "name" from class C { name() {} }
+        // "name" from class C { name = 0; }
+        // "name" from class C { get name() {} }
+        // "name" from class C { set name(n) {} }
+        Token::STRING_KEY
+        | Token::MEMBER_FUNCTION_DEF
+        | Token::MEMBER_FIELD_DEF
+        | Token::GETTER_DEF
+        | Token::SETTER_DEF
+            if !n.is_quoted_string_key(ast) =>
+        {
+            properties.insert(n.get_string(ast));
+        }
+        _ => {}
     }
 }
 
@@ -322,6 +291,7 @@ impl Callback for PropertySearchCallback<'_> {
 struct TypeSearchCallback<'a> {
     jstype_reconserializer: &'a mut JSTypeReconserializer,
     type_pointers_by_jstype: &'a mut IndexMap<TypeId, i32>,
+    properties: Option<&'a mut IndexSet<JsString>>,
 }
 
 impl Callback for TypeSearchCallback<'_> {
@@ -339,6 +309,9 @@ impl Callback for TypeSearchCallback<'_> {
     // port: SerializeTypesToPointers.TypeSearchCallback#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
         let compiler = t.get_compiler();
+        if let Some(properties) = self.properties.as_deref_mut() {
+            collect_property(properties, compiler, n);
+        }
         if n.is_root(compiler) {
             // the ROOT node is given the 'global this' type for use during typechecking, but this
             // is not needed for optimizations. (The 'global this' type will still be serialized if
@@ -370,6 +343,7 @@ impl Callback for TypeSearchCallback<'_> {
                 &mut TypeSearchCallback {
                     jstype_reconserializer: &mut *self.jstype_reconserializer,
                     type_pointers_by_jstype: &mut *self.type_pointers_by_jstype,
+                    properties: None,
                 },
             );
         }

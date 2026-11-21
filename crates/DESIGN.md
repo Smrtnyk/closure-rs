@@ -660,6 +660,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `jscomp/serialization/color_pool.rs` reconciles colors using ordered references into the
   input shards. The definitions stay in their original type pools until reconciliation and
   diagnostics finish. This avoids copying nested object and union protos for each lookup.
+- `jscomp/serialization/serialize_types_to_pointers.rs` gathers property spellings and
+  assigns type pointers in one postorder traversal. Type summaries are skipped and
+  closure-unaware shadows contribute only types. Property filtering begins after the walk.
 - `jscomp/serialization/convert_types_to_colors.rs` transfers the completed type shard to the
   color builder and resolves colors once per observed registry type. Nodes share the resulting
   lookup by TypeId. JSDoc conversion uses the same serialization rules and allocates its

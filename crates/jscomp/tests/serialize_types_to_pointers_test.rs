@@ -255,3 +255,41 @@ Foo.prototype.andMe;
             .as_slice()
     );
 }
+
+#[test]
+fn shadow_contributes_types_without_exposing_its_property_names() {
+    let mut t = SerializeTypesToPointersTest::set_up();
+    let root = t.parse_and_typecheck_files(&[
+        "/** @typeSummary */ class Foo { visible() {} hidden() {} } class Bar {}",
+        "Foo.prototype.visible; marker;",
+        "(function() { Foo.prototype.hidden; Bar.prototype; });",
+    ]);
+    let foo_prototype = t.global_implicit_prototype("Foo");
+    let bar_prototype = t.global_implicit_prototype("Bar");
+    let shadow_script = root
+        .get_last_child(&t.compiler)
+        .unwrap()
+        .detach(&mut t.compiler);
+    let shadow_root = IR::root(&mut t.compiler, &[shadow_script]);
+    let marker = root
+        .get_last_child(&t.compiler)
+        .unwrap()
+        .get_last_child(&t.compiler)
+        .unwrap()
+        .get_first_child(&t.compiler)
+        .unwrap();
+    marker.set_closure_unaware_shadow(&mut t.compiler, Some(shadow_root));
+
+    let mut serializer = t.create_serializer();
+    serializer.gather_types_on_ast(&mut t.compiler, root);
+    let pointers = serializer.get_type_pointers_by_jstype();
+    assert!(pointers.contains_key(&bar_prototype));
+    let foo = serializer
+        .get_type_pool()
+        .unwrap()
+        .get_type(TypePointers::trim_offset(pointers[&foo_prototype]));
+    assert_eq!(
+        foo.get_object().get_own_property_list(),
+        t.find_all_in_string_pool(&["visible"])
+    );
+}

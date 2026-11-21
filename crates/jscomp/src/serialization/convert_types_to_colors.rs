@@ -64,9 +64,7 @@ impl RemoveTypes {
     // port: ConvertTypesToColors.RemoveTypes#visit
     fn visit_node(ast: &mut Ast, n: NodeId) {
         n.set_jstype(ast, None);
-        n.set_jstype_before_cast(ast, None);
-        n.set_declared_type_expression(ast, None);
-        n.set_typedef_type_prop(ast, None);
+        n.clear_type_declaration_props(ast);
 
         let jsdoc = n.get_jsdoc_info(ast);
         if let Some(jsdoc) = jsdoc {
