@@ -36,6 +36,7 @@ pub struct PropertyClustering {
     use_sites: IndexMap<NodeId, ColorGraphNodeId>,
     clusters: StandardUnionFind<ColorGraphNodeId>,
     original_name_cluster_rep: Option<ColorGraphNodeId>,
+    extern_only: bool,
     last_invalidation: Option<Invalidation>,
 }
 
@@ -49,6 +50,7 @@ impl PropertyClustering {
             use_sites: IndexMap::<_, _>::default(),
             clusters: StandardUnionFind::new(),
             original_name_cluster_rep: None,
+            extern_only: false,
             last_invalidation: None,
         });
         id
@@ -56,6 +58,14 @@ impl PropertyClustering {
 }
 
 impl PropertyClusteringId {
+    pub(super) fn set_extern_only(self, arena: &mut DisambiguateArena, extern_only: bool) {
+        self.data_mut(arena).extern_only = extern_only;
+    }
+
+    pub(super) fn is_extern_only(self, arena: &DisambiguateArena) -> bool {
+        self.data(arena).extern_only
+    }
+
     fn data(self, arena: &DisambiguateArena) -> &PropertyClustering {
         &arena.props[self.0 as usize]
     }

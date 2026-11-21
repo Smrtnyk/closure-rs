@@ -3004,7 +3004,7 @@ impl Callback for AbstractScopeBuilder<'_> {
                 // NAME and the intermediate GETPROPs of a bare name have no scope-building
                 // work. Run the ordinary declaration and statement actions in postorder.
                 let info = property.get_jsdoc_info(t);
-                self.maybe_declare_qualified_name(t, info, property, n, None);
+                self.maybe_declare_qualified_name(t, info, property, n, None, 0);
                 self.visit(t, n, parent);
                 return false;
             }
@@ -3076,7 +3076,7 @@ impl Callback for AbstractScopeBuilder<'_> {
                     let property = statement.get_first_child(t).unwrap();
                     t.position_at_node(property);
                     let info = property.get_jsdoc_info(t);
-                    self.maybe_declare_qualified_name(t, info, property, statement, None);
+                    self.maybe_declare_qualified_name(t, info, property, statement, None, record);
                 }
                 declarations::ASSIGNMENT => {
                     let assign = statement.get_first_child(t).unwrap();
@@ -4042,6 +4042,30 @@ impl AbstractScopeBuilder<'_> {
         );
     }
 
+    /// Bundled property annotations for these primitives evaluate to a native type before
+    /// the registry consults any scope. Preserve the write made by JSTypeExpression.evaluate.
+    fn recorded_property_type(
+        compiler: &mut AbstractCompiler,
+        info: Option<&JSDocInfo>,
+        record: u8,
+    ) -> Option<TypeId> {
+        let kind = record & declarations::NATIVE_MASK;
+        let native = match kind {
+            declarations::NATIVE_NUMBER => JSTypeNative::NUMBER_TYPE,
+            declarations::NATIVE_STRING => JSTypeNative::STRING_TYPE,
+            declarations::NATIVE_BOOLEAN => JSTypeNative::BOOLEAN_TYPE,
+            _ => return None,
+        };
+        // Clients can replace the documentation or edit its detached type tree after loading.
+        let root = info?.get_type()?.get_root();
+        if declarations::closed_annotation(compiler, root) != kind {
+            return None;
+        }
+        let ty = compiler.get_type_registry().get_native_type(native);
+        root.set_jstype(compiler, Some(ty));
+        Some(ty)
+    }
+
     /// Declare the symbol for a qualified name in the current scope.
     ///
     /// @param info The doc info for this property.
@@ -4057,6 +4081,7 @@ impl AbstractScopeBuilder<'_> {
         n: NodeId,
         parent: NodeId,
         rhs_value: Option<NodeId>,
+        record: u8,
     ) {
         let is_typedef = self.is_valid_typedef_declaration(t.get_compiler(), n, info.clone());
         if is_typedef {
@@ -4090,7 +4115,8 @@ impl AbstractScopeBuilder<'_> {
         // about getting as much type information as possible for them.
 
         // Determining type for #1 + #2 + #3 + #4
-        let mut value_type = self.get_declared_type(compiler, info.clone(), n, rhs_value, None);
+        let mut value_type = Self::recorded_property_type(compiler, info.as_deref(), record)
+            .or_else(|| self.get_declared_type(compiler, info.clone(), n, rhs_value, None));
         if value_type.is_none() && rhs_value.is_some() {
             // Determining type for #5
             value_type = rhs_value.unwrap().get_jstype(compiler);
@@ -4685,7 +4711,7 @@ impl AbstractScopeBuilder<'_> {
                 if first_child.is_get_prop(compiler) && first_child.is_qualified_name(compiler) {
                     let info = n.get_jsdoc_info(compiler);
                     let next = first_child.get_next(compiler);
-                    self.maybe_declare_qualified_name(t, info, first_child, n, next);
+                    self.maybe_declare_qualified_name(t, info, first_child, n, next, 0);
                 } else if first_child.is_get_elem(compiler)
                     && first_child
                         .get_first_child(compiler)
@@ -4711,7 +4737,7 @@ impl AbstractScopeBuilder<'_> {
                 let parent = parent.expect("NullPointerException");
                 if parent.is_expr_result(compiler) && n.is_qualified_name(compiler) {
                     let info = n.get_jsdoc_info(compiler);
-                    self.maybe_declare_qualified_name(t, info, n, parent, None);
+                    self.maybe_declare_qualified_name(t, info, n, parent, None, 0);
                 }
             }
             Token::GETELEM => {
@@ -6328,6 +6354,46 @@ mod bundled_declaration_tests {
             Some(ObjectProp::Node(empty)),
         );
         creator.create_scope(&mut compiler, empty, Some(global));
+    }
+
+    #[test]
+    fn recorded_primitive_rechecks_the_live_annotation_and_sets_its_type() {
+        let mut compiler = Compiler::new();
+        let externs = Arc::new(SourceFile::from_code(
+            "api.js",
+            "/** @type {number} */ C.prototype.value;",
+        ));
+        compiler.init(
+            &[externs],
+            &[Arc::new(SourceFile::from_code("app.js", ""))],
+            CompilerOptions::new(),
+        );
+        compiler.parse_for_compilation();
+        let script = compiler.get_script_node("api.js").unwrap();
+        let property = script.get_first_first_child(&compiler).unwrap();
+        let info = property.get_jsdoc_info(&compiler).unwrap();
+        let root = info.get_type().unwrap().get_root();
+        let number = compiler
+            .get_type_registry()
+            .get_native_type(JSTypeNative::NUMBER_TYPE);
+        assert_eq!(
+            AbstractScopeBuilder::recorded_property_type(
+                &mut compiler,
+                Some(&info),
+                declarations::NATIVE_NUMBER
+            ),
+            Some(number)
+        );
+        assert_eq!(root.get_jstype(&compiler), Some(number));
+        root.set_string(&mut compiler, "LateBound");
+        assert_eq!(
+            AbstractScopeBuilder::recorded_property_type(
+                &mut compiler,
+                Some(&info),
+                declarations::NATIVE_NUMBER
+            ),
+            None
+        );
     }
 
     #[test]

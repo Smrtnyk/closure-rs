@@ -397,6 +397,8 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   program in source order. Empty function stubs enter their ordinary scopes and contribute their
   parameter names and writes. Unrecognized shapes, changed scripts and appended statements use
   the ordinary visitor.
+  For bare properties annotated with `number`, `string` or `boolean`, the build records the
+  native type. The scope builder checks the live annotation and binds it to the current registry.
   The build records property names in traversal order and identifies statements that cannot
   affect the side-effect, module and extern name-reference checks. Each loaded script keeps
   its original last statement and the arena range of the parse, including detached type nodes.
@@ -559,6 +561,13 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   jump use the ordinary visitor. An arena change, a replaced node payload or an externally
   drained mutation log invalidates saved analyses.
   `CLOSURE_RS_REFERENCE_SITES=off` disables reuse of the ordered sites.
+- `jscomp/disambiguate` records property uses in traversal order. When diagnostics do not need
+  the full graph, properties used only in externs omit their rename sites and union-find work.
+  Their type associations still propagate in the original order, which determines the names
+  chosen for source properties.
+- `jscomp/function_argument_injector.rs` collects modified parameters, nested closures and
+  uses of the enclosing receiver in one walk for `InlineFunctions`. Modified names retain
+  first-use order, and only arrows inherit the receiver of an enclosing function.
 - `jscomp/inline_variables.rs` retains an inlining result when another variable may alias it.
 - Token-based peephole rules declare their candidates alongside the rewrite. The pass calls
   rules in upstream order and checks the current token again after each rewrite. Custom

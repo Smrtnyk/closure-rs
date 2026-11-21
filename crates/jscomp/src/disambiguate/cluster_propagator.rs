@@ -71,7 +71,11 @@ impl ClusterPropagator {
             dest.get_associated_props_mut(arena)
                 .entry(prop)
                 .or_insert(PropAssociation::SUPERTYPE);
-            prop.get_clusters_mut(arena).union(src, dest);
+            // Even an extern-only property must reach dest and enqueue it in the original
+            // order. That order determines which representative names a source property.
+            if !prop.is_extern_only(arena) {
+                prop.get_clusters_mut(arena).union(src, dest);
+            }
         }
 
         // Were any properties added to dest?

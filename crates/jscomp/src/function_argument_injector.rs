@@ -39,6 +39,14 @@ pub const THIS_MARKER: &str = "this";
 
 pub const REST_MARKER: &str = "rest param";
 
+/// Local syntax facts used to decide how a candidate function can be inlined.
+#[derive(Default)]
+pub(crate) struct FunctionBodyFacts {
+    pub(crate) modified_parameters: IndexSet<JsString>,
+    pub(crate) references_receiver: bool,
+    pub(crate) has_inner_closures: bool,
+}
+
 pub struct FunctionArgumentInjector {
     ast_analyzer: AstAnalyzer,
 }
@@ -287,8 +295,26 @@ impl FunctionArgumentInjector {
     /// the call site value to be modified (bad).
     // port: FunctionArgumentInjector#findModifiedParameters(Node)
     pub fn find_modified_parameters(&self, ast: &Ast, fn_node: NodeId) -> IndexSet<JsString> {
+        self.inspect_function::<false>(ast, fn_node)
+            .modified_parameters
+    }
+
+    pub(crate) fn inspect_function<const FOR_INLINING: bool>(
+        &self,
+        ast: &Ast,
+        fn_node: NodeId,
+    ) -> FunctionBodyFacts {
         let names = Self::get_function_parameter_set(ast, fn_node);
-        Self::find_modified_parameters_in(ast, fn_node.get_last_child(ast).unwrap(), &names, false)
+        let mut facts = FunctionBodyFacts::default();
+        Self::inspect_body::<FOR_INLINING>(
+            ast,
+            fn_node.get_last_child(ast).unwrap(),
+            &names,
+            false,
+            true,
+            &mut facts,
+        );
+        facts
     }
 
     /// Check for uses of the named value that imply a pass-by-value parameter is expected. This
@@ -296,41 +322,39 @@ impl FunctionArgumentInjector {
     ///
     /// We don't want "undefined" to be substituted for "x", and get undefined=2
     // port: FunctionArgumentInjector#findModifiedParameters(Node,ImmutableSet,boolean)
-    #[allow(clippy::collapsible_if)] // Retain Java control flow.
-    fn find_modified_parameters_in(
+    fn inspect_body<const FOR_INLINING: bool>(
         ast: &Ast,
         n: NodeId,
         names: &IndexSet<JsString>,
-        mut in_inner_closure: bool,
-    ) -> IndexSet<JsString> {
-        let mut unsafe_ = IndexSet::<_>::default();
-        if NodeUtil::is_function_or_non_static_class_field_initializer(ast, n) {
-            // A function parameter can not be replaced with a direct inlined value
-            // if it is referred to by an inner function or a non-static class field
-            // initializer. The inner function or field initializer can out live the
-            // call we are replacing, so it must capture a unique name.  This approach
-            // does not work within loop bodies so those are forbidden elsewhere.
-            in_inner_closure = true;
+        in_inner_closure: bool,
+        enclosing_receiver: bool,
+        facts: &mut FunctionBodyFacts,
+    ) {
+        let closure = NodeUtil::is_function_or_non_static_class_field_initializer(ast, n);
+        let captured = in_inner_closure || closure;
+        if FOR_INLINING {
+            facts.has_inner_closures |= closure;
+            facts.references_receiver |= enclosing_receiver && (n.is_this(ast) || n.is_super(ast));
         }
-
-        if n.is_name(ast) {
-            if names.contains(&n.get_string(ast))
-                && (in_inner_closure || Self::can_name_value_change(ast, n))
-            {
-                unsafe_.insert(n.get_string(ast));
-            }
+        if n.is_name(ast)
+            && names.contains(n.get_string_ref(ast))
+            && (captured || Self::can_name_value_change(ast, n))
+        {
+            facts.modified_parameters.insert(n.get_string(ast));
         }
-
-        for c in n.children(ast) {
-            unsafe_.extend(Self::find_modified_parameters_in(
+        // A nested arrow still uses the enclosing receiver. An ordinary function owns its own.
+        let enclosing_receiver =
+            FOR_INLINING && enclosing_receiver && !NodeUtil::is_non_arrow_function(ast, n);
+        for child in n.children(ast) {
+            Self::inspect_body::<FOR_INLINING>(
                 ast,
-                c,
+                child,
                 names,
-                in_inner_closure,
-            ));
+                captured,
+                enclosing_receiver,
+                facts,
+            );
         }
-
-        unsafe_
     }
 
     /// This is similar to NodeUtil.isLValue except that object properties and array member
@@ -894,5 +918,47 @@ impl ImmutableMapBuilder {
             map.insert(key, value);
         }
         map
+    }
+}
+
+#[cfg(test)]
+mod body_facts_tests {
+    use super::*;
+    use crate::{Compiler, compiler_options::CompilerOptions};
+
+    #[test]
+    fn inner_functions_capture_parameters_but_only_arrows_share_the_receiver() {
+        let mut compiler = Compiler::new();
+        compiler.init_options(CompilerOptions::new());
+        let injector = FunctionArgumentInjector::new(compiler.get_ast_analyzer());
+        for (source, receiver, parameters) in [
+            (
+                "function outer(x, y) { function inner() { this.a; return y; } x++; }",
+                false,
+                vec!["y", "x"],
+            ),
+            (
+                "function outer(x) { return () => this.a + x; }",
+                true,
+                vec!["x"],
+            ),
+            (
+                "function outer(x) { class C { field = x; } }",
+                false,
+                vec!["x"],
+            ),
+        ] {
+            let script = compiler.parse_test_code(source);
+            let function = script.get_first_child(&compiler).unwrap();
+            let facts = injector.inspect_function::<true>(&compiler, function);
+            assert!(facts.has_inner_closures);
+            assert_eq!(facts.references_receiver, receiver);
+            let names: Vec<_> = facts
+                .modified_parameters
+                .iter()
+                .map(JsString::to_string_lossy)
+                .collect();
+            assert_eq!(names, parameters);
+        }
     }
 }

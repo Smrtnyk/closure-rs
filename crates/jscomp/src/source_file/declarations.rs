@@ -31,6 +31,30 @@ const KIND_MASK: u8 = 7;
 pub(crate) const HAS_FUNCTION: u8 = 8;
 pub(crate) const CHECK_NON_NULLABLE: u8 = 16;
 
+// The high two bits encode common closed property annotations in the embedded externs.
+pub(crate) const NATIVE_NUMBER: u8 = 0x40;
+pub(crate) const NATIVE_STRING: u8 = 0x80;
+pub(crate) const NATIVE_BOOLEAN: u8 = 0xc0;
+pub(crate) const NATIVE_MASK: u8 = 0xc0;
+
+pub(crate) fn closed_annotation(ast: &Ast, root: NodeId) -> u8 {
+    if !root.is_string_lit(ast) || root.has_children(ast) {
+        return 0;
+    }
+    let Some(name) = root.string_payload(ast) else {
+        return 0;
+    };
+    if name == "number" {
+        NATIVE_NUMBER
+    } else if name == "string" {
+        NATIVE_STRING
+    } else if name == "boolean" {
+        NATIVE_BOOLEAN
+    } else {
+        0
+    }
+}
+
 pub(crate) fn kind(record: u8) -> u8 {
     record & KIND_MASK
 }

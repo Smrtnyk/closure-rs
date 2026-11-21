@@ -21,7 +21,9 @@
 //! Port of `disambiguate/ColorFindPropertyReferences.java`.
 
 use super::{
-    color_graph_node::{DisambiguateArena, PropAssociation, PropertyClusteringId},
+    color_graph_node::{
+        ColorGraphNodeId, DisambiguateArena, PropAssociation, PropertyClusteringId,
+    },
     color_graph_node_factory::ColorGraphNodeFactoryMethods,
     property_clustering::PropertyClustering,
 };
@@ -53,6 +55,25 @@ use closure_rhino::{
 /// reflector can consult its coding convention.
 pub type IsPropertyReflector<'a> = Box<dyn Fn(&AbstractCompiler, NodeId) -> bool + 'a>;
 
+struct PropertyUse {
+    property: PropertyClusteringId,
+    owner: ColorGraphNodeId,
+    site: NodeId,
+    keep_original: bool,
+}
+
+impl PropertyUse {
+    fn record(self, arena: &mut DisambiguateArena) {
+        self.property.get_clusters_mut(arena).add(self.owner);
+        self.property
+            .get_use_sites_mut(arena)
+            .insert(self.site, self.owner);
+        if self.keep_original {
+            self.property.register_original_name_type(arena, self.owner);
+        }
+    }
+}
+
 /// Traverses the AST, collecting connections between {@link JSType}s, property accesses, and
 /// their accociated {@link Node}s.
 ///
@@ -61,6 +82,7 @@ pub type IsPropertyReflector<'a> = Box<dyn Fn(&AbstractCompiler, NodeId) -> bool
 /// This callback is intended for both source and externs.
 pub struct ColorFindPropertyReferences<'a> {
     prop_index: Option<IndexMap<JsString, PropertyClusteringId>>,
+    pending_uses: Option<Vec<PropertyUse>>,
     color_graph_node_factory: &'a mut dyn ColorGraphNodeFactoryMethods,
     arena: &'a mut DisambiguateArena,
     is_property_reflector: IsPropertyReflector<'a>,
@@ -75,14 +97,28 @@ impl<'a> ColorFindPropertyReferences<'a> {
     ) -> Self {
         Self {
             prop_index: Some(IndexMap::<_, _>::default()),
+            pending_uses: None,
             color_graph_node_factory,
             arena,
             is_property_reflector,
         }
     }
 
+    /// The ordinary disambiguation pass only consumes renames visible in source. Defer
+    /// collecting cluster members until every script has supplied its property uses.
+    pub(super) fn defer_extern_only_renames(&mut self) {
+        self.pending_uses = Some(Vec::new());
+    }
+
     // port: ColorFindPropertyReferences#getPropertyIndex
     pub fn get_property_index(&mut self) -> IndexMap<JsString, PropertyClusteringId> {
+        if let Some(uses) = self.pending_uses.take() {
+            for usage in uses {
+                if !usage.property.is_extern_only(self.arena) {
+                    usage.record(self.arena);
+                }
+            }
+        }
         self.prop_index.take().unwrap()
     }
 
@@ -243,13 +279,24 @@ impl<'a> ColorFindPropertyReferences<'a> {
         site: NodeId,
         owner: Option<Color>,
     ) {
-        let site_string = site.get_string(t);
+        // The containing script owns the use even if the individual node has different
+        // source-file metadata (b/186056977).
+        let from_externs = t.get_current_script().unwrap().is_from_externs(t);
+        let site_string = site.get_string_ref(t);
         let prop_index = self.prop_index.as_mut().unwrap();
-        let prop = match prop_index.get(&site_string) {
-            Some(prop) => *prop,
+        let prop = match prop_index.get(site_string) {
+            Some(&prop) => {
+                if !from_externs && prop.is_extern_only(self.arena) {
+                    prop.set_extern_only(self.arena, false);
+                }
+                prop
+            }
             None => {
                 let prop = PropertyClustering::new(self.arena, site_string.clone());
-                prop_index.insert(site_string, prop);
+                if from_externs && self.pending_uses.is_some() {
+                    prop.set_extern_only(self.arena, true);
+                }
+                prop_index.insert(site_string.clone(), prop);
                 prop
             }
         };
@@ -261,25 +308,19 @@ impl<'a> ColorFindPropertyReferences<'a> {
         flat_owner
             .get_associated_props_mut(self.arena)
             .insert(prop, PropAssociation::AST);
-        // Make sure there's a cluster for this name/type combination.
-        prop.get_clusters_mut(self.arena).add(flat_owner);
-        // Record the site to rename once clusters are found. If it's an extern, we won't rename
-        // anyway.
-        prop.get_use_sites_mut(self.arena).insert(site, flat_owner);
-
-        // Track the cluster of types whose properties must keep their original name after
-        // disambiguation. Note: an "enum type" is the type of an enum object like
-        // "{STOP: 0, GO: 1}".
-        // NOTE: we can't use site.isFromExterns() because sometimes nodes have source file
-        // information that doesn't match the containing script. This could lead to renaming
-        // properties that are in externs if the property node didn't have an externs source file.
-        // Related: b/186056977.
-        if t.get_current_script().unwrap().is_from_externs(t)
-            || owner
-                .as_ref()
-                .is_some_and(|owner| owner.get_properties_keep_original_name())
-        {
-            prop.register_original_name_type(self.arena, flat_owner);
+        let usage = PropertyUse {
+            property: prop,
+            owner: flat_owner,
+            site,
+            keep_original: from_externs
+                || owner
+                    .as_ref()
+                    .is_some_and(|c| c.get_properties_keep_original_name()),
+        };
+        if let Some(uses) = &mut self.pending_uses {
+            uses.push(usage);
+        } else {
+            usage.record(self.arena);
         }
     }
 }

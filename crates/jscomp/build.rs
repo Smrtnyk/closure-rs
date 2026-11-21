@@ -82,7 +82,14 @@ fn declaration_records(
             };
             let check_non_nullable = declaration.possible_alias
                 || info.is_some_and(|doc| doc.has_enum_parameter_type() || doc.has_typedef_type());
+            let primitive = if record == PROPERTY {
+                info.and_then(|doc| doc.get_type())
+                    .map_or(0, |expr| closed_annotation(ast, expr.get_root()))
+            } else {
+                0
+            };
             record
+                | primitive
                 | if declaration.function.is_some() {
                     HAS_FUNCTION
                 } else {

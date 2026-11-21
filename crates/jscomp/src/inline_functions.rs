@@ -253,24 +253,15 @@ impl InlineFunctions {
             if function_state.can_inline() {
                 function_state.set_chunk(chunk);
 
-                let names_to_alias =
-                    function_argument_injector.find_modified_parameters(compiler, fn_node);
-                if !names_to_alias.is_empty() {
+                let facts = function_argument_injector.inspect_function::<true>(compiler, fn_node);
+                if !facts.modified_parameters.is_empty() {
                     function_state.inline_directly(false);
-                    function_state.set_names_to_alias(names_to_alias);
+                    function_state.set_names_to_alias(facts.modified_parameters);
                 }
-
-                let block = NodeUtil::get_function_body(compiler, fn_node);
-                if NodeUtil::references_enclosing_receiver(compiler, block) {
+                if facts.references_receiver {
                     function_state.set_references_this(true);
                 }
-
-                if NodeUtil::has(
-                    compiler,
-                    block,
-                    &NodeUtil::is_function_or_non_static_class_field_initializer,
-                    &|_, _| true,
-                ) {
+                if facts.has_inner_closures {
                     function_state.set_has_inner_closures(true);
                     // If there are inner functions, we can inline into global scope
                     // if there are no local vars or named functions.

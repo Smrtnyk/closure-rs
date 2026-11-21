@@ -131,6 +131,12 @@ impl CompilerPass for DisambiguateProperties {
                         .is_property_rename_function(compiler, n)
                 }),
             );
+            if !compiler.is_debug_logging_enabled()
+                && !compiler.has_performance_tracker()
+                && self.properties_that_must_disambiguate.is_empty()
+            {
+                find_refs.defer_extern_only_renames();
+            }
             let externs_parent = externs.get_parent(compiler).unwrap();
             NodeTraversal::traverse(compiler, externs_parent, &mut find_refs);
             find_refs.get_property_index()
@@ -194,6 +200,9 @@ impl CompilerPass for DisambiguateProperties {
 
         let mut tracker_summary_generator = TrackerSummaryGenerator::default();
         for prop in prop_index.values().copied() {
+            if prop.is_extern_only(&arena) {
+                continue;
+            }
             let rename_uses_result = renamer.rename_uses(compiler, &mut arena, prop);
             tracker_summary_generator.add_rename_uses_result(rename_uses_result);
             if prop.is_invalidated(&arena)
@@ -448,7 +457,9 @@ impl DisambiguateProperties {
             if prop.is_invalidated(arena) {
                 continue;
             }
-            prop.get_clusters_mut(arena).add(color_graph_node);
+            if !prop.is_extern_only(arena) {
+                prop.get_clusters_mut(arena).add(color_graph_node);
+            }
             color_graph_node
                 .get_associated_props_mut(arena)
                 .insert(prop, PropAssociation::TYPE_SYSTEM);

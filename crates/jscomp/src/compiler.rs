@@ -3756,6 +3756,10 @@ impl Compiler {
     pub fn set_module_map(&mut self, map: Arc<crate::modules::module_map::ModuleMap>) {
         self.module_map = Some(map);
     }
+    pub(crate) fn has_performance_tracker(&self) -> bool {
+        self.tracker.is_some()
+    }
+
     // port: Compiler#reportDisambiguatePropertiesSummary
     pub fn report_disambiguate_properties_summary(&self, summary: impl FnOnce() -> String) {
         if let Some(tracker) = &self.tracker {
