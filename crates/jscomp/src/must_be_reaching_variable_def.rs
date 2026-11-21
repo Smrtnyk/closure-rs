@@ -49,6 +49,14 @@ impl Definition {
             unknown_dependencies: false,
         }
     }
+    fn record_dependency(&mut self, name: &JsString, variables: &IndexMap<JsString, VarId>) {
+        if let Some(&var) = variables.get(name) {
+            self.depends.insert(var);
+        } else {
+            self.unknown_dependencies = true;
+        }
+    }
+
     // port: MustBeReachingVariableDef.Definition#toString
     pub fn to_string(&self, compiler: &AbstractCompiler) -> String {
         format!("Definition@{}", self.node.to_string(compiler))
@@ -181,6 +189,15 @@ impl MustBeReachingVariableDef {
     }
     pub fn into_cfg(self) -> ControlFlowGraph<NodeId> {
         self.state.into_cfg()
+    }
+    pub(crate) fn into_use_analysis(
+        self,
+    ) -> crate::maybe_reaching_variable_use::MaybeReachingVariableUse {
+        crate::maybe_reaching_variable_use::MaybeReachingVariableUse::new(
+            self.state.into_cfg(),
+            self.escaped,
+            self.all_vars_in_fn,
+        )
     }
     // port: MustBeReachingVariableDef#computeMustDef
     fn compute_must_def(
@@ -487,6 +504,35 @@ impl MustBeReachingVariableDef {
         def: &mut Definition,
         r_value: NodeId,
     ) {
+        // A dotted access stores the property spelling on the node. Only its receiver
+        // can reference a variable, and primitive literal leaves have no dependencies.
+        let mut receiver = r_value;
+        while matches!(
+            receiver.get_token(compiler),
+            Token::GETPROP | Token::OPTCHAIN_GETPROP
+        ) && receiver.has_one_child(compiler)
+        {
+            receiver = receiver.get_first_child(compiler).unwrap();
+        }
+        if !receiver.has_children(compiler) {
+            match receiver.get_token(compiler) {
+                Token::NAME => {
+                    if let Some(name) = receiver.string_payload(compiler) {
+                        def.record_dependency(name, &self.all_vars_in_fn);
+                        return;
+                    }
+                }
+                Token::NUMBER
+                | Token::BIGINT
+                | Token::STRINGLIT
+                | Token::TRUE
+                | Token::FALSE
+                | Token::NULL
+                | Token::THIS => return,
+                _ => {}
+            }
+        }
+
         struct Dependence<'a> {
             def: &'a mut Definition,
             all_vars_in_fn: &'a IndexMap<JsString, VarId>,
@@ -495,11 +541,8 @@ impl MustBeReachingVariableDef {
             // port: MustBeReachingVariableDef#computeDependence.visit
             fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
                 if n.is_name(t) {
-                    if let Some(&dep) = self.all_vars_in_fn.get(&n.get_string(t)) {
-                        self.def.depends.insert(dep);
-                    } else {
-                        self.def.unknown_dependencies = true;
-                    }
+                    self.def
+                        .record_dependency(n.get_string_ref(t), self.all_vars_in_fn);
                 }
             }
         }

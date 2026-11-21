@@ -569,6 +569,12 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `jscomp/function_argument_injector.rs` collects modified parameters, nested closures and
   uses of the enclosing receiver in one walk for `InlineFunctions`. Modified names retain
   first-use order, and only arrows inherit the receiver of an enclosing function.
+- `jscomp/flow_sensitive_inline_variables.rs` checks small function bodies for a possible
+  definition and a read of the same name outside a loop before constructing a control-flow
+  graph. Hash collisions send the function through the full checks. The first candidate
+  that passes its local checks triggers backwards analysis before any replacement.
+  Large bodies, classes and nested functions with complex parameters keep the eager schedule.
+  Both analyses share the function's variable map and escape set by transferring ownership.
 - `jscomp/inline_variables.rs` retains an inlining result when another variable may alias it.
 - Token-based peephole rules declare their candidates alongside the rewrite. The pass calls
   rules in upstream order and checks the current token again after each rewrite. Custom

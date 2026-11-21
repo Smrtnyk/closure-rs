@@ -1607,3 +1607,19 @@ fn test_no_inline_enhanced_for_loops_lhs() {
 "#,
     );
 }
+
+#[test]
+fn colliding_name_masks_still_resolve_each_definition() {
+    let mut t = FlowSensitiveInlineVariablesTest::set_up();
+    // Aa and BB have the same Java string hash. Only BB is eligible.
+    t.inline(
+        "var Aa = this.value, BB = 2; print(BB); print(Aa);",
+        "var Aa = this.value, BB; print(2); print(Aa);",
+    );
+}
+
+#[test]
+fn nested_default_reads_the_outer_binding() {
+    let mut t = FlowSensitiveInlineVariablesTest::set_up();
+    t.no_inline("var value = 1; print(function(p = value) { return p; });");
+}

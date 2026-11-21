@@ -159,6 +159,9 @@ impl MaybeReachingVariableUse {
     pub fn into_cfg(self) -> ControlFlowGraph<NodeId> {
         self.state.into_cfg()
     }
+    pub(crate) fn variable(&self, name: &JsString) -> Option<VarId> {
+        self.all_vars_in_fn.get(name).copied()
+    }
     // port: MaybeReachingVariableUse#hasExceptionHandler
     fn has_exception_handler(&self, cfg_node: NodeId) -> bool {
         for edge in self.get_cfg().get_out_edges(&Some(cfg_node)) {
