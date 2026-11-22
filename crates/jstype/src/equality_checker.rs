@@ -58,7 +58,7 @@ pub enum EqMethod {
 }
 pub struct EqualityChecker {
     eq_method: Option<EqMethod>,
-    eq_cache: Option<IndexMap<CacheKey, MatchStatus>>,
+    eq_cache: Option<Box<IndexMap<CacheKey, MatchStatus>>>,
     recursion_depth: usize,
     has_run: bool,
 }
@@ -78,6 +78,7 @@ impl EqualityChecker {
         }
     }
     // port: EqualityChecker#setEqMethod
+    #[inline]
     pub fn set_eq_method(mut self, x: EqMethod) -> Self {
         self.check_has_not_run();
         check_state!(self.eq_method.is_none());
@@ -121,7 +122,7 @@ impl EqualityChecker {
         right: Option<TypeId>,
     ) -> bool {
         if self.recursion_depth > POTENTIALLY_CYCLIC_RECURSION_DEPTH && self.eq_cache.is_none() {
-            self.eq_cache = Some(IndexMap::<_, _>::default());
+            self.eq_cache = Some(Box::default());
         }
         if self.eq_cache.is_none() {
             self.recursion_depth += 1;

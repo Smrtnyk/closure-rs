@@ -50,7 +50,7 @@ mod rhino;
 /// port: JSTypeColorIdHasher
 pub struct JSTypeColorIdHasher {
     /// Java's `ImmutableMap<ObjectType, ColorId>`, looked up with `JSType#equals`.
-    standard_color_object_ids: Vec<(TypeId, ColorId)>,
+    standard_color_object_ids: Vec<(i32, TypeId, ColorId)>,
 }
 
 /// port: Hashing#farmHashFingerprint64 (a non-streaming hash function: its Hasher buffers the bytes
@@ -135,15 +135,15 @@ impl JSTypeColorIdHasher {
 
     // port: JSTypeColorIdHasher#<init>
     pub fn new(registry: &JSTypeRegistry) -> Self {
-        let mut standard_color_object_ids: Vec<(TypeId, ColorId)> = Vec::new();
+        let mut standard_color_object_ids: Vec<(i32, TypeId, ColorId)> = Vec::new();
         for (native, id) in Self::NATIVE_TYPE_TO_ID {
             let key = registry.get_native_object_type(native);
             // ImmutableMap#toImmutableMap throws on a duplicate key.
             closure_rhino::check_argument!(
-                standard_color_object_ids.iter().all(|(k, _)| *k != key),
+                standard_color_object_ids.iter().all(|&(_, k, _)| k != key),
                 "Multiple entries with same key"
             );
-            standard_color_object_ids.push((key, id));
+            standard_color_object_ids.push((key.hash_code(registry), key, id));
         }
         Self {
             standard_color_object_ids,
@@ -180,8 +180,8 @@ impl JSTypeColorIdHasher {
             }
         }
 
-        if r#type.has_reference_name(registry) {
-            self.put_reference_name_type(&mut hasher, registry, r#type);
+        if let Some(name) = r#type.get_reference_name(registry) {
+            self.put_reference_name_type(&mut hasher, registry, r#type, &name);
         } else {
             closure_jstype::object_type::for_each_own_property_name(r#type, registry, |name| {
                 Self::put_utf8(&mut hasher, name);
@@ -197,8 +197,9 @@ impl JSTypeColorIdHasher {
         hasher: &mut Hasher,
         registry: &JSTypeRegistry,
         r#type: TypeId,
+        name: &JsString,
     ) {
-        Self::put_utf8(hasher, &r#type.get_reference_name(registry).unwrap());
+        Self::put_utf8(hasher, name);
 
         let Some(source_ref) = Self::source_ref_for(registry, r#type) else {
             // TODO(b/185519307): This is a hack to work around bugs in the typesystem.

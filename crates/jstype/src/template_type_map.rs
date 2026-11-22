@@ -100,24 +100,26 @@ impl TemplateTypeMap {
     ) -> Arc<Self> {
         check_argument!(template_values.len() <= template_keys.len());
         check_argument!(template_keys.len() <= sub_map_starts.len());
-        let mut map = Self {
+        let mut map = Arc::new(Self {
             template_keys,
             template_values,
             resolved_template_values: Vec::new(),
             sub_map_starts,
-        };
-        let mut replacer = TemplateTypeReplacer::for_total_replacement(Arc::new(map.clone()));
-        for i in 0..map.template_keys.len() {
-            let value = if i < map.template_values.len() {
+        });
+        let mut resolved = Vec::with_capacity(map.template_keys.len());
+        if !map.template_values.is_empty() {
+            let mut replacer = TemplateTypeReplacer::for_total_replacement(Arc::clone(&map));
+            for (i, &value) in map.template_values.iter().enumerate() {
                 let next_sub_map = map.next_sub_map_start(i + 1);
                 replacer.set_key_type(map.template_keys[i], next_sub_map as i32);
-                map.template_values[i].visit(reg, ast, &mut replacer)
-            } else {
-                map.template_keys[i].get_bound(reg)
-            };
-            map.resolved_template_values.push(value);
+                resolved.push(value.visit(reg, ast, &mut replacer));
+            }
         }
-        Arc::new(map)
+        for key in &map.template_keys[map.template_values.len()..] {
+            resolved.push(key.get_bound(reg));
+        }
+        Arc::make_mut(&mut map).resolved_template_values = resolved;
+        map
     }
 
     // port: TemplateTypeMap#nextSubMapStart

@@ -697,6 +697,15 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   assigns type pointers in one postorder traversal. Type summaries are skipped and
   closure-unaware shadows contribute only types. Property filtering begins after the walk.
   Each referenced property records its string-pool offset on its first use in a type.
+- `jscomp/invalidating_types.rs` indexes mismatch records by the Java type hash. The builder
+  checks type equality within each hash bucket and records distinct pairs of types and source
+  locations in insertion order. The finished multimap rebuilds the index from the current types.
+  Color serialization hashes the standard native types when it constructs their lookup table.
+- Type inference resolves a declared slot directly when a flow scope has no overlays. String
+  property tables allocate their shared storage at the first insertion. Template substitution
+  shares the original binding map while visiting its values in order and attaches the resolved
+  values when the visit finishes. Type equality allocates its cycle table at the existing
+  recursion threshold.
 - `jscomp/serialization/convert_types_to_colors.rs` transfers the completed type shard to the
   color builder and resolves colors once per observed registry type. Nodes share the resulting
   lookup by TypeId. JSDoc conversion uses the same serialization rules and allocates its

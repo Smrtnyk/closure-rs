@@ -56,8 +56,8 @@ impl JSTypeColorIdHasher {
         r#type: TypeId,
     ) -> Option<ColorId> {
         let hash = r#type.hash_code(registry);
-        for &(key, id) in &self.standard_color_object_ids {
-            if key.hash_code(registry) == hash && r#type.equals(registry, ast, key) {
+        for &(stored_hash, key, id) in &self.standard_color_object_ids {
+            if stored_hash == hash && r#type.equals(registry, ast, key) {
                 return Some(id);
             }
         }

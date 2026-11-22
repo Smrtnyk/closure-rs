@@ -21,6 +21,7 @@
 use crate::source_file::SourceFile;
 use crate::type_mismatch::TypeMismatch;
 use closure_jstype::prelude::*;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::node::{Ast, NodeId};
 use std::sync::Arc;
@@ -33,12 +34,21 @@ use std::sync::Arc;
 // port: InvalidatingTypes
 pub struct InvalidatingTypes {
     type_to_location: Vec<(TypeId, Vec<NodeId>)>,
+    keys_by_hash: Vec<(i32, TypeId)>,
 }
 
 impl InvalidatingTypes {
     // port: InvalidatingTypes#InvalidatingTypes
-    fn new(type_to_location: Vec<(TypeId, Vec<NodeId>)>) -> Self {
-        Self { type_to_location }
+    fn new(reg: &JSTypeRegistry, type_to_location: Vec<(TypeId, Vec<NodeId>)>) -> Self {
+        let mut keys_by_hash: Vec<_> = type_to_location
+            .iter()
+            .map(|(key, _)| (key.hash_code(reg), *key))
+            .collect();
+        keys_by_hash.sort_by_key(|&(hash, _)| hash);
+        Self {
+            type_to_location,
+            keys_by_hash,
+        }
     }
 
     // port: InvalidatingTypes#isInvalidating
@@ -81,10 +91,22 @@ impl InvalidatingTypes {
             );
         }
 
-        contains_key(&self.type_to_location, reg, ast, obj_type)
+        self.contains_key(reg, ast, obj_type)
             // Don't disambiguate properties on object types that are structurally compared or that
             // don't come from a literal class or function definition
             || Self::is_ambiguous_or_structural_type(reg, ast, obj_type)
+    }
+
+    /// Java's immutable multimap hashes each stored key once and checks equality on collisions.
+    fn contains_key(&self, reg: &mut JSTypeRegistry, ast: &Ast, key: TypeId) -> bool {
+        let hash = key.hash_code(reg);
+        let first = self
+            .keys_by_hash
+            .partition_point(|&(stored, _)| stored < hash);
+        self.keys_by_hash[first..]
+            .iter()
+            .take_while(|&&(stored, _)| stored == hash)
+            .any(|&(_, stored)| key.equals(reg, ast, stored))
     }
 
     // port: InvalidatingTypes#getMismatchLocations
@@ -148,7 +170,9 @@ impl InvalidatingTypes {
 // port: InvalidatingTypes.Builder
 #[derive(Default)]
 pub struct Builder {
-    type_to_location: Vec<(TypeId, Vec<NodeId>)>,
+    keys: Vec<TypeId>,
+    indices_by_hash: IndexMap<i32, Vec<usize>>,
+    locations: IndexSet<(usize, NodeId)>,
 }
 
 impl Builder {
@@ -164,15 +188,14 @@ impl Builder {
         let always_invalidating_location = always_invalidating_location(ast);
         for t in ALWAYS_INVALIDATING_TYPES {
             let native = reg.get_native_type(t);
-            put(
-                &mut self.type_to_location,
-                reg,
-                ast,
-                native,
-                always_invalidating_location,
-            );
+            self.put(reg, ast, native, always_invalidating_location);
         }
-        InvalidatingTypes::new(self.type_to_location)
+        let mut type_to_location: Vec<_> =
+            self.keys.into_iter().map(|key| (key, Vec::new())).collect();
+        for (index, location) in self.locations {
+            type_to_location[index].1.push(location);
+        }
+        InvalidatingTypes::new(reg, type_to_location)
     }
 
     // port: InvalidatingTypes.Builder#addAllTypeMismatches
@@ -262,7 +285,23 @@ impl Builder {
             return;
         }
 
-        put(&mut self.type_to_location, reg, ast, type_, location);
+        self.put(reg, ast, type_, location);
+    }
+
+    /// Keep the first key and location order used by ImmutableSetMultimap.Builder.
+    fn put(&mut self, reg: &mut JSTypeRegistry, ast: &Ast, key: TypeId, value: NodeId) {
+        let bucket = self.indices_by_hash.entry(key.hash_code(reg)).or_default();
+        let index = bucket
+            .iter()
+            .copied()
+            .find(|&i| key.equals(reg, ast, self.keys[i]));
+        let index = index.unwrap_or_else(|| {
+            let index = self.keys.len();
+            self.keys.push(key);
+            bucket.push(index);
+            index
+        });
+        self.locations.insert((index, value));
     }
 }
 
@@ -288,32 +327,46 @@ fn always_invalidating_location(ast: &mut Ast) -> NodeId {
     )
 }
 
-/// ImmutableSetMultimap.Builder#put: keys compare with JSType#equals (insertion order kept),
-/// values with Node identity.
-fn put(
-    map: &mut Vec<(TypeId, Vec<NodeId>)>,
-    reg: &mut JSTypeRegistry,
-    ast: &Ast,
-    key: TypeId,
-    value: NodeId,
-) {
-    for (k, values) in map.iter_mut() {
-        if key.equals(reg, ast, *k) {
-            if !values.contains(&value) {
-                values.push(value);
-            }
-            return;
-        }
-    }
-    map.push((key, vec![value]));
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use closure_jstype::function_type::FunctionTypeBuilder;
+    use closure_rhino::testing::test_error_reporter::TestErrorReporter;
 
-/// ImmutableSetMultimap#containsKey with JSType#equals keys.
-fn contains_key(
-    map: &[(TypeId, Vec<NodeId>)],
-    reg: &mut JSTypeRegistry,
-    ast: &Ast,
-    key: TypeId,
-) -> bool {
-    map.iter().any(|(k, _)| key.equals(reg, ast, *k))
+    #[test]
+    fn mismatch_keys_keep_collisions_and_location_order() {
+        let mut ast = Ast::new();
+        let mut reg = JSTypeRegistry::new(&mut ast, Box::new(TestErrorReporter::new()), vec![]);
+        let [first, second, absent] = ["AaAa", "AaBB", "BBAa"].map(|name| {
+            FunctionTypeBuilder::new()
+                .for_constructor()
+                .with_name(name)
+                .build(&mut reg, &ast)
+                .get_instance_type(&reg)
+                .unwrap()
+        });
+        let equivalent = reg.create_templatized_type(&ast, first, &[]);
+        assert_ne!(first, equivalent);
+        assert!(first.equals(&mut reg, &ast, equivalent));
+        for key in [second, absent, equivalent] {
+            assert_eq!(first.hash_code(&reg), key.hash_code(&reg));
+        }
+
+        let a = IR::name(&mut ast, "a");
+        let b = IR::name(&mut ast, "b");
+        let mut builder = Builder::new(&reg);
+        builder.put(&mut reg, &ast, first, a);
+        builder.put(&mut reg, &ast, second, b);
+        builder.put(&mut reg, &ast, equivalent, b);
+        builder.put(&mut reg, &ast, first, a);
+        let result = builder.build(&mut reg, &mut ast);
+        assert_eq!(
+            &result.get_mismatch_locations()[..2],
+            &[(first, vec![a, b]), (second, vec![b])]
+        );
+        for key in [first, equivalent, second] {
+            assert!(result.contains_key(&mut reg, &ast, key));
+        }
+        assert!(!result.contains_key(&mut reg, &ast, absent));
+    }
 }

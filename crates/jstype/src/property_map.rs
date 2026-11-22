@@ -66,35 +66,41 @@ struct KeyCache {
 /// walks in key order. It offers no walk in any other order: `sorted_values` and `key_set` give
 /// Java's.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct PropertyTable(IndexMap<JsString, PropertyId>);
+pub(crate) struct PropertyTable(Option<Arc<IndexMap<JsString, PropertyId>>>);
 
 impl PropertyTable {
     pub(crate) fn get(&self, name: &JsString) -> Option<PropertyId> {
-        self.0.get(name).copied()
+        self.0.as_ref()?.get(name).copied()
     }
     pub(crate) fn len(&self) -> usize {
-        self.0.len()
+        self.0.as_ref().map_or(0, |map| map.len())
     }
     pub(crate) fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.0.is_none()
     }
     fn insert(&mut self, name: JsString, prop: PropertyId) {
-        self.0.insert(name, prop);
+        Arc::make_mut(self.0.get_or_insert_with(Arc::default)).insert(name, prop);
+    }
+    fn entries(&self) -> &indexmap::map::Slice<JsString, PropertyId> {
+        self.0
+            .as_deref()
+            .map(IndexMap::as_slice)
+            .unwrap_or_default()
     }
     /// The values in key order.
     fn sorted_values(&self) -> Vec<PropertyId> {
         let mut entries: Vec<(&JsString, PropertyId)> =
-            self.0.iter().map(|(k, v)| (k, *v)).collect();
+            self.entries().iter().map(|(k, v)| (k, *v)).collect();
         entries.sort_unstable_by(|a, b| a.0.cmp(b.0));
         entries.into_iter().map(|(_, v)| v).collect()
     }
     /// The keys, sorted.
     fn key_set(&self) -> BTreeSet<JsString> {
-        self.0.keys().cloned().collect()
+        self.entries().keys().cloned().collect()
     }
     /// The sum of the keys' hash codes (Java `AbstractSet#hashCode`, order-free).
     fn key_hash_sum(&self) -> i32 {
-        self.0
+        self.entries()
             .keys()
             .fold(0_i32, |hash, key| hash.wrapping_add(key.hash_code()))
     }
@@ -106,7 +112,7 @@ pub struct PropertyMap {
     // Java's PropertyMap is a reference type; callers here clone it to release the registry
     // borrow. The maps are shared copy-on-write (Arc::make_mut on insertion) so a clone
     // is O(1) instead of a deep copy; the snapshot semantics are unchanged.
-    pub(crate) properties: Arc<PropertyTable>,
+    pub(crate) properties: PropertyTable,
     pub(crate) known_symbols: Option<Arc<Vec<(TypeId, PropertyId)>>>,
     cache: Arc<Mutex<KeyCache>>,
     immutable_empty: bool,
@@ -141,11 +147,11 @@ impl AllKeys {
 impl PropertyMap {
     // port: PropertyMap#PropertyMap
     pub fn new() -> Self {
-        Self::from_maps(Arc::new(PropertyTable::default()), None, false)
+        Self::from_maps(PropertyTable::default(), None, false)
     }
     // port: PropertyMap#PropertyMap
     fn from_maps(
-        properties: Arc<PropertyTable>,
+        properties: PropertyTable,
         known_symbols: Option<Arc<Vec<(TypeId, PropertyId)>>>,
         immutable_empty: bool,
     ) -> Self {
@@ -161,11 +167,7 @@ impl PropertyMap {
     pub fn immutable_empty_map() -> &'static Self {
         static EMPTY: std::sync::OnceLock<PropertyMap> = std::sync::OnceLock::new();
         EMPTY.get_or_init(|| {
-            Self::from_maps(
-                Arc::new(PropertyTable::default()),
-                Some(Arc::new(Vec::new())),
-                true,
-            )
+            Self::from_maps(PropertyTable::default(), Some(Arc::new(Vec::new())), true)
         })
     }
     // port: PropertyMap#setParentSource
@@ -319,7 +321,7 @@ impl PropertyMap {
     }
     /// Visit the keys in Java TreeMap order without constructing an owned set.
     pub(crate) fn for_each_own_property_name(&self, mut visit: impl FnMut(&JsString)) {
-        let keys = self.properties.0.keys();
+        let keys = self.properties.entries().keys();
         if keys.len() <= 1 {
             keys.for_each(visit);
         } else {
@@ -462,7 +464,7 @@ impl PropertyMap {
         if old.is_none() {
             self.increment_cached_key_set_counter();
         }
-        Arc::make_mut(&mut self.properties).insert(name, new);
+        self.properties.insert(name, new);
     }
 
     /// String keys need the registry only to copy JSDoc from a previous property. Keep the

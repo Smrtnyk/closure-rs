@@ -386,7 +386,17 @@ impl ObjectType for TypeId {
     }
     // port: ObjectType#hasReferenceName
     fn has_reference_name(self, reg: &JSTypeRegistry) -> bool {
-        self.get_reference_name(reg).is_some()
+        match &reg.data(self).kind {
+            JSTypeKind::InstanceObject(d) => d.constructor.has_reference_name(reg),
+            JSTypeKind::Enum(_)
+            | JSTypeKind::Function(_)
+            | JSTypeKind::PrototypeObject(_)
+            | JSTypeKind::Record(_) => {
+                let prototype = reg.prototype_data(self);
+                prototype.class_name.is_some() || prototype.owner_function.is_some()
+            }
+            _ => self.get_reference_name(reg).is_some(),
+        }
     }
     // port: ObjectType#getNormalizedReferenceName
     fn get_normalized_reference_name(self, reg: &JSTypeRegistry) -> Option<JsString> {
