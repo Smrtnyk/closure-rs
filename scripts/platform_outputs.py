@@ -10,8 +10,9 @@ run: compiles a fixed set of inputs with BIN, from the repository root and with 
 compiler's stdout, stderr and exit code (<name>.stdout, <name>.stderr, <name>.exit). The
 compiles are a small smoke input (also with --json_streams), and every DIR/*.args file (one
 compiler flag per line; `scripts/run_bench.py --job REGEX --write-args DIR` writes them for the
-benchmark projects of bench/projects.json), its --js_output_file replaced, with a few extra
-flag variants. The output folder has the same relative path on every platform because source
+benchmark projects of bench/projects.json), with a few extra flag variants. Single-file builds
+write to --out via --js_output_file. Chunked builds write their chunks, maps and renaming reports
+there as well. The output folder has the same relative path on every platform because source
 maps and diagnostics name it. Exit code 1 when a compile does not exit 0 or DIR has no .args file.
 
 compare: byte-compares the files of every DIR with those of the first one (each DIR is one
@@ -96,6 +97,17 @@ def run(a):
         with open(os.path.join(a.args, f), encoding='utf-8') as fh:
             flags = [line for line in fh.read().splitlines()
                      if line and not line.startswith('--js_output_file=')]
+        if any(flag.startswith('--chunk_output_path_prefix=') for flag in flags):
+            # Chunk builds write several files. Keep %outname% in their source map flag.
+            destinations = ('--chunk_output_path_prefix=', '--property_renaming_report=',
+                            '--variable_renaming_report=')
+            for i, flag in enumerate(flags):
+                if flag.startswith(destinations):
+                    option, _, path = flag.partition('=')
+                    basename = os.path.basename(path).removeprefix(name + '-')
+                    flags[i] = f'{option}={rel(out)}/{name}.{basename}'
+            jobs.append((name, flags, None))
+            continue
         jobs.append((name, flags + to_files(name), None))
         jobs += [(f'{name}-{suffix}', flags + extra + to_files(f'{name}-{suffix}'), None)
                  for base, suffix, extra in VARIANTS if base == name]

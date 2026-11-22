@@ -15,20 +15,21 @@ go to `bench/results/` (git-ignored, see `results/README.md`).
 
 ## The benchmarks
 
-`projects.json` pins every input: repository, tag, exact commit, license, the sha256 of the
-fetched tree (and of the tarball, for fabric) and the jobs. Each job is compiled twice, at
-`--compilation_level=SIMPLE` and at `ADVANCED`, always with
+`projects.json` pins each input's repository, tag, commit, license and tree hash. The suite
+compiles each job at SIMPLE and ADVANCED. The library and bundle jobs use the following flags
+and the default warning level.
 
 ```
 --language_in=ECMASCRIPT_NEXT --language_out=ECMASCRIPT_2015
 --module_resolution=NODE --dependency_mode=PRUNE --entry_point=<entry> --js=<file>... --js_output_file=<out>
 ```
 
-with the default warning level, so the many type-check warnings that third-party code produces
-are part of the output that must match.
+The ONLYOFFICE spreadsheet job uses the editor's ES5 chunk build. Diagnostics are compared
+at the warning level configured for each job.
 
 | Project | What | Why |
 |---|---|---|
+| `onlyoffice-cell` | ONLYOFFICE spreadsheet editor 9.2.0.119, 394 JavaScript files (34.93 MB) and seven extern files. | Exercises optimization across two dependent chunks of a production application, including the formula engine, layout and shared editor code. |
 | `d3-12` | 12 d3 packages (d3-array, d3-color, d3-format, d3-interpolate, d3-path, d3-shape, d3-time, d3-time-format, d3-scale, d3-selection, d3-hierarchy, d3-geo), **each compiled separately** from its `src/index.js` into one standalone ES2015 file: 12 compiles per level. | Mirrors the primary real workload: a project of 12 independent module directories, each with an `index.js` entry point, of varying sizes, built into 12 standalone ES2015 files by 12 separate compiles. Its result is the total of the 12 compiles. The packages are laid out as `bench-cache/d3-12/node_modules/<package>/`; a package's job passes its own sources and those of the d3 packages it imports (and `internmap`, d3-array's dependency), with their `package.json` files, and NODE resolution finds them. |
 | `three` | three.js r186, entry `src/Three.js` (about 750 ES modules, 4.6 MB). | One large ES-module graph with heavy JSDoc. |
 | `lodash-es` | lodash 4.17.21-es, entry `lodash.js` (about 640 tiny ES modules). | Many small modules: per-file overheads, module rewriting. |
@@ -39,7 +40,17 @@ are part of the output that must match.
 | `fabric-srcmap` | `fabric`'s `dist/index.mjs` with the tarball's `dist/index.mjs.map` (rollup's map, with `sourcesContent`) as the input source map. | A bundle compiled with its bundler's source map, as projects ship them: adds `--create_source_map=%outname%.map --source_map_include_content --source_map_input=<bundle>\|<bundle>.map`, so parsing the input map, mapping every node back through it and writing the output map with all sources are measured (and the map compared byte for byte). |
 | `three-srcmap`, `d3-bundle-srcmap`, `lodash-bundle-srcmap` | The `three-bundle`, `d3-bundle` and `lodash-bundle` files, each re-emitted with a source map back to the original (see below). | As `fabric-srcmap`, for bundles that ship no map. |
 
-Inputs and flags that are not the library's own:
+### Workload details
+
+- **ONLYOFFICE spreadsheet editor.** The browser SDK build takes 38 files for `sdk-all-min`
+  and 356 for `sdk-all`, in the order specified by `configs/cell.json`. The benchmark uses
+  the editor's externs, defines, ES5 output, quiet diagnostics and browser wrapper. The
+  checkout includes the input map referenced by the Socket.IO extern. The upstream `--map`
+  option writes a source map with embedded sources for each chunk and a variable renaming
+  report. ADVANCED also writes a property renaming report. Both chunks, their maps and the
+  reports are compared byte for byte. ADVANCED, the upstream default, emits 10.9 MB of
+  JavaScript and 88.4 MB of source maps. The benchmark omits the date-dependent packaging
+  banner. [Upstream build](https://github.com/ONLYOFFICE/sdkjs/blob/d3a855ac3507629dbd4b5506aafc3213b8715d2f/build/Gruntfile.js#L264-L291) · [Ordered inputs](https://github.com/ONLYOFFICE/sdkjs/blob/d3a855ac3507629dbd4b5506aafc3213b8715d2f/configs/cell.json)
 
 - **Generated bundles with maps** (`three-srcmap`, `d3-bundle-srcmap`, `lodash-bundle-srcmap`,
   kind `closure-map` in `projects.json`): `scripts/fetch_bench.sh` makes them from the fetched
@@ -73,6 +84,7 @@ scripts/fetch_bench.sh                      # fetch and verify all projects into
 cargo build --release -p closure-cli        # target/release/closure-rs
 python3 scripts/run_bench.py                # all jobs, 3 repetitions, medians
 python3 scripts/run_bench.py --project d3-12 --level ADVANCED --reps 5
+python3 scripts/run_bench.py --project onlyoffice-cell --level ADVANCED --reps 5 --fail-on-mismatch
 python3 scripts/run_bench.py --job '^three/' --impl java    # only Java
 python3 scripts/run_bench.py --job '^fabric/SIMPLE$' --reps 1 --keep-failing --no-save
 python3 scripts/run_bench.py --job '^fabric/SIMPLE$' --print-args  # the argv, one argument per line
@@ -126,6 +138,26 @@ Run by hand, `java-comparison.yml` does this on one GitHub runner: it builds the
 `ab_base` input (default `main`) next to the run's own and puts the report in the run summary
 (input `ab_rounds`, default 5; an empty `ab_base` skips it). Both are plain release builds, not
 profile-guided.
+
+## Reproducing the README tables
+
+Run these commands from the repository root on Linux x64 with the pinned JDK and reference jar installed.
+
+```sh
+scripts/fetch_bench.sh
+npm install --prefix build/bench/npm --no-save --ignore-scripts closure-rs@20261117.2.0
+python3 scripts/run_bench.py --bin build/bench/npm/node_modules/closure-rs/bin/linux-x64/closure-rs \
+  --project onlyoffice-cell --project three-srcmap --project fabric-srcmap \
+  --project d3-bundle-srcmap --project lodash-bundle-srcmap --reps 5 --fail-on-mismatch
+```
+
+For the release comparison, run both published binaries on the same machine.
+
+```sh
+npm install --prefix build/bench/previous --no-save --ignore-scripts closure-rs@20261117.1.0
+python3 scripts/bench_ab.py --base build/bench/previous/node_modules/closure-rs/bin/linux-x64/closure-rs \
+  --head build/bench/npm/node_modules/closure-rs/bin/linux-x64/closure-rs --variants --rounds 6
+```
 
 ## Adding a benchmark
 

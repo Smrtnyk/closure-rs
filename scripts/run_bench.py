@@ -16,8 +16,8 @@ and run with cwd = the repository root, a fixed minimal environment and stdin /d
 repetition runs Java, then Rust, under /usr/bin/time (a small process, so its child's ru_maxrss
 is the compiler's own peak RSS); wall time is measured around it. The medians of the
 repetitions are reported. Every run's exit code, stdout, stderr, output file and the other
-files it writes next to it (a source map) are compared byte for byte with Java's first run;
-a difference is a porting defect to report, not a benchmark failure.
+files it writes next to it (source maps, chunks and renaming reports) are compared byte for
+byte with Java's first run. Report any difference as a porting defect.
 
 --variants adds the flag variants of scripts/platform_outputs.py (VARIANTS: ES5 output, pretty
 print with the sources in the source map, an IIFE wrapper) on the jobs they name, each also
@@ -101,25 +101,44 @@ def expand(patterns: list[str]) -> list[str]:
     return files
 
 
+def onlyoffice_cell_job(source: str, flags: list[str]) -> dict:
+    """The browser build of sdkjs. The manifest order sets both chunk boundaries."""
+    def config(name):
+        path, = expand([f"{source}/configs/{name}"])
+        with open(os.path.join(ROOT, path), encoding="utf-8") as f:
+            return json.load(f)
+
+    sdk = config("cell.json")["sdk"]
+    externs = config("externs.json")["externs"]
+    return {"entry_point": None, "main_chunk": "sdk-all",
+            "js": [f"{source}/{path}" for path in sdk["min"] + sdk["common"]],
+            "flags": [*flags, *(f"--externs={source}/{path}" for path in externs),
+                      f"--chunk=sdk-all-min:{len(sdk['min'])}",
+                      f"--chunk=sdk-all:{len(sdk['common'])}:sdk-all-min"]}
+
+
 def load_jobs(spec: dict, selected=lambda job: True) -> list[dict]:
     """The jobs of bench/projects.json for which `selected` holds; only their inputs must exist."""
     jobs = []
     for proj in spec["projects"]:
         for job in proj["jobs"]:
             for level in spec["levels"]:
-                advanced_entry = level == "ADVANCED" and job.get("advanced_entry_point")
-                entry = job["advanced_entry_point"] if advanced_entry else job["entry_point"]
                 meta = {"project": proj["name"], "job": job["name"], "level": level,
                              "id": f"{proj['name']}/{job['name']}/{level}"
                                    if proj["name"] != job["name"] else f"{job['name']}/{level}"}
                 if not selected(meta):
                     continue
+                flags = [f"--compilation_level={level}", *proj["flags"]]
+                if "onlyoffice_sdk" in job:
+                    jobs.append({**meta, **onlyoffice_cell_job(job["onlyoffice_sdk"], flags)})
+                    continue
+                advanced_entry = level == "ADVANCED" and job.get("advanced_entry_point")
+                entry = job["advanced_entry_point"] if advanced_entry else job["entry_point"]
                 js = expand(job["js"])
                 if advanced_entry:
                     js = [entry] + js
                 jobs.append({**meta, "entry_point": entry, "js": js,
-                             "flags": [f"--compilation_level={level}", *proj["flags"],
-                                       f"--entry_point={entry}"]})
+                             "flags": [*flags, f"--entry_point={entry}"]})
     return jobs
 
 
@@ -147,8 +166,13 @@ def variant_jobs(jobs: list[dict]) -> list[dict]:
 def compiler_args(job: dict, out_file: str) -> list[str]:
     if "stdin" in job:  # --json_streams: the inputs come on stdin, the output goes to stdout
         return list(job["flags"])
-    args = [*job["flags"], *(f"--js={f}" for f in job["js"]), *job.get("extra", []),
-            f"--js_output_file={out_file}"]
+    args = [*job["flags"], *(f"--js={f}" for f in job["js"]), *job.get("extra", [])]
+    if "main_chunk" in job:
+        prefix = out_file.removesuffix(".js") + "-"
+        return [*args, f"--chunk_output_path_prefix={prefix}",
+                f"--property_renaming_report={prefix}properties.txt",
+                f"--variable_renaming_report={prefix}variables.txt"]
+    args.append(f"--js_output_file={out_file}")
     if job.get("source_map"):
         args.append(f"--create_source_map={out_file}.map")
     return args
@@ -343,6 +367,8 @@ def main() -> int:
     for n, job in enumerate(jobs, 1):
         out_rel = f"build/bench/run/{job['project']}-{job['job']}-{job['level']}/out.js"
         args = compiler_args(job, out_rel)
+        if "main_chunk" in job:
+            out_rel = out_rel.removesuffix(".js") + f"-{job['main_chunk']}.js"
         runs = {i: [] for i in impls}
         for rep in range(a.reps):
             for impl in impls:
@@ -381,7 +407,8 @@ def main() -> int:
                     r = runs[impl][0]
                     for k in ("stdout", "stderr", "output"):
                         if r[k] is not None:
-                            with open(os.path.join(d, k if k != "output" else "out.js"), "wb") as f:
+                            filename = os.path.basename(out_rel) if k == "output" else k
+                            with open(os.path.join(d, filename), "wb") as f:
                                 f.write(r[k])
                     for name, data in r["extra_files"].items():
                         if data is not None:

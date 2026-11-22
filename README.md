@@ -64,46 +64,48 @@ systems, [build from source](#building); those builds are not tested by the proj
 
 ### Java and closure-rs
 
-Each Java compile ran `google-closure-compiler` version `20261116.0.0` in a fresh OpenJDK 21
-JVM with default settings (`java -jar`). Each Rust compile used the profile-guided Linux x64
-binary shipped in `closure-rs@20261116.2.0`. Wall time and peak resident set size (RSS) are
-medians of five compiles per compiler on one GitHub-hosted Ubuntu 24.04 runner
-(4 Intel Xeon 6975P-C vCPUs).
-Speedup is Java wall time divided by closure-rs wall time.
+The table compares the Java reference compiler at `v20261117` with the profile-guided Linux
+x64 binary shipped in `closure-rs@20261117.2.0`. Wall time and peak resident set size (RSS)
+are medians of five fresh processes per compiler on one Fedora 45 workstation with a 16-core
+AMD Ryzen 9 9950X. Java ran on Temurin 21.0.12.1 with default JVM settings. Speedup is Java
+wall time divided by closure-rs wall time, calculated before rounding.
 
-| Bundle | Level | Java | closure-rs | Speedup | Java peak RSS | closure-rs peak RSS |
+| Project (JavaScript input) | Level | Java | closure-rs | Speedup | Java peak RSS | closure-rs peak RSS |
 |---|---|---:|---:|---:|---:|---:|
-| three.js r186 (1.3 MB) | ADVANCED | 9.64 s | 1.63 s | 5.9× | 603 MiB | 321 MiB |
-|  | SIMPLE | 6.71 s | 1.00 s | 6.7× | 574 MiB | 293 MiB |
-| fabric.js 7.4.0 (0.8 MB) | ADVANCED | 7.54 s | 1.24 s | 6.1× | 532 MiB | 259 MiB |
-|  | SIMPLE | 4.54 s | 0.62 s | 7.3× | 505 MiB | 211 MiB |
-| d3 7.9.0 (0.6 MB) | ADVANCED | 7.35 s | 1.24 s | 5.9× | 565 MiB | 255 MiB |
-|  | SIMPLE | 5.34 s | 0.75 s | 7.1× | 599 MiB | 215 MiB |
-| lodash 4.17.21 (0.2 MB) | ADVANCED | 5.01 s | 0.56 s | 8.9× | 414 MiB | 193 MiB |
-|  | SIMPLE | 3.20 s | 0.30 s | 10.7× | 358 MiB | 151 MiB |
+| ONLYOFFICE spreadsheet SDK 9.2.0.119 (34.9 MB) | ADVANCED | 33.31 s | 17.25 s | 1.9× | 2,254 MiB | 2,159 MiB |
+|  | SIMPLE | 24.07 s | 11.13 s | 2.2× | 2,905 MiB | 2,120 MiB |
+| three.js r186 (1.3 MB) | ADVANCED | 4.68 s | 0.84 s | 5.6× | 672 MiB | 288 MiB |
+|  | SIMPLE | 3.16 s | 0.53 s | 6.0× | 645 MiB | 243 MiB |
+| fabric.js 7.4.0 (0.8 MB) | ADVANCED | 3.94 s | 0.61 s | 6.4× | 683 MiB | 228 MiB |
+|  | SIMPLE | 2.36 s | 0.31 s | 7.5× | 590 MiB | 171 MiB |
+| d3 7.9.0 (0.6 MB) | ADVANCED | 3.87 s | 0.64 s | 6.1× | 685 MiB | 232 MiB |
+|  | SIMPLE | 2.62 s | 0.39 s | 6.8× | 855 MiB | 175 MiB |
+| lodash 4.17.21 (0.2 MB) | ADVANCED | 2.59 s | 0.26 s | 10.1× | 593 MiB | 162 MiB |
+|  | SIMPLE | 1.66 s | 0.14 s | 11.7× | 552 MiB | 115 MiB |
 
-The three.js input contains `three.core.js` and `three.module.js`. All four bundles use
-`--source_map_input`, `--create_source_map`, `--source_map_include_content` and
-`--language_out=ECMASCRIPT_2015`. JavaScript, source maps, diagnostics and exit codes matched
-in all 40 paired runs.
+The ONLYOFFICE browser build compiles 394 source files into two dependent ES5 chunks with
+source maps and renaming reports. At ADVANCED it took closure-rs 20× as long as three.js.
+The four library bundles use ES2015 output and input source maps. All 50 paired runs exited
+successfully, with byte-identical JavaScript, source maps and diagnostics.
+[Benchmark inputs and reproduction commands](bench/README.md#reproducing-the-readme-tables)
 
 ### Change from the previous release
 
-On the same runner, the published Linux x64 binaries for `20261116.1.0` and `20261116.2.0`
-compiled 48 jobs over five rounds, alternating which version ran first. Half of the jobs
-compile individual D3 packages. Each row shows the percentage change in the geometric mean
-across its jobs, using the five-run median for each job and version. A negative value
-means less time or memory.
+On the same workstation, the published Linux x64 binaries for `20261117.1.0` and `20261117.2.0`
+compiled all 50 jobs over six rounds, alternating which version ran first. The percentages
+compare the new release with the previous one using the geometric mean of the per-job median
+ratios. A negative value means less time or memory.
 
 | Workload | Jobs | Wall time | CPU time | Peak RSS |
 |---|---:|---:|---:|---:|
-| SIMPLE | 22 | −6.1% | −6.1% | +0.1% |
-| ADVANCED | 22 | −3.9% | −4.1% | +0.3% |
-| Flag variants | 4 | −2.8% | −2.7% | −0.2% |
-| All jobs | 48 | −4.8% | −4.9% | +0.2% |
+| SIMPLE | 23 | −3.7% | −4.7% | +0.8% |
+| ADVANCED | 23 | −9.3% | −10.4% | −3.1% |
+| Flag variants | 4 | −8.0% | −8.7% | −1.4% |
+| All jobs | 50 | −6.7% | −7.7% | −1.2% |
 
-Across the five individual rounds, the wall-time change for all jobs ranged from −5.1%
-to −4.6%. [Benchmark run and raw measurements](https://github.com/Smrtnyk/closure-rs/actions/runs/44505250844) · [Benchmark inputs and commands](bench/README.md)
+Across individual rounds, the wall-time change for all jobs ranged from −7.8% to −6.1%.
+On ONLYOFFICE alone, `20261117.2.0` used 4.7% less wall time in SIMPLE and 2.9% less in
+ADVANCED. [Benchmark method and commands](bench/README.md#reproducing-the-readme-tables)
 
 ## Versioning
 
