@@ -633,8 +633,16 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `rhino/node.rs` `Ast::track_changes`: the arena records every node whose children, token or
   string change (independently of the compiler's change reports, which some passes omit), so
   that the scope cache sees every change.
-- `jscomp/scope.rs` `ScopeMeta::may_have_vars`: a name lookup passes the scopes in which nothing
-  was ever declared without reading the arena.
+- `jscomp/scope.rs` `ScopeMeta::may_have_vars`: a name lookup passes scopes known to have
+  no declarations without reading the arena.
+- `jscomp/scope.rs` keeps recent ordinary name lookups in a 256-slot direct-mapped table on the
+  compiler. A hit checks the starting scope and the complete spelling. Changes to declarations,
+  mutable scope-data access and reparenting invalidate results that could have observed the
+  affected scope. Scopes allocated since the last lookup can be populated independently.
+  Implicit names still check the current AST and create their slots on demand.
+- `jscomp/reference_collector.rs` passes the resolved traversal scope into each reference.
+  When checking whether an assignment occurs only once in a variable's lifetime,
+  `reference_collection.rs` resolves its declaration once across the enclosing basic blocks.
 - `jscomp/syntactic_scope_creator.rs` `ScopeScanner::scan_script`: a new global scope takes the
   top-level declarations of each unchanged script (the externs, mostly) from the scope cache and
   makes them again through `declareVar`, instead of walking the script's statements.

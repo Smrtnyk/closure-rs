@@ -112,6 +112,47 @@ pub(crate) struct ScopeMirror {
     pub(crate) vars: ChunkedVec<VarMeta>,
 }
 
+/// Recent ordinary NAME resolutions. Each slot checks the starting scope and the full
+/// spelling, including when the cached result is an absent binding.
+#[derive(Debug)]
+pub(crate) struct ScopeLookupCache {
+    entries: Box<[Option<CachedBinding>; 256]>,
+    generation: u64,
+    observed_scopes: usize,
+}
+
+#[derive(Debug)]
+struct CachedBinding {
+    scope: ScopeId,
+    name: JsString,
+    var: Option<VarId>,
+    generation: u64,
+}
+
+impl Default for ScopeLookupCache {
+    fn default() -> Self {
+        Self {
+            entries: Box::new(std::array::from_fn(|_| None)),
+            generation: 0,
+            observed_scopes: 0,
+        }
+    }
+}
+
+impl ScopeLookupCache {
+    fn invalidate(&mut self, scope: ScopeId) {
+        // A scope allocated after the last result was stored cannot be in a cached
+        // parent chain. Reparenting an existing scope calls this method too.
+        if scope.index() < self.observed_scopes {
+            self.observed_scopes = 0;
+            self.generation = self.generation.wrapping_add(1);
+            if self.generation == 0 {
+                self.entries.fill_with(|| None);
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ScopeMeta {
     pub(crate) root_node: NodeId,
@@ -119,8 +160,8 @@ pub(crate) struct ScopeMeta {
     pub(crate) depth: i32,
     /// Rust-only: kept for reuse by the `SyntacticScopeCache`.
     pub(crate) kept: bool,
-    /// Rust-only: false while no var was ever declared in the scope, so that a name lookup
-    /// passes it without reading the arena.
+    /// False while the scope is known to have no explicit declarations. This lets a
+    /// name lookup pass it without reading the arena.
     pub(crate) may_have_vars: bool,
 }
 
@@ -229,15 +270,34 @@ impl ScopeId {
         None
     }
 
-    /// Rust-only: `getVar(n.getString())` for a NAME (or IMPORT_STAR) node `n`, reading the
-    /// name in place instead of cloning it (performance divergence).
+    /// Resolve a NAME or IMPORT_STAR node in this scope. Repeated ordinary lookups
+    /// reuse their result. Implicit names consult the current AST and can create a slot.
     pub fn get_var_of_node(self, compiler: &mut AbstractCompiler, n: NodeId) -> Option<VarId> {
-        let name = n.get_string_ref(compiler);
-        if ImplicitVar::of(name).is_none() {
-            return self.get_declared_var(compiler, name);
+        let name = n.get_string_ref(&compiler.ast);
+        let cache = &compiler.scope_lookups;
+        let index =
+            (name.hash_code() as usize ^ self.index().wrapping_mul(31)) & (cache.entries.len() - 1);
+        if let Some(entry) = &cache.entries[index]
+            && entry.scope == self
+            && entry.generation == cache.generation
+            && entry.name == *name
+        {
+            return entry.var;
         }
-        let name = name.clone();
-        <Self as AbstractScope>::get_var(self, compiler, &name)
+        if ImplicitVar::of(name).is_some() {
+            let name = name.clone();
+            return <Self as AbstractScope>::get_var(self, compiler, &name);
+        }
+        let var = self.get_declared_var(compiler, name);
+        let cache = &mut compiler.scope_lookups;
+        cache.observed_scopes = compiler.scope_mirror.scopes.len();
+        cache.entries[index] = Some(CachedBinding {
+            scope: self,
+            name: name.clone(),
+            var,
+            generation: cache.generation,
+        });
+        var
     }
 
     // port: Scope#untyped
@@ -389,6 +449,7 @@ impl ScopeId {
     /// Rust-only (performance divergence): moves a scope that the `SyntacticScopeCache` hands out
     /// again under a new parent at the same depth (the parent's scope was scanned anew).
     pub(crate) fn set_parent(self, compiler: &mut AbstractCompiler, parent: ScopeId) {
+        compiler.scope_lookups.invalidate(self);
         ScopeArena::write(compiler).scopes[self.index()].parent = Some(parent);
         compiler.scope_mirror.scopes[self.index()].parent = Some(parent);
     }
@@ -447,6 +508,8 @@ impl AbstractScope for ScopeId {
     }
 
     fn scope_data_mut(self, compiler: &mut AbstractCompiler) -> Self::DataMut<'_> {
+        compiler.scope_lookups.invalidate(self);
+        compiler.scope_mirror.scopes[self.index()].may_have_vars = true;
         TypedArenaMut::new(
             ScopeArena::write(compiler),
             self.index(),
@@ -485,6 +548,7 @@ impl AbstractScope for ScopeId {
     /// the `SyntacticScopeCache` keeps makes it unfit for reuse. Also notes that the scope may now
     /// have vars (`ScopeMeta::may_have_vars`).
     fn note_mutation(self, compiler: &mut AbstractCompiler) {
+        compiler.scope_lookups.invalidate(self);
         let meta = &mut compiler.scope_mirror.scopes[self.index()];
         meta.may_have_vars = true;
         let meta = *meta;
@@ -893,5 +957,68 @@ impl StaticTypedRef for VarView {
                 })
                 .get_static_source_file(ast)
         })
+    }
+}
+
+#[cfg(test)]
+mod lookup_tests {
+    use super::*;
+    use closure_rhino::token::Token;
+
+    #[test]
+    fn lookups_follow_shadowing_reparenting_and_raw_scope_mutations() {
+        let mut compiler = AbstractCompiler::new();
+        let root = compiler.ast.new_node(Token::ROOT);
+        let global = ScopeId::create_global_scope(&mut compiler, root);
+        let function = compiler.ast.new_node(Token::FUNCTION);
+        let local = ScopeId::create_child_scope(&mut compiler, global, function);
+        let name = compiler.ast.new_string_with_token(Token::NAME, "Aa");
+        assert_eq!(local.get_var_of_node(&mut compiler, name), None);
+        let outer = global.declare(&mut compiler, "Aa", None, None);
+        assert_eq!(local.get_var_of_node(&mut compiler, name), Some(outer));
+        let inner = local.declare(&mut compiler, "Aa", None, None);
+        assert_eq!(local.get_var_of_node(&mut compiler, name), Some(inner));
+        local.undeclare(&mut compiler, inner);
+        assert_eq!(local.get_var_of_node(&mut compiler, name), Some(outer));
+
+        // The new parent was allocated after the scope that initiates the lookup.
+        let other_root = compiler.ast.new_node(Token::ROOT);
+        let other = ScopeId::create_global_scope(&mut compiler, other_root);
+        local.set_parent(&mut compiler, other);
+        assert_eq!(local.get_var_of_node(&mut compiler, name), None);
+        other
+            .scope_data_mut(&mut compiler)
+            .vars
+            .insert("Aa".into(), inner);
+        assert_eq!(local.get_var_of_node(&mut compiler, name), Some(inner));
+
+        // Java String.hashCode is identical for these spellings.
+        name.set_string(&mut compiler.ast, "BB");
+        assert_eq!(local.get_var_of_node(&mut compiler, name), None);
+        let colliding = other.declare(&mut compiler, "BB", None, None);
+        assert_eq!(local.get_var_of_node(&mut compiler, name), Some(colliding));
+        name.set_string(&mut compiler.ast, "Aa");
+        assert_eq!(local.get_var_of_node(&mut compiler, name), Some(inner));
+        other.scope_data_mut(&mut compiler).vars.clear();
+        assert_eq!(local.get_var_of_node(&mut compiler, name), None);
+    }
+
+    #[test]
+    fn arguments_lookup_observes_the_current_arrow_function_flag() {
+        let mut compiler = AbstractCompiler::new();
+        let root = compiler.ast.new_node(Token::ROOT);
+        let global = ScopeId::create_global_scope(&mut compiler, root);
+        let first = compiler.ast.new_node(Token::FUNCTION);
+        let outer = ScopeId::create_child_scope(&mut compiler, global, first);
+        let second = compiler.ast.new_node(Token::FUNCTION);
+        let inner = ScopeId::create_child_scope(&mut compiler, outer, second);
+        let name = compiler.ast.new_string_with_token(Token::NAME, "arguments");
+        let outer_var = outer.get_var_of_node(&mut compiler, name).unwrap();
+        let inner_var = inner.get_var_of_node(&mut compiler, name).unwrap();
+        assert_ne!(outer_var, inner_var);
+        second.set_is_arrow_function(&mut compiler.ast, true);
+        assert_eq!(inner.get_var_of_node(&mut compiler, name), Some(outer_var));
+        second.set_is_arrow_function(&mut compiler.ast, false);
+        assert_eq!(inner.get_var_of_node(&mut compiler, name), Some(inner_var));
     }
 }

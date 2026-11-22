@@ -204,6 +204,7 @@ pub struct Compiler {
     pub(crate) scope_arena: std::sync::Arc<std::sync::RwLock<ScopeArena>>,
     /// Rust-only: lock-free copies of the immutable fields of `scope_arena` (see `ScopeMirror`).
     pub(crate) scope_mirror: crate::scope::ScopeMirror,
+    pub(crate) scope_lookups: crate::scope::ScopeLookupCache,
     pub(crate) typed_scope_arena:
         std::sync::Arc<std::sync::RwLock<crate::typed_scope::TypedScopeArena>>,
     /// Rust-only: lock-free copies of immutable `typed_scope_arena` fields.
@@ -316,6 +317,7 @@ impl Compiler {
             ast: Ast::new(),
             scope_arena: ScopeArena::shared(),
             scope_mirror: crate::scope::ScopeMirror::default(),
+            scope_lookups: Default::default(),
             typed_scope_arena: crate::typed_scope::TypedScopeArena::shared(),
             typed_scope_mirror: Vec::new(),
             syntactic_scope_cache: Default::default(),

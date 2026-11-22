@@ -364,7 +364,12 @@ impl<B: Behavior> CollectorCallback<'_, B> {
     }
 
     // port: ReferenceCollector#maybeJumpToHoistedFunction
-    fn maybe_jump_to_hoisted_function(&mut self, var: VarId, t: &mut NodeTraversal<'_>) {
+    fn maybe_jump_to_hoisted_function(
+        &mut self,
+        var: VarId,
+        t: &mut NodeTraversal<'_>,
+        reference_scope: ScopeId,
+    ) {
         let Some((fn_node, var_scope)) = self.pending_hoisted_function(t.get_compiler(), var)
         else {
             return;
@@ -395,7 +400,7 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         // The reference must be recorded with the containing scope, and traverseAtScope skips
         // bleeding function NAME nodes
         let fn_name = fn_node.get_first_child(t.get_compiler()).unwrap();
-        self.add_reference(var, fn_name, t);
+        self.add_reference(var, fn_name, t, reference_scope);
 
         let (compiler, scope_creator) = t.get_compiler_and_scope_creator();
         let fn_scope = scope_creator.create_scope(compiler, fn_node, Some(var_scope));
@@ -447,13 +452,15 @@ impl<B: Behavior> CollectorCallback<'_, B> {
             }
         }
         if has_references {
+            let scope = scope.expect("collected references have a scope");
             for site in &body.sites {
                 match *site {
                     Site::Reference(name, binding) => {
                         if let Some(index) = self.body_bindings[binding as usize].1 {
                             t.position_at_node(name);
                             let block = self.block_stack.back().expect("getLast").clone();
-                            self.reference_map[index].add(Reference::new(name, t, block));
+                            self.reference_map[index]
+                                .add(Reference::in_scope(name, t, block, scope));
                         }
                     }
                     Site::EnterBlock(n) => self.push_new_block(t, n),
@@ -486,6 +493,7 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         v: VarId,
         n: NodeId,
         t: &mut NodeTraversal<'_>,
+        scope: ScopeId,
     ) -> Option<(usize, usize)> {
         if !(self.var_filter)(t.get_compiler(), v)
             || !self.behavior.needs_variable(t.get_compiler(), v)
@@ -495,7 +503,7 @@ impl<B: Behavior> CollectorCallback<'_, B> {
 
         // Create collection if none already
         let block = self.block_stack.back().expect("getLast").clone();
-        let reference = Reference::new(n, t, block);
+        let reference = Reference::in_scope(n, t, block, scope);
         let entry = self.reference_map.entry(v);
         let entry_index = entry.index();
         let collection = entry.or_default();
@@ -598,9 +606,9 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
             }
 
             if let Some(v) = v {
-                added_reference = self.add_reference(v, n, t);
+                added_reference = self.add_reference(v, n, t, scope);
                 if self.collect_hoisted_functions_in_reference_order {
-                    self.maybe_jump_to_hoisted_function(v, t);
+                    self.maybe_jump_to_hoisted_function(v, t, scope);
                 }
             }
         }

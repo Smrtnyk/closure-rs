@@ -25,7 +25,6 @@ use crate::reference::Reference;
 use crate::scope::ScopeId;
 use closure_rhino::check_state;
 use closure_rhino::node::Ast;
-use std::rc::Rc;
 
 /// A collection of references. Can be subclassed to apply checks or store additional state when
 /// adding.
@@ -219,25 +218,25 @@ impl ReferenceCollection {
         };
 
         // Make sure this assignment is not in a loop or an enclosing function.
-        let mut block = r.get_basic_block().cloned();
-        while let Some(b) = block {
-            if b.is_function() {
-                let symbol_scope = r.get_symbol(compiler).unwrap().get_scope(compiler);
-                if symbol_scope.get_closest_hoist_scope(compiler)
-                    != r.get_scope().unwrap().get_closest_hoist_scope(compiler)
-                {
-                    return false;
-                }
+        let Some(mut block) = r.get_basic_block() else {
+            return true;
+        };
+        let symbol_scope = r.get_symbol(compiler).unwrap().get_scope(compiler);
+        loop {
+            if block.is_function() {
+                return symbol_scope.get_closest_hoist_scope(compiler)
+                    == r.get_scope().unwrap().get_closest_hoist_scope(compiler);
+            }
+            if block.get_root() == symbol_scope.get_root_node(compiler) {
                 break;
             }
-            let symbol_scope = r.get_symbol(compiler).unwrap().get_scope(compiler);
-            if b.get_root() == symbol_scope.get_root_node(compiler) {
-                break;
-            }
-            if b.is_loop() {
+            if block.is_loop() {
                 return false;
             }
-            block = b.get_parent().map(Rc::clone);
+            let Some(parent) = block.get_parent() else {
+                break;
+            };
+            block = parent;
         }
 
         true

@@ -60,6 +60,15 @@ impl Reference {
     // port: Reference#Reference(Node,NodeTraversal,BasicBlock)
     pub fn new(name_node: NodeId, t: &mut NodeTraversal<'_>, basic_block: Rc<BasicBlock>) -> Self {
         let scope = t.get_scope();
+        Self::in_scope(name_node, t, basic_block, scope)
+    }
+
+    pub(crate) fn in_scope(
+        name_node: NodeId,
+        t: &mut NodeTraversal<'_>,
+        basic_block: Rc<BasicBlock>,
+        scope: ScopeId,
+    ) -> Self {
         // Java: t.getInput().getInputId(); the id is shared instead of copied per reference.
         let input_id = t.get_input_id_of_input().expect("NodeTraversal#getInput");
         Self::new_private(name_node, Some(basic_block), Some(scope), input_id)
