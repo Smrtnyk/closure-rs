@@ -106,6 +106,7 @@ impl<T: ForwardDeclaredTypeSet + Send> ForwardDeclaredTypeSet for Mutex<T> {
 pub struct JSTypeRegistry {
     pub(crate) types: Vec<JSTypeData>,
     pub(crate) properties: Vec<PropertyData>,
+    property_access_annotations: IndexMap<JsString, crate::property::PropertyAccessAnnotations>,
     pub(crate) resolver: JSTypeResolver,
     pub(crate) empty_template_type_map: Option<Arc<TemplateTypeMap>>,
     reporter: SharedErrorReporter,
@@ -988,6 +989,7 @@ impl JSTypeRegistry {
         let mut registry = Self {
             types: Vec::new(),
             properties: Vec::new(),
+            property_access_annotations: IndexMap::default(),
             resolver: JSTypeResolver::new(),
             empty_template_type_map: None,
             reporter: SharedErrorReporter::new(reporter),
@@ -1041,6 +1043,27 @@ impl JSTypeRegistry {
     pub(crate) fn data_mut(&mut self, id: TypeId) -> &mut JSTypeData {
         &mut self.types[id.0 as usize]
     }
+    pub fn property_access_annotations(
+        &self,
+        key: &JsString,
+    ) -> crate::property::PropertyAccessAnnotations {
+        self.property_access_annotations
+            .get(key)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn note_property_access_annotations(
+        &mut self,
+        key: JsString,
+        annotations: crate::property::PropertyAccessAnnotations,
+    ) {
+        self.property_access_annotations
+            .entry(key)
+            .or_default()
+            .include(annotations);
+    }
+
     pub(crate) fn property(&self, id: PropertyId) -> &PropertyData {
         &self.properties[id.0 as usize]
     }

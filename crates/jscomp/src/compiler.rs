@@ -641,7 +641,15 @@ impl Compiler {
 
     /// Rust-only: reports, in order, the errors the type registry's reporter queued
     /// (`QueueingOldRhinoErrorReporter`), as Java's reporter would have through `Compiler#report`.
+    #[inline]
     pub fn report_queued_type_registry_errors(&mut self) {
+        if self.queued_type_registry_errors.has_pending() {
+            self.drain_type_registry_errors();
+        }
+    }
+
+    #[cold]
+    fn drain_type_registry_errors(&mut self) {
         let queued = self.queued_type_registry_errors.take();
         for error in queued {
             self.report_now(error);
@@ -3441,28 +3449,33 @@ impl Compiler {
         self.get_type_registry_and_ast().0
     }
     /// Rust-only: `Compiler#getTypeRegistry` together with the arena its methods read, split-borrowed.
+    #[inline]
     pub fn get_type_registry_and_ast(&mut self) -> (&mut closure_jstype::JSTypeRegistry, &mut Ast) {
         // Errors the registry queued since the last call reach the error manager first.
         self.report_queued_type_registry_errors();
         if self.type_registry.is_none() {
-            assert!(
-                !self.has_type_checking_run(),
-                "Attempted to re-initialize JSTypeRegistry after it had been cleared"
-            );
-            // oldErrorReporter = RhinoErrorReporter.forOldRhino(this)
-            let old_error_reporter =
-                crate::rhino_error_reporter::QueueingOldRhinoErrorReporter::new(Arc::clone(
-                    &self.queued_type_registry_errors,
-                ));
-            self.type_registry = Some(
-                closure_jstype::JSTypeRegistry::new_with_shared_forward_declared_types(
-                    &mut self.ast,
-                    Box::new(old_error_reporter),
-                    self.forward_declared_types.clone(),
-                ),
-            );
+            self.initialize_type_registry();
         }
         (self.type_registry.as_mut().unwrap(), &mut self.ast)
+    }
+
+    #[cold]
+    fn initialize_type_registry(&mut self) {
+        assert!(
+            !self.has_type_checking_run(),
+            "Attempted to re-initialize JSTypeRegistry after it had been cleared"
+        );
+        // oldErrorReporter = RhinoErrorReporter.forOldRhino(this)
+        let old_error_reporter = crate::rhino_error_reporter::QueueingOldRhinoErrorReporter::new(
+            Arc::clone(&self.queued_type_registry_errors),
+        );
+        self.type_registry = Some(
+            closure_jstype::JSTypeRegistry::new_with_shared_forward_declared_types(
+                &mut self.ast,
+                Box::new(old_error_reporter),
+                self.forward_declared_types.clone(),
+            ),
+        );
     }
     /// Rust-only: the `typeRegistry` field (as `Compiler#getAstAnalyzer` hands it to
     /// `new AstAnalyzer(..)`, possibly null) together with the arena, split-borrowed.

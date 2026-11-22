@@ -152,6 +152,10 @@ impl AccessControlUtils {
         } else {
             Some(reference_type)
         };
+        if !reg.property_access_annotations(property_name).visibility {
+            Self::finish_prototype_walk(reg, ast, current);
+            return None;
+        }
         while let Some(cur) = current {
             let doc_info = cur.get_own_property_jsdoc_info(reg, ast, property_name);
             if doc_info.is_some_and(|d| d.get_visibility() != Visibility::INHERITED) {
@@ -160,6 +164,18 @@ impl AccessControlUtils {
             current = cur.get_implicit_prototype(reg, ast);
         }
         None
+    }
+
+    /// A prototype getter can initialize a constructor's prototype. Preserve those reads
+    /// when an unannotated spelling lets us omit the lookup in each object's property map.
+    pub(crate) fn finish_prototype_walk(
+        reg: &mut JSTypeRegistry,
+        ast: &Ast,
+        mut current: Option<TypeId>,
+    ) {
+        while let Some(ty) = current {
+            current = ty.get_implicit_prototype(reg, ast);
+        }
     }
 
     /// Returns the original visibility of an overridden property.

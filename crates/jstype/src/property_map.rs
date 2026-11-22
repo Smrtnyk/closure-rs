@@ -408,6 +408,16 @@ impl PropertyMap {
         new_prop: PropertyId,
     ) {
         let name = name.into();
+        // PropertyMap also accepts slots created under another name. Such keys must
+        // continue to see any annotation the original slot acquires later.
+        if let PropertyKey::String(key) = &name
+            && !matches!(&reg.property(new_prop).name, PropertyKey::String(actual) if key == actual)
+        {
+            reg.note_property_access_annotations(
+                key.clone(),
+                crate::property::PropertyAccessAnnotations::ALL,
+            );
+        }
         let old_prop = self.get_own_property(reg, ast, &name);
         match name {
             PropertyKey::String(n) => {

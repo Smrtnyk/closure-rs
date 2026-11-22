@@ -397,9 +397,13 @@ impl JSErrorQueue {
         self.pending
             .store(true, std::sync::atomic::Ordering::Release);
     }
+    #[inline]
+    pub(crate) fn has_pending(&self) -> bool {
+        self.pending.load(std::sync::atomic::Ordering::Acquire)
+    }
     /// Removes and returns the queued errors, in order.
     pub fn take(&self) -> Vec<JSError> {
-        if !self.pending.load(std::sync::atomic::Ordering::Acquire) {
+        if !self.has_pending() {
             return Vec::new();
         }
         let mut errors = self.errors.lock().unwrap();

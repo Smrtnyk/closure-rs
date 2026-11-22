@@ -294,3 +294,30 @@ fn declaring_over_an_inferred_string_property_keeps_its_jsdoc_and_previous_map()
     );
     assert_eq!(keys, live.get_all_keys(&mut f.reg, &f.ast));
 }
+
+#[test]
+fn access_annotations_include_replacements_and_alternate_slot_keys() {
+    use closure_rhino::jsdoc_info::{JSDocInfo, Visibility};
+    let mut f = set_up();
+    let mut map = PropertyMap::new();
+    let name = JsString::from("method");
+    let alias = JsString::from("alternate");
+    let slot = PropertyId::new(&mut f.reg, &name, f.number_type, false, None);
+    map.put_property(&mut f.reg, &f.ast, &name, slot);
+    map.put_property(&mut f.reg, &f.ast, &alias, slot);
+    assert!(!f.reg.property_access_annotations(&name).visibility);
+    let mut builder = JSDocInfo::builder();
+    builder.record_visibility(Visibility::PRIVATE);
+    slot.set_jsdoc_info(&mut f.reg, builder.build());
+    assert!(f.reg.property_access_annotations(&name).visibility);
+    let mut builder = JSDocInfo::builder();
+    builder.record_finality();
+    builder.record_deprecated();
+    slot.set_jsdoc_info(&mut f.reg, builder.build());
+    for key in [&name, &alias] {
+        let flags = f.reg.property_access_annotations(key);
+        assert!(flags.visibility && flags.constant && flags.deprecated);
+    }
+    let flags = f.reg.property_access_annotations(&"unrelated".into());
+    assert!(!flags.visibility && !flags.constant && !flags.deprecated);
+}

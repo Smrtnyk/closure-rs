@@ -30,6 +30,8 @@ pub(crate) const ASSIGNMENT: u8 = 4;
 const KIND_MASK: u8 = 7;
 pub(crate) const HAS_FUNCTION: u8 = 8;
 pub(crate) const CHECK_NON_NULLABLE: u8 = 16;
+/// An explicitly typed field on the prototype of a simple global name.
+pub(crate) const PROTOTYPE_FIELD: u8 = 32;
 
 // The high two bits encode common closed property annotations in the embedded externs.
 pub(crate) const NATIVE_NUMBER: u8 = 0x40;

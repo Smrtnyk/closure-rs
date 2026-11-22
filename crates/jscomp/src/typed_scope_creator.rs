@@ -3051,9 +3051,26 @@ impl Callback for AbstractScopeBuilder<'_> {
             return true;
         };
         let mut child = script.get_first_child(t);
+        let mut prototype = None;
         for &record in facts.declarations {
             let statement = child.expect("recorded extern statement");
             child = statement.get_next(t);
+            if record & declarations::PROTOTYPE_FIELD != 0 {
+                let field = statement.get_first_child(t).unwrap();
+                t.position_at_node(field);
+                if self.declare_recorded_prototype_field(
+                    t.get_compiler(),
+                    field,
+                    record,
+                    &mut prototype,
+                ) {
+                    t.position_at_node(statement);
+                    self.visit(t, statement, Some(script));
+                    continue;
+                }
+            }
+            // Any other declaration can replace the prototype binding.
+            prototype = None;
             if record == declarations::OTHER {
                 self.walk_branch(t, statement, Some(script));
                 continue;
@@ -4064,6 +4081,64 @@ impl AbstractScopeBuilder<'_> {
         let ty = compiler.get_type_registry().get_native_type(native);
         root.set_jstype(compiler, Some(ty));
         Some(ty)
+    }
+
+    /// Bind a recorded C.prototype.field declaration to the prototype in the current scope.
+    /// Consecutive successful fields only define properties on that object. No scope slot is
+    /// created or replaced until control returns to the ordinary declaration builder.
+    fn declare_recorded_prototype_field(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        field: NodeId,
+        record: u8,
+        last: &mut Option<(JsString, TypeId)>,
+    ) -> bool {
+        let Some(info) = field.get_jsdoc_info(compiler) else {
+            return false;
+        };
+        if !info.has_type() || info.has_typedef_type() {
+            return false;
+        }
+        let owner = field.get_first_child(compiler).unwrap();
+        let root = owner.get_first_child(compiler).unwrap();
+        let prototype = match last {
+            Some((name, prototype)) if name == root.get_string_ref(compiler) => *prototype,
+            _ => {
+                let name = owner.get_qualified_name(compiler).unwrap();
+                let Some(ty) = self
+                    .current_scope
+                    .get_var(compiler, name)
+                    .and_then(|var| var.get_type(compiler))
+                else {
+                    return false;
+                };
+                let reg = compiler.get_type_registry();
+                if ty.get_type_class(reg)
+                    != closure_jstype::js_type_class::JSTypeClass::PROTOTYPE_OBJECT
+                    || !ty.is_function_prototype_type(reg)
+                {
+                    return false;
+                }
+                *last = Some((root.get_string(compiler), ty));
+                ty
+            }
+        };
+        // The ordinary annotation evaluator resolves the owner's template parameters and
+        // runs the symbol subtype checks, which can initialize types in the live registry.
+        let declared = Self::recorded_property_type(compiler, Some(&info), record)
+            .or_else(|| self.get_declared_type(compiler, Some(info), field, None, None))
+            .expect("explicit type annotation");
+        let name = field.get_string(compiler);
+        self.declare_property_if_namespace_type(
+            compiler,
+            prototype,
+            owner,
+            PropertyKey::String(name),
+            Some(declared),
+            field,
+            None,
+        );
+        true
     }
 
     /// Declare the symbol for a qualified name in the current scope.
@@ -6415,6 +6490,88 @@ mod bundled_declaration_tests {
         let literal = IR::number(&mut ast, 1.0);
         base.replace_with(&mut ast, literal);
         assert_eq!(declarations::bare_property(&ast, statement), None);
+    }
+
+    #[test]
+    fn recorded_prototype_fields_bind_the_current_annotation_and_owner_templates() {
+        fn fields(bundled: bool) -> Vec<String> {
+            let mut compiler = Compiler::new();
+            let externs: Vec<_> = SourceFile::bundled_externs(Environment::BROWSER)
+                .into_iter()
+                .filter(|file| {
+                    file.get_name().ends_with("/w3c_abort.js")
+                        || file.get_name().ends_with("/w3c_event.js")
+                })
+                .map(|file| {
+                    Arc::new(if bundled {
+                        file
+                    } else {
+                        SourceFile::from_code(file.get_name(), file.get_code().unwrap())
+                    })
+                })
+                .collect();
+            let abort_path = externs
+                .iter()
+                .find(|f| f.get_name().ends_with("/w3c_abort.js"))
+                .unwrap()
+                .get_name()
+                .to_owned();
+            compiler.init(
+                &externs,
+                &[Arc::new(SourceFile::from_code("app.js", ""))],
+                CompilerOptions::new(),
+            );
+            let root = compiler.parse_inputs().unwrap();
+            let script = compiler.get_script_node(&abort_path).unwrap();
+            let field = script
+                .children(&compiler)
+                .filter_map(|stmt| stmt.get_first_child(&compiler))
+                .find(|node| {
+                    node.matches_qualified_name(&compiler, "AbortSignal.prototype.aborted")
+                })
+                .unwrap();
+            let annotation = field
+                .get_jsdoc_info(&compiler)
+                .unwrap()
+                .get_type()
+                .unwrap()
+                .get_root();
+            annotation.set_string(&mut compiler, "string");
+
+            let mut creator = TypedScopeCreator::new(&mut compiler);
+            let global = creator.create_scope(&mut compiler, root, None);
+            let mut results = Vec::new();
+            for (owner, field) in [
+                ("AbortSignal.prototype", "aborted"),
+                ("AbortSignal.prototype", "onabort"),
+                ("AbortSignal.prototype", "reason"),
+                ("CustomEvent.prototype", "detail"),
+            ] {
+                let prototype = global
+                    .get_var(&mut compiler, owner)
+                    .unwrap()
+                    .get_type(&compiler)
+                    .unwrap();
+                let (reg, ast) = compiler.get_type_registry_and_ast();
+                let slot = prototype.get_own_slot(reg, ast, field).unwrap();
+                let ty = slot.get_type(reg);
+                if field == "aborted" {
+                    assert_eq!(ty, reg.get_native_type(JSTypeNative::STRING_TYPE));
+                    assert_eq!(annotation.get_jstype(ast), Some(ty));
+                } else if field == "detail" {
+                    let owner = prototype.get_owner_function(reg).unwrap();
+                    assert!(
+                        owner
+                            .get_template_type_map(reg)
+                            .get_template_keys()
+                            .contains(&ty)
+                    );
+                }
+                results.push(ty.to_string(reg, ast));
+            }
+            results
+        }
+        assert_eq!(fields(true), fields(false));
     }
 
     #[test]

@@ -399,6 +399,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   the ordinary visitor.
   For bare properties annotated with `number`, `string` or `boolean`, the build records the
   native type. The scope builder checks the live annotation and binds it to the current registry.
+  Consecutive typed fields on `C.prototype` can share the lookup of that prototype. The
+  builder checks the actual scope binding, evaluates each field's live annotation with its
+  owner's template parameters, and drops the saved binding at the next ordinary declaration.
   The build records property names in traversal order and identifies statements that cannot
   affect the side-effect, module and extern name-reference checks. Each loaded script keeps
   its original last statement and the arena range of the parse, including detached type nodes.
@@ -457,6 +460,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   that slot before constructing the component list for a property-chain lookup.
 - `jstype/js_type_registry.rs` resolves dotted type names one property at a time from the
   source string, and searches namespace prefixes only when the registry has Closure namespaces.
+- The type registry records which property names have carried visibility, constancy or
+  deprecation annotations. Access checks for a name with no such annotation walk the
+  implicit prototypes, whose getters can initialize types, and omit the property-table
+  probes. A property installed under another name is eligible for all three checks.
 - `jstype/js_type.rs` stores large function, enum and proxy payloads behind their registry
   entries. The smaller entries retain the same type handles and allocation order.
   Prototype string-property definitions update the live copy-on-write property table.

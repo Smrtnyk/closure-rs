@@ -88,7 +88,22 @@ fn declaration_records(
             } else {
                 0
             };
+            // A sequence of ordinary typed fields can bind one live prototype.
+            let prototype_field = record == PROPERTY
+                && info.is_some_and(|info| info.has_type())
+                && statement.get_first_child(ast).is_some_and(|property| {
+                    let name = property.get_string_ref(ast);
+                    let owner = property.get_first_child(ast).unwrap();
+                    name != "prototype"
+                        && !name.ends_with(".prototype")
+                        && owner.is_get_prop(ast)
+                        && owner.get_string_ref(ast) == "prototype"
+                        && owner
+                            .get_first_child(ast)
+                            .is_some_and(|root| root.is_name(ast))
+                });
             record
+                | if prototype_field { PROTOTYPE_FIELD } else { 0 }
                 | primitive
                 | if declaration.function.is_some() {
                     HAS_FUNCTION
