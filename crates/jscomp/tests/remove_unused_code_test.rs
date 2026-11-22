@@ -91,6 +91,7 @@ struct RemoveUnusedCodeTest {
     remove_global: bool,
     preserve_function_expression_names: bool,
     disambiguate_properties: bool,
+    single_run: bool,
 }
 
 impl CompilerTestCaseHooks for RemoveUnusedCodeTest {
@@ -99,16 +100,21 @@ impl CompilerTestCaseHooks for RemoveUnusedCodeTest {
         let remove_global = self.remove_global;
         let preserve_function_expression_names = self.preserve_function_expression_names;
         let disambiguate_properties = self.disambiguate_properties;
+        let single_run = self.single_run;
         Ok(DslValue::Pass(Rc::new(RefCell::new(Box::new(
             move |compiler: &mut Compiler, externs: NodeId, root: NodeId| {
-                RemoveUnusedCode::builder(compiler)
+                let mut pass = RemoveUnusedCode::builder(compiler)
                     .remove_local_vars(true)
                     .remove_globals(remove_global)
                     .remove_unused_polyfills(true)
                     .preserve_function_expression_names(preserve_function_expression_names)
                     .disambiguate_properties(disambiguate_properties)
-                    .build()
-                    .process(compiler, externs, root);
+                    .build();
+                if single_run {
+                    Box::new(pass).process_once(compiler, externs, root);
+                } else {
+                    pass.process(compiler, externs, root);
+                }
             },
         )))))
     }
@@ -149,6 +155,7 @@ impl Fixture {
             remove_global: true,
             preserve_function_expression_names: false,
             disambiguate_properties: false,
+            single_run: false,
         };
         Self { h, t }
     }
@@ -171,6 +178,33 @@ impl Fixture {
     // port: CompilerTestCase#testSame(TestPart...)
     fn test_same_parts(&mut self, parts: Vec<TestPart>) {
         self.h.test_same(&mut self.t, parts).unwrap();
+    }
+}
+
+#[test]
+fn guarded_polyfills_across_scripts_with_a_single_run_or_reusable_pass() {
+    let map = "$jscomp.polyfill('Map', function() {}, 'es6', 'es3');";
+    let set = "$jscomp.polyfill('Set', function() {}, 'es6', 'es3');";
+    let guards = "function read() { if (!Map) return; use(Map); if (Set) use(Set); } read();";
+    let bare = "use(Set);";
+    let unrelated = "use('unrelated');";
+    for single_run in [true, false] {
+        let mut fixture = Fixture::new();
+        fixture.t.single_run = single_run;
+        let sources = [
+            JsString::from(format!("{map}{set}")),
+            guards.into(),
+            unrelated.into(),
+            bare.into(),
+        ];
+        let expected = [set.into(), guards.into(), unrelated.into(), bare.into()];
+        fixture.test_parts(vec![
+            TestPart::Externs(CompilerTestCase::externs(format!(
+                "{EXTERNS}\nvar Map;\n{JSCOMP_POLYFILL}"
+            ))),
+            TestPart::Sources(CompilerTestCase::srcs_strings(&sources)),
+            TestPart::Expected(CompilerTestCase::expected_strings(&expected)),
+        ]);
     }
 }
 

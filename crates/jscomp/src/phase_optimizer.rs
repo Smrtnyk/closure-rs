@@ -250,13 +250,13 @@ impl NamedPass {
             pass_gates::Decision::Run => self
                 .factory
                 .create(compiler)
-                .process(compiler, externs, root),
+                .process_once(compiler, externs, root),
             pass_gates::Decision::Skip => {}
             pass_gates::Decision::Verify => {
                 pass_gates::run_verified(&self.name, compiler, externs, root, |compiler| {
                     self.factory
                         .create(compiler)
-                        .process(compiler, externs, root)
+                        .process_once(compiler, externs, root)
                 })
             }
         }

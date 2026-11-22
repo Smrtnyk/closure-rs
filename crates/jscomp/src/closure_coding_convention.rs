@@ -123,6 +123,9 @@ impl Default for ClosureCodingConvention {
     }
 }
 impl CodingConvention for ClosureCodingConvention {
+    fn property_tests_are_pure(&self) -> bool {
+        self.proxy.property_tests_are_pure()
+    }
     // port: ClosureCodingConvention#applySubclassRelationship
     fn apply_subclass_relationship(
         &self,

@@ -21,6 +21,15 @@ use closure_rhino::node::NodeId;
 pub trait CompilerPass {
     // port: CompilerPass#process
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId);
+    /// The optimizer constructs a fresh pass for each run and discards it afterwards.
+    fn process_once(
+        mut self: Box<Self>,
+        compiler: &mut AbstractCompiler,
+        externs: NodeId,
+        root: NodeId,
+    ) {
+        self.process(compiler, externs, root);
+    }
     /// Rust-only: the concrete pass, for test harnesses that set a pass's fields as Java's
     /// tests do through its setters (`None` unless the pass opts in).
     fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {

@@ -121,6 +121,11 @@ pub trait CodingConvention: std::any::Any + Send + Sync + Debug {
     fn describe_caching_call(&self, ast: &Ast, node: NodeId) -> Option<Cache>;
     // port: CodingConvention#isPropertyTestFunction
     fn is_property_test_function(&self, ast: &Ast, call: NodeId) -> bool;
+    /// Whether property-test queries are determined by the AST and have no observable
+    /// side effects. This lets a normalized polyfill guard scan visit scripts on demand.
+    fn property_tests_are_pure(&self) -> bool {
+        false
+    }
     // port: CodingConvention#isPrototypeAlias
     fn is_prototype_alias(&self, ast: &Ast, get_prop: NodeId) -> bool;
     // port: CodingConvention#isPropertyRenameFunction

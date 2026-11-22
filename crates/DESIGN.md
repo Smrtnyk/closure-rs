@@ -598,6 +598,17 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   that passes its local checks triggers backwards analysis before any replacement.
   Large bodies, classes and nested functions with complex parameters keep the eager schedule.
   Both analyses share the function's variable map and escape set by transferring ownership.
+  The backward analysis stores a single reaching CFG node directly. A second distinct
+  node promotes it to a persistent set. At a control-flow join, both the variable map
+  and the node sets share branches present on only one path. The inliner can therefore
+  test for a single use without enumerating the set. The forward analysis keeps the
+  existing definition map when incoming definitions already agree or are already unknown.
+- `jscomp/remove_unused_code.rs` scans a script for guarded polyfill references the first
+  time the optimizer needs to decide whether a reference in that script keeps a polyfill.
+  Each script starts with an empty guard context, and the pass finishes its worklist
+  before it changes the AST. This applies to a single run over normalized scripts with
+  pure property-test queries. Reusable passes, custom passes and other tree shapes use
+  the whole-root traversal.
 - `jscomp/inline_variables.rs` retains an inlining result when another variable may alias it.
 - Token-based peephole rules declare their candidates alongside the rewrite. The pass calls
   rules in upstream order and checks the current token again after each rewrite. Custom

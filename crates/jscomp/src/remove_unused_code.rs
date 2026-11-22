@@ -139,6 +139,8 @@ pub struct RemoveUnusedCode {
     polyfills: JavaHashMultimap<PolyfillInfoId>,
 
     guarded_usages: IndexSet<NodeId>,
+    /// Scripts whose guards have yet to be consulted during a single optimizer run.
+    pending_guard_scripts: Option<IndexSet<NodeId>>,
 
     // Java's `polyfillsFromTable` field is read only by the constructor, which hands it to the
     // finder.
@@ -194,6 +196,7 @@ impl RemoveUnusedCode {
             all_function_param_scopes: Vec::new(),
             polyfills: JavaHashMultimap::create(),
             guarded_usages: IndexSet::<_>::default(),
+            pending_guard_scripts: None,
             polyfill_usage_finder,
             scope_creator,
             remove_unused_prototype_properties: builder.remove_unused_prototype_properties,
@@ -423,6 +426,27 @@ impl RemovalLogRecord {
 }
 
 impl CompilerPass for RemoveUnusedCode {
+    fn process_once(
+        mut self: Box<Self>,
+        compiler: &mut AbstractCompiler,
+        externs: NodeId,
+        root: NodeId,
+    ) {
+        // Every SCRIPT child of ROOT starts with an empty guard context. In a normalized
+        // tree the finder does no scope lookup, and the worklist only analyzes the AST.
+        // All removals happen after the last lookup. A reusable pass keeps upstream's
+        // accumulation of guarded nodes across calls to process.
+        if compiler.get_life_cycle_stage() == crate::abstract_compiler::LifeCycleStage::NORMALIZED
+            && !compiler.get_options().has_custom_passes()
+            && compiler.get_coding_convention().property_tests_are_pure()
+            && root.is_root(compiler)
+            && root.children(compiler).all(|n| n.is_script(compiler))
+        {
+            self.pending_guard_scripts = Some(root.children(compiler).collect());
+        }
+        self.process(compiler, externs, root);
+    }
+
     /// Traverses the root, removing all unused variables. Multiple traversals may occur to ensure
     /// all unused variables are removed.
     // port: RemoveUnusedCode#process
@@ -478,13 +502,9 @@ impl RemoveUnusedCode {
             );
         }
 
-        // Accumulate guarded usages of polyfills before removal starts.
-        let guarded_usages = &mut self.guarded_usages;
-        self.polyfill_usage_finder
-            .traverse_only_guarded(compiler, root, &mut |_, usage| {
-                // port: RemoveUnusedCode#storePolyfill
-                guarded_usages.insert(usage.node());
-            });
+        if self.pending_guard_scripts.is_none() {
+            self.collect_guarded_usages(compiler, root);
+        }
 
         self.worklist.push_back(Continuation::new(root, scope));
         while let Some(continuation) = self.worklist.pop_front() {
@@ -496,6 +516,25 @@ impl RemoveUnusedCode {
         for index in 0..self.all_function_param_scopes.len() {
             self.remove_unreferenced_function_args(compiler, self.all_function_param_scopes[index]);
         }
+    }
+
+    fn collect_guarded_usages(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
+        self.polyfill_usage_finder
+            .traverse_only_guarded(compiler, root, &mut |_, usage| {
+                // port: RemoveUnusedCode#storePolyfill
+                self.guarded_usages.insert(usage.node());
+            });
+    }
+
+    fn is_guarded_polyfill_use(&mut self, compiler: &mut AbstractCompiler, n: NodeId) -> bool {
+        if let Some(pending) = &mut self.pending_guard_scripts
+            && !pending.is_empty()
+            && let Some(script) = NodeUtil::get_enclosing_script(compiler, n)
+            && pending.swap_remove(&script)
+        {
+            self.collect_guarded_usages(compiler, script);
+        }
+        self.guarded_usages.contains(&n)
     }
 
     // port: RemoveUnusedCode#removeIndependentlyRemovableProperties
@@ -4554,7 +4593,7 @@ impl RemoveUnusedCode {
             _ => unreachable!(),
         };
         if self.polyfill_infos[polyfill_info.0].is_removable
-            && (is_patch || !self.guarded_usages.contains(&n))
+            && (is_patch || !self.is_guarded_polyfill_use(compiler, n))
         {
             self.polyfill_info_consider_possible_reference_internal(compiler, polyfill_info, n);
             if !self.polyfill_infos[polyfill_info.0].is_removable {
