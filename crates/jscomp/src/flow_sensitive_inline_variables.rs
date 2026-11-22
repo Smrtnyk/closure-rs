@@ -720,8 +720,7 @@ impl Candidate {
         side_effect_predicate: &SideEffectPredicate,
         scope: ScopeId,
     ) -> bool {
-        if !Self::has_exactly_one(&reaching_uses.get_uses(&self.var_name, self.get_def_cfg_node()))
-        {
+        if !reaching_uses.has_single_use(&self.var_name, self.get_def_cfg_node()) {
             return false;
         }
 
@@ -758,15 +757,6 @@ impl Candidate {
         }
 
         true
-    }
-
-    // port: FlowSensitiveInlineVariables.Candidate#hasExactlyOne
-    fn has_exactly_one(iterable: &[NodeId]) -> bool {
-        let mut iterator = iterable.iter();
-        if iterator.next().is_some() && iterator.next().is_none() {
-            return true;
-        }
-        false
     }
 
     /// Actual transformation.

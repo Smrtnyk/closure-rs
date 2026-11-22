@@ -137,15 +137,11 @@ pub struct MustDefJoin {
 }
 impl MustDefJoin {
     // port: MustBeReachingVariableDef.MustDefJoin#mergeVarDef
-    fn merge_var_def(&mut self, var: VarId, def: Option<Arc<Definition>>) {
-        let result_def = if def.is_none() {
-            None
-        } else if !self.result.reaching_def.contains_key(&var) {
-            def
-        } else if self.result.reaching_def.get(&var) == Some(&def) {
-            return;
-        } else {
-            None
+    fn merge_var_def(&mut self, var: VarId, def: &Option<Arc<Definition>>) {
+        let result_def = match self.result.reaching_def.get(&var) {
+            None => def.clone(),
+            Some(existing) if existing.is_none() || existing == def => return,
+            Some(_) => None,
         };
         Arc::make_mut(&mut self.result.reaching_def).insert(var, result_def);
     }
@@ -159,8 +155,11 @@ impl FlowJoiner<MustDef> for MustDefJoin {
             self.result = input;
             return;
         }
+        if Arc::ptr_eq(&self.result.reaching_def, &input.reaching_def) {
+            return;
+        }
         for (var, def) in input.reaching_def.iter() {
-            self.merge_var_def(*var, def.clone());
+            self.merge_var_def(*var, def);
         }
     }
     // port: MustBeReachingVariableDef.MustDefJoin#finish

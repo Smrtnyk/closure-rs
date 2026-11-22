@@ -315,6 +315,39 @@ fn test_reconcile_rejects_null_result() {
     let right = build(&[2, 4, 6, 8]);
     assert!(std::panic::catch_unwind(|| left.reconcile_nullable(&right, |_, _, _| None)).is_err());
 }
+
+#[test]
+fn union_shares_one_sided_branches_and_merges_colliding_keys() {
+    let key = |i| IntegerWithCustomHashCode::new(i, 42);
+    let left = HamtPMap::empty()
+        .plus(key(1), 10)
+        .plus(key(2), 20)
+        .plus(key(3), 30);
+    let right = HamtPMap::empty()
+        .plus(key(4), 40)
+        .plus(key(3), 30)
+        .plus(key(2), 2);
+    let empty = HamtPMap::empty();
+    assert!(
+        left.union_with(&empty, |_, _, _| unreachable!())
+            .ptr_eq(&left)
+    );
+    assert!(
+        empty
+            .union_with(&right, |_, _, _| unreachable!())
+            .ptr_eq(&right)
+    );
+    let joined = left.union_with(&right, |k, a, b| {
+        assert_eq!(k.i, 2);
+        a - b
+    });
+    assert_eq!(
+        [1, 2, 3, 4].map(|i| joined.get(&key(i)).copied()),
+        [Some(10), Some(18), Some(30), Some(40)]
+    );
+    assert_eq!(left.get(&key(2)), Some(&20));
+    assert_eq!(right.get(&key(2)), Some(&2));
+}
 // port: HamtPMapTest#testEquivalent_equivalent
 #[test]
 fn test_equivalent_equivalent() {

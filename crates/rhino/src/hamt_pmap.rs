@@ -120,9 +120,28 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtPMap<K, V> {
         mut joiner: impl FnMut(&K, Option<&V>, Option<&V>) -> Option<V>,
     ) -> Self {
         Self {
-            root: HamtNode::reconcile(self.root.clone(), that.root.clone(), &mut |k, a, b| {
-                Some(check_not_null!(joiner(k, a, b)))
-            }),
+            root: HamtNode::reconcile::<false>(
+                self.root.clone(),
+                that.root.clone(),
+                &mut |k, a, b| Some(check_not_null!(joiner(k, a, b))),
+            ),
+        }
+    }
+    /// Union of two persistent maps. Calls `merge` for overlapping keys whose values
+    /// compare unequal. Equal values and entire one-sided subtrees are retained.
+    pub fn union_with(&self, other: &Self, mut merge: impl FnMut(&K, &V, &V) -> V) -> Self {
+        Self {
+            root: HamtNode::reconcile::<true>(
+                self.root.clone(),
+                other.root.clone(),
+                &mut |key, a, b| {
+                    Some(match (a, b) {
+                        (Some(left), Some(right)) => merge(key, left, right),
+                        (Some(value), None) | (None, Some(value)) => value.clone(),
+                        (None, None) => unreachable!(),
+                    })
+                },
+            ),
         }
     }
     // port: HamtPMap#equivalent
@@ -349,7 +368,7 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
         }
     }
     // port: HamtPMap#reconcile(HamtPMap, HamtPMap, Reconciler)
-    fn reconcile(
+    fn reconcile<const KEEP_UNMATCHED: bool>(
         t1: Tree<K, V>,
         t2: Tree<K, V>,
         joiner: &mut impl FnMut(&K, Option<&V>, Option<&V>) -> Option<V>,
@@ -358,12 +377,15 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
             return t1;
         }
         let (mut t1, mut t2) = match (t1, t2) {
+            (None, Some(node)) | (Some(node), None) if KEEP_UNMATCHED => return Some(node),
             (None, Some(t2)) => {
                 let value = joiner(t2.key.as_ref().unwrap(), None, t2.value.as_ref());
                 let children = t2
                     .children
                     .iter()
-                    .map(|c| Self::reconcile(None, Some(c.clone()), joiner).unwrap())
+                    .map(|c| {
+                        Self::reconcile::<KEEP_UNMATCHED>(None, Some(c.clone()), joiner).unwrap()
+                    })
                     .collect::<Vec<_>>()
                     .into();
                 return match value {
@@ -382,7 +404,9 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
                 let children = t1
                     .children
                     .iter()
-                    .map(|c| Self::reconcile(Some(c.clone()), None, joiner).unwrap())
+                    .map(|c| {
+                        Self::reconcile::<KEEP_UNMATCHED>(Some(c.clone()), None, joiner).unwrap()
+                    })
                     .collect::<Vec<_>>()
                     .into();
                 return match value {
@@ -413,7 +437,14 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
             key = t2.key.clone();
             hash = t2.hash;
         } else if t1.key != t2.key {
-            t2 = t2.pivot(t1.key.as_ref().unwrap(), t1.hash);
+            let key = t1.key.as_ref().unwrap();
+            // If the left key is absent from a chain of colliding hashes, every right
+            // entry belongs below it. A union must retain the last entry in that chain.
+            t2 = if KEEP_UNMATCHED && t2.get(key, t1.hash).is_none() {
+                t2.vacate_root()
+            } else {
+                t2.pivot(key, t1.hash)
+            };
             same_children_as2 = false;
         }
         let new_value = if t1.value == t2.value {
@@ -435,7 +466,7 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
             mask &= !child_bit;
             let child1 = t1.get_child(child_bit);
             let child2 = t2.get_child(child_bit);
-            let child = Self::reconcile(child1.clone(), child2.clone(), joiner);
+            let child = Self::reconcile::<KEEP_UNMATCHED>(child1.clone(), child2.clone(), joiner);
             same_children_as1 &= same_tree(&child, &child1);
             same_children_as2 &= same_tree(&child, &child2);
             if let Some(child) = child {

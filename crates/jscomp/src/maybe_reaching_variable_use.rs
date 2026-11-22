@@ -30,9 +30,45 @@ use closure_rhino::{
     check_not_null, check_state, hamt_pmap::HamtPMap, js_string::JsString, node::NodeId,
     token::Token,
 };
+/// A variable with one reaching read needs only its CFG node. A second distinct
+/// node promotes it to the same persistent set used for larger unions.
+#[derive(Clone, PartialEq)]
+enum UseSites {
+    One(NodeId),
+    Several(HamtPMap<NodeId, NodeId>),
+}
+
+impl UseSites {
+    fn with_node(&self, node: NodeId) -> Self {
+        match self {
+            Self::One(first) if *first == node => Self::One(node),
+            Self::One(first) => {
+                Self::Several(HamtPMap::empty().plus(*first, *first).plus(node, node))
+            }
+            Self::Several(sites) => Self::Several(sites.plus(node, node)),
+        }
+    }
+
+    fn union(&self, other: &Self) -> Self {
+        match (self, other) {
+            (Self::One(node), sites) | (sites, Self::One(node)) => sites.with_node(*node),
+            (Self::Several(a), Self::Several(b)) => {
+                Self::Several(a.union_with(b, |node, _, _| *node))
+            }
+        }
+    }
+
+    fn equivalent(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Several(a), Self::Several(b)) => a.equivalent(b, PartialEq::eq),
+            _ => self == other,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ReachingUses {
-    may_use_pmap: HamtPMap<VarId, HamtPMap<NodeId, NodeId>>,
+    may_use_pmap: HamtPMap<VarId, UseSites>,
 }
 impl Default for ReachingUses {
     fn default() -> Self {
@@ -54,10 +90,11 @@ impl ReachingUses {
     }
     // port: MaybeReachingVariableUse.ReachingUses#get
     pub fn get(&self, v: VarId) -> Vec<NodeId> {
-        self.may_use_pmap
-            .get(&v)
-            .map(|uses| uses.keys().copied().collect())
-            .unwrap_or_default()
+        match self.may_use_pmap.get(&v) {
+            None => Vec::new(),
+            Some(UseSites::One(node)) => vec![*node],
+            Some(UseSites::Several(sites)) => sites.keys().copied().collect(),
+        }
     }
     // port: MaybeReachingVariableUse.ReachingUses#removeAll
     pub fn remove_all(&mut self, v: VarId) {
@@ -65,46 +102,23 @@ impl ReachingUses {
     }
     // port: MaybeReachingVariableUse.ReachingUses#put
     pub fn put(&mut self, v: VarId, n: NodeId) {
-        let values = self
-            .may_use_pmap
-            .get(&v)
-            .cloned()
-            .unwrap_or_else(HamtPMap::empty);
-        let new_values = values.plus(n, n);
-        if !new_values.ptr_eq(&values) {
-            self.may_use_pmap = self.may_use_pmap.plus(v, new_values);
-        }
+        let sites = match self.may_use_pmap.get(&v) {
+            Some(old) => {
+                let sites = old.with_node(n);
+                if &sites == old {
+                    return;
+                }
+                sites
+            }
+            None => UseSites::One(n),
+        };
+        self.may_use_pmap = self.may_use_pmap.plus(v, sites);
     }
     // port: MaybeReachingVariableUse.ReachingUses#join
     pub fn join(&mut self, other: &Self) {
-        self.may_use_pmap =
-            self.may_use_pmap
-                .reconcile(&other.may_use_pmap, &mut |_: &VarId,
-                                                      this_val: Option<
-                    &HamtPMap<NodeId, NodeId>,
-                >,
-                                                      that_val: Option<
-                    &HamtPMap<NodeId, NodeId>,
-                >| {
-                    if this_val.is_none() {
-                        return that_val.unwrap().clone();
-                    }
-                    if that_val.is_none() {
-                        return this_val.unwrap().clone();
-                    }
-                    this_val.unwrap().reconcile(
-                        that_val.unwrap(),
-                        &mut |node: &NodeId, _: Option<&NodeId>, _: Option<&NodeId>| *node,
-                    )
-                });
-    }
-    // port: MaybeReachingVariableUse.ReachingUses#equalMaps
-    fn equal_maps(map1: &HamtPMap<NodeId, NodeId>, map2: &HamtPMap<NodeId, NodeId>) -> bool {
-        map1.ptr_eq(map2) || map1.equivalent(map2, Self::equal_nodes)
-    }
-    // port: MaybeReachingVariableUse.ReachingUses#equalNodes
-    fn equal_nodes(n1: &NodeId, n2: &NodeId) -> bool {
-        n1 == n2
+        self.may_use_pmap = self
+            .may_use_pmap
+            .union_with(&other.may_use_pmap, |_, left, right| left.union(right));
     }
     // port: MaybeReachingVariableUse.ReachingUses#hashCode
     pub fn hash_code(&self) -> i32 {
@@ -116,7 +130,7 @@ impl PartialEq for ReachingUses {
     fn eq(&self, other: &Self) -> bool {
         other
             .may_use_pmap
-            .equivalent(&self.may_use_pmap, Self::equal_maps)
+            .equivalent(&self.may_use_pmap, UseSites::equivalent)
     }
 }
 impl LatticeEquals for ReachingUses {
@@ -185,10 +199,15 @@ impl MaybeReachingVariableUse {
             Token::NAME => {
                 if NodeUtil::is_lhs_by_destructuring(compiler, n) {
                     if !conditional {
-                        self.remove_from_use_if_local(compiler, &n.get_string(compiler), output);
+                        self.remove_from_use_if_local(compiler, n.get_string_ref(compiler), output);
                     }
                 } else {
-                    self.add_to_use_if_local(compiler, &n.get_string(compiler), cfg_node, output);
+                    self.add_to_use_if_local(
+                        compiler,
+                        n.get_string_ref(compiler),
+                        cfg_node,
+                        output,
+                    );
                 }
             }
             Token::WHILE | Token::DO | Token::IF | Token::FOR => {
@@ -294,7 +313,7 @@ impl MaybeReachingVariableUse {
                     if !conditional {
                         self.remove_from_use_if_local(
                             compiler,
-                            &var_name.get_string(compiler),
+                            var_name.get_string_ref(compiler),
                             output,
                         );
                     }
@@ -310,7 +329,7 @@ impl MaybeReachingVariableUse {
                     if !conditional {
                         self.remove_from_use_if_local(
                             compiler,
-                            &first.get_string(compiler),
+                            first.get_string_ref(compiler),
                             output,
                         );
                     }
@@ -327,12 +346,16 @@ impl MaybeReachingVariableUse {
                     check_state!(!NodeUtil::is_logical_assignment_op(compiler, n));
                     let name = n.get_first_child(compiler).unwrap();
                     if !conditional {
-                        self.remove_from_use_if_local(compiler, &name.get_string(compiler), output);
+                        self.remove_from_use_if_local(
+                            compiler,
+                            name.get_string_ref(compiler),
+                            output,
+                        );
                     }
                     if !n.is_assign(compiler) {
                         self.add_to_use_if_local(
                             compiler,
-                            &name.get_string(compiler),
+                            name.get_string_ref(compiler),
                             cfg_node,
                             output,
                         );
@@ -421,6 +444,19 @@ impl MaybeReachingVariableUse {
             .map(|&v| state.get_out().get(v))
             .unwrap_or_default()
     }
+
+    /// `FlowSensitiveInlineVariables.Candidate#hasExactlyOne` on the reaching-use set.
+    pub(crate) fn has_single_use(&self, name: &JsString, def_node: NodeId) -> bool {
+        let n = check_not_null!(self.get_cfg().get_node(&Some(def_node)));
+        matches!(
+            self.all_vars_in_fn.get(name).and_then(|var| self
+                .flow_state(n)
+                .get_out()
+                .may_use_pmap
+                .get(var)),
+            Some(UseSites::One(_))
+        )
+    }
 }
 impl DataFlowAnalysis<NodeId, ReachingUses> for MaybeReachingVariableUse {
     fn state(&self) -> &DataFlowAnalysisState<NodeId> {
@@ -478,5 +514,38 @@ impl crate::graph::annotation::Annotation for ReachingUses {
             "com.google.javascript.jscomp.MaybeReachingVariableUse$ReachingUses@{:x}",
             self.hash_code() as u32
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use closure_rhino::node::Ast;
+    use std::num::NonZeroU32;
+
+    #[test]
+    fn joins_count_distinct_cfg_nodes_and_preserve_set_iteration_order() {
+        let mut ast = Ast::new();
+        let [a, b, c] = std::array::from_fn(|_| ast.new_node(Token::EMPTY));
+        let var = VarId(NonZeroU32::new(1).unwrap());
+        let mut left = ReachingUses::new();
+        left.put(var, a);
+        let mut right = left.clone();
+        right.put(var, a);
+        left.join(&right);
+        assert!(matches!(left.may_use_pmap.get(&var), Some(UseSites::One(n)) if *n == a));
+
+        right.put(var, b);
+        left.put(var, c);
+        left.join(&right);
+        let expected = HamtPMap::empty().plus(a, a).plus(c, c).plus(b, b);
+        assert_eq!(left.get(var), expected.keys().copied().collect::<Vec<_>>());
+        right.remove_all(var);
+        right.put(var, c);
+        right.join(&left);
+        assert!(left == right);
+        left.remove_all(var);
+        assert!(left.get(var).is_empty());
+        assert_eq!(right.get(var).len(), 3);
     }
 }
