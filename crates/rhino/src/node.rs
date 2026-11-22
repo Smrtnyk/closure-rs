@@ -2275,6 +2275,19 @@ impl NodeId {
     pub fn remove_direct_eval_prop(self, ast: &mut Ast) {
         self.remove_prop(ast, Prop::DIRECT_EVAL);
     }
+    /// Clear the three type properties discarded when switching to optimization colors.
+    /// Most nodes have none of them.
+    pub fn clear_type_declaration_props(self, ast: &mut Ast) {
+        const MASK: u64 = (1 << Prop::TYPE_BEFORE_CAST as u8)
+            | (1 << Prop::DECLARED_TYPE_EXPR as u8)
+            | (1 << Prop::TYPEDEF_TYPE as u8);
+        if ast.prop_masks[self.arena_index()] & MASK != 0 {
+            self.remove_prop(ast, Prop::TYPE_BEFORE_CAST);
+            self.remove_prop(ast, Prop::DECLARED_TYPE_EXPR);
+            self.remove_prop(ast, Prop::TYPEDEF_TYPE);
+        }
+    }
+
     // port: Node#setJSTypeBeforeCast
     pub fn set_jstype_before_cast(self, ast: &mut Ast, t: Option<TypeId>) {
         self.put_prop(ast, Prop::TYPE_BEFORE_CAST, t.map(ObjectProp::JSType));

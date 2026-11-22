@@ -858,24 +858,22 @@ impl FunctionTypeBuilder {
             };
         };
 
-        // arguments
-        let mut old_parameters: std::vec::IntoIter<Parameter>;
-        let mut old_parameter_type: Option<Parameter> = None;
-        if let Some(parameters) = &self.parameters {
-            old_parameters = parameters.clone().into_iter();
-            old_parameter_type = old_parameters.next();
-        } else {
-            old_parameters = Vec::new().into_iter();
-        }
-
+        let mut old_parameters = self
+            .parameters
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .copied();
+        let mut old_parameter_type = old_parameters.next();
         let mut builder = FunctionParamBuilder::new();
         let mut warned_about_arg_list = false;
-        let mut all_js_doc_params: IndexSet<JsString> = match info {
-            None => IndexSet::<_>::default(),
-            Some(info) => info.get_parameter_names(),
-        };
+        let docs = info.and_then(JSDocInfo::parameter_types);
+        // Usually formal and documented names agree in order. Only an out-of-order
+        // match needs separate bookkeeping for the remaining INEXISTENT_PARAM warnings.
+        let mut matched_prefix = 0;
+        let mut matched_out_of_order = IndexSet::<usize>::default();
         let mut is_var_args = false;
-        let mut param_index: i32 = 0;
+        let mut param_index = 0;
         let mut param = params_parent.get_first_child(compiler);
         while let Some(p) = param {
             let mut is_optional_param = false;
@@ -894,43 +892,44 @@ impl FunctionTypeBuilder {
                 param_lhs = p;
             }
 
-            let mut param_name: Option<JsString> = None;
-            if param_lhs.is_name(compiler) {
-                param_name = Some(param_lhs.get_string(compiler));
+            let documented = if param_lhs.is_name(compiler) {
+                let name = param_lhs.get_string_ref(compiler);
+                docs.and_then(|docs| {
+                    if let Some((key, ty)) = docs.get_index(matched_prefix)
+                        && key == name
+                    {
+                        Some((matched_prefix, ty))
+                    } else {
+                        docs.get_full(name).map(|(index, _, ty)| (index, ty))
+                    }
+                })
             } else {
                 check_state!(param_lhs.is_destructuring_pattern(compiler));
-                // Right now, the only way to match a JSDoc param to a destructuring parameter is
-                // through ordering the JSDoc parameters. So the third formal parameter will
-                // correspond to the third JSDoc parameter.
-                if let Some(info) = info {
-                    param_name = info.get_parameter_name_at(param_index);
-                }
-            }
-            if let Some(param_name) = &param_name {
-                all_js_doc_params.shift_remove(param_name);
-            }
-
-            // type from JSDocInfo
-            let parameter_type: TypeId;
-            // (info.hasParameterType(null) is false in Java.)
-            let has_parameter_type = match (info, &param_name) {
-                (Some(info), Some(param_name)) => info.has_parameter_type(param_name.clone()),
-                _ => false,
+                // Destructuring parameters match JSDoc by position.
+                docs.and_then(|docs| docs.get_index(param_index))
+                    .map(|(_, ty)| (param_index, ty))
             };
-            let param_lhs_info = param_lhs.get_jsdoc_info(compiler);
-            if has_parameter_type {
-                let parameter_type_expression = info
-                    .unwrap()
-                    .get_parameter_type(param_name.clone().unwrap())
-                    .unwrap();
+
+            let parameter_type: TypeId;
+            let expression = documented.and_then(|(index, ty)| {
+                if index == matched_prefix {
+                    matched_prefix += 1;
+                } else if index > matched_prefix {
+                    matched_out_of_order.insert(index);
+                }
+                ty.as_deref()
+            });
+            if let Some(parameter_type_expression) = expression {
                 let (reg, ast) = compiler.get_type_registry_and_ast();
                 parameter_type =
                     parameter_type_expression.evaluate(reg, ast, Some(self.template_scope.clone()));
                 is_optional_param =
                     is_optional_param || parameter_type_expression.is_optional_arg(ast);
                 is_var_args = is_var_args || parameter_type_expression.is_var_args(ast);
-            } else if param_lhs_info.is_some() && param_lhs_info.as_ref().unwrap().has_type() {
-                let parameter_type_expression = param_lhs_info.unwrap().get_type().unwrap();
+            } else if let Some(parameter_type_expression) = param_lhs
+                .get_jsdoc_info_ref(compiler)
+                .and_then(|doc| doc.get_type())
+            {
                 let (reg, ast) = compiler.get_type_registry_and_ast();
                 parameter_type =
                     parameter_type_expression.evaluate(reg, ast, Some(self.template_scope.clone()));
@@ -962,19 +961,21 @@ impl FunctionTypeBuilder {
         }
         // Copy over any old parameters that aren't in the param list.
         if !is_var_args {
-            while old_parameter_type.is_some() && !is_var_args {
-                builder.new_parameter_from(old_parameter_type.unwrap());
-                old_parameter_type = old_parameters.next();
+            for old in old_parameter_type.into_iter().chain(old_parameters) {
+                builder.new_parameter_from(old);
             }
         }
 
-        for inexistent_name in &all_js_doc_params {
-            let fn_name = self.format_fn_name();
-            self.report_warning(
-                compiler,
-                &INEXISTENT_PARAM,
-                &[&inexistent_name.to_string(), &fn_name],
-            );
+        if let Some(docs) = docs {
+            for (index, name) in docs.keys().enumerate().skip(matched_prefix) {
+                if !matched_out_of_order.contains(&index) {
+                    self.report_warning(
+                        compiler,
+                        &INEXISTENT_PARAM,
+                        &[&name.to_string(), &self.format_fn_name()],
+                    );
+                }
+            }
         }
 
         self.parameters = Some(builder.build());

@@ -872,3 +872,101 @@ mod color_graph_builder_test {
         );
     }
 }
+
+// The property fixed point uses one FIFO for all names. An extern-only property can
+// change which type supplies the representative name of an unrelated source property.
+mod extern_only_propagation {
+    use closure_jscomp::{
+        colors::{Color, ColorId, color_registry::ColorRegistry},
+        compiler::Compiler,
+        compiler_options::CompilerOptions,
+        compiler_pass::CompilerPass,
+        disambiguate::disambiguate_properties::DisambiguateProperties,
+        source_file::SourceFile,
+    };
+    use std::sync::Arc;
+
+    fn renamed_properties(include_extern_use: bool) -> Vec<String> {
+        let mut compiler = Compiler::new();
+        let mut declarations = String::from("/** @externs */\n");
+        for id in [3, 0, 4, 2, 1, 5] {
+            declarations.push_str(&format!("t{id}.makeColorKnown;\n"));
+        }
+        if include_extern_use {
+            declarations.push_str("t2.extra;\n");
+        }
+        compiler.init(
+            &[Arc::new(SourceFile::from_code("ext.js", declarations))],
+            &[Arc::new(SourceFile::from_code(
+                "app.js",
+                "t0.live; t1.live; t5.live;",
+            ))],
+            CompilerOptions::default(),
+        );
+        compiler.parse_for_compilation();
+        let externs = compiler.get_externs_root().unwrap();
+        let source = compiler.get_js_root().unwrap();
+        assert!(
+            externs
+                .children(&compiler)
+                .all(|s| s.is_from_externs(&compiler))
+        );
+        let colors: Vec<_> = (100..106)
+            .map(|index| {
+                let declared = match index {
+                    100 | 101 | 105 => vec!["live".into()],
+                    102 => vec!["extra".into()],
+                    _ => vec![],
+                };
+                Color::single_builder()
+                    .set_id(ColorId::from_unsigned(index))
+                    .set_own_properties(declared.into_iter().collect())
+                    .build()
+            })
+            .collect();
+        let mut relations = ColorRegistry::builder();
+        relations.set_default_native_colors_for_testing();
+        for (parent, child) in [(3, 4), (2, 3), (1, 4), (0, 3), (1, 2)] {
+            relations.add_disambiguation_edge(colors[child].clone(), colors[parent].clone());
+        }
+        compiler.init_runtime_library_typed_asts(None);
+        compiler.set_color_registry(Arc::new(relations.build()));
+        let mut todo = vec![externs, source];
+        let mut sites = Vec::new();
+        while let Some(n) = todo.pop() {
+            todo.extend(n.children(&compiler));
+            if n.is_get_prop(&compiler) {
+                let owner = n.get_first_child(&compiler).unwrap();
+                let name = owner.get_string(&compiler).to_string_lossy();
+                let id: usize = name.strip_prefix('t').unwrap().parse().unwrap();
+                owner.set_color(&mut compiler, Some(colors[id].clone()));
+                if n.get_string(&compiler).to_string_lossy() == "live" {
+                    sites.push((id, n));
+                }
+            }
+        }
+        DisambiguateProperties::new(&compiler, Default::default()).process(
+            &mut compiler,
+            externs,
+            source,
+        );
+        sites.sort_by_key(|(id, _)| *id);
+        assert_eq!(sites.len(), 3);
+        sites
+            .into_iter()
+            .map(|(_, n)| n.get_string(&compiler).to_string_lossy())
+            .collect()
+    }
+
+    #[test]
+    fn extern_only_property_preserves_upstream_source_names() {
+        assert_eq!(
+            renamed_properties(true),
+            ["JSC$2_live", "JSC$2_live", "JSC$6_live"]
+        );
+        assert_eq!(
+            renamed_properties(false),
+            ["JSC$5_live", "JSC$5_live", "JSC$6_live"]
+        );
+    }
+}

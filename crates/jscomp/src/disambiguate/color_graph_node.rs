@@ -65,7 +65,7 @@ impl DisambiguateArena {
 
 /// Java object identity of a [`ColorGraphNode`] in a [`DisambiguateArena`].
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-pub struct ColorGraphNodeId(u32);
+pub struct ColorGraphNodeId(pub(super) u32);
 
 /// Java object identity of a [`PropertyClustering`] in a [`DisambiguateArena`].
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]

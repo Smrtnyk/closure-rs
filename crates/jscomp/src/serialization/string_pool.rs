@@ -157,4 +157,12 @@ impl StringPoolBuilder {
     pub fn build(&self) -> StringPool {
         StringPool::new(self.max_length, self.pool.keys().cloned().collect())
     }
+
+    /// The optimizer owns this complete pool and can intern its keys once before reconciliation.
+    pub(super) fn into_interned_strings(self) -> Vec<JsString> {
+        self.pool
+            .into_keys()
+            .map(closure_rhino::rhino_string_pool::RhinoStringPool::add_or_get)
+            .collect()
+    }
 }

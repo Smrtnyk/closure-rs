@@ -195,8 +195,7 @@ impl TemplateTypeReplacer {
         ast: &Ast,
         obj_type: TypeId,
     ) -> TypeId {
-        if !self.visit_properties
-            || obj_type.is_nominal_type(reg)
+        if obj_type.is_nominal_type(reg)
             || matches!(
                 &reg.data(obj_type).kind,
                 crate::js_type::JSTypeKind::ProxyObject(_)
@@ -377,6 +376,9 @@ impl Visitor<TypeId> for TemplateTypeReplacer {
     }
     // port: TemplateTypeReplacer#caseObjectType
     fn case_object_type(&mut self, reg: &mut JSTypeRegistry, ast: &Ast, type_: TypeId) -> TypeId {
+        if !self.visit_properties {
+            return type_;
+        }
         self.guard_against_cycles(reg, ast, type_, Self::case_object_type_unguarded)
     }
     // port: TemplateTypeReplacer#caseTemplatizedType

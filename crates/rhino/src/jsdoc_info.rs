@@ -1714,11 +1714,13 @@ impl JSDocInfo {
             .copied()
             .unwrap_or(0)
     }
+    /// The declared parameter names and their optional type expressions, in JSDoc order.
+    pub fn parameter_types(&self) -> Option<&TypeMap> {
+        PARAMETERS.get(self).and_then(PropertyValue::as_type_map)
+    }
     // port: JSDocInfo#getParameterNames
     pub fn get_parameter_names(&self) -> IndexSet<JsString> {
-        PARAMETERS
-            .get(self)
-            .and_then(PropertyValue::as_type_map)
+        self.parameter_types()
             .map(|p| p.keys().cloned().collect())
             .unwrap_or_default()
     }
@@ -1873,18 +1875,14 @@ impl JSDocInfo {
         &self,
         parameter: impl Into<JsString>,
     ) -> Option<Arc<JSTypeExpression>> {
-        PARAMETERS
-            .get(self)
-            .and_then(PropertyValue::as_type_map)
+        self.parameter_types()
             .and_then(|p| p.get(&parameter.into()))
             .cloned()
             .flatten()
     }
     // port: JSDocInfo#hasParameter
     pub fn has_parameter(&self, parameter: impl Into<JsString>) -> bool {
-        PARAMETERS
-            .get(self)
-            .and_then(PropertyValue::as_type_map)
+        self.parameter_types()
             .is_some_and(|p| p.contains_key(&parameter.into()))
     }
     // port: JSDocInfo#hasParameterType
@@ -1893,7 +1891,7 @@ impl JSDocInfo {
     }
     // port: JSDocInfo#getParameterNameAt
     pub fn get_parameter_name_at(&self, index: i32) -> Option<JsString> {
-        let p = PARAMETERS.get(self).and_then(PropertyValue::as_type_map)?;
+        let p = self.parameter_types()?;
         if index >= p.len() as i32 {
             return None;
         }

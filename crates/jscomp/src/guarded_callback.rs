@@ -251,6 +251,11 @@ impl<T: Clone + Eq + Hash> GuardedCallback<T> {
         }
     }
 
+    /// True if a resource lookup here could find or register a guard.
+    pub(crate) fn can_guard_any_resource(&self) -> bool {
+        !self.guarded.is_empty() || self.context_stack.last().expect("context stack").safe
+    }
+
     /// Determines if the given resource is guarded, either intrinsically or
     /// conditionally.  If the former, any ancestor conditional nodes are
     /// registered as feature-testing the resource.

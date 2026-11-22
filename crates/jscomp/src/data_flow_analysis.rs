@@ -513,6 +513,7 @@ pub fn compute_escaped(
     struct Finder<'a> {
         js_scope: crate::scope::ScopeId,
         escaped: &'a mut IndexSet<crate::var::VarId>,
+        last_scope: Option<(crate::scope::ScopeId, bool)>,
     }
     impl Callback for Finder<'_> {
         fn should_traverse(
@@ -530,22 +531,35 @@ pub fn compute_escaped(
             }
             let scope = t.get_scope();
             let compiler = t.get_compiler();
-            let Some(var) = scope.get_var_of_node(compiler, n) else {
-                return;
+            let captures = match self.last_scope {
+                Some((previous, captures)) if previous == scope => captures,
+                _ => {
+                    let captures = scope.get_closest_cfg_root_scope(compiler) != self.js_scope
+                        || is_referenced_in_non_static_class_field(compiler, scope, self.js_scope);
+                    self.last_scope = Some((scope, captures));
+                    captures
+                }
             };
-            let variable_cfg_scope = var.get_scope(compiler).get_closest_cfg_root_scope(compiler);
-            if variable_cfg_scope != self.js_scope {
+            // All ordinary lookups in the function's own CFG are read-only. Implicit
+            // variables can be created by looking them up, even when they cannot escape.
+            if !captures
+                && crate::abstract_scope::ImplicitVar::of(n.get_string_ref(compiler)).is_none()
+            {
                 return;
             }
-            let reference_cfg_scope = scope.get_closest_cfg_root_scope(compiler);
-            if reference_cfg_scope != variable_cfg_scope
-                || is_referenced_in_non_static_class_field(compiler, scope, variable_cfg_scope)
+            if let Some(var) = scope.get_var_of_node(compiler, n)
+                && captures
+                && var.get_scope(compiler).get_closest_cfg_root_scope(compiler) == self.js_scope
             {
                 self.escaped.insert(var);
             }
         }
     }
-    let mut finder = Finder { js_scope, escaped };
+    let mut finder = Finder {
+        js_scope,
+        escaped,
+        last_scope: None,
+    };
     NodeTraversal::builder()
         .set_compiler(compiler)
         .set_scope_creator(scope_creator)

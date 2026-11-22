@@ -561,11 +561,11 @@ impl TypedScopeCreator {
                 reserved_names.shift_remove(&JsString::from("exports"));
             }
 
-            new_scope = TypedScope::new_with_reserved_names(
+            new_scope = TypedScope::new_child(
                 compiler,
                 typed_parent.unwrap(),
                 root,
-                &reserved_names,
+                reserved_names,
                 module.clone(),
             );
         }
@@ -897,7 +897,7 @@ impl TypedScopeCreator {
         }
 
         // Resolve types and attach them to scope slots.
-        for scope in self.get_all_memoized_scopes() {
+        for &scope in self.memoized.values().rev() {
             for var in scope.get_var_iterable(compiler) {
                 var.resolve_type(compiler);
             }
@@ -3004,7 +3004,7 @@ impl Callback for AbstractScopeBuilder<'_> {
                 // NAME and the intermediate GETPROPs of a bare name have no scope-building
                 // work. Run the ordinary declaration and statement actions in postorder.
                 let info = property.get_jsdoc_info(t);
-                self.maybe_declare_qualified_name(t, info, property, n, None);
+                self.maybe_declare_qualified_name(t, info, property, n, None, 0);
                 self.visit(t, n, parent);
                 return false;
             }
@@ -3051,9 +3051,26 @@ impl Callback for AbstractScopeBuilder<'_> {
             return true;
         };
         let mut child = script.get_first_child(t);
+        let mut prototype = None;
         for &record in facts.declarations {
             let statement = child.expect("recorded extern statement");
             child = statement.get_next(t);
+            if record & declarations::PROTOTYPE_FIELD != 0 {
+                let field = statement.get_first_child(t).unwrap();
+                t.position_at_node(field);
+                if self.declare_recorded_prototype_field(
+                    t.get_compiler(),
+                    field,
+                    record,
+                    &mut prototype,
+                ) {
+                    t.position_at_node(statement);
+                    self.visit(t, statement, Some(script));
+                    continue;
+                }
+            }
+            // Any other declaration can replace the prototype binding.
+            prototype = None;
             if record == declarations::OTHER {
                 self.walk_branch(t, statement, Some(script));
                 continue;
@@ -3076,7 +3093,7 @@ impl Callback for AbstractScopeBuilder<'_> {
                     let property = statement.get_first_child(t).unwrap();
                     t.position_at_node(property);
                     let info = property.get_jsdoc_info(t);
-                    self.maybe_declare_qualified_name(t, info, property, statement, None);
+                    self.maybe_declare_qualified_name(t, info, property, statement, None, record);
                 }
                 declarations::ASSIGNMENT => {
                     let assign = statement.get_first_child(t).unwrap();
@@ -4042,6 +4059,88 @@ impl AbstractScopeBuilder<'_> {
         );
     }
 
+    /// Bundled property annotations for these primitives evaluate to a native type before
+    /// the registry consults any scope. Preserve the write made by JSTypeExpression.evaluate.
+    fn recorded_property_type(
+        compiler: &mut AbstractCompiler,
+        info: Option<&JSDocInfo>,
+        record: u8,
+    ) -> Option<TypeId> {
+        let kind = record & declarations::NATIVE_MASK;
+        let native = match kind {
+            declarations::NATIVE_NUMBER => JSTypeNative::NUMBER_TYPE,
+            declarations::NATIVE_STRING => JSTypeNative::STRING_TYPE,
+            declarations::NATIVE_BOOLEAN => JSTypeNative::BOOLEAN_TYPE,
+            _ => return None,
+        };
+        // Clients can replace the documentation or edit its detached type tree after loading.
+        let root = info?.get_type()?.get_root();
+        if declarations::closed_annotation(compiler, root) != kind {
+            return None;
+        }
+        let ty = compiler.get_type_registry().get_native_type(native);
+        root.set_jstype(compiler, Some(ty));
+        Some(ty)
+    }
+
+    /// Bind a recorded C.prototype.field declaration to the prototype in the current scope.
+    /// Consecutive successful fields only define properties on that object. No scope slot is
+    /// created or replaced until control returns to the ordinary declaration builder.
+    fn declare_recorded_prototype_field(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        field: NodeId,
+        record: u8,
+        last: &mut Option<(JsString, TypeId)>,
+    ) -> bool {
+        let Some(info) = field.get_jsdoc_info(compiler) else {
+            return false;
+        };
+        if !info.has_type() || info.has_typedef_type() {
+            return false;
+        }
+        let owner = field.get_first_child(compiler).unwrap();
+        let root = owner.get_first_child(compiler).unwrap();
+        let prototype = match last {
+            Some((name, prototype)) if name == root.get_string_ref(compiler) => *prototype,
+            _ => {
+                let name = owner.get_qualified_name(compiler).unwrap();
+                let Some(ty) = self
+                    .current_scope
+                    .get_var(compiler, name)
+                    .and_then(|var| var.get_type(compiler))
+                else {
+                    return false;
+                };
+                let reg = compiler.get_type_registry();
+                if ty.get_type_class(reg)
+                    != closure_jstype::js_type_class::JSTypeClass::PROTOTYPE_OBJECT
+                    || !ty.is_function_prototype_type(reg)
+                {
+                    return false;
+                }
+                *last = Some((root.get_string(compiler), ty));
+                ty
+            }
+        };
+        // The ordinary annotation evaluator resolves the owner's template parameters and
+        // runs the symbol subtype checks, which can initialize types in the live registry.
+        let declared = Self::recorded_property_type(compiler, Some(&info), record)
+            .or_else(|| self.get_declared_type(compiler, Some(info), field, None, None))
+            .expect("explicit type annotation");
+        let name = field.get_string(compiler);
+        self.declare_property_if_namespace_type(
+            compiler,
+            prototype,
+            owner,
+            PropertyKey::String(name),
+            Some(declared),
+            field,
+            None,
+        );
+        true
+    }
+
     /// Declare the symbol for a qualified name in the current scope.
     ///
     /// @param info The doc info for this property.
@@ -4057,6 +4156,7 @@ impl AbstractScopeBuilder<'_> {
         n: NodeId,
         parent: NodeId,
         rhs_value: Option<NodeId>,
+        record: u8,
     ) {
         let is_typedef = self.is_valid_typedef_declaration(t.get_compiler(), n, info.clone());
         if is_typedef {
@@ -4090,7 +4190,8 @@ impl AbstractScopeBuilder<'_> {
         // about getting as much type information as possible for them.
 
         // Determining type for #1 + #2 + #3 + #4
-        let mut value_type = self.get_declared_type(compiler, info.clone(), n, rhs_value, None);
+        let mut value_type = Self::recorded_property_type(compiler, info.as_deref(), record)
+            .or_else(|| self.get_declared_type(compiler, info.clone(), n, rhs_value, None));
         if value_type.is_none() && rhs_value.is_some() {
             // Determining type for #5
             value_type = rhs_value.unwrap().get_jstype(compiler);
@@ -4685,7 +4786,7 @@ impl AbstractScopeBuilder<'_> {
                 if first_child.is_get_prop(compiler) && first_child.is_qualified_name(compiler) {
                     let info = n.get_jsdoc_info(compiler);
                     let next = first_child.get_next(compiler);
-                    self.maybe_declare_qualified_name(t, info, first_child, n, next);
+                    self.maybe_declare_qualified_name(t, info, first_child, n, next, 0);
                 } else if first_child.is_get_elem(compiler)
                     && first_child
                         .get_first_child(compiler)
@@ -4711,7 +4812,7 @@ impl AbstractScopeBuilder<'_> {
                 let parent = parent.expect("NullPointerException");
                 if parent.is_expr_result(compiler) && n.is_qualified_name(compiler) {
                     let info = n.get_jsdoc_info(compiler);
-                    self.maybe_declare_qualified_name(t, info, n, parent, None);
+                    self.maybe_declare_qualified_name(t, info, n, parent, None, 0);
                 }
             }
             Token::GETELEM => {
@@ -6331,6 +6432,46 @@ mod bundled_declaration_tests {
     }
 
     #[test]
+    fn recorded_primitive_rechecks_the_live_annotation_and_sets_its_type() {
+        let mut compiler = Compiler::new();
+        let externs = Arc::new(SourceFile::from_code(
+            "api.js",
+            "/** @type {number} */ C.prototype.value;",
+        ));
+        compiler.init(
+            &[externs],
+            &[Arc::new(SourceFile::from_code("app.js", ""))],
+            CompilerOptions::new(),
+        );
+        compiler.parse_for_compilation();
+        let script = compiler.get_script_node("api.js").unwrap();
+        let property = script.get_first_first_child(&compiler).unwrap();
+        let info = property.get_jsdoc_info(&compiler).unwrap();
+        let root = info.get_type().unwrap().get_root();
+        let number = compiler
+            .get_type_registry()
+            .get_native_type(JSTypeNative::NUMBER_TYPE);
+        assert_eq!(
+            AbstractScopeBuilder::recorded_property_type(
+                &mut compiler,
+                Some(&info),
+                declarations::NATIVE_NUMBER
+            ),
+            Some(number)
+        );
+        assert_eq!(root.get_jstype(&compiler), Some(number));
+        root.set_string(&mut compiler, "LateBound");
+        assert_eq!(
+            AbstractScopeBuilder::recorded_property_type(
+                &mut compiler,
+                Some(&info),
+                declarations::NATIVE_NUMBER
+            ),
+            None
+        );
+    }
+
+    #[test]
     fn replay_checks_the_current_property_chain() {
         let mut ast = Ast::new();
         let base = IR::name(&mut ast, "Window");
@@ -6349,6 +6490,88 @@ mod bundled_declaration_tests {
         let literal = IR::number(&mut ast, 1.0);
         base.replace_with(&mut ast, literal);
         assert_eq!(declarations::bare_property(&ast, statement), None);
+    }
+
+    #[test]
+    fn recorded_prototype_fields_bind_the_current_annotation_and_owner_templates() {
+        fn fields(bundled: bool) -> Vec<String> {
+            let mut compiler = Compiler::new();
+            let externs: Vec<_> = SourceFile::bundled_externs(Environment::BROWSER)
+                .into_iter()
+                .filter(|file| {
+                    file.get_name().ends_with("/w3c_abort.js")
+                        || file.get_name().ends_with("/w3c_event.js")
+                })
+                .map(|file| {
+                    Arc::new(if bundled {
+                        file
+                    } else {
+                        SourceFile::from_code(file.get_name(), file.get_code().unwrap())
+                    })
+                })
+                .collect();
+            let abort_path = externs
+                .iter()
+                .find(|f| f.get_name().ends_with("/w3c_abort.js"))
+                .unwrap()
+                .get_name()
+                .to_owned();
+            compiler.init(
+                &externs,
+                &[Arc::new(SourceFile::from_code("app.js", ""))],
+                CompilerOptions::new(),
+            );
+            let root = compiler.parse_inputs().unwrap();
+            let script = compiler.get_script_node(&abort_path).unwrap();
+            let field = script
+                .children(&compiler)
+                .filter_map(|stmt| stmt.get_first_child(&compiler))
+                .find(|node| {
+                    node.matches_qualified_name(&compiler, "AbortSignal.prototype.aborted")
+                })
+                .unwrap();
+            let annotation = field
+                .get_jsdoc_info(&compiler)
+                .unwrap()
+                .get_type()
+                .unwrap()
+                .get_root();
+            annotation.set_string(&mut compiler, "string");
+
+            let mut creator = TypedScopeCreator::new(&mut compiler);
+            let global = creator.create_scope(&mut compiler, root, None);
+            let mut results = Vec::new();
+            for (owner, field) in [
+                ("AbortSignal.prototype", "aborted"),
+                ("AbortSignal.prototype", "onabort"),
+                ("AbortSignal.prototype", "reason"),
+                ("CustomEvent.prototype", "detail"),
+            ] {
+                let prototype = global
+                    .get_var(&mut compiler, owner)
+                    .unwrap()
+                    .get_type(&compiler)
+                    .unwrap();
+                let (reg, ast) = compiler.get_type_registry_and_ast();
+                let slot = prototype.get_own_slot(reg, ast, field).unwrap();
+                let ty = slot.get_type(reg);
+                if field == "aborted" {
+                    assert_eq!(ty, reg.get_native_type(JSTypeNative::STRING_TYPE));
+                    assert_eq!(annotation.get_jstype(ast), Some(ty));
+                } else if field == "detail" {
+                    let owner = prototype.get_owner_function(reg).unwrap();
+                    assert!(
+                        owner
+                            .get_template_type_map(reg)
+                            .get_template_keys()
+                            .contains(&ty)
+                    );
+                }
+                results.push(ty.to_string(reg, ast));
+            }
+            results
+        }
+        assert_eq!(fields(true), fields(false));
     }
 
     #[test]

@@ -124,16 +124,15 @@ impl LiveVariablesAnalysis {
             "%s",
             js_scope.to_string(compiler)
         );
+        let (all_vars_in_fn, ordered_vars) = all_vars_declared_in_function.into_parts();
         let mut analysis = Self {
             state: DataFlowAnalysisState::new(cfg, false, false),
             js_scope,
             js_scope_child,
             escaped: IndexSet::<_>::default(),
             scope_variables: IndexMap::<_, _>::default(),
-            ordered_vars: all_vars_declared_in_function
-                .get_all_variables_in_order()
-                .to_vec(),
-            all_vars_in_fn: all_vars_declared_in_function.get_all_variables().clone(),
+            ordered_vars,
+            all_vars_in_fn,
         };
         compute_escaped(
             compiler,

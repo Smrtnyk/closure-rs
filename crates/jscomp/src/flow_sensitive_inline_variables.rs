@@ -145,6 +145,102 @@ impl SideEffectPredicate {
     }
 }
 
+/// A small function can be ruled out before allocating a control-flow graph. A surviving
+/// replacement needs a definition and a non-loop read with the same spelling. Collisions
+/// in the two name masks only admit additional functions to the ordinary analysis.
+enum InlineAnalysis {
+    NoCandidate,
+    DeferUses,
+    Full,
+}
+
+impl InlineAnalysis {
+    fn for_body(ast: &Ast, body: NodeId) -> Self {
+        struct Search {
+            remaining: usize,
+            definitions: u64,
+            reads: u64,
+        }
+        impl Search {
+            // Return whether this subtree contains a forbidden RHS node. Each AST node
+            // is inspected once even when initializers contain nested assignments.
+            fn visit(&mut self, ast: &Ast, n: NodeId, in_loop: bool) -> Option<bool> {
+                if self.remaining == 0 || n.is_class(ast) {
+                    return None;
+                }
+                self.remaining -= 1;
+                if n.is_function(ast) {
+                    // An outer CFG can visit the parameter list of a nested function, but
+                    // never its body. Leave complex defaults and patterns to the full pass.
+                    let params = n.get_second_child(ast)?;
+                    for param in params.children(ast) {
+                        if self.remaining == 0 || !param.is_name(ast) || param.has_children(ast) {
+                            return None;
+                        }
+                        self.remaining -= 1;
+                    }
+                    return Some(false);
+                }
+                let in_loop = in_loop || NodeUtil::is_loop_structure(ast, n);
+                let mut forbidden = Candidate::forbidden_rhs_node(ast, n);
+                let mut last_child_forbidden = false;
+                for child in n.children(ast) {
+                    last_child_forbidden = self.visit(ast, child, in_loop)?;
+                    forbidden |= last_child_forbidden;
+                }
+
+                if self.definitions & self.reads == 0 {
+                    if n.is_name(ast) {
+                        let bit = Self::name_bit(ast, n)?;
+                        let parent = n.get_parent(ast)?;
+                        if n.has_children(ast) && !last_child_forbidden {
+                            self.definitions |= bit;
+                        }
+                        let assignment_target = parent.get_first_child(ast) == Some(n)
+                            && NodeUtil::is_assignment_op(ast, parent);
+                        if !in_loop
+                            && !assignment_target
+                            && !NodeUtil::is_name_declaration(ast, Some(parent))
+                            && !matches!(
+                                parent.get_token(ast),
+                                Token::PARAM_LIST | Token::CATCH | Token::INC | Token::DEC
+                            )
+                        {
+                            self.reads |= bit;
+                        }
+                    } else if n.is_assign(ast)
+                        && !last_child_forbidden
+                        && n.get_parent(ast)
+                            .is_some_and(|p| NodeUtil::is_expr_assign(ast, p))
+                        && let Some(target) = n.get_first_child(ast)
+                        && target.is_name(ast)
+                    {
+                        self.definitions |= Self::name_bit(ast, target)?;
+                    }
+                }
+                Some(forbidden)
+            }
+
+            fn name_bit(ast: &Ast, n: NodeId) -> Option<u64> {
+                Some(1 << (n.string_payload(ast)?.hash_code() as u32 & 63))
+            }
+        }
+
+        let mut search = Search {
+            remaining: 128,
+            definitions: 0,
+            reads: 0,
+        };
+        if search.visit(ast, body, false).is_none() {
+            Self::Full
+        } else if search.reads & search.definitions == 0 {
+            Self::NoCandidate
+        } else {
+            Self::DeferUses
+        }
+    }
+}
+
 /// Whether the given node is the target of a (possibly chained) assignment
 // port: FlowSensitiveInlineVariables#isTopLevelAssignTarget
 fn is_top_level_assign_target(ast: &Ast, n: NodeId) -> bool {
@@ -262,6 +358,10 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
         if !Self::is_candidate_function(t, function_scope_root) {
             return;
         }
+        let analysis = InlineAnalysis::for_body(t, t.get_scope_root().unwrap());
+        if matches!(analysis, InlineAnalysis::NoCandidate) {
+            return;
+        }
 
         let scope = t.get_scope();
 
@@ -284,7 +384,7 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
         let scope_parent = scope.get_parent(compiler).unwrap();
         let all_vars_declared_in_function =
             NodeUtil::get_all_vars_declared_in_function(compiler, scope_creator, scope_parent);
-        let all_vars_in_fn = all_vars_declared_in_function.get_all_variables().clone();
+        let (all_vars_in_fn, _) = all_vars_declared_in_function.into_parts();
         compute_escaped(
             compiler,
             scope_parent,
@@ -294,7 +394,7 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
         );
 
         let mut reaching_def =
-            MustBeReachingVariableDef::new(compiler, cfg, escaped.clone(), all_vars_in_fn.clone());
+            MustBeReachingVariableDef::new(compiler, cfg, escaped, all_vars_in_fn);
         reaching_def.analyze_indexed(compiler);
         let mut candidates: VecDeque<Candidate> = VecDeque::new();
 
@@ -314,12 +414,23 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
 
         // Compute the backward reaching use. The CFG and per-function variable info can be
         // reused.
-        let cfg = reaching_def.into_cfg();
-        let mut reaching_uses = MaybeReachingVariableUse::new(cfg, escaped, all_vars_in_fn.clone());
-        reaching_uses.analyze_indexed(compiler);
+        let mut reaching_uses = reaching_def.into_use_analysis();
+        let mut uses_ready = matches!(analysis, InlineAnalysis::Full);
+        if uses_ready {
+            reaching_uses.analyze_indexed(compiler);
+        }
         while let Some(mut c) = candidates.pop_front() {
-            let candidate_var = check_not_null!(all_vars_in_fn.get(&c.var_name).copied());
+            let candidate_var = check_not_null!(reaching_uses.variable(&c.var_name));
             let candidate_scope = candidate_var.get_scope(compiler);
+            if !c.find_definition_and_single_read(compiler) {
+                continue;
+            }
+            // Every replacement asks for reaching uses first, so the analysis still sees the
+            // original AST and graph even when earlier candidates failed a local check.
+            if !uses_ready {
+                reaching_uses.analyze_indexed(compiler);
+                uses_ready = true;
+            }
             if c.can_inline(
                 compiler,
                 &mut reaching_uses,
@@ -464,6 +575,13 @@ impl<'a> GatherCandidates<'a> {
 impl AbstractPostOrderCallbackInterface for GatherCandidates<'_> {
     // port: FlowSensitiveInlineVariables.GatherCandidates#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
+        // The root itself is never a candidate read: its callback receives no parent.
+        // A container whose children all start new CFG nodes has no other visits.
+        if !n.has_children(t)
+            || ControlFlowGraph::<NodeId>::children_start_new_cfg_nodes(n.get_token(t))
+        {
+            return;
+        }
         let graph_node = self.reaching_def.get_cfg().get_node(&Some(n));
         if graph_node.is_none() {
             // Not a CFG node.
@@ -518,21 +636,17 @@ impl Candidate {
         self.def_metadata.node
     }
 
-    // port: FlowSensitiveInlineVariables.Candidate#canInline
-    fn can_inline(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        reaching_uses: &mut MaybeReachingVariableUse,
-        side_effect_predicate: &SideEffectPredicate,
-        scope: ScopeId,
-    ) -> bool {
+    /// The part of canInline that only needs the definition and the use's own CFG node.
+    fn find_definition_and_single_read(&mut self, compiler: &mut AbstractCompiler) -> bool {
         // Cannot inline a parameter.
         if self.get_def_cfg_node().is_function(compiler) {
             return false;
         }
 
+        if NodeUtil::is_within_loop(compiler, self.use_) {
+            return false;
+        }
         self.get_definition(compiler, self.get_def_cfg_node());
-        self.get_num_use_in_use_cfg_node(compiler, self.use_cfg_node);
 
         // Definition was not found.
         let Some(def) = self.def else {
@@ -544,6 +658,15 @@ impl Candidate {
         if def.is_assign(compiler)
             && !NodeUtil::is_expr_assign(compiler, def.get_parent(compiler).unwrap())
         {
+            return false;
+        }
+
+        let rhs = def.get_last_child(compiler).unwrap();
+        if Self::forbidden_rhs_node(compiler, rhs) {
+            return false;
+        }
+        self.get_num_use_in_use_cfg_node(compiler, self.use_cfg_node);
+        if self.num_uses_within_cfg_node != 1 {
             return false;
         }
 
@@ -582,25 +705,21 @@ impl Candidate {
         // side-effect function down all paths to the use. Once we have all the
         // side-effect analysis tool.
         let ast_analyzer = compiler.get_ast_analyzer();
-        let def_last_child = def.get_last_child(compiler).unwrap();
-        if ast_analyzer.may_have_side_effects(compiler, def_last_child) {
+        if ast_analyzer.may_have_side_effects(compiler, rhs) {
             return false;
         }
 
-        // TODO(user): We could inline all the uses if the expression is short.
+        true
+    }
 
-        // Finally we have to make sure that there are no more than one use
-        // in the program and in the CFG node. Even when it is semantically
-        // correctly inlining twice increases code size.
-        if self.num_uses_within_cfg_node != 1 {
-            return false;
-        }
-
-        // Make sure that the name is not within a loop
-        if NodeUtil::is_within_loop(compiler, self.use_) {
-            return false;
-        }
-
+    // port: FlowSensitiveInlineVariables.Candidate#canInline
+    fn can_inline(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        reaching_uses: &mut MaybeReachingVariableUse,
+        side_effect_predicate: &SideEffectPredicate,
+        scope: ScopeId,
+    ) -> bool {
         if !Self::has_exactly_one(&reaching_uses.get_uses(&self.var_name, self.get_def_cfg_node()))
         {
             return false;
@@ -771,6 +890,21 @@ impl Candidate {
         NodeTraversal::traverse(compiler, cfg_node, &mut gather_cb);
     }
 
+    fn forbidden_rhs_node(ast: &Ast, n: NodeId) -> bool {
+        matches!(
+            n.get_token(ast),
+            Token::GETELEM
+                | Token::GETPROP
+                | Token::OPTCHAIN_GETPROP
+                | Token::OPTCHAIN_GETELEM
+                | Token::CLASS
+                | Token::ARRAYLIT
+                | Token::OBJECTLIT
+                | Token::REGEXP
+                | Token::NEW
+        )
+    }
+
     /// Check if the definition we're considering inline has anything that makes inlining unsafe
     /// (that hasn't already been caught).
     ///
@@ -789,23 +923,8 @@ impl Candidate {
         if NodeUtil::has(
             compiler,
             def_last_child,
-            &|ast: &Ast, input: NodeId| {
-                matches!(
-                    input.get_token(ast),
-                    Token::GETELEM
-                        | Token::GETPROP
-                        | Token::OPTCHAIN_GETPROP
-                        | Token::OPTCHAIN_GETELEM
-                        | Token::CLASS
-                        | Token::ARRAYLIT
-                        | Token::OBJECTLIT
-                        | Token::REGEXP
-                        | Token::NEW
-                )
-                // unsafe to inline.
-            },
-            // Recurse if the node is not a function.
-            &|ast: &Ast, input: NodeId| !input.is_function(ast),
+            &Self::forbidden_rhs_node,
+            &|ast, n| !n.is_function(ast),
         ) {
             return false;
         }

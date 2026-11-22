@@ -178,11 +178,19 @@ impl ControlFlowGraph<NodeId> {
         cfg.ast_comparator = true;
         cfg
     }
+    /// A traversal restricted to one CFG node prunes every child of these containers.
+    pub(crate) fn children_start_new_cfg_nodes(token: Token) -> bool {
+        matches!(
+            token,
+            Token::BLOCK | Token::ROOT | Token::SCRIPT | Token::TRY | Token::SWITCH_BODY
+        )
+    }
+
     // port: ControlFlowGraph#isEnteringNewCfgNode
     pub fn is_entering_new_cfg_node(compiler: &AbstractCompiler, n: NodeId) -> bool {
         let parent = n.get_parent(compiler).unwrap();
         match parent.get_token(compiler) {
-            Token::BLOCK | Token::ROOT | Token::SCRIPT | Token::TRY | Token::SWITCH_BODY => true,
+            token if Self::children_start_new_cfg_nodes(token) => true,
             Token::FUNCTION => Some(n) != parent.get_second_child(compiler),
             Token::WHILE | Token::DO | Token::IF | Token::FOR => {
                 NodeUtil::get_condition_expression(compiler, parent) != Some(n)

@@ -110,7 +110,7 @@ pub struct ShardView {
     trimmed_offset_to_id: Vec<ColorId>,
 
     // Fields only present before/while the ColorPool is being built. Null afterwards.
-    pools: Mutex<Option<(Arc<TypePool>, Arc<StringPool>)>>,
+    pools: Mutex<Option<(Arc<TypePool>, ShardStrings)>>,
 
     // Set once the complete pool is built.
     color_pool: OnceLock<Arc<ColorPool>>,
@@ -120,7 +120,7 @@ impl ShardView {
     // port: ColorPool.ShardView#<init>
     fn new(
         type_pool: Arc<TypePool>,
-        string_pool: Arc<StringPool>,
+        string_pool: ShardStrings,
         trimmed_offset_to_id: Vec<ColorId>,
     ) -> Self {
         Self {
@@ -152,8 +152,23 @@ impl ShardView {
         *self.pools.lock().unwrap() = None;
     }
 
-    fn pools(&self) -> (Arc<TypePool>, Arc<StringPool>) {
+    fn pools(&self) -> (Arc<TypePool>, ShardStrings) {
         self.pools.lock().unwrap().as_ref().unwrap().clone()
+    }
+}
+
+#[derive(Clone)]
+enum ShardStrings {
+    Serialized(Arc<StringPool>),
+    Interned(Arc<[JsString]>),
+}
+
+impl ShardStrings {
+    fn get(&self, offset: i32) -> JsString {
+        match self {
+            Self::Serialized(pool) => pool.get(offset),
+            Self::Interned(names) => names[offset as usize].clone(),
+        }
     }
 }
 
@@ -161,17 +176,40 @@ struct ShardInputs {
     index: usize,
     view: Arc<ShardView>,
     types: Arc<TypePool>,
-    strings: Arc<StringPool>,
+    strings: ShardStrings,
 }
 
 /// Borrow the original definitions for the duration of reconciliation. Both row order and
 /// the order of contributing shards are significant for colors and diagnostics.
+#[derive(Clone, Copy)]
 struct Definition<'a> {
     shard: &'a ShardInputs,
     proto: &'a TypeProto,
 }
 
-type Definitions<'a> = IndexMap<ColorId, Vec<Definition<'a>>>;
+/// Most colors are defined in one shard. Keep the first definition in the table itself.
+enum DefinitionRow<'a> {
+    One(Definition<'a>),
+    Several(Vec<Definition<'a>>),
+}
+
+impl<'a> DefinitionRow<'a> {
+    fn push(&mut self, definition: Definition<'a>) {
+        match self {
+            Self::One(first) => *self = Self::Several(vec![*first, definition]),
+            Self::Several(definitions) => definitions.push(definition),
+        }
+    }
+
+    fn as_slice(&self) -> &[Definition<'a>] {
+        match self {
+            Self::One(first) => std::slice::from_ref(first),
+            Self::Several(definitions) => definitions,
+        }
+    }
+}
+
+type Definitions<'a> = IndexMap<ColorId, DefinitionRow<'a>>;
 
 /// port: ColorPool.Builder
 ///
@@ -234,6 +272,35 @@ impl Builder {
         type_pool: Arc<TypePool>,
         string_pool: Arc<StringPool>,
     ) -> Arc<ShardView> {
+        self.register_shard(
+            type_pool,
+            ShardStrings::Serialized(string_pool),
+            create_trimmed_offset_to_id,
+        )
+    }
+
+    /// An in-memory compilation has already assigned these color IDs and string pointers.
+    /// Deserialized shards still derive and validate their IDs from the serialized definitions.
+    pub(super) fn add_optimization_shard(
+        &mut self,
+        type_pool: TypePool,
+        ids: Vec<ColorId>,
+        strings: Vec<JsString>,
+    ) -> Arc<ShardView> {
+        debug_assert_eq!(ids, create_trimmed_offset_to_id(&type_pool));
+        self.register_shard(
+            Arc::new(type_pool),
+            ShardStrings::Interned(strings.into()),
+            |_| ids,
+        )
+    }
+
+    fn register_shard(
+        &mut self,
+        type_pool: Arc<TypePool>,
+        string_pool: ShardStrings,
+        color_ids: impl FnOnce(&TypePool) -> Vec<ColorId>,
+    ) -> Arc<ShardView> {
         check_state!(!self.has_proto_rows, "build has already been called");
 
         let key = Arc::as_ptr(&type_pool) as usize;
@@ -246,7 +313,7 @@ impl Builder {
             return existing.clone();
         }
 
-        let trimmed_offset_to_id = create_trimmed_offset_to_id(&type_pool);
+        let trimmed_offset_to_id = color_ids(&type_pool);
         let shard = Arc::new(ShardView::new(
             type_pool.clone(),
             string_pool,
@@ -291,9 +358,10 @@ impl Builder {
         for shard in &shards {
             for (i, proto) in shard.types.get_type_list().iter().enumerate() {
                 let id = shard.view.trimmed_offset_to_id[i];
+                let definition = Definition { shard, proto };
                 rows.entry(id)
-                    .or_default()
-                    .push(Definition { shard, proto });
+                    .and_modify(|row| row.push(definition))
+                    .or_insert(DefinitionRow::One(definition));
                 self.has_proto_rows = true;
             }
         }
@@ -360,7 +428,7 @@ impl Builder {
                     .reconcilation_debug_stack
                     .iter()
                     .map(|id| {
-                        let row = rows.get(id);
+                        let row = rows.get(id).map(DefinitionRow::as_slice);
                         let entries: Vec<String> = row
                             .into_iter()
                             .flatten()
@@ -383,7 +451,7 @@ impl Builder {
         }
         self.id_to_color.insert(id, PENDING_COLOR.clone());
 
-        let row = check_not_null!(rows.get(&id), "%s", id);
+        let row = check_not_null!(rows.get(&id), "%s", id).as_slice();
         let sample = row[0].proto;
         let result = match sample.get_kind_case() {
             TypeProtoKindCase::OBJECT => self.reconcile_object_protos(id, row, rows),

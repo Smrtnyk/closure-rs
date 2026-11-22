@@ -397,6 +397,11 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   program in source order. Empty function stubs enter their ordinary scopes and contribute their
   parameter names and writes. Unrecognized shapes, changed scripts and appended statements use
   the ordinary visitor.
+  For bare properties annotated with `number`, `string` or `boolean`, the build records the
+  native type. The scope builder checks the live annotation and binds it to the current registry.
+  Consecutive typed fields on `C.prototype` can share the lookup of that prototype. The
+  builder checks the actual scope binding, evaluates each field's live annotation with its
+  owner's template parameters, and drops the saved binding at the next ordinary declaration.
   The build records property names in traversal order and identifies statements that cannot
   affect the side-effect, module and extern name-reference checks. Each loaded script keeps
   its original last statement and the arena range of the parse, including detached type nodes.
@@ -407,6 +412,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   own (`Ast::new_for_preparse`) while the compiler runs; `CompilerInput#parse` moves a finished
   parse into the compiler's arena (`Ast::append_preparsed`) with the node ids, object sharing
   and error order that parsing in place gives, or parses itself (Java: on the compiler thread).
+  Workers read source text when they claim a job. In a pruned graph with file entry points
+  and more jobs than workers, they follow static relative imports and re-exports. The compiler
+  also queues dependencies found by its module resolver. It checks source text, configuration
+  and source kind before it accepts a worker's result.
   No workers start while the machine is busy (on Linux, at least half as many other runnable
   threads as available CPUs, from `/proc/loadavg`): concurrent compiles then parse on their
   compiler threads instead of oversubscribing the CPUs.
@@ -437,6 +446,12 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `declare` of syntactic scopes take the lock once.
 - `jscomp/typed_scope_creator.rs`: the never-iterated `reservedNamesForScope` and
   `assignedVarNames` remove entries with `swap_remove`.
+- Function type construction reads the ordered JSDoc parameter map in place. Named
+  parameters match by name and destructuring parameters by position. Out-of-order
+  matches are tracked so unused annotations are reported in declaration order.
+- Typed scopes take ownership of their reserved names when the scope builder creates
+  them. The type registry reads an existing resolution result after checking the resolver
+  phase. It obtains the error reporter when a type still needs resolution.
 - A typed scope view records its parent at construction. For an ordinary type name it
   checks declarations and reserved names along the scope chain under one arena read lock.
   Implicit variables still use the usual slot lookup so they can be created on demand.
@@ -445,6 +460,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   that slot before constructing the component list for a property-chain lookup.
 - `jstype/js_type_registry.rs` resolves dotted type names one property at a time from the
   source string, and searches namespace prefixes only when the registry has Closure namespaces.
+- The type registry records which property names have carried visibility, constancy or
+  deprecation annotations. Access checks for a name with no such annotation walk the
+  implicit prototypes, whose getters can initialize types, and omit the property-table
+  probes. A property installed under another name is eligible for all three checks.
 - `jstype/js_type.rs` stores large function, enum and proxy payloads behind their registry
   entries. The smaller entries retain the same type handles and allocation order.
   Prototype string-property definitions update the live copy-on-write property table.
@@ -457,7 +476,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   RemoveUnusedCode and OptimizeCalls. Replacing the extern properties starts a new set.
 - `jscomp/guarded_callback.rs` stores conditional contexts in the traversal stack and
   links guards to earlier stack entries by index. The polyfill finder borrows property
-  names and method candidates until it finds a match. RemoveUnusedCode stores a single
+  names and method candidates until it finds a match. In a normalized tree, a guarded-only
+  search skips the name lookup when the expression is unsafe and no resource is guarded.
+  RemoveUnusedCode stores a single
   pending continuation or removable inline and queues multiple entries in their original order.
 - `jscomp/node_traversal.rs` `get_input`, `syntactic_scope_creator.rs` `ScopeScanner`: the
   CompilerInput found for the current input id is kept (Java keeps the object) instead of being
@@ -499,6 +520,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   them in the same traversal order after type resolution, saving a second AST walk. Each entry
   retains its original node and script for diagnostics. With the built-in reverse interpreter,
   straight-line functions run the same entry and statement transfers in control-flow order.
+  For an empty extern function declared in a script, variable or assignment, plain named
+  parameters take their types directly from the live signature. Entry inference updates each
+  parameter node and inferred slot in order. Default and destructured parameters, ES rest
+  syntax and nonempty bodies run their usual transfers.
   In the global graph, leading scripts of unconditional declarations and expressions each
   occupy one vertex. Inference visits their statements in order and keeps the separate edge
   that bypasses externs. Debug histograms and custom interpreters use the full graph.
@@ -559,6 +584,20 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   jump use the ordinary visitor. An arena change, a replaced node payload or an externally
   drained mutation log invalidates saved analyses.
   `CLOSURE_RS_REFERENCE_SITES=off` disables reuse of the ordered sites.
+- `jscomp/disambiguate` records property uses in traversal order. When diagnostics do not need
+  the full graph, properties used only in externs omit their rename sites and union-find work.
+  Extern-only memberships propagate in sparse 64-property words. An edge still schedules
+  its destination when any membership is new. Source properties retain their insertion
+  and union order, which determines their output names.
+- `jscomp/function_argument_injector.rs` collects modified parameters, nested closures and
+  uses of the enclosing receiver in one walk for `InlineFunctions`. Modified names retain
+  first-use order, and only arrows inherit the receiver of an enclosing function.
+- `jscomp/flow_sensitive_inline_variables.rs` checks small function bodies for a possible
+  definition and a read of the same name outside a loop before constructing a control-flow
+  graph. Hash collisions send the function through the full checks. The first candidate
+  that passes its local checks triggers backwards analysis before any replacement.
+  Large bodies, classes and nested functions with complex parameters keep the eager schedule.
+  Both analyses share the function's variable map and escape set by transferring ownership.
 - `jscomp/inline_variables.rs` retains an inlining result when another variable may alias it.
 - Token-based peephole rules declare their candidates alongside the rewrite. The pass calls
   rules in upstream order and checks the current token again after each rewrite. Custom
@@ -650,7 +689,23 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   reference map, so `afterVisitNode` receives it without a second lookup by var.
 - `jscomp/serialization/color_pool.rs` reconciles colors using ordered references into the
   input shards. The definitions stay in their original type pools until reconciliation and
-  diagnostics finish. This avoids copying nested object and union protos for each lookup.
+  diagnostics finish. A color with one definition stores that reference inline.
+  During an in-memory compilation the optimizer receives the already assigned color IDs
+  and interned property names. Shards read from TypedAST files reconstruct their IDs from
+  the serialized definitions.
+- `jscomp/serialization/serialize_types_to_pointers.rs` gathers property spellings and
+  assigns type pointers in one postorder traversal. Type summaries are skipped and
+  closure-unaware shadows contribute only types. Property filtering begins after the walk.
+  Each referenced property records its string-pool offset on its first use in a type.
+- `jscomp/invalidating_types.rs` indexes mismatch records by the Java type hash. The builder
+  checks type equality within each hash bucket and records distinct pairs of types and source
+  locations in insertion order. The finished multimap rebuilds the index from the current types.
+  Color serialization hashes the standard native types when it constructs their lookup table.
+- Type inference resolves a declared slot directly when a flow scope has no overlays. String
+  property tables allocate their shared storage at the first insertion. Template substitution
+  shares the original binding map while visiting its values in order and attaches the resolved
+  values when the visit finishes. Type equality allocates its cycle table at the existing
+  recursion threshold.
 - `jscomp/serialization/convert_types_to_colors.rs` transfers the completed type shard to the
   color builder and resolves colors once per observed registry type. Nodes share the resulting
   lookup by TypeId. JSDoc conversion uses the same serialization rules and allocates its

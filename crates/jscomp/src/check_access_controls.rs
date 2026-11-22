@@ -561,6 +561,10 @@ impl CheckAccessControls {
         let property_name = &prop_ref.name;
 
         if let Some(object_type) = object_type {
+            if !reg.property_access_annotations(property_name).deprecated {
+                AccessControlUtils::finish_prototype_walk(reg, ast, Some(object_type));
+                return;
+            }
             let deprecation_info =
                 Self::get_property_deprecation_info(reg, ast, object_type, property_name);
             if let Some(deprecation_info) = deprecation_info {
@@ -1434,6 +1438,10 @@ impl CheckAccessControls {
         mut object_type: Option<TypeId>,
         prop: &JsString,
     ) -> Constancy {
+        if !reg.property_access_annotations(prop).constant {
+            AccessControlUtils::finish_prototype_walk(reg, ast, object_type);
+            return Constancy::MUTABLE;
+        }
         while let Some(ot) = object_type {
             let doc_info = ot.get_own_property_jsdoc_info(reg, ast, prop);
             if let Some(doc_info) = doc_info {

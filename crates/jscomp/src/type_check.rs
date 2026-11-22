@@ -4947,14 +4947,22 @@ impl TypeCheck {
         compiler: &mut AbstractCompiler,
         n: NodeId,
     ) {
-        if n.get_jsdoc_info_ref(compiler).is_some() {
-            let info = n.get_jsdoc_info(compiler).unwrap();
-            self.check_type_contains_object_with_bad_key(compiler, n, info.get_type());
-            self.check_type_contains_object_with_bad_key(compiler, n, info.get_return_type());
-            self.check_type_contains_object_with_bad_key(compiler, n, info.get_typedef_type());
-            for param in info.get_parameter_names() {
-                let param_type = info.get_parameter_type(param);
-                self.check_type_contains_object_with_bad_key(compiler, n, param_type);
+        if let Some(info) = n.get_jsdoc_info(compiler) {
+            self.check_type_contains_object_with_bad_key(compiler, n, info.get_type().as_deref());
+            self.check_type_contains_object_with_bad_key(
+                compiler,
+                n,
+                info.get_return_type().as_deref(),
+            );
+            self.check_type_contains_object_with_bad_key(
+                compiler,
+                n,
+                info.get_typedef_type().as_deref(),
+            );
+            if let Some(parameters) = info.parameter_types() {
+                for expression in parameters.values().flatten() {
+                    self.check_type_contains_object_with_bad_key(compiler, n, Some(expression));
+                }
             }
         }
     }
@@ -4964,7 +4972,7 @@ impl TypeCheck {
         &mut self,
         compiler: &mut AbstractCompiler,
         n: NodeId,
-        type_: Option<Arc<JSTypeExpression>>,
+        type_: Option<&JSTypeExpression>,
     ) {
         if let Some(type_) = type_
             && let Some(real_type) = type_.get_root().get_jstype(compiler)

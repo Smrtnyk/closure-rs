@@ -421,11 +421,11 @@ impl PolyfillUsageFinder {
         root: NodeId,
         polyfill_consumer: &mut PolyfillConsumer<'_>,
     ) {
-        NodeTraversal::traverse(
-            compiler,
-            root,
-            &mut Traverser::new(self, polyfill_consumer, Guard::ONLY_GUARDED),
-        );
+        let mut traverser = Traverser::new(self, polyfill_consumer, Guard::ONLY_GUARDED);
+        // In a normalized tree, checking a polyfill name never creates a scope.
+        traverser.skip_unguardable_nodes =
+            compiler.get_life_cycle_stage() == LifeCycleStage::NORMALIZED;
+        NodeTraversal::traverse(compiler, root, &mut traverser);
     }
 
     // port: PolyfillUsageFinder#maybeCreateStaticPolyfillUsageForGetPropChain
@@ -582,6 +582,7 @@ struct Traverser<'a, 'c> {
     polyfill_consumer: &'a mut PolyfillConsumer<'c>,
     // Whether to emit usages like Promise in `if (Promise) return Promise.resolve('ok');}`
     include_guarded_usages: Guard,
+    skip_unguardable_nodes: bool,
 }
 
 impl<'a, 'c> Traverser<'a, 'c> {
@@ -596,6 +597,7 @@ impl<'a, 'c> Traverser<'a, 'c> {
             outer,
             polyfill_consumer,
             include_guarded_usages,
+            skip_unguardable_nodes: false,
         }
     }
 
@@ -698,6 +700,9 @@ impl GuardedCallbackSubclass for Traverser<'_, '_> {
         node: NodeId,
         _parent: Option<NodeId>,
     ) {
+        if self.skip_unguardable_nodes && !self.base.can_guard_any_resource() {
+            return;
+        }
         match node.get_token(traversal) {
             Token::NAME => self.visit_name(traversal, node),
             Token::GETPROP | Token::OPTCHAIN_GETPROP => self.visit_get_prop_chain(traversal, node),

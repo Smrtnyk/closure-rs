@@ -5339,6 +5339,10 @@ impl AllVarsDeclaredInFunction {
             ordered_vars,
         }
     }
+    pub(crate) fn into_parts(self) -> (IndexMap<JsString, VarId>, Vec<VarId>) {
+        (self.all_vars_in_fn, self.ordered_vars)
+    }
+
     // port: NodeUtil.AllVarsDeclaredInFunction#getAllVariables
     pub fn get_all_variables(&self) -> &IndexMap<JsString, VarId> {
         &self.all_vars_in_fn

@@ -64,9 +64,7 @@ impl RemoveTypes {
     // port: ConvertTypesToColors.RemoveTypes#visit
     fn visit_node(ast: &mut Ast, n: NodeId) {
         n.set_jstype(ast, None);
-        n.set_jstype_before_cast(ast, None);
-        n.set_declared_type_expression(ast, None);
-        n.set_typedef_type_prop(ast, None);
+        n.clear_type_declaration_props(ast);
 
         let jsdoc = n.get_jsdoc_info(ast);
         if let Some(jsdoc) = jsdoc {
@@ -186,13 +184,16 @@ impl CompilerPass for ConvertTypesToColors {
         );
         serialize_jstypes.gather_types_on_ast(compiler, externs_and_js_root);
 
-        let (type_pool, pointers) = serialize_jstypes.into_type_pool_and_pointers();
-        let string_pool = Arc::new(string_pool_builder.borrow().build());
+        let (type_pool, color_ids, pointers) = serialize_jstypes.into_optimization_shard();
+        let strings = Rc::into_inner(string_pool_builder)
+            .expect("the completed serializer released the string pool")
+            .into_inner()
+            .into_interned_strings();
 
         let mut color_pool_builder = ColorPool::builder();
         compiler.init_runtime_library_typed_asts(Some(&mut color_pool_builder));
 
-        let shard = color_pool_builder.add_shard(Arc::new(type_pool), string_pool);
+        let shard = color_pool_builder.add_optimization_shard(type_pool, color_ids, strings);
         let color_pool = color_pool_builder.build();
         let mut callback = RemoveTypesAndApplyColors::new(&shard, &pointers);
         NodeTraversal::traverse(compiler, externs_and_js_root, &mut callback);

@@ -641,7 +641,15 @@ impl Compiler {
 
     /// Rust-only: reports, in order, the errors the type registry's reporter queued
     /// (`QueueingOldRhinoErrorReporter`), as Java's reporter would have through `Compiler#report`.
+    #[inline]
     pub fn report_queued_type_registry_errors(&mut self) {
+        if self.queued_type_registry_errors.has_pending() {
+            self.drain_type_registry_errors();
+        }
+    }
+
+    #[cold]
+    fn drain_type_registry_errors(&mut self) {
         let queued = self.queued_type_registry_errors.take();
         for error in queued {
             self.report_now(error);
@@ -2841,24 +2849,29 @@ impl Compiler {
             .collect();
         all_deps.extend(input.get_dynamic_requires());
         all_deps.extend(input.get_type_requires(self));
-        for required_namespace in all_deps {
-            let (required_input, required_by_module_import) =
-                if let Some(input) = inputs_by_provide.get(&required_namespace) {
-                    (Some(input), false)
-                } else {
-                    (inputs_by_identifier.get(&required_namespace), true)
-                };
-            if let Some(required_input) = required_input {
-                self.find_modules_from_input(
-                    required_input,
-                    required_by_module_import,
-                    inputs,
-                    inputs_by_identifier,
-                    inputs_by_provide,
-                    support_es6_modules,
-                    support_common_js_modules,
-                );
-            }
+        let dependencies = all_deps.iter().filter_map(|namespace| {
+            inputs_by_provide
+                .get(namespace)
+                .map(|input| (input, false))
+                .or_else(|| {
+                    inputs_by_identifier
+                        .get(namespace)
+                        .map(|input| (input, true))
+                })
+        });
+        if let Some(preparser) = &self.preparser {
+            preparser.schedule_imports(dependencies.clone().map(|(input, _)| input));
+        }
+        for (required_input, required_by_module_import) in dependencies {
+            self.find_modules_from_input(
+                required_input,
+                required_by_module_import,
+                inputs,
+                inputs_by_identifier,
+                inputs_by_provide,
+                support_es6_modules,
+                support_common_js_modules,
+            );
         }
     }
     // port: Compiler#hoistExterns
@@ -3436,28 +3449,33 @@ impl Compiler {
         self.get_type_registry_and_ast().0
     }
     /// Rust-only: `Compiler#getTypeRegistry` together with the arena its methods read, split-borrowed.
+    #[inline]
     pub fn get_type_registry_and_ast(&mut self) -> (&mut closure_jstype::JSTypeRegistry, &mut Ast) {
         // Errors the registry queued since the last call reach the error manager first.
         self.report_queued_type_registry_errors();
         if self.type_registry.is_none() {
-            assert!(
-                !self.has_type_checking_run(),
-                "Attempted to re-initialize JSTypeRegistry after it had been cleared"
-            );
-            // oldErrorReporter = RhinoErrorReporter.forOldRhino(this)
-            let old_error_reporter =
-                crate::rhino_error_reporter::QueueingOldRhinoErrorReporter::new(Arc::clone(
-                    &self.queued_type_registry_errors,
-                ));
-            self.type_registry = Some(
-                closure_jstype::JSTypeRegistry::new_with_shared_forward_declared_types(
-                    &mut self.ast,
-                    Box::new(old_error_reporter),
-                    self.forward_declared_types.clone(),
-                ),
-            );
+            self.initialize_type_registry();
         }
         (self.type_registry.as_mut().unwrap(), &mut self.ast)
+    }
+
+    #[cold]
+    fn initialize_type_registry(&mut self) {
+        assert!(
+            !self.has_type_checking_run(),
+            "Attempted to re-initialize JSTypeRegistry after it had been cleared"
+        );
+        // oldErrorReporter = RhinoErrorReporter.forOldRhino(this)
+        let old_error_reporter = crate::rhino_error_reporter::QueueingOldRhinoErrorReporter::new(
+            Arc::clone(&self.queued_type_registry_errors),
+        );
+        self.type_registry = Some(
+            closure_jstype::JSTypeRegistry::new_with_shared_forward_declared_types(
+                &mut self.ast,
+                Box::new(old_error_reporter),
+                self.forward_declared_types.clone(),
+            ),
+        );
     }
     /// Rust-only: the `typeRegistry` field (as `Compiler#getAstAnalyzer` hands it to
     /// `new AstAnalyzer(..)`, possibly null) together with the arena, split-borrowed.
@@ -3756,6 +3774,10 @@ impl Compiler {
     pub fn set_module_map(&mut self, map: Arc<crate::modules::module_map::ModuleMap>) {
         self.module_map = Some(map);
     }
+    pub(crate) fn has_performance_tracker(&self) -> bool {
+        self.tracker.is_some()
+    }
+
     // port: Compiler#reportDisambiguatePropertiesSummary
     pub fn report_disambiguate_properties_summary(&self, summary: impl FnOnce() -> String) {
         if let Some(tracker) = &self.tracker {

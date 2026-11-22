@@ -238,6 +238,37 @@ impl OwnedProperty {
     }
 }
 
+/// Kinds of property documentation consulted by access checks. Bits accumulate across
+/// the registry so a negative answer remains valid when a slot is replaced or inherited.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub struct PropertyAccessAnnotations {
+    pub visibility: bool,
+    pub constant: bool,
+    pub deprecated: bool,
+}
+
+impl PropertyAccessAnnotations {
+    pub(crate) const ALL: Self = Self {
+        visibility: true,
+        constant: true,
+        deprecated: true,
+    };
+
+    pub(crate) fn include(&mut self, other: Self) {
+        self.visibility |= other.visibility;
+        self.constant |= other.constant;
+        self.deprecated |= other.deprecated;
+    }
+
+    fn from_info(info: &JSDocInfo) -> Self {
+        Self {
+            visibility: info.get_visibility() != closure_rhino::jsdoc_info::Visibility::INHERITED,
+            constant: info.is_final() || info.is_constant(),
+            deprecated: info.is_deprecated(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct PropertyData {
     pub(crate) name: PropertyKey,
@@ -325,6 +356,15 @@ impl Property for PropertyId {
     }
     // port: Property#setJSDocInfo
     fn set_jsdoc_info(self, reg: &mut JSTypeRegistry, info: Option<Arc<JSDocInfo>>) {
+        if let Some(info) = info.as_deref() {
+            let flags = PropertyAccessAnnotations::from_info(info);
+            if flags != PropertyAccessAnnotations::default()
+                && let PropertyKey::String(key) = &reg.property(self).name
+            {
+                let key = key.clone();
+                reg.note_property_access_annotations(key, flags);
+            }
+        }
         reg.property_mut(self).doc_info = info;
     }
     // port: Property#setNode

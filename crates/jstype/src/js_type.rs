@@ -818,6 +818,18 @@ pub trait JSType {
     fn match_constraint(self, reg: &mut JSTypeRegistry, ast: &Ast, constraint: TypeId);
     fn to_maybe_object_type(self, reg: &JSTypeRegistry) -> Option<TypeId>;
 }
+fn resolve_uncached(
+    ty: TypeId,
+    reg: &mut JSTypeRegistry,
+    ast: &Ast,
+    reporter: &mut dyn closure_rhino::error_reporter::ErrorReporter,
+) -> TypeId {
+    reg.data_mut(ty).resolve_result = Some(ty);
+    let result = ty.resolve_internal(reg, ast, reporter);
+    reg.data_mut(ty).resolve_result = Some(result);
+    result
+}
+
 impl JSType for TypeId {
     // port: JSType#getTypeClass
     fn get_type_class(self, reg: &JSTypeRegistry) -> JSTypeClass {
@@ -2624,8 +2636,11 @@ impl JSType for TypeId {
     }
     // port: JSType#resolve
     fn resolve(self, reg: &mut JSTypeRegistry, ast: &Ast) -> TypeId {
+        if let Some(resolved) = reg.cached_resolution(self) {
+            return resolved;
+        }
         let mut reporter = reg.get_error_reporter();
-        self.resolve_with_reporter(reg, ast, &mut reporter)
+        resolve_uncached(self, reg, ast, &mut reporter)
     }
     // port: JSType#resolve
     fn resolve_with_reporter(
@@ -2634,14 +2649,10 @@ impl JSType for TypeId {
         ast: &Ast,
         reporter: &mut dyn closure_rhino::error_reporter::ErrorReporter,
     ) -> TypeId {
-        reg.get_resolver().assert_legal_to_resolve_types();
-        if !self.is_resolved(reg) {
-            reg.data_mut(self).resolve_result = Some(self);
-            let result = self.resolve_internal(reg, ast, reporter);
-            reg.data_mut(self).resolve_result = Some(result);
-            closure_rhino::check_state!(self.is_resolved(reg));
+        match reg.cached_resolution(self) {
+            Some(resolved) => resolved,
+            None => resolve_uncached(self, reg, ast, reporter),
         }
-        reg.data(self).resolve_result.unwrap()
     }
     // port: JSType#resolveInternal
     fn resolve_internal(

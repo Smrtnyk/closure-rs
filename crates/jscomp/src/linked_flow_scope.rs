@@ -471,6 +471,9 @@ impl FlowScope for LinkedFlowScope {
         // Rust-only (performance divergence): reuse the live declaration that selected the
         // overlay. A lookup from a different owning scope still consults that scope.
         let var = self.syntactic_scope.get_var(compiler, name);
+        if self.scopes.is_empty() {
+            return (var.map(FlowSlot::Var), var);
+        }
         if let Some(var) = var {
             let owner = var.get_scope(compiler);
             let slot = match self.scopes.get(&owner) {
