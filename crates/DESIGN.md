@@ -633,13 +633,24 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `rhino/node.rs` `Ast::track_changes`: the arena records every node whose children, token or
   string change (independently of the compiler's change reports, which some passes omit), so
   that the scope cache sees every change.
-- `jscomp/scope.rs` `ScopeMeta::may_have_vars`: a name lookup passes scopes known to have
-  no declarations without reading the arena.
-- `jscomp/scope.rs` keeps recent ordinary name lookups in a 256-slot direct-mapped table on the
-  compiler. A hit checks the starting scope and the complete spelling. Changes to declarations,
-  mutable scope-data access and reparenting invalidate results that could have observed the
-  affected scope. Scopes allocated since the last lookup can be populated independently.
-  Implicit names still check the current AST and create their slots on demand.
+- `jscomp/scope.rs` records one bit per Java name hash modulo 64 on each scope.
+  An ordinary lookup starts at the first enclosing scope whose bits admit the spelling.
+  Node and string lookups share a 256-slot table keyed by that scope and the complete
+  spelling. Both successful and absent bindings can be reused. Declarations and reparenting
+  invalidate entries that could have observed the change. Unrestricted mutable access to a
+  scope also sets all its bits. Implicit names consult the current AST and create their
+  slots on demand.
+- `jscomp/phase_optimizer.rs` uses exact cached subtree sizes for the loop stopping
+  heuristic. The first count fills an arena column. Changing a child list invalidates the
+  counts for that parent and its counted ancestors. A later count walks only changed paths.
+- `jscomp/inline_object_literals.rs` finds candidate names from the arena's object literal
+  and function token index. It checks current tokens and ancestry before accepting a name.
+  The arena keeps the two most recent token selections so getter/setter gathering and
+  object literal inlining can each reuse their index.
+- `jscomp/global_namespace.rs` resolves the first component of a qualified name before
+  constructing the full spelling. It copies the traversal's chunk handle only for references
+  that belong to the namespace. Method-call checks and dead-code removal also read property
+  spellings directly from nodes and copy them when adding a retained name to a collection.
 - `jscomp/reference_collector.rs` passes the resolved traversal scope into each reference.
   When checking whether an assignment occurs only once in a variable's lifetime,
   `reference_collection.rs` resolves its declaration once across the enclosing basic blocks.

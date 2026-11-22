@@ -1493,14 +1493,19 @@ impl<'a> NodeTraversal<'a> {
 
     // port: NodeTraversal#getChunk
     pub fn get_chunk(&mut self) -> Option<JSChunk> {
-        if let Some(chunk) = &self.chunk_of_input {
-            return chunk.clone();
+        self.get_compiler_and_chunk().1.cloned()
+    }
+
+    /// A visitor can inspect a node with its input's chunk and keep a handle only
+    /// when it records a reference.
+    pub(crate) fn get_compiler_and_chunk(&mut self) -> (&mut AbstractCompiler, Option<&JSChunk>) {
+        if self.chunk_of_input.is_none() {
+            self.chunk_of_input = self.get_input().map(CompilerInput::get_chunk);
         }
-        let chunk = self.get_input().and_then(|input| input.get_chunk());
-        if self.compiler_input_object.is_some() {
-            self.chunk_of_input = Some(chunk.clone());
-        }
-        chunk
+        (
+            self.compiler,
+            self.chunk_of_input.as_ref().and_then(Option::as_ref),
+        )
     }
 
     /// Match the diagnostic context of an ordinary callback when replaying its effect.

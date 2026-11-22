@@ -656,8 +656,7 @@ impl RemoveUnusedCode {
                         // In `#x in o`, `#x` is a NAME node representing a private property (not
                         // a variable in `scope`); pin the property name so the declaration of
                         // `#x` is kept, and skip variable lookup.
-                        let name = n.get_string(compiler);
-                        self.mark_property_name_as_pinned(compiler, name);
+                        self.mark_property_name_as_pinned(n.get_string_ref(compiler));
                         return;
                     }
                     let var_info = self.traverse_name_node(compiler, n, scope);
@@ -718,13 +717,9 @@ impl RemoveUnusedCode {
             get_prop.to_string(compiler)
         );
         let object_node = get_prop.get_first_child(compiler).unwrap();
-        let property_name = get_prop.get_string(compiler);
-
-        if self.polyfills.contains_key(&property_name) {
-            for info in self.polyfills.get(&property_name) {
-                if self.polyfill_infos[info.0].is_removable {
-                    self.polyfill_info_consider_possible_reference(compiler, info, get_prop);
-                }
+        for info in self.polyfills.get(get_prop.get_string_ref(compiler)) {
+            if self.polyfill_infos[info.0].is_removable {
+                self.polyfill_info_consider_possible_reference(compiler, info, get_prop);
             }
         }
 
@@ -736,7 +731,7 @@ impl RemoveUnusedCode {
             )
         {
             // must record as reference to the property and continue traversal.
-            self.mark_property_name_as_pinned(compiler, property_name);
+            self.mark_property_name_as_pinned(get_prop.get_string_ref(compiler));
             self.traverse_node(compiler, object_node, scope);
         } else if object_node.is_this(compiler) {
             // This is probably the declaration of a class field in a constructor.
@@ -769,7 +764,7 @@ impl RemoveUnusedCode {
             }
         } else {
             // TODO(bradfordcsmith): add removal of `varName.propName;`
-            self.mark_property_name_as_pinned(compiler, property_name);
+            self.mark_property_name_as_pinned(get_prop.get_string_ref(compiler));
             self.traverse_node(compiler, object_node, scope);
         }
     }
@@ -939,8 +934,7 @@ impl RemoveUnusedCode {
             if let Some(property_name_node) = property_name_node
                 && property_name_node.is_string_lit(compiler)
             {
-                let property_name = property_name_node.get_string(compiler);
-                self.mark_property_name_as_pinned(compiler, property_name);
+                self.mark_property_name_as_pinned(property_name_node.get_string_ref(compiler));
             }
             self.traverse_children(compiler, call_node, scope);
         } else if NodeUtil::is_object_define_properties_definition(compiler, call_node) {
@@ -1126,8 +1120,7 @@ impl RemoveUnusedCode {
             if p.is_quoted_string_key(compiler) {
                 // Quoted property name counts as a reference to the property and protects it from
                 // removal.
-                let name = p.get_string(compiler);
-                self.mark_property_name_as_pinned(compiler, name);
+                self.mark_property_name_as_pinned(p.get_string_ref(compiler));
                 self.traverse_node(compiler, p.get_only_child(compiler), scope);
             } else if p.is_string_key(compiler) {
                 let definition = p.get_only_child(compiler);
@@ -1387,8 +1380,7 @@ impl RemoveUnusedCode {
                 // because of some reflection patterns.
                 // Note that we are intentionally treating both quoted and unquoted keys as
                 // references.
-                let name = p.get_string(compiler);
-                self.mark_property_name_as_pinned(compiler, name);
+                self.mark_property_name_as_pinned(p.get_string_ref(compiler));
                 self.traverse_node(compiler, p.get_first_child(compiler).unwrap(), scope);
             } else {
                 self.traverse_node(compiler, p, scope);
@@ -1811,8 +1803,7 @@ impl RemoveUnusedCode {
                 }
                 Token::STRING_KEY => {
                     if !e.is_quoted_string_key(compiler) {
-                        let name = e.get_string(compiler);
-                        self.mark_property_name_as_pinned(compiler, name);
+                        self.mark_property_name_as_pinned(e.get_string_ref(compiler));
                     }
                     let target = e.get_only_child(compiler);
                     self.traverse_indirect_assignment(compiler, e, target, scope);
@@ -2225,24 +2216,17 @@ impl RemoveUnusedCode {
     }
 
     // port: RemoveUnusedCode#markPropertyNameAsPinned
-    fn mark_property_name_as_pinned(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        property_name: JsString,
-    ) {
-        if self.pinned_property_names.insert(property_name.clone())
-            && !self.extern_properties.contains(&property_name)
-        {
-            // Continue traversal of all of the property name's values and no longer consider them
-            // for removal.
-            for removable in self
-                .removables_for_property_names
-                .remove_all(&property_name)
-            {
+    fn mark_property_name_as_pinned(&mut self, property_name: &JsString) {
+        if self.pinned_property_names.contains(property_name) {
+            return;
+        }
+        self.pinned_property_names.insert(property_name.clone());
+        if !self.extern_properties.contains(property_name) {
+            // Continue traversal of all values for this property and keep them.
+            for removable in self.removables_for_property_names.remove_all(property_name) {
                 self.removable_apply_continuations(removable);
             }
         }
-        let _ = compiler;
     }
 
     // port: RemoveUnusedCode#considerForIndependentRemoval
@@ -2270,7 +2254,7 @@ impl RemoveUnusedCode {
                 self.removable_apply_continuations(removable);
                 // This assignment counts as a reference, since we won't be removing it.
                 // This is necessary in order to preserve getters and setters for the property.
-                self.mark_property_name_as_pinned(compiler, property_name);
+                self.mark_property_name_as_pinned(&property_name);
             }
         } else {
             self.removable_apply_continuations(removable);
@@ -2291,15 +2275,15 @@ impl RemoveUnusedCode {
             "%s",
             getprop.to_string(compiler)
         );
-        let prop_name = getprop.get_string(compiler);
+        let prop_name = getprop.get_string_ref(compiler);
         let recorded = compiler
             .get_accessor_summary()
             .expect("compiler.getAccessorSummary() is null")
-            .get_kind(&prop_name);
+            .get_kind(prop_name);
         if (recorded.has_getter() && usage.has_getter() && !self.assume_getters_are_pure)
             || (recorded.has_setter() && usage.has_setter())
         {
-            self.mark_property_name_as_pinned(compiler, prop_name);
+            self.mark_property_name_as_pinned(prop_name);
             return true;
         }
 

@@ -403,7 +403,7 @@ impl GlobalNamespace {
                 key = k.get_next(compiler);
             }
         }
-        builder.collect(compiler, scope, chunk, n);
+        builder.collect(compiler, scope, chunk.as_ref(), n);
     }
 
     /// Builds the namespace lazily.
@@ -714,8 +714,8 @@ impl Callback for BuildGlobalNamespace<'_> {
         }
 
         let scope = t.get_scope();
-        let chunk = t.get_chunk();
-        self.collect(t.get_compiler(), Some(scope), chunk, n);
+        let (compiler, chunk) = t.get_compiler_and_chunk();
+        self.collect(compiler, Some(scope), chunk, n);
 
         true
     }
@@ -763,11 +763,12 @@ impl<'g> BuildGlobalNamespace<'g> {
         &mut self,
         compiler: &mut AbstractCompiler,
         scope: Option<ScopeId>,
-        chunk: Option<JSChunk>,
+        chunk: Option<&JSChunk>,
         n: NodeId,
     ) {
         let parent = n.get_parent(compiler);
 
+        let mut needs_full_name = false;
         let name: Option<JsString>;
         let mut is_set = false;
         let mut r#type = NameProp::OTHER_OBJECT;
@@ -906,7 +907,16 @@ impl<'g> BuildGlobalNamespace<'g> {
                 if !n.is_qualified_name(compiler) {
                     return;
                 }
-                name = n.get_qualified_name(compiler);
+                // The leftmost name determines the scope. Assemble the whole dotted name
+                // only when this is a reference the namespace actually records.
+                let mut base = n;
+                while base.is_get_prop(compiler) {
+                    // getQualifiedName also validates the payload of a local property.
+                    base.get_string_ref(compiler);
+                    base = base.get_first_child(compiler).unwrap();
+                }
+                needs_full_name = base != n;
+                name = base.get_qualified_name(compiler);
             }
             Token::CALL => {
                 if check_not_null!(parent).is_expr_result(compiler)
@@ -939,6 +949,12 @@ impl<'g> BuildGlobalNamespace<'g> {
             return;
         }
 
+        let name = if needs_full_name {
+            n.get_qualified_name(compiler).unwrap()
+        } else {
+            name
+        };
+        let chunk = chunk.cloned();
         let name_metadata = if root == Some(self.gn.global_root) {
             None
         } else {

@@ -1547,7 +1547,7 @@ impl ExpressionDecomposer {
             // known constant function, as decomposing it may mess up InlineFunction's
             // bookkeeping if it is attempting to inline "fn".
             let parent = tree.get_parent(compiler).expect("NullPointerException");
-            if NodeUtil::is_object_call_method(compiler, parent, &JsString::from("call"))
+            if NodeUtil::is_function_object_call(compiler, parent)
                 || parent.get_boolean_prop(compiler, Prop::FREE_CALL)
             {
                 let callee =

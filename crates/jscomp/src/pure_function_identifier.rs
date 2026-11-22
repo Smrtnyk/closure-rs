@@ -913,8 +913,8 @@ impl PureFunctionIdentifier {
             return false;
         }
 
-        NodeUtil::is_function_object_call(ast, call_site)
-            || NodeUtil::is_function_object_apply(ast, call_site)
+        NodeUtil::object_call_method_name(ast, call_site)
+            .is_some_and(|name| name == "call" || name == "apply")
     }
 
     // port: PureFunctionIdentifier#isCallOrTaggedTemplateLit

@@ -2517,26 +2517,32 @@ impl NodeUtil {
     }
     // port: NodeUtil#isObjectCallMethod
     pub fn is_object_call_method(ast: &Ast, call_node: NodeId, method_name: &JsString) -> bool {
-        if call_node.is_call(ast) || call_node.is_opt_chain_call(ast) {
-            let callee = call_node.get_first_child(ast).unwrap();
-            if Self::is_normal_or_opt_chain_get_prop(ast, callee) {
-                return callee.get_string(ast) == *method_name;
-            } else if Self::is_normal_or_opt_chain_get(ast, callee)
-                && let Some(last) = callee.get_last_child(ast)
-                && last.is_string_lit(ast)
-            {
-                return last.get_string(ast) == *method_name;
-            }
+        Self::object_call_method_name(ast, call_node) == Some(method_name)
+    }
+
+    pub(crate) fn object_call_method_name(ast: &Ast, call_node: NodeId) -> Option<&JsString> {
+        if !call_node.is_call(ast) && !call_node.is_opt_chain_call(ast) {
+            return None;
         }
-        false
+        let callee = call_node.get_first_child(ast).unwrap();
+        if Self::is_normal_or_opt_chain_get_prop(ast, callee) {
+            return Some(callee.get_string_ref(ast));
+        }
+        if Self::is_normal_or_opt_chain_get(ast, callee)
+            && let Some(key) = callee.get_last_child(ast)
+            && key.is_string_lit(ast)
+        {
+            return Some(key.get_string_ref(ast));
+        }
+        None
     }
     // port: NodeUtil#isFunctionObjectCall
     pub fn is_function_object_call(ast: &Ast, call_node: NodeId) -> bool {
-        Self::is_object_call_method(ast, call_node, &"call".into())
+        Self::object_call_method_name(ast, call_node).is_some_and(|name| name == "call")
     }
     // port: NodeUtil#isFunctionObjectApply
     pub fn is_function_object_apply(ast: &Ast, call_node: NodeId) -> bool {
-        Self::is_object_call_method(ast, call_node, &"apply".into())
+        Self::object_call_method_name(ast, call_node).is_some_and(|name| name == "apply")
     }
 }
 
@@ -3679,7 +3685,7 @@ impl MatchNameNode {
     }
     // port: NodeUtil.MatchNameNode#apply
     pub fn apply(&self, ast: &Ast, n: NodeId) -> bool {
-        n.is_name(ast) && n.get_string(ast) == self.name
+        n.is_name(ast) && n.get_string_ref(ast) == &self.name
     }
 }
 

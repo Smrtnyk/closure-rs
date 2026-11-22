@@ -112,8 +112,13 @@ pub(crate) struct ScopeMirror {
     pub(crate) vars: ChunkedVec<VarMeta>,
 }
 
-/// Recent ordinary NAME resolutions. Each slot checks the starting scope and the full
-/// spelling, including when the cached result is an absent binding.
+enum LookupName<'a> {
+    Node(NodeId),
+    Spelling(&'a JsString),
+}
+
+/// Recent ordinary name resolutions. Each slot checks the first scope that could declare
+/// the name and its full spelling, including when the cached result is an absent binding.
 #[derive(Debug)]
 pub(crate) struct ScopeLookupCache {
     entries: Box<[Option<CachedBinding>; 256]>,
@@ -160,9 +165,9 @@ pub(crate) struct ScopeMeta {
     pub(crate) depth: i32,
     /// Rust-only: kept for reuse by the `SyntacticScopeCache`.
     pub(crate) kept: bool,
-    /// False while the scope is known to have no explicit declarations. This lets a
-    /// name lookup pass it without reading the arena.
-    pub(crate) may_have_vars: bool,
+    /// Each explicit declaration sets the bit selected by its Java string hash. A clear
+    /// bit rules out the spelling. Unrestricted mutable access sets every bit.
+    pub(crate) name_bits: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -252,15 +257,24 @@ impl ScopeId {
         scope
     }
 
+    fn name_bit(name: &JsString) -> u64 {
+        1 << (name.hash_code() as u32 & 63)
+    }
+
     /// Rust-only: `getVar` for a name no implicit slot can match: getOwnSlot only reads each
     /// scope's declared vars, so walk the chain under one read lock instead of one lock per
     /// scope (performance divergence).
-    fn get_declared_var(self, compiler: &AbstractCompiler, name: &JsString) -> Option<VarId> {
+    fn get_declared_var(
+        self,
+        compiler: &AbstractCompiler,
+        name: &JsString,
+        bit: u64,
+    ) -> Option<VarId> {
         let arena = ScopeArena::read(compiler);
         let mut scope = Some(self);
         while let Some(current) = scope {
             let meta = &compiler.scope_mirror.scopes[current.index()];
-            if meta.may_have_vars
+            if meta.name_bits & bit != 0
                 && let Some(var) = arena.scopes[current.index()].abstract_scope.vars.get(name)
             {
                 return Some(*var);
@@ -273,26 +287,47 @@ impl ScopeId {
     /// Resolve a NAME or IMPORT_STAR node in this scope. Repeated ordinary lookups
     /// reuse their result. Implicit names consult the current AST and can create a slot.
     pub fn get_var_of_node(self, compiler: &mut AbstractCompiler, n: NodeId) -> Option<VarId> {
-        let name = n.get_string_ref(&compiler.ast);
+        self.resolve_name(compiler, LookupName::Node(n))
+    }
+
+    fn resolve_name(
+        self,
+        compiler: &mut AbstractCompiler,
+        source: LookupName<'_>,
+    ) -> Option<VarId> {
+        let name = match source {
+            LookupName::Node(node) => node.get_string_ref(&compiler.ast),
+            LookupName::Spelling(name) => name,
+        };
+        if ImplicitVar::of(name).is_some() {
+            let name = name.clone();
+            return crate::abstract_scope::abstract_scope_get_var(self, compiler, &name);
+        }
+        let bit = Self::name_bit(name);
+        // Sibling scopes that cannot declare this spelling share the same lookup.
+        let mut start = self;
+        loop {
+            let meta = &compiler.scope_mirror.scopes[start.index()];
+            if meta.name_bits & bit != 0 {
+                break;
+            }
+            start = meta.parent?;
+        }
         let cache = &compiler.scope_lookups;
-        let index =
-            (name.hash_code() as usize ^ self.index().wrapping_mul(31)) & (cache.entries.len() - 1);
+        let index = (name.hash_code() as usize ^ start.index().wrapping_mul(31))
+            & (cache.entries.len() - 1);
         if let Some(entry) = &cache.entries[index]
-            && entry.scope == self
+            && entry.scope == start
             && entry.generation == cache.generation
             && entry.name == *name
         {
             return entry.var;
         }
-        if ImplicitVar::of(name).is_some() {
-            let name = name.clone();
-            return <Self as AbstractScope>::get_var(self, compiler, &name);
-        }
-        let var = self.get_declared_var(compiler, name);
+        let var = start.get_declared_var(compiler, name, bit);
         let cache = &mut compiler.scope_lookups;
         cache.observed_scopes = compiler.scope_mirror.scopes.len();
         cache.entries[index] = Some(CachedBinding {
-            scope: self,
+            scope: start,
             name: name.clone(),
             var,
             generation: cache.generation,
@@ -326,6 +361,7 @@ impl ScopeId {
         let name = name.into();
         check_argument!(!name.is_empty());
         self.note_mutation(compiler);
+        compiler.scope_mirror.scopes[self.index()].name_bits |= Self::name_bit(&name);
         if ImplicitVar::of(&name).is_none() {
             // Rust-only fast path (performance divergence): with no implicit slot for `name`,
             // getOwnSlot, hasOwnSlot and canDeclare only read declared vars, so the checks, the new
@@ -437,7 +473,7 @@ impl ScopeId {
             parent,
             depth,
             kept: false,
-            may_have_vars: false,
+            name_bits: 0,
         });
         scope
     }
@@ -509,7 +545,7 @@ impl AbstractScope for ScopeId {
 
     fn scope_data_mut(self, compiler: &mut AbstractCompiler) -> Self::DataMut<'_> {
         compiler.scope_lookups.invalidate(self);
-        compiler.scope_mirror.scopes[self.index()].may_have_vars = true;
+        compiler.scope_mirror.scopes[self.index()].name_bits = u64::MAX;
         TypedArenaMut::new(
             ScopeArena::write(compiler),
             self.index(),
@@ -525,10 +561,7 @@ impl AbstractScope for ScopeId {
 
     // port: AbstractScope#getVar
     fn get_var(self, compiler: &mut AbstractCompiler, name: &JsString) -> Option<VarId> {
-        if ImplicitVar::of(name).is_some() {
-            return crate::abstract_scope::abstract_scope_get_var(self, compiler, name);
-        }
-        self.get_declared_var(compiler, name)
+        self.resolve_name(compiler, LookupName::Spelling(name))
     }
 
     fn get_depth(self, compiler: &AbstractCompiler) -> i32 {
@@ -545,13 +578,10 @@ impl AbstractScope for ScopeId {
     }
 
     /// Rust-only (performance divergence): a pass declaring or undeclaring a name in a scope that
-    /// the `SyntacticScopeCache` keeps makes it unfit for reuse. Also notes that the scope may now
-    /// have vars (`ScopeMeta::may_have_vars`).
+    /// the `SyntacticScopeCache` keeps makes it unfit for reuse.
     fn note_mutation(self, compiler: &mut AbstractCompiler) {
         compiler.scope_lookups.invalidate(self);
-        let meta = &mut compiler.scope_mirror.scopes[self.index()];
-        meta.may_have_vars = true;
-        let meta = *meta;
+        let meta = compiler.scope_mirror.scopes[self.index()];
         if meta.kept {
             crate::syntactic_scope_cache::SyntacticScopeCache::evict(
                 compiler,
@@ -1001,6 +1031,29 @@ mod lookup_tests {
         assert_eq!(local.get_var_of_node(&mut compiler, name), Some(inner));
         other.scope_data_mut(&mut compiler).vars.clear();
         assert_eq!(local.get_var_of_node(&mut compiler, name), None);
+    }
+
+    #[test]
+    fn spelling_and_node_lookups_share_only_possible_declarations() {
+        let mut compiler = AbstractCompiler::new();
+        let root = compiler.ast.new_node(Token::ROOT);
+        let global = ScopeId::create_global_scope(&mut compiler, root);
+        let first = compiler.ast.new_node(Token::FUNCTION);
+        let left = ScopeId::create_child_scope(&mut compiler, global, first);
+        let second = compiler.ast.new_node(Token::FUNCTION);
+        let right = ScopeId::create_child_scope(&mut compiler, global, second);
+        let name = compiler.ast.new_string_with_token(Token::NAME, "Aa");
+        let outer = global.declare(&mut compiler, "Aa", None, None);
+        left.declare(&mut compiler, "x", None, None);
+        // Same Java hash as Aa. The declaration table still checks the spelling.
+        right.declare(&mut compiler, "BB", None, None);
+        assert_eq!(left.get_var(&mut compiler, "Aa"), Some(outer));
+        assert_eq!(right.get_var_of_node(&mut compiler, name), Some(outer));
+        let inner = left.declare(&mut compiler, "Aa", None, None);
+        assert_eq!(left.get_var_of_node(&mut compiler, name), Some(inner));
+        assert_eq!(right.get_var(&mut compiler, "Aa"), Some(outer));
+        left.undeclare(&mut compiler, inner);
+        assert_eq!(left.get_var(&mut compiler, "Aa"), Some(outer));
     }
 
     #[test]

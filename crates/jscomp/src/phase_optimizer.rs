@@ -19,8 +19,8 @@
 use crate::{
     abstract_compiler::AbstractCompiler, change_tracker::ChangeTracker,
     change_verifier::ChangeVerifier, code_change_handler::CodeChangeHandler,
-    compiler_pass::CompilerPass, node_util::NodeUtil, pass_factory::PassFactory, pass_gates,
-    pass_names, performance_tracker::PerformanceTracker, platform::Platform,
+    compiler_pass::CompilerPass, pass_factory::PassFactory, pass_gates, pass_names,
+    performance_tracker::PerformanceTracker, platform::Platform,
 };
 use closure_rhino::check_state;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
@@ -368,7 +368,7 @@ impl Loop {
         let mut count = 1;
         let track_ast_size = self.should_track_ast_size(optimizer);
         let mut ast_size = if track_ast_size {
-            NodeUtil::count_ast_size(compiler, root)
+            compiler.ast.cached_subtree_size(root)
         } else {
             UNTRACKED_AST_SIZE
         };
@@ -421,7 +421,7 @@ impl Loop {
                 }
                 let previous_ast_size = ast_size;
                 ast_size = if track_ast_size {
-                    NodeUtil::count_ast_size(compiler, root)
+                    compiler.ast.cached_subtree_size(root)
                 } else {
                     UNTRACKED_AST_SIZE
                 };
