@@ -61,7 +61,7 @@ use std::rc::Rc;
 /// pointers.
 pub struct SerializeTypesToPointers {
     jstype_reconserializer: JSTypeReconserializer,
-    properties_referenced_in_ast: Rc<RefCell<IndexSet<JsString>>>,
+    properties_referenced_in_ast: Rc<RefCell<IndexMap<JsString, Option<i32>>>>,
     type_pointers_by_jstype: IndexMap<TypeId, i32>,
     type_pool: Option<TypePool>,
 }
@@ -70,7 +70,7 @@ impl SerializeTypesToPointers {
     // port: SerializeTypesToPointers#<init>
     fn new(
         jstype_reconserializer: JSTypeReconserializer,
-        properties_referenced_in_ast: Rc<RefCell<IndexSet<JsString>>>,
+        properties_referenced_in_ast: Rc<RefCell<IndexMap<JsString, Option<i32>>>>,
     ) -> Self {
         Self {
             jstype_reconserializer,
@@ -92,15 +92,20 @@ impl SerializeTypesToPointers {
             .add_all_type_mismatches(registry, ast, &mismatches)
             .build(registry, ast);
 
-        // this set requires access to the externs and src ASTs, so can't be populated yet.
-        let properties_referenced_in_ast: Rc<RefCell<IndexSet<JsString>>> =
-            Rc::new(RefCell::new(IndexSet::<_>::default()));
-        let contains = Rc::clone(&properties_referenced_in_ast);
-        let js_type_reconserializer = JSTypeReconserializer::create(
+        // The AST walk records which properties matter. On the first encounter in a type,
+        // store its offset from the shared string pool, preserving serialization order.
+        let properties_referenced_in_ast =
+            Rc::new(RefCell::new(IndexMap::<_, Option<i32>>::default()));
+        let properties = Rc::clone(&properties_referenced_in_ast);
+        let strings = Rc::clone(string_pool_builder);
+        let js_type_reconserializer = JSTypeReconserializer::with_property_pointers(
             registry,
             invalidating_types,
-            Rc::clone(string_pool_builder),
-            Box::new(move |s: &JsString| contains.borrow().contains(s)),
+            Box::new(move |name| {
+                let mut properties = properties.borrow_mut();
+                let slot = properties.get_mut(name)?;
+                Some(*slot.get_or_insert_with(|| strings.borrow_mut().put(name)))
+            }),
             serialization_options,
         );
         Self::new(js_type_reconserializer, properties_referenced_in_ast)
@@ -112,7 +117,7 @@ impl SerializeTypesToPointers {
         // Property filtering begins in generate_type_pool, after every type has been
         // discovered. Collect both inputs in postorder while preserving the first visit to
         // each type. Closure-unaware shadows contribute types only.
-        let mut properties = IndexSet::default();
+        let mut properties = IndexMap::default();
         NodeTraversal::traverse(
             compiler,
             root,
@@ -149,9 +154,10 @@ impl SerializeTypesToPointers {
     }
 
     /// Transfer the completed shard to the color conversion pass.
-    pub(super) fn into_type_pool_and_pointers(self) -> (TypePool, IndexMap<TypeId, i32>) {
+    pub(super) fn into_optimization_shard(self) -> (TypePool, Vec<ColorId>, IndexMap<TypeId, i32>) {
         (
             self.type_pool.expect("types already gathered"),
+            self.jstype_reconserializer.into_shard_color_ids(),
             self.type_pointers_by_jstype,
         )
     }
@@ -262,12 +268,12 @@ fn gson_to_json(mismatches: &[TypeMismatchJson]) -> String {
 }
 
 // port: SerializeTypesToPointers.PropertySearchCallback#visit
-fn collect_property(properties: &mut IndexSet<JsString>, ast: &Ast, n: NodeId) {
+fn collect_property(properties: &mut IndexMap<JsString, Option<i32>>, ast: &Ast, n: NodeId) {
     match n.get_token(ast) {
         // "name" from (someObject.name)
         // "name" from (someObject?.name)
         Token::GETPROP | Token::OPTCHAIN_GETPROP => {
-            properties.insert(n.get_string(ast));
+            properties.entry(n.get_string(ast)).or_default();
         }
         // "name" from obj = {name: 0}
         // "name" from class C { name() {} }
@@ -281,7 +287,7 @@ fn collect_property(properties: &mut IndexSet<JsString>, ast: &Ast, n: NodeId) {
         | Token::SETTER_DEF
             if !n.is_quoted_string_key(ast) =>
         {
-            properties.insert(n.get_string(ast));
+            properties.entry(n.get_string(ast)).or_default();
         }
         _ => {}
     }
@@ -291,7 +297,7 @@ fn collect_property(properties: &mut IndexSet<JsString>, ast: &Ast, n: NodeId) {
 struct TypeSearchCallback<'a> {
     jstype_reconserializer: &'a mut JSTypeReconserializer,
     type_pointers_by_jstype: &'a mut IndexMap<TypeId, i32>,
-    properties: Option<&'a mut IndexSet<JsString>>,
+    properties: Option<&'a mut IndexMap<JsString, Option<i32>>>,
 }
 
 impl Callback for TypeSearchCallback<'_> {

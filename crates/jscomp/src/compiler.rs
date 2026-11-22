@@ -2841,24 +2841,29 @@ impl Compiler {
             .collect();
         all_deps.extend(input.get_dynamic_requires());
         all_deps.extend(input.get_type_requires(self));
-        for required_namespace in all_deps {
-            let (required_input, required_by_module_import) =
-                if let Some(input) = inputs_by_provide.get(&required_namespace) {
-                    (Some(input), false)
-                } else {
-                    (inputs_by_identifier.get(&required_namespace), true)
-                };
-            if let Some(required_input) = required_input {
-                self.find_modules_from_input(
-                    required_input,
-                    required_by_module_import,
-                    inputs,
-                    inputs_by_identifier,
-                    inputs_by_provide,
-                    support_es6_modules,
-                    support_common_js_modules,
-                );
-            }
+        let dependencies = all_deps.iter().filter_map(|namespace| {
+            inputs_by_provide
+                .get(namespace)
+                .map(|input| (input, false))
+                .or_else(|| {
+                    inputs_by_identifier
+                        .get(namespace)
+                        .map(|input| (input, true))
+                })
+        });
+        if let Some(preparser) = &self.preparser {
+            preparser.schedule_imports(dependencies.clone().map(|(input, _)| input));
+        }
+        for (required_input, required_by_module_import) in dependencies {
+            self.find_modules_from_input(
+                required_input,
+                required_by_module_import,
+                inputs,
+                inputs_by_identifier,
+                inputs_by_provide,
+                support_es6_modules,
+                support_common_js_modules,
+            );
         }
     }
     // port: Compiler#hoistExterns

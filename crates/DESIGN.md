@@ -409,6 +409,10 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   own (`Ast::new_for_preparse`) while the compiler runs; `CompilerInput#parse` moves a finished
   parse into the compiler's arena (`Ast::append_preparsed`) with the node ids, object sharing
   and error order that parsing in place gives, or parses itself (Java: on the compiler thread).
+  Workers read source text when they claim a job. In a pruned graph with file entry points
+  and more jobs than workers, they follow static relative imports and re-exports. The compiler
+  also queues dependencies found by its module resolver. It checks source text, configuration
+  and source kind before it accepts a worker's result.
   No workers start while the machine is busy (on Linux, at least half as many other runnable
   threads as available CPUs, from `/proc/loadavg`): concurrent compiles then parse on their
   compiler threads instead of oversubscribing the CPUs.
@@ -465,7 +469,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   RemoveUnusedCode and OptimizeCalls. Replacing the extern properties starts a new set.
 - `jscomp/guarded_callback.rs` stores conditional contexts in the traversal stack and
   links guards to earlier stack entries by index. The polyfill finder borrows property
-  names and method candidates until it finds a match. RemoveUnusedCode stores a single
+  names and method candidates until it finds a match. In a normalized tree, a guarded-only
+  search skips the name lookup when the expression is unsafe and no resource is guarded.
+  RemoveUnusedCode stores a single
   pending continuation or removable inline and queues multiple entries in their original order.
 - `jscomp/node_traversal.rs` `get_input`, `syntactic_scope_creator.rs` `ScopeScanner`: the
   CompilerInput found for the current input id is kept (Java keeps the object) instead of being
@@ -676,10 +682,14 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   reference map, so `afterVisitNode` receives it without a second lookup by var.
 - `jscomp/serialization/color_pool.rs` reconciles colors using ordered references into the
   input shards. The definitions stay in their original type pools until reconciliation and
-  diagnostics finish. This avoids copying nested object and union protos for each lookup.
+  diagnostics finish. A color with one definition stores that reference inline.
+  During an in-memory compilation the optimizer receives the already assigned color IDs
+  and interned property names. Shards read from TypedAST files reconstruct their IDs from
+  the serialized definitions.
 - `jscomp/serialization/serialize_types_to_pointers.rs` gathers property spellings and
   assigns type pointers in one postorder traversal. Type summaries are skipped and
   closure-unaware shadows contribute only types. Property filtering begins after the walk.
+  Each referenced property records its string-pool offset on its first use in a type.
 - `jscomp/serialization/convert_types_to_colors.rs` transfers the completed type shard to the
   color builder and resolves colors once per observed registry type. Nodes share the resulting
   lookup by TypeId. JSDoc conversion uses the same serialization rules and allocates its

@@ -21,7 +21,7 @@
 //!
 //! Java parses each input when `CompilerInput#getAstRoot` first needs it, on the compiler thread
 //! (or, with `--num_parallel_threads`, in `PrebuildAst`). Here `start` sets worker threads to
-//! parse every input that the compiler may ask for, in order, each into an arena of its own
+//! parse inputs that the compiler may ask for, each into an arena of its own
 //! (`Ast::new_for_preparse`). When `CompilerInput#parse` then runs for an input, `take` waits for
 //! that input's parse and moves its nodes into the compiler's arena (`Ast::append_preparsed`)
 //! instead of parsing, provided the parse used the same code, parser configuration and source
@@ -32,6 +32,7 @@
 
 use crate::{
     abstract_compiler::{AbstractCompiler, ConfigContext},
+    compiler::Compiler,
     compiler_input::CompilerInput,
     js_error::JSError,
 };
@@ -42,6 +43,7 @@ use closure_rhino::{
     node::Ast,
     static_source_file::{SourceKind, StaticSourceFile},
 };
+use std::collections::VecDeque;
 use std::sync::{
     Arc, Condvar, Mutex, Once,
     atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -62,15 +64,145 @@ pub(crate) struct Preparser {
 struct Shared {
     jobs: Vec<Job>,
     next: AtomicUsize,
+    imports: Option<ImportQueue>,
     stop: AtomicBool,
     slots: Vec<(Mutex<Slot>, Condvar)>,
+}
+
+/// For builds that prune from file entry points, follow relative imports on the workers.
+/// Only the compiler decides which modules are dependencies and which diagnostics to report.
+struct ImportQueue {
+    paths: IndexMap<String, usize>,
+    state: Mutex<PendingImports>,
+    ready: Condvar,
+}
+
+struct PendingImports {
+    pending: VecDeque<usize>,
+    seen: Vec<bool>,
+}
+
+impl ImportQueue {
+    fn for_inputs(compiler: &AbstractCompiler, jobs: &[Job], threads: usize) -> Option<Self> {
+        let deps = compiler.get_options().get_dependency_options();
+        // When all inputs fit in one wave, every parse can start immediately.
+        if jobs.len() <= threads
+            || !deps.should_drop_moochers()
+            || deps.entry_points().is_empty()
+            || compiler.get_options().get_process_common_js_modules()
+        {
+            return None;
+        }
+        let paths: IndexMap<_, _> = jobs
+            .iter()
+            .enumerate()
+            .map(|(i, job)| (job.input.get_name().trim_start_matches("./").to_owned(), i))
+            .collect();
+        let mut pending = PendingImports {
+            pending: VecDeque::new(),
+            seen: vec![false; jobs.len()],
+        };
+        for entry in deps.entry_points() {
+            pending.enqueue(Self::job_for_path(&paths, entry.name())?);
+        }
+        for (i, job) in jobs.iter().enumerate() {
+            if job.input.get_source_file().is_extern() {
+                pending.enqueue(i);
+            }
+        }
+        Some(Self {
+            paths,
+            state: Mutex::new(pending),
+            ready: Condvar::new(),
+        })
+    }
+
+    fn job_for_path(paths: &IndexMap<String, usize>, path: &str) -> Option<usize> {
+        let path = path.trim_start_matches("./");
+        paths
+            .get(path)
+            .copied()
+            .or_else(|| paths.get(&format!("{path}.js")).copied())
+    }
+
+    fn next(&self, stop: &AtomicBool) -> Option<usize> {
+        let mut state = self.state.lock().unwrap();
+        loop {
+            if stop.load(Ordering::Relaxed) {
+                return None;
+            }
+            if let Some(i) = state.pending.pop_front() {
+                return Some(i);
+            }
+            state = self.ready.wait(state).unwrap();
+        }
+    }
+
+    fn follow(&self, filename: &str, parsed: &Preparsed) {
+        let ast = &parsed.ast;
+        let Some(body) = parsed
+            .result
+            .ast
+            .and_then(|script| script.get_first_child(ast))
+            .filter(|body| body.is_module_body(ast))
+        else {
+            return;
+        };
+        let mut imports = Vec::new();
+        for node in body.children(ast) {
+            if !(node.is_import(ast) || (node.is_export(ast) && node.has_two_children(ast))) {
+                continue;
+            }
+            let Some(name) = node.get_last_child(ast).and_then(|n| n.string_payload(ast)) else {
+                continue;
+            };
+            let path = name.to_string_lossy();
+            if (path.starts_with("./") || path.starts_with("../"))
+                && let Some(i) =
+                    Self::job_for_path(&self.paths, &Compiler::resolve_sibling(filename, &path))
+            {
+                imports.push(i);
+            }
+        }
+        self.enqueue(imports.into_iter());
+    }
+
+    fn enqueue(&self, mut jobs: impl Iterator<Item = usize>) {
+        let Some(first) = jobs.next() else { return };
+        let mut state = self.state.lock().unwrap();
+        let was_empty = state.pending.is_empty();
+        state.enqueue(first);
+        for i in jobs {
+            state.enqueue(i);
+        }
+        if was_empty && !state.pending.is_empty() {
+            drop(state);
+            self.ready.notify_all();
+        }
+    }
+}
+
+impl Preparser {
+    /// The compiler's resolver also discovers Closure imports, type-only imports and aliases.
+    pub(crate) fn schedule_imports<'a>(&self, inputs: impl Iterator<Item = &'a CompilerInput>) {
+        if let Some(imports) = &self.shared.imports {
+            imports.enqueue(inputs.filter_map(|input| self.jobs.get(input).copied()));
+        }
+    }
+}
+
+impl PendingImports {
+    fn enqueue(&mut self, i: usize) {
+        if !std::mem::replace(&mut self.seen[i], true) {
+            self.pending.push_back(i);
+        }
+    }
 }
 
 struct Job {
     input: CompilerInput,
     config: Config,
     kind: SourceKind,
-    code: JsString,
 }
 
 enum Slot {
@@ -85,6 +217,7 @@ struct Preparsed {
     ast: Ast,
     result: ParseResult,
     errors: Vec<JSError>,
+    code: JsString,
 }
 
 /// Starts parsing `inputs` that have no AST yet on worker threads, unless there is too little
@@ -108,26 +241,26 @@ pub(crate) fn start(compiler: &mut AbstractCompiler, inputs: &[CompilerInput]) {
             continue;
         }
         let source_file = input.get_source_file();
-        let Ok(code) = source_file.read_source_uncached() else {
-            continue;
-        };
         let context = if source_file.is_extern() {
             ConfigContext::EXTERNS
         } else {
             ConfigContext::DEFAULT
         };
         let config = compiler.get_parser_config(context);
-        if source_file.extern_snapshot(&config, &code).is_some() {
-            continue;
+        if source_file.is_extern() {
+            let Ok(code) = source_file.read_source_uncached() else {
+                continue;
+            };
+            if source_file.extern_snapshot(&config, &code).is_some() {
+                continue;
+            }
         }
-        let code = code.into_text();
         let kind = StaticSourceFile::get_kind(source_file);
         job_of.insert(input.clone(), jobs.len());
         jobs.push(Job {
             input: input.clone(),
             config,
             kind,
-            code,
         });
     }
     if jobs.len() < 2 {
@@ -135,6 +268,7 @@ pub(crate) fn start(compiler: &mut AbstractCompiler, inputs: &[CompilerInput]) {
     }
     silence_worker_panics();
     let shared = Arc::new(Shared {
+        imports: ImportQueue::for_inputs(compiler, &jobs, threads),
         slots: jobs
             .iter()
             .map(|_| (Mutex::new(Slot::Waiting), Condvar::new()))
@@ -180,7 +314,14 @@ fn machine_is_busy(cpus: usize) -> bool {
 fn work(shared: &Shared) {
     let mut configs: Vec<(Config, Config)> = Vec::new();
     while !shared.stop.load(Ordering::Relaxed) {
-        let i = shared.next.fetch_add(1, Ordering::Relaxed);
+        let i = if let Some(imports) = &shared.imports {
+            let Some(i) = imports.next(&shared.stop) else {
+                break;
+            };
+            i
+        } else {
+            shared.next.fetch_add(1, Ordering::Relaxed)
+        };
         let Some(job) = shared.jobs.get(i) else {
             break;
         };
@@ -194,7 +335,11 @@ fn work(shared: &Shared) {
         }
         let parsed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             closure_rhino::rhino_string_pool::RhinoStringPool::with_thread_cache(|| {
-                parse(job, &mut configs)
+                let parsed = parse(job, &mut configs)?;
+                if let Some(imports) = &shared.imports {
+                    imports.follow(job.input.get_name(), &parsed);
+                }
+                Some(parsed)
             })
         }))
         .ok()
@@ -209,6 +354,10 @@ fn work(shared: &Shared) {
 pub(crate) fn finish(compiler: &mut AbstractCompiler) {
     if let Some(preparser) = compiler.preparser.take() {
         preparser.shared.stop.store(true, Ordering::Relaxed);
+        if let Some(imports) = &preparser.shared.imports {
+            let _state = imports.state.lock().unwrap();
+            imports.ready.notify_all();
+        }
         for worker in preparser.workers {
             let _ = worker.join();
         }
@@ -217,6 +366,7 @@ pub(crate) fn finish(compiler: &mut AbstractCompiler) {
 
 // port: CompilerInput.JsAst#parse (the ParserRunner call, into an arena of its own)
 fn parse(job: &Job, configs: &mut Vec<(Config, Config)>) -> Option<Preparsed> {
+    let code = job.input.get_source_file().load_code_uncached().ok()?;
     let mut ast = Ast::new_for_preparse();
     let index = configs
         .iter()
@@ -231,7 +381,7 @@ fn parse(job: &Job, configs: &mut Vec<(Config, Config)>) -> Option<Preparsed> {
     let result = ParserRunner::try_parse(
         &mut ast,
         job.input.get_source_file_arc(),
-        job.code.clone(),
+        code.clone(),
         unshared_config,
         &mut reporter,
     )
@@ -240,6 +390,7 @@ fn parse(job: &Job, configs: &mut Vec<(Config, Config)>) -> Option<Preparsed> {
         ast,
         result,
         errors: errors.errors,
+        code,
     })
 }
 
@@ -255,7 +406,7 @@ pub(crate) fn take(
     let i = *preparser.jobs.get(input)?;
     let job = &preparser.shared.jobs[i];
     let kind = StaticSourceFile::get_kind(input.get_source_file());
-    if job.config != *config || job.kind != kind || job.code != *code {
+    if job.config != *config || job.kind != kind {
         return None;
     }
     let (slot, ready) = &preparser.shared.slots[i];
@@ -269,6 +420,9 @@ pub(crate) fn take(
     };
     drop(slot);
     let preparsed = preparsed?;
+    if preparsed.code != *code {
+        return None;
+    }
     let map = compiler.ast.append_preparsed(preparsed.ast);
     let mut result = preparsed.result;
     result.ast = result.ast.map(|root| map.map(root));
@@ -287,4 +441,93 @@ fn silence_worker_panics() {
             }
         }));
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compiler_options::{CompilerOptions, LanguageMode};
+    use crate::dependency_options::DependencyOptions;
+    use crate::module_identifier::ModuleIdentifier;
+    use crate::source_file::SourceFile;
+
+    fn job(config: &Config, name: &str, text: &str) -> Job {
+        let input = CompilerInput::new(SourceFile::from_code(name, text));
+        Job {
+            kind: StaticSourceFile::get_kind(input.get_source_file()),
+            input,
+            config: config.clone(),
+        }
+    }
+
+    #[test]
+    fn workers_follow_imports_and_reexports_once() {
+        let mut compiler = Compiler::new();
+        let mut options = CompilerOptions::new();
+        options.set_language_in(LanguageMode::ECMASCRIPT_NEXT);
+        options.set_dependency_options(DependencyOptions::prune_for_entry_points([
+            ModuleIdentifier::for_file("./src/main"),
+        ]));
+        compiler.init_options(options);
+        let config = compiler.get_parser_config(ConfigContext::DEFAULT);
+        let jobs = [
+            job(
+                &config,
+                "src/main.js",
+                "import './lib/a'; export * from './b.js';",
+            ),
+            job(
+                &config,
+                "src/lib/a.js",
+                "import '../main.js'; import '../b.js';",
+            ),
+            job(&config, "src/b.js", "export default 1;"),
+            job(&config, "src/unused.js", "throw 2;"),
+        ];
+        let queue = ImportQueue::for_inputs(&compiler, &jobs, 2).unwrap();
+        let stop = AtomicBool::new(false);
+        let mut configs = Vec::new();
+        for expected in 0..3 {
+            assert_eq!(queue.state.lock().unwrap().pending.front(), Some(&expected));
+            let i = queue.next(&stop).unwrap();
+            queue.follow(
+                jobs[i].input.get_name(),
+                &parse(&jobs[i], &mut configs).unwrap(),
+            );
+        }
+        let state = queue.state.lock().unwrap();
+        assert!(state.pending.is_empty());
+        assert!(!state.seen[3]);
+        assert!(ImportQueue::for_inputs(&compiler, &jobs, jobs.len()).is_none());
+    }
+
+    #[test]
+    fn a_source_edit_invalidates_a_finished_worker_parse() {
+        let mut compiler = Compiler::new();
+        compiler.init_compiler_options_if_testing();
+        let config = compiler.get_parser_config(ConfigContext::DEFAULT);
+        let job = job(&config, "input.js", "var oldCode;");
+        let input = job.input.clone();
+        let parsed = parse(&job, &mut Vec::new()).unwrap();
+        compiler.preparser = Some(Preparser {
+            shared: Arc::new(Shared {
+                jobs: vec![job],
+                next: AtomicUsize::new(1),
+                imports: None,
+                stop: AtomicBool::new(false),
+                slots: vec![(
+                    Mutex::new(Slot::Parsed(Some(Box::new(parsed)))),
+                    Condvar::new(),
+                )],
+            }),
+            jobs: [(input.clone(), 0)].into_iter().collect(),
+            workers: Vec::new(),
+        });
+        input.get_source_file().set_code_deprecated("var newCode;");
+        let current = input.get_source_file().get_code().unwrap();
+        let count = compiler.node_count();
+        assert!(take(&mut compiler, &input, &config, &current).is_none());
+        assert_eq!(compiler.node_count(), count);
+        finish(&mut compiler);
+    }
 }

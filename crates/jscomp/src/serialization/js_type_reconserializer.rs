@@ -90,9 +90,8 @@ impl SeenTypeRecord {
 pub struct JSTypeReconserializer {
     serialization_mode: SerializationOptions,
     invalidating_types: InvalidatingTypes,
-    string_pool_builder: Rc<RefCell<StringPoolBuilder>>,
     hasher: JSTypeColorIdHasher,
-    should_propagate_property_name: Box<dyn Fn(&JsString) -> bool>,
+    property_pointer: Box<PropertyPointer>,
 
     // Cache some commonly used types.
     unknown_record: i32,
@@ -104,6 +103,8 @@ pub struct JSTypeReconserializer {
 
     state: State,
 }
+
+type PropertyPointer = dyn Fn(&JsString) -> Option<i32>;
 
 // This is a one-way mapping because some JSTypes go to the same Color.
 // port: JSTypeReconserializer#JSTYPE_NATIVE_TO_AXIOMATIC_COLOR_MAP
@@ -153,18 +154,16 @@ fn jstype_native_to_axiomatic_color_map() -> [(JSTypeNative, &'static Color); 20
 
 impl JSTypeReconserializer {
     // port: JSTypeReconserializer#<init>
-    fn new(
+    pub(super) fn with_property_pointers(
         registry: &JSTypeRegistry,
         invalidating_types: InvalidatingTypes,
-        string_pool_builder: Rc<RefCell<StringPoolBuilder>>,
-        should_propagate_property_name: Box<dyn Fn(&JsString) -> bool>,
+        property_pointer: Box<PropertyPointer>,
         serialization_mode: SerializationOptions,
     ) -> Self {
         let mut this = Self {
             hasher: JSTypeColorIdHasher::new(registry),
             invalidating_types,
-            string_pool_builder,
-            should_propagate_property_name,
+            property_pointer,
             serialization_mode,
             unknown_record: -1,
             top_function_record: -1,
@@ -179,6 +178,7 @@ impl JSTypeReconserializer {
         this.unknown_record = this.seen_type_records[&standard_colors::UNKNOWN.get_id()].pointer;
         this.top_function_record =
             this.seen_type_records[&standard_colors::TOP_FUNCTION.get_id()].pointer;
+        this.check_valid_linear_time();
         this
     }
 
@@ -195,15 +195,15 @@ impl JSTypeReconserializer {
         should_propagate_property_name: Box<dyn Fn(&JsString) -> bool>,
         serialization_mode: SerializationOptions,
     ) -> Self {
-        let serializer = Self::new(
+        Self::with_property_pointers(
             registry,
             invalidating_types,
-            string_pool_builder,
-            should_propagate_property_name,
+            Box::new(move |name| {
+                should_propagate_property_name(name)
+                    .then(|| string_pool_builder.borrow_mut().put(name))
+            }),
             serialization_mode,
-        );
-        serializer.check_valid_linear_time();
-        serializer
+        )
     }
 
     /// Returns a pointer to the given type. If it is not already serialized, serializes it too
@@ -318,13 +318,12 @@ impl JSTypeReconserializer {
         let record = self.get_or_create_record(union_id, r#type);
 
         let run_validation = self.serialization_mode.run_validation();
-        let existing = self.record(record).union_members.clone();
-        match existing {
+        match self.record(record).union_members.as_ref() {
             None => {
                 self.record_mut(record).union_members = Some(alt_records);
             }
             Some(union_members) if run_validation => {
-                if alt_records != union_members {
+                if &alt_records != union_members {
                     let ids = |records: &IndexSet<i32>| -> String {
                         let ids: Vec<String> = records
                             .iter()
@@ -337,7 +336,7 @@ impl JSTypeReconserializer {
                         "Unions with same ID must have same members: %s => %s == %s",
                         union_id,
                         ids(&alt_records),
-                        ids(&union_members)
+                        ids(union_members)
                     );
                 }
             }
@@ -445,8 +444,9 @@ impl JSTypeReconserializer {
         let mut is_invalidating = false;
         let mut properties_keep_original_name = false;
 
-        let jstypes = self.record(seen).jstypes.clone();
-        for r#type in jstypes {
+        // Resolving a prototype can append records. Process the original prefix in order.
+        for i in 0..self.record(seen).jstypes.len() {
+            let r#type = self.record(seen).jstypes[i];
             let obj_type = r#type.to_maybe_object_type(reg);
             if obj_type.is_none() {
                 let message = r#type.to_string(reg, ast);
@@ -478,9 +478,8 @@ impl JSTypeReconserializer {
                 |own_property| {
                     // TODO(b/169899789): consider omitting common, well-known properties like
                     // "prototype" to save space.
-                    if (self.should_propagate_property_name)(own_property) {
-                        own_properties
-                            .insert(self.string_pool_builder.borrow_mut().put(own_property));
+                    if let Some(pointer) = (self.property_pointer)(own_property) {
+                        own_properties.insert(pointer);
                     }
                 },
             );
@@ -665,6 +664,14 @@ impl JSTypeReconserializer {
         self.state = State::FINISHED;
         self.check_valid_linear_time();
         builder.build()
+    }
+
+    /// The records are in pointer order. The axiomatic colors have no entries in the shard.
+    pub(super) fn into_shard_color_ids(self) -> Vec<ColorId> {
+        self.seen_type_records
+            .into_keys()
+            .skip(OFFSET_TO_AXIOMATIC_COLOR.len())
+            .collect()
     }
 
     /// Returns a map from `ObjectTypeProto#getUuid()` to the originating `JSType`s.
