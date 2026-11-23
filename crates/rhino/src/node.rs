@@ -354,11 +354,17 @@ pub enum JSTypeOrColor {
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct NodeLinks {
     token: Token,
+    /// The optimizer can cache a small subtree size in the two bytes beside the token.
+    /// Zero means uncounted. Larger subtrees are marked and recounted from their children.
+    #[serde(skip)]
+    subtree_size: u16,
     parent: Option<NodeId>,
     first: Option<NodeId>,
     next: Option<NodeId>,
     previous: Option<NodeId>,
 }
+const _: () = assert!(std::mem::size_of::<NodeLinks>() == 20);
+
 /// Rust-only: indexes `Ast` for a node's `NodeLinks` (`ast[L(n)].next`).
 #[derive(Clone, Copy)]
 struct L(NodeId);
@@ -766,8 +772,8 @@ pub struct Ast {
     /// `getJSDocInfo`).
     jsdocs: Vec<Option<Arc<JSDocInfo>>>,
     links: Vec<NodeLinks>,
-    /// Populated by the optimizer's first subtree size query. Zero means uncounted.
-    subtree_sizes: Vec<u32>,
+    /// Enabled on the first subtree size query so earlier child edits skip invalidation.
+    tracking_subtree_sizes: bool,
     pub(crate) implicit_template_bound: Option<Arc<JSTypeExpression>>,
     /// port: JSDocSerializer#placeholderType (a Java static holding nodes, so one per arena; the
     /// serialization code in closure-jscomp creates it on first use).
@@ -1010,38 +1016,37 @@ impl Ast {
     /// Count exactly the nodes reachable from this root. The optimizer compares the
     /// result over several rounds that leave most of the tree intact.
     pub fn cached_subtree_size(&mut self, root: NodeId) -> i32 {
-        fn count(links: &[NodeLinks], sizes: &mut [u32], node: NodeId) -> u32 {
+        fn count(links: &mut [NodeLinks], node: NodeId) -> u32 {
             let index = node.arena_index();
-            if sizes[index] != 0 {
-                return sizes[index];
+            let cached = links[index].subtree_size;
+            if cached != 0 && cached != u16::MAX {
+                return u32::from(cached);
             }
             let mut total = 1u32;
             let mut child = links[index].first;
             while let Some(c) = child {
-                total = total.wrapping_add(count(links, sizes, c));
+                total = total.wrapping_add(count(links, c));
                 child = links[c.arena_index()].next;
             }
-            sizes[index] = total;
+            links[index].subtree_size = u16::try_from(total).unwrap_or(u16::MAX);
             total
         }
-        self.subtree_sizes.resize(self.links.len(), 0);
-        count(&self.links, &mut self.subtree_sizes, root) as i32
+        self.tracking_subtree_sizes = true;
+        count(&mut self.links, root) as i32
     }
 
     #[inline]
     fn invalidate_subtree_size(&mut self, node: NodeId) {
-        // A counted ancestor has a count for every descendant. The first missing
-        // count therefore ends the walk, including before the first size query.
-        let mut current = Some(node);
-        while let Some(n) = current {
-            let Some(size) = self.subtree_sizes.get_mut(n.arena_index()) else {
-                break;
-            };
-            if *size == 0 {
-                break;
+        if self.tracking_subtree_sizes {
+            let mut current = Some(node);
+            while let Some(n) = current {
+                let link = &mut self.links[n.arena_index()];
+                if link.subtree_size == 0 {
+                    break;
+                }
+                link.subtree_size = 0;
+                current = link.parent;
             }
-            *size = 0;
-            current = self.links[n.arena_index()].parent;
         }
     }
 
@@ -1232,6 +1237,7 @@ impl Ast {
             self.prop_masks.push(0);
             self.jsdocs.push(None);
             self.links.push(NodeLinks {
+                subtree_size: 0,
                 token: link.token,
                 parent: link.parent.map(|n| map.map(n)),
                 first: link.first.map(|n| map.map(n)),
@@ -1256,6 +1262,7 @@ impl Ast {
         );
         self.presence.note_token(token);
         self.links.push(NodeLinks {
+            subtree_size: 0,
             token,
             parent: None,
             first: None,
@@ -4998,6 +5005,32 @@ mod arena_storage_tests {
         left.add_child_to_front(&mut ast, first);
         assert_eq!(ast.cached_subtree_size(left), 2);
         assert_eq!(ast.cached_subtree_size(root), 8);
+    }
+
+    #[test]
+    fn subtree_sizes_stay_exact_across_the_cache_limit() {
+        let mut ast = Ast::default();
+        let wide = ast.new_node(Token::BLOCK);
+        let root = ast.new_node_with_child(Token::BLOCK, wide);
+        let limit = i32::from(u16::MAX);
+        for _ in 0..limit - 2 {
+            let leaf = ast.new_node(Token::EMPTY);
+            wide.add_child_to_back(&mut ast, leaf);
+        }
+        assert_eq!(ast.cached_subtree_size(wide), limit - 1);
+        assert_eq!(ast.cached_subtree_size(root), limit);
+        let leaf = ast.new_node(Token::EMPTY);
+        wide.add_child_to_back(&mut ast, leaf);
+        assert_eq!(ast.cached_subtree_size(wide), limit);
+        assert_eq!(ast.cached_subtree_size(root), limit + 1);
+        let tail = ast.new_node(Token::EMPTY);
+        wide.add_child_to_back(&mut ast, tail);
+        assert_eq!(ast.cached_subtree_size(root), limit + 2);
+        assert_eq!(ast.cached_subtree_size(wide), limit + 1);
+        tail.detach(&mut ast);
+        leaf.detach(&mut ast);
+        assert_eq!(ast.cached_subtree_size(root), limit);
+        assert_eq!(ast.cached_subtree_size(wide), limit - 1);
     }
 
     #[test]

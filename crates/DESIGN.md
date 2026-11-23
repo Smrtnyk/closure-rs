@@ -641,8 +641,9 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   scope also sets all its bits. Implicit names consult the current AST and create their
   slots on demand.
 - `jscomp/phase_optimizer.rs` uses exact cached subtree sizes for the loop stopping
-  heuristic. The first count fills an arena column. Changing a child list invalidates the
-  counts for that parent and its counted ancestors. A later count walks only changed paths.
+  heuristic. Each small count fits in two spare bytes in the tree links, preserving the
+  20-byte link record. A large subtree has a marker and is counted from its children.
+  Changing a child list invalidates the count for that parent and its counted ancestors.
 - `jscomp/inline_object_literals.rs` finds candidate names from the arena's object literal
   and function token index. It checks current tokens and ancestry before accepting a name.
   The arena keeps the two most recent token selections so getter/setter gathering and

@@ -194,6 +194,7 @@ impl PackedRows<&[u8]> {
         let link =
             |local| NonZeroU32::new(u32::from(local)).map(|n| NodeId(n.checked_add(base).unwrap()));
         ast.links.extend(rows.iter().map(|row| NodeLinks {
+            subtree_size: 0,
             token: self.tokens[usize::from(row[20])],
             parent: link(word(row, 0)),
             first: link(word(row, 2)),
@@ -256,6 +257,7 @@ impl PackedRows<&[u8]> {
             };
             Node {
                 links: NodeLinks {
+                    subtree_size: 0,
                     token: self.tokens[usize::from(row[20])],
                     parent: link(0),
                     first: link(2),
@@ -760,6 +762,7 @@ mod tests {
         let root = ast.new_node(Token::BLOCK);
         let empty = || Node {
             links: NodeLinks {
+                subtree_size: 0,
                 token: Token::EMPTY,
                 parent: None,
                 first: None,
