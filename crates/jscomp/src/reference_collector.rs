@@ -67,8 +67,9 @@ pub type VarFilter<'a> = Box<dyn Fn(&AbstractCompiler, VarId) -> bool + 'a>;
 /// The fields of `ReferenceCollector` that its inner `CollectorCallback` reads and writes.
 pub struct CollectorCallback<'a, B: Behavior> {
     /// Maps a given variable to a collection of references to that name. Note that Var objects
-    /// are not stable across multiple traversals (unlike scope root or name).
-    reference_map: IndexMap<VarId, ReferenceCollection>,
+    /// are not stable across multiple traversals (unlike scope root or name). A scope-exit
+    /// snapshot shares its collection until a later visit adds another reference.
+    reference_map: IndexMap<VarId, Rc<ReferenceCollection>>,
 
     /// The stack of basic blocks and scopes the current traversal is in.
     block_stack: VecDeque<Rc<BasicBlock>>,
@@ -258,14 +259,18 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
     /// Gets the reference collection for the given variable.
     // port: ReferenceCollector#getReferences
     pub fn get_references(&self, v: VarId) -> Option<&ReferenceCollection> {
-        self.callback.reference_map.get(&v)
+        self.callback.reference_map.get(&v).map(Rc::as_ref)
     }
 
     /// Rust-only: the collected references, for a caller that lends this collector its behavior and
     /// scope creator only while it runs and keeps the references afterwards
     /// (`CrossChunkReferenceCollector`).
     pub fn into_reference_map(self) -> IndexMap<VarId, ReferenceCollection> {
-        self.callback.reference_map
+        self.callback
+            .reference_map
+            .into_iter()
+            .map(|(v, refs)| (v, Rc::unwrap_or_clone(refs)))
+            .collect()
     }
 }
 
@@ -312,6 +317,10 @@ impl<B: Behavior> CompilerPass for ReferenceCollector<'_, B> {
 impl<B: Behavior> ReferenceMap for ReferenceCollector<'_, B> {
     fn get_references(&self, var: VarId) -> Option<&ReferenceCollection> {
         ReferenceCollector::get_references(self, var)
+    }
+
+    fn shared_references(&self, var: VarId) -> Option<Rc<ReferenceCollection>> {
+        self.callback.reference_map.get(&var).cloned()
     }
 }
 
@@ -364,7 +373,12 @@ impl<B: Behavior> CollectorCallback<'_, B> {
     }
 
     // port: ReferenceCollector#maybeJumpToHoistedFunction
-    fn maybe_jump_to_hoisted_function(&mut self, var: VarId, t: &mut NodeTraversal<'_>) {
+    fn maybe_jump_to_hoisted_function(
+        &mut self,
+        var: VarId,
+        t: &mut NodeTraversal<'_>,
+        reference_scope: ScopeId,
+    ) {
         let Some((fn_node, var_scope)) = self.pending_hoisted_function(t.get_compiler(), var)
         else {
             return;
@@ -395,7 +409,7 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         // The reference must be recorded with the containing scope, and traverseAtScope skips
         // bleeding function NAME nodes
         let fn_name = fn_node.get_first_child(t.get_compiler()).unwrap();
-        self.add_reference(var, fn_name, t);
+        self.add_reference(var, fn_name, t, reference_scope);
 
         let (compiler, scope_creator) = t.get_compiler_and_scope_creator();
         let fn_scope = scope_creator.create_scope(compiler, fn_node, Some(var_scope));
@@ -447,13 +461,15 @@ impl<B: Behavior> CollectorCallback<'_, B> {
             }
         }
         if has_references {
+            let scope = scope.expect("collected references have a scope");
             for site in &body.sites {
                 match *site {
                     Site::Reference(name, binding) => {
                         if let Some(index) = self.body_bindings[binding as usize].1 {
                             t.position_at_node(name);
                             let block = self.block_stack.back().expect("getLast").clone();
-                            self.reference_map[index].add(Reference::new(name, t, block));
+                            Rc::make_mut(&mut self.reference_map[index])
+                                .add(Reference::in_scope(name, t, block, scope));
                         }
                     }
                     Site::EnterBlock(n) => self.push_new_block(t, n),
@@ -486,6 +502,7 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         v: VarId,
         n: NodeId,
         t: &mut NodeTraversal<'_>,
+        scope: ScopeId,
     ) -> Option<(usize, usize)> {
         if !(self.var_filter)(t.get_compiler(), v)
             || !self.behavior.needs_variable(t.get_compiler(), v)
@@ -495,10 +512,10 @@ impl<B: Behavior> CollectorCallback<'_, B> {
 
         // Create collection if none already
         let block = self.block_stack.back().expect("getLast").clone();
-        let reference = Reference::new(n, t, block);
+        let reference = Reference::in_scope(n, t, block, scope);
         let entry = self.reference_map.entry(v);
         let entry_index = entry.index();
-        let collection = entry.or_default();
+        let collection = Rc::make_mut(entry.or_default());
 
         // Add this particular reference
         collection.add(reference);
@@ -598,9 +615,9 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
             }
 
             if let Some(v) = v {
-                added_reference = self.add_reference(v, n, t);
+                added_reference = self.add_reference(v, n, t, scope);
                 if self.collect_hoisted_functions_in_reference_order {
-                    self.maybe_jump_to_hoisted_function(v, t);
+                    self.maybe_jump_to_hoisted_function(v, t, scope);
                 }
             }
         }
@@ -654,13 +671,17 @@ impl<B: Behavior> ScopedCallback for CollectorCallback<'_, B> {
 /// Rust-only: the `ReferenceMap` view of the collector's references that its behavior gets in
 /// `afterExitScope` (see `exit_scope`).
 struct CollectedReferenceMap<'m> {
-    reference_map: &'m IndexMap<VarId, ReferenceCollection>,
+    reference_map: &'m IndexMap<VarId, Rc<ReferenceCollection>>,
 }
 
 impl ReferenceMap for CollectedReferenceMap<'_> {
     // port: ReferenceCollector#getReferences
     fn get_references(&self, var: VarId) -> Option<&ReferenceCollection> {
-        self.reference_map.get(&var)
+        self.reference_map.get(&var).map(Rc::as_ref)
+    }
+
+    fn shared_references(&self, var: VarId) -> Option<Rc<ReferenceCollection>> {
+        self.reference_map.get(&var).cloned()
     }
 }
 

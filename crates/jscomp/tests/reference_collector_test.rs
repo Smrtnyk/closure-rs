@@ -122,6 +122,57 @@ fn test_behavior<B: Behavior + Clone + 'static>(test: &mut ReferenceCollectorTes
     }
 }
 
+#[test]
+#[should_panic]
+fn checking_weak_usage_of_a_detached_reference_requires_its_parent() {
+    use closure_jscomp::{
+        compiler_input::CompilerInput, reference_collection::ReferenceCollection,
+        source_file::SourceFile,
+    };
+    let mut ast = closure_rhino::node::Ast::new();
+    let input = CompilerInput::new(SourceFile::from_code("detached.js", ""));
+    let mut references = ReferenceCollection::new();
+    references.add(Reference::create_ref_for_test(&mut ast, &input));
+    references.is_referenced_weakly(&ast);
+}
+
+#[test]
+fn reference_snapshot_survives_later_reads_of_an_outer_variable() {
+    use closure_jscomp::reference_collection::ReferenceCollection;
+
+    #[derive(Default)]
+    struct KeepBlockSnapshot(Option<Rc<ReferenceCollection>>);
+    impl Behavior for KeepBlockSnapshot {
+        fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, map: &dyn ReferenceMap) {
+            if t.get_scope_root().unwrap().is_block(t) {
+                let scope = t.get_scope();
+                let outer = scope.get_var(t.get_compiler(), "outer").unwrap();
+                self.0 = map.shared_references(outer);
+            }
+        }
+    }
+
+    let mut case = CompilerTestCase::new("");
+    case.set_up();
+    let handle = case.create_compiler().unwrap();
+    let mut compiler = handle.borrow_mut();
+    let root = compiler.parse_test_code("let outer = 1; { let inner = outer; } use(outer);");
+    let mut creator = SyntacticScopeCreator::new();
+    let mut behavior = KeepBlockSnapshot::default();
+    let mut collector = ReferenceCollector::new(&mut compiler, &mut behavior, &mut creator);
+    collector.process(&mut compiler, root);
+    let final_map = collector.into_reference_map();
+
+    let early = behavior.0.unwrap();
+    let var = early.references[0].get_symbol(&mut compiler).unwrap();
+    let all = &final_map[&var].references;
+    assert_eq!(early.references.len(), 2);
+    assert_eq!(all.len(), 3);
+    for (before, after) in early.iter().zip(all) {
+        assert_eq!(before.get_node(), after.get_node());
+    }
+}
+
 /// The anonymous `Behavior` of `testProcessScopeThatsNotABasicBlock`.
 struct NotABasicBlockBehavior;
 impl Behavior for NotABasicBlockBehavior {

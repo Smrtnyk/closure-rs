@@ -25,7 +25,6 @@ use crate::reference::Reference;
 use crate::scope::ScopeId;
 use closure_rhino::check_state;
 use closure_rhino::node::Ast;
-use std::rc::Rc;
 
 /// A collection of references. Can be subclassed to apply checks or store additional state when
 /// adding.
@@ -178,8 +177,13 @@ impl ReferenceCollection {
     /// declaration if it is an assignment in the same `JSChunk`.
     // port: ReferenceCollection#getInitializingReference
     pub fn get_initializing_reference(&self, ast: &Ast) -> Option<&Reference> {
+        self.initializing_reference_index(ast)
+            .map(|i| &self.references[i])
+    }
+
+    pub(crate) fn initializing_reference_index(&self, ast: &Ast) -> Option<usize> {
         if self.is_initializing_declaration_at(ast, 0) {
-            return Some(&self.references[0]);
+            return Some(0);
         } else if self.is_initializing_assignment_at(ast, 1)
             // Check that these references are in the same file as a way of ensuring they are in
             // the same chunk: checking for the same chunk would also be reasonable, but is
@@ -187,7 +191,7 @@ impl ReferenceCollection {
             // in practice.
             && self.are_in_same_file(0, 1)
         {
-            return Some(&self.references[1]);
+            return Some(1);
         }
         None
     }
@@ -200,15 +204,15 @@ impl ReferenceCollection {
     /// Constants are allowed to be defined after their first use.
     // port: ReferenceCollection#getInitializingReferenceForConstants
     pub fn get_initializing_reference_for_constants(&self, ast: &Ast) -> Option<&Reference> {
-        let size = self.references.len();
-        for i in 0..size {
-            if self.is_initializing_declaration_at(ast, i)
+        self.initializing_constant_index(ast)
+            .map(|i| &self.references[i])
+    }
+
+    pub(crate) fn initializing_constant_index(&self, ast: &Ast) -> Option<usize> {
+        (0..self.references.len()).find(|&i| {
+            self.is_initializing_declaration_at(ast, i)
                 || self.is_initializing_assignment_at(ast, i)
-            {
-                return Some(&self.references[i]);
-            }
-        }
-        None
+        })
     }
 
     /// Returns whether the variable is only assigned a value once for its lifetime.
@@ -219,25 +223,25 @@ impl ReferenceCollection {
         };
 
         // Make sure this assignment is not in a loop or an enclosing function.
-        let mut block = r.get_basic_block().cloned();
-        while let Some(b) = block {
-            if b.is_function() {
-                let symbol_scope = r.get_symbol(compiler).unwrap().get_scope(compiler);
-                if symbol_scope.get_closest_hoist_scope(compiler)
-                    != r.get_scope().unwrap().get_closest_hoist_scope(compiler)
-                {
-                    return false;
-                }
+        let Some(mut block) = r.get_basic_block() else {
+            return true;
+        };
+        let symbol_scope = r.get_symbol(compiler).unwrap().get_scope(compiler);
+        loop {
+            if block.is_function() {
+                return symbol_scope.get_closest_hoist_scope(compiler)
+                    == r.get_scope().unwrap().get_closest_hoist_scope(compiler);
+            }
+            if block.get_root() == symbol_scope.get_root_node(compiler) {
                 break;
             }
-            let symbol_scope = r.get_symbol(compiler).unwrap().get_scope(compiler);
-            if b.get_root() == symbol_scope.get_root_node(compiler) {
-                break;
-            }
-            if b.is_loop() {
+            if block.is_loop() {
                 return false;
             }
-            block = b.get_parent().map(Rc::clone);
+            let Some(parent) = block.get_parent() else {
+                break;
+            };
+            block = parent;
         }
 
         true

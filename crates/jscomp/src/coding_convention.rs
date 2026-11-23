@@ -51,6 +51,10 @@ pub trait CodingConvention: std::any::Any + Send + Sync + Debug {
     ) -> bool;
     // port: CodingConvention#isExported
     fn is_exported(&self, name: &JsString, local: bool) -> bool;
+    /// Whether the export test depends only on its arguments and has no observable effects.
+    fn export_tests_are_pure(&self) -> bool {
+        false
+    }
     // port: CodingConvention#getPackageName
     fn get_package_name(&self, source: &dyn StaticSourceFile) -> Option<String>;
     // port: CodingConvention#getClassesDefinedByCall
@@ -121,6 +125,11 @@ pub trait CodingConvention: std::any::Any + Send + Sync + Debug {
     fn describe_caching_call(&self, ast: &Ast, node: NodeId) -> Option<Cache>;
     // port: CodingConvention#isPropertyTestFunction
     fn is_property_test_function(&self, ast: &Ast, call: NodeId) -> bool;
+    /// Whether property-test queries are determined by the AST and have no observable
+    /// side effects. This lets a normalized polyfill guard scan visit scripts on demand.
+    fn property_tests_are_pure(&self) -> bool {
+        false
+    }
     // port: CodingConvention#isPrototypeAlias
     fn is_prototype_alias(&self, ast: &Ast, get_prop: NodeId) -> bool;
     // port: CodingConvention#isPropertyRenameFunction

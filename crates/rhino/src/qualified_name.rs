@@ -200,7 +200,7 @@ impl QualifiedName {
             QnameKind::StringListQname { terms, size } => {
                 let mut pos = size - 1;
                 while pos > 0 && n.is_get_prop(ast) {
-                    if !RhinoStringPool::unchecked_equals(&n.get_string(ast), &terms[pos]) {
+                    if !RhinoStringPool::unchecked_equals(n.get_string_ref(ast), &terms[pos]) {
                         return false;
                     }
                     pos -= 1;
@@ -212,7 +212,7 @@ impl QualifiedName {
                 let term = &terms[0];
                 match n.get_token(ast) {
                     Token::NAME | Token::MEMBER_FUNCTION_DEF => {
-                        RhinoStringPool::unchecked_equals(term, &n.get_string(ast))
+                        RhinoStringPool::unchecked_equals(term, n.get_string_ref(ast))
                     }
                     Token::THIS => RhinoStringPool::unchecked_equals(
                         term,
@@ -227,7 +227,7 @@ impl QualifiedName {
             }
             QnameKind::GetpropQname { owner, prop } => {
                 n.is_get_prop(ast)
-                    && RhinoStringPool::unchecked_equals(&n.get_string(ast), prop)
+                    && RhinoStringPool::unchecked_equals(n.get_string_ref(ast), prop)
                     && owner.matches(ast, n.get_first_child(ast).unwrap())
             }
             QnameKind::NodeQname { node } => n.matches_qualified_name_node(ast, *node),

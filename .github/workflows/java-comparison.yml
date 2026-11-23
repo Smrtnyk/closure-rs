@@ -1,10 +1,10 @@
 # Compares closure-rs with the real Java compiler, byte for byte, on real projects: every job of
-# bench/projects.json (scripts/run_bench.py --reps 1: d3-12, three, lodash-es, fabric, the bundles
-# and the bundles with input source maps) and the flag variants of scripts/platform_outputs.py on
-# those inputs (ES5 output, pretty print, an IIFE wrapper, --json_streams), each compiled by the
-# pinned Java reference and by the release binary; every compile must give the same exit code,
-# stdout, stderr, output and source map. Run by hand (Run workflow) or from another workflow
-# (workflow_call), such as a release run before it publishes.
+# bench/projects.json, including d3-12, three, lodash-es, fabric, the bundles with input source
+# maps and both ONLYOFFICE spreadsheet builds. The suite also runs the flag variants from
+# scripts/platform_outputs.py (ES5 output, pretty print, an IIFE wrapper and --json_streams).
+# The pinned Java reference and the release binary must give the same exit code,
+# stdout, stderr, JavaScript chunks, source maps and renaming reports. The release workflow
+# runs this check for pull requests, main pushes and releases. It can also run by hand.
 # Java is the pinned reference uberjar (scripts/references.tsv), built from the pinned upstream
 # commit with Bazel when the cache does not hold it and accepted only with the pinned sha256,
 # run on the pinned JDK (scripts/setup_tools.sh) in the fixed environment of the golden runs
@@ -28,6 +28,11 @@ on:
         required: false
         default: "5"
   workflow_call:
+    inputs:
+      use_packaged_binary:
+        description: Compare the Linux x64 binary from this run's platform matrix
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -138,6 +143,7 @@ jobs:
   # changes speed, not output). Unstripped: a panic in the comparison shows a backtrace.
   rust-binary:
     name: closure-rs (release)
+    if: ${{ !inputs.use_packaged_binary }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -156,8 +162,12 @@ jobs:
   compare:
     name: real projects (Java vs closure-rs)
     needs: [reference-jar, rust-binary]
+    # The caller supplies its packaged binary; a standalone run builds one above.
+    if: ${{ !cancelled() && needs.reference-jar.result == 'success' && (inputs.use_packaged_binary || needs.rust-binary.result == 'success') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    env:
+      BIN: ${{ inputs.use_packaged_binary && 'bin/linux-x64/closure-rs' || 'bin/closure-rs' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -174,11 +184,11 @@ jobs:
           path: ${{ needs.reference-jar.outputs.jar_dir }}
       - uses: actions/download-artifact@v8
         with:
-          name: java-comparison-closure-rs
+          name: ${{ inputs.use_packaged_binary && 'bin-linux-x64' || 'java-comparison-closure-rs' }}
           path: bin
       - name: GNU time (peak RSS)
         run: |
-          chmod +x bin/closure-rs
+          chmod +x "$BIN"
           [ -x /usr/bin/time ] || { sudo apt-get update -q && sudo apt-get install -y -q time; }
 
       # bench-cache/ is what scripts/fetch_bench.sh fetches (and generates with the reference jar);
@@ -194,8 +204,14 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p build/bench
-          python3 scripts/run_bench.py --reps 1 --variants --bin bin/closure-rs --fail-on-mismatch \
+          python3 scripts/run_bench.py --reps 1 --variants --bin "$BIN" --fail-on-mismatch \
             --keep-failing --out build/bench/result.json | tee build/bench/table.md
+
+      - name: Require successful ONLYOFFICE SIMPLE and ADVANCED byte comparisons
+        run: |
+          jq -e '[.jobs[] | select(.project == "onlyoffice-cell" and .identical
+            and .java.exit == 0 and .rust.exit == 0 and .java.output_bytes > 0) | .level]
+            | sort == ["ADVANCED", "SIMPLE"]' build/bench/result.json
 
       - name: Summary
         if: ${{ !cancelled() }}

@@ -20,6 +20,7 @@
 
 use crate::reference_collection::ReferenceCollection;
 use crate::var::VarId;
+use std::rc::Rc;
 
 /// Maps `Var`s to their references.
 pub trait ReferenceMap {
@@ -28,4 +29,9 @@ pub trait ReferenceMap {
     /// The code that generated this object determines which references to `var` are included.
     // port: ReferenceMap#getReferences
     fn get_references(&self, var: VarId) -> Option<&ReferenceCollection>;
+
+    /// An immutable snapshot for a consumer that retains a variable's references.
+    fn shared_references(&self, var: VarId) -> Option<Rc<ReferenceCollection>> {
+        self.get_references(var).cloned().map(Rc::new)
+    }
 }

@@ -354,11 +354,17 @@ pub enum JSTypeOrColor {
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct NodeLinks {
     token: Token,
+    /// The optimizer can cache a small subtree size in the two bytes beside the token.
+    /// Zero means uncounted. Larger subtrees are marked and recounted from their children.
+    #[serde(skip)]
+    subtree_size: u16,
     parent: Option<NodeId>,
     first: Option<NodeId>,
     next: Option<NodeId>,
     previous: Option<NodeId>,
 }
+const _: () = assert!(std::mem::size_of::<NodeLinks>() == 20);
+
 /// Rust-only: indexes `Ast` for a node's `NodeLinks` (`ast[L(n)].next`).
 #[derive(Clone, Copy)]
 struct L(NodeId);
@@ -766,6 +772,8 @@ pub struct Ast {
     /// `getJSDocInfo`).
     jsdocs: Vec<Option<Arc<JSDocInfo>>>,
     links: Vec<NodeLinks>,
+    /// Enabled on the first subtree size query so earlier child edits skip invalidation.
+    tracking_subtree_sizes: bool,
     pub(crate) implicit_template_bound: Option<Arc<JSTypeExpression>>,
     /// port: JSDocSerializer#placeholderType (a Java static holding nodes, so one per arena; the
     /// serialization code in closure-jscomp creates it on first use).
@@ -781,7 +789,8 @@ pub struct Ast {
     change_log_id: Option<Arc<()>>,
     change_log_drain: u64,
     /// Lazily built by repeated syntax queries. Moving this arena also moves its index.
-    token_candidates: Option<Box<TokenCandidates>>,
+    /// The getter/setter and object-literal passes alternate their token selections.
+    token_candidates: [Option<Box<TokenCandidates>>; 2],
     snapshot_watches: snapshot_watch::Watches,
     /// Rust-only (performance divergence): the nodes whose children, token or string changed since
     /// the last `take_changed_nodes`, in order, without immediate repeats.
@@ -978,14 +987,19 @@ impl Ast {
         tokens: &'static [Token],
         read: impl FnOnce(&Ast, &[NodeId]) -> R,
     ) -> R {
-        if self
-            .token_candidates
+        if self.token_candidates[0]
             .as_ref()
             .is_none_or(|index| index.tokens != tokens)
         {
-            self.token_candidates = Some(Box::new(TokenCandidates::new(tokens)));
+            self.token_candidates.swap(0, 1);
+            if self.token_candidates[0]
+                .as_ref()
+                .is_none_or(|index| index.tokens != tokens)
+            {
+                self.token_candidates[0] = Some(Box::new(TokenCandidates::new(tokens)));
+            }
         }
-        let index = self.token_candidates.as_mut().unwrap();
+        let index = self.token_candidates[0].as_mut().unwrap();
         index.present.resize(self.links.len().div_ceil(64), 0);
         for (slot, link) in self.links.iter().enumerate().skip(index.scanned) {
             if index.includes[link.token as usize] {
@@ -996,7 +1010,50 @@ impl Ast {
             }
         }
         index.scanned = self.links.len();
-        read(self, &self.token_candidates.as_ref().unwrap().nodes)
+        read(self, &self.token_candidates[0].as_ref().unwrap().nodes)
+    }
+
+    /// Count exactly the nodes reachable from this root. The optimizer compares the
+    /// result over several rounds that leave most of the tree intact.
+    pub fn cached_subtree_size(&mut self, root: NodeId) -> i32 {
+        fn count(links: &mut [NodeLinks], node: NodeId) -> u32 {
+            let index = node.arena_index();
+            let cached = links[index].subtree_size;
+            if cached != 0 && cached != u16::MAX {
+                return u32::from(cached);
+            }
+            let mut total = 1u32;
+            let mut child = links[index].first;
+            while let Some(c) = child {
+                total = total.wrapping_add(count(links, c));
+                child = links[c.arena_index()].next;
+            }
+            links[index].subtree_size = u16::try_from(total).unwrap_or(u16::MAX);
+            total
+        }
+        self.tracking_subtree_sizes = true;
+        count(&mut self.links, root) as i32
+    }
+
+    #[inline]
+    fn invalidate_subtree_size(&mut self, node: NodeId) {
+        if self.tracking_subtree_sizes {
+            let mut current = Some(node);
+            while let Some(n) = current {
+                let link = &mut self.links[n.arena_index()];
+                if link.subtree_size == 0 {
+                    break;
+                }
+                link.subtree_size = 0;
+                current = link.parent;
+            }
+        }
+    }
+
+    #[inline]
+    fn note_children_changed(&mut self, parent: NodeId) {
+        self.invalidate_subtree_size(parent);
+        self.note_changed(parent);
     }
 
     /// Rust-only: the number of nodes in the arena.
@@ -1180,6 +1237,7 @@ impl Ast {
             self.prop_masks.push(0);
             self.jsdocs.push(None);
             self.links.push(NodeLinks {
+                subtree_size: 0,
                 token: link.token,
                 parent: link.parent.map(|n| map.map(n)),
                 first: link.first.map(|n| map.map(n)),
@@ -1204,6 +1262,7 @@ impl Ast {
         );
         self.presence.note_token(token);
         self.links.push(NodeLinks {
+            subtree_size: 0,
             token,
             parent: None,
             first: None,
@@ -1487,7 +1546,7 @@ impl NodeId {
     pub fn set_token(self, ast: &mut Ast, token: Token) {
         ast.presence.note_token(token);
         ast[L(self)].token = token;
-        if let Some(index) = &mut ast.token_candidates {
+        for index in ast.token_candidates.iter_mut().flatten() {
             index.note_token(self, token);
         }
         ast.note_changed(self);
@@ -1600,7 +1659,7 @@ impl NodeId {
     }
     // port: Node#addChildToFront
     pub fn add_child_to_front(self, ast: &mut Ast, child: NodeId) {
-        ast.note_changed(self);
+        ast.note_children_changed(self);
         check_argument!(ast[L(child)].parent.is_none());
         check_argument!(ast[L(child)].next.is_none());
         check_argument!(ast[L(child)].previous.is_none());
@@ -1631,6 +1690,7 @@ impl NodeId {
         check_argument!(ast[L(child)].previous.is_none());
         ast.snapshot_watches.append_child(self);
         ast.record_scope_change(self);
+        ast.invalidate_subtree_size(self);
         if let Some(first) = ast[L(self)].first {
             let last = ast[L(first)].previous.unwrap();
             ast[L(last)].next = Some(child);
@@ -1648,7 +1708,7 @@ impl NodeId {
             return;
         };
         check_not_null!(ast[L(children)].previous, "%s", children.to_string(ast));
-        ast.note_changed(self);
+        ast.note_children_changed(self);
         let mut child = Some(children);
         while let Some(c) = child {
             check_argument!(ast[L(c)].parent.is_none());
@@ -1673,7 +1733,7 @@ impl NodeId {
         existing.check_attached(ast);
         self.check_detached(ast);
         let existing_parent = ast[L(existing)].parent.unwrap();
-        ast.note_changed(existing_parent);
+        ast.note_children_changed(existing_parent);
         let existing_next = ast[L(existing)].next;
         ast[L(self)].parent = Some(existing_parent);
         ast[L(existing)].next = Some(self);
@@ -1691,7 +1751,7 @@ impl NodeId {
         existing.check_attached(ast);
         self.check_detached(ast);
         let existing_parent = ast[L(existing)].parent.unwrap();
-        ast.note_changed(existing_parent);
+        ast.note_children_changed(existing_parent);
         let existing_previous = ast[L(existing)].previous.unwrap();
         ast[L(self)].parent = Some(existing_parent);
         ast[L(self)].next = Some(existing);
@@ -1714,7 +1774,7 @@ impl NodeId {
             self.add_children_to_front(ast, Some(children));
             return;
         };
-        ast.note_changed(self);
+        ast.note_children_changed(self);
         let mut child = Some(children);
         while let Some(c) = child {
             check_argument!(ast[L(c)].parent.is_none());
@@ -1738,7 +1798,7 @@ impl NodeId {
         self.check_attached(ast);
         replacement.check_detached(ast);
         let existing_parent = ast[L(self)].parent.unwrap();
-        ast.note_changed(existing_parent);
+        ast.note_children_changed(existing_parent);
         let existing_next = ast[L(self)].next;
         let existing_previous = ast[L(self)].previous.unwrap();
         replacement.srcref_if_missing(ast, self);
@@ -1764,7 +1824,7 @@ impl NodeId {
     pub fn detach(self, ast: &mut Ast) -> Self {
         self.check_attached(ast);
         let existing_parent = ast[L(self)].parent.unwrap();
-        ast.note_changed(existing_parent);
+        ast.note_children_changed(existing_parent);
         let existing_next = ast[L(self)].next;
         let existing_previous = ast[L(self)].previous.unwrap();
         ast[L(self)].parent = None;
@@ -1819,7 +1879,7 @@ impl NodeId {
     }
     // port: Node#removeChildren
     pub fn remove_children(self, ast: &mut Ast) -> Option<NodeId> {
-        ast.note_changed(self);
+        ast.note_children_changed(self);
         let children = ast[L(self)].first;
         let mut child = children;
         while let Some(c) = child {
@@ -1831,7 +1891,7 @@ impl NodeId {
     }
     // port: Node#detachChildren
     pub fn detach_children(self, ast: &mut Ast) {
-        ast.note_changed(self);
+        ast.note_children_changed(self);
         let mut child = ast[L(self)].first;
         while let Some(c) = child {
             let next_child = ast[L(c)].next;
@@ -4908,6 +4968,70 @@ impl crate::java_lang::JavaHashCode for NodeId {
 mod arena_storage_tests {
     use super::*;
     use crate::jscomp_colors::standard_colors;
+
+    #[test]
+    fn subtree_sizes_follow_edits_to_both_trees() {
+        let mut ast = Ast::new();
+        let first = ast.new_node(Token::EMPTY);
+        let last = ast.new_node(Token::EMPTY);
+        let left = ast.new_node_with_children2(Token::BLOCK, first, last);
+        let right = ast.new_node(Token::BLOCK);
+        let root = ast.new_node_with_children2(Token::ROOT, left, right);
+        assert_eq!(ast.cached_subtree_size(root), 5);
+
+        let middle = ast.new_node(Token::EMPTY);
+        middle.insert_before(&mut ast, last);
+        assert_eq!(ast.cached_subtree_size(left), 4);
+        assert_eq!(ast.cached_subtree_size(root), 6);
+        let copy = left.clone_tree(&mut ast);
+        right.add_child_to_back(&mut ast, copy);
+        assert_eq!(ast.cached_subtree_size(root), 10);
+
+        let detached = left.remove_children(&mut ast);
+        assert_eq!(ast.cached_subtree_size(root), 7);
+        right.add_children_to_front(&mut ast, detached);
+        assert_eq!(ast.cached_subtree_size(root), 10);
+        copy.detach_children(&mut ast);
+        assert_eq!(ast.cached_subtree_size(root), 7);
+
+        left.detach(&mut ast);
+        let replacement = ast.new_node_with_child(Token::BLOCK, left);
+        last.replace_with(&mut ast, replacement);
+        assert_eq!(ast.cached_subtree_size(root), 7);
+        let extra = ast.new_node(Token::EMPTY);
+        extra.insert_after(&mut ast, replacement);
+        assert_eq!(ast.cached_subtree_size(root), 8);
+        first.detach(&mut ast);
+        left.add_child_to_front(&mut ast, first);
+        assert_eq!(ast.cached_subtree_size(left), 2);
+        assert_eq!(ast.cached_subtree_size(root), 8);
+    }
+
+    #[test]
+    fn subtree_sizes_stay_exact_across_the_cache_limit() {
+        let mut ast = Ast::default();
+        let wide = ast.new_node(Token::BLOCK);
+        let root = ast.new_node_with_child(Token::BLOCK, wide);
+        let limit = i32::from(u16::MAX);
+        for _ in 0..limit - 2 {
+            let leaf = ast.new_node(Token::EMPTY);
+            wide.add_child_to_back(&mut ast, leaf);
+        }
+        assert_eq!(ast.cached_subtree_size(wide), limit - 1);
+        assert_eq!(ast.cached_subtree_size(root), limit);
+        let leaf = ast.new_node(Token::EMPTY);
+        wide.add_child_to_back(&mut ast, leaf);
+        assert_eq!(ast.cached_subtree_size(wide), limit);
+        assert_eq!(ast.cached_subtree_size(root), limit + 1);
+        let tail = ast.new_node(Token::EMPTY);
+        wide.add_child_to_back(&mut ast, tail);
+        assert_eq!(ast.cached_subtree_size(root), limit + 2);
+        assert_eq!(ast.cached_subtree_size(wide), limit + 1);
+        tail.detach(&mut ast);
+        leaf.detach(&mut ast);
+        assert_eq!(ast.cached_subtree_size(root), limit);
+        assert_eq!(ast.cached_subtree_size(wide), limit - 1);
+    }
 
     #[test]
     fn old_snapshot_name_masks_keep_define_diagnostics_enabled() {

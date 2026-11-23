@@ -32,8 +32,8 @@
 //! links to its expert object (the anonymous negative analysis, the `PositiveInlineVarAnalysis`
 //! lambdas) keeps the expert's index. Java object identity of `Reference`s (`ref != declaration`)
 //! is identity of the elements of the expert's reference list (`std::ptr::eq`). The expert keeps
-//! the variable's `ReferenceCollection` as collected when its scope was exited; nothing adds to a
-//! collection after its variable's scope is exited, so this is the list Java's expert reads.
+//! a shared snapshot of the variable's references at scope exit, including while it waits for
+//! an alias in an enclosing scope.
 
 use crate::abstract_compiler::AbstractCompiler;
 use crate::basic_block::BasicBlock;
@@ -50,7 +50,7 @@ use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use crate::var::VarId;
 use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
-use closure_rhino::node::{Ast, NodeId};
+use closure_rhino::node::{Ast, NodeId, WatchedName};
 use closure_rhino::{check_argument, check_not_null, check_state};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -248,6 +248,9 @@ struct InliningBehavior {
     /// The value is an object that knows what to do when the original variable is handled.
     var_to_alias_retry_handlers_map: IndexMap<VarKey, Vec<AliasInlineRetryHandler>>,
 
+    /// Declarations in scope order. The snapshot allows inlining to mutate the compiler.
+    scope_vars: Vec<VarId>,
+
     /// Rust-only: the `StandardVarExpert` objects created so far (see the module comment).
     experts: Vec<RefCell<StandardVarExpert>>,
 }
@@ -283,6 +286,7 @@ impl InliningBehavior {
             mode,
             current_scope_handled_var_analyses_map: HandledVarAnalyses::default(),
             var_to_alias_retry_handlers_map: IndexMap::<_, _>::default(),
+            scope_vars: Vec::new(),
             experts: Vec::new(),
         }
     }
@@ -302,8 +306,10 @@ impl InliningBehavior {
         let compiler = t.get_compiler();
         let may_be_a_parameter_modified_via_arguments =
             self.vars_in_this_scope_may_be_modified_using_arguments(compiler, scope, reference_map);
-        for v in scope.get_var_iterable(compiler) {
-            let reference_info = reference_map.get_references(v);
+        let mut vars = std::mem::take(&mut self.scope_vars);
+        scope.collect_declared_vars(compiler, &mut vars);
+        for &v in &vars {
+            let reference_info = reference_map.shared_references(v);
             let expert = self.create_var_expert(
                 compiler,
                 v,
@@ -344,6 +350,7 @@ impl InliningBehavior {
                 self.retry_aliases(compiler, v, analysis);
             }
         }
+        self.scope_vars = vars;
     }
 
     /// Returns true for function scopes (the whole function, not the body), if the function uses
@@ -472,7 +479,7 @@ impl InliningBehavior {
         &mut self,
         compiler: &mut AbstractCompiler,
         v: VarId,
-        reference_info: Option<&ReferenceCollection>,
+        reference_info: Option<Rc<ReferenceCollection>>,
         may_be_a_parameter_modified_via_arguments: bool,
     ) -> VarExpert {
         let Some(reference_info) = reference_info else {
@@ -514,7 +521,7 @@ impl InliningBehavior {
 
         let init_data = VarExpertInitData {
             v,
-            reference_info: reference_info.clone(),
+            reference_info,
             is_declared_or_inferred_constant,
             may_be_a_parameter_modified_via_arguments,
         };
@@ -914,7 +921,7 @@ fn same_basic_block(a: Option<&Rc<BasicBlock>>, b: Option<&Rc<BasicBlock>>) -> b
 /// Used to initialize fields in a `StandardVarExpert` object.
 struct VarExpertInitData {
     v: VarId,
-    reference_info: ReferenceCollection,
+    reference_info: Rc<ReferenceCollection>,
     is_declared_or_inferred_constant: bool,
     may_be_a_parameter_modified_via_arguments: bool,
 }
@@ -923,7 +930,7 @@ struct VarExpertInitData {
 /// inlining, and whether it's OK to inline aliases of the variable.
 struct StandardVarExpert {
     v: VarId,
-    reference_info: ReferenceCollection,
+    reference_info: Rc<ReferenceCollection>,
     /// `referenceInfo.references.get(0)`, as an index into `reference_info.references`.
     declaration: usize,
     is_declared_or_inferred_constant: bool,
@@ -1023,7 +1030,10 @@ impl StandardVarExpert {
         if self.is_referenced_weakly.is_known() {
             self.is_referenced_weakly.get_known_value().unwrap()
         } else {
-            let value = self.reference_info.is_referenced_weakly(ast);
+            // A collected reference can be weak only at goog.weakUsage or goog$weakUsage.
+            let value = (ast.has_seen_name(WatchedName::Goog)
+                || ast.has_seen_name(WatchedName::GoogDollarPrefix))
+                && self.reference_info.is_referenced_weakly(ast);
             self.is_referenced_weakly
                 .set_known_value_once(Some(value))
                 .unwrap()
@@ -1058,17 +1068,10 @@ impl StandardVarExpert {
             self.initialization_reference.get_known_value()
         } else {
             let init_ref = if self.is_declared_or_inferred_constant {
-                self.reference_info
-                    .get_initializing_reference_for_constants(ast)
+                self.reference_info.initializing_constant_index(ast)
             } else {
-                self.reference_info.get_initializing_reference(ast)
+                self.reference_info.initializing_reference_index(ast)
             };
-            let init_ref = init_ref.map(|r| {
-                self.references()
-                    .iter()
-                    .position(|candidate| std::ptr::eq(candidate, r))
-                    .unwrap()
-            });
             self.initialization_reference.set_known_value_once(init_ref)
         }
     }
@@ -1113,6 +1116,16 @@ impl StandardVarExpert {
 
     // port: InlineVariables.InliningBehavior.StandardVarExpert#analyze
     fn analyze(&mut self, compiler: &mut AbstractCompiler) -> InlineVarAnalysis {
+        let first = self.reference(self.declaration).get_node();
+        if first.is_name(compiler)
+            && first
+                .get_parent(compiler)
+                .is_some_and(|parent| parent.is_param_list(compiler) || parent.is_catch(compiler))
+        {
+            // A plain parameter or catch binding initializes the name without a value expression.
+            // An alias still checks assignment and use of arguments on demand.
+            return self.get_negative_inline_var_analysis();
+        }
         if has_no_inline_annotation(compiler, self.v) || self.is_referenced_weakly(compiler) {
             return self.get_negative_inline_var_analysis();
         }

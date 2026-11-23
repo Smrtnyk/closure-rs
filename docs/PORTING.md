@@ -219,9 +219,10 @@ in general. Fidelity on inputs the port was never tuned on is shown with:
 
 - **differential fuzzing** against Java (§4.6): generated programs and mutated D2 inputs, under
   random option profiles;
-- **large real-world bundles outside the D2 corpus** (`bench/`: three.js, d3, fabric and lodash,
-  as module graphs and as single-file bundles, with and without input and output source maps),
-  whose output is compared byte for byte with Java's on every benchmark run.
+- **large real-world inputs outside the D2 corpus** include the ONLYOFFICE spreadsheet editor's
+  two-chunk browser build and the three.js, d3, fabric and lodash module graphs and bundles.
+  The benchmarks compare generated JavaScript, diagnostics and source maps byte for byte with
+  Java, including the editor's renaming reports. [Benchmark workloads](../bench/README.md)
 
 A mismatch from either is a fidelity bug, handled like a D2 failure: it is minimized, fixed and
 kept as a regression test (`fuzz/findings/`, `crates/cli/tests/data/fuzz_regressions/`).

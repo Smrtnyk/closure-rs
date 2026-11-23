@@ -749,6 +749,52 @@
           ]
         }
       ]
+    },
+    {
+      "name": "onlyoffice-cell",
+      "description": "The ONLYOFFICE spreadsheet editor's browser SDK. Its upstream manifest orders 394 sources into two Closure chunks built with source maps and renaming reports.",
+      "sources": [
+        {
+          "name": "sdkjs",
+          "kind": "git",
+          "repo": "https://github.com/ONLYOFFICE/sdkjs.git",
+          "ref": "v9.2.0.119",
+          "commit": "d3a855ac3507629dbd4b5506aafc3213b8715d2f",
+          "license": "AGPL-3.0 with additional terms (LICENSE.txt)",
+          "dest": "onlyoffice-cell",
+          "paths": [
+            "LICENSE.txt",
+            "configs/cell.json",
+            "configs/externs.json",
+            "cell/**/*.js",
+            "common/**/*.js",
+            "common/externs/socket.io.js.map",
+            "slide/**/*.js",
+            "vendor/**/*.js",
+            "word/**/*.js"
+          ],
+          "tree_sha256": "0954b957bf643e5a4062acf101ccd132e6e238e39a76e48c4a993231b5c126e0"
+        }
+      ],
+      "flags": [
+        "--language_out=ECMASCRIPT5",
+        "--rewrite_polyfills=true",
+        "--warning_level=QUIET",
+        "--define=window.AscCommon.g_cCompanyName='onlyoffice'",
+        "--define=window.AscCommon.g_cProductVersion='9.2.0'",
+        "--define=window.AscCommon.g_cBuildNumber='119'",
+        "--define=window.AscCommon.g_cIsBeta='false'",
+        "--chunk_wrapper=sdk-all:(function(window,undefined){%s})(window);",
+        "--create_source_map=%outname%.map",
+        "--source_map_format=V3",
+        "--source_map_include_content=true"
+      ],
+      "jobs": [
+        {
+          "name": "onlyoffice-cell",
+          "onlyoffice_sdk": "bench-cache/onlyoffice-cell"
+        }
+      ]
     }
   ]
 }

@@ -100,6 +100,40 @@ struct VarInfoId(usize);
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 struct PolyfillInfoId(usize);
 
+/// Real variables in first-visit order, as required by the removal worklist. Each pass
+/// sees only a subset of the compiler's VarIds, so allocate lookup pages on first use.
+#[derive(Default)]
+struct VarInfoMap {
+    pages: Vec<Option<Box<[usize; Self::PAGE_SIZE]>>>,
+    order: Vec<(VarId, VarInfoId)>,
+}
+
+impl VarInfoMap {
+    const PAGE_SIZE: usize = 256;
+
+    fn get(&self, var: VarId) -> Option<VarInfoId> {
+        let index = var.index();
+        let page = self.pages.get(index / Self::PAGE_SIZE)?.as_ref()?;
+        let id = page[index % Self::PAGE_SIZE];
+        // Zero is reserved for the shared, unremovable VarInfo and never inserted.
+        (id != 0).then_some(VarInfoId(id))
+    }
+
+    fn insert(&mut self, var: VarId, info: VarInfoId) {
+        let index = var.index();
+        let page_index = index / Self::PAGE_SIZE;
+        if page_index >= self.pages.len() {
+            self.pages.resize_with(page_index + 1, || None);
+        }
+        let page = self.pages[page_index].get_or_insert_with(|| Box::new([0; Self::PAGE_SIZE]));
+        let slot = &mut page[index % Self::PAGE_SIZE];
+        debug_assert_eq!(*slot, 0);
+        debug_assert_ne!(info.0, 0);
+        *slot = info.0;
+        self.order.push((var, info));
+    }
+}
+
 // port: RemoveUnusedCode
 pub struct RemoveUnusedCode {
     ast_analyzer: AstAnalyzer,
@@ -117,7 +151,8 @@ pub struct RemoveUnusedCode {
     /// could end up modifying a data structure in the traversal as we're iterating over it.
     worklist: VecDeque<Continuation>,
 
-    var_info_map: IndexMap<VarId, VarInfoId>,
+    var_info_map: VarInfoMap,
+    reuse_var_classification: bool,
 
     pinned_property_names: IndexSet<JsString>,
     extern_properties: Arc<IndexSet<JsString>>,
@@ -139,6 +174,8 @@ pub struct RemoveUnusedCode {
     polyfills: JavaHashMultimap<PolyfillInfoId>,
 
     guarded_usages: IndexSet<NodeId>,
+    /// Scripts whose guards have yet to be consulted during a single optimizer run.
+    pending_guard_scripts: Option<IndexSet<NodeId>>,
 
     // Java's `polyfillsFromTable` field is read only by the constructor, which hands it to the
     // finder.
@@ -183,7 +220,8 @@ impl RemoveUnusedCode {
             remove_globals: builder.remove_globals,
             preserve_function_expression_names: builder.preserve_function_expression_names,
             worklist: VecDeque::new(),
-            var_info_map: IndexMap::<_, _>::default(),
+            var_info_map: VarInfoMap::default(),
+            reuse_var_classification: false,
             extern_properties: Arc::default(),
             pinned_property_names: IMPLICITLY_USED_PROPERTIES
                 .iter()
@@ -194,6 +232,7 @@ impl RemoveUnusedCode {
             all_function_param_scopes: Vec::new(),
             polyfills: JavaHashMultimap::create(),
             guarded_usages: IndexSet::<_>::default(),
+            pending_guard_scripts: None,
             polyfill_usage_finder,
             scope_creator,
             remove_unused_prototype_properties: builder.remove_unused_prototype_properties,
@@ -423,6 +462,30 @@ impl RemovalLogRecord {
 }
 
 impl CompilerPass for RemoveUnusedCode {
+    fn process_once(
+        mut self: Box<Self>,
+        compiler: &mut AbstractCompiler,
+        externs: NodeId,
+        root: NodeId,
+    ) {
+        // Every SCRIPT child of ROOT starts with an empty guard context. In a normalized
+        // tree the finder does no scope lookup, and the worklist only analyzes the AST.
+        // All removals happen after the last lookup. A reusable pass keeps upstream's
+        // accumulation of guarded nodes across calls to process.
+        if compiler.get_life_cycle_stage() == crate::abstract_compiler::LifeCycleStage::NORMALIZED
+            && !compiler.get_options().has_custom_passes()
+            && compiler.get_coding_convention().property_tests_are_pure()
+            && root.is_root(compiler)
+            && root.children(compiler).all(|n| n.is_script(compiler))
+        {
+            self.pending_guard_scripts = Some(root.children(compiler).collect());
+        }
+        // A reused pass can have entries classified under an earlier convention.
+        self.reuse_var_classification = self.var_info_map.order.is_empty()
+            && compiler.get_coding_convention().export_tests_are_pure();
+        self.process(compiler, externs, root);
+    }
+
     /// Traverses the root, removing all unused variables. Multiple traversals may occur to ensure
     /// all unused variables are removed.
     // port: RemoveUnusedCode#process
@@ -478,13 +541,9 @@ impl RemoveUnusedCode {
             );
         }
 
-        // Accumulate guarded usages of polyfills before removal starts.
-        let guarded_usages = &mut self.guarded_usages;
-        self.polyfill_usage_finder
-            .traverse_only_guarded(compiler, root, &mut |_, usage| {
-                // port: RemoveUnusedCode#storePolyfill
-                guarded_usages.insert(usage.node());
-            });
+        if self.pending_guard_scripts.is_none() {
+            self.collect_guarded_usages(compiler, root);
+        }
 
         self.worklist.push_back(Continuation::new(root, scope));
         while let Some(continuation) = self.worklist.pop_front() {
@@ -496,6 +555,25 @@ impl RemoveUnusedCode {
         for index in 0..self.all_function_param_scopes.len() {
             self.remove_unreferenced_function_args(compiler, self.all_function_param_scopes[index]);
         }
+    }
+
+    fn collect_guarded_usages(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
+        self.polyfill_usage_finder
+            .traverse_only_guarded(compiler, root, &mut |_, usage| {
+                // port: RemoveUnusedCode#storePolyfill
+                self.guarded_usages.insert(usage.node());
+            });
+    }
+
+    fn is_guarded_polyfill_use(&mut self, compiler: &mut AbstractCompiler, n: NodeId) -> bool {
+        if let Some(pending) = &mut self.pending_guard_scripts
+            && !pending.is_empty()
+            && let Some(script) = NodeUtil::get_enclosing_script(compiler, n)
+            && pending.swap_remove(&script)
+        {
+            self.collect_guarded_usages(compiler, script);
+        }
+        self.guarded_usages.contains(&n)
     }
 
     // port: RemoveUnusedCode#removeIndependentlyRemovableProperties
@@ -617,8 +695,7 @@ impl RemoveUnusedCode {
                         // In `#x in o`, `#x` is a NAME node representing a private property (not
                         // a variable in `scope`); pin the property name so the declaration of
                         // `#x` is kept, and skip variable lookup.
-                        let name = n.get_string(compiler);
-                        self.mark_property_name_as_pinned(compiler, name);
+                        self.mark_property_name_as_pinned(n.get_string_ref(compiler));
                         return;
                     }
                     let var_info = self.traverse_name_node(compiler, n, scope);
@@ -679,13 +756,9 @@ impl RemoveUnusedCode {
             get_prop.to_string(compiler)
         );
         let object_node = get_prop.get_first_child(compiler).unwrap();
-        let property_name = get_prop.get_string(compiler);
-
-        if self.polyfills.contains_key(&property_name) {
-            for info in self.polyfills.get(&property_name) {
-                if self.polyfill_infos[info.0].is_removable {
-                    self.polyfill_info_consider_possible_reference(compiler, info, get_prop);
-                }
+        for info in self.polyfills.get(get_prop.get_string_ref(compiler)) {
+            if self.polyfill_infos[info.0].is_removable {
+                self.polyfill_info_consider_possible_reference(compiler, info, get_prop);
             }
         }
 
@@ -697,7 +770,7 @@ impl RemoveUnusedCode {
             )
         {
             // must record as reference to the property and continue traversal.
-            self.mark_property_name_as_pinned(compiler, property_name);
+            self.mark_property_name_as_pinned(get_prop.get_string_ref(compiler));
             self.traverse_node(compiler, object_node, scope);
         } else if object_node.is_this(compiler) {
             // This is probably the declaration of a class field in a constructor.
@@ -730,7 +803,7 @@ impl RemoveUnusedCode {
             }
         } else {
             // TODO(bradfordcsmith): add removal of `varName.propName;`
-            self.mark_property_name_as_pinned(compiler, property_name);
+            self.mark_property_name_as_pinned(get_prop.get_string_ref(compiler));
             self.traverse_node(compiler, object_node, scope);
         }
     }
@@ -900,8 +973,7 @@ impl RemoveUnusedCode {
             if let Some(property_name_node) = property_name_node
                 && property_name_node.is_string_lit(compiler)
             {
-                let property_name = property_name_node.get_string(compiler);
-                self.mark_property_name_as_pinned(compiler, property_name);
+                self.mark_property_name_as_pinned(property_name_node.get_string_ref(compiler));
             }
             self.traverse_children(compiler, call_node, scope);
         } else if NodeUtil::is_object_define_properties_definition(compiler, call_node) {
@@ -1087,8 +1159,7 @@ impl RemoveUnusedCode {
             if p.is_quoted_string_key(compiler) {
                 // Quoted property name counts as a reference to the property and protects it from
                 // removal.
-                let name = p.get_string(compiler);
-                self.mark_property_name_as_pinned(compiler, name);
+                self.mark_property_name_as_pinned(p.get_string_ref(compiler));
                 self.traverse_node(compiler, p.get_only_child(compiler), scope);
             } else if p.is_string_key(compiler) {
                 let definition = p.get_only_child(compiler);
@@ -1348,8 +1419,7 @@ impl RemoveUnusedCode {
                 // because of some reflection patterns.
                 // Note that we are intentionally treating both quoted and unquoted keys as
                 // references.
-                let name = p.get_string(compiler);
-                self.mark_property_name_as_pinned(compiler, name);
+                self.mark_property_name_as_pinned(p.get_string_ref(compiler));
                 self.traverse_node(compiler, p.get_first_child(compiler).unwrap(), scope);
             } else {
                 self.traverse_node(compiler, p, scope);
@@ -1772,8 +1842,7 @@ impl RemoveUnusedCode {
                 }
                 Token::STRING_KEY => {
                     if !e.is_quoted_string_key(compiler) {
-                        let name = e.get_string(compiler);
-                        self.mark_property_name_as_pinned(compiler, name);
+                        self.mark_property_name_as_pinned(e.get_string_ref(compiler));
                     }
                     let target = e.get_only_child(compiler);
                     self.traverse_indirect_assignment(compiler, e, target, scope);
@@ -2186,24 +2255,17 @@ impl RemoveUnusedCode {
     }
 
     // port: RemoveUnusedCode#markPropertyNameAsPinned
-    fn mark_property_name_as_pinned(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        property_name: JsString,
-    ) {
-        if self.pinned_property_names.insert(property_name.clone())
-            && !self.extern_properties.contains(&property_name)
-        {
-            // Continue traversal of all of the property name's values and no longer consider them
-            // for removal.
-            for removable in self
-                .removables_for_property_names
-                .remove_all(&property_name)
-            {
+    fn mark_property_name_as_pinned(&mut self, property_name: &JsString) {
+        if self.pinned_property_names.contains(property_name) {
+            return;
+        }
+        self.pinned_property_names.insert(property_name.clone());
+        if !self.extern_properties.contains(property_name) {
+            // Continue traversal of all values for this property and keep them.
+            for removable in self.removables_for_property_names.remove_all(property_name) {
                 self.removable_apply_continuations(removable);
             }
         }
-        let _ = compiler;
     }
 
     // port: RemoveUnusedCode#considerForIndependentRemoval
@@ -2231,7 +2293,7 @@ impl RemoveUnusedCode {
                 self.removable_apply_continuations(removable);
                 // This assignment counts as a reference, since we won't be removing it.
                 // This is necessary in order to preserve getters and setters for the property.
-                self.mark_property_name_as_pinned(compiler, property_name);
+                self.mark_property_name_as_pinned(&property_name);
             }
         } else {
             self.removable_apply_continuations(removable);
@@ -2252,15 +2314,15 @@ impl RemoveUnusedCode {
             "%s",
             getprop.to_string(compiler)
         );
-        let prop_name = getprop.get_string(compiler);
+        let prop_name = getprop.get_string_ref(compiler);
         let recorded = compiler
             .get_accessor_summary()
             .expect("compiler.getAccessorSummary() is null")
-            .get_kind(&prop_name);
+            .get_kind(prop_name);
         if (recorded.has_getter() && usage.has_getter() && !self.assume_getters_are_pure)
             || (recorded.has_setter() && usage.has_setter())
         {
-            self.mark_property_name_as_pinned(compiler, prop_name);
+            self.mark_property_name_as_pinned(prop_name);
             return true;
         }
 
@@ -2446,15 +2508,24 @@ impl RemoveUnusedCode {
     /// way.
     // port: RemoveUnusedCode#getVarInfo
     fn get_var_info(&mut self, compiler: &mut AbstractCompiler, var: VarId) -> VarInfoId {
-        let is_global = var.is_global(compiler);
+        // A CompilerInput can be marked extern after declaration. Check its live flag,
+        // including on a cache hit, and keep every upstream diagnostic log entry.
         if var.is_extern(compiler) {
             let name = var.get_name(compiler);
             self.unremovable_log
                 .as_mut()
                 .unwrap()
                 .log(&mut || format!("{name}: extern"));
-            self.canonical_unremovable_var_info
-        } else if compiler
+            return self.canonical_unremovable_var_info;
+        }
+        let known = self.var_info_map.get(var);
+        if self.reuse_var_classification
+            && let Some(var_info) = known
+        {
+            return var_info;
+        }
+        let is_global = var.is_global(compiler);
+        if compiler
             .get_coding_convention()
             .is_exported(&var.get_name(compiler), /* local= */ !is_global)
         {
@@ -2467,10 +2538,9 @@ impl RemoveUnusedCode {
         } else if var.is_arguments(compiler) {
             // No point in logging that we cannot remove "arguments"
             self.canonical_unremovable_var_info
+        } else if let Some(var_info) = known {
+            var_info
         } else {
-            if let Some(var_info) = self.var_info_map.get(&var) {
-                return *var_info;
-            }
             let var_info =
                 self.new_var_info(VarInfo::Real(RealVarInfo::new(var.get_name(compiler))));
             if var
@@ -2519,8 +2589,8 @@ impl RemoveUnusedCode {
     /// variables as well.
     // port: RemoveUnusedCode#removeUnreferencedVarsAndPolyfills
     fn remove_unreferenced_vars_and_polyfills(&mut self, compiler: &mut AbstractCompiler) {
-        for index in 0..self.var_info_map.len() {
-            let (&var, &var_info) = self.var_info_map.get_index(index).unwrap();
+        for index in 0..self.var_info_map.order.len() {
+            let (var, var_info) = self.var_info_map.order[index];
             if !self.var_info_is_removable(var_info) {
                 continue;
             }
@@ -4554,7 +4624,7 @@ impl RemoveUnusedCode {
             _ => unreachable!(),
         };
         if self.polyfill_infos[polyfill_info.0].is_removable
-            && (is_patch || !self.guarded_usages.contains(&n))
+            && (is_patch || !self.is_guarded_polyfill_use(compiler, n))
         {
             self.polyfill_info_consider_possible_reference_internal(compiler, polyfill_info, n);
             if !self.polyfill_infos[polyfill_info.0].is_removable {
@@ -4628,6 +4698,29 @@ impl RemoveUnusedCode {
                     info.is_removable = false;
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sparse_var_info_lookup_preserves_first_visit_order() {
+        let var = |index: usize| VarId(((index + 1) as u32).try_into().unwrap());
+        let mut map = VarInfoMap::default();
+        let variables = [var(3 * VarInfoMap::PAGE_SIZE), var(0), var(255), var(256)];
+        for (index, &var) in variables.iter().enumerate() {
+            assert_eq!(map.get(var), None);
+            map.insert(var, VarInfoId(index + 1));
+        }
+        assert_eq!(map.get(var(2 * VarInfoMap::PAGE_SIZE)), None);
+        assert_eq!(map.get(var(1)), None);
+        for (index, &var) in variables.iter().enumerate() {
+            let id = VarInfoId(index + 1);
+            assert_eq!(map.get(var), Some(id));
+            assert_eq!(map.order[index], (var, id));
         }
     }
 }

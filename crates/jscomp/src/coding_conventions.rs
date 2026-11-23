@@ -79,6 +79,12 @@ impl Proxy {
     }
 }
 impl CodingConvention for Proxy {
+    fn property_tests_are_pure(&self) -> bool {
+        self.next_convention.property_tests_are_pure()
+    }
+    fn export_tests_are_pure(&self) -> bool {
+        self.next_convention.export_tests_are_pure()
+    }
     // port: CodingConventions.Proxy#isExported(String)
     fn is_exported_name(&self, name: &JsString) -> bool {
         self.is_exported(name, true) || self.is_exported(name, false)
@@ -254,6 +260,12 @@ impl DefaultCodingConvention {
     }
 }
 impl CodingConvention for DefaultCodingConvention {
+    fn property_tests_are_pure(&self) -> bool {
+        true
+    }
+    fn export_tests_are_pure(&self) -> bool {
+        true
+    }
     // port: CodingConventions.DefaultCodingConvention#isExported(String)
     fn is_exported_name(&self, name: &JsString) -> bool {
         self.is_exported(name, true) || self.is_exported(name, false)

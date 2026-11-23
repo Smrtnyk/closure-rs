@@ -73,42 +73,61 @@ struct CandidateNames {
 }
 
 impl CandidateNames {
-    fn collect(compiler: &AbstractCompiler, externs: NodeId, root: NodeId) -> Option<Self> {
+    fn collect(compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) -> Option<Self> {
         // The global scope scans this common parent. A reference can jump to a hoisted
         // function in a sibling of either traversal root. Leave invalid roots to NodeTraversal.
         let scope_root = externs.get_parent(compiler)?;
         if root.get_parent(compiler) != Some(scope_root) {
             return None;
         }
-        let skip_externs = ExternsReferenceSummary::can_skip(compiler, externs);
-        let mut names = Self::default();
-        let mut pending: Vec<_> = scope_root
-            .children(compiler)
-            .filter(|&n| !(skip_externs && n == externs))
-            .collect();
-        while let Some(node) = pending.pop() {
-            if node.is_object_lit(compiler)
-                && let Some(parent) = node.get_parent(compiler)
-            {
-                let lhs = if parent.is_assign(compiler) {
-                    parent.get_first_child(compiler)
-                } else {
-                    Some(parent)
-                };
-                if let Some(lhs) = lhs
-                    && (lhs.is_name(compiler) || lhs.is_import_star(compiler))
-                {
-                    names.assigned_objects.insert(lhs.get_string(compiler));
+        let excluded = ExternsReferenceSummary::can_skip(compiler, externs).then_some(externs);
+        let mut names = compiler.with_token_candidates(
+            &[Token::OBJECTLIT, Token::FUNCTION],
+            |ast, candidates| {
+                let mut names = Self::default();
+                for &node in candidates {
+                    // Postings can include detached nodes and nodes whose token changed.
+                    let (binding, set) = match node.get_token(ast) {
+                        Token::OBJECTLIT => {
+                            let Some(parent) = node.get_parent(ast) else {
+                                continue;
+                            };
+                            let lhs = if parent.is_assign(ast) {
+                                parent.get_first_child(ast)
+                            } else {
+                                Some(parent)
+                            };
+                            let Some(lhs) = lhs.filter(|n| n.is_name(ast) || n.is_import_star(ast))
+                            else {
+                                continue;
+                            };
+                            (lhs, &mut names.assigned_objects)
+                        }
+                        Token::FUNCTION => {
+                            let Some(name) = node.get_first_child(ast).filter(|n| n.is_name(ast))
+                            else {
+                                continue;
+                            };
+                            if name.string_payload(ast).is_some_and(JsString::is_empty) {
+                                continue;
+                            }
+                            (name, &mut names.to_resolve)
+                        }
+                        _ => continue,
+                    };
+                    if binding
+                        .string_payload(ast)
+                        .is_some_and(|name| set.contains(name))
+                    {
+                        continue;
+                    }
+                    if Self::in_scanned_tree(ast, node, scope_root, excluded) {
+                        set.insert(binding.get_string(ast));
+                    }
                 }
-            } else if node.is_function(compiler)
-                && let Some(name) = node.get_first_child(compiler)
-                && name.is_name(compiler)
-                && !name.get_string_ref(compiler).is_empty()
-            {
-                names.to_resolve.insert(name.get_string(compiler));
-            }
-            pending.extend(node.children(compiler));
-        }
+                names
+            },
+        );
         names
             .to_resolve
             .extend(names.assigned_objects.iter().cloned());
@@ -122,6 +141,29 @@ impl CandidateNames {
             .map(ImplicitVar::js_name),
         );
         Some(names)
+    }
+
+    fn in_scanned_tree(
+        ast: &Ast,
+        mut node: NodeId,
+        scope_root: NodeId,
+        excluded: Option<NodeId>,
+    ) -> bool {
+        // Arena postings include unreachable nodes. An unrelated cyclic parent chain
+        // cannot belong to the scanned tree.
+        for _ in 0..ast.node_count() {
+            if Some(node) == excluded {
+                return false;
+            }
+            let Some(parent) = node.get_parent(ast) else {
+                return false;
+            };
+            if parent == scope_root {
+                return true;
+            }
+            node = parent;
+        }
+        false
     }
 
     /// Splitting a property can introduce an object initializer or turn a property assignment
@@ -730,5 +772,53 @@ impl InliningBehavior {
                 r.get_parent(compiler).replace_with(compiler, replacement);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod candidate_tests {
+    use super::*;
+
+    #[test]
+    fn indexed_names_follow_attachment_token_changes_and_sibling_roots() {
+        let mut compiler = AbstractCompiler::new();
+        let ast = &mut compiler.ast;
+        let externs = ast.new_node(Token::ROOT);
+        let root = ast.new_node(Token::ROOT);
+        let sibling = ast.new_node(Token::SCRIPT);
+        let scope_root = ast.new_node_with_children3(Token::ROOT, externs, root, sibling);
+        let value = ast.new_node(Token::EMPTY);
+        let name = ast.new_string_with_token(Token::NAME, "object");
+        name.add_child_to_back(ast, value);
+        sibling.add_child_to_back(ast, name);
+        let function_name = ast.new_string_with_token(Token::NAME, "hoisted");
+        let function = ast.new_node_with_child(Token::FUNCTION, function_name);
+
+        let detached_name = ast.new_string_with_token(Token::NAME, "detached");
+        let detached_value = ast.new_node_with_child(Token::OBJECTLIT, detached_name);
+        detached_name.add_child_to_back(ast, detached_value);
+
+        let collect = |c: &mut AbstractCompiler| CandidateNames::collect(c, externs, root).unwrap();
+        assert!(collect(&mut compiler).assigned_objects.is_empty());
+        compiler
+            .ast
+            .with_token_candidates(&[Token::CALL], |_, _| ());
+        value.set_token(&mut compiler.ast, Token::OBJECTLIT);
+        sibling.add_child_to_back(&mut compiler.ast, function);
+        let names = collect(&mut compiler);
+        assert!(names.assigned_objects.contains(&JsString::from("object")));
+        assert!(names.to_resolve.contains(&JsString::from("hoisted")));
+        assert!(!CandidateNames::in_scanned_tree(
+            &compiler.ast,
+            value,
+            scope_root,
+            Some(sibling)
+        ));
+
+        name.detach(&mut compiler.ast);
+        function.set_token(&mut compiler.ast, Token::BLOCK);
+        let names = collect(&mut compiler);
+        assert!(names.assigned_objects.is_empty());
+        assert!(!names.to_resolve.contains(&JsString::from("hoisted")));
     }
 }

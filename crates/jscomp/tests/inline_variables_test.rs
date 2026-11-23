@@ -1741,6 +1741,14 @@ fn test_side_effect_order() {
 }
 
 #[test]
+fn weak_usage_preserves_local_for_both_callee_spellings() {
+    let mut t = InlineVariablesTest::set_up();
+    for callee in ["goog.weakUsage", "goog$weakUsage"] {
+        t.test_same(&format!("function f() {{ var x = 42; {callee}(x); }}"));
+    }
+}
+
+#[test]
 fn test_inline_parameter_alias1() {
     let mut t = InlineVariablesTest::set_up();
     t.test(
