@@ -177,8 +177,13 @@ impl ReferenceCollection {
     /// declaration if it is an assignment in the same `JSChunk`.
     // port: ReferenceCollection#getInitializingReference
     pub fn get_initializing_reference(&self, ast: &Ast) -> Option<&Reference> {
+        self.initializing_reference_index(ast)
+            .map(|i| &self.references[i])
+    }
+
+    pub(crate) fn initializing_reference_index(&self, ast: &Ast) -> Option<usize> {
         if self.is_initializing_declaration_at(ast, 0) {
-            return Some(&self.references[0]);
+            return Some(0);
         } else if self.is_initializing_assignment_at(ast, 1)
             // Check that these references are in the same file as a way of ensuring they are in
             // the same chunk: checking for the same chunk would also be reasonable, but is
@@ -186,7 +191,7 @@ impl ReferenceCollection {
             // in practice.
             && self.are_in_same_file(0, 1)
         {
-            return Some(&self.references[1]);
+            return Some(1);
         }
         None
     }
@@ -199,15 +204,15 @@ impl ReferenceCollection {
     /// Constants are allowed to be defined after their first use.
     // port: ReferenceCollection#getInitializingReferenceForConstants
     pub fn get_initializing_reference_for_constants(&self, ast: &Ast) -> Option<&Reference> {
-        let size = self.references.len();
-        for i in 0..size {
-            if self.is_initializing_declaration_at(ast, i)
+        self.initializing_constant_index(ast)
+            .map(|i| &self.references[i])
+    }
+
+    pub(crate) fn initializing_constant_index(&self, ast: &Ast) -> Option<usize> {
+        (0..self.references.len()).find(|&i| {
+            self.is_initializing_declaration_at(ast, i)
                 || self.is_initializing_assignment_at(ast, i)
-            {
-                return Some(&self.references[i]);
-            }
-        }
-        None
+        })
     }
 
     /// Returns whether the variable is only assigned a value once for its lifetime.

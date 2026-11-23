@@ -608,8 +608,14 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   Each script starts with an empty guard context, and the pass finishes its worklist
   before it changes the AST. This applies to a single run over normalized scripts with
   pure property-test queries. Reusable passes, custom passes and other tree shapes use
-  the whole-root traversal.
+  the whole-root traversal. A fresh pass with a pure export predicate reuses a real
+  variable's classification within that pass. A sparse index maps its compiler-wide VarId
+  to the pass's analysis. Removals still follow first-visit order. Extern and export
+  decisions that produce a log entry are evaluated on every use.
 - `jscomp/inline_variables.rs` retains an inlining result when another variable may alias it.
+  The expert shares the reference list collected at scope exit. Further additions give the
+  collector its own copy. A plain parameter or catch binding has no value expression to
+  substitute. Its aliases still check assignments and uses of `arguments`.
 - Token-based peephole rules declare their candidates alongside the rewrite. The pass calls
   rules in upstream order and checks the current token again after each rewrite. Custom
   rules can run on every token.

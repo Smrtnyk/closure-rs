@@ -667,6 +667,18 @@ impl ScopeId {
     scope_name_mutator!(can_declare, bool);
     scope_name_mutator!(is_bleeding_function_name, bool);
     scope_reader!(get_var_iterable, Vec<VarId>);
+
+    /// Fill a reusable snapshot with the same declarations and order as get_var_iterable.
+    pub(crate) fn collect_declared_vars(
+        self,
+        compiler: &AbstractCompiler,
+        result: &mut Vec<VarId>,
+    ) {
+        result.clear();
+        if compiler.scope_mirror.scopes[self.index()].name_bits != 0 {
+            result.extend(self.scope_data(compiler).vars.values().copied());
+        }
+    }
     scope_reader!(get_all_accessible_variables, Vec<VarId>);
     scope_reader!(get_all_symbols, Vec<VarId>);
     scope_reader!(get_var_count, i32);

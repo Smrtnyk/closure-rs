@@ -77,6 +77,9 @@ impl CodingConvention for GoogleCodingConvention {
     fn property_tests_are_pure(&self) -> bool {
         self.proxy.property_tests_are_pure()
     }
+    fn export_tests_are_pure(&self) -> bool {
+        self.proxy.export_tests_are_pure()
+    }
     // port: GoogleCodingConvention#isConstant
     fn is_constant(&self, name: &JsString) -> bool {
         if name.length() <= 1 {

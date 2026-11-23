@@ -100,6 +100,40 @@ struct VarInfoId(usize);
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 struct PolyfillInfoId(usize);
 
+/// Real variables in first-visit order, as required by the removal worklist. Each pass
+/// sees only a subset of the compiler's VarIds, so allocate lookup pages on first use.
+#[derive(Default)]
+struct VarInfoMap {
+    pages: Vec<Option<Box<[usize; Self::PAGE_SIZE]>>>,
+    order: Vec<(VarId, VarInfoId)>,
+}
+
+impl VarInfoMap {
+    const PAGE_SIZE: usize = 256;
+
+    fn get(&self, var: VarId) -> Option<VarInfoId> {
+        let index = var.index();
+        let page = self.pages.get(index / Self::PAGE_SIZE)?.as_ref()?;
+        let id = page[index % Self::PAGE_SIZE];
+        // Zero is reserved for the shared, unremovable VarInfo and never inserted.
+        (id != 0).then_some(VarInfoId(id))
+    }
+
+    fn insert(&mut self, var: VarId, info: VarInfoId) {
+        let index = var.index();
+        let page_index = index / Self::PAGE_SIZE;
+        if page_index >= self.pages.len() {
+            self.pages.resize_with(page_index + 1, || None);
+        }
+        let page = self.pages[page_index].get_or_insert_with(|| Box::new([0; Self::PAGE_SIZE]));
+        let slot = &mut page[index % Self::PAGE_SIZE];
+        debug_assert_eq!(*slot, 0);
+        debug_assert_ne!(info.0, 0);
+        *slot = info.0;
+        self.order.push((var, info));
+    }
+}
+
 // port: RemoveUnusedCode
 pub struct RemoveUnusedCode {
     ast_analyzer: AstAnalyzer,
@@ -117,7 +151,8 @@ pub struct RemoveUnusedCode {
     /// could end up modifying a data structure in the traversal as we're iterating over it.
     worklist: VecDeque<Continuation>,
 
-    var_info_map: IndexMap<VarId, VarInfoId>,
+    var_info_map: VarInfoMap,
+    reuse_var_classification: bool,
 
     pinned_property_names: IndexSet<JsString>,
     extern_properties: Arc<IndexSet<JsString>>,
@@ -185,7 +220,8 @@ impl RemoveUnusedCode {
             remove_globals: builder.remove_globals,
             preserve_function_expression_names: builder.preserve_function_expression_names,
             worklist: VecDeque::new(),
-            var_info_map: IndexMap::<_, _>::default(),
+            var_info_map: VarInfoMap::default(),
+            reuse_var_classification: false,
             extern_properties: Arc::default(),
             pinned_property_names: IMPLICITLY_USED_PROPERTIES
                 .iter()
@@ -444,6 +480,9 @@ impl CompilerPass for RemoveUnusedCode {
         {
             self.pending_guard_scripts = Some(root.children(compiler).collect());
         }
+        // A reused pass can have entries classified under an earlier convention.
+        self.reuse_var_classification = self.var_info_map.order.is_empty()
+            && compiler.get_coding_convention().export_tests_are_pure();
         self.process(compiler, externs, root);
     }
 
@@ -2469,15 +2508,24 @@ impl RemoveUnusedCode {
     /// way.
     // port: RemoveUnusedCode#getVarInfo
     fn get_var_info(&mut self, compiler: &mut AbstractCompiler, var: VarId) -> VarInfoId {
-        let is_global = var.is_global(compiler);
+        // A CompilerInput can be marked extern after declaration. Check its live flag,
+        // including on a cache hit, and keep every upstream diagnostic log entry.
         if var.is_extern(compiler) {
             let name = var.get_name(compiler);
             self.unremovable_log
                 .as_mut()
                 .unwrap()
                 .log(&mut || format!("{name}: extern"));
-            self.canonical_unremovable_var_info
-        } else if compiler
+            return self.canonical_unremovable_var_info;
+        }
+        let known = self.var_info_map.get(var);
+        if self.reuse_var_classification
+            && let Some(var_info) = known
+        {
+            return var_info;
+        }
+        let is_global = var.is_global(compiler);
+        if compiler
             .get_coding_convention()
             .is_exported(&var.get_name(compiler), /* local= */ !is_global)
         {
@@ -2490,10 +2538,9 @@ impl RemoveUnusedCode {
         } else if var.is_arguments(compiler) {
             // No point in logging that we cannot remove "arguments"
             self.canonical_unremovable_var_info
+        } else if let Some(var_info) = known {
+            var_info
         } else {
-            if let Some(var_info) = self.var_info_map.get(&var) {
-                return *var_info;
-            }
             let var_info =
                 self.new_var_info(VarInfo::Real(RealVarInfo::new(var.get_name(compiler))));
             if var
@@ -2542,8 +2589,8 @@ impl RemoveUnusedCode {
     /// variables as well.
     // port: RemoveUnusedCode#removeUnreferencedVarsAndPolyfills
     fn remove_unreferenced_vars_and_polyfills(&mut self, compiler: &mut AbstractCompiler) {
-        for index in 0..self.var_info_map.len() {
-            let (&var, &var_info) = self.var_info_map.get_index(index).unwrap();
+        for index in 0..self.var_info_map.order.len() {
+            let (var, var_info) = self.var_info_map.order[index];
             if !self.var_info_is_removable(var_info) {
                 continue;
             }
@@ -4651,6 +4698,29 @@ impl RemoveUnusedCode {
                     info.is_removable = false;
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sparse_var_info_lookup_preserves_first_visit_order() {
+        let var = |index: usize| VarId(((index + 1) as u32).try_into().unwrap());
+        let mut map = VarInfoMap::default();
+        let variables = [var(3 * VarInfoMap::PAGE_SIZE), var(0), var(255), var(256)];
+        for (index, &var) in variables.iter().enumerate() {
+            assert_eq!(map.get(var), None);
+            map.insert(var, VarInfoId(index + 1));
+        }
+        assert_eq!(map.get(var(2 * VarInfoMap::PAGE_SIZE)), None);
+        assert_eq!(map.get(var(1)), None);
+        for (index, &var) in variables.iter().enumerate() {
+            let id = VarInfoId(index + 1);
+            assert_eq!(map.get(var), Some(id));
+            assert_eq!(map.order[index], (var, id));
         }
     }
 }

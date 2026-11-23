@@ -51,6 +51,10 @@ pub trait CodingConvention: std::any::Any + Send + Sync + Debug {
     ) -> bool;
     // port: CodingConvention#isExported
     fn is_exported(&self, name: &JsString, local: bool) -> bool;
+    /// Whether the export test depends only on its arguments and has no observable effects.
+    fn export_tests_are_pure(&self) -> bool {
+        false
+    }
     // port: CodingConvention#getPackageName
     fn get_package_name(&self, source: &dyn StaticSourceFile) -> Option<String>;
     // port: CodingConvention#getClassesDefinedByCall
