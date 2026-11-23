@@ -145,7 +145,7 @@ impl SideEffectPredicate {
     }
 }
 
-/// A small function can be ruled out before allocating a control-flow graph. A surviving
+/// A function can be ruled out before allocating a control-flow graph. A surviving
 /// replacement needs a definition and a non-loop read with the same spelling. Collisions
 /// in the two name masks only admit additional functions to the ordinary analysis.
 enum InlineAnalysis {
@@ -155,7 +155,10 @@ enum InlineAnalysis {
 }
 
 impl InlineAnalysis {
-    fn for_body(ast: &Ast, body: NodeId) -> Self {
+    // Keep the lookahead's call stack bounded even on a single deeply nested expression.
+    const MAX_DEPTH: u8 = 128;
+
+    fn for_body(ast: &Ast, body: NodeId, node_budget: usize) -> Self {
         struct Search {
             remaining: usize,
             definitions: u64,
@@ -164,8 +167,15 @@ impl InlineAnalysis {
         impl Search {
             // Return whether this subtree contains a forbidden RHS node. Each AST node
             // is inspected once even when initializers contain nested assignments.
-            fn visit(&mut self, ast: &Ast, n: NodeId, in_loop: bool) -> Option<bool> {
-                if self.remaining == 0 || n.is_class(ast) {
+            fn visit(&mut self, ast: &Ast, n: NodeId, in_loop: bool, depth: u8) -> Option<bool> {
+                if self.remaining == 0
+                    || depth == 0
+                    || n.is_class(ast)
+                    || (NodeUtil::is_logical_assignment_op(ast, n)
+                        && n.get_first_child(ast).is_some_and(|lhs| lhs.is_name(ast)))
+                {
+                    // The backwards analysis checks that logical assignment to a name
+                    // has already been lowered. Keep its eager schedule for that case.
                     return None;
                 }
                 self.remaining -= 1;
@@ -185,7 +195,7 @@ impl InlineAnalysis {
                 let mut forbidden = Candidate::forbidden_rhs_node(ast, n);
                 let mut last_child_forbidden = false;
                 for child in n.children(ast) {
-                    last_child_forbidden = self.visit(ast, child, in_loop)?;
+                    last_child_forbidden = self.visit(ast, child, in_loop, depth - 1)?;
                     forbidden |= last_child_forbidden;
                 }
 
@@ -227,11 +237,11 @@ impl InlineAnalysis {
         }
 
         let mut search = Search {
-            remaining: 128,
+            remaining: node_budget,
             definitions: 0,
             reads: 0,
         };
-        if search.visit(ast, body, false).is_none() {
+        if search.visit(ast, body, false, Self::MAX_DEPTH).is_none() {
             Self::Full
         } else if search.reads & search.definitions == 0 {
             Self::NoCandidate
@@ -358,7 +368,18 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
         if !Self::is_candidate_function(t, function_scope_root) {
             return;
         }
-        let analysis = InlineAnalysis::for_body(t, t.get_scope_root().unwrap());
+        let compiler = t.get_compiler();
+        // A normalized function can be wide without making the lookahead recursive calls
+        // deeper. Keep the original small scan for callers that can observe export queries
+        // or supply a tree before normalization.
+        let node_budget = if compiler.get_life_cycle_stage().is_normalized()
+            && compiler.get_coding_convention().export_tests_are_pure()
+        {
+            usize::MAX
+        } else {
+            128
+        };
+        let analysis = InlineAnalysis::for_body(t, t.get_scope_root().unwrap(), node_budget);
         if matches!(analysis, InlineAnalysis::NoCandidate) {
             return;
         }
@@ -1023,4 +1044,51 @@ fn check_pre_expressions(
         p = p.get_parent(compiler).unwrap();
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use closure_rhino::ir::IR;
+
+    #[test]
+    fn lookahead_handles_wide_bodies_and_falls_back_on_deep_expressions() {
+        let mut ast = Ast::new();
+        let body = IR::block(&mut ast);
+        let local = IR::name(&mut ast, "local");
+        let value = IR::number(&mut ast, 42.0);
+        let declaration = IR::var_with_value(&mut ast, local, value);
+        body.add_child_to_back(&mut ast, declaration);
+        for _ in 0..256 {
+            let empty = IR::empty(&mut ast);
+            body.add_child_to_back(&mut ast, empty);
+        }
+        assert!(matches!(
+            InlineAnalysis::for_body(&ast, body, 128),
+            InlineAnalysis::Full
+        ));
+        assert!(matches!(
+            InlineAnalysis::for_body(&ast, body, usize::MAX),
+            InlineAnalysis::NoCandidate
+        ));
+
+        let local = IR::name(&mut ast, "local");
+        let read = IR::expr_result(&mut ast, local);
+        body.add_child_to_back(&mut ast, read);
+        assert!(matches!(
+            InlineAnalysis::for_body(&ast, body, usize::MAX),
+            InlineAnalysis::DeferUses
+        ));
+
+        let mut expr = IR::name(&mut ast, "deep");
+        for _ in 0..128 {
+            expr = IR::not(&mut ast, expr);
+        }
+        let deep = IR::expr_result(&mut ast, expr);
+        body.add_child_to_back(&mut ast, deep);
+        assert!(matches!(
+            InlineAnalysis::for_body(&ast, body, usize::MAX),
+            InlineAnalysis::Full
+        ));
+    }
 }

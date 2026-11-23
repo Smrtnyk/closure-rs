@@ -31,8 +31,8 @@
 //!
 //! The pass operates similar to a typical register allocator found in an optimizing compiler by
 //! first computing live ranges with `LiveVariablesAnalysis` and a variable interference graph.
-//! Then it uses graph coloring in `GraphColoring` to determine which two variables can be merge
-//! together safely.
+//! It colors the graph in the same order as `GreedyGraphColoring` to determine which variable
+//! names can be merged safely.
 use crate::{
     AbstractCompiler, AllVarsDeclaredInFunction,
     abstract_compiler::LifeCycleStage,
@@ -40,14 +40,8 @@ use crate::{
     compiler_pass::CompilerPass,
     control_flow_analysis::ControlFlowAnalysis,
     control_flow_graph::ControlFlowGraph,
-    data_flow_analysis::{DataFlowAnalysis, LinearFlowState},
-    graph::{
-        adjacency_graph::AdjacencyGraph,
-        graph::Graph,
-        graph_coloring::{GraphColoring, GreedyGraphColoring},
-        graph_node::GraphNode,
-        linked_undirected_graph::LinkedUndirectedGraph,
-    },
+    data_flow_analysis::DataFlowAnalysis,
+    graph::{adjacency_graph::AdjacencyGraph, graph_node::GraphNode},
     live_variables_analysis::{
         LiveVariableLattice, LiveVariablesAnalysis, MAX_VARIABLES_TO_ANALYZE,
     },
@@ -62,8 +56,7 @@ use crate::{
 use closure_parsing::parser::feature_set::FeatureSet;
 use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
-    check_not_null, check_state, ir::IR, java_util::bit_set::BitSet, js_string::JsString,
-    node::NodeId, token::Token,
+    check_not_null, check_state, ir::IR, js_string::JsString, node::NodeId, token::Token,
 };
 use std::{cell::RefCell, collections::BTreeSet, collections::VecDeque, rc::Rc};
 
@@ -85,18 +78,66 @@ impl ScopeCreator for SharedScopeCreator {
     }
 }
 
-// The interference graph and its coloring; Java's GraphColoring holds its graph.
+// Rust-only (performance divergence): the pass only analyzes functions below the Java
+// variable limit. Each row of the interference graph fits in one mask.
+const _: () = assert!(MAX_VARIABLES_TO_ANALYZE <= u128::BITS as i32);
+
 struct Coloring {
-    graph: LinkedUndirectedGraph<VarId, ()>,
-    coloring: GreedyGraphColoring<VarId, ()>,
+    colors: IndexMap<VarId, usize>,
+    representatives: Vec<Option<VarId>>,
+}
+
+impl Coloring {
+    /// GreedyGraphColoring colors each maximal independent set in stable order.
+    fn from_interference(
+        variables: &[VarId],
+        neighbors: &[u128],
+        eligible: u128,
+        tie_breaker: impl Fn(VarId) -> i32,
+    ) -> Self {
+        let mut order = Vec::new();
+        for (index, &var) in variables.iter().enumerate() {
+            let bit = 1u128 << index;
+            if eligible & bit != 0 {
+                // LinkedUndirectedGraph counts both ends of a self-edge in the degree.
+                let degree = neighbors[index].count_ones() + u32::from(neighbors[index] & bit != 0);
+                order.push((index, std::cmp::Reverse(degree), tie_breaker(var)));
+            }
+        }
+        order.sort_by_key(|&(_, degree, tie)| (degree, tie));
+
+        let mut colors = IndexMap::with_capacity_and_hasher(order.len(), Default::default());
+        let mut representatives = Vec::new();
+        let mut remaining = eligible;
+        while remaining != 0 {
+            let mut blocked = 0;
+            for &(index, _, _) in &order {
+                let bit = 1u128 << index;
+                if remaining & bit != 0 && blocked & bit == 0 {
+                    colors.insert(variables[index], representatives.len());
+                    remaining &= !bit;
+                    blocked |= neighbors[index];
+                }
+            }
+            // getPartitionSuperNode picks the first member encountered during AST traversal.
+            representatives.push(None);
+        }
+        Self {
+            colors,
+            representatives,
+        }
+    }
+}
+
+struct FunctionColoring {
+    liveness: LiveVariablesAnalysis,
+    coloring: Coloring,
 }
 
 pub struct CoalesceVariableNames {
     scope_creator: SharedScopeCreator,
-    colorings: VecDeque<Coloring>,
-    // Java's `liveness` field is always the head of `liveAnalyses` (it is set to the new analysis
-    // right before the push and to `liveAnalyses.peek()` after each pop).
-    live_analyses: VecDeque<LiveVariablesAnalysis>,
+    // An eligible function with no possible merges still hides its enclosing coloring.
+    colorings: Vec<Option<FunctionColoring>>,
     use_pseudo_names: bool,
     ast_factory: AstFactory,
     /// A stack of shouldOptimizeScope results.
@@ -116,8 +157,7 @@ impl CoalesceVariableNames {
         check_state!(compiler.get_life_cycle_stage().is_normalized());
 
         Self {
-            colorings: VecDeque::new(),
-            live_analyses: VecDeque::new(),
+            colorings: Vec::new(),
             use_pseudo_names,
             ast_factory: compiler.create_ast_factory(),
             scope_creator: SharedScopeCreator(Rc::new(RefCell::new(MemoizedScopeCreator::new(
@@ -126,10 +166,6 @@ impl CoalesceVariableNames {
             should_optimize_scope_stack: VecDeque::new(),
             cfgs: VecDeque::new(),
         }
-    }
-
-    fn liveness(&self) -> &LiveVariablesAnalysis {
-        self.live_analyses.front().unwrap()
     }
 
     // port: NodeTraversal.AbstractCfgCallback#getControlFlowGraph
@@ -183,6 +219,16 @@ impl CoalesceVariableNames {
             return;
         };
         self.should_optimize_scope_stack.push_front(true);
+        let variables = all_vars_declared_in_function.get_all_variables_in_order();
+        let compiler = t.get_compiler();
+        // Parameters always interfere with one another. Preserve the escape analysis's
+        // export callbacks for coding conventions that can observe those calls.
+        if (variables.len() < 2 || variables.iter().all(|v| v.is_param(compiler)))
+            && compiler.get_coding_convention().export_tests_are_pure()
+        {
+            self.colorings.push(None);
+            return;
+        }
 
         let scope = t.get_scope();
         check_state!(
@@ -219,32 +265,9 @@ impl CoalesceVariableNames {
         }
 
         liveness.analyze_indexed(compiler);
-        self.live_analyses.push_front(liveness);
-
-        // The interference graph has the function's variables as its nodes and any interference
-        // between the variables as the edges. Interference between two variables means that they
-        // are alive at overlapping times, which means that their variable names cannot be
-        // coalesced.
-        let mut interference_graph = self.compute_variable_names_interference_graph(compiler);
-
-        // Color any interfering variables with different colors and any variables that can be
-        // safely coalesced wih the same color.
-        // coloringTieBreaker: comparingInt((Var arg) -> liveness.getVarIndex(arg.getName()))
-        let liveness = self.liveness();
-        let var_index: IndexMap<VarId, i32> = liveness
-            .get_all_variables_in_order()
-            .iter()
-            .map(|&v| (v, liveness.get_var_index(&v.get_name(compiler))))
-            .collect();
-        let mut coloring =
-            GreedyGraphColoring::with_tie_breaker(Some(Box::new(move |a: &VarId, b: &VarId| {
-                var_index[a].cmp(&var_index[b])
-            })));
-        coloring.color(&mut interference_graph);
-        self.colorings.push_front(Coloring {
-            graph: interference_graph,
-            coloring,
-        });
+        let coloring = Self::compute_variable_names_interference_graph(compiler, &liveness);
+        self.colorings
+            .push(Some(FunctionColoring { liveness, coloring }));
     }
 
     // port: CoalesceVariableNames#exitScopeWithCfg
@@ -252,9 +275,7 @@ impl CoalesceVariableNames {
         if !self.should_optimize_scope_stack.pop_front().unwrap() {
             return;
         }
-        self.colorings.pop_front();
-        self.live_analyses.pop_front();
-        // liveness = liveAnalyses.peek();
+        self.colorings.pop().unwrap();
     }
 
     /// Updates declarations of the given name node and the coalesced variable. Firstly, it
@@ -345,39 +366,20 @@ impl CoalesceVariableNames {
     /// `liveness`, which owns them in Rust.
     // port: CoalesceVariableNames#computeVariableNamesInterferenceGraph
     fn compute_variable_names_interference_graph(
-        &self,
         compiler: &mut AbstractCompiler,
-    ) -> LinkedUndirectedGraph<VarId, ()> {
-        let liveness = self.liveness();
+        liveness: &LiveVariablesAnalysis,
+    ) -> Coloring {
         let cfg = liveness.get_cfg();
         let escaped = liveness.get_escaped_locals();
-        // LinkedUndirectedGraph.create(): node and edge annotations on. A Var's toString needs the
-        // compiler, so the graph prints the handle (only used for debugging output).
-        let mut interference_graph = LinkedUndirectedGraph::<VarId, ()>::new_with_value_to_strings(
-            true,
-            true,
-            |v| format!("{v:?}"),
-            |_| "null".to_string(),
-        );
-
-        // First create a node for each non-escaped variable. We add these nodes in the order in
-        // which they appear in the code because we want the names that appear earlier in the code
-        // to be used when coalescing to variables that appear later in the code.
-        let ordered_variables: Vec<VarId> = liveness.get_all_variables_in_order().to_vec();
-
-        // index i in interferenceGraphNodes is set to true when interferenceGraph
-        // has node orderedVariables[i]
-        let mut interference_graph_nodes = BitSet::new(64);
-
-        // interferenceBitSet[i] = indices of all variables that should have an edge with
-        // orderedVariables[i]
-        let mut interference_bit_set: Vec<BitSet> = (0..ordered_variables.len())
-            .map(|_| BitSet::new(64))
-            .collect();
-
-        let mut v_index: i32 = -1;
-        for &v in &ordered_variables {
-            v_index += 1;
+        let variables = liveness.get_all_variables_in_order();
+        let mut neighbors = vec![0u128; variables.len()];
+        let mut eligible = 0u128;
+        let mut parameters = 0u128;
+        let mut variables_by_name = IndexMap::<JsString, u128>::default();
+        for (index, &v) in variables.iter().enumerate() {
+            let bit = 1u128 << index;
+            // LiveRangeChecker matches by spelling, including declarations in different scopes.
+            *variables_by_name.entry(v.get_name(compiler)).or_default() |= bit;
             // Java Set<Var>.contains uses the inherited ScopedName equality.
             if escaped.iter().any(|e| e.equals(compiler, v)) {
                 continue;
@@ -413,8 +415,10 @@ impl CoalesceVariableNames {
                 continue;
             }
 
-            interference_graph.create_node(v);
-            interference_graph_nodes.set(v_index);
+            eligible |= bit;
+            if v.is_param(compiler) {
+                parameters |= bit;
+            }
         }
 
         // Go through every CFG node in the program and look at variables that are live.
@@ -429,63 +433,31 @@ impl CoalesceVariableNames {
             // Check the live states and add edge when possible. An edge between two variables
             // means that they are alive at overlapping times, which means that their
             // variable names cannot be coalesced.
-            let livein = state.get_in();
-            let mut i = livein.next_set_bit(0);
-            while i >= 0 {
-                let mut j = livein.next_set_bit(i);
-                while j >= 0 {
-                    interference_bit_set[i as usize].set(j);
-                    j = livein.next_set_bit(j + 1);
-                }
-                i = livein.next_set_bit(i + 1);
-            }
-            let liveout = state.get_out();
-            let mut i = liveout.next_set_bit(0);
-            while i >= 0 {
-                let mut j = liveout.next_set_bit(i);
-                while j >= 0 {
-                    interference_bit_set[i as usize].set(j);
-                    j = liveout.next_set_bit(j + 1);
-                }
-                i = liveout.next_set_bit(i + 1);
-            }
+            let live_in = live_bits(state.get_in());
+            let live_out = live_bits(state.get_out());
+            mark_conflicts(&mut neighbors, live_in, live_in);
+            mark_conflicts(&mut neighbors, live_out, live_out);
 
             let root = cfg_node.get_value(cfg).unwrap();
-            let mut live_range_checker = LiveRangeChecker::new(root, &ordered_variables, state);
+            let mut live_range_checker = LiveRangeChecker {
+                root,
+                variables_by_name: &variables_by_name,
+                writes: 0,
+                reads: 0,
+            };
             live_range_checker.check(compiler, root);
-            live_range_checker.set_crossing_variables(&mut interference_bit_set);
+            live_range_checker.set_crossing_variables(&mut neighbors, live_out);
         }
 
-        // Go through each variable and try to connect them.
-        let mut v1_index: i32 = -1;
-        for &v1 in &ordered_variables {
-            v1_index += 1;
-
-            let mut v2_index: i32 = -1;
-            for &v2 in &ordered_variables {
-                v2_index += 1;
-                // Skip duplicate pairs. Also avoid merging a variable with itself.
-                if v1_index > v2_index {
-                    continue;
-                }
-
-                if !interference_graph_nodes.get(v1_index)
-                    || !interference_graph_nodes.get(v2_index)
-                {
-                    // Skip nodes that were not added. They are globals and escaped locals.
-                    continue;
-                }
-
-                if (v1.is_param(compiler) && v2.is_param(compiler))
-                    || interference_bit_set[v1_index as usize].get(v2_index)
-                {
-                    // Add an edge between variable pairs that are both parameters
-                    // because we don't want parameters to share a name.
-                    interference_graph.connect_if_not_found(v1, (), v2);
-                }
+        for (index, row) in neighbors.iter_mut().enumerate() {
+            *row &= eligible;
+            if parameters & (1u128 << index) != 0 {
+                *row |= parameters;
             }
         }
-        interference_graph
+        Coloring::from_interference(variables, &neighbors, eligible, |v| {
+            liveness.get_var_index(&v.get_name(compiler))
+        })
     }
 
     /// Returns whether this variable's declaration also declares other names.
@@ -695,9 +667,8 @@ impl CoalesceVariableNames {
         if !Self::is_uninitialized_let_name_in_loop_body(compiler, name_node) {
             return false;
         }
-        check_state!(!self.live_analyses.is_empty());
         let let_node = name_node.get_parent(compiler).unwrap();
-        let liveness = self.liveness();
+        let liveness = &self.colorings.last().unwrap().as_ref().unwrap().liveness;
         let cfg = liveness.get_cfg();
         let cfg_node = check_not_null!(cfg.get_node(&Some(let_node)));
         let state = liveness.flow_state(cfg_node);
@@ -733,28 +704,28 @@ impl Callback for CoalesceVariableNames {
 
     // port: CoalesceVariableNames#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        if self.colorings.is_empty() || !n.is_name(t) || parent.unwrap().is_function(t) {
-            // Don't rename named functions.
+        let Some(Some(function)) = self.colorings.last_mut() else {
+            return;
+        };
+        if !n.is_name(t) || parent.unwrap().is_function(t) {
             return;
         }
         let parent = parent.unwrap();
-
-        let name = n.get_string(t);
-        let var = self.liveness().get_all_variables().get(&name).copied();
-        let coloring = self.colorings.front_mut().unwrap();
-        let v_node = var.and_then(|var| coloring.graph.get_node(&var));
-        let Some(v_node) = v_node else {
-            // This is not a local.
+        let Some(&var) = function
+            .liveness
+            .get_all_variables()
+            .get(n.get_string_ref(t))
+        else {
             return;
         };
-        let var = var.unwrap();
-        let coalesced_var = coloring
-            .coloring
-            .get_partition_super_node(&coloring.graph, var);
-        let v_node_value = *v_node.get_value(&coloring.graph);
+        let coloring = &mut function.coloring;
+        let Some(&color) = coloring.colors.get(&var) else {
+            return;
+        };
+        let coalesced_var = *coloring.representatives[color].get_or_insert(var);
 
         if !self.use_pseudo_names {
-            if v_node_value.equals(t.get_compiler(), coalesced_var) {
+            if var.equals(t.get_compiler(), coalesced_var) {
                 // The coalesced name is itself, nothing to do.
                 return;
             }
@@ -775,19 +746,10 @@ impl Callback for CoalesceVariableNames {
             // we should not sacrifice performance for non-debugging compilation to
             // make this fast.
             let mut all_merged_names: BTreeSet<JsString> = BTreeSet::new();
-            let coloring = self.colorings.front().unwrap();
-            for &i_var in self.liveness().get_all_variables_in_order() {
+            for &i_var in function.liveness.get_all_variables_in_order() {
                 // Look for all the variables that can be merged (in the graph by now)
                 // and it is merged with the current coalescedVar.
-                if coloring
-                    .coloring
-                    .get_graph(&coloring.graph)
-                    .get_node(&i_var)
-                    .is_some()
-                    && coloring
-                        .coloring
-                        .have_same_color(&coloring.graph, &i_var, &coalesced_var)
-                {
+                if coloring.colors.get(&i_var) == Some(&color) {
                     all_merged_names.insert(i_var.get_name(t.get_compiler()));
                 }
             }
@@ -818,7 +780,7 @@ impl Callback for CoalesceVariableNames {
             n.set_string(t, pseudo_name);
             t.get_compiler().report_change_to_enclosing_scope(n);
 
-            if v_node_value.equals(t.get_compiler(), coalesced_var) {
+            if var.equals(t.get_compiler(), coalesced_var) {
                 return;
             }
             self.update_declarations_post_coalescing(
@@ -856,34 +818,33 @@ impl ScopedCallback for CoalesceVariableNames {
     }
 }
 
-/// Used to find written and read variables in the same CFG node so that the variable pairs can
-/// be marked as interfering in an interference bit map. Indices of written and read variables are
-/// put in a list. These two lists are used to mark each written variable as "crossing" all read
-/// variables.
-struct LiveRangeChecker<'a> {
-    root: NodeId,
-    state: &'a LinearFlowState<LiveVariableLattice>,
-    ordered_variables: &'a [VarId],
-    is_assign_to_list: Vec<i32>, // indices of written variables
-    is_read_from_list: Vec<i32>, // indices of read variables
+/// The lattice and interference graph share declaration indices.
+fn live_bits(state: &LiveVariableLattice) -> u128 {
+    let mut bits = 0;
+    let mut i = state.next_set_bit(0);
+    while i >= 0 {
+        bits |= 1u128 << i;
+        i = state.next_set_bit(i + 1);
+    }
+    bits
 }
 
-impl<'a> LiveRangeChecker<'a> {
-    // port: CoalesceVariableNames.LiveRangeChecker#LiveRangeChecker
-    fn new(
-        root: NodeId,
-        ordered_variables: &'a [VarId],
-        state: &'a LinearFlowState<LiveVariableLattice>,
-    ) -> Self {
-        Self {
-            root,
-            ordered_variables,
-            state,
-            is_assign_to_list: Vec::new(),
-            is_read_from_list: Vec::new(),
-        }
+fn mark_conflicts(rows: &mut [u128], mut variables: u128, conflicts: u128) {
+    while variables != 0 {
+        rows[variables.trailing_zeros() as usize] |= conflicts;
+        variables &= variables - 1;
     }
+}
 
+/// Track writes and the reads that follow the first write in one CFG node.
+struct LiveRangeChecker<'a> {
+    root: NodeId,
+    variables_by_name: &'a IndexMap<JsString, u128>,
+    writes: u128,
+    reads: u128,
+}
+
+impl LiveRangeChecker<'_> {
     // port: CoalesceVariableNames.LiveRangeChecker#check
     fn check(&mut self, compiler: &AbstractCompiler, n: NodeId) {
         // For most AST nodes, traverse the subtree in postorder because that's how the
@@ -914,28 +875,44 @@ impl<'a> LiveRangeChecker<'a> {
 
     // port: CoalesceVariableNames.LiveRangeChecker#visit
     fn visit(&mut self, compiler: &AbstractCompiler, n: NodeId, parent: NodeId) {
-        for i_var in 0..self.ordered_variables.len() {
-            if Self::is_assign_to(compiler, self.ordered_variables[i_var], n, parent) {
-                self.is_assign_to_list.push(i_var as i32);
+        // port: CoalesceVariableNames.LiveRangeChecker#isAssignTo
+        if n.is_name(compiler) {
+            let bits = self
+                .variables_by_name
+                .get(n.get_string_ref(compiler))
+                .copied()
+                .unwrap_or(0);
+            if parent.is_param_list(compiler)
+                || (NodeUtil::is_name_declaration(compiler, Some(parent))
+                    && n.has_children(compiler))
+                || NodeUtil::is_lhs_by_destructuring(compiler, n)
+            {
+                self.writes |= bits;
             }
-        }
-        if !self.is_assign_to_list.is_empty() {
-            for i_var in 0..self.ordered_variables.len() {
-                let var_out_live = self.state.get_out().is_live(i_var as i32);
-                if var_out_live || Self::is_read_from(compiler, self.ordered_variables[i_var], n) {
-                    self.is_read_from_list.push(i_var as i32);
-                }
+            // port: CoalesceVariableNames.LiveRangeChecker#isReadFrom
+            if self.writes != 0 && !NodeUtil::is_name_decl_or_simple_assign_lhs(compiler, n, parent)
+            {
+                self.reads |= bits;
+            }
+        } else if NodeUtil::is_assignment_op(compiler, n) {
+            let lhs = n.get_first_child(compiler).unwrap();
+            if lhs.is_name(compiler) {
+                self.writes |= self
+                    .variables_by_name
+                    .get(lhs.get_string_ref(compiler))
+                    .copied()
+                    .unwrap_or(0);
             }
         }
     }
 
     // port: CoalesceVariableNames.LiveRangeChecker#setCrossingVariables
-    fn set_crossing_variables(&self, interference_bit_set: &mut [BitSet]) {
-        for &i_written_var in &self.is_assign_to_list {
-            for &i_read_var in &self.is_read_from_list {
-                interference_bit_set[i_written_var as usize].set(i_read_var);
-                interference_bit_set[i_read_var as usize].set(i_written_var);
-            }
+    fn set_crossing_variables(&self, rows: &mut [u128], live_out: u128) {
+        if self.writes != 0 {
+            // Every value live on exit crosses every write, even the last write in the node.
+            let reads = self.reads | live_out;
+            mark_conflicts(rows, self.writes, reads);
+            mark_conflicts(rows, reads, self.writes);
         }
     }
 
@@ -945,38 +922,72 @@ impl<'a> LiveRangeChecker<'a> {
         n.is_name(compiler)
             || (n.has_children(compiler) && n.get_first_child(compiler).unwrap().is_name(compiler))
     }
+}
 
-    // port: CoalesceVariableNames.LiveRangeChecker#isAssignTo
-    fn is_assign_to(compiler: &AbstractCompiler, var: VarId, n: NodeId, parent: NodeId) -> bool {
-        if n.is_name(compiler) {
-            if parent.is_param_list(compiler) {
-                // In a function declaration, the formal parameters are assigned.
-                return var.get_name(compiler) == n.get_string(compiler);
-            } else if NodeUtil::is_name_declaration(compiler, Some(parent))
-                && n.has_children(compiler)
-            {
-                // If this is a VAR declaration, if the name node has a child, we are
-                // assigning to that name.
-                return var.get_name(compiler) == n.get_string(compiler);
-            } else if NodeUtil::is_lhs_by_destructuring(compiler, n) {
-                return var.get_name(compiler) == n.get_string(compiler);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::graph::{
+        graph::Graph,
+        graph_coloring::{GraphColoring, GreedyGraphColoring},
+        linked_undirected_graph::LinkedUndirectedGraph,
+    };
+    use std::num::NonZeroU32;
+
+    #[test]
+    fn compact_coloring_matches_linked_graph_partitions() {
+        // Include both mask words, isolated vertices, self-edges and equal tie breakers.
+        for (count, density) in [(1, 0), (12, 0), (12, 100), (65, 15), (99, 35)] {
+            let mut graph = LinkedUndirectedGraph::<VarId, ()>::new_with_value_to_strings(
+                true,
+                true,
+                |v| format!("{v:?}"),
+                |_| String::new(),
+            );
+            let variables: Vec<_> = (1..=count)
+                .map(|i| VarId(NonZeroU32::new(i).unwrap()))
+                .collect();
+            let mut neighbors = vec![0u128; variables.len()];
+            let mut eligible = 0;
+            for (i, &var) in variables.iter().enumerate() {
+                if i % 7 != 1 {
+                    graph.create_node(var);
+                    eligible |= 1u128 << i;
+                }
             }
-        } else if NodeUtil::is_assignment_op(compiler, n) {
-            // Lastly, any assignmentOP is also an assign.
-            let name = n.get_first_child(compiler).unwrap();
-            return name.is_name(compiler) && var.get_name(compiler) == name.get_string(compiler);
+            let mut sample = 42u32;
+            for (i, &left) in variables.iter().enumerate() {
+                for (j, &right) in variables.iter().enumerate().skip(i) {
+                    sample = sample.wrapping_mul(1664525).wrapping_add(1013904223);
+                    if eligible & (1u128 << i) != 0
+                        && eligible & (1u128 << j) != 0
+                        && sample % 100 < density
+                    {
+                        graph.connect_if_not_found(left, (), right);
+                        neighbors[i] |= 1u128 << j;
+                        neighbors[j] |= 1u128 << i;
+                    }
+                }
+            }
+            let tie = |v: VarId| (v.0.get() % 5) as i32;
+            let mut reference =
+                GreedyGraphColoring::with_tie_breaker(Some(Box::new(move |a, b| {
+                    tie(*a).cmp(&tie(*b))
+                })));
+            reference.color(&mut graph);
+            let mut compact = Coloring::from_interference(&variables, &neighbors, eligible, tie);
+            // Visit in reverse declaration order to exercise lazy representative selection.
+            for (i, &var) in variables.iter().enumerate().rev() {
+                if eligible & (1u128 << i) == 0 {
+                    assert!(!compact.colors.contains_key(&var));
+                    continue;
+                }
+                let color = compact.colors[&var];
+                assert_eq!(
+                    *compact.representatives[color].get_or_insert(var),
+                    reference.get_partition_super_node(&graph, var)
+                );
+            }
         }
-        false // Definitely a read.
-    }
-
-    // port: CoalesceVariableNames.LiveRangeChecker#isReadFrom
-    fn is_read_from(compiler: &AbstractCompiler, var: VarId, name: NodeId) -> bool {
-        name.is_name(compiler)
-            && var.get_name(compiler) == name.get_string(compiler)
-            && !NodeUtil::is_name_decl_or_simple_assign_lhs(
-                compiler,
-                name,
-                name.get_parent(compiler).unwrap(),
-            )
     }
 }

@@ -592,11 +592,18 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `jscomp/function_argument_injector.rs` collects modified parameters, nested closures and
   uses of the enclosing receiver in one walk for `InlineFunctions`. Modified names retain
   first-use order, and only arrows inherit the receiver of an enclosing function.
-- `jscomp/flow_sensitive_inline_variables.rs` checks small function bodies for a possible
-  definition and a read of the same name outside a loop before constructing a control-flow
-  graph. Hash collisions send the function through the full checks. The first candidate
-  that passes its local checks triggers backwards analysis before any replacement.
-  Large bodies, classes and nested functions with complex parameters keep the eager schedule.
+- `jscomp/coalesce_variable_names.rs` stores each function's variable interference graph
+  in rows of 128 bits. The upstream limit admits fewer than 100 variables. Row membership
+  preserves self-edge weights, declaration-order ties and the first visited representative.
+  Functions with a single binding or only parameters can skip liveness analysis when the
+  coding convention's export queries are pure.
+- `jscomp/flow_sensitive_inline_variables.rs` checks for a possible definition and a read
+  of the same name outside a loop before constructing a control-flow graph. Hash collisions
+  send the function through the full checks. On normalized trees with pure export queries,
+  the scan can cover wide bodies. Its recursion depth is bounded. Deep expressions, classes,
+  logical assignments to names and nested functions with complex parameters keep the eager
+  schedule. The first candidate that passes its local checks triggers backwards analysis
+  before any replacement.
   Both analyses share the function's variable map and escape set by transferring ownership.
   The backward analysis stores a single reaching CFG node directly. A second distinct
   node promotes it to a persistent set. At a control-flow join, both the variable map
