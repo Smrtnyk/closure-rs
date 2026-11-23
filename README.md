@@ -91,21 +91,21 @@ successfully, with byte-identical JavaScript, source maps and diagnostics.
 
 ### Change from the previous release
 
-On the same workstation, the published Linux x64 binaries for `20261117.1.0` and `20261117.2.0`
-compiled all 50 jobs over six rounds, alternating which version ran first. The percentages
-compare the new release with the previous one using the geometric mean of the per-job median
-ratios. A negative value means less time or memory.
+On the same workstation, the Linux x64 release build for `20261117.3.0` and the published
+`20261117.2.0` binary compiled all 50 jobs over six rounds, rotating compiler order.
+The percentages are the geometric mean of the per-job median ratios. A negative value means
+less time or memory.
 
 | Workload | Jobs | Wall time | CPU time | Peak RSS |
 |---|---:|---:|---:|---:|
-| SIMPLE | 23 | −3.7% | −4.7% | +0.8% |
-| ADVANCED | 23 | −9.3% | −10.4% | −3.1% |
-| Flag variants | 4 | −8.0% | −8.7% | −1.4% |
-| All jobs | 50 | −6.7% | −7.7% | −1.2% |
+| SIMPLE | 23 | −6.2% | −6.4% | +1.6% |
+| ADVANCED | 23 | −3.8% | −4.4% | −0.2% |
+| Flag variants | 4 | −4.3% | −5.4% | −1.0% |
+| All jobs | 50 | −4.9% | −5.4% | +0.5% |
 
-Across individual rounds, the wall-time change for all jobs ranged from −7.8% to −6.1%.
-On ONLYOFFICE alone, `20261117.2.0` used 4.7% less wall time in SIMPLE and 2.9% less in
-ADVANCED. [Benchmark method and commands](bench/README.md#reproducing-the-readme-tables)
+The sum of median wall times fell from 43.10 s to 38.48 s (10.7%). On ONLYOFFICE, the median
+paired reduction was 14.2% in SIMPLE and 12.6% in ADVANCED. All runs produced identical
+output. [Benchmark method and commands](bench/README.md#reproducing-the-readme-tables)
 
 ## Versioning
 
@@ -164,9 +164,11 @@ function names the Java method it ports. It is checked against the Java compiler
 - **Differential corpus:** real-world inputs are compiled by both compilers in 11 option profiles
   and compared byte for byte, source maps included; every pair matches (`corpus/d2/`,
   `gates/d2_rust.py`).
-- **Unseen inputs:** a differential fuzzer and large real-world bundles outside the corpus
-  (`fuzz/`, `bench/`) compare the two compilers on inputs the port was never tuned on; CI compiles
-  those real-world projects with both compilers again before a release.
+- **Real-world inputs:** CI compiles the benchmark projects with the pinned Java compiler and
+  the packaged Linux x64 binary on pull requests, pushes to `main` and releases. The
+  ONLYOFFICE spreadsheet SDK must match in SIMPLE and ADVANCED, including both chunks,
+  their source maps and the renaming reports. The differential fuzzer uses additional inputs
+  outside the corpus (`fuzz/`).
 
 [`docs/PORTING.md`](docs/PORTING.md) describes the scope, what byte-identical means, how the port
 mirrors the Java code, how fidelity is verified and how the port follows upstream, and

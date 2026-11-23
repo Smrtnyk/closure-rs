@@ -33,11 +33,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Inputs of the build jobs: four benchmark projects of bench/projects.json, fetched at their
-  # pinned commits (about 13 MB), and compiler flags for them: pgo-training/, the training
-  # compiles of the profile-guided build (scripts/pgo_build.sh), and platform-outputs/, the
-  # compiles that every platform's binary must turn into the same bytes
-  # (scripts/platform_outputs.py).
+  # Fetch the pinned inputs once for all five platforms. ONLYOFFICE is a held-out workload:
+  # its two chunk builds exercise output parity, while the four smaller training projects
+  # supply the release PGO profile.
   inputs:
     name: benchmark inputs
     runs-on: ubuntu-22.04
@@ -47,14 +45,14 @@ jobs:
         run: |
           for attempt in 1 2 3; do
             scripts/fetch_bench.sh --project d3-12 --project lodash-es --project three \
-              --project fabric-srcmap && break
+              --project fabric-srcmap --project onlyoffice-cell && break
             [ "$attempt" -lt 3 ] || exit 1
             sleep $((attempt * 20))
           done
           python3 scripts/run_bench.py \
             --job '^(d3-12/.*/ADVANCED|lodash-es/.*|three/.*|fabric-srcmap/ADVANCED)$' \
             --write-args pgo-training
-          python3 scripts/run_bench.py --job '^(d3-12/.*|lodash-es/.*|three/.*)$' \
+          python3 scripts/run_bench.py --job '^(d3-12/.*|lodash-es/.*|three/.*|onlyoffice-cell/.*)$' \
             --write-args platform-outputs
       - uses: actions/upload-artifact@v7
         with:
@@ -66,6 +64,7 @@ jobs:
             bench-cache/lodash-es/
             bench-cache/three/
             bench-cache/fabric-srcmap/
+            bench-cache/onlyoffice-cell/
           if-no-files-found: error
 
   build:
@@ -403,12 +402,14 @@ jobs:
       - name: gates/ci.sh --test
         run: bash gates/ci.sh --test
 
-  # Release runs compare closure-rs with the Java compiler on real projects before publishing
-  # (java-comparison.yml); pushes and pull requests skip it.
+  # Compare the same Linux x64 binary tested by the platform matrix with the pinned Java
+  # compiler on every pull request, main push and release.
   java-comparison:
     name: compare with the Java compiler
-    if: github.event_name == 'workflow_dispatch'
+    needs: build
     uses: ./.github/workflows/java-comparison.yml
+    with:
+      use_packaged_binary: true
 
   publish:
     name: publish to npm (manual)

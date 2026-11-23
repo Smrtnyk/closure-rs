@@ -109,11 +109,14 @@ or at least note the load: the result file records the load average at start and
 they name: ES5 output, pretty print with the sources in the source map, an IIFE wrapper, each
 with a source map; and its `--json_streams=BOTH` compile), reported at the level `VARIANT`.
 `--fail-on-mismatch` makes a difference between the compilers (or between repetitions) exit 1.
-`.github/workflows/java-comparison.yml` runs both on a GitHub runner, by hand or from another
-workflow such as a release run: it builds the release binary, takes the reference jar from the
-Actions cache or builds it (accepted only with its pinned sha256, oracle/REFERENCE.md), fetches
-`bench-cache/` with `fetch_bench.sh` and fails on any difference, with the table in the run
-summary and the outputs of a differing job (`--keep-failing`) as an artifact.
+Pull requests, pushes to `main` and release runs compare the packaged Linux x64 binary with
+the pinned Java reference on every job and variant. For ONLYOFFICE, both SIMPLE and ADVANCED
+must compile successfully and match byte for byte. The five platform binaries also compile
+both modes and compare their chunks, maps and renaming reports with one another.
+
+`.github/workflows/java-comparison.yml` verifies the reference jar's SHA-256, fetches the
+pinned inputs and puts the table in the run summary. On a mismatch it uploads the differing
+outputs. A standalone run builds its own Rust release binary.
 
 `--print-args` prints each selected job's argv, one argument per line, and exits; `--write-args
 DIR` writes it to `DIR/<job id>.args` instead (`/` in the id becomes `-`). The profile-guided
@@ -151,12 +154,12 @@ python3 scripts/run_bench.py --bin build/bench/npm/node_modules/closure-rs/bin/l
   --project d3-bundle-srcmap --project lodash-bundle-srcmap --reps 5 --fail-on-mismatch
 ```
 
-For the release comparison, run both published binaries on the same machine.
+For the release comparison, use the `20261117.2.0` binary installed above as the baseline.
 
 ```sh
-npm install --prefix build/bench/previous --no-save --ignore-scripts closure-rs@20261117.1.0
-python3 scripts/bench_ab.py --base build/bench/previous/node_modules/closure-rs/bin/linux-x64/closure-rs \
-  --head build/bench/npm/node_modules/closure-rs/bin/linux-x64/closure-rs --variants --rounds 6
+npm install --prefix build/bench/current --no-save --ignore-scripts closure-rs@20261117.3.0
+python3 scripts/bench_ab.py --base build/bench/npm/node_modules/closure-rs/bin/linux-x64/closure-rs \
+  --head build/bench/current/node_modules/closure-rs/bin/linux-x64/closure-rs --variants --rounds 6
 ```
 
 ## Adding a benchmark
