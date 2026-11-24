@@ -3439,6 +3439,69 @@ impl NodeUtil {
         );
         Self::get_lhs_nodes_helper(context, assigning_parent, consumer);
     }
+    /// Rust-only (performance divergence): read-only sibling of `visit_lhs_nodes_in_node` that
+    /// takes `&Ast`, allowing concurrent read-only dataflow analyses on worker threads.
+    pub(crate) fn visit_lhs_nodes_in_node_readonly(
+        ast: &Ast,
+        assigning_parent: NodeId,
+        consumer: &mut impl FnMut(NodeId),
+    ) {
+        fn helper(ast: &Ast, n: NodeId, consumer: &mut impl FnMut(NodeId)) {
+            match n.get_token(ast) {
+                Token::IMPORT => {
+                    helper(ast, n.get_first_child(ast).unwrap(), consumer);
+                    helper(ast, n.get_second_child(ast).unwrap(), consumer);
+                }
+                Token::VAR
+                | Token::CONST
+                | Token::LET
+                | Token::OBJECT_PATTERN
+                | Token::ARRAY_PATTERN
+                | Token::PARAM_LIST
+                | Token::IMPORT_SPECS => {
+                    let mut child = n.get_first_child(ast);
+                    while let Some(current) = child {
+                        helper(ast, current, consumer);
+                        child = current.get_next(ast);
+                    }
+                }
+                Token::DESTRUCTURING_LHS
+                | Token::DEFAULT_VALUE
+                | Token::CATCH
+                | Token::ITER_REST
+                | Token::OBJECT_REST
+                | Token::CAST => helper(ast, n.get_first_child(ast).unwrap(), consumer),
+                Token::IMPORT_SPEC | Token::COMPUTED_PROP | Token::STRING_KEY => {
+                    helper(ast, n.get_last_child(ast).unwrap(), consumer)
+                }
+                Token::NAME | Token::IMPORT_STAR | Token::GETPROP | Token::GETELEM => consumer(n),
+                Token::EMPTY => {}
+                Token::FOR_IN | Token::FOR_OF | Token::FOR_AWAIT_OF => {
+                    helper(ast, n.get_first_child(ast).unwrap(), consumer)
+                }
+                _ => {
+                    if NodeUtil::is_assignment_op(ast, n) {
+                        helper(ast, n.get_first_child(ast).unwrap(), consumer);
+                    } else {
+                        panic!("Invalid node in lhs: {}", n.to_string(ast));
+                    }
+                }
+            }
+        }
+        check_argument!(
+            Self::is_name_declaration(ast, Some(assigning_parent))
+                || assigning_parent.is_param_list(ast)
+                || Self::is_assignment_op(ast, assigning_parent)
+                || assigning_parent.is_catch(ast)
+                || assigning_parent.is_destructuring_lhs(ast)
+                || assigning_parent.is_default_value(ast)
+                || assigning_parent.is_import(ast)
+                || Self::is_enhanced_for(ast, assigning_parent),
+            "%s",
+            assigning_parent.to_string(ast)
+        );
+        helper(ast, assigning_parent, consumer);
+    }
     // port: NodeUtil#visitLhsNodesInDestructuringPattern
     pub fn visit_lhs_nodes_in_destructuring_pattern<C: AstContext + ?Sized>(
         context: &mut C,

@@ -53,6 +53,29 @@ use std::sync::{
 const MAX_THREADS: usize = 8;
 const THREAD_NAME: &str = "closure-preparse";
 
+/// Rust-only (performance divergence): allows disabling multi-threaded helpers via environment.
+static PARALLEL_ENABLED: std::sync::LazyLock<bool> =
+    std::sync::LazyLock::new(|| std::env::var("CLOSURE_RS_PARALLEL").as_deref() != Ok("off"));
+
+/// Rust-only (performance divergence): worker thread budget for scoped intra-pass parallelism,
+/// scaled by `work_items / min_per_thread` and using the same busy-machine guard as `Preparser`.
+pub(crate) fn parallel_thread_count(
+    work_items: usize,
+    min_per_thread: usize,
+    max_threads: usize,
+) -> usize {
+    if !*PARALLEL_ENABLED || min_per_thread == 0 || work_items < min_per_thread.saturating_mul(2) {
+        return 1;
+    }
+    let cpus = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+    let threads = cpus.min(max_threads).min(work_items / min_per_thread);
+    if threads < 2 || machine_is_busy(cpus) {
+        1
+    } else {
+        threads
+    }
+}
+
 /// The parsing of a compilation's inputs on worker threads (`start` ... `finish`).
 pub(crate) struct Preparser {
     shared: Arc<Shared>,
@@ -224,6 +247,9 @@ struct Preparsed {
 /// to do or the machine is busy.
 pub(crate) fn start(compiler: &mut AbstractCompiler, inputs: &[CompilerInput]) {
     finish(compiler);
+    if !*PARALLEL_ENABLED {
+        return;
+    }
     let cpus = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
     let threads = cpus.min(MAX_THREADS);
     // ASTs that come from a TypedAST filesystem are not parsed.

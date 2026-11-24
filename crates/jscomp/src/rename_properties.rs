@@ -58,6 +58,7 @@ use closure_rhino::{
     ir::IR,
     js_string::JsString,
     node::{Ast, NodeId},
+    rhino_string_pool::RhinoStringPool,
     token::Token,
     token_stream::TokenStream,
 };
@@ -96,7 +97,9 @@ pub struct RenameProperties {
     /// Property renaming map from a previous compilation.
     prev_used_property_map: Option<Arc<VariableMap>>,
     to_remove: Vec<NodeId>,
-    string_nodes_to_rename: Vec<NodeId>,
+    /// Rust-only (performance divergence): pair each candidate node with its `property_map` index
+    /// (Java keeps only the node and re-looks up the property name in `propertyMap`).
+    string_nodes_to_rename: Vec<(NodeId, usize)>,
     call_node_to_parent_map: IndexMap<NodeId, NodeId>,
     reserved_first_characters: IndexSet<u16>,
     reserved_non_first_characters: IndexSet<u16>,
@@ -186,13 +189,13 @@ impl RenameProperties {
         name_generator: Box<dyn NameGenerator>,
         property_rename_eligibility_filter: PropertyRenameEligibilityFilter,
     ) -> Self {
-        let mut externed_names = IndexSet::<_>::default();
-        externed_names.insert(JsString::from("prototype"));
-        externed_names.extend(
-            check_not_null!(compiler.get_extern_properties())
-                .iter()
-                .map(|name| JsString::from(name.as_str())),
-        );
+        // Rust-only (performance divergence): reuse the compiler's shared JsString extern property
+        // set instead of converting every String to JsString again.
+        let extern_props = check_not_null!(compiler.get_extern_property_set_js());
+        let mut externed_names =
+            IndexSet::with_capacity_and_hasher(extern_props.len() + 1, Default::default());
+        externed_names.insert(RhinoStringPool::add_or_get("prototype"));
+        externed_names.extend(extern_props.iter().cloned());
         Self {
             generate_pseudo_names,
             prev_used_property_map,
@@ -225,16 +228,14 @@ impl RenameProperties {
         let reserved_names: ReservedNames = Arc::new(RwLock::new(reserved_names));
 
         // Assign names, sorted by descending frequency to minimize code size.
-        let mut props_by_freq: Vec<usize> = Vec::new();
-        for i in 0..self.property_map.len() {
-            // TreeSet.add: a comparator-equal element is not added again.
-            let property_map = &self.property_map;
-            if let Err(pos) = props_by_freq.binary_search_by(|&probe| {
-                Self::frequency_comparator(&property_map[probe], &property_map[i]).cmp(&0)
-            }) {
-                props_by_freq.insert(pos, i);
-            }
-        }
+        // Rust-only (performance divergence): bulk sort instead of O(N^2) Vec::insert (which shifts
+        // hundreds of millions of indices via scalar memmove on musl). Every entry in property_map
+        // has a distinct old_name, so frequency_comparator is a strict total order.
+        let mut props_by_freq: Vec<usize> = (0..self.property_map.len()).collect();
+        let property_map = &self.property_map;
+        props_by_freq.sort_unstable_by(|&a, &b| {
+            Self::frequency_comparator(&property_map[a], &property_map[b]).cmp(&0)
+        });
 
         // First, try and reuse as many property names from the previous compilation
         // as possible.
@@ -245,18 +246,18 @@ impl RenameProperties {
         self.generate_names(&props_by_freq, &reserved_names);
 
         // Update the string nodes.
-        for n in self.string_nodes_to_rename.clone() {
-            let old_name = n.get_string(compiler);
-            if self.filtered_out_names.contains(&old_name) {
-                continue;
-            }
-            let p = self.property_map.get(&old_name);
-            if let Some(p) = p
-                && let Some(new_name) = &p.new_name
-            {
-                check_state!(old_name == p.old_name);
+        let has_filtered = !self.filtered_out_names.is_empty();
+        for &(n, prop_idx) in &self.string_nodes_to_rename {
+            let p = &self.property_map[prop_idx];
+            if let Some(new_name) = &p.new_name {
+                let old_name = n.get_string_ref(compiler);
+                if has_filtered && self.filtered_out_names.contains(old_name) {
+                    continue;
+                }
+                check_state!(*old_name == p.old_name);
+                let changed = *new_name != *old_name;
                 n.set_string(compiler, new_name.clone());
-                if *new_name != old_name {
+                if changed {
                     compiler.report_change_to_enclosing_scope(n);
                 }
             }
@@ -325,8 +326,9 @@ impl RenameProperties {
                     continue;
                 }
 
-                self.property_map[prop].new_name = Some(prev_name.clone());
-                reserved_names.write().unwrap().insert(prev_name);
+                let interned = RhinoStringPool::add_or_get(prev_name);
+                self.property_map[prop].new_name = Some(interned.clone());
+                reserved_names.write().unwrap().insert(interned);
             }
         }
     }
@@ -343,14 +345,18 @@ impl RenameProperties {
             );
         for &p in props {
             if self.generate_pseudo_names {
-                let new_name = JsString::from("$")
-                    .concat(&self.property_map[p].old_name)
-                    .concat(&JsString::from("$"));
+                let new_name = RhinoStringPool::add_or_get(
+                    JsString::from("$")
+                        .concat(&self.property_map[p].old_name)
+                        .concat(&JsString::from("$")),
+                );
                 self.property_map[p].new_name = Some(new_name);
             } else {
                 // If we haven't already given this property a reusable name.
                 if self.property_map[p].new_name.is_none() {
-                    self.property_map[p].new_name = Some(self.name_generator.generate_next_name());
+                    let generated =
+                        RhinoStringPool::add_or_get(self.name_generator.generate_next_name());
+                    self.property_map[p].new_name = Some(generated);
                 }
             }
             reserved_names
@@ -393,13 +399,13 @@ impl RenameProperties {
     /// property name's access count.
     // port: RenameProperties.ProcessProperties#maybeMarkCandidate
     fn maybe_mark_candidate(&mut self, ast: &Ast, n: NodeId) {
-        let name = n.get_string(ast);
-        if !self.externed_names.contains(&name) {
+        let name = n.get_string_ref(ast);
+        if !self.externed_names.contains(name) {
             if !(self.property_rename_eligibility_filter)(ast, n) {
-                self.filtered_out_names.insert(n.get_string(ast));
+                self.filtered_out_names.insert(name.clone());
             }
-            self.string_nodes_to_rename.push(n);
-            self.count_property_occurrence(name);
+            let prop_idx = self.count_property_occurrence(name.clone());
+            self.string_nodes_to_rename.push((n, prop_idx));
         }
     }
 
@@ -426,12 +432,12 @@ impl RenameProperties {
 
     /// Increments the occurrence count for a property name.
     // port: RenameProperties.ProcessProperties#countPropertyOccurrence
-    fn count_property_occurrence(&mut self, name: JsString) {
-        let prop = self
-            .property_map
-            .entry(name.clone())
-            .or_insert_with(|| Property::new(name));
+    fn count_property_occurrence(&mut self, name: JsString) -> usize {
+        let entry = self.property_map.entry(name.clone());
+        let idx = entry.index();
+        let prop = entry.or_insert_with(|| Property::new(name));
         prop.num_occurrences += 1;
+        idx
     }
 }
 

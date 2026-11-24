@@ -119,6 +119,19 @@ macro_rules! token_rules {
 }
 pub(crate) use token_rules;
 
+/// Rust-only (performance divergence): cheap node-level pre-check evaluated inline by
+/// `PeepholeOptimizationsPass` before virtual dispatch on the highest-frequency AST tokens.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FastTokenFilter {
+    Always,
+    /// Only matches `Token::NAME` whose string is `"undefined"`.
+    NameIsUndefined,
+    /// Only matches `Token::GETPROP` whose receiver is `Token::NAME("window")`.
+    GetPropOnWindow,
+    /// Only matches `Token::GETPROP` whose receiver is `OBJECTLIT`, `ARRAYLIT`, or `STRINGLIT`.
+    GetPropOnLiteral,
+}
+
 pub trait AbstractPeepholeOptimization {
     /// Rust-only accessor for the base-class fields.
     fn fields(&self) -> &AbstractPeepholeOptimizationFields;
@@ -146,6 +159,12 @@ pub trait AbstractPeepholeOptimization {
     /// The default runs custom optimizations at every node.
     fn candidate_tokens(&self) -> Option<&'static [closure_rhino::token::Token]> {
         None
+    }
+
+    /// Rust-only (performance divergence): optional cheap node-level filter for high-frequency
+    /// candidate tokens (`NAME`, `GETPROP`).
+    fn fast_token_filter(&self, _token: closure_rhino::token::Token) -> FastTokenFilter {
+        FastTokenFilter::Always
     }
 
     /// Helper method for reporting an error to the compiler when applying a peephole

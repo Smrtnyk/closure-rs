@@ -669,8 +669,15 @@ const MAY_CREATE_BLOCK_SCOPE: u8 = 2;
 
 /// Whether the plain, in-order child loop handles this token and never enters a scope.
 /// Reference collection can abbreviate subtrees consisting exclusively of these nodes.
+#[allow(dead_code)]
 pub(crate) fn traverses_children_in_order_without_scope(token: Token) -> bool {
     traversal_token_class(token) == 0
+}
+
+/// Whether `NodeTraversal` dispatches this token to a specialized handler instead of its plain
+/// child loop.
+pub(crate) fn has_traversal_handler(token: Token) -> bool {
+    traversal_token_class(token) & HAS_HANDLER != 0
 }
 
 /// The class of `token`; a token beyond the table is in both classes, so it takes the general path.
@@ -1044,6 +1051,33 @@ impl<'a> NodeTraversal<'a> {
             );
         }
         self.compiler.throw_internal_error(&message, &cause);
+    }
+
+    /// Rust-only (performance divergence): formats an unexpected panic from a direct AST walker
+    /// with the same `INTERNAL COMPILER ERROR` node context that `NodeTraversal` attaches.
+    pub(crate) fn throw_unexpected_exception_at(
+        compiler: &mut AbstractCompiler,
+        current_script: Option<NodeId>,
+        current_node: Option<NodeId>,
+        unexpected_exception: Box<dyn Any + Send>,
+    ) -> ! {
+        struct NoOp;
+        impl Callback for NoOp {
+            fn should_traverse(
+                &mut self,
+                _: &mut NodeTraversal<'_>,
+                _: NodeId,
+                _: Option<NodeId>,
+            ) -> bool {
+                false
+            }
+            fn visit(&mut self, _: &mut NodeTraversal<'_>, _: NodeId, _: Option<NodeId>) {}
+        }
+        let mut cb = NoOp;
+        let mut t = NodeTraversal::new(compiler, &mut cb, None, false);
+        t.current_script = current_script;
+        t.current_node = current_node;
+        t.throw_unexpected_exception(unexpected_exception);
     }
 
     // port: NodeTraversal#formatNodeContext

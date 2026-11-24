@@ -19,18 +19,18 @@
 use crate::graph::adjacency_graph::AdjacencyGraph;
 use crate::{
     AbstractCompiler,
-    control_flow_graph::{
-        AbstractCfgNodeTraversal, AbstractCfgNodeTraversalCallback, ControlFlowGraph,
-    },
+    control_flow_graph::ControlFlowGraph,
     data_flow_analysis::{DataFlowAnalysis, DataFlowAnalysisState, FlowJoiner, LatticeEquals},
     graph::graph::Graph,
-    node_traversal::NodeTraversal,
     node_util::NodeUtil,
     var::VarId,
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
-    check_argument, check_state, java_lang::JavaHashCode, js_string::JsString, node::NodeId,
+    check_argument, check_state,
+    java_lang::JavaHashCode,
+    js_string::JsString,
+    node::{Ast, NodeId},
     token::Token,
 };
 use std::sync::Arc;
@@ -55,6 +55,10 @@ impl Definition {
         } else {
             self.unknown_dependencies = true;
         }
+    }
+
+    pub(crate) fn unknown_dependencies_flag(&self) -> bool {
+        self.unknown_dependencies
     }
 
     // port: MustBeReachingVariableDef.Definition#toString
@@ -138,12 +142,29 @@ pub struct MustDefJoin {
 impl MustDefJoin {
     // port: MustBeReachingVariableDef.MustDefJoin#mergeVarDef
     fn merge_var_def(&mut self, var: VarId, def: &Option<Arc<Definition>>) {
-        let result_def = match self.result.reaching_def.get(&var) {
+        Self::merge_var_def_into(&mut self.result, var, def);
+    }
+
+    fn merge_var_def_into(result: &mut MustDef, var: VarId, def: &Option<Arc<Definition>>) {
+        let result_def = match result.reaching_def.get(&var) {
             None => def.clone(),
             Some(existing) if existing.is_none() || existing == def => return,
             Some(_) => None,
         };
-        Arc::make_mut(&mut self.result.reaching_def).insert(var, result_def);
+        Arc::make_mut(&mut result.reaching_def).insert(var, result_def);
+    }
+
+    fn join_into(result: &mut MustDef, input: &MustDef) {
+        if result.reaching_def.is_empty() {
+            *result = input.clone();
+            return;
+        }
+        if Arc::ptr_eq(&result.reaching_def, &input.reaching_def) {
+            return;
+        }
+        for (&var, def) in input.reaching_def.iter() {
+            Self::merge_var_def_into(result, var, def);
+        }
     }
 }
 impl FlowJoiner<MustDef> for MustDefJoin {
@@ -167,23 +188,134 @@ impl FlowJoiner<MustDef> for MustDefJoin {
         self.result
     }
 }
+
+/// Rust-only (performance divergence): precomputed per-function metadata for read-only
+/// `MustBeReachingVariableDef` execution on `&Ast` (including worker threads with zero
+/// cross-thread frees).
+pub(crate) struct PreparedMustDef {
+    escaped_var_ids: IndexSet<VarId>,
+    param_var_ids: IndexSet<VarId>,
+    all_vars_in_fn: IndexMap<JsString, VarId>,
+    entry_lattice: MustDef,
+}
+
+pub(crate) struct BorrowedMustDef<'a> {
+    state: DataFlowAnalysisState<NodeId>,
+    prepared: &'a PreparedMustDef,
+}
+
+impl<'a> BorrowedMustDef<'a> {
+    pub(crate) fn cfg(&self) -> &ControlFlowGraph<NodeId> {
+        &self.state.cfg
+    }
+
+    pub(crate) fn get_def(&self, name: &JsString, use_node: NodeId) -> Option<Arc<Definition>> {
+        let n = self.state.cfg.get_node(&Some(use_node))?;
+        let state = self.state.node_flow::<MustDef>(n);
+        self.prepared
+            .all_vars_in_fn
+            .get(name)
+            .and_then(|var| state.get_in().reaching_def.get(var))
+            .cloned()
+            .flatten()
+    }
+
+    pub(crate) fn into_cfg(self) -> ControlFlowGraph<NodeId> {
+        self.state.into_cfg()
+    }
+}
+
+impl PreparedMustDef {
+    pub(crate) fn new(
+        compiler: &AbstractCompiler,
+        escaped: &IndexSet<VarId>,
+        all_vars_in_fn: IndexMap<JsString, VarId>,
+    ) -> Self {
+        let mut escaped_var_ids = IndexSet::default();
+        let mut param_var_ids = IndexSet::default();
+        for &var in all_vars_in_fn.values() {
+            if escaped.iter().any(|e| e.equals(compiler, var)) {
+                escaped_var_ids.insert(var);
+            }
+            if var.is_param(compiler) {
+                param_var_ids.insert(var);
+            }
+        }
+        let entry_lattice = MustDef::new_with_vars(compiler, all_vars_in_fn.values().copied());
+        Self {
+            escaped_var_ids,
+            param_var_ids,
+            all_vars_in_fn,
+            entry_lattice,
+        }
+    }
+
+    pub(crate) fn escaped_var_ids(&self) -> &IndexSet<VarId> {
+        &self.escaped_var_ids
+    }
+
+    pub(crate) fn all_vars(&self) -> &IndexMap<JsString, VarId> {
+        &self.all_vars_in_fn
+    }
+
+    pub(crate) fn run_borrowed<'a>(
+        &'a self,
+        ast: &Ast,
+        cfg: ControlFlowGraph<NodeId>,
+    ) -> BorrowedMustDef<'a> {
+        let mut state = DataFlowAnalysisState::new(cfg, true, false);
+        let entry = &self.entry_lattice;
+        state.run_indexed_readonly(
+            ast,
+            true,
+            MustDef::new,
+            || entry.clone(),
+            MustDefJoin::join_into,
+            |_cfg, _cfg_node, n, mut output| {
+                MustBeReachingVariableDef::compute_must_def_ast(
+                    ast,
+                    n,
+                    n,
+                    &mut output,
+                    false,
+                    &self.all_vars_in_fn,
+                    &self.escaped_var_ids,
+                    &self.param_var_ids,
+                );
+                output
+            },
+        );
+        BorrowedMustDef {
+            state,
+            prepared: self,
+        }
+    }
+}
+
 pub struct MustBeReachingVariableDef {
     state: DataFlowAnalysisState<NodeId>,
     escaped: IndexSet<VarId>,
+    escaped_var_ids: IndexSet<VarId>,
+    param_var_ids: IndexSet<VarId>,
     all_vars_in_fn: IndexMap<JsString, VarId>,
+    entry_lattice: MustDef,
 }
 impl MustBeReachingVariableDef {
     // port: MustBeReachingVariableDef#MustBeReachingVariableDef
     pub fn new(
-        _compiler: &AbstractCompiler,
+        compiler: &AbstractCompiler,
         cfg: ControlFlowGraph<NodeId>,
         escaped: IndexSet<VarId>,
         all_vars_in_fn: IndexMap<JsString, VarId>,
     ) -> Self {
+        let prepared = PreparedMustDef::new(compiler, &escaped, all_vars_in_fn);
         Self {
             state: DataFlowAnalysisState::new(cfg, true, false),
             escaped,
-            all_vars_in_fn,
+            escaped_var_ids: prepared.escaped_var_ids,
+            param_var_ids: prepared.param_var_ids,
+            all_vars_in_fn: prepared.all_vars_in_fn,
+            entry_lattice: prepared.entry_lattice,
         }
     }
     pub fn into_cfg(self) -> ControlFlowGraph<NodeId> {
@@ -192,255 +324,418 @@ impl MustBeReachingVariableDef {
     pub(crate) fn into_use_analysis(
         self,
     ) -> crate::maybe_reaching_variable_use::MaybeReachingVariableUse {
-        crate::maybe_reaching_variable_use::MaybeReachingVariableUse::new(
+        crate::maybe_reaching_variable_use::MaybeReachingVariableUse::new_with_escaped_ids(
             self.state.into_cfg(),
             self.escaped,
+            self.escaped_var_ids,
             self.all_vars_in_fn,
         )
     }
+    pub(crate) fn analyze_readonly(&mut self, ast: &Ast) {
+        let entry = &self.entry_lattice;
+        let all_vars_in_fn = &self.all_vars_in_fn;
+        let escaped_var_ids = &self.escaped_var_ids;
+        let param_var_ids = &self.param_var_ids;
+        self.state.run_indexed_readonly(
+            ast,
+            true,
+            MustDef::new,
+            || entry.clone(),
+            MustDefJoin::join_into,
+            |_cfg, _cfg_node, n, mut output| {
+                Self::compute_must_def_ast(
+                    ast,
+                    n,
+                    n,
+                    &mut output,
+                    false,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                    param_var_ids,
+                );
+                output
+            },
+        );
+    }
     // port: MustBeReachingVariableDef#computeMustDef
-    fn compute_must_def(
-        &self,
-        compiler: &mut AbstractCompiler,
+    #[allow(clippy::too_many_arguments)]
+    fn compute_must_def_ast(
+        ast: &Ast,
         n: NodeId,
         cfg_node: NodeId,
         output: &mut MustDef,
         conditional: bool,
+        all_vars_in_fn: &IndexMap<JsString, VarId>,
+        escaped_var_ids: &IndexSet<VarId>,
+        param_var_ids: &IndexSet<VarId>,
     ) {
-        match n.get_token(compiler) {
+        match n.get_token(ast) {
             Token::BLOCK | Token::ROOT | Token::FUNCTION => {}
-            Token::WHILE | Token::DO | Token::IF | Token::FOR => self.compute_must_def(
-                compiler,
-                NodeUtil::get_condition_expression(compiler, n).unwrap(),
+            Token::WHILE | Token::DO | Token::IF | Token::FOR => Self::compute_must_def_ast(
+                ast,
+                NodeUtil::get_condition_expression(ast, n).unwrap(),
                 cfg_node,
                 output,
                 conditional,
+                all_vars_in_fn,
+                escaped_var_ids,
+                param_var_ids,
             ),
             Token::FOR_IN | Token::FOR_OF | Token::FOR_AWAIT_OF => {
-                let mut lhs = n.get_first_child(compiler).unwrap();
-                let rhs = lhs.get_next(compiler).unwrap();
-                if NodeUtil::is_name_declaration(compiler, Some(lhs)) {
-                    lhs = lhs.get_last_child(compiler).unwrap();
+                let mut lhs = n.get_first_child(ast).unwrap();
+                let rhs = lhs.get_next(ast).unwrap();
+                if NodeUtil::is_name_declaration(ast, Some(lhs)) {
+                    lhs = lhs.get_last_child(ast).unwrap();
                 }
-                if lhs.is_name(compiler) {
-                    self.add_to_def_if_local(
-                        compiler,
-                        &lhs.get_string(compiler),
+                if lhs.is_name(ast) {
+                    Self::add_to_def_if_local_ast(
+                        ast,
+                        lhs.get_string_ref(ast),
                         None,
                         Some(rhs),
                         output,
+                        all_vars_in_fn,
+                        escaped_var_ids,
                     );
-                } else if lhs.is_destructuring_lhs(compiler) {
-                    lhs = lhs.get_first_child(compiler).unwrap();
+                } else if lhs.is_destructuring_lhs(ast) {
+                    lhs = lhs.get_first_child(ast).unwrap();
                 }
-                if lhs.is_destructuring_pattern(compiler) {
-                    self.compute_must_def(compiler, lhs, cfg_node, output, true);
+                if lhs.is_destructuring_pattern(ast) {
+                    Self::compute_must_def_ast(
+                        ast,
+                        lhs,
+                        cfg_node,
+                        output,
+                        true,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                        param_var_ids,
+                    );
                 }
             }
-            Token::OPTCHAIN_GETPROP => self.compute_must_def(
-                compiler,
-                n.get_first_child(compiler).unwrap(),
+            Token::OPTCHAIN_GETPROP => Self::compute_must_def_ast(
+                ast,
+                n.get_first_child(ast).unwrap(),
                 cfg_node,
                 output,
                 conditional,
+                all_vars_in_fn,
+                escaped_var_ids,
+                param_var_ids,
             ),
             Token::AND | Token::OR | Token::COALESCE | Token::OPTCHAIN_GETELEM => {
-                self.compute_must_def(
-                    compiler,
-                    n.get_first_child(compiler).unwrap(),
+                Self::compute_must_def_ast(
+                    ast,
+                    n.get_first_child(ast).unwrap(),
                     cfg_node,
                     output,
                     conditional,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                    param_var_ids,
                 );
-                self.compute_must_def(
-                    compiler,
-                    n.get_last_child(compiler).unwrap(),
+                Self::compute_must_def_ast(
+                    ast,
+                    n.get_last_child(ast).unwrap(),
                     cfg_node,
                     output,
                     true,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                    param_var_ids,
                 );
             }
             Token::OPTCHAIN_CALL => {
-                self.compute_must_def(
-                    compiler,
-                    n.get_first_child(compiler).unwrap(),
+                Self::compute_must_def_ast(
+                    ast,
+                    n.get_first_child(ast).unwrap(),
                     cfg_node,
                     output,
                     conditional,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                    param_var_ids,
                 );
-                let mut c = n.get_second_child(compiler);
+                let mut c = n.get_second_child(ast);
                 while let Some(child) = c {
-                    self.compute_must_def(compiler, child, cfg_node, output, true);
-                    c = child.get_next(compiler);
+                    Self::compute_must_def_ast(
+                        ast,
+                        child,
+                        cfg_node,
+                        output,
+                        true,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                        param_var_ids,
+                    );
+                    c = child.get_next(ast);
                 }
             }
             Token::HOOK => {
-                self.compute_must_def(
-                    compiler,
-                    n.get_first_child(compiler).unwrap(),
+                Self::compute_must_def_ast(
+                    ast,
+                    n.get_first_child(ast).unwrap(),
                     cfg_node,
                     output,
                     conditional,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                    param_var_ids,
                 );
-                self.compute_must_def(
-                    compiler,
-                    n.get_second_child(compiler).unwrap(),
+                Self::compute_must_def_ast(
+                    ast,
+                    n.get_second_child(ast).unwrap(),
                     cfg_node,
                     output,
                     true,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                    param_var_ids,
                 );
-                self.compute_must_def(
-                    compiler,
-                    n.get_last_child(compiler).unwrap(),
+                Self::compute_must_def_ast(
+                    ast,
+                    n.get_last_child(ast).unwrap(),
                     cfg_node,
                     output,
                     true,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                    param_var_ids,
                 );
             }
             Token::LET | Token::CONST | Token::VAR => {
-                let mut c = n.get_first_child(compiler);
+                let mut c = n.get_first_child(ast);
                 while let Some(child) = c {
-                    if child.has_children(compiler) {
-                        if child.is_name(compiler) {
-                            self.compute_must_def(
-                                compiler,
-                                child.get_first_child(compiler).unwrap(),
+                    if child.has_children(ast) {
+                        if child.is_name(ast) {
+                            Self::compute_must_def_ast(
+                                ast,
+                                child.get_first_child(ast).unwrap(),
                                 cfg_node,
                                 output,
                                 conditional,
+                                all_vars_in_fn,
+                                escaped_var_ids,
+                                param_var_ids,
                             );
-                            self.add_to_def_if_local(
-                                compiler,
-                                &child.get_string(compiler),
+                            Self::add_to_def_if_local_ast(
+                                ast,
+                                child.get_string_ref(ast),
                                 if conditional { None } else { Some(cfg_node) },
-                                child.get_first_child(compiler),
+                                child.get_first_child(ast),
                                 output,
+                                all_vars_in_fn,
+                                escaped_var_ids,
                             );
                         } else {
                             check_state!(
-                                child.is_destructuring_lhs(compiler),
+                                child.is_destructuring_lhs(ast),
                                 "%s",
-                                child.to_string(compiler)
+                                child.to_string(ast)
                             );
-                            self.compute_must_def(
-                                compiler,
-                                child.get_second_child(compiler).unwrap(),
+                            Self::compute_must_def_ast(
+                                ast,
+                                child.get_second_child(ast).unwrap(),
                                 cfg_node,
                                 output,
                                 conditional,
+                                all_vars_in_fn,
+                                escaped_var_ids,
+                                param_var_ids,
                             );
-                            self.compute_must_def(
-                                compiler,
-                                child.get_first_child(compiler).unwrap(),
+                            Self::compute_must_def_ast(
+                                ast,
+                                child.get_first_child(ast).unwrap(),
                                 cfg_node,
                                 output,
                                 conditional,
+                                all_vars_in_fn,
+                                escaped_var_ids,
+                                param_var_ids,
                             );
                         }
                     }
-                    c = child.get_next(compiler);
+                    c = child.get_next(ast);
                 }
             }
             Token::DEFAULT_VALUE => {
-                let first = n.get_first_child(compiler).unwrap();
-                let second = n.get_second_child(compiler).unwrap();
-                if first.is_destructuring_pattern(compiler) {
-                    self.compute_must_def(compiler, second, cfg_node, output, true);
-                    self.compute_must_def(compiler, first, cfg_node, output, conditional);
-                } else if first.is_name(compiler) {
-                    self.compute_must_def(compiler, second, cfg_node, output, true);
-                    self.add_to_def_if_local(
-                        compiler,
-                        &first.get_string(compiler),
+                let first = n.get_first_child(ast).unwrap();
+                let second = n.get_second_child(ast).unwrap();
+                if first.is_destructuring_pattern(ast) {
+                    Self::compute_must_def_ast(
+                        ast,
+                        second,
+                        cfg_node,
+                        output,
+                        true,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                        param_var_ids,
+                    );
+                    Self::compute_must_def_ast(
+                        ast,
+                        first,
+                        cfg_node,
+                        output,
+                        conditional,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                        param_var_ids,
+                    );
+                } else if first.is_name(ast) {
+                    Self::compute_must_def_ast(
+                        ast,
+                        second,
+                        cfg_node,
+                        output,
+                        true,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                        param_var_ids,
+                    );
+                    Self::add_to_def_if_local_ast(
+                        ast,
+                        first.get_string_ref(ast),
                         if conditional { None } else { Some(cfg_node) },
                         None,
                         output,
+                        all_vars_in_fn,
+                        escaped_var_ids,
                     );
                 } else {
-                    self.compute_must_def(compiler, first, cfg_node, output, conditional);
-                    self.compute_must_def(compiler, second, cfg_node, output, true);
+                    Self::compute_must_def_ast(
+                        ast,
+                        first,
+                        cfg_node,
+                        output,
+                        conditional,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                        param_var_ids,
+                    );
+                    Self::compute_must_def_ast(
+                        ast,
+                        second,
+                        cfg_node,
+                        output,
+                        true,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                        param_var_ids,
+                    );
                 }
             }
             Token::NAME => {
-                if NodeUtil::is_lhs_by_destructuring(compiler, n) {
-                    self.add_to_def_if_local(
-                        compiler,
-                        &n.get_string(compiler),
+                if NodeUtil::is_lhs_by_destructuring(ast, n) {
+                    Self::add_to_def_if_local_ast(
+                        ast,
+                        n.get_string_ref(ast),
                         if conditional { None } else { Some(cfg_node) },
                         None,
                         output,
+                        all_vars_in_fn,
+                        escaped_var_ids,
                     );
-                } else if n.get_string_ref(compiler) == "arguments" {
-                    self.escape_parameters(compiler, output);
+                } else if n.get_string_ref(ast) == "arguments" {
+                    Self::escape_parameters_ast(output, param_var_ids);
                 }
             }
             _ => {
-                if NodeUtil::is_assignment_op(compiler, n) {
-                    let lhs = n.get_first_child(compiler).unwrap();
-                    if lhs.is_name(compiler) {
-                        self.compute_must_def(
-                            compiler,
-                            lhs.get_next(compiler).unwrap(),
+                if NodeUtil::is_assignment_op(ast, n) {
+                    let lhs = n.get_first_child(ast).unwrap();
+                    if lhs.is_name(ast) {
+                        Self::compute_must_def_ast(
+                            ast,
+                            lhs.get_next(ast).unwrap(),
                             cfg_node,
                             output,
                             conditional,
+                            all_vars_in_fn,
+                            escaped_var_ids,
+                            param_var_ids,
                         );
-                        self.add_to_def_if_local(
-                            compiler,
-                            &lhs.get_string(compiler),
+                        Self::add_to_def_if_local_ast(
+                            ast,
+                            lhs.get_string_ref(ast),
                             if conditional { None } else { Some(cfg_node) },
-                            n.get_last_child(compiler),
+                            n.get_last_child(ast),
                             output,
+                            all_vars_in_fn,
+                            escaped_var_ids,
                         );
                         return;
-                    } else if NodeUtil::is_normal_get(compiler, lhs) {
-                        let obj = n.get_first_first_child(compiler).unwrap();
-                        if obj.is_name(compiler) && obj.get_string_ref(compiler) == "arguments" {
-                            self.escape_parameters(compiler, output);
+                    } else if NodeUtil::is_normal_get(ast, lhs) {
+                        let obj = n.get_first_first_child(ast).unwrap();
+                        if obj.is_name(ast) && obj.get_string_ref(ast) == "arguments" {
+                            Self::escape_parameters_ast(output, param_var_ids);
                         }
-                    } else if lhs.is_destructuring_pattern(compiler) {
-                        self.compute_must_def(
-                            compiler,
-                            n.get_second_child(compiler).unwrap(),
+                    } else if lhs.is_destructuring_pattern(ast) {
+                        Self::compute_must_def_ast(
+                            ast,
+                            n.get_second_child(ast).unwrap(),
                             cfg_node,
                             output,
                             conditional,
+                            all_vars_in_fn,
+                            escaped_var_ids,
+                            param_var_ids,
                         );
-                        self.compute_must_def(compiler, lhs, cfg_node, output, conditional);
+                        Self::compute_must_def_ast(
+                            ast,
+                            lhs,
+                            cfg_node,
+                            output,
+                            conditional,
+                            all_vars_in_fn,
+                            escaped_var_ids,
+                            param_var_ids,
+                        );
                         return;
                     }
                 }
-                if n.is_dec(compiler) || n.is_inc(compiler) {
-                    let target = n.get_first_child(compiler).unwrap();
-                    if target.is_name(compiler) {
-                        self.add_to_def_if_local(
-                            compiler,
-                            &target.get_string(compiler),
+                if n.is_dec(ast) || n.is_inc(ast) {
+                    let target = n.get_first_child(ast).unwrap();
+                    if target.is_name(ast) {
+                        Self::add_to_def_if_local_ast(
+                            ast,
+                            target.get_string_ref(ast),
                             if conditional { None } else { Some(cfg_node) },
                             None,
                             output,
+                            all_vars_in_fn,
+                            escaped_var_ids,
                         );
                         return;
                     }
                 }
-                let mut c = n.get_first_child(compiler);
+                let mut c = n.get_first_child(ast);
                 while let Some(child) = c {
-                    self.compute_must_def(compiler, child, cfg_node, output, conditional);
-                    c = child.get_next(compiler);
+                    Self::compute_must_def_ast(
+                        ast,
+                        child,
+                        cfg_node,
+                        output,
+                        conditional,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                        param_var_ids,
+                    );
+                    c = child.get_next(ast);
                 }
             }
         }
     }
     // port: MustBeReachingVariableDef#addToDefIfLocal
-    fn add_to_def_if_local(
-        &self,
-        compiler: &mut AbstractCompiler,
+    fn add_to_def_if_local_ast(
+        ast: &Ast,
         name: &JsString,
         node: Option<NodeId>,
         r_value: Option<NodeId>,
         def: &mut MustDef,
+        all_vars_in_fn: &IndexMap<JsString, VarId>,
+        escaped_var_ids: &IndexSet<VarId>,
     ) {
-        let Some(&var) = self.all_vars_in_fn.get(name) else {
+        let Some(&var) = all_vars_in_fn.get(name) else {
             return;
         };
         let depends_on_var = |other: &Option<Arc<Definition>>| {
@@ -453,16 +748,11 @@ impl MustBeReachingVariableDef {
                 }
             }
         }
-        // Java Set<Var>.contains uses inherited ScopedName equality across recreated scopes.
-        if !self
-            .escaped
-            .iter()
-            .any(|escaped| escaped.equals(compiler, var))
-        {
+        if !escaped_var_ids.contains(&var) {
             if let Some(node) = node {
                 let mut definition = Definition::new(node);
                 if let Some(r_value) = r_value {
-                    self.compute_dependence(compiler, &mut definition, r_value);
+                    Self::compute_dependence_ast(ast, &mut definition, r_value, all_vars_in_fn);
                 }
                 Arc::make_mut(&mut def.reaching_def).insert(var, Some(Arc::new(definition)));
             } else {
@@ -471,18 +761,17 @@ impl MustBeReachingVariableDef {
         }
     }
     // port: MustBeReachingVariableDef#escapeParameters
-    fn escape_parameters(&self, compiler: &AbstractCompiler, output: &mut MustDef) {
-        for &v in self.all_vars_in_fn.values() {
-            if Self::is_parameter(compiler, v) {
-                Arc::make_mut(&mut output.reaching_def).insert(v, None);
-            }
+    fn escape_parameters_ast(output: &mut MustDef, param_var_ids: &IndexSet<VarId>) {
+        if param_var_ids.is_empty() {
+            return;
+        }
+        for &v in param_var_ids {
+            Arc::make_mut(&mut output.reaching_def).insert(v, None);
         }
         let depends_on_parameter = |value: &Option<Arc<Definition>>| {
-            value.as_ref().is_some_and(|d| {
-                d.depends
-                    .iter()
-                    .any(|&dep| Self::is_parameter(compiler, dep))
-            })
+            value
+                .as_ref()
+                .is_some_and(|d| d.depends.iter().any(|dep| param_var_ids.contains(dep)))
         };
         if output.reaching_def.values().any(depends_on_parameter) {
             for value in Arc::make_mut(&mut output.reaching_def).values_mut() {
@@ -492,32 +781,28 @@ impl MustBeReachingVariableDef {
             }
         }
     }
-    // port: MustBeReachingVariableDef#isParameter
-    fn is_parameter(compiler: &AbstractCompiler, v: VarId) -> bool {
-        v.is_param(compiler)
-    }
     // port: MustBeReachingVariableDef#computeDependence
-    fn compute_dependence(
-        &self,
-        compiler: &mut AbstractCompiler,
+    fn compute_dependence_ast(
+        ast: &Ast,
         def: &mut Definition,
         r_value: NodeId,
+        all_vars_in_fn: &IndexMap<JsString, VarId>,
     ) {
         // A dotted access stores the property spelling on the node. Only its receiver
         // can reference a variable, and primitive literal leaves have no dependencies.
         let mut receiver = r_value;
         while matches!(
-            receiver.get_token(compiler),
+            receiver.get_token(ast),
             Token::GETPROP | Token::OPTCHAIN_GETPROP
-        ) && receiver.has_one_child(compiler)
+        ) && receiver.has_one_child(ast)
         {
-            receiver = receiver.get_first_child(compiler).unwrap();
+            receiver = receiver.get_first_child(ast).unwrap();
         }
-        if !receiver.has_children(compiler) {
-            match receiver.get_token(compiler) {
+        if !receiver.has_children(ast) {
+            match receiver.get_token(ast) {
                 Token::NAME => {
-                    if let Some(name) = receiver.string_payload(compiler) {
-                        def.record_dependency(name, &self.all_vars_in_fn);
+                    if let Some(name) = receiver.string_payload(ast) {
+                        def.record_dependency(name, all_vars_in_fn);
                         return;
                     }
                 }
@@ -532,27 +817,29 @@ impl MustBeReachingVariableDef {
             }
         }
 
-        struct Dependence<'a> {
-            def: &'a mut Definition,
-            all_vars_in_fn: &'a IndexMap<JsString, VarId>,
-        }
-        impl AbstractCfgNodeTraversalCallback for Dependence<'_> {
-            // port: MustBeReachingVariableDef#computeDependence.visit
-            fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-                if n.is_name(t) {
-                    self.def
-                        .record_dependency(n.get_string_ref(t), self.all_vars_in_fn);
-                }
+        // Rust-only (performance divergence): walk CFG node directly on `&Ast` instead of
+        // allocating a `NodeTraversal` per non-trivial assignment.
+        // port: MustBeReachingVariableDef#computeDependence.visit
+        fn walk(
+            ast: &Ast,
+            n: NodeId,
+            is_root: bool,
+            def: &mut Definition,
+            all_vars_in_fn: &IndexMap<JsString, VarId>,
+        ) {
+            if !is_root && ControlFlowGraph::is_entering_new_cfg_node(ast, n) {
+                return;
+            }
+            if n.is_name(ast) {
+                def.record_dependency(n.get_string_ref(ast), all_vars_in_fn);
+            }
+            let mut c = n.get_first_child(ast);
+            while let Some(child) = c {
+                walk(ast, child, false, def, all_vars_in_fn);
+                c = child.get_next(ast);
             }
         }
-        NodeTraversal::traverse(
-            compiler,
-            r_value,
-            &mut AbstractCfgNodeTraversal(Dependence {
-                def,
-                all_vars_in_fn: &self.all_vars_in_fn,
-            }),
-        );
+        walk(ast, r_value, true, def, all_vars_in_fn);
     }
     // port: MustBeReachingVariableDef#getDef
     pub fn get_def(&self, name: &JsString, use_node: NodeId) -> Option<Arc<Definition>> {
@@ -593,13 +880,16 @@ impl DataFlowAnalysis<NodeId, MustDef> for MustBeReachingVariableDef {
     fn state_mut(&mut self) -> &mut DataFlowAnalysisState<NodeId> {
         &mut self.state
     }
+    fn analyze_indexed(&mut self, compiler: &mut AbstractCompiler) {
+        self.analyze_readonly(&compiler.ast);
+    }
     // port: MustBeReachingVariableDef#isForward
     fn is_forward(&self) -> bool {
         true
     }
     // port: MustBeReachingVariableDef#createEntryLattice
-    fn create_entry_lattice(&mut self, compiler: &mut AbstractCompiler) -> MustDef {
-        MustDef::new_with_vars(compiler, self.all_vars_in_fn.values().copied())
+    fn create_entry_lattice(&mut self, _compiler: &mut AbstractCompiler) -> MustDef {
+        self.entry_lattice.clone()
     }
     // port: MustBeReachingVariableDef#createInitialEstimateLattice
     fn create_initial_estimate_lattice(&self) -> MustDef {
@@ -620,7 +910,16 @@ impl DataFlowAnalysis<NodeId, MustDef> for MustBeReachingVariableDef {
     ) -> MustDef {
         // Java copies the shared input; here the input is owned (performance divergence).
         let mut output = input;
-        self.compute_must_def(compiler, n, n, &mut output, false);
+        Self::compute_must_def_ast(
+            &compiler.ast,
+            n,
+            n,
+            &mut output,
+            false,
+            &self.all_vars_in_fn,
+            &self.escaped_var_ids,
+            &self.param_var_ids,
+        );
         output
     }
     fn node_to_string(&self, compiler: &AbstractCompiler, node: NodeId) -> String {

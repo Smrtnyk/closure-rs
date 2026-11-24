@@ -70,6 +70,11 @@ impl InlineObjectLiterals {
 struct CandidateNames {
     assigned_objects: IndexSet<JsString>,
     to_resolve: IndexSet<JsString>,
+    /// Rust-only (performance divergence): top-level FUNCTION nodes that contain at least one
+    /// candidate OBJECTLIT assignment. A local variable declared in any other top-level function
+    /// cannot be assigned an OBJECTLIT and needs no reference collection.
+    candidate_top_fns: IndexSet<NodeId>,
+    has_script_level_object_lit: bool,
 }
 
 impl CandidateNames {
@@ -87,7 +92,7 @@ impl CandidateNames {
                 let mut names = Self::default();
                 for &node in candidates {
                     // Postings can include detached nodes and nodes whose token changed.
-                    let (binding, set) = match node.get_token(ast) {
+                    match node.get_token(ast) {
                         Token::OBJECTLIT => {
                             let Some(parent) = node.get_parent(ast) else {
                                 continue;
@@ -101,7 +106,25 @@ impl CandidateNames {
                             else {
                                 continue;
                             };
-                            (lhs, &mut names.assigned_objects)
+                            let Some(top_fn) =
+                                Self::in_scanned_tree_top_fn(ast, node, scope_root, excluded)
+                            else {
+                                continue;
+                            };
+                            match top_fn {
+                                Some(fn_node) => {
+                                    names.candidate_top_fns.insert(fn_node);
+                                }
+                                None => {
+                                    names.has_script_level_object_lit = true;
+                                }
+                            }
+                            if !lhs
+                                .string_payload(ast)
+                                .is_some_and(|name| names.assigned_objects.contains(name))
+                            {
+                                names.assigned_objects.insert(lhs.get_string(ast));
+                            }
                         }
                         Token::FUNCTION => {
                             let Some(name) = node.get_first_child(ast).filter(|n| n.is_name(ast))
@@ -111,18 +134,19 @@ impl CandidateNames {
                             if name.string_payload(ast).is_some_and(JsString::is_empty) {
                                 continue;
                             }
-                            (name, &mut names.to_resolve)
+                            if name
+                                .string_payload(ast)
+                                .is_some_and(|s| names.to_resolve.contains(s))
+                            {
+                                continue;
+                            }
+                            if Self::in_scanned_tree_top_fn(ast, node, scope_root, excluded)
+                                .is_some()
+                            {
+                                names.to_resolve.insert(name.get_string(ast));
+                            }
                         }
                         _ => continue,
-                    };
-                    if binding
-                        .string_payload(ast)
-                        .is_some_and(|name| set.contains(name))
-                    {
-                        continue;
-                    }
-                    if Self::in_scanned_tree(ast, node, scope_root, excluded) {
-                        set.insert(binding.get_string(ast));
                     }
                 }
                 names
@@ -143,27 +167,49 @@ impl CandidateNames {
         Some(names)
     }
 
-    fn in_scanned_tree(
+    /// Returns `Some(top_level_fn)` if `node` lies in the scanned tree (excluding `excluded`),
+    /// where `top_level_fn` is the outermost `FUNCTION` ancestor below `scope_root` (or `None`
+    /// if the node is outside every function).
+    fn in_scanned_tree_top_fn(
         ast: &Ast,
         mut node: NodeId,
         scope_root: NodeId,
         excluded: Option<NodeId>,
-    ) -> bool {
+    ) -> Option<Option<NodeId>> {
         // Arena postings include unreachable nodes. An unrelated cyclic parent chain
         // cannot belong to the scanned tree.
+        let mut top_fn = None;
         for _ in 0..ast.node_count() {
             if Some(node) == excluded {
-                return false;
+                return None;
             }
-            let Some(parent) = node.get_parent(ast) else {
-                return false;
-            };
+            if node.is_function(ast) {
+                top_fn = Some(node);
+            }
+            let parent = node.get_parent(ast)?;
             if parent == scope_root {
-                return true;
+                return Some(top_fn);
             }
             node = parent;
         }
-        false
+        None
+    }
+
+    fn top_level_function(ast: &Ast, mut node: NodeId) -> Option<NodeId> {
+        let mut top_fn = None;
+        while let Some(parent) = node.get_parent(ast) {
+            if node.is_function(ast) {
+                top_fn = Some(node);
+            }
+            if parent.is_script(ast) || parent.is_root(ast) {
+                break;
+            }
+            node = parent;
+        }
+        if node.is_function(ast) {
+            top_fn = Some(node);
+        }
+        top_fn
     }
 
     /// Splitting a property can introduce an object initializer or turn a property assignment
@@ -189,6 +235,7 @@ impl CompilerPass for InlineObjectLiterals {
             referenced_scopes: IndexSet::default(),
             safe_name_id_supplier: self.safe_name_id_supplier.clone(),
             stale_vars: IndexSet::<_>::default(),
+            last_scope_top_fn: None,
         };
         let mut scope_creator = SyntacticScopeCreator::new();
         let mut callback = ReferenceCollector::new(compiler, behavior, &mut scope_creator);
@@ -212,6 +259,8 @@ struct InliningBehavior {
     // Java: Set<Var> (LinkedHashSet). Var's equals/hashCode are ScopedName's (name and scope
     // root), so the set is keyed by exactly those two values.
     stale_vars: IndexSet<(JsString, NodeId)>,
+    /// One-entry cache mapping a scope root to its enclosing top-level FUNCTION (if any).
+    last_scope_top_fn: Option<(NodeId, Option<NodeId>)>,
 }
 
 impl Behavior for InliningBehavior {
@@ -230,13 +279,37 @@ impl Behavior for InliningBehavior {
         if var.is_global(compiler) || var.is_extern(compiler) {
             return false;
         }
+        let scope_root = var.get_scope_root(compiler);
         if let Some(names) = &self.candidates {
             let name = var.get_name(compiler);
-            if !names.assigned_objects.contains(&name) && !CandidateNames::generated(&name) {
-                return false;
+            let is_generated = CandidateNames::generated(&name);
+            if !is_generated {
+                if !names.assigned_objects.contains(&name) {
+                    return false;
+                }
+                let top_fn = match self.last_scope_top_fn {
+                    Some((cached_root, top_fn)) if cached_root == scope_root => top_fn,
+                    _ => {
+                        let top_fn = CandidateNames::top_level_function(compiler, scope_root);
+                        self.last_scope_top_fn = Some((scope_root, top_fn));
+                        top_fn
+                    }
+                };
+                match top_fn {
+                    Some(fn_node) => {
+                        if !names.candidate_top_fns.contains(&fn_node) {
+                            return false;
+                        }
+                    }
+                    None => {
+                        if !names.has_script_level_object_lit {
+                            return false;
+                        }
+                    }
+                }
             }
         }
-        self.referenced_scopes.insert(var.get_scope_root(compiler));
+        self.referenced_scopes.insert(scope_root);
         true
     }
 
@@ -808,12 +881,10 @@ mod candidate_tests {
         let names = collect(&mut compiler);
         assert!(names.assigned_objects.contains(&JsString::from("object")));
         assert!(names.to_resolve.contains(&JsString::from("hoisted")));
-        assert!(!CandidateNames::in_scanned_tree(
-            &compiler.ast,
-            value,
-            scope_root,
-            Some(sibling)
-        ));
+        assert!(
+            CandidateNames::in_scanned_tree_top_fn(&compiler.ast, value, scope_root, Some(sibling))
+                .is_none()
+        );
 
         name.detach(&mut compiler.ast);
         function.set_token(&mut compiler.ast, Token::BLOCK);

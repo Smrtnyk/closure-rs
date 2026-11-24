@@ -31,7 +31,9 @@ use crate::{
     variable_map::VariableMap,
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
-use closure_rhino::{check_state, js_string::JsString, node::NodeId};
+use closure_rhino::{
+    check_state, js_string::JsString, node::NodeId, rhino_string_pool::RhinoStringPool,
+};
 use std::{
     cmp::Ordering,
     sync::{Arc, RwLock},
@@ -40,12 +42,14 @@ use std::{
 /// RenameVars renames all the variables names into short names, to reduce code size and also to
 /// obfuscate the code.
 pub struct RenameVars {
-    /// List of global NAME nodes
-    global_name_nodes: Vec<NodeId>,
-    /// List of local NAME nodes
-    local_name_nodes: Vec<NodeId>,
-    /// Mapping of original names for change detection
-    original_name_by_node: IndexMap<NodeId, JsString>,
+    /// List of global NAME nodes and their assignment indices.
+    global_name_nodes: Vec<(NodeId, u32)>,
+    /// List of local NAME nodes and their temporary assignment indices.
+    /// Rust-only (performance divergence): avoids writing temporary `"L <n>"` strings to the AST
+    /// and avoids a separate per-node `original_name_by_node` hash map.
+    local_name_nodes: Vec<(NodeId, u32)>,
+    /// Cache mapping temporary local index `i` to its slot in `assignments`.
+    local_temp_assignments: Vec<Option<usize>>,
     /// Maps a name node to its pseudo name, null if we are not generating so there will be no
     /// overhead unless we are debugging.
     pseudo_name_map: Option<IndexMap<NodeId, JsString>>,
@@ -150,7 +154,7 @@ impl RenameVars {
         Self {
             global_name_nodes: Vec::new(),
             local_name_nodes: Vec::new(),
-            original_name_by_node: IndexMap::<_, _>::default(),
+            local_temp_assignments: Vec::new(),
             pseudo_name_map,
             extern_names: IndexSet::<_>::default(),
             reserved_names: Arc::new(RwLock::new(reserved_names)),
@@ -197,16 +201,10 @@ impl RenameVars {
         indices: impl IntoIterator<Item = usize>,
         comparator: fn(&Assignment, &Assignment) -> i32,
     ) -> Vec<usize> {
-        let mut set: Vec<usize> = Vec::new();
-        for i in indices {
-            // TreeSet.add: a comparator-equal element is not added again.
-            match set
-                .binary_search_by(|&probe| comparator(&assignments[probe], &assignments[i]).cmp(&0))
-            {
-                Ok(_) => {}
-                Err(pos) => set.insert(pos, i),
-            }
-        }
+        // Rust-only (performance divergence): O(N log N) sort + dedup instead of O(N^2) Vec::insert.
+        let mut set: Vec<usize> = indices.into_iter().collect();
+        set.sort_by(|&a, &b| comparator(&assignments[a], &assignments[b]).cmp(&0));
+        set.dedup_by(|&mut b, &mut a| comparator(&assignments[a], &assignments[b]) == 0);
         set
     }
 
@@ -214,16 +212,27 @@ impl RenameVars {
     pub fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
         self.extern_names = NodeUtil::collect_extern_variable_names(compiler, externs);
 
-        self.original_name_by_node.clear();
-
         // Do variable reference counting.
-        NodeTraversal::traverse(compiler, root, &mut ProcessVars { this: self });
+        {
+            let mut reserved_names = self.reserved_names.write().unwrap();
+            let mut visitor = ProcessVars {
+                global_name_nodes: &mut self.global_name_nodes,
+                local_name_nodes: &mut self.local_name_nodes,
+                local_temp_assignments: &mut self.local_temp_assignments,
+                pseudo_name_map: &mut self.pseudo_name_map,
+                reserved_names: &mut reserved_names,
+                assignment_count: &mut self.assignment_count,
+                local_bleeding_functions: &mut self.local_bleeding_functions,
+                local_bleeding_functions_per_scope: &mut self.local_bleeding_functions_per_scope,
+                assignments: &mut self.assignments,
+                local_renaming_only: self.local_renaming_only,
+                prefer_stable_names: self.prefer_stable_names,
+            };
+            NodeTraversal::traverse(compiler, root, &mut visitor);
 
-        // Make sure that new names don't overlap with extern names.
-        self.reserved_names
-            .write()
-            .unwrap()
-            .extend(self.extern_names.iter().cloned());
+            // Make sure that new names don't overlap with extern names.
+            reserved_names.extend(self.extern_names.iter().cloned());
+        }
 
         // Rename vars, sorted by frequency of occurrence to minimize code size.
         let vars_by_frequency = Self::tree_set(
@@ -241,15 +250,26 @@ impl RenameVars {
         self.assign_names(&vars_by_frequency);
 
         // Rename the globals!
-        for n in self.global_name_nodes.clone() {
-            let new_name = self.get_new_global_name(compiler, n);
+        for i in 0..self.global_name_nodes.len() {
+            let (n, assign_idx) = self.global_name_nodes[i];
+            let new_name = self.get_new_global_name(n, assign_idx as usize);
             self.set_name_and_report(compiler, n, new_name);
         }
 
         // Rename the locals!
-        for n in self.local_name_nodes.clone() {
-            let new_name = self.get_new_local_name(compiler, n);
-            self.set_name_and_report(compiler, n, new_name);
+        for i in 0..self.local_name_nodes.len() {
+            let (n, assign_idx) = self.local_name_nodes[i];
+            let new_name = self.get_new_local_name(n, assign_idx as usize);
+            if new_name.is_some() {
+                self.set_name_and_report(compiler, n, new_name);
+            } else {
+                // Edge case: `prev_used_rename_map` mapped the temp name to itself;
+                // Java leaves the temporary name on the node without reporting a change.
+                let temp_name = self.assignments[assign_idx as usize].old_name.clone();
+                if temp_name != *n.get_string_ref(compiler) {
+                    n.set_string(compiler, temp_name);
+                }
+            }
         }
     }
 
@@ -261,33 +281,28 @@ impl RenameVars {
         new_name: Option<JsString>,
     ) {
         // A null newName, indicates it should not be renamed.
+        // Because local nodes keep their original spelling until final renaming,
+        // `new_name != *n.get_string_ref(compiler)` checks both whether the node
+        // needs updating and whether the final name differs from the original.
         if let Some(new_name) = new_name
-            && new_name != n.get_string(compiler)
+            && new_name != *n.get_string_ref(compiler)
         {
-            n.set_string(compiler, new_name.clone());
-
-            // Only mark changes if the final name change is different than it was original before
-            // being filled with the "L" temporary name.
-            if self.original_name_by_node.get(&n) != Some(&new_name) {
-                compiler.report_change_to_enclosing_scope(n);
-                let parent = n.get_parent(compiler).unwrap();
-                if parent.is_function(compiler)
-                    && NodeUtil::is_function_declaration(compiler, parent)
-                {
-                    // If we are renaming a function declaration, make sure the containing scope
-                    // has the opportunity to act on the change.
-                    compiler.report_change_to_enclosing_scope(parent);
-                }
+            n.set_string(compiler, new_name);
+            compiler.report_change_to_enclosing_scope(n);
+            let parent = n.get_parent(compiler).unwrap();
+            if parent.is_function(compiler) && NodeUtil::is_function_declaration(compiler, parent) {
+                // If we are renaming a function declaration, make sure the containing scope
+                // has the opportunity to act on the change.
+                compiler.report_change_to_enclosing_scope(parent);
             }
         }
     }
 
     // port: RenameVars#getNewGlobalName
-    fn get_new_global_name(&self, compiler: &AbstractCompiler, n: NodeId) -> Option<JsString> {
-        let old_name = n.get_string(compiler);
-        let a = &self.assignments[&old_name];
+    fn get_new_global_name(&self, n: NodeId, assign_idx: usize) -> Option<JsString> {
+        let a = &self.assignments[assign_idx];
         if let Some(new_name) = &a.new_name
-            && *new_name != old_name
+            && *new_name != a.old_name
         {
             if let Some(pseudo_name_map) = &self.pseudo_name_map {
                 return pseudo_name_map.get(&n).cloned();
@@ -299,10 +314,9 @@ impl RenameVars {
     }
 
     // port: RenameVars#getNewLocalName
-    fn get_new_local_name(&self, compiler: &AbstractCompiler, n: NodeId) -> Option<JsString> {
-        let old_temp_name = n.get_string(compiler);
-        let a = &self.assignments[&old_temp_name];
-        if *a.new_name.as_ref().unwrap() != old_temp_name {
+    fn get_new_local_name(&self, n: NodeId, assign_idx: usize) -> Option<JsString> {
+        let a = &self.assignments[assign_idx];
+        if *a.new_name.as_ref().unwrap() != a.old_name {
             if let Some(pseudo_name_map) = &self.pseudo_name_map {
                 return pseudo_name_map.get(&n).cloned();
             }
@@ -312,16 +326,17 @@ impl RenameVars {
     }
 
     // port: RenameVars#recordPseudoName
-    fn record_pseudo_name(&mut self, compiler: &AbstractCompiler, n: NodeId) {
+    fn record_pseudo_name(
+        pseudo_name_map: &mut IndexMap<NodeId, JsString>,
+        compiler: &AbstractCompiler,
+        n: NodeId,
+    ) {
         // Variable names should be in a different name space than
         // property pseudo names.
         let pseudo_name = JsString::from("$")
-            .concat(&n.get_string(compiler))
+            .concat(n.get_string_ref(compiler))
             .concat(&JsString::from("$$"));
-        self.pseudo_name_map
-            .as_mut()
-            .unwrap()
-            .insert(n, pseudo_name);
+        pseudo_name_map.insert(n, pseudo_name);
     }
 
     /// Runs through the assignments and reuses as many names as possible from the previously used
@@ -456,6 +471,8 @@ impl RenameVars {
     /// Makes a final name assignment.
     // port: RenameVars#finalizeNameAssignment
     fn finalize_name_assignment(&mut self, a: usize, new_name: JsString) {
+        // Rust-only (performance divergence): intern once so every renamed node shares the handle.
+        let new_name = RhinoStringPool::add_or_get(new_name);
         self.assignments[a].set_new_name(new_name.clone());
 
         // Keep track of the mapping
@@ -493,18 +510,23 @@ impl RenameVars {
     /// e.g. function Foo(a) { var b; function c(d) { } }
     /// a = 0, b = 1, c = 2, d = 3
     // port: RenameVars#getLocalVarIndex
-    fn get_local_var_index(&self, compiler: &AbstractCompiler, v: VarId) -> i32 {
+    fn get_local_var_index(
+        local_bleeding_functions: &IndexSet<VarId>,
+        local_bleeding_functions_per_scope: &IndexMap<ScopeId, Vec<VarId>>,
+        prefer_stable_names: bool,
+        compiler: &AbstractCompiler,
+        v: VarId,
+    ) -> i32 {
         let mut num = v.get_index(compiler);
         let Some(mut s) = v.get_scope(compiler).get_parent(compiler) else {
             panic!("Var is not local");
         };
 
         let mut is_bleeding_into_scope =
-            s.get_parent(compiler).is_some() && self.local_bleeding_functions.contains(&v);
+            s.get_parent(compiler).is_some() && local_bleeding_functions.contains(&v);
 
         while s.get_parent(compiler).is_some() {
-            let bleeding_functions = self
-                .local_bleeding_functions_per_scope
+            let bleeding_functions = local_bleeding_functions_per_scope
                 .get(&s)
                 .map(Vec::as_slice)
                 .unwrap_or_default();
@@ -518,7 +540,7 @@ impl RenameVars {
             } else {
                 num += bleeding_functions.len() as i32;
             }
-            if self.should_temporarily_rename_locals_in_scope(compiler, s) {
+            if Self::should_temporarily_rename_locals_in_scope(prefer_stable_names, compiler, s) {
                 num += s.get_var_count(compiler);
             }
             s = s.get_parent(compiler).unwrap();
@@ -534,23 +556,55 @@ impl RenameVars {
     /// name used when the rename map was created.
     // port: RenameVars#shouldTemporarilyRenameLocalsInScope
     fn should_temporarily_rename_locals_in_scope(
-        &self,
+        prefer_stable_names: bool,
         compiler: &AbstractCompiler,
         s: ScopeId,
     ) -> bool {
-        !self.prefer_stable_names
+        !prefer_stable_names
             || s.get_var_count(compiler) <= Self::MAX_LOCALS_IN_SCOPE_TO_TEMP_RENAME
     }
 
     // Increment count of an assignment
     // port: RenameVars.ProcessVars#incCount
-    fn inc_count(&mut self, name: JsString) {
-        let assignment_count = &mut self.assignment_count;
-        let s = self
-            .assignments
-            .entry(name.clone())
-            .or_insert_with(|| Assignment::new(name, assignment_count));
-        s.count += 1;
+    fn inc_count_ref(
+        assignments: &mut IndexMap<JsString, Assignment>,
+        assignment_count: &mut i32,
+        name: &JsString,
+    ) -> usize {
+        if let Some((idx, _, s)) = assignments.get_full_mut(name) {
+            s.count += 1;
+            return idx;
+        }
+        let owned = name.clone();
+        let (idx, _) =
+            assignments.insert_full(owned.clone(), Assignment::new(owned, assignment_count));
+        assignments[idx].count += 1;
+        idx
+    }
+
+    /// Rust-only (performance divergence): cache temporary `"L <index>"` assignment slots by
+    /// integer index so local references avoid formatting and hashing a string per node.
+    fn inc_local_temp_count(
+        assignments: &mut IndexMap<JsString, Assignment>,
+        assignment_count: &mut i32,
+        local_temp_assignments: &mut Vec<Option<usize>>,
+        index: i32,
+    ) -> usize {
+        if let Ok(slot) = usize::try_from(index) {
+            if let Some(Some(assign_idx)) = local_temp_assignments.get(slot).copied() {
+                assignments[assign_idx].count += 1;
+                return assign_idx;
+            }
+            let temp_name = JsString::from(format!("{}{}", Self::LOCAL_VAR_PREFIX, index));
+            let assign_idx = Self::inc_count_ref(assignments, assignment_count, &temp_name);
+            if local_temp_assignments.len() <= slot {
+                local_temp_assignments.resize(slot + 1, None);
+            }
+            local_temp_assignments[slot] = Some(assign_idx);
+            return assign_idx;
+        }
+        let temp_name = JsString::from(format!("{}{}", Self::LOCAL_VAR_PREFIX, index));
+        Self::inc_count_ref(assignments, assignment_count, &temp_name)
     }
 }
 
@@ -578,7 +632,17 @@ impl CompilerPass for RenameVars {
 /// function x(a,b) { ... }
 /// function y(a,b,c) { ... }
 struct ProcessVars<'a> {
-    this: &'a mut RenameVars,
+    global_name_nodes: &'a mut Vec<(NodeId, u32)>,
+    local_name_nodes: &'a mut Vec<(NodeId, u32)>,
+    local_temp_assignments: &'a mut Vec<Option<usize>>,
+    pseudo_name_map: &'a mut Option<IndexMap<NodeId, JsString>>,
+    reserved_names: &'a mut IndexSet<JsString>,
+    assignment_count: &'a mut i32,
+    local_bleeding_functions: &'a mut IndexSet<VarId>,
+    local_bleeding_functions_per_scope: &'a mut IndexMap<ScopeId, Vec<VarId>>,
+    assignments: &'a mut IndexMap<JsString, Assignment>,
+    local_renaming_only: bool,
+    prefer_stable_names: bool,
 }
 
 impl Callback for ProcessVars<'_> {
@@ -598,10 +662,8 @@ impl Callback for ProcessVars<'_> {
             return;
         }
 
-        let name = n.get_string(t);
-
         // Ignore anonymous functions and classes.
-        if name.is_empty() {
+        if n.get_string_ref(t).is_empty() {
             return;
         }
 
@@ -620,7 +682,7 @@ impl Callback for ProcessVars<'_> {
         // scope, because IE has bugs in how it handles bleeding
         // functions.
         let scope = t.get_scope();
-        let var = scope.get_var(t.get_compiler(), name.clone());
+        let var = scope.get_var_of_node(t.get_compiler(), n);
         let local = {
             let compiler = t.get_compiler();
             var.is_some_and(|var| {
@@ -636,21 +698,33 @@ impl Callback for ProcessVars<'_> {
 
         // Never rename references to the arguments array
         if var.is_some_and(|var| var.is_arguments(t.get_compiler())) {
-            self.this.reserved_names.write().unwrap().insert(name);
+            let name = n.get_string_ref(t);
+            if !self.reserved_names.contains(name) {
+                self.reserved_names.insert(name.clone());
+            }
             return;
         }
 
         // Are we renaming global variables?
-        if !local && self.this.local_renaming_only {
-            self.this.reserved_names.write().unwrap().insert(name);
+        if !local && self.local_renaming_only {
+            let name = n.get_string_ref(t);
+            if !self.reserved_names.contains(name) {
+                self.reserved_names.insert(name.clone());
+            }
             return;
         }
 
         // Check if we can rename this.
-        if !RenameVars::ok_to_rename_var(t.get_compiler(), &name, local) {
+        let ok_to_rename = {
+            let compiler = t.get_compiler();
+            let name = n.get_string_ref(compiler);
+            RenameVars::ok_to_rename_var(compiler, name, local)
+        };
+        if !ok_to_rename {
             if local {
                 // Blindly de-uniquify for the Prototype library for
                 // http://blickly.github.io/closure-compiler-issues/#103
+                let name = n.get_string(t);
                 let new_name = ContextualRenameInverter::get_original_name(&name);
                 if new_name != name {
                     n.set_string(t, new_name);
@@ -659,34 +733,45 @@ impl Callback for ProcessVars<'_> {
             return;
         }
 
-        if self.this.pseudo_name_map.is_some() {
-            self.this.record_pseudo_name(t.get_compiler(), n);
+        if let Some(pseudo_name_map) = self.pseudo_name_map.as_mut() {
+            RenameVars::record_pseudo_name(pseudo_name_map, t.get_compiler(), n);
         }
 
         if local && {
             let compiler = t.get_compiler();
             let var_scope = var.unwrap().get_scope(compiler);
-            self.this
-                .should_temporarily_rename_locals_in_scope(compiler, var_scope)
+            RenameVars::should_temporarily_rename_locals_in_scope(
+                self.prefer_stable_names,
+                compiler,
+                var_scope,
+            )
         } {
             // Give local variables a temporary name based on the
             // variable's index in the scope to enable name reuse across
             // locals in independent scopes.
-            let index = self
-                .this
-                .get_local_var_index(t.get_compiler(), var.unwrap());
-            let temp_name = JsString::from(format!("{}{}", RenameVars::LOCAL_VAR_PREFIX, index));
-            self.this.inc_count(temp_name.clone());
-            self.this.local_name_nodes.push(n);
-            // Remember the original string in a name before it's temporarily filled with an "L".
-            let original = n.get_string(t);
-            self.this.original_name_by_node.insert(n, original);
-            n.set_string(t, temp_name);
+            let index = RenameVars::get_local_var_index(
+                self.local_bleeding_functions,
+                self.local_bleeding_functions_per_scope,
+                self.prefer_stable_names,
+                t.get_compiler(),
+                var.unwrap(),
+            );
+            let assign_idx = RenameVars::inc_local_temp_count(
+                self.assignments,
+                self.assignment_count,
+                self.local_temp_assignments,
+                index,
+            );
+            self.local_name_nodes.push((n, assign_idx as u32));
         } else if var.is_some() {
             // Not an extern
             // If it's global, increment global count
-            self.this.inc_count(name);
-            self.this.global_name_nodes.push(n);
+            let assign_idx = RenameVars::inc_count_ref(
+                self.assignments,
+                self.assignment_count,
+                n.get_string_ref(t),
+            );
+            self.global_name_nodes.push((n, assign_idx as u32));
         }
     }
 
@@ -700,19 +785,20 @@ impl ScopedCallback for ProcessVars<'_> {
     fn enter_scope(&mut self, t: &mut NodeTraversal<'_>) {
         if t.in_global_hoist_scope() || {
             let scope = t.get_scope();
-            !self
-                .this
-                .should_temporarily_rename_locals_in_scope(t.get_compiler(), scope)
+            !RenameVars::should_temporarily_rename_locals_in_scope(
+                self.prefer_stable_names,
+                t.get_compiler(),
+                scope,
+            )
         } {
             return;
         }
         let scope = t.get_scope();
         for current in scope.get_var_iterable(t.get_compiler()) {
             if current.is_bleeding_function(t.get_compiler()) {
-                self.this.local_bleeding_functions.insert(current);
+                self.local_bleeding_functions.insert(current);
                 let parent = scope.get_parent(t.get_compiler()).unwrap();
-                self.this
-                    .local_bleeding_functions_per_scope
+                self.local_bleeding_functions_per_scope
                     .entry(parent)
                     .or_default()
                     .push(current);

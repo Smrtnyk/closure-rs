@@ -92,6 +92,9 @@ pub struct PureFunctionIdentifier {
     /// Variable names are recorded as-is. Property names are prefixed with
     /// `PROP_NAME_PREFIX` to differentiate them from variable names.
     summaries_by_name: IndexMap<JsString, SummaryId>,
+    /// Rust-only (performance divergence): parallel lookup table for property names without
+    /// `PROP_NAME_PREFIX`, avoiding a `"." + name` allocation on every method call lookup.
+    summaries_by_prop_name: IndexMap<JsString, SummaryId>,
 
     /// Mapping from function node to summaries for all names associated with that node (Java's
     /// `ArrayListMultimap`).
@@ -185,6 +188,7 @@ impl PureFunctionIdentifier {
             validate_artificial_purity,
             summaries,
             summaries_by_name: IndexMap::<_, _>::default(),
+            summaries_by_prop_name: IndexMap::<_, _>::default(),
             summaries_for_all_names_of_function_by_node: IndexMap::<_, _>::default(),
             artificially_pure_literals_for_debugging: IndexSet::<_>::default(),
             all_function_calls: Vec::new(),
@@ -613,13 +617,7 @@ impl PureFunctionIdentifier {
 
                 results.extend(summaries_for_function);
             } else {
-                let callee_name = Self::name_for_reference(compiler, callee);
-                results.push(
-                    self.summaries_by_name
-                        .get(&callee_name)
-                        .copied()
-                        .unwrap_or(self.unknown_function_summary),
-                );
+                results.push(self.lookup_summary_for_reference(compiler, callee));
             }
         }
         results
@@ -678,6 +676,10 @@ impl PureFunctionIdentifier {
                 &mut self.reverse_call_graph,
                 name.clone(),
             );
+            if name.as_units().first() == Some(&u16::from(b'.')) {
+                self.summaries_by_prop_name
+                    .insert(name.substring(1, name.length()), summary);
+            }
             self.summaries_by_name.insert(name.clone(), summary);
         }
 
@@ -766,12 +768,7 @@ impl PureFunctionIdentifier {
                         self.put_summary_for_function(rvalue, summary_for_name);
                     } else if NodeUtil::is_undefined(compiler, rvalue) {
                     } else {
-                        let rvalue_name = Self::name_for_reference(compiler, rvalue);
-                        let rvalue_summary = self
-                            .summaries_by_name
-                            .get(&rvalue_name)
-                            .copied()
-                            .unwrap_or(self.unknown_function_summary);
+                        let rvalue_summary = self.lookup_summary_for_reference(compiler, rvalue);
 
                         self.reverse_call_graph.connect_nodes(
                             self.summaries[rvalue_summary.0].graph_node,
@@ -924,16 +921,21 @@ impl PureFunctionIdentifier {
             || invocation.is_tagged_template_lit(ast)
     }
 
-    /// Returns the unqualified name associated with an R-value.
-    ///
-    /// For NAMEs this is the name. For GETPROPs this is the last segment including a leading dot.
+    /// Rust-only (performance divergence): look up the summary for a `NAME` or `GETPROP` reference
+    /// directly without allocating `JsString` or prepending `"."`.
     // port: PureFunctionIdentifier#nameForReference
-    fn name_for_reference(ast: &Ast, name_ref: NodeId) -> JsString {
+    fn lookup_summary_for_reference(&self, ast: &Ast, name_ref: NodeId) -> SummaryId {
         match name_ref.get_token(ast) {
-            Token::NAME => name_ref.get_string(ast),
-            Token::GETPROP | Token::OPTCHAIN_GETPROP => {
-                JsString::from(Self::PROP_NAME_PREFIX).concat(&name_ref.get_string(ast))
-            }
+            Token::NAME => self
+                .summaries_by_name
+                .get(name_ref.get_string_ref(ast))
+                .copied()
+                .unwrap_or(self.unknown_function_summary),
+            Token::GETPROP | Token::OPTCHAIN_GETPROP => self
+                .summaries_by_prop_name
+                .get(name_ref.get_string_ref(ast))
+                .copied()
+                .unwrap_or(self.unknown_function_summary),
             _ => panic!("Unexpected name reference: {}", name_ref.to_string(ast)),
         }
     }

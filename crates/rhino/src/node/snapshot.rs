@@ -187,7 +187,7 @@ impl PackedRows<&[u8]> {
         let mut properties = Vec::with_capacity(lists.len() + 1);
         properties.push((None, 0, None));
         properties.extend(lists.into_iter().map(|head| {
-            let (mask, doc) = super::prop_list_summary(Some(&head));
+            let (mask, doc, _) = super::prop_list_summary(Some(&head));
             (Some(head), mask, doc)
         }));
         let word = |row: &[u8; ROW_BYTES], at| u16::from_le_bytes([row[at], row[at + 1]]);

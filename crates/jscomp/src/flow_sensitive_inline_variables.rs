@@ -36,32 +36,72 @@
 //! analysis re-initializes its annotations in the same order).
 
 use crate::abstract_compiler::AbstractCompiler;
+use crate::accessor_summary::AccessorSummary;
 use crate::compiler_pass::CompilerPass;
 use crate::control_flow_analysis::ControlFlowAnalysis;
-use crate::control_flow_graph::{
-    AbstractCfgNodeTraversal, AbstractCfgNodeTraversalCallback, ControlFlowGraph,
-};
+use crate::control_flow_graph::ControlFlowGraph;
 use crate::data_flow_analysis::{DataFlowAnalysis, compute_escaped};
 use crate::graph::adjacency_graph::AdjacencyGraph;
 use crate::graph::check_paths_between_nodes::CheckPathsBetweenNodes;
 use crate::live_variables_analysis;
 use crate::maybe_reaching_variable_use::MaybeReachingVariableUse;
-use crate::must_be_reaching_variable_def::{Definition, MustBeReachingVariableDef};
-use crate::node_traversal::{
-    AbstractPostOrderCallbackInterface, AbstractShallowCallback, Callback, NodeTraversal,
-    ScopedCallback,
+use crate::must_be_reaching_variable_def::{
+    BorrowedMustDef, Definition, MustBeReachingVariableDef, PreparedMustDef,
 };
+use crate::node_traversal::{Callback, NodeTraversal, ScopedCallback};
 use crate::node_util::NodeUtil;
 use crate::scope::ScopeId;
+use crate::scope_creator::ScopeCreator;
+use crate::syntactic_scope_cache::SyntacticScopeCache;
+use crate::syntactic_scope_creator::{SyntacticScopeCreator, ensure_ancestor_scope};
 use crate::var::VarId;
-use closure_rhino::fast_hash::IndexSet;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use closure_rhino::{check_argument, check_not_null, check_state};
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
+
+static USE_CLEAN_CACHE: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("CLOSURE_RS_FSIV_CACHE").as_deref() != Ok("off"));
+
+/// Rust-only (performance divergence): compiler-owned cache of unchanged leaf functions known to
+/// produce zero flow-sensitive inlines under the current purity environment (`AccessorSummary`,
+/// `has_reg_exp_global_references`, and `assume_getters_are_pure`). Per-function `SIDE_EFFECT_FLAGS`
+/// updates are tracked per subtree via `SyntacticScopeCache::subtree_stamp_with_flags`.
+#[derive(Default)]
+pub(crate) struct FlowInlineCleanCache {
+    accessor_summary: Option<Arc<AccessorSummary>>,
+    has_reg_exp_global_references: bool,
+    assume_getters_are_pure: bool,
+    clean_leaves: IndexMap<NodeId, (u32, u32)>,
+}
+
+impl FlowInlineCleanCache {
+    fn sync_environment(
+        &mut self,
+        accessor_summary: Option<&Arc<AccessorSummary>>,
+        has_reg_exp_global_references: bool,
+        assume_getters_are_pure: bool,
+    ) {
+        let accessor_same = match (&self.accessor_summary, accessor_summary) {
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b) || a == b,
+            (None, None) => true,
+            _ => false,
+        };
+        if !accessor_same
+            || self.has_reg_exp_global_references != has_reg_exp_global_references
+            || self.assume_getters_are_pure != assume_getters_are_pure
+        {
+            self.clean_leaves.clear();
+        }
+        self.accessor_summary = accessor_summary.cloned();
+        self.has_reg_exp_global_references = has_reg_exp_global_references;
+        self.assume_getters_are_pure = assume_getters_are_pure;
+    }
+}
 
 pub struct FlowSensitiveInlineVariables {
     side_effect_predicate: SideEffectPredicate,
@@ -148,6 +188,7 @@ impl SideEffectPredicate {
 /// A function can be ruled out before allocating a control-flow graph. A surviving
 /// replacement needs a definition and a non-loop read with the same spelling. Collisions
 /// in the two name masks only admit additional functions to the ordinary analysis.
+#[derive(Clone, Copy)]
 enum InlineAnalysis {
     NoCandidate,
     DeferUses,
@@ -315,11 +356,505 @@ impl FlowSensitiveInlineVariables {
         }
         false
     }
+
+    /// Rust-only (performance divergence): collects candidate `(fn_node, body, analysis, is_leaf)`
+    /// in exact `NodeTraversal` `enterScope` preorder while skipping extern scripts and functions
+    /// ruled out by `is_candidate_function` or `InlineAnalysis::for_body`. Returns whether `n` or
+    /// any descendant contains a `FUNCTION` or `CLASS`.
+    fn collect_candidate_functions(
+        compiler: &AbstractCompiler,
+        n: NodeId,
+        out: &mut Vec<(NodeId, NodeId, InlineAnalysis, bool)>,
+    ) -> bool {
+        if n.is_script(compiler)
+            && let Some(input_id) = n.get_input_id(compiler)
+            && compiler
+                .get_input(&input_id)
+                .is_some_and(|input| input.is_extern())
+        {
+            return false;
+        }
+        match n.get_token(compiler) {
+            Token::FUNCTION => {
+                let fn_name = n.get_first_child(compiler).unwrap();
+                let params = fn_name.get_next(compiler).unwrap();
+                let body = params.get_next(compiler).unwrap();
+                let params_has_nested = Self::collect_candidate_functions(compiler, params, out);
+                let slot =
+                    if body.is_block(compiler) && Self::is_candidate_function(&compiler.ast, n) {
+                        let analysis = InlineAnalysis::for_body(&compiler.ast, body, usize::MAX);
+                        if !matches!(analysis, InlineAnalysis::NoCandidate) {
+                            let idx = out.len();
+                            out.push((n, body, analysis, false));
+                            Some(idx)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+                let body_has_nested = Self::collect_candidate_functions(compiler, body, out);
+                if let Some(idx) = slot {
+                    out[idx].3 = !params_has_nested && !body_has_nested;
+                }
+                true
+            }
+            Token::CLASS => {
+                let class_name = n.get_first_child(compiler).unwrap();
+                let extends_clause = class_name.get_next(compiler).unwrap();
+                let body = extends_clause.get_next(compiler).unwrap();
+                Self::collect_candidate_functions(compiler, extends_clause, out);
+                Self::collect_candidate_functions(compiler, class_name, out);
+                Self::collect_candidate_functions(compiler, body, out);
+                true
+            }
+            _ => {
+                let mut has_nested = false;
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    let next = c.get_next(compiler);
+                    has_nested |= Self::collect_candidate_functions(compiler, c, out);
+                    child = next;
+                }
+                has_nested
+            }
+        }
+    }
+
+    /// Runs full flow-sensitive inlining on one function body. Returns `(did_inline,
+    /// rejected_by_outer_scope)` so unchanged leaf functions with zero inlines and no outer-scope
+    /// slot rejections can be cached across optimization rounds.
+    fn inline_function_body(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        scope_creator: &mut dyn ScopeCreator,
+        function_scope_root: NodeId,
+        scope_root: NodeId,
+        scope: ScopeId,
+        analysis: InlineAnalysis,
+    ) -> (bool, bool) {
+        // Compute the forward reaching definition.
+        let cfg = ControlFlowAnalysis::compute_cfg_readonly(
+            &compiler.ast,
+            compiler.get_options().can_continue_after_errors(),
+            function_scope_root,
+            false,
+            true,
+        );
+
+        let mut escaped: IndexSet<VarId> = IndexSet::<_>::default();
+        let scope_parent = scope.get_parent(compiler).unwrap();
+        let all_vars_declared_in_function =
+            NodeUtil::get_all_vars_declared_in_function(compiler, scope_creator, scope_parent);
+        let (all_vars_in_fn, _) = all_vars_declared_in_function.into_parts();
+        compute_escaped(
+            compiler,
+            scope_parent,
+            &mut escaped,
+            scope_creator,
+            &all_vars_in_fn,
+        );
+
+        let mut reaching_def =
+            MustBeReachingVariableDef::new(compiler, cfg, escaped, all_vars_in_fn);
+        reaching_def.analyze_indexed(compiler);
+        let mut candidates: VecDeque<Candidate> = VecDeque::new();
+
+        gather_candidates_shallow(compiler, &reaching_def, &mut candidates, scope_root, None);
+        if candidates.is_empty() {
+            return (false, false);
+        }
+
+        // Compute the backward reaching use. The CFG and per-function variable info can be
+        // reused.
+        let mut reaching_uses = reaching_def.into_use_analysis();
+        let mut uses_ready = matches!(analysis, InlineAnalysis::Full);
+        if uses_ready {
+            reaching_uses.analyze_indexed(compiler);
+        }
+        let mut did_inline = false;
+        let mut rejected_by_outer_scope = false;
+        while let Some(mut c) = candidates.pop_front() {
+            let candidate_var = check_not_null!(reaching_uses.variable(&c.var_name));
+            let candidate_scope = candidate_var.get_scope(compiler);
+            if !c.find_definition_and_single_read(compiler) {
+                continue;
+            }
+            if !uses_ready {
+                reaching_uses.analyze_indexed(compiler);
+                uses_ready = true;
+            }
+            if c.can_inline(
+                compiler,
+                &mut reaching_uses,
+                &self.side_effect_predicate,
+                candidate_scope,
+                &mut rejected_by_outer_scope,
+            ) {
+                c.inline_variable(compiler);
+                did_inline = true;
+                if !c.def_metadata.depends.is_empty() {
+                    candidates.retain(|other| {
+                        let c_var = scope.get_var(compiler, c.var_name.clone());
+                        let remove = var_set_contains(compiler, &other.def_metadata.depends, c_var)
+                            && !var_set_contains_all(
+                                compiler,
+                                &other.def_metadata.depends,
+                                &c.def_metadata.depends,
+                            );
+                        !remove
+                    });
+                }
+            }
+        }
+        (did_inline, rejected_by_outer_scope)
+    }
+}
+
+struct PreparedFlowJob {
+    fn_node: NodeId,
+    body: NodeId,
+    analysis: InlineAnalysis,
+    is_leaf: bool,
+    start_stamp: (u32, u32),
+    prepared: PreparedMustDef,
+    catch_vars: IndexSet<VarId>,
+    exported_local_names: IndexSet<JsString>,
+}
+
+impl PreparedFlowJob {
+    /// Worker-local screening: runs CFG, `MustBeReachingVariableDef`, shallow candidate
+    /// gathering, quick structural filtering, and (when needed) `MaybeReachingVariableUse`
+    /// single-use checking. Drops all graphs/lattices on the worker thread (zero cross-thread
+    /// frees) and returns whether the function has at least one candidate that could inline.
+    fn might_inline(&self, ast: &Ast, can_continue_after_errors: bool) -> bool {
+        let cfg = ControlFlowAnalysis::compute_cfg_readonly(
+            ast,
+            can_continue_after_errors,
+            self.fn_node,
+            false,
+            true,
+        );
+        let reaching_def = self.prepared.run_borrowed(ast, cfg);
+        let mut candidates: Vec<Candidate> = Vec::new();
+        gather_candidates_shallow_readonly(
+            ast,
+            &reaching_def,
+            &self.catch_vars,
+            &self.exported_local_names,
+            &mut candidates,
+            self.body,
+            None,
+        );
+        if candidates.is_empty() {
+            return false;
+        }
+        let mut quick_survivors: Vec<Candidate> = Vec::new();
+        for mut c in candidates {
+            if c.quick_check_ast(ast) {
+                quick_survivors.push(c);
+            }
+        }
+        if quick_survivors.is_empty() {
+            return false;
+        }
+        let cfg = reaching_def.into_cfg();
+        let reaching_uses = MaybeReachingVariableUse::run_borrowed(
+            ast,
+            cfg,
+            self.prepared.escaped_var_ids(),
+            self.prepared.all_vars(),
+        );
+        quick_survivors
+            .iter()
+            .any(|c| reaching_uses.has_single_use(&c.var_name, c.get_def_cfg_node()))
+    }
 }
 
 impl CompilerPass for FlowSensitiveInlineVariables {
     // port: FlowSensitiveInlineVariables#process
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
+        if compiler.get_life_cycle_stage().is_normalized()
+            && compiler.get_coding_convention().export_tests_are_pure()
+        {
+            // Rust-only (performance divergence): walk candidate functions directly without
+            // creating scopes for externs or non-candidates, skip unchanged leaf functions known
+            // to have zero inlines from an earlier round, and screen large batches in parallel
+            // across worker threads (dropping CFGs/lattices on workers to avoid cross-thread
+            // heap retention).
+            let use_cache = *USE_CLEAN_CACHE;
+            if use_cache {
+                let accessor = compiler.get_accessor_summary().cloned();
+                let has_regexp_globals = compiler.has_reg_exp_global_references();
+                let assume_getters_pure = compiler.get_options().get_assume_getters_are_pure();
+                compiler.flow_inline_clean_cache.sync_environment(
+                    accessor.as_ref(),
+                    has_regexp_globals,
+                    assume_getters_pure,
+                );
+            }
+            let mut raw_candidates = Vec::new();
+            Self::collect_candidate_functions(compiler, root, &mut raw_candidates);
+            if raw_candidates.is_empty() {
+                return;
+            }
+            let mut candidates = Vec::with_capacity(raw_candidates.len());
+            for (fn_node, body, analysis, is_leaf) in raw_candidates {
+                let start_stamp = if use_cache && is_leaf {
+                    let stamp = SyntacticScopeCache::subtree_stamp_with_flags(compiler, fn_node);
+                    if compiler.flow_inline_clean_cache.clean_leaves.get(&fn_node) == Some(&stamp) {
+                        continue;
+                    }
+                    stamp
+                } else {
+                    (0, 0)
+                };
+                candidates.push((fn_node, body, analysis, is_leaf, start_stamp));
+            }
+            if candidates.is_empty() {
+                return;
+            }
+            let can_continue_after_errors = compiler.get_options().can_continue_after_errors();
+            // Match `NodeTraversal::traverse_roots(externs, root)` by rooting the global scope at
+            // `externs.get_parent()` so extern globals (e.g. `window`) are visible to
+            // `Candidate::is_rhs_safe_to_inline` (`usage_scope.has_slot`).
+            let global_scope_root = externs
+                .get_parent(compiler)
+                .filter(|&p| root.get_parent(compiler) == Some(p))
+                .unwrap_or(root);
+            let mut scope_creator = SyntacticScopeCreator::new();
+            let mut scope_memo = IndexMap::default();
+            let use_parallel =
+                crate::parallel_parse::parallel_thread_count(candidates.len(), 500, 8) > 1;
+            if !use_parallel {
+                for (fn_node, body, analysis, is_leaf, start_stamp) in candidates {
+                    let fn_scope = ensure_ancestor_scope(
+                        compiler,
+                        &mut scope_creator,
+                        &mut scope_memo,
+                        global_scope_root,
+                        fn_node,
+                    );
+                    let block_scope = scope_creator.create_scope(compiler, body, Some(fn_scope));
+                    if live_variables_analysis::MAX_VARIABLES_TO_ANALYZE
+                        < block_scope.get_var_count(compiler)
+                    {
+                        if use_cache && is_leaf {
+                            compiler
+                                .flow_inline_clean_cache
+                                .clean_leaves
+                                .insert(fn_node, start_stamp);
+                        }
+                        continue;
+                    }
+                    let (did_inline, rejected_by_outer) = self.inline_function_body(
+                        compiler,
+                        &mut scope_creator,
+                        fn_node,
+                        body,
+                        block_scope,
+                        analysis,
+                    );
+                    if use_cache
+                        && is_leaf
+                        && !did_inline
+                        && !rejected_by_outer
+                        && SyntacticScopeCache::subtree_stamp_with_flags(compiler, fn_node)
+                            == start_stamp
+                    {
+                        compiler
+                            .flow_inline_clean_cache
+                            .clean_leaves
+                            .insert(fn_node, start_stamp);
+                    }
+                }
+                return;
+            }
+            const CHUNK_SIZE: usize = 2048;
+            for chunk in candidates.chunks(CHUNK_SIZE) {
+                let mut jobs = Vec::with_capacity(chunk.len());
+                for &(fn_node, body, analysis, is_leaf, start_stamp) in chunk {
+                    let fn_scope = ensure_ancestor_scope(
+                        compiler,
+                        &mut scope_creator,
+                        &mut scope_memo,
+                        global_scope_root,
+                        fn_node,
+                    );
+                    let block_scope = scope_creator.create_scope(compiler, body, Some(fn_scope));
+                    if live_variables_analysis::MAX_VARIABLES_TO_ANALYZE
+                        < block_scope.get_var_count(compiler)
+                    {
+                        if use_cache && is_leaf {
+                            compiler
+                                .flow_inline_clean_cache
+                                .clean_leaves
+                                .insert(fn_node, start_stamp);
+                        }
+                        continue;
+                    }
+                    let all_vars = NodeUtil::get_all_vars_declared_in_function(
+                        compiler,
+                        &mut scope_creator,
+                        fn_scope,
+                    );
+                    let (all_vars_in_fn, _) = all_vars.into_parts();
+                    let mut escaped = IndexSet::default();
+                    compute_escaped(
+                        compiler,
+                        fn_scope,
+                        &mut escaped,
+                        &mut scope_creator,
+                        &all_vars_in_fn,
+                    );
+                    let mut catch_vars = IndexSet::default();
+                    let mut exported_local_names = IndexSet::default();
+                    for (name, &var) in &all_vars_in_fn {
+                        if var.get_scope(compiler).is_catch_scope(compiler) {
+                            catch_vars.insert(var);
+                        }
+                        if compiler
+                            .get_coding_convention()
+                            .is_exported(name, /* local= */ true)
+                        {
+                            exported_local_names.insert(name.clone());
+                        }
+                    }
+                    let prepared = PreparedMustDef::new(compiler, &escaped, all_vars_in_fn);
+                    jobs.push(PreparedFlowJob {
+                        fn_node,
+                        body,
+                        analysis,
+                        is_leaf,
+                        start_stamp,
+                        prepared,
+                        catch_vars,
+                        exported_local_names,
+                    });
+                }
+                let threads = crate::parallel_parse::parallel_thread_count(jobs.len(), 256, 8);
+                if threads < 2 {
+                    for job in jobs {
+                        let fn_scope = ensure_ancestor_scope(
+                            compiler,
+                            &mut scope_creator,
+                            &mut scope_memo,
+                            global_scope_root,
+                            job.fn_node,
+                        );
+                        let block_scope =
+                            scope_creator.create_scope(compiler, job.body, Some(fn_scope));
+                        let (did_inline, rejected_by_outer) = self.inline_function_body(
+                            compiler,
+                            &mut scope_creator,
+                            job.fn_node,
+                            job.body,
+                            block_scope,
+                            job.analysis,
+                        );
+                        if use_cache
+                            && job.is_leaf
+                            && !did_inline
+                            && !rejected_by_outer
+                            && SyntacticScopeCache::subtree_stamp_with_flags(compiler, job.fn_node)
+                                == job.start_stamp
+                        {
+                            compiler
+                                .flow_inline_clean_cache
+                                .clean_leaves
+                                .insert(job.fn_node, job.start_stamp);
+                        }
+                    }
+                    continue;
+                }
+                let ast = &compiler.ast;
+                let jobs_ref = &jobs;
+                let might_inline: Vec<std::sync::atomic::AtomicBool> = (0..jobs.len())
+                    .map(|_| std::sync::atomic::AtomicBool::new(false))
+                    .collect();
+                let might_inline_ref = &might_inline;
+                let next = std::sync::atomic::AtomicUsize::new(0);
+                std::thread::scope(|scope| {
+                    let mut handles = Vec::with_capacity(threads);
+                    for _ in 0..threads {
+                        let next = &next;
+                        let handle = std::thread::Builder::new()
+                            .name("closure-fsiv".into())
+                            .stack_size(crate::compiler_executor::COMPILER_STACK_SIZE)
+                            .spawn_scoped(scope, move || {
+                                loop {
+                                    let idx =
+                                        next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                                    let Some(job) = jobs_ref.get(idx) else {
+                                        break;
+                                    };
+                                    if job.might_inline(ast, can_continue_after_errors) {
+                                        might_inline_ref[idx]
+                                            .store(true, std::sync::atomic::Ordering::Relaxed);
+                                    }
+                                }
+                            })
+                            .expect("spawn fsiv worker");
+                        handles.push(handle);
+                    }
+                    for h in handles {
+                        h.join().expect("fsiv worker panicked");
+                    }
+                });
+                let mut survivors = Vec::new();
+                for (job, flag) in jobs.into_iter().zip(might_inline) {
+                    if flag.into_inner() {
+                        survivors.push((
+                            job.fn_node,
+                            job.body,
+                            job.analysis,
+                            job.is_leaf,
+                            job.start_stamp,
+                        ));
+                    } else if use_cache && job.is_leaf {
+                        compiler
+                            .flow_inline_clean_cache
+                            .clean_leaves
+                            .insert(job.fn_node, job.start_stamp);
+                    }
+                }
+                if !survivors.is_empty() {
+                    scope_memo.clear();
+                    for (fn_node, body, analysis, is_leaf, start_stamp) in survivors {
+                        let fn_scope = ensure_ancestor_scope(
+                            compiler,
+                            &mut scope_creator,
+                            &mut scope_memo,
+                            global_scope_root,
+                            fn_node,
+                        );
+                        let block_scope =
+                            scope_creator.create_scope(compiler, body, Some(fn_scope));
+                        let (did_inline, rejected_by_outer) = self.inline_function_body(
+                            compiler,
+                            &mut scope_creator,
+                            fn_node,
+                            body,
+                            block_scope,
+                            analysis,
+                        );
+                        if use_cache
+                            && is_leaf
+                            && !did_inline
+                            && !rejected_by_outer
+                            && SyntacticScopeCache::subtree_stamp_with_flags(compiler, fn_node)
+                                == start_stamp
+                        {
+                            compiler
+                                .flow_inline_clean_cache
+                                .clean_leaves
+                                .insert(fn_node, start_stamp);
+                        }
+                    }
+                }
+            }
+            return;
+        }
         NodeTraversal::builder()
             .set_compiler(compiler)
             .set_callback(self)
@@ -363,6 +898,13 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
             return; // Only want to do the following if its a function block scope.
         }
 
+        let scope = t.get_scope();
+
+        if live_variables_analysis::MAX_VARIABLES_TO_ANALYZE < scope.get_var_count(t.get_compiler())
+        {
+            return;
+        }
+
         let function_scope_root = t.get_scope_root().unwrap().get_parent(t).unwrap();
 
         if !Self::is_candidate_function(t, function_scope_root) {
@@ -381,13 +923,6 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
         };
         let analysis = InlineAnalysis::for_body(t, t.get_scope_root().unwrap(), node_budget);
         if matches!(analysis, InlineAnalysis::NoCandidate) {
-            return;
-        }
-
-        let scope = t.get_scope();
-
-        if live_variables_analysis::MAX_VARIABLES_TO_ANALYZE < scope.get_var_count(t.get_compiler())
-        {
             return;
         }
 
@@ -420,15 +955,10 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
         let mut candidates: VecDeque<Candidate> = VecDeque::new();
 
         // Using the forward reaching definition search to find all the inline
-        // candidates
-        NodeTraversal::traverse(
-            compiler,
-            scope_root,
-            &mut AbstractShallowCallback::new(GatherCandidates::new(
-                &reaching_def,
-                &mut candidates,
-            )),
-        );
+        // candidates.
+        // Rust-only (performance divergence): walk directly over `&AbstractCompiler` instead of
+        // allocating a `NodeTraversal` per function and per CFG node.
+        gather_candidates_shallow(compiler, &reaching_def, &mut candidates, scope_root, None);
         if candidates.is_empty() {
             return;
         }
@@ -452,11 +982,13 @@ impl ScopedCallback for FlowSensitiveInlineVariables {
                 reaching_uses.analyze_indexed(compiler);
                 uses_ready = true;
             }
+            let mut _rejected = false;
             if c.can_inline(
                 compiler,
                 &mut reaching_uses,
                 &self.side_effect_predicate,
                 candidate_scope,
+                &mut _rejected,
             ) {
                 c.inline_variable(compiler);
 
@@ -507,63 +1039,53 @@ fn var_set_contains_all(
         .all(|&var| var_set_contains(compiler, set, Some(var)))
 }
 
-struct GatherCandidatesCfgNodeCallback<'a> {
-    cfg_node: Option<NodeId>,
-    /// The outer pass's `reachingDef` and `candidates`.
-    reaching_def: &'a MustBeReachingVariableDef,
-    candidates: &'a mut VecDeque<Candidate>,
-}
-
-impl GatherCandidatesCfgNodeCallback<'_> {
-    // port: FlowSensitiveInlineVariables.GatherCandidatesCfgNodeCallback#setCfgNode
-    fn set_cfg_node(&mut self, cfg_node: NodeId) {
-        self.cfg_node = Some(cfg_node);
+// port: FlowSensitiveInlineVariables.GatherCandidatesCfgNodeCallback#visit
+fn gather_candidates_in_cfg_node(
+    compiler: &AbstractCompiler,
+    reaching_def: &MustBeReachingVariableDef,
+    candidates: &mut VecDeque<Candidate>,
+    cfg_node: NodeId,
+    n: NodeId,
+    parent: NodeId,
+) {
+    if ControlFlowGraph::is_entering_new_cfg_node(compiler, n) {
+        return;
     }
-}
+    let mut child = n.get_first_child(compiler);
+    while let Some(c) = child {
+        gather_candidates_in_cfg_node(compiler, reaching_def, candidates, cfg_node, c, n);
+        child = c.get_next(compiler);
+    }
+    if n.is_name(compiler) {
+        // Make sure that the name node is purely a read.
+        if (NodeUtil::is_assignment_op(compiler, parent)
+            && parent.get_first_child(compiler) == Some(n))
+            || NodeUtil::is_name_declaration(compiler, Some(parent))
+            || parent.is_inc(compiler)
+            || parent.is_dec(compiler)
+            || parent.is_param_list(compiler)
+            || parent.is_catch(compiler)
+            || NodeUtil::is_lhs_by_destructuring(compiler, n)
+        {
+            return;
+        }
 
-impl AbstractCfgNodeTraversalCallback for GatherCandidatesCfgNodeCallback<'_> {
-    // port: FlowSensitiveInlineVariables.GatherCandidatesCfgNodeCallback#visit
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        if n.is_name(t) {
-            // n.getParent() isn't null. This just the case where n is the root
-            // node that gatherCb started at.
-            let Some(parent) = parent else {
-                return;
-            };
+        let name = n.get_string_ref(compiler);
+        // This pass only runs on local scopes.
+        if compiler
+            .get_coding_convention()
+            .is_exported(name, /* local= */ true)
+        {
+            return;
+        }
 
-            // Make sure that the name node is purely a read.
-            if (NodeUtil::is_assignment_op(t, parent) && parent.get_first_child(t) == Some(n))
-                || NodeUtil::is_name_declaration(t, Some(parent))
-                || parent.is_inc(t)
-                || parent.is_dec(t)
-                || parent.is_param_list(t)
-                || parent.is_catch(t)
-                || NodeUtil::is_lhs_by_destructuring(t, n)
-            {
-                return;
-            }
-
-            let name = n.get_string(t);
-            // This pass only runs on local scopes.
-            if t.get_compiler()
-                .get_coding_convention()
-                .is_exported(&name, /* local= */ true)
-            {
-                return;
-            }
-
-            let cfg_node = self.cfg_node.unwrap();
-            let def = self.reaching_def.get_def(&name, cfg_node);
-            // TODO(nicksantos): We need to add some notion of @const outer
-            // scope vars. We can inline those just fine.
-            if let Some(def) = def
-                && !self
-                    .reaching_def
-                    .depends_on_outer_scope_vars(t.get_compiler(), &def)
-            {
-                self.candidates
-                    .push_back(Candidate::new(t, name, def, n, cfg_node));
-            }
+        let def = reaching_def.get_def(name, cfg_node);
+        // TODO(nicksantos): We need to add some notion of @const outer
+        // scope vars. We can inline those just fine.
+        if let Some(def) = def
+            && !reaching_def.depends_on_outer_scope_vars(compiler, &def)
+        {
+            candidates.push_back(Candidate::new(compiler, name.clone(), def, n, cfg_node));
         }
     }
 }
@@ -572,46 +1094,144 @@ impl AbstractCfgNodeTraversalCallback for GatherCandidatesCfgNodeCallback<'_> {
 /// [`MustBeReachingVariableDef`]. The list will be stored in `candidates` and the validity of
 /// each inlining Candidate should be later verified with `Candidate::can_inline` when
 /// [`MaybeReachingVariableUse`] has been performed.
-struct GatherCandidates<'a> {
-    reaching_def: &'a MustBeReachingVariableDef,
-    gather_cb: AbstractCfgNodeTraversal<GatherCandidatesCfgNodeCallback<'a>>,
+// port: FlowSensitiveInlineVariables.GatherCandidates#visit
+fn gather_candidates_shallow(
+    compiler: &AbstractCompiler,
+    reaching_def: &MustBeReachingVariableDef,
+    candidates: &mut VecDeque<Candidate>,
+    n: NodeId,
+    parent: Option<NodeId>,
+) {
+    if let Some(p) = parent
+        && p.is_function(compiler)
+        && Some(n) != p.get_first_child(compiler)
+    {
+        return;
+    }
+    let mut child = n.get_first_child(compiler);
+    while let Some(c) = child {
+        gather_candidates_shallow(compiler, reaching_def, candidates, c, Some(n));
+        child = c.get_next(compiler);
+    }
+    // The root itself is never a candidate read: its callback receives no parent.
+    // A container whose children all start new CFG nodes has no other visits.
+    if !n.has_children(compiler)
+        || ControlFlowGraph::<NodeId>::children_start_new_cfg_nodes(n.get_token(compiler))
+    {
+        return;
+    }
+    if reaching_def.get_cfg().get_node(&Some(n)).is_none() {
+        // Not a CFG node.
+        return;
+    }
+    let mut child = n.get_first_child(compiler);
+    while let Some(c) = child {
+        gather_candidates_in_cfg_node(compiler, reaching_def, candidates, n, c, n);
+        child = c.get_next(compiler);
+    }
 }
 
-impl<'a> GatherCandidates<'a> {
-    fn new(
-        reaching_def: &'a MustBeReachingVariableDef,
-        candidates: &'a mut VecDeque<Candidate>,
-    ) -> Self {
-        Self {
+#[allow(clippy::too_many_arguments)]
+fn gather_candidates_in_cfg_node_readonly(
+    ast: &Ast,
+    reaching_def: &BorrowedMustDef<'_>,
+    catch_vars: &IndexSet<VarId>,
+    exported_local_names: &IndexSet<JsString>,
+    candidates: &mut Vec<Candidate>,
+    cfg_node: NodeId,
+    n: NodeId,
+    parent: NodeId,
+) {
+    if ControlFlowGraph::is_entering_new_cfg_node(ast, n) {
+        return;
+    }
+    let mut child = n.get_first_child(ast);
+    while let Some(c) = child {
+        gather_candidates_in_cfg_node_readonly(
+            ast,
             reaching_def,
-            gather_cb: AbstractCfgNodeTraversal(GatherCandidatesCfgNodeCallback {
-                cfg_node: None,
-                reaching_def,
-                candidates,
-            }),
+            catch_vars,
+            exported_local_names,
+            candidates,
+            cfg_node,
+            c,
+            n,
+        );
+        child = c.get_next(ast);
+    }
+    if n.is_name(ast) {
+        if (NodeUtil::is_assignment_op(ast, parent) && parent.get_first_child(ast) == Some(n))
+            || NodeUtil::is_name_declaration(ast, Some(parent))
+            || parent.is_inc(ast)
+            || parent.is_dec(ast)
+            || parent.is_param_list(ast)
+            || parent.is_catch(ast)
+            || NodeUtil::is_lhs_by_destructuring(ast, n)
+        {
+            return;
+        }
+        let name = n.get_string_ref(ast);
+        if exported_local_names.contains(name) {
+            return;
+        }
+        if let Some(def) = reaching_def.get_def(name, cfg_node)
+            && !def.unknown_dependencies_flag()
+            && !def.depends.iter().any(|v| catch_vars.contains(v))
+        {
+            candidates.push(Candidate::new(ast, name.clone(), def, n, cfg_node));
         }
     }
 }
 
-impl AbstractPostOrderCallbackInterface for GatherCandidates<'_> {
-    // port: FlowSensitiveInlineVariables.GatherCandidates#visit
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-        // The root itself is never a candidate read: its callback receives no parent.
-        // A container whose children all start new CFG nodes has no other visits.
-        if !n.has_children(t)
-            || ControlFlowGraph::<NodeId>::children_start_new_cfg_nodes(n.get_token(t))
-        {
-            return;
-        }
-        let graph_node = self.reaching_def.get_cfg().get_node(&Some(n));
-        if graph_node.is_none() {
-            // Not a CFG node.
-            return;
-        }
-        let cfg_node = n;
-
-        self.gather_cb.0.set_cfg_node(cfg_node);
-        NodeTraversal::traverse(t.get_compiler(), cfg_node, &mut self.gather_cb);
+fn gather_candidates_shallow_readonly(
+    ast: &Ast,
+    reaching_def: &BorrowedMustDef<'_>,
+    catch_vars: &IndexSet<VarId>,
+    exported_local_names: &IndexSet<JsString>,
+    candidates: &mut Vec<Candidate>,
+    n: NodeId,
+    parent: Option<NodeId>,
+) {
+    if let Some(p) = parent
+        && p.is_function(ast)
+        && Some(n) != p.get_first_child(ast)
+    {
+        return;
+    }
+    let mut child = n.get_first_child(ast);
+    while let Some(c) = child {
+        gather_candidates_shallow_readonly(
+            ast,
+            reaching_def,
+            catch_vars,
+            exported_local_names,
+            candidates,
+            c,
+            Some(n),
+        );
+        child = c.get_next(ast);
+    }
+    if !n.has_children(ast)
+        || ControlFlowGraph::<NodeId>::children_start_new_cfg_nodes(n.get_token(ast))
+    {
+        return;
+    }
+    if reaching_def.cfg().get_node(&Some(n)).is_none() {
+        return;
+    }
+    let mut child = n.get_first_child(ast);
+    while let Some(c) = child {
+        gather_candidates_in_cfg_node_readonly(
+            ast,
+            reaching_def,
+            catch_vars,
+            exported_local_names,
+            candidates,
+            n,
+            c,
+            n,
+        );
+        child = c.get_next(ast);
     }
 }
 
@@ -655,6 +1275,32 @@ impl Candidate {
     // port: FlowSensitiveInlineVariables.Candidate#getDefCfgNode
     fn get_def_cfg_node(&self) -> NodeId {
         self.def_metadata.node
+    }
+
+    /// Read-only AST screening matching the cheap structural checks of
+    /// `find_definition_and_single_read`, safe on worker threads.
+    fn quick_check_ast(&mut self, ast: &Ast) -> bool {
+        if self.get_def_cfg_node().is_function(ast) {
+            return false;
+        }
+        if NodeUtil::is_within_loop(ast, self.use_) {
+            return false;
+        }
+        self.get_definition(ast, self.get_def_cfg_node());
+        let Some(def) = self.def else {
+            return false;
+        };
+        if def.is_assign(ast) && !NodeUtil::is_expr_assign(ast, def.get_parent(ast).unwrap()) {
+            return false;
+        }
+        let rhs = def.get_last_child(ast).unwrap();
+        if NodeUtil::has(ast, rhs, &Self::forbidden_rhs_node, &|ast, n| {
+            !n.is_function(ast)
+        }) {
+            return false;
+        }
+        self.get_num_use_in_use_cfg_node(ast, self.use_cfg_node);
+        self.num_uses_within_cfg_node == 1
     }
 
     /// The part of canInline that only needs the definition and the use's own CFG node.
@@ -740,12 +1386,13 @@ impl Candidate {
         reaching_uses: &mut MaybeReachingVariableUse,
         side_effect_predicate: &SideEffectPredicate,
         scope: ScopeId,
+        rejected_by_outer_scope: &mut bool,
     ) -> bool {
         if !reaching_uses.has_single_use(&self.var_name, self.get_def_cfg_node()) {
             return false;
         }
 
-        if !self.is_rhs_safe_to_inline(compiler, scope) {
+        if !self.is_rhs_safe_to_inline(compiler, scope, rejected_by_outer_scope) {
             return false;
         }
 
@@ -818,87 +1465,99 @@ impl Candidate {
     ///
     /// `n`: A node that has a corresponding CFG node in the CFG.
     // port: FlowSensitiveInlineVariables.Candidate#getDefinition
-    fn get_definition(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
-        struct GatherCb<'a> {
-            var_name: &'a JsString,
-            def: &'a mut Option<NodeId>,
-        }
-        impl AbstractCfgNodeTraversalCallback for GatherCb<'_> {
-            // port: FlowSensitiveInlineVariables.Candidate#getDefinition.visit
-            fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-                match n.get_token(t) {
-                    Token::NAME if n.get_string(t) == *self.var_name && n.has_children(t) => {
-                        *self.def = Some(n);
-                    }
-                    Token::ASSIGN => {
-                        let lhs = n.get_first_child(t).unwrap();
-                        if lhs.is_name(t) && lhs.get_string(t) == *self.var_name {
-                            *self.def = Some(n);
-                        }
-                    }
-                    _ => {}
+    fn get_definition(&mut self, compiler: &Ast, n: NodeId) {
+        // Rust-only (performance divergence): walk CFG node directly over `&Ast`
+        // without constructing a `NodeTraversal`.
+        // port: FlowSensitiveInlineVariables.Candidate#getDefinition.visit
+        fn walk(
+            compiler: &Ast,
+            var_name: &JsString,
+            def: &mut Option<NodeId>,
+            n: NodeId,
+            is_root: bool,
+        ) {
+            if !is_root && ControlFlowGraph::is_entering_new_cfg_node(compiler, n) {
+                return;
+            }
+            let mut child = n.get_first_child(compiler);
+            while let Some(c) = child {
+                walk(compiler, var_name, def, c, false);
+                child = c.get_next(compiler);
+            }
+            match n.get_token(compiler) {
+                Token::NAME
+                    if n.get_string_ref(compiler) == var_name && n.has_children(compiler) =>
+                {
+                    *def = Some(n);
                 }
+                Token::ASSIGN => {
+                    let lhs = n.get_first_child(compiler).unwrap();
+                    if lhs.is_name(compiler) && lhs.get_string_ref(compiler) == var_name {
+                        *def = Some(n);
+                    }
+                }
+                _ => {}
             }
         }
-        let mut gather_cb = AbstractCfgNodeTraversal(GatherCb {
-            var_name: &self.var_name,
-            def: &mut self.def,
-        });
-        NodeTraversal::traverse(compiler, n, &mut gather_cb);
+        walk(compiler, &self.var_name, &mut self.def, n, true);
     }
 
     /// Computes the number of uses of the variable varName and store it in
     /// numUseWithinUseCfgNode.
     // port: FlowSensitiveInlineVariables.Candidate#getNumUseInUseCfgNode
-    fn get_num_use_in_use_cfg_node(&mut self, compiler: &mut AbstractCompiler, cfg_node: NodeId) {
+    fn get_num_use_in_use_cfg_node(&mut self, compiler: &Ast, cfg_node: NodeId) {
         self.num_uses_within_cfg_node = 0;
-        struct GatherCb<'a> {
-            var_name: &'a JsString,
-            num_uses_within_cfg_node: &'a mut i32,
+        // port: FlowSensitiveInlineVariables.Candidate#getNumUseInUseCfgNode.isAssignChain
+        fn is_assign_chain(ast: &Ast, child: NodeId, ancestor: NodeId) -> bool {
+            let mut n = child;
+            while n != ancestor {
+                if !n.is_assign(ast) {
+                    return false;
+                }
+                n = n.get_parent(ast).unwrap();
+            }
+            true
+        }
+        // port: FlowSensitiveInlineVariables.Candidate#getNumUseInUseCfgNode.visit
+        fn walk(
+            compiler: &Ast,
+            var_name: &JsString,
             cfg_node: NodeId,
-        }
-        impl GatherCb<'_> {
-            // port: FlowSensitiveInlineVariables.Candidate#getNumUseInUseCfgNode.isAssignChain
-            fn is_assign_chain(ast: &Ast, child: NodeId, ancestor: NodeId) -> bool {
-                let mut n = child;
-                while n != ancestor {
-                    if !n.is_assign(ast) {
-                        return false;
-                    }
-                    n = n.get_parent(ast).unwrap();
-                }
-                true
+            count: &mut i32,
+            n: NodeId,
+            parent: Option<NodeId>,
+        ) {
+            if parent.is_some() && ControlFlowGraph::is_entering_new_cfg_node(compiler, n) {
+                return;
             }
-        }
-        impl AbstractCfgNodeTraversalCallback for GatherCb<'_> {
-            // port: FlowSensitiveInlineVariables.Candidate#getNumUseInUseCfgNode.visit
-            fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-                if n.is_name(t) && n.get_string(t) == *self.var_name {
-                    // We make a special exception when the entire cfgNode is a chain
-                    // of assignments, since in that case the assignment statements
-                    // will happen after the inlining of the right hand side.
-                    // TODO(lharker): We can probably remove the isAssignChain check, and instead
-                    // use the SideEffectPredicate to look for dangerous assignments in the same
-                    // CFG node
-                    let parent = parent.unwrap();
-                    if parent.is_assign(t)
-                        && parent.get_first_child(t) == Some(n)
-                        && Self::is_assign_chain(t, parent, self.cfg_node)
-                    {
-                        // Don't count lhs of top-level assignment chain
-                    } else {
-                        *self.num_uses_within_cfg_node += 1;
-                    }
+            let mut child = n.get_first_child(compiler);
+            while let Some(c) = child {
+                walk(compiler, var_name, cfg_node, count, c, Some(n));
+                child = c.get_next(compiler);
+            }
+            if n.is_name(compiler) && n.get_string_ref(compiler) == var_name {
+                // We make a special exception when the entire cfgNode is a chain
+                // of assignments, since in that case the assignment statements
+                // will happen after the inlining of the right hand side.
+                let parent = parent.unwrap();
+                if parent.is_assign(compiler)
+                    && parent.get_first_child(compiler) == Some(n)
+                    && is_assign_chain(compiler, parent, cfg_node)
+                {
+                    // Don't count lhs of top-level assignment chain
+                } else {
+                    *count += 1;
                 }
             }
         }
-
-        let mut gather_cb = AbstractCfgNodeTraversal(GatherCb {
-            var_name: &self.var_name,
-            num_uses_within_cfg_node: &mut self.num_uses_within_cfg_node,
+        walk(
+            compiler,
+            &self.var_name,
             cfg_node,
-        });
-        NodeTraversal::traverse(compiler, cfg_node, &mut gather_cb);
+            &mut self.num_uses_within_cfg_node,
+            cfg_node,
+            None,
+        );
     }
 
     fn forbidden_rhs_node(ast: &Ast, n: NodeId) -> bool {
@@ -921,7 +1580,12 @@ impl Candidate {
     ///
     /// `usage_scope`: The scope we will inline the variable into.
     // port: FlowSensitiveInlineVariables.Candidate#isRhsSafeToInline
-    fn is_rhs_safe_to_inline(&self, compiler: &AbstractCompiler, usage_scope: ScopeId) -> bool {
+    fn is_rhs_safe_to_inline(
+        &self,
+        compiler: &AbstractCompiler,
+        usage_scope: ScopeId,
+        rejected_by_outer_scope: &mut bool,
+    ) -> bool {
         let def_last_child = self.def.unwrap().get_last_child(compiler).unwrap();
         // Don't inline definitions with an R-Value that has:
         // 1) GETELEM, OPTCHAIN_GETELEM (e.g: foo?.['bar']), GETPROP, OPTCHAIN_GETPROP (e.g:
@@ -963,6 +1627,7 @@ impl Candidate {
             },
             &|_: &Ast, _: NodeId| true,
         ) {
+            *rejected_by_outer_scope = true;
             return false;
         }
         true

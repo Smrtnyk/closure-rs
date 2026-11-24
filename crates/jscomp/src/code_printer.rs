@@ -735,6 +735,12 @@ pub trait LicenseTracker {
     fn track_licenses_for_node(&mut self, ast: &Ast, node: NodeId);
     // port: CodePrinter.LicenseTracker#emitLicenses
     fn emit_licenses(&self) -> IndexSet<JsString>;
+    /// Rust-only (performance divergence): whether this tracker depends only on root/script
+    /// nodes and source-file transitions on non-script nodes, so scripts may be printed in
+    /// parallel with a `RecordingLicenseTracker` and replayed in exact script order.
+    fn supports_deduped_replay(&self) -> bool {
+        false
+    }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// Specifies a format for code generation.
@@ -834,6 +840,22 @@ impl<'a> Builder<'a> {
             options: CompilerOptionsRef::Owned(Box::default()),
             line_break: false,
             pretty_print: false,
+            output_types: false,
+            tag_as_type_summary: false,
+            tag_as_strict: false,
+            license_tracker: None,
+            registry: None,
+            code_generator_factory: Box::new(DefaultCodeGeneratorFactory),
+        }
+    }
+    /// Rust-only (performance divergence): constructs a builder borrowing `options` directly,
+    /// avoiding allocating a default `Box<CompilerOptions>` only to discard it.
+    pub(crate) fn with_compiler_options(node: NodeId, options: &'a CompilerOptions) -> Self {
+        Self {
+            root: node,
+            options: CompilerOptionsRef::Borrowed(options),
+            line_break: options.should_add_line_break(),
+            pretty_print: options.is_pretty_print(),
             output_types: false,
             tag_as_type_summary: false,
             tag_as_strict: false,

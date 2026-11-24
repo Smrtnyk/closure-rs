@@ -41,7 +41,6 @@ use super::types_proto::{TypePool, TypeProtoKindCase};
 use crate::abstract_compiler::AbstractCompiler;
 use crate::diagnostic::log_file::StreamedJsonProducer;
 use crate::invalidating_types;
-use crate::node_traversal::{Callback, NodeTraversal};
 use crate::node_util::NodeUtil;
 use crate::type_mismatch::TypeMismatch;
 use closure_jstype::prelude::*;
@@ -117,16 +116,17 @@ impl SerializeTypesToPointers {
         // Property filtering begins in generate_type_pool, after every type has been
         // discovered. Collect both inputs in postorder while preserving the first visit to
         // each type. Closure-unaware shadows contribute types only.
+        // Rust-only (performance divergence): direct post-order walk with a dense `seen_types`
+        // table indexed by `TypeId.0`, avoiding `NodeTraversal` and per-node hash lookups.
         let mut properties = IndexMap::default();
-        NodeTraversal::traverse(
-            compiler,
-            root,
-            &mut TypeSearchCallback {
-                jstype_reconserializer: &mut self.jstype_reconserializer,
-                type_pointers_by_jstype: &mut self.type_pointers_by_jstype,
-                properties: Some(&mut properties),
-            },
-        );
+        let mut seen_types = Vec::new();
+        let mut search = TypeSearchCallback {
+            jstype_reconserializer: &mut self.jstype_reconserializer,
+            type_pointers_by_jstype: &mut self.type_pointers_by_jstype,
+            seen_types: &mut seen_types,
+            properties: Some(&mut properties),
+        };
+        search.traverse(compiler, root);
         *self.properties_referenced_in_ast.borrow_mut() = properties;
 
         // these types are only used when debug logging is enabled, but we always serialize them as
@@ -231,14 +231,15 @@ impl SerializeTypesToPointers {
         ast: &Ast,
         type_pool: &TypePool,
     ) -> Vec<TypeMismatchJson> {
-        let mut sorted: Vec<TypeMismatchJson> = Vec::new();
-        for mismatch in type_mismatches {
-            let json = TypeMismatchJson::create(mismatch, serializer, registry, ast, type_pool);
-            // ImmutableSortedSet drops elements that compare equal.
-            if let Err(index) = sorted.binary_search_by(|e| e.compare_to(&json)) {
-                sorted.insert(index, json);
-            }
-        }
+        let mut sorted: Vec<TypeMismatchJson> = type_mismatches
+            .iter()
+            .map(|mismatch| {
+                TypeMismatchJson::create(mismatch, serializer, registry, ast, type_pool)
+            })
+            .collect();
+        // ImmutableSortedSet orders by compare_to and keeps the first of comparator-equal elements.
+        sorted.sort_by(|a, b| a.compare_to(b));
+        sorted.dedup_by(|a, b| b.compare_to(a) == std::cmp::Ordering::Equal);
         sorted
     }
 }
@@ -273,7 +274,10 @@ fn collect_property(properties: &mut IndexMap<JsString, Option<i32>>, ast: &Ast,
         // "name" from (someObject.name)
         // "name" from (someObject?.name)
         Token::GETPROP | Token::OPTCHAIN_GETPROP => {
-            properties.entry(n.get_string(ast)).or_default();
+            let s = n.get_string_ref(ast);
+            if !properties.contains_key(s) {
+                properties.insert(s.clone(), None);
+            }
         }
         // "name" from obj = {name: 0}
         // "name" from class C { name() {} }
@@ -287,7 +291,10 @@ fn collect_property(properties: &mut IndexMap<JsString, Option<i32>>, ast: &Ast,
         | Token::SETTER_DEF
             if !n.is_quoted_string_key(ast) =>
         {
-            properties.entry(n.get_string(ast)).or_default();
+            let s = n.get_string_ref(ast);
+            if !properties.contains_key(s) {
+                properties.insert(s.clone(), None);
+            }
         }
         _ => {}
     }
@@ -297,24 +304,26 @@ fn collect_property(properties: &mut IndexMap<JsString, Option<i32>>, ast: &Ast,
 struct TypeSearchCallback<'a> {
     jstype_reconserializer: &'a mut JSTypeReconserializer,
     type_pointers_by_jstype: &'a mut IndexMap<TypeId, i32>,
+    seen_types: &'a mut Vec<bool>,
     properties: Option<&'a mut IndexMap<JsString, Option<i32>>>,
 }
 
-impl Callback for TypeSearchCallback<'_> {
-    // port: SerializeTypesToPointers.TypeSearchCallback#shouldTraverse
-    fn should_traverse(
-        &mut self,
-        t: &mut NodeTraversal<'_>,
-        n: NodeId,
-        _parent: Option<NodeId>,
-    ) -> bool {
-        let ast: &Ast = t.get_compiler();
-        !n.is_script(ast) || !NodeUtil::is_from_type_summary(ast, n)
+impl TypeSearchCallback<'_> {
+    fn traverse(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+        if n.is_script(compiler) && NodeUtil::is_from_type_summary(compiler, n) {
+            return;
+        }
+        let mut child = n.get_first_child(compiler);
+        while let Some(c) = child {
+            let next = c.get_next(compiler);
+            self.traverse(compiler, c);
+            child = next;
+        }
+        self.visit_node(compiler, n);
     }
 
     // port: SerializeTypesToPointers.TypeSearchCallback#visit
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-        let compiler = t.get_compiler();
+    fn visit_node(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
         if let Some(properties) = self.properties.as_deref_mut() {
             collect_property(properties, compiler, n);
         }
@@ -324,15 +333,19 @@ impl Callback for TypeSearchCallback<'_> {
             // referenced in actual code though.)
             return;
         }
-        let r#type = n.get_jstype(compiler);
-        if let Some(r#type) = r#type
-            && !self.type_pointers_by_jstype.contains_key(&r#type)
-        {
-            let (registry, ast) = compiler.get_type_registry_and_ast();
-            let pointer = self
-                .jstype_reconserializer
-                .serialize_type(registry, ast, r#type);
-            self.type_pointers_by_jstype.insert(r#type, pointer);
+        if let Some(r#type) = n.get_jstype(compiler) {
+            let idx = r#type.0 as usize;
+            if !self.seen_types.get(idx).copied().unwrap_or(false) {
+                if idx >= self.seen_types.len() {
+                    self.seen_types.resize(idx + 1, false);
+                }
+                self.seen_types[idx] = true;
+                let (registry, ast) = compiler.get_type_registry_and_ast();
+                let pointer = self
+                    .jstype_reconserializer
+                    .serialize_type(registry, ast, r#type);
+                self.type_pointers_by_jstype.insert(r#type, pointer);
+            }
         }
         let shadow = n.get_closure_unaware_shadow(compiler);
         if let Some(shadow) = shadow {
@@ -343,15 +356,13 @@ impl Callback for TypeSearchCallback<'_> {
                 .unwrap()
                 .get_first_child(compiler)
                 .unwrap();
-            NodeTraversal::traverse(
-                compiler,
-                function,
-                &mut TypeSearchCallback {
-                    jstype_reconserializer: &mut *self.jstype_reconserializer,
-                    type_pointers_by_jstype: &mut *self.type_pointers_by_jstype,
-                    properties: None,
-                },
-            );
+            let mut shadow_search = TypeSearchCallback {
+                jstype_reconserializer: &mut *self.jstype_reconserializer,
+                type_pointers_by_jstype: &mut *self.type_pointers_by_jstype,
+                seen_types: &mut *self.seen_types,
+                properties: None,
+            };
+            shadow_search.traverse(compiler, function);
         }
     }
 }

@@ -2749,6 +2749,20 @@ impl AbstractPeepholeOptimization for PeepholeFoldConstants {
         "com.google.javascript.jscomp.PeepholeFoldConstants"
     }
 
+    // Rust-only (performance divergence): `try_fold_get_prop` only folds object/array/string
+    // literal receivers.
+    fn fast_token_filter(
+        &self,
+        token: Token,
+    ) -> crate::abstract_peephole_optimization::FastTokenFilter {
+        match token {
+            Token::GETPROP => {
+                crate::abstract_peephole_optimization::FastTokenFilter::GetPropOnLiteral
+            }
+            _ => crate::abstract_peephole_optimization::FastTokenFilter::Always,
+        }
+    }
+
     crate::abstract_peephole_optimization::token_rules! {
         // port: PeepholeFoldConstants#optimizeSubtree
         fn optimize_subtree(&mut self, compiler, subtree) {

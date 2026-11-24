@@ -30,6 +30,7 @@ use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state, ir::IR, js_string::JsString, node::NodeId, token::Token,
 };
+use std::sync::Arc;
 
 /// Inlines methods that take no arguments and have only a return statement returning a property.
 /// Because it works on method names rather than type inference, a method with multiple
@@ -56,6 +57,10 @@ use closure_rhino::{
 /// is mutated and we don't detect that, inlining it is unsafe. We enable it whenever function
 /// inlining is enabled.
 pub struct InlineSimpleMethods {
+    /// Rust-only (performance divergence): shared interned extern property set instead of
+    /// copying all extern properties into `non_inlineable_properties` on every pass run.
+    extern_properties: Arc<IndexSet<JsString>>,
+
     // List of property names that we know are not safe to inline
     // This includes:
     //   - extern properties (we can't see the actual method definition for externs)
@@ -68,7 +73,10 @@ pub struct InlineSimpleMethods {
     // the choice of method bodies is random when multiple identical definitions
     // are found which causes problems in the source maps.
     // (Java: LinkedHashMultimap<String, Node>)
-    method_definitions: IndexMap<JsString, IndexSet<NodeId>>,
+    // Rust-only (performance divergence): pairs each definition set with the `mutation_epoch`
+    // at which it last passed equivalence and inlineability checks.
+    method_definitions: IndexMap<JsString, (IndexSet<NodeId>, u32)>,
+    mutation_epoch: u32,
 
     ast_analyzer: AstAnalyzer,
 }
@@ -77,17 +85,19 @@ impl InlineSimpleMethods {
     // port: InlineSimpleMethods#InlineSimpleMethods
     pub fn new(compiler: &AbstractCompiler) -> Self {
         let ast_analyzer = compiler.get_ast_analyzer();
-        let mut non_inlineable_properties = IndexSet::<_>::default();
-        non_inlineable_properties.extend(
-            check_not_null!(compiler.get_extern_properties())
-                .iter()
-                .map(|s| JsString::from(s.as_str())),
-        );
+        let extern_properties = check_not_null!(compiler.get_extern_property_set_js()).clone();
         Self {
-            non_inlineable_properties,
+            extern_properties,
+            non_inlineable_properties: IndexSet::<_>::default(),
             method_definitions: IndexMap::<_, _>::default(),
+            mutation_epoch: 1,
             ast_analyzer,
         }
+    }
+
+    #[inline]
+    fn is_non_inlineable(&self, name: &JsString) -> bool {
+        self.extern_properties.contains(name) || self.non_inlineable_properties.contains(name)
     }
 
     /// Returns true if the provided node is a getprop for which the left child is this or a valid
@@ -215,6 +225,7 @@ impl InlineSimpleMethods {
         Self::replace_this(compiler, get_prop, replacement);
         call.replace_with(compiler, get_prop);
         compiler.report_change_to_enclosing_scope(get_prop);
+        self.mutation_epoch = self.mutation_epoch.wrapping_add(1);
     }
 
     /// Replace the provided object and its method call with the tree specified in returnedValue.
@@ -229,6 +240,7 @@ impl InlineSimpleMethods {
         let ret_value = returned_value.clone_tree(compiler);
         call.replace_with(compiler, ret_value);
         compiler.report_change_to_enclosing_scope(ret_value);
+        self.mutation_epoch = self.mutation_epoch.wrapping_add(1);
     }
 
     /// Remove the provided object and its method call.
@@ -248,6 +260,7 @@ impl InlineSimpleMethods {
             NodeUtil::mark_functions_deleted(t.get_compiler(), call);
         }
         t.report_code_change();
+        self.mutation_epoch = self.mutation_epoch.wrapping_add(1);
     }
 
     /// Check whether the given method call's arguments have side effects. `call` is the call node
@@ -271,39 +284,50 @@ impl InlineSimpleMethods {
     fn add_possible_signature(
         &mut self,
         ast: &closure_rhino::node::Ast,
-        name: JsString,
+        name: &JsString,
         node: Option<NodeId>,
     ) {
         if let Some(node) = node.filter(|node| node.is_function(ast)) {
             // The node we're looking at is a function, so we can add it directly
             self.add_signature(name, node);
-        } else {
-            self.non_inlineable_properties.insert(name);
+        } else if !self.is_non_inlineable(name) {
+            self.non_inlineable_properties.insert(name.clone());
         }
     }
 
     // port: InlineSimpleMethods#addSignature
-    fn add_signature(&mut self, name: JsString, function: NodeId) {
-        if self.non_inlineable_properties.contains(&name) {
+    fn add_signature(&mut self, name: &JsString, function: NodeId) {
+        if self.is_non_inlineable(name) {
             return;
         }
 
-        self.method_definitions
-            .entry(name)
-            .or_default()
-            .insert(function);
+        if let Some((set, _)) = self.method_definitions.get_mut(name) {
+            set.insert(function);
+        } else {
+            let mut set = IndexSet::<NodeId>::default();
+            set.insert(function);
+            self.method_definitions.insert(name.clone(), (set, 0));
+        }
     }
 
     // port: InlineSimpleMethods#getPropName
-    fn get_prop_name(ast: &closure_rhino::node::Ast, get_prop_elem: NodeId) -> Option<JsString> {
+    fn get_prop_name_ref(
+        ast: &closure_rhino::node::Ast,
+        get_prop_elem: NodeId,
+    ) -> Option<&JsString> {
         if get_prop_elem.is_get_prop(ast) {
-            Some(get_prop_elem.get_string(ast))
+            Some(get_prop_elem.get_string_ref(ast))
         } else if get_prop_elem
             .get_second_child(ast)
             .unwrap()
             .is_string_lit(ast)
         {
-            Some(get_prop_elem.get_second_child(ast).unwrap().get_string(ast))
+            Some(
+                get_prop_elem
+                    .get_second_child(ast)
+                    .unwrap()
+                    .get_string_ref(ast),
+            )
         } else {
             None
         }
@@ -324,7 +348,16 @@ impl CompilerPass for InlineSimpleMethods {
             externs,
             root,
         );
-        NodeTraversal::traverse(compiler, root, &mut InlineTrivialAccessors { outer: self });
+        // Rust-only (performance divergence): strip properties already blacklisted during
+        // GatherSignatures and skip the second traversal if no inlineable candidates remain.
+        self.method_definitions.retain(|name, (defs, _)| {
+            !defs.is_empty()
+                && !self.extern_properties.contains(name)
+                && !self.non_inlineable_properties.contains(name)
+        });
+        if !self.method_definitions.is_empty() {
+            NodeTraversal::traverse(compiler, root, &mut InlineTrivialAccessors { outer: self });
+        }
     }
 }
 
@@ -345,6 +378,19 @@ impl Callback for InlineTrivialAccessors<'_> {
     }
 
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
+        // Rust-only (performance divergence): skip cloning the method name when the call target is
+        // not among the surviving inlineable method definitions.
+        if !n.is_call(t) {
+            return;
+        }
+        let callee = n.get_first_child(t).unwrap();
+        if !callee.is_get_prop(t) {
+            return;
+        }
+        let call_name = callee.get_string_ref(t);
+        if !self.outer.method_definitions.contains_key(call_name) {
+            return;
+        }
         InvocationsCallback::visit(self, t, n, parent);
     }
 }
@@ -359,37 +405,30 @@ impl InvocationsCallback for InlineTrivialAccessors<'_> {
         call_name: JsString,
     ) {
         let outer = &mut *self.outer;
-        if outer.non_inlineable_properties.contains(&call_name) {
+        if outer.is_non_inlineable(&call_name) {
             return;
         }
-
-        let definitions = match outer.method_definitions.get(&call_name) {
-            Some(definitions) if !definitions.is_empty() => definitions.clone(),
-            _ => return,
+        let Some((definitions, verified_epoch)) = outer.method_definitions.get(&call_name) else {
+            return;
         };
-
-        // Exit early if all method definitions are not equivalent, and mark this method as not
-        // inlineable.
-        // NOTE: we could also cache the 'good' result of this method having all equivalent
-        // definitions and avoid recalculating later, but profile data suggests that's not too
-        // useful
-        if definitions.len() > 1
-            && !outer.all_definitions_equivalent(t.get_compiler(), &definitions)
-        {
-            outer.non_inlineable_properties.insert(call_name);
+        if definitions.is_empty() {
             return;
         }
-        // Exit early if any definitions are incompatible with the InlineSimpleMethods inlining
-        // NOTE: we could also cache the 'good' result of these methods being inlineable to
-        // avoid recalculating later, but profile data suggests that's not too useful.
-        if outer.any_definitions_not_inlineable(t.get_compiler(), &definitions) {
-            outer.non_inlineable_properties.insert(call_name);
-            return;
-        }
-
-        // Do check of arity, complexity, and consistency in what we think is
-        // the order from least to most complex
         let first_definition = *definitions.iter().next().unwrap();
+        if *verified_epoch != outer.mutation_epoch {
+            // Exit early if all method definitions are not equivalent, and mark this method as not
+            // inlineable.
+            let not_equiv = definitions.len() > 1
+                && !outer.all_definitions_equivalent(t.get_compiler(), definitions);
+            let not_inlineable =
+                not_equiv || outer.any_definitions_not_inlineable(t.get_compiler(), definitions);
+            if not_inlineable {
+                outer.method_definitions.swap_remove(&call_name);
+                outer.non_inlineable_properties.insert(call_name);
+                return;
+            }
+            outer.method_definitions.get_mut(&call_name).unwrap().1 = outer.mutation_epoch;
+        }
 
         // Do not inline if the callsite is a derived class calling a base method using `super.`
         // Only the immediate receiver matters: `super` elsewhere in the receiver chain or in the
@@ -448,7 +487,7 @@ impl GatherSignatures<'_> {
                 //         string getBar
                 //     function or name            <- assignee
                 let grandparent = n.get_grandparent(ast).unwrap();
-                let name = InlineSimpleMethods::get_prop_name(ast, n);
+                let name = InlineSimpleMethods::get_prop_name_ref(ast, n);
                 if let Some(name) = name
                     && grandparent.is_assign(ast)
                 {
@@ -478,12 +517,12 @@ impl Callback for GatherSignatures<'_> {
             Token::GETPROP | Token::GETELEM => {
                 // TODO(b/251573710): Handle ES2015+ language features that can reference
                 // properties
-                let Some(name) = InlineSimpleMethods::get_prop_name(t, n) else {
+                let Some(name) = InlineSimpleMethods::get_prop_name_ref(t, n) else {
                     return;
                 };
                 let parent = parent.unwrap();
 
-                if name == "prototype" {
+                if *name == "prototype" {
                     self.process_prototype_parent(t, parent);
                 } else {
                     // Static methods of the form Foo.bar = function() {} or
@@ -507,12 +546,15 @@ impl Callback for GatherSignatures<'_> {
                         Token::MEMBER_FUNCTION_DEF
                         | Token::MEMBER_FIELD_DEF
                         | Token::STRING_KEY => {
-                            let name = k.get_string(t);
+                            let name = k.get_string_ref(t);
                             let first = k.get_first_child(t);
                             self.outer.add_possible_signature(t, name, first);
                         }
                         Token::SETTER_DEF | Token::GETTER_DEF => {
-                            self.outer.non_inlineable_properties.insert(k.get_string(t));
+                            let name = k.get_string_ref(t);
+                            if !self.outer.is_non_inlineable(name) {
+                                self.outer.non_inlineable_properties.insert(name.clone());
+                            }
                         }
                         Token::COMPUTED_PROP // complicated
                         | Token::OBJECT_SPREAD

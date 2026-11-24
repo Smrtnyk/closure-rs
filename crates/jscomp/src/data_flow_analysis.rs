@@ -98,7 +98,7 @@ impl<N: Clone + Eq + Hash> DataFlowAnalysisState<N> {
             .as_ref()
             .map(|v| v.downcast_ref().expect("inconsistent dataflow lattice"))
     }
-    fn node_flow<L: crate::graph::annotation::Annotation>(
+    pub(crate) fn node_flow<L: crate::graph::annotation::Annotation>(
         &self,
         node: DiGraphNode,
     ) -> &LinearFlowState<L> {
@@ -138,6 +138,169 @@ impl<N: Clone + Eq + Hash> DataFlowAnalysisState<N> {
     }
     pub fn into_cfg(self) -> ControlFlowGraph<N> {
         self.cfg
+    }
+}
+
+impl DataFlowAnalysisState<closure_rhino::node::NodeId> {
+    /// Rust-only (performance divergence): runs a non-branched indexed dataflow analysis
+    /// read-only against `&Ast` without requiring `&mut AbstractCompiler`, `Box<dyn FlowJoiner>`,
+    /// or per-node edge `Vec` allocations. Safe to execute concurrently across worker threads.
+    pub(crate) fn run_indexed_readonly<L>(
+        &mut self,
+        ast: &closure_rhino::node::Ast,
+        is_forward: bool,
+        mut create_initial: impl FnMut() -> L,
+        mut create_entry: impl FnMut() -> L,
+        mut join_into: impl FnMut(&mut L, &L),
+        mut flow_through: impl FnMut(
+            &ControlFlowGraph<closure_rhino::node::NodeId>,
+            DiGraphNode,
+            closure_rhino::node::NodeId,
+            L,
+        ) -> L,
+    ) where
+        L: Clone + PartialEq + crate::graph::annotation::Annotation,
+    {
+        self.indexed = None;
+        self.work_queue.clear();
+        let implicit_return = self.cfg.get_implicit_return();
+        let entry_node = self.cfg.get_entry();
+        let node_count = self.cfg.get_node_count();
+        let mut nodes = Vec::with_capacity(node_count);
+        for node in self.cfg.get_nodes() {
+            debug_assert_eq!(node.0, nodes.len());
+            nodes.push(LinearFlowState::new(create_initial(), create_initial()));
+            if node != implicit_return {
+                self.work_queue.add(node);
+            }
+        }
+        let join_for_node = |cfg: &ControlFlowGraph<closure_rhino::node::NodeId>,
+                             nodes: &mut [LinearFlowState<L>],
+                             node: DiGraphNode,
+                             create_entry: &mut dyn FnMut() -> L,
+                             join_into: &mut dyn FnMut(&mut L, &L)| {
+            if is_forward && entry_node == node {
+                nodes[node.0].set_in(create_entry());
+                return;
+            }
+            let edges = if is_forward {
+                cfg.node_in_edges(node)
+            } else {
+                cfg.node_out_edges(node)
+            };
+            let result = match edges.len() {
+                0 => return,
+                1 => {
+                    let edge = edges[0];
+                    if is_forward {
+                        nodes[cfg.edge_node_a(edge).0].get_out().clone()
+                    } else {
+                        let dest = cfg.edge_node_b(edge);
+                        if dest == implicit_return {
+                            create_entry()
+                        } else {
+                            nodes[dest.0].get_in().clone()
+                        }
+                    }
+                }
+                _ => {
+                    let first_edge = edges[0];
+                    let mut acc = if is_forward {
+                        nodes[cfg.edge_node_a(first_edge).0].get_out().clone()
+                    } else {
+                        let dest = cfg.edge_node_b(first_edge);
+                        if dest == implicit_return {
+                            create_entry()
+                        } else {
+                            nodes[dest.0].get_in().clone()
+                        }
+                    };
+                    for &edge in &edges[1..] {
+                        if is_forward {
+                            join_into(&mut acc, nodes[cfg.edge_node_a(edge).0].get_out());
+                        } else {
+                            let dest = cfg.edge_node_b(edge);
+                            if dest == implicit_return {
+                                let entry = create_entry();
+                                join_into(&mut acc, &entry);
+                            } else {
+                                join_into(&mut acc, nodes[dest.0].get_in());
+                            }
+                        }
+                    }
+                    acc
+                }
+            };
+            if is_forward {
+                nodes[node.0].set_in(result);
+            } else {
+                nodes[node.0].set_out(result);
+            }
+        };
+
+        while !self.work_queue.is_empty() {
+            let cur_node = self.work_queue.remove_first();
+            let steps = nodes[cur_node.0].step_count;
+            nodes[cur_node.0].step_count += 1;
+            if steps > MAX_STEPS_PER_NODE {
+                let value = cur_node.get_value(&self.cfg).unwrap();
+                panic!(
+                    "Dataflow analysis appears to diverge around: {}",
+                    value.to_string(ast)
+                );
+            }
+            join_for_node(
+                &self.cfg,
+                &mut nodes,
+                cur_node,
+                &mut create_entry,
+                &mut join_into,
+            );
+            let value = cur_node.get_value(&self.cfg).unwrap();
+            let changed = if is_forward {
+                let input = nodes[cur_node.0].get_in().clone();
+                let out = flow_through(&self.cfg, cur_node, value, input);
+                let changed = nodes[cur_node.0].get_out() != &out;
+                nodes[cur_node.0].set_out(out);
+                changed
+            } else {
+                let input = nodes[cur_node.0].get_out().clone();
+                let result = flow_through(&self.cfg, cur_node, value, input);
+                let changed = nodes[cur_node.0].get_in() != &result;
+                nodes[cur_node.0].set_in(result);
+                changed
+            };
+            if changed {
+                if is_forward {
+                    for &edge in self.cfg.node_out_edges(cur_node) {
+                        let next_node = self.cfg.edge_node_b(edge);
+                        if next_node != implicit_return {
+                            self.work_queue.add(next_node);
+                        }
+                    }
+                } else {
+                    for &edge in self.cfg.node_in_edges(cur_node) {
+                        let next_node = self.cfg.edge_node_a(edge);
+                        if next_node != implicit_return {
+                            self.work_queue.add(next_node);
+                        }
+                    }
+                }
+            }
+        }
+        if is_forward {
+            join_for_node(
+                &self.cfg,
+                &mut nodes,
+                implicit_return,
+                &mut create_entry,
+                &mut join_into,
+            );
+        }
+        self.indexed = Some(Box::new(IndexedFlows {
+            nodes,
+            edges: Vec::new(),
+        }));
     }
 }
 pub trait DataFlowAnalysis<
@@ -555,16 +718,22 @@ pub fn compute_escaped(
             }
         }
     }
-    let mut finder = Finder {
-        js_scope,
-        escaped,
-        last_scope: None,
-    };
-    NodeTraversal::builder()
-        .set_compiler(compiler)
-        .set_scope_creator(scope_creator)
-        .set_callback(&mut finder)
-        .traverse_at_scope(js_scope);
+    // Rust-only (performance divergence): a function with no nested FUNCTION or CLASS cannot
+    // contain an inner CFG root or non-static class field, so no local variable can escape via
+    // closure capture. Skip the NodeTraversal entirely and only check catch/exported locals.
+    let fn_root = js_scope.get_root_node(compiler);
+    if contains_nested_cfg_or_class(&compiler.ast, fn_root) {
+        let mut finder = Finder {
+            js_scope,
+            escaped,
+            last_scope: None,
+        };
+        NodeTraversal::builder()
+            .set_compiler(compiler)
+            .set_scope_creator(scope_creator)
+            .set_callback(&mut finder)
+            .traverse_at_scope(js_scope);
+    }
     for &var in all_vars_in_fn.values() {
         if crate::abstract_var::AbstractVar::is_catch(var, compiler)
             || compiler
@@ -574,6 +743,27 @@ pub fn compute_escaped(
             escaped.insert(var);
         }
     }
+}
+
+fn contains_nested_cfg_or_class(
+    ast: &closure_rhino::node::Ast,
+    fn_root: closure_rhino::node::NodeId,
+) -> bool {
+    fn walk(ast: &closure_rhino::node::Ast, n: closure_rhino::node::NodeId) -> bool {
+        let mut child = n.get_first_child(ast);
+        while let Some(c) = child {
+            if matches!(
+                c.get_token(ast),
+                closure_rhino::token::Token::FUNCTION | closure_rhino::token::Token::CLASS
+            ) || walk(ast, c)
+            {
+                return true;
+            }
+            child = c.get_next(ast);
+        }
+        false
+    }
+    walk(ast, fn_root)
 }
 // port: DataFlowAnalysis#isReferencedInNonStaticClassField
 fn is_referenced_in_non_static_class_field(

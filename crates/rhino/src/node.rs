@@ -417,11 +417,18 @@ const _: () = assert!(Prop::VALUES.len() <= 64);
 /// Rust-only: the `Ast::prop_masks` and `Ast::jsdocs` entries of a property list: the mask of
 /// its property types and the value of its first JSDOC_INFO item (the one `lookupProperty`
 /// finds).
-fn prop_list_summary(head: Option<&Arc<PropListItem>>) -> (u64, Option<Arc<JSDocInfo>>) {
+fn prop_list_summary(head: Option<&Arc<PropListItem>>) -> (u64, Option<Arc<JSDocInfo>>, bool) {
     let mut mask = 0u64;
     let mut jsdoc = None;
+    let mut refers_to_nodes = false;
     let mut x = head.map(|h| &**h);
     while let Some(item) = x {
+        if matches!(
+            item.value,
+            PropValue::Object(ObjectProp::Node(_) | ObjectProp::JSDocInfo(_))
+        ) {
+            refers_to_nodes = true;
+        }
         if item.prop_type == Prop::JSDOC_INFO as u8 && mask & (1u64 << item.prop_type) == 0 {
             jsdoc = Some(match &item.value {
                 PropValue::Object(ObjectProp::JSDocInfo(info)) => info.clone(),
@@ -432,7 +439,7 @@ fn prop_list_summary(head: Option<&Arc<PropListItem>>) -> (u64, Option<Arc<JSDoc
         mask |= 1u64 << item.prop_type;
         x = item.next.as_deref();
     }
-    (mask, jsdoc)
+    (mask, jsdoc, refers_to_nodes)
 }
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
@@ -784,6 +791,9 @@ pub struct Ast {
     /// Rust-only: in a preparse arena, the node count when the parse first asked for the
     /// implicit template bound.
     pub(crate) preparse_bound_first_use: Option<u32>,
+    /// Rust-only (performance divergence): in a preparse arena, node arena indices whose
+    /// property list held a `NodeId` or `JSDocInfo` and therefore need remapping on append.
+    preparse_node_prop_slots: Vec<u32>,
     /// Rust-only (performance divergence): whether `changed_nodes` is kept (see `track_changes`).
     tracking_changes: bool,
     change_log_id: Option<Arc<()>>,
@@ -798,6 +808,10 @@ pub struct Ast {
     /// Rust-only (performance divergence): what has ever been in this arena (see
     /// `PresenceSummary`).
     presence: PresenceSummary,
+    /// Rust-only (performance divergence): nodes whose `JSDOC_INFO`, `SIDE_EFFECT_FLAGS`,
+    /// `IS_CONSTANT_NAME`, or `CONSTANT_VAR_FLAGS` changed since the last
+    /// `take_changed_flag_nodes`, without immediate repeats.
+    changed_flag_nodes: Vec<NodeId>,
 }
 impl Index<NodeId> for Ast {
     type Output = NodeData;
@@ -840,9 +854,32 @@ impl IndexMut<L> for Ast {
         &mut self.links[n.0.0.get() as usize - 1]
     }
 }
+/// Rust-only (performance divergence): bitmask of node properties whose in-place mutation is
+/// tracked per subtree via `Ast::changed_flag_nodes` for cross-round inlining caches.
+const TRACKED_FLAG_PROPS_MASK: u64 = (1u64 << (Prop::JSDOC_INFO as u8))
+    | (1u64 << (Prop::SIDE_EFFECT_FLAGS as u8))
+    | (1u64 << (Prop::IS_CONSTANT_NAME as u8))
+    | (1u64 << (Prop::CONSTANT_VAR_FLAGS as u8));
+
 impl Ast {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Rust-only (performance divergence): moves nodes whose `JSDOC_INFO`, `SIDE_EFFECT_FLAGS`,
+    /// `IS_CONSTANT_NAME`, or `CONSTANT_VAR_FLAGS` changed since the last call to the end of
+    /// `into`.
+    pub fn take_changed_flag_nodes(&mut self, into: &mut Vec<NodeId>) {
+        if !self.changed_flag_nodes.is_empty() {
+            into.append(&mut self.changed_flag_nodes);
+        }
+    }
+
+    #[inline]
+    fn record_flag_change(&mut self, n: NodeId) {
+        if self.tracking_changes && self.changed_flag_nodes.last() != Some(&n) {
+            self.changed_flag_nodes.push(n);
+        }
     }
 
     /// Typed payload writes invalidate parsed snapshots. Their setters record changes to
@@ -947,13 +984,20 @@ impl Ast {
     /// Rust-only: replaces the property list of `n` and recomputes its `prop_masks` and `jsdocs`
     /// entries.
     fn set_props(&mut self, n: NodeId, head: Option<Arc<PropListItem>>) {
-        let (mask, jsdoc) = prop_list_summary(head.as_ref());
+        let (mask, jsdoc, refers_to_nodes) = prop_list_summary(head.as_ref());
         if let Some(info) = &jsdoc {
             self.presence.note_jsdoc(info);
         }
-        self.prop_masks[n.0.get() as usize - 1] = mask;
-        self.jsdocs[n.0.get() as usize - 1] = jsdoc;
-        self.nodes[n.arena_index()].prop_list_head = head;
+        let slot = n.arena_index();
+        if self.preparse && refers_to_nodes {
+            let slot_u32 = slot as u32;
+            if self.preparse_node_prop_slots.last() != Some(&slot_u32) {
+                self.preparse_node_prop_slots.push(slot_u32);
+            }
+        }
+        self.prop_masks[slot] = mask;
+        self.jsdocs[slot] = jsdoc;
+        self.nodes[slot].prop_list_head = head;
     }
     /// Rust-only: takes the property list of `n`, leaving none.
     fn take_props(&mut self, n: NodeId) -> Option<Arc<PropListItem>> {
@@ -1078,6 +1122,23 @@ impl Ast {
     pub fn has_seen_jsdoc_bit(&self, bit: crate::jsdoc_info::Bit) -> bool {
         self.presence.jsdoc_bits & bit.mask() != 0
     }
+    /// Rust-only (performance divergence): every node in this arena whose current `JSDocInfo` has
+    /// `bit` set. Returns an empty vector in O(1) when `bit` has never been seen.
+    pub fn nodes_with_jsdoc_bit(&self, bit: crate::jsdoc_info::Bit) -> Vec<NodeId> {
+        if !self.has_seen_jsdoc_bit(bit) {
+            return Vec::new();
+        }
+        let mask = bit.mask();
+        let mut out = Vec::new();
+        for (idx, jsdoc) in self.jsdocs.iter().enumerate() {
+            if let Some(info) = jsdoc
+                && info.property_bits() & mask != 0
+            {
+                out.push(NodeId(NonZeroU32::new(idx as u32 + 1).unwrap()));
+            }
+        }
+        out
+    }
     /// Rust-only: the presence summary, for the verification mode of the pass gates only.
     pub fn presence_summary(&self) -> PresenceSummary {
         self.presence
@@ -1175,43 +1236,109 @@ impl Ast {
         let Ast {
             nodes,
             links,
-            cold,
+            mut cold,
             types,
             original_names,
+            prop_masks,
+            jsdocs,
+            preparse_bound_first_use,
+            mut preparse_node_prop_slots,
             ..
         } = other;
-        let names: Vec<_> = original_names
-            .into_iter()
-            .map(|name| self.original_name_id(name))
-            .collect();
-        let rows = nodes
-            .into_iter()
-            .zip(links)
-            .zip(cold)
-            .map(|((mut data, link), mut cold)| {
-                let head = data.prop_list_head.take();
-                cold.original_name = cold.original_name.map(|id| names[id.index()]);
-                (data, link, cold, head)
-            });
-        let (map, heads) = self.append_preparsed_nodes(other.preparse_bound_first_use, rows);
+        if !original_names.is_empty() {
+            let names: Vec<_> = original_names
+                .into_iter()
+                .map(|name| self.original_name_id(name))
+                .collect();
+            for row in &mut cold {
+                if let Some(id) = row.original_name {
+                    row.original_name = Some(names[id.index()]);
+                }
+            }
+        }
+        let map = PreparsedIdMap {
+            base: u32::try_from(self.nodes.len()).unwrap(),
+            // Parsing into this arena would have created the bound (one node) at that point.
+            bound_at: preparse_bound_first_use.filter(|_| self.implicit_template_bound.is_none()),
+        };
+        let extra = nodes.len() + usize::from(map.bound_at.is_some());
+        self.nodes.reserve(extra);
+        self.links.reserve(extra);
+        self.cold.reserve(extra);
+        self.prop_masks.reserve(extra);
+        self.jsdocs.reserve(extra);
+        if map.bound_at.is_none() {
+            // Fast bulk append when no implicit template bound splits the renumbered node range:
+            // property masks and JSDoc caches move intact and only slots referencing NodeIds or
+            // JSDocInfos are remapped below.
+            let base = map.base;
+            let shift = |n: NodeId| NodeId(NonZeroU32::new(base + n.0.get()).unwrap());
+            self.links.extend(links.into_iter().map(|link| NodeLinks {
+                subtree_size: 0,
+                token: link.token,
+                parent: link.parent.map(shift),
+                first: link.first.map(shift),
+                next: link.next.map(shift),
+                previous: link.previous.map(shift),
+            }));
+            self.nodes.extend(nodes);
+            self.cold.extend(cold);
+            self.prop_masks.extend(prop_masks);
+            self.jsdocs.extend(jsdocs);
+        } else {
+            let count = nodes.len();
+            for (i, ((((data, link), cold), mask), jsdoc)) in nodes
+                .into_iter()
+                .zip(links)
+                .zip(cold)
+                .zip(prop_masks)
+                .zip(jsdocs)
+                .enumerate()
+            {
+                if map.bound_at == Some(u32::try_from(i).unwrap()) {
+                    crate::js_type_expression::JSTypeExpression::implicit_template_bound(self);
+                }
+                self.prop_masks.push(mask);
+                self.jsdocs.push(jsdoc);
+                self.links.push(NodeLinks {
+                    subtree_size: 0,
+                    token: link.token,
+                    parent: link.parent.map(|n| map.map(n)),
+                    first: link.first.map(|n| map.map(n)),
+                    next: link.next.map(|n| map.map(n)),
+                    previous: link.previous.map(|n| map.map(n)),
+                });
+                self.nodes.push(data);
+                self.cold.push(cold);
+            }
+            if map.bound_at == Some(u32::try_from(count).unwrap()) {
+                crate::js_type_expression::JSTypeExpression::implicit_template_bound(self);
+            }
+        }
         for (i, ty) in types.into_iter().enumerate() {
             if ty.is_some() {
                 self.set_node_type(map.node_at(i), ty);
             }
         }
-        // The properties last: they may refer to the bound, which now exists.
-        let bound = self.implicit_template_bound.clone();
-        let mut remapper = PropRemapper {
-            map: &map,
-            placeholder,
-            bound,
-            items: Default::default(),
-            infos: Default::default(),
-            exprs: Default::default(),
-        };
-        for (i, head) in heads.into_iter().enumerate() {
-            if let Some(head) = head {
-                self.set_props(map.node_at(i), Some(remapper.list(head)));
+        // Only properties that contain a NodeId or JSDocInfo need remapping, after the bound exists.
+        if !preparse_node_prop_slots.is_empty() {
+            preparse_node_prop_slots.sort_unstable();
+            preparse_node_prop_slots.dedup();
+            let bound = self.implicit_template_bound.clone();
+            let mut remapper = PropRemapper {
+                map: &map,
+                placeholder,
+                bound,
+                items: Default::default(),
+                infos: Default::default(),
+                exprs: Default::default(),
+            };
+            for slot in preparse_node_prop_slots {
+                let dst = map.node_at(slot as usize);
+                if let Some(head) = self.nodes[dst.arena_index()].prop_list_head.take() {
+                    let remapped = remapper.list(head);
+                    self.set_props(dst, Some(remapped));
+                }
             }
         }
         map
@@ -1228,6 +1355,12 @@ impl Ast {
             // Parsing into this arena would have created the bound (one node) at that point.
             bound_at: bound_first_use.filter(|_| self.implicit_template_bound.is_none()),
         };
+        let extra = rows.len() + usize::from(map.bound_at.is_some());
+        self.nodes.reserve(extra);
+        self.links.reserve(extra);
+        self.cold.reserve(extra);
+        self.prop_masks.reserve(extra);
+        self.jsdocs.reserve(extra);
         let mut heads = Vec::with_capacity(rows.len());
         for (i, (data, link, cold, head)) in rows.enumerate() {
             if map.bound_at == Some(u32::try_from(i).unwrap()) {
@@ -1931,6 +2064,9 @@ impl NodeId {
         let head = ast[other].prop_list_head.clone();
         ast.snapshot_watches.change(self, snapshot_watch::DOC);
         ast.set_props(self, head);
+        if ast.prop_masks[self.arena_index()] & TRACKED_FLAG_PROPS_MASK != 0 {
+            ast.record_flag_change(self);
+        }
         self
     }
     // port: Node#validateProperties
@@ -2050,6 +2186,7 @@ impl NodeId {
         if let Some(value) = value {
             if prop == Prop::JSDOC_INFO {
                 ast.snapshot_watches.change(self, snapshot_watch::DOC);
+                ast.record_flag_change(self);
             }
             let head = ast.take_props(self);
             ast.set_props(self, Some(PropListItem::object(prop as u8, value, head)));
@@ -2061,14 +2198,26 @@ impl NodeId {
     }
     // port: Node#putIntProp
     pub fn put_int_prop(self, ast: &mut Ast, prop: Prop, value: i32) {
-        self.remove_prop(ast, prop);
+        let changed = ast.tracking_changes
+            && matches!(
+                prop,
+                Prop::SIDE_EFFECT_FLAGS | Prop::CONSTANT_VAR_FLAGS | Prop::IS_CONSTANT_NAME
+            )
+            && self.get_int_prop(ast, prop) != value;
+        self.remove_prop_inner(ast, prop, false);
         if value != 0 {
             let head = ast.take_props(self);
             ast.set_props(self, Some(PropListItem::int(prop as u8, value, head)));
         }
+        if changed {
+            ast.record_flag_change(self);
+        }
     }
     // port: Node#removeProp
     pub fn remove_prop(self, ast: &mut Ast, prop: Prop) {
+        self.remove_prop_inner(ast, prop, true);
+    }
+    fn remove_prop_inner(self, ast: &mut Ast, prop: Prop, record_flag: bool) {
         // Rust-only: rebuildListWithoutProp returns the list itself when `prop` is absent; skip
         // the walk that copies references then (performance divergence).
         if self.lookup_property_ref(ast, prop).is_none() {
@@ -2076,6 +2225,17 @@ impl NodeId {
         }
         if prop == Prop::JSDOC_INFO {
             ast.snapshot_watches.change(self, snapshot_watch::DOC);
+        }
+        if record_flag
+            && matches!(
+                prop,
+                Prop::JSDOC_INFO
+                    | Prop::SIDE_EFFECT_FLAGS
+                    | Prop::CONSTANT_VAR_FLAGS
+                    | Prop::IS_CONSTANT_NAME
+            )
+        {
+            ast.record_flag_change(self);
         }
         let head = ast.take_props(self);
         ast.set_props(self, Self::rebuild_list_without_prop(head, prop));
@@ -2241,6 +2401,9 @@ impl NodeId {
                     head,
                 )),
             );
+        }
+        if ast.prop_masks[self.arena_index()] & TRACKED_FLAG_PROPS_MASK != 0 {
+            ast.record_flag_change(self);
         }
         self.validate_properties(ast, |error_message| {
             panic!(
@@ -3034,8 +3197,12 @@ impl NodeId {
     }
     // port: Node#setPropListHead
     pub fn set_prop_list_head(self, ast: &mut Ast, head: Option<Arc<PropListItem>>) {
+        let old_mask = ast.prop_masks[self.arena_index()];
         ast.snapshot_watches.change(self, snapshot_watch::DOC);
         ast.set_props(self, head);
+        if (old_mask | ast.prop_masks[self.arena_index()]) & TRACKED_FLAG_PROPS_MASK != 0 {
+            ast.record_flag_change(self);
+        }
     }
     // port: Node#getParent
     pub fn get_parent(self, ast: &Ast) -> Option<NodeId> {
@@ -3752,6 +3919,17 @@ impl NodeId {
         ast[dest].prop_list_head = ast[source].prop_list_head.clone();
         ast.prop_masks[dest.0.get() as usize - 1] = ast.prop_masks[source.0.get() as usize - 1];
         ast.jsdocs[dest.0.get() as usize - 1] = ast.jsdocs[source.0.get() as usize - 1].clone();
+        if ast.preparse
+            && ast[dest]
+                .prop_list_head
+                .as_deref()
+                .is_some_and(PropRemapper::refers_to_nodes)
+        {
+            let slot_u32 = dest.arena_index() as u32;
+            if ast.preparse_node_prop_slots.last() != Some(&slot_u32) {
+                ast.preparse_node_prop_slots.push(slot_u32);
+            }
+        }
         if clone_type_exprs {
             if let Some(info) = source.get_jsdoc_info(ast) {
                 let cloned = info.clone_with_type_nodes(ast, true);

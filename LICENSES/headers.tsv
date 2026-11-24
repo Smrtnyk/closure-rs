@@ -415,7 +415,7 @@ crates/jscomp/src/pass_names.rs	eacf4cf6c61a1216	Apache-2.0	closure:src/com/goog
 crates/jscomp/src/peephole_collect_property_assignments.rs	8b064e433d5f0d23	Apache-2.0	closure:src/com/google/javascript/jscomp/PeepholeCollectPropertyAssignments.java
 crates/jscomp/src/peephole_fold_constants.rs	e4d57b27dd2d10a8	Apache-2.0	closure:src/com/google/javascript/jscomp/PeepholeFoldConstants.java
 crates/jscomp/src/peephole_minimize_conditions.rs	37a33147448c691a	Apache-2.0	closure:src/com/google/javascript/jscomp/PeepholeMinimizeConditions.java
-crates/jscomp/src/peephole_optimizations_pass.rs	28265bce2a21b2b4	Apache-2.0	closure:src/com/google/javascript/jscomp/PeepholeOptimizationsPass.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
+crates/jscomp/src/peephole_optimizations_pass.rs	418fd72f85920de4	Apache-2.0	closure:src/com/google/javascript/jscomp/PeepholeOptimizationsPass.java
 crates/jscomp/src/peephole_remove_dead_code.rs	ef7671cfa035ac99	Apache-2.0	closure:src/com/google/javascript/jscomp/PeepholeRemoveDeadCode.java
 crates/jscomp/src/peephole_replace_known_methods.rs	f4c15e1f1caab5bb	Apache-2.0	closure:src/com/google/javascript/jscomp/PeepholeReplaceKnownMethods.java
 crates/jscomp/src/peephole_substitute_alternate_syntax.rs	8f2e788a33289fa0	Apache-2.0	closure:src/com/google/javascript/jscomp/PeepholeSubstituteAlternateSyntax.java
@@ -497,7 +497,7 @@ crates/jscomp/src/scoped_name.rs	32130247814d9ca2	Apache-2.0	closure:src/com/goo
 crates/jscomp/src/semantic_reverse_abstract_interpreter.rs	dc2d133f4d175c45	Apache-2.0	closure:src/com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
 crates/jscomp/src/serialization/color_pool.rs	766d4e2352f83270	Apache-2.0	closure:src/com/google/javascript/jscomp/serialization/ColorPool.java
 crates/jscomp/src/serialization/color_serializer.rs	646759b413720246	Apache-2.0	closure:src/com/google/javascript/jscomp/serialization/ColorSerializer.java
-crates/jscomp/src/serialization/convert_types_to_colors.rs	b7cd1ff13278bf37	Apache-2.0	closure:src/com/google/javascript/jscomp/serialization/ConvertTypesToColors.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
+crates/jscomp/src/serialization/convert_types_to_colors.rs	010f5aadf38e1158	Apache-2.0	closure:src/com/google/javascript/jscomp/serialization/ConvertTypesToColors.java
 crates/jscomp/src/serialization/fast_gzip_output_stream.rs	7ad694ecbc0fd6f9	Apache-2.0	closure:src/com/google/javascript/jscomp/serialization/FastGzipOutputStream.java
 crates/jscomp/src/serialization/fast_gzip_output_stream_jdk.rs	aa45ab24668dc94e	GPL-2.0-only WITH Classpath-exception-2.0	jdk:java.base/java/util/zip/GZIPOutputStream.java; jdk:java.base/java/util/zip/Deflater.java; jdk:java.base/java/util/zip/DeflaterOutputStream.java
 crates/jscomp/src/serialization/js_type_color_id_hasher.rs	b6a1414126200753	Apache-2.0	closure:src/com/google/javascript/jscomp/serialization/JSTypeColorIdHasher.java; guava:com/google/common/hash/Hashing.java; guava:com/google/common/hash/AbstractHasher.java; guava:com/google/common/hash/AbstractNonStreamingHashFunction.java; guava:com/google/common/hash/HashCode.java

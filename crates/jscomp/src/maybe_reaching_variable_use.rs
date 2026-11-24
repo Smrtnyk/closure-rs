@@ -27,7 +27,10 @@ use crate::{
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
-    check_not_null, check_state, hamt_pmap::HamtPMap, js_string::JsString, node::NodeId,
+    check_not_null, check_state,
+    hamt_pmap::HamtPMap,
+    js_string::JsString,
+    node::{Ast, NodeId},
     token::Token,
 };
 /// A variable with one reaching read needs only its CFG node. A second distinct
@@ -152,9 +155,34 @@ impl FlowJoiner<ReachingUses> for ReachingUsesJoinOp {
         self.result
     }
 }
+/// Rust-only (performance divergence): worker-local reaching-use analysis borrowing variable
+/// metadata from the main thread so CFG and `ReachingUses` drop on the same worker thread.
+pub(crate) struct BorrowedReachingUses<'a> {
+    state: DataFlowAnalysisState<NodeId>,
+    all_vars_in_fn: &'a IndexMap<JsString, VarId>,
+}
+
+impl BorrowedReachingUses<'_> {
+    pub(crate) fn has_single_use(&self, name: &JsString, def_node: NodeId) -> bool {
+        let Some(n) = self.state.cfg.get_node(&Some(def_node)) else {
+            return false;
+        };
+        matches!(
+            self.all_vars_in_fn.get(name).and_then(|var| self
+                .state
+                .node_flow::<ReachingUses>(n)
+                .get_out()
+                .may_use_pmap
+                .get(var)),
+            Some(UseSites::One(_))
+        )
+    }
+}
+
 pub struct MaybeReachingVariableUse {
     state: DataFlowAnalysisState<NodeId>,
     escaped: IndexSet<VarId>,
+    escaped_var_ids: Option<IndexSet<VarId>>,
     all_vars_in_fn: IndexMap<JsString, VarId>,
 }
 impl MaybeReachingVariableUse {
@@ -167,8 +195,83 @@ impl MaybeReachingVariableUse {
         Self {
             state: DataFlowAnalysisState::new(cfg, false, false),
             escaped,
+            escaped_var_ids: None,
             all_vars_in_fn,
         }
+    }
+    pub(crate) fn new_with_escaped_ids(
+        cfg: ControlFlowGraph<NodeId>,
+        escaped: IndexSet<VarId>,
+        escaped_var_ids: IndexSet<VarId>,
+        all_vars_in_fn: IndexMap<JsString, VarId>,
+    ) -> Self {
+        Self {
+            state: DataFlowAnalysisState::new(cfg, false, false),
+            escaped,
+            escaped_var_ids: Some(escaped_var_ids),
+            all_vars_in_fn,
+        }
+    }
+    pub(crate) fn run_borrowed<'a>(
+        ast: &Ast,
+        cfg: ControlFlowGraph<NodeId>,
+        escaped_var_ids: &IndexSet<VarId>,
+        all_vars_in_fn: &'a IndexMap<JsString, VarId>,
+    ) -> BorrowedReachingUses<'a> {
+        let mut state = DataFlowAnalysisState::new(cfg, false, false);
+        state.run_indexed_readonly(
+            ast,
+            false,
+            ReachingUses::new,
+            ReachingUses::new,
+            |acc, x| acc.join(x),
+            |cfg, cfg_node, n, mut output| {
+                let conditional = cfg
+                    .node_out_edges(cfg_node)
+                    .iter()
+                    .any(|&edge| *edge.get_value(cfg) == Branch::ON_EX);
+                Self::compute_may_use_ast(
+                    ast,
+                    n,
+                    n,
+                    &mut output,
+                    conditional,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                );
+                output
+            },
+        );
+        BorrowedReachingUses {
+            state,
+            all_vars_in_fn,
+        }
+    }
+    pub(crate) fn analyze_readonly(&mut self, ast: &Ast, escaped_var_ids: &IndexSet<VarId>) {
+        let all_vars_in_fn = &self.all_vars_in_fn;
+        self.state.run_indexed_readonly(
+            ast,
+            false,
+            ReachingUses::new,
+            ReachingUses::new,
+            |acc, x| acc.join(x),
+            |cfg, cfg_node, n, mut output| {
+                let conditional = cfg
+                    .node_out_edges(cfg_node)
+                    .iter()
+                    .any(|&edge| *edge.get_value(cfg) == Branch::ON_EX);
+                Self::compute_may_use_ast(
+                    ast,
+                    n,
+                    n,
+                    &mut output,
+                    conditional,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                );
+                output
+            },
+        );
     }
     pub fn into_cfg(self) -> ControlFlowGraph<NodeId> {
         self.state.into_cfg()
@@ -178,12 +281,329 @@ impl MaybeReachingVariableUse {
     }
     // port: MaybeReachingVariableUse#hasExceptionHandler
     fn has_exception_handler(&self, cfg_node: NodeId) -> bool {
-        for edge in self.get_cfg().get_out_edges(&Some(cfg_node)) {
-            if *edge.get_value(self.get_cfg()) == Branch::ON_EX {
-                return true;
+        let cfg = self.get_cfg();
+        cfg.get_node(&Some(cfg_node)).is_some_and(|gn| {
+            cfg.node_out_edges(gn)
+                .iter()
+                .any(|&edge| *edge.get_value(cfg) == Branch::ON_EX)
+        })
+    }
+    // port: MaybeReachingVariableUse#computeMayUse
+    fn compute_may_use_ast(
+        ast: &Ast,
+        n: NodeId,
+        cfg_node: NodeId,
+        output: &mut ReachingUses,
+        conditional: bool,
+        all_vars_in_fn: &IndexMap<JsString, VarId>,
+        escaped_var_ids: &IndexSet<VarId>,
+    ) {
+        match n.get_token(ast) {
+            Token::BLOCK | Token::ROOT | Token::FUNCTION => {}
+            Token::NAME => {
+                if NodeUtil::is_lhs_by_destructuring(ast, n) {
+                    if !conditional
+                        && let Some(&var) = all_vars_in_fn.get(n.get_string_ref(ast))
+                        && !escaped_var_ids.contains(&var)
+                    {
+                        output.remove_all(var);
+                    }
+                } else if let Some(&var) = all_vars_in_fn.get(n.get_string_ref(ast))
+                    && !escaped_var_ids.contains(&var)
+                {
+                    output.put(var, cfg_node);
+                }
+            }
+            Token::WHILE | Token::DO | Token::IF | Token::FOR => {
+                let cond = NodeUtil::get_condition_expression(ast, n).unwrap();
+                Self::compute_may_use_ast(
+                    ast,
+                    cond,
+                    cfg_node,
+                    output,
+                    conditional,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                );
+            }
+            Token::FOR_IN | Token::FOR_OF | Token::FOR_AWAIT_OF => {
+                let mut lhs = n.get_first_child(ast).unwrap();
+                let rhs = lhs.get_next(ast).unwrap();
+                if NodeUtil::is_name_declaration(ast, Some(lhs)) {
+                    lhs = lhs.get_last_child(ast).unwrap();
+                    if lhs.is_destructuring_lhs(ast) {
+                        lhs = lhs.get_first_child(ast).unwrap();
+                    }
+                }
+                if lhs.is_destructuring_pattern(ast) {
+                    Self::compute_may_use_ast(
+                        ast,
+                        lhs,
+                        cfg_node,
+                        output,
+                        true,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                    );
+                }
+                Self::compute_may_use_ast(
+                    ast,
+                    rhs,
+                    cfg_node,
+                    output,
+                    conditional,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                );
+            }
+            Token::AND
+            | Token::OR
+            | Token::COALESCE
+            | Token::OPTCHAIN_GETPROP
+            | Token::OPTCHAIN_GETELEM => {
+                Self::compute_may_use_ast(
+                    ast,
+                    n.get_last_child(ast).unwrap(),
+                    cfg_node,
+                    output,
+                    true,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                );
+                Self::compute_may_use_ast(
+                    ast,
+                    n.get_first_child(ast).unwrap(),
+                    cfg_node,
+                    output,
+                    conditional,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                );
+            }
+            Token::OPTCHAIN_CALL => {
+                let mut c = n.get_last_child(ast);
+                while c != n.get_first_child(ast) {
+                    let child = c.unwrap();
+                    Self::compute_may_use_ast(
+                        ast,
+                        child,
+                        cfg_node,
+                        output,
+                        true,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                    );
+                    c = child.get_previous(ast);
+                }
+                Self::compute_may_use_ast(
+                    ast,
+                    n.get_first_child(ast).unwrap(),
+                    cfg_node,
+                    output,
+                    conditional,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                );
+            }
+            Token::HOOK => {
+                Self::compute_may_use_ast(
+                    ast,
+                    n.get_last_child(ast).unwrap(),
+                    cfg_node,
+                    output,
+                    true,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                );
+                Self::compute_may_use_ast(
+                    ast,
+                    n.get_second_child(ast).unwrap(),
+                    cfg_node,
+                    output,
+                    true,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                );
+                Self::compute_may_use_ast(
+                    ast,
+                    n.get_first_child(ast).unwrap(),
+                    cfg_node,
+                    output,
+                    conditional,
+                    all_vars_in_fn,
+                    escaped_var_ids,
+                );
+            }
+            Token::VAR | Token::LET | Token::CONST => {
+                check_state!(
+                    n.has_children(ast),
+                    "AST should be normalized (%s)",
+                    n.to_string(ast)
+                );
+                let var_name = n.get_first_child(ast).unwrap();
+                if var_name.is_destructuring_lhs(ast) {
+                    Self::compute_may_use_ast(
+                        ast,
+                        var_name.get_first_child(ast).unwrap(),
+                        cfg_node,
+                        output,
+                        conditional,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                    );
+                    Self::compute_may_use_ast(
+                        ast,
+                        var_name.get_second_child(ast).unwrap(),
+                        cfg_node,
+                        output,
+                        conditional,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                    );
+                } else if let Some(child) = var_name.get_first_child(ast) {
+                    Self::compute_may_use_ast(
+                        ast,
+                        child,
+                        cfg_node,
+                        output,
+                        conditional,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                    );
+                    if !conditional
+                        && let Some(&var) = all_vars_in_fn.get(var_name.get_string_ref(ast))
+                        && !escaped_var_ids.contains(&var)
+                    {
+                        output.remove_all(var);
+                    }
+                }
+            }
+            Token::DEFAULT_VALUE => {
+                let first = n.get_first_child(ast).unwrap();
+                let second = n.get_second_child(ast).unwrap();
+                if first.is_destructuring_pattern(ast) {
+                    Self::compute_may_use_ast(
+                        ast,
+                        first,
+                        cfg_node,
+                        output,
+                        conditional,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                    );
+                    Self::compute_may_use_ast(
+                        ast,
+                        second,
+                        cfg_node,
+                        output,
+                        true,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                    );
+                } else if first.is_name(ast) {
+                    if !conditional
+                        && let Some(&var) = all_vars_in_fn.get(first.get_string_ref(ast))
+                        && !escaped_var_ids.contains(&var)
+                    {
+                        output.remove_all(var);
+                    }
+                    Self::compute_may_use_ast(
+                        ast,
+                        second,
+                        cfg_node,
+                        output,
+                        true,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                    );
+                } else {
+                    Self::compute_may_use_ast(
+                        ast,
+                        second,
+                        cfg_node,
+                        output,
+                        true,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                    );
+                    Self::compute_may_use_ast(
+                        ast,
+                        first,
+                        cfg_node,
+                        output,
+                        conditional,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                    );
+                }
+            }
+            _ => {
+                if NodeUtil::is_assignment_op(ast, n)
+                    && n.get_first_child(ast).unwrap().is_name(ast)
+                {
+                    check_state!(!NodeUtil::is_logical_assignment_op(ast, n));
+                    let name = n.get_first_child(ast).unwrap();
+                    if !conditional
+                        && let Some(&var) = all_vars_in_fn.get(name.get_string_ref(ast))
+                        && !escaped_var_ids.contains(&var)
+                    {
+                        output.remove_all(var);
+                    }
+                    if !n.is_assign(ast)
+                        && let Some(&var) = all_vars_in_fn.get(name.get_string_ref(ast))
+                        && !escaped_var_ids.contains(&var)
+                    {
+                        output.put(var, cfg_node);
+                    }
+                    Self::compute_may_use_ast(
+                        ast,
+                        name.get_next(ast).unwrap(),
+                        cfg_node,
+                        output,
+                        conditional,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                    );
+                } else if n.is_assign(ast)
+                    && n.get_first_child(ast)
+                        .unwrap()
+                        .is_destructuring_pattern(ast)
+                {
+                    Self::compute_may_use_ast(
+                        ast,
+                        n.get_first_child(ast).unwrap(),
+                        cfg_node,
+                        output,
+                        conditional,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                    );
+                    Self::compute_may_use_ast(
+                        ast,
+                        n.get_second_child(ast).unwrap(),
+                        cfg_node,
+                        output,
+                        conditional,
+                        all_vars_in_fn,
+                        escaped_var_ids,
+                    );
+                } else {
+                    let mut c = n.get_last_child(ast);
+                    while let Some(child) = c {
+                        Self::compute_may_use_ast(
+                            ast,
+                            child,
+                            cfg_node,
+                            output,
+                            conditional,
+                            all_vars_in_fn,
+                            escaped_var_ids,
+                        );
+                        c = child.get_previous(ast);
+                    }
+                }
             }
         }
-        false
     }
     // port: MaybeReachingVariableUse#computeMayUse
     fn compute_may_use(
@@ -464,6 +884,21 @@ impl DataFlowAnalysis<NodeId, ReachingUses> for MaybeReachingVariableUse {
     }
     fn state_mut(&mut self) -> &mut DataFlowAnalysisState<NodeId> {
         &mut self.state
+    }
+    fn analyze_indexed(&mut self, compiler: &mut AbstractCompiler) {
+        if let Some(escaped_var_ids) = self.escaped_var_ids.take() {
+            self.analyze_readonly(&compiler.ast, &escaped_var_ids);
+            self.escaped_var_ids = Some(escaped_var_ids);
+        } else {
+            let mut escaped_var_ids = IndexSet::default();
+            for &var in self.all_vars_in_fn.values() {
+                if self.escaped.iter().any(|e| e.equals(compiler, var)) {
+                    escaped_var_ids.insert(var);
+                }
+            }
+            self.analyze_readonly(&compiler.ast, &escaped_var_ids);
+            self.escaped_var_ids = Some(escaped_var_ids);
+        }
     }
     // port: MaybeReachingVariableUse#isForward
     fn is_forward(&self) -> bool {

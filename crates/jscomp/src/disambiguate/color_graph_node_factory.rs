@@ -19,7 +19,7 @@
 //! Port of `disambiguate/ColorGraphNodeFactory.java`.
 
 use super::color_graph_node::{ColorGraphNode, ColorGraphNodeId, DisambiguateArena};
-use crate::colors::{Color, color_registry::ColorRegistry, standard_colors};
+use crate::colors::{Color, ColorId, color_registry::ColorRegistry, standard_colors};
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use std::sync::Arc;
 
@@ -57,6 +57,11 @@ impl ColorGraphNodeFactoryMethods for ColorGraphNodeFactory {
 /// A factory and cache for {@link ColorGraphNode} instances.
 pub struct ColorGraphNodeFactory {
     type_index: IndexMap<Color, ColorGraphNodeId>,
+    // Rust-only (performance divergence): caches raw `ColorId -> ColorGraphNodeId` before
+    // `simplify_color` so repeated lookups on union/primitive/normal colors avoid cloning
+    // `Color` or rebuilding simplified unions.
+    raw_cache: IndexMap<ColorId, ColorGraphNodeId>,
+    unknown_node: Option<ColorGraphNodeId>,
     registry: Arc<ColorRegistry>,
 }
 
@@ -66,8 +71,11 @@ impl ColorGraphNodeFactory {
         initial_type_index: IndexMap<Color, ColorGraphNodeId>,
         registry: Arc<ColorRegistry>,
     ) -> Self {
+        let unknown_node = initial_type_index.get(&*standard_colors::UNKNOWN).copied();
         Self {
             type_index: initial_type_index,
+            raw_cache: IndexMap::default(),
+            unknown_node,
             registry,
         }
     }
@@ -93,12 +101,51 @@ impl ColorGraphNodeFactory {
         arena: &mut DisambiguateArena,
         color: Option<&Color>,
     ) -> ColorGraphNodeId {
-        let key = self.simplify_color(color);
-        if let Some(node) = self.type_index.get(&key) {
-            return *node;
+        match color {
+            None => {
+                if let Some(node) = self.unknown_node {
+                    return node;
+                }
+            }
+            Some(c) => {
+                let id = c.get_id();
+                if let Some(&node) = self.raw_cache.get(&id) {
+                    return node;
+                }
+                let node = if !c.is_union()
+                    && c.get_box_id().is_none()
+                    && *c != *standard_colors::NULL_OR_VOID
+                {
+                    if let Some(&existing) = self.type_index.get(c) {
+                        existing
+                    } else {
+                        let key = c.clone();
+                        let created = self.new_color_graph_node(arena, key.clone());
+                        self.type_index.insert(key, created);
+                        created
+                    }
+                } else {
+                    let key = self.simplify_color(Some(c));
+                    if let Some(&existing) = self.type_index.get(&key) {
+                        existing
+                    } else {
+                        let created = self.new_color_graph_node(arena, key.clone());
+                        self.type_index.insert(key, created);
+                        created
+                    }
+                };
+                self.raw_cache.insert(id, node);
+                return node;
+            }
+        }
+        let key = self.simplify_color(None);
+        if let Some(&node) = self.type_index.get(&key) {
+            self.unknown_node = Some(node);
+            return node;
         }
         let node = self.new_color_graph_node(arena, key.clone());
         self.type_index.insert(key, node);
+        self.unknown_node = Some(node);
         node
     }
 

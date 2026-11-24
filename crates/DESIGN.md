@@ -779,3 +779,80 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `jscomp/node_traversal.rs` `TRAVERSAL_TOKEN_CLASS`: `traverseBranch` classifies a node's token
   with one table lookup; tokens without a handler skip the dispatch switch, and `createsBlockScope`
   is asked only for the tokens that can create a block scope (Java: a switch and a call per node).
+- `rhino/java_util/bit_set.rs`: `BitSet` stores up to two 64-bit words inline (`Inline([u64; 2])`)
+  before spilling to a heap `Vec<u64>`, avoiding heap allocation for dataflow lattices under 128 bits.
+- `rhino/node.rs`, `rhino/node/snapshot.rs`: `Ast::append_preparsed` remaps only slots recorded in
+  `preparse_node_prop_slots`; `Ast::nodes_with_jsdoc_bit` scans dense `Ast::jsdocs` when a JSDoc
+  flag has been observed; `Ast::changed_flag_nodes` tracks per-node mutations to `JSDOC_INFO`,
+  `SIDE_EFFECT_FLAGS`, `IS_CONSTANT_NAME`, and `CONSTANT_VAR_FLAGS` for per-subtree cache
+  invalidation.
+- `jscomp/syntactic_scope_cache.rs`, `syntactic_scope_creator.rs`: `ScopeContext::of` reuses a
+  parent scope's verified `(script, change_root)` tag within the same AST change round, and
+  `SyntacticScopeCache` maintains per-subtree `flag_stamps` (`subtree_stamp_with_flags`) alongside
+  structural `stamps`.
+- `jscomp/pass_gates.rs`, `j2cl_checks_pass.rs`: `PassGate` also gates `rewriteDynamicImport`
+  (`Token::DYNAMIC_IMPORT`) and `renameLabels` (`Token::LABEL`), and `J2clChecksPass` skips
+  traversing scripts when no J2CL watched name or file marker is present.
+- `jscomp/rename_properties.rs`, `rename_vars.rs`: property/variable occurrence accounting uses
+  O(N log N) sorting and interned name/slot indices instead of quadratic rescans; `rename_vars`
+  walks AST scopes directly with reusable per-scope buffers.
+- `jscomp/inline_functions.rs`, `inline_simple_methods.rs`, `inline_object_literals.rs`:
+  function-inlining and simple-method passes pre-index candidate names and prune unreachable
+  subtrees; `inline_object_literals` pre-filters candidate object-literal sites by enclosing
+  top-level function.
+- `jscomp/normalize.rs`, `node_util.rs`: normalization avoids redundant child-list allocations and
+  reuses direct AST helpers when preparing normalized function and statement shapes.
+- `jscomp/remove_unused_code.rs`, `compiler.rs`: `RemoveUnusedCodeCache` (`CLOSURE_RS_RUC_CACHE=off`)
+  caches unchanged pure-leaf function analyses with a 128-bit `polyfill_mask` and skips removable
+  property tracking when `tracks_removable_properties()` is false.
+- `jscomp/parallel_parse.rs`: `parallel_thread_count` scales intra-pass worker threads smoothly by
+  `work_items / min_per_thread` (up to `max_threads`, disabled by `CLOSURE_RS_PARALLEL=off` or the
+  busy-machine guard).
+- `jscomp/code_printer.rs`, `compiler.rs`, `compiler_license_tracker.rs`, `source_map.rs`,
+  `sourcemap/util.rs`: large multi-script bundles (`>= 8` non-empty scripts and `>= 500_000` nodes)
+  render per-script code and mappings in parallel on up to 4 threads before merging in exact script
+  order (`emit_scripts_to_builder`); `sourcemap/util.rs` buffers escaped output in 16 KB
+  chunks with ASCII fast-path scanning, and `source_map.rs` caches resolved file/symbol mappings.
+- `jscomp/control_flow_analysis.rs`, `control_flow_graph.rs`, `data_flow_analysis.rs`,
+  `live_variables_analysis.rs`, `must_be_reaching_variable_def.rs`,
+  `maybe_reaching_variable_use.rs`, `dead_assignments_elimination.rs`,
+  `coalesce_variable_names.rs`, `flow_sensitive_inline_variables.rs`: read-only CFG construction
+  (`compute_cfg_readonly`) and borrowed indexed dataflow analyses (`run_indexed_readonly`,
+  `PreparedLiveness`, `PreparedMustDef`, `BorrowedLiveness`, `BorrowedMustDef`,
+  `BorrowedReachingUses`) screen large batches of functions in 2048-item parallel chunks on worker
+  threads (returning only functions that actually rewrite, or `CompactColoringOutput` for
+  coalescing, and dropping graphs/lattices on workers); `FlowInlineCleanCache`
+  (`CLOSURE_RS_FSIV_CACHE=off`) skips unchanged leaf functions known to produce zero flow-sensitive
+  inlines under the current purity environment and `subtree_stamp_with_flags`.
+- `jscomp/process_defines.rs`, `global_namespace.rs`: when no external namespace supplier is given,
+  `ProcessDefines` inspects live attached `@define` nodes directly, skips `GlobalNamespace` when no
+  live `@define` exists, builds a root-filtered namespace (`GlobalNamespace::new_filtered_roots`)
+  pruning off-path containers when defines exist, and skips invalid-location rescans once all live
+  `@define` nodes are accounted for.
+- `jscomp/abstract_peephole_optimization.rs`, `peephole_optimizations_pass.rs`,
+  `peephole_substitute_alternate_syntax.rs`, `peephole_fold_constants.rs`,
+  `minimize_exit_points.rs`, `statement_fusion.rs`, `exploit_assigns.rs`: all built-in peephole
+  rules declare tight `candidate_tokens()` (split by `late` in `PeepholeSubstituteAlternateSyntax`)
+  and `FastTokenFilter` predicates (`NameIsUndefined`, `GetPropOnWindow`, `GetPropOnLiteral`), and
+  `PeepholeOptimizationsPass` runs a direct post-order `PeepWalker` with lazy feature flushing
+  instead of `NodeTraversal`.
+- `jscomp/graph/lowest_common_ancestor_finder.rs`, `graph/fixed_point_graph_traversal.rs`,
+  `disambiguate/color_graph_node_factory.rs`, `disambiguate/color_find_property_references.rs`,
+  `disambiguate/cluster_propagator.rs`, `disambiguate/disambiguate_properties.rs`: LCA coloring
+  and fixed-point worksets use dense `Vec` tables indexed by graph node ID; `ColorGraphNodeFactory`
+  caches raw `ColorId -> ColorGraphNodeId`; `ColorFindPropertyReferences` walks the AST directly;
+  `ClusterPropagator` stores extern memberships in sorted `Vec<(u32, u64)>` and prunes propagation
+  to `Ancestors(Reachable(source_prop_nodes))`; `DisambiguateProperties` exits early when no
+  non-extern non-invalidated property exists.
+- `jscomp/reference_collector.rs`, `reference_collector/function_body.rs`, `inline_variables.rs`,
+  `compiler.rs`: `FunctionBodySites` uses 8-byte tagged `Site` entries and records nested empty
+  scopes; `replay_body_sites` materializes nested `BasicBlock`s and empty `ScopeId`s lazily;
+  `InlineVarsCleanCache` (`CLOSURE_RS_INLINE_VARS_CACHE=off`) skips unchanged simple-parameter leaf
+  functions with no local inlines and no outer-name alias dependencies by replaying only pruned
+  free-variable `Site`s (`prune_to_slots`), validated via `subtree_stamp_with_flags`;
+  `Compiler::set_life_cycle_stage` drops optimization-loop caches when leaving a normalized stage.
+- `jscomp/serialization/convert_types_to_colors.rs`, `serialization/serialize_types_to_pointers.rs`,
+  `serialization/js_type_reconserializer.rs`, `pure_function_identifier.rs`: type-to-color
+  conversion and type-pointer serialization use direct post-order AST walks and dense `Vec` caches
+  indexed by `TypeId`; `PureFunctionIdentifier` indexes property summaries by raw property name to
+  avoid per-lookup `"." + name` string allocations.

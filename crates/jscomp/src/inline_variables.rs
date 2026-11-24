@@ -36,6 +36,7 @@
 //! an alias in an enclosing scope.
 
 use crate::abstract_compiler::AbstractCompiler;
+use crate::accessor_summary::AccessorSummary;
 use crate::basic_block::BasicBlock;
 use crate::compiler_pass::CompilerPass;
 use crate::node_iterators::LocalVarMotion;
@@ -43,9 +44,10 @@ use crate::node_traversal::NodeTraversal;
 use crate::node_util::NodeUtil;
 use crate::reference::Reference;
 use crate::reference_collection::ReferenceCollection;
-use crate::reference_collector::{Behavior, ReferenceCollector};
+use crate::reference_collector::{Behavior, FunctionReferenceCache, ReferenceCollector, Site};
 use crate::reference_map::ReferenceMap;
 use crate::scope::ScopeId;
+use crate::syntactic_scope_cache::SyntacticScopeCache;
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use crate::var::VarId;
 use closure_rhino::fast_hash::IndexMap;
@@ -54,6 +56,71 @@ use closure_rhino::node::{Ast, NodeId, WatchedName};
 use closure_rhino::{check_argument, check_not_null, check_state};
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::{Arc, LazyLock};
+
+static INLINE_VARS_CACHE_ENABLED: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("CLOSURE_RS_INLINE_VARS_CACHE").as_deref() != Ok("off"));
+
+/// Rust-only (performance divergence): environment signature invalidating `InlineVarsCleanCache`
+/// whenever mode, purity, accessor summary, or normalization state changes. Per-function edits to
+/// `JSDOC_INFO`, `SIDE_EFFECT_FLAGS`, `IS_CONSTANT_NAME`, or `CONSTANT_VAR_FLAGS` are tracked per
+/// subtree via `SyntacticScopeCache::subtree_stamp_with_flags`.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct InlineVarsEnvKey {
+    mode_tag: u8,
+    assume_getters_are_pure: bool,
+    has_reg_exp_global_references: bool,
+    accessor_summary: Option<Arc<AccessorSummary>>,
+    has_goog_weak_usage: bool,
+    is_normalized: bool,
+}
+
+impl InlineVarsEnvKey {
+    fn matches(&self, other: &Self) -> bool {
+        let accessor_same = match (&self.accessor_summary, &other.accessor_summary) {
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b) || a == b,
+            (None, None) => true,
+            _ => false,
+        };
+        self.mode_tag == other.mode_tag
+            && self.assume_getters_are_pure == other.assume_getters_are_pure
+            && self.has_reg_exp_global_references == other.has_reg_exp_global_references
+            && accessor_same
+            && self.has_goog_weak_usage == other.has_goog_weak_usage
+            && self.is_normalized == other.is_normalized
+    }
+}
+
+/// Rust-only (performance divergence): free-variable spellings and pruned replay sites for a
+/// cached clean leaf function in `InlineVariables`.
+pub(crate) struct CleanLeafFreeSites {
+    pub(crate) first_names: Box<[NodeId]>,
+    pub(crate) sites: Box<[Site]>,
+}
+
+/// Rust-only (performance divergence): cached unchanged leaf function known to perform no local
+/// variable inlining and have no outer-scope alias dependency in `InlineVariables`.
+pub(crate) struct CleanLeafInlineEntry {
+    pub(crate) fn_stamp: (u32, u32),
+    pub(crate) free: Option<Arc<CleanLeafFreeSites>>,
+}
+
+/// Rust-only (performance divergence): cross-round cache of clean leaf functions for
+/// `InlineVariables`, stored on `AbstractCompiler` and cleared on AST arena reset.
+#[derive(Default)]
+pub(crate) struct InlineVarsCleanCache {
+    env: Option<InlineVarsEnvKey>,
+    pub(crate) clean_leaves: IndexMap<NodeId, CleanLeafInlineEntry>,
+}
+
+impl InlineVarsCleanCache {
+    fn sync_environment(&mut self, key: InlineVarsEnvKey) {
+        if !self.env.as_ref().is_some_and(|prev| prev.matches(&key)) {
+            self.clean_leaves.clear();
+        }
+        self.env = Some(key);
+    }
+}
 
 pub struct InlineVariables {
     mode: Mode,
@@ -94,10 +161,30 @@ impl CompilerPass for InlineVariables {
     // port: InlineVariables#process
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
         let mode = self.mode;
+        let use_cache = *INLINE_VARS_CACHE_ENABLED;
+        if use_cache {
+            let env = InlineVarsEnvKey {
+                mode_tag: match mode {
+                    Mode::CONSTANTS_ONLY => 0,
+                    Mode::LOCALS_ONLY => 1,
+                    Mode::ALL => 2,
+                },
+                assume_getters_are_pure: compiler
+                    .get_options_opt()
+                    .is_some_and(|o| o.get_assume_getters_are_pure()),
+                has_reg_exp_global_references: compiler.has_reg_exp_global_references(),
+                accessor_summary: compiler.get_accessor_summary().cloned(),
+                has_goog_weak_usage: compiler.has_seen_name(WatchedName::Goog),
+                is_normalized: compiler.get_life_cycle_stage().is_normalized(),
+            };
+            compiler.inline_vars_clean_cache.sync_environment(env);
+        } else {
+            compiler.inline_vars_clean_cache.clean_leaves.clear();
+        }
         let mut scope_creator = SyntacticScopeCreator::new();
         let mut callback = ReferenceCollector::new_with_filter(
             compiler,
-            InliningBehavior::new(mode),
+            InliningBehavior::new(mode, use_cache),
             &mut scope_creator,
             Box::new(move |compiler: &AbstractCompiler, var: VarId| {
                 mode.var_predicate(compiler, var)
@@ -232,10 +319,20 @@ impl InlineVarAnalysis {
     }
 }
 
+struct PendingLeafRecord {
+    fn_node: NodeId,
+    body: NodeId,
+    body_scope: ScopeId,
+    clean: bool,
+}
+
 /// Builds up information about nodes in each scope. When exiting the scope, inspects all
 /// variables in that scope, and inlines any that we can.
 struct InliningBehavior {
     mode: Mode,
+    use_cache: bool,
+    current_scope_did_inline: bool,
+    pending_leaf: Option<PendingLeafRecord>,
 
     /// Records the analyses of variables that have already been handled in the current scope.
     ///
@@ -253,11 +350,23 @@ struct InliningBehavior {
 
     /// Rust-only: the `StandardVarExpert` objects created so far (see the module comment).
     experts: Vec<RefCell<StandardVarExpert>>,
+
+    /// Rust-only (performance divergence): reusable scratch buffers for building pruned
+    /// `CleanLeafFreeSites` entries without per-function temporary allocations.
+    free_slots_scratch: Vec<u32>,
+    free_names_scratch: Vec<NodeId>,
+    prune_remap_scratch: Vec<u32>,
+    prune_frames_scratch: Vec<usize>,
+    prune_out_scratch: Vec<Site>,
 }
 
 impl Behavior for InliningBehavior {
     fn can_reuse_function_reference_sites(&self) -> bool {
         true
+    }
+
+    fn use_inline_vars_clean_cache(&self) -> bool {
+        self.use_cache
     }
 
     // port: InlineVariables.InliningBehavior#afterExitScope
@@ -281,14 +390,59 @@ impl AliasInlineRetryHandler {
 }
 
 impl InliningBehavior {
-    fn new(mode: Mode) -> Self {
+    fn new(mode: Mode, use_cache: bool) -> Self {
         Self {
             mode,
+            use_cache,
+            current_scope_did_inline: false,
+            pending_leaf: None,
             current_scope_handled_var_analyses_map: HandledVarAnalyses::default(),
             var_to_alias_retry_handlers_map: IndexMap::<_, _>::default(),
             scope_vars: Vec::new(),
             experts: Vec::new(),
+            free_slots_scratch: Vec::new(),
+            free_names_scratch: Vec::new(),
+            prune_remap_scratch: Vec::new(),
+            prune_frames_scratch: Vec::new(),
+            prune_out_scratch: Vec::new(),
         }
+    }
+
+    fn has_simple_params(ast: &Ast, fn_node: NodeId) -> bool {
+        let Some(params) = fn_node.get_second_child(ast) else {
+            return false;
+        };
+        let mut c = params.get_first_child(ast);
+        while let Some(param) = c {
+            if !param.is_name(ast) || param.has_children(ast) {
+                return false;
+            }
+            c = param.get_next(ast);
+        }
+        true
+    }
+
+    fn has_outer_name_assignment(
+        compiler: &mut AbstractCompiler,
+        body_scope: ScopeId,
+        fn_scope: ScopeId,
+        refs: &ReferenceCollection,
+    ) -> bool {
+        for r in &refs.references {
+            if let Some(val) = r.get_assigned_value(compiler)
+                && val.is_name(compiler)
+            {
+                let target = body_scope.get_var_of_node(compiler, val);
+                let is_local = target.is_some_and(|tv| {
+                    let s = tv.get_scope(compiler);
+                    s == body_scope || s == fn_scope
+                });
+                if !is_local {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     /// For all variables in this scope, see if they are only used once. If it looks safe to do
@@ -302,14 +456,55 @@ impl InliningBehavior {
         // Any variables we completed in an earlier scope are now out of scope,
         // so we can clear this map.
         self.current_scope_handled_var_analyses_map.clear();
+        self.current_scope_did_inline = false;
         let scope = t.get_scope();
         let compiler = t.get_compiler();
+        let is_body_scope = self.use_cache && scope.is_function_block_scope(compiler);
+        let is_fn_scope = self.use_cache && scope.is_function_scope(compiler);
+        let track_body = if is_body_scope {
+            let body = scope.get_root_node(compiler);
+            body.get_parent(compiler).and_then(|fn_node| {
+                (fn_node.is_function(compiler)
+                    && !fn_node.is_from_externs(compiler)
+                    && Self::has_simple_params(compiler, fn_node)
+                    && (!body.has_children(compiler)
+                        || compiler.function_reference_sites.has_cached_sites(body)))
+                .then_some((fn_node, body, scope.get_parent(compiler).unwrap()))
+            })
+        } else {
+            None
+        };
+        let pending_for_fn = if is_fn_scope {
+            self.pending_leaf
+                .take()
+                .filter(|p| p.clean && p.fn_node == scope.get_root_node(compiler))
+        } else {
+            if is_body_scope {
+                self.pending_leaf = None;
+            }
+            None
+        };
+        let mut had_outer_dep = false;
+
         let may_be_a_parameter_modified_via_arguments =
             self.vars_in_this_scope_may_be_modified_using_arguments(compiler, scope, reference_map);
         let mut vars = std::mem::take(&mut self.scope_vars);
         scope.collect_declared_vars(compiler, &mut vars);
         for &v in &vars {
             let reference_info = reference_map.shared_references(v);
+            if !had_outer_dep {
+                if let Some((_, _, fn_scope)) = track_body
+                    && let Some(refs) = reference_info.as_deref()
+                    && Self::has_outer_name_assignment(compiler, scope, fn_scope, refs)
+                {
+                    had_outer_dep = true;
+                } else if let Some(pending) = &pending_for_fn
+                    && let Some(refs) = reference_info.as_deref()
+                    && Self::has_outer_name_assignment(compiler, pending.body_scope, scope, refs)
+                {
+                    had_outer_dep = true;
+                }
+            }
             let expert = self.create_var_expert(
                 compiler,
                 v,
@@ -321,6 +516,17 @@ impl InliningBehavior {
                 // We need to wait for the aliased variable to be handled.
                 let retry_handler = AliasInlineRetryHandler::new(v, expert);
                 let aliased_var = analysis.get_aliased_var();
+                if let Some((_, _, fn_scope)) = track_body {
+                    let aliased_scope = aliased_var.get_scope(compiler);
+                    if aliased_scope != scope && aliased_scope != fn_scope {
+                        had_outer_dep = true;
+                    }
+                } else if let Some(pending) = &pending_for_fn {
+                    let aliased_scope = aliased_var.get_scope(compiler);
+                    if aliased_scope != pending.body_scope && aliased_scope != scope {
+                        had_outer_dep = true;
+                    }
+                }
                 let aliased_var_analysis = self
                     .current_scope_handled_var_analyses_map
                     .get(compiler, aliased_var);
@@ -341,6 +547,7 @@ impl InliningBehavior {
                 }
             } else {
                 if analysis.should_inline() {
+                    self.current_scope_did_inline = true;
                     analysis.perform_inline(compiler, &self.experts);
                 }
                 // Record the results for aliases we may find later
@@ -351,6 +558,51 @@ impl InliningBehavior {
             }
         }
         self.scope_vars = vars;
+
+        if let Some((fn_node, body, _)) = track_body {
+            self.pending_leaf = Some(PendingLeafRecord {
+                fn_node,
+                body,
+                body_scope: scope,
+                clean: !self.current_scope_did_inline && !had_outer_dep,
+            });
+        } else if let Some(pending) = pending_for_fn
+            && !self.current_scope_did_inline
+            && !had_outer_dep
+            && let Some(body_sites) = FunctionReferenceCache::sites(compiler, pending.body)
+        {
+            self.free_slots_scratch.clear();
+            self.free_names_scratch.clear();
+            for (idx, &first_name) in body_sites.first_names.iter().enumerate() {
+                let resolved = pending.body_scope.get_var_of_node(compiler, first_name);
+                let is_local_to_fn = resolved.is_some_and(|v| {
+                    let s = v.get_scope(compiler);
+                    s == pending.body_scope || s == scope
+                });
+                if !is_local_to_fn {
+                    self.free_slots_scratch.push(idx as u32);
+                    self.free_names_scratch.push(first_name);
+                }
+            }
+            let free = if self.free_slots_scratch.is_empty() {
+                None
+            } else {
+                Some(Arc::new(CleanLeafFreeSites {
+                    first_names: self.free_names_scratch.as_slice().into(),
+                    sites: body_sites.prune_to_slots(
+                        &self.free_slots_scratch,
+                        &mut self.prune_remap_scratch,
+                        &mut self.prune_frames_scratch,
+                        &mut self.prune_out_scratch,
+                    ),
+                }))
+            };
+            let fn_stamp = SyntacticScopeCache::subtree_stamp_with_flags(compiler, pending.fn_node);
+            compiler
+                .inline_vars_clean_cache
+                .clean_leaves
+                .insert(pending.fn_node, CleanLeafInlineEntry { fn_stamp, free });
+        }
     }
 
     /// Returns true for function scopes (the whole function, not the body), if the function uses
@@ -430,6 +682,7 @@ impl InliningBehavior {
             handler.v.to_string(compiler)
         );
         if new_analysis.should_inline() {
+            self.current_scope_did_inline = true;
             new_analysis.perform_inline(compiler, &self.experts);
         }
         self.current_scope_handled_var_analyses_map

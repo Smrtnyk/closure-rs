@@ -187,7 +187,7 @@ impl ControlFlowGraph<NodeId> {
     }
 
     // port: ControlFlowGraph#isEnteringNewCfgNode
-    pub fn is_entering_new_cfg_node(compiler: &AbstractCompiler, n: NodeId) -> bool {
+    pub fn is_entering_new_cfg_node(compiler: &closure_rhino::node::Ast, n: NodeId) -> bool {
         let parent = n.get_parent(compiler).unwrap();
         match parent.get_token(compiler) {
             token if Self::children_start_new_cfg_nodes(token) => true,

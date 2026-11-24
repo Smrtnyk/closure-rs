@@ -20,8 +20,8 @@
 
 mod function_body;
 
-pub(crate) use function_body::FunctionReferenceCache;
-use function_body::Site;
+use function_body::SiteKind;
+pub(crate) use function_body::{FunctionReferenceCache, Site};
 
 use crate::abstract_compiler::AbstractCompiler;
 use crate::basic_block::BasicBlock;
@@ -33,6 +33,7 @@ use crate::reference_collection::ReferenceCollection;
 use crate::reference_map::ReferenceMap;
 use crate::scope::ScopeId;
 use crate::scope_creator::ScopeCreator;
+use crate::syntactic_scope_cache::SyntacticScopeCache;
 use crate::var::VarId;
 use closure_rhino::check_state;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
@@ -93,6 +94,12 @@ pub struct CollectorCallback<'a, B: Behavior> {
 
     /// Scratch for one single-scope body's current bindings and reference-map indices.
     body_bindings: Vec<(Option<VarId>, Option<usize>)>,
+    /// Scratch stack of nested empty block scopes lazily materialized during cached site replay.
+    replay_scope_stack: Vec<(NodeId, Option<ScopeId>)>,
+    /// Scratch stack of nested basic blocks lazily materialized during cached site replay.
+    replay_block_stack: Vec<(NodeId, Option<Rc<BasicBlock>>)>,
+    /// Scratch list of resolved `(slot, var)` pairs for `InlineVariables` clean-leaf hits.
+    free_vars_scratch: Vec<(u32, VarId)>,
 
     /// Rust-only (performance divergence): `process(externs, root)` may skip the externs (see
     /// `skip_externs_when_unread`).
@@ -185,6 +192,9 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
                 collected_hoisted_functions: IndexSet::<_>::default(),
                 narrow_scope: None,
                 body_bindings: Vec::new(),
+                replay_scope_stack: Vec::new(),
+                replay_block_stack: Vec::new(),
+                free_vars_scratch: Vec::new(),
                 reuse_sites: false,
                 may_skip_externs: false,
                 skipped_externs: None,
@@ -461,23 +471,205 @@ impl<B: Behavior> CollectorCallback<'_, B> {
             }
         }
         if has_references {
-            let scope = scope.expect("collected references have a scope");
-            for site in &body.sites {
-                match *site {
-                    Site::Reference(name, binding) => {
-                        if let Some(index) = self.body_bindings[binding as usize].1 {
-                            t.position_at_node(name);
-                            let block = self.block_stack.back().expect("getLast").clone();
-                            Rc::make_mut(&mut self.reference_map[index])
-                                .add(Reference::in_scope(name, t, block, scope));
-                        }
+            let root_scope = scope.expect("collected references have a scope");
+            self.replay_body_sites(t, &body.sites, root_scope);
+        }
+        true
+    }
+
+    /// Rust-only (performance divergence): replays `sites` using `self.body_bindings`,
+    /// lazily materializing both nested `BasicBlock`s and nested empty `ScopeId`s only when an
+    /// active reference actually fires inside them.
+    fn replay_body_sites(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        sites: &[Site],
+        root_scope: ScopeId,
+    ) {
+        self.replay_scope_stack.clear();
+        self.replay_block_stack.clear();
+        for site in sites {
+            match site.decode() {
+                SiteKind::Reference(name, binding) => {
+                    if let Some(index) = self.body_bindings[binding as usize].1 {
+                        let ref_scope = if self.replay_scope_stack.is_empty() {
+                            root_scope
+                        } else {
+                            Self::materialize_replay_scope(
+                                t,
+                                root_scope,
+                                &mut self.replay_scope_stack,
+                            )
+                        };
+                        t.position_at_node(name);
+                        let block = Self::materialize_replay_block(
+                            t,
+                            &self.block_stack,
+                            &mut self.replay_block_stack,
+                        );
+                        Rc::make_mut(&mut self.reference_map[index])
+                            .add(Reference::in_scope(name, t, block, ref_scope));
                     }
-                    Site::EnterBlock(n) => self.push_new_block(t, n),
-                    Site::ExitBlock(n) => self.pop_last_block(t, n),
+                }
+                SiteKind::EnterBlock(n) => self.replay_block_stack.push((n, None)),
+                SiteKind::ExitBlock(n) => {
+                    let (root, _) = self.replay_block_stack.pop().expect("removeLast");
+                    check_state!(root == n, &n.to_string(t));
+                }
+                SiteKind::EnterEmptyScope(n) => self.replay_scope_stack.push((n, None)),
+                SiteKind::ExitEmptyScope => {
+                    self.replay_scope_stack.pop();
                 }
             }
         }
+    }
+
+    fn materialize_replay_block(
+        ast: &Ast,
+        base_stack: &VecDeque<Rc<BasicBlock>>,
+        replay_stack: &mut [(NodeId, Option<Rc<BasicBlock>>)],
+    ) -> Rc<BasicBlock> {
+        let Some(last) = replay_stack.last() else {
+            return base_stack.back().expect("getLast").clone();
+        };
+        if let Some(b) = &last.1 {
+            return b.clone();
+        }
+        let mut parent = base_stack.back().cloned();
+        for (root_node, cached) in replay_stack.iter_mut() {
+            let block = match cached {
+                Some(b) => b.clone(),
+                None => {
+                    let b = BasicBlock::new(ast, parent, *root_node);
+                    *cached = Some(b.clone());
+                    b
+                }
+            };
+            parent = Some(block);
+        }
+        parent.expect("non-empty replay block stack")
+    }
+
+    /// Rust-only (performance divergence): fast-path skip for unchanged leaf functions recorded
+    /// in `InlineVarsCleanCache`. Records any outer-scope function-declaration name and any
+    /// references to free variables resolving outside `fn_node` while skipping `fn_node`'s own
+    /// local variables and `InliningBehavior::do_inlines_for_scope`.
+    fn try_skip_clean_leaf_function(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        fn_node: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        if !t
+            .get_compiler()
+            .inline_vars_clean_cache
+            .clean_leaves
+            .contains_key(&fn_node)
+        {
+            return false;
+        }
+        let stamp = SyntacticScopeCache::subtree_stamp_with_flags(t.get_compiler(), fn_node);
+        let free = match t
+            .get_compiler()
+            .inline_vars_clean_cache
+            .clean_leaves
+            .get(&fn_node)
+        {
+            Some(entry) if entry.fn_stamp == stamp => entry.free.clone(),
+            _ => {
+                t.get_compiler()
+                    .inline_vars_clean_cache
+                    .clean_leaves
+                    .swap_remove(&fn_node);
+                return false;
+            }
+        };
+        let enclosing_scope = t.get_scope();
+        self.free_vars_scratch.clear();
+        if let Some(free) = &free {
+            for (slot, &name) in free.first_names.iter().enumerate() {
+                t.position_at_node(name);
+                if !self.needs_name(t, name) {
+                    continue;
+                }
+                let var = enclosing_scope.get_var_of_node(t.get_compiler(), name);
+                if self.collect_hoisted_functions_in_reference_order
+                    && var.is_some_and(|v| {
+                        self.pending_hoisted_function(t.get_compiler(), v).is_some()
+                    })
+                {
+                    return false;
+                }
+                if let Some(v) = var
+                    && (self.var_filter)(t.get_compiler(), v)
+                    && self.behavior.needs_variable(t.get_compiler(), v)
+                {
+                    self.free_vars_scratch.push((slot as u32, v));
+                }
+            }
+        }
+
+        let is_fn_decl = parent.is_some() && NodeUtil::is_function_declaration(t, fn_node);
+        let boundary = BasicBlock::is_block_boundary(t, fn_node, parent);
+        let has_free_refs = !self.free_vars_scratch.is_empty();
+        if boundary && (is_fn_decl || has_free_refs) {
+            self.push_new_block(t, fn_node);
+        }
+        if is_fn_decl {
+            let fn_name = fn_node.get_first_child(t).unwrap();
+            t.position_at_node(fn_name);
+            if self.needs_name(t, fn_name)
+                && let Some(v) = enclosing_scope.get_var_of_node(t.get_compiler(), fn_name)
+            {
+                self.add_reference(v, fn_name, t, enclosing_scope);
+            }
+        }
+        if has_free_refs {
+            let free = free.as_ref().expect("free refs imply free sites");
+            let body = fn_node.get_last_child(t).expect("function body");
+            self.body_bindings.clear();
+            self.body_bindings
+                .resize(free.first_names.len(), (None, None));
+            for i in 0..self.free_vars_scratch.len() {
+                let (slot, v) = self.free_vars_scratch[i];
+                let entry = self.reference_map.entry(v);
+                self.body_bindings[slot as usize] = (Some(v), Some(entry.index()));
+                entry.or_default();
+            }
+            let (compiler, scope_creator) = t.get_compiler_and_scope_creator();
+            let fn_scope = scope_creator.create_scope(compiler, fn_node, Some(enclosing_scope));
+            let body_scope = scope_creator.create_scope(compiler, body, Some(fn_scope));
+            self.push_new_block(t, fn_node);
+            self.replay_body_sites(t, &free.sites, body_scope);
+            self.pop_last_block(t, fn_node);
+        }
+        if boundary && (is_fn_decl || has_free_refs) {
+            self.pop_last_block(t, fn_node);
+        }
         true
+    }
+
+    fn materialize_replay_scope(
+        t: &mut NodeTraversal<'_>,
+        root_scope: ScopeId,
+        scope_stack: &mut [(NodeId, Option<ScopeId>)],
+    ) -> ScopeId {
+        if let Some(s) = scope_stack.last().unwrap().1 {
+            return s;
+        }
+        let (compiler, scope_creator) = t.get_compiler_and_scope_creator();
+        let mut parent = root_scope;
+        for (root_node, cached) in scope_stack.iter_mut() {
+            parent = match *cached {
+                Some(s) => s,
+                None => {
+                    let s = scope_creator.create_scope(compiler, *root_node, Some(parent));
+                    *cached = Some(s);
+                    s
+                }
+            };
+        }
+        parent
     }
 
     // port: ReferenceCollector#pushNewBlock
@@ -553,6 +745,7 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
         (self.reuse_sites
             || (self.behavior.can_reuse_function_reference_sites()
                 && parent.is_some_and(|p| p.is_function(t))))
+            && self.externs_refer_only_to_externs != Some(true)
             && *REUSE_REFERENCE_SITES
             && block.has_children(t)
             && t.has_cached_source_input()
@@ -580,6 +773,18 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
             if !self.collected_hoisted_functions.insert(n) {
                 return false;
             }
+        }
+
+        if n.is_function(node_traversal)
+            && (parent.is_some() || node_traversal.get_scope_root().is_some())
+            && self.narrow_scope.is_none()
+            && self.externs_refer_only_to_externs != Some(true)
+            && *REUSE_REFERENCE_SITES
+            && self.behavior.use_inline_vars_clean_cache()
+            && node_traversal.has_cached_source_input()
+            && self.try_skip_clean_leaf_function(node_traversal, n, parent)
+        {
+            return false;
         }
 
         self.behavior
@@ -627,7 +832,11 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
         self.behavior
             .after_visit_node(t, n, parent, added_reference);
 
-        if BasicBlock::is_block_boundary(t, n, parent) {
+        // Rust-only (performance divergence): a block boundary pushed in should_traverse must sit
+        // at the top of block_stack on exit, avoiding a second is_block_boundary check per node.
+        if self.block_stack.back().is_some_and(|b| b.get_root() == n)
+            && BasicBlock::is_block_boundary(t, n, parent)
+        {
             self.pop_last_block(t, n);
         }
     }
@@ -719,6 +928,12 @@ pub trait Behavior {
     /// depends only on the binding and AST. ReferenceCollector may then reuse ordered sites in a
     /// single-scope function body and evaluate the filter once per spelling in that body.
     fn can_reuse_function_reference_sites(&self) -> bool {
+        false
+    }
+
+    /// Rust-only (performance divergence): opt in for `InlineVariables` to skip unchanged clean
+    /// leaf functions via `AbstractCompiler::inline_vars_clean_cache`.
+    fn use_inline_vars_clean_cache(&self) -> bool {
         false
     }
 
