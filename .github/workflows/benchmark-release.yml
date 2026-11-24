@@ -1,0 +1,335 @@
+# Benchmarks published PGO npm binaries of closure-rs on one dedicated GitHub Actions runner:
+#   1. Java reference compiler vs. closure-rs@<current_version> (README "Java and closure-rs" table)
+#   2. Interleaved A/B comparison of closure-rs@<prev_version> vs. closure-rs@<current_version>
+#      across all 50 benchmark jobs and flag variants (README "Change from the previous release" table)
+#
+# Run manually via Actions -> benchmark-release (or `gh workflow run benchmark-release.yml ...`).
+# Never runs automatically on pushes or pull requests.
+name: benchmark-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      current_version:
+        description: 'Published npm version of closure-rs to benchmark (e.g. 20261117.5.0)'
+        required: true
+        type: string
+      prev_version:
+        description: 'Previous published npm version for A/B comparison (empty: skip A/B)'
+        required: false
+        default: ''
+        type: string
+      java_reps:
+        description: 'Repetitions per job for Java vs. closure-rs (README uses 5)'
+        required: false
+        default: '5'
+        type: string
+      ab_rounds:
+        description: 'Interleaved A/B rounds across all 50 jobs (README uses 6)'
+        required: false
+        default: '6'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: benchmark published PGO npm binaries
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          package-manager-cache: false
+          node-version: 24
+
+      - name: Pinned reference
+        id: ref
+        run: |
+          . scripts/paths.sh
+          jar=${REF_JAR#"$ROOT"/}
+          echo "jar=$jar" >> "$GITHUB_OUTPUT"
+          echo "sha256=$REF_JAR_SHA256" >> "$GITHUB_OUTPUT"
+          echo "tag=$REF_TAG" >> "$GITHUB_OUTPUT"
+          echo "reference $REF_TAG at $REF_COMMIT, jar sha256 $REF_JAR_SHA256"
+
+      - uses: actions/cache@v6
+        with:
+          path: tools/downloads
+          key: tools-${{ hashFiles('scripts/setup_tools.sh') }}
+
+      - name: JDK (pinned)
+        run: scripts/setup_tools.sh
+
+      - uses: actions/cache/restore@v6
+        id: jar-cache
+        with:
+          path: ${{ steps.ref.outputs.jar }}
+          key: reference-jar-${{ steps.ref.outputs.sha256 }}
+
+      - name: zlib-ng 2.3.3 as libz.so.1 (cache miss only)
+        if: steps.jar-cache.outputs.cache-hit != 'true'
+        run: |
+          git init -q build/zlib-ng
+          git -C build/zlib-ng fetch -q --depth 1 https://github.com/zlib-ng/zlib-ng.git "$ZLIB_NG_COMMIT"
+          git -C build/zlib-ng checkout -q FETCH_HEAD
+          test "$(git -C build/zlib-ng rev-parse HEAD)" = "$ZLIB_NG_COMMIT"
+          cmake -S build/zlib-ng -B build/zlib-ng/out -DZLIB_COMPAT=ON -DWITH_NEW_STRATEGIES=OFF \
+            -DWITH_CRC32_CHORBA=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DBUILD_TESTING=OFF
+          cmake --build build/zlib-ng/out -j "$(nproc)"
+          sudo cmake --install build/zlib-ng/out
+          sudo ldconfig
+        env:
+          ZLIB_NG_COMMIT: 12731092979c6d07f42da27da673a9f6c7b13586
+
+      - name: Build the jar with Bazel (cache miss only)
+        if: steps.jar-cache.outputs.cache-hit != 'true'
+        run: |
+          . scripts/paths.sh
+          . tools/env.sh
+          scripts/fetch_reference.sh
+          (cd "$REF_SRC" && bazelisk build //:compiler_uberjar_deploy.jar)
+          mkdir -p "$(dirname "$REF_JAR")"
+          cp "$REF_SRC/bazel-bin/compiler_uberjar_deploy.jar" "$REF_JAR"
+
+      - name: Verify the jar's sha256
+        env:
+          JAR: ${{ steps.ref.outputs.jar }}
+          WANT: ${{ steps.ref.outputs.sha256 }}
+        run: |
+          got=$(sha256sum "$JAR" | cut -d' ' -f1)
+          if [ "$got" != "$WANT" ]; then
+            echo "::error::$JAR has sha256 $got, expected $WANT"
+            exit 1
+          fi
+
+      - name: GNU time (peak RSS)
+        run: '[ -x /usr/bin/time ] || { sudo apt-get update -q && sudo apt-get install -y -q time; }'
+
+      - uses: actions/cache@v6
+        with:
+          path: bench-cache
+          key: bench-inputs-${{ hashFiles('bench/projects.json', 'scripts/references.tsv') }}
+
+      - name: Fetch benchmark inputs (pinned, hash-checked)
+        run: scripts/fetch_bench.sh
+
+      - name: Install published PGO npm package(s)
+        env:
+          CURRENT: ${{ inputs.current_version }}
+          PREV: ${{ inputs.prev_version }}
+        run: |
+          install_pkg() {
+            local dir="$1" ver="$2"
+            mkdir -p "$dir"
+            for attempt in 1 2 3 4 5; do
+              if npm install --prefix "$dir" --no-save --ignore-scripts "closure-rs@$ver"; then
+                chmod +x "$dir/node_modules/closure-rs/bin/linux-x64/closure-rs"
+                return 0
+              fi
+              [ "$attempt" -lt 5 ] || return 1
+              sleep 15
+            done
+          }
+          install_pkg build/bench/current "$CURRENT"
+          if [ -n "$PREV" ]; then
+            install_pkg build/bench/prev "$PREV"
+          fi
+
+      - name: Record runner environment
+        run: |
+          mkdir -p build/bench
+          . tools/env.sh
+          {
+            echo "OS: $(. /etc/os-release && echo "$PRETTY_NAME")"
+            echo "Kernel: $(uname -srm)"
+            echo "CPU: $(lscpu | awk -F: '/Model name/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+            echo "CPUs: $(nproc)"
+            echo "RAM: $(free -h | awk '/^Mem:/ {print $2}')"
+            echo "Java: $(java -version 2>&1 | head -n 2 | tr '\n' ' ')"
+          } | tee build/bench/env.txt
+
+      - name: Benchmark Java vs. closure-rs (README table 1)
+        env:
+          JAVA_REPS: ${{ inputs.java_reps }}
+        run: |
+          set -o pipefail
+          python3 scripts/run_bench.py \
+            --bin build/bench/current/node_modules/closure-rs/bin/linux-x64/closure-rs \
+            --project onlyoffice-cell --project three-srcmap --project fabric-srcmap \
+            --project d3-bundle-srcmap --project lodash-bundle-srcmap \
+            --reps "$JAVA_REPS" --fail-on-mismatch \
+            --out build/bench/java-vs-rust.json | tee build/bench/java-vs-rust.md
+
+      - name: Benchmark closure-rs A/B against previous release (README table 2)
+        if: inputs.prev_version != ''
+        env:
+          AB_ROUNDS: ${{ inputs.ab_rounds }}
+        run: |
+          set -o pipefail
+          python3 scripts/bench_ab.py \
+            --base build/bench/prev/node_modules/closure-rs/bin/linux-x64/closure-rs \
+            --head build/bench/current/node_modules/closure-rs/bin/linux-x64/closure-rs \
+            --variants --rounds "$AB_ROUNDS" --out build/bench/ab | tee build/bench/ab.md
+
+      - name: Format README tables and write summary
+        if: ${{ !cancelled() }}
+        env:
+          CURRENT: ${{ inputs.current_version }}
+          PREV: ${{ inputs.prev_version }}
+          JAVA_REPS: ${{ inputs.java_reps }}
+          AB_ROUNDS: ${{ inputs.ab_rounds }}
+          REF_TAG: ${{ steps.ref.outputs.tag }}
+        run: |
+          python3 - <<'EOF' | tee build/bench/readme-summary.md >> "$GITHUB_STEP_SUMMARY"
+          import glob, json, math, os, re, statistics
+
+          current = os.environ["CURRENT"]
+          prev = os.environ["PREV"]
+          java_reps = os.environ["JAVA_REPS"]
+          ab_rounds = os.environ["AB_ROUNDS"]
+          ref_tag = os.environ["REF_TAG"]
+
+          print(f"# Release Benchmark Summary: `closure-rs@{current}`\n")
+          print("## Runner environment\n```")
+          with open("build/bench/env.txt", encoding="utf-8") as f:
+              print(f.read().strip())
+          print("```\n")
+
+          # Table 1: Java vs closure-rs
+          if os.path.exists("build/bench/java-vs-rust.json"):
+              with open("build/bench/java-vs-rust.json", encoding="utf-8") as f:
+                  doc = json.load(f)
+              labels = {
+                  "onlyoffice-cell": "ONLYOFFICE spreadsheet SDK 9.2.0.119 (34.9 MB)",
+                  "three-srcmap": "three.js r186 (1.3 MB)",
+                  "fabric-srcmap": "fabric.js 7.4.0 (0.8 MB)",
+                  "d3-bundle-srcmap": "d3 7.9.0 (0.6 MB)",
+                  "lodash-bundle-srcmap": "lodash 4.17.21 (0.2 MB)",
+              }
+              order = [
+                  ("onlyoffice-cell", "ADVANCED"),
+                  ("onlyoffice-cell", "SIMPLE"),
+                  ("three-srcmap", "ADVANCED"),
+                  ("three-srcmap", "SIMPLE"),
+                  ("fabric-srcmap", "ADVANCED"),
+                  ("fabric-srcmap", "SIMPLE"),
+                  ("d3-bundle-srcmap", "ADVANCED"),
+                  ("d3-bundle-srcmap", "SIMPLE"),
+                  ("lodash-bundle-srcmap", "ADVANCED"),
+                  ("lodash-bundle-srcmap", "SIMPLE"),
+              ]
+              by_key = {(j["project"], j["level"]): j for j in doc["jobs"]}
+              print(f"## Table 1: Java (`{ref_tag}`) vs. `closure-rs@{current}` ({java_reps} reps)\n")
+              print("| Project (JavaScript input) | Level | Java | closure-rs | Speedup | Java peak RSS | closure-rs peak RSS |")
+              print("|---|---|---:|---:|---:|---:|---:|")
+              seen = set()
+              for proj, level in order:
+                  j = by_key.get((proj, level))
+                  if not j:
+                      continue
+                  name = labels[proj] if proj not in seen else ""
+                  seen.add(proj)
+                  jw, rw = j["java"]["wall_s"], j["rust"]["wall_s"]
+                  jr, rr = round(j["java"]["rss_kb"] / 1024), round(j["rust"]["rss_kb"] / 1024)
+                  sp = jw / rw
+                  print(f"| {name} | {level} | {jw:.2f} s | {rw:.2f} s | {sp:.1f}× | {jr:,} MiB | {rr:,} MiB |")
+              oo_adv = by_key.get(("onlyoffice-cell", "ADVANCED"))
+              th_adv = by_key.get(("three-srcmap", "ADVANCED"))
+              if oo_adv and th_adv:
+                  ratio = round(oo_adv["rust"]["wall_s"] / th_adv["rust"]["wall_s"])
+                  print(f"\nONLYOFFICE ADVANCED / three.js ADVANCED ratio: **{ratio}×**\n")
+
+          # Table 2: A/B comparison by level
+          if prev and os.path.isdir("build/bench/ab"):
+              def load_side(side):
+                  files = sorted(
+                      glob.glob(f"build/bench/ab/{side}-*.json"),
+                      key=lambda p: int(re.search(r"-(\d+)\.json$", p)[1]),
+                  )
+                  rounds = []
+                  for p in files:
+                      with open(p, encoding="utf-8") as f:
+                          rounds.append({j["id"]: j for j in json.load(f)["jobs"]})
+                  return rounds
+
+              base_r = load_side("base")
+              head_r = load_side("head")
+              ids = list(base_r[0].keys())
+
+              def geomean(xs):
+                  return math.exp(sum(math.log(x) for x in xs) / len(xs))
+
+              def pct(r):
+                  v = (r - 1.0) * 100.0
+                  if v < -0.05:
+                      return f"−{abs(v):.1f}%"
+                  elif v > 0.05:
+                      return f"+{v:.1f}%"
+                  return "0.0%"
+
+              med = {}
+              for jid in ids:
+                  lv = base_r[0][jid]["level"]
+                  med[jid] = {
+                      "level": lv,
+                      "b_wall": statistics.median(r[jid]["rust"]["wall_s"] for r in base_r),
+                      "h_wall": statistics.median(r[jid]["rust"]["wall_s"] for r in head_r),
+                      "b_cpu": statistics.median(r[jid]["rust"]["cpu_s"] for r in base_r),
+                      "h_cpu": statistics.median(r[jid]["rust"]["cpu_s"] for r in head_r),
+                      "b_rss": statistics.median(r[jid]["rust"]["rss_kb"] for r in base_r),
+                      "h_rss": statistics.median(r[jid]["rust"]["rss_kb"] for r in head_r),
+                      "paired_wall": statistics.median(
+                          hr[jid]["rust"]["wall_s"] / br[jid]["rust"]["wall_s"]
+                          for br, hr in zip(base_r, head_r)
+                      ),
+                  }
+
+              print(f"## Table 2: `closure-rs@{current}` vs. `closure-rs@{prev}` ({ab_rounds} rounds, {len(ids)} jobs)\n")
+              print("| Workload | Jobs | Wall time | CPU time | Peak RSS |")
+              print("|---|---:|---:|---:|---:|")
+              groups = [
+                  ("SIMPLE", [j for j in ids if med[j]["level"] == "SIMPLE"]),
+                  ("ADVANCED", [j for j in ids if med[j]["level"] == "ADVANCED"]),
+                  ("Flag variants", [j for j in ids if med[j]["level"] == "VARIANT"]),
+                  ("All jobs", ids),
+              ]
+              for label, gids in groups:
+                  w = geomean([med[j]["h_wall"] / med[j]["b_wall"] for j in gids])
+                  c = geomean([med[j]["h_cpu"] / med[j]["b_cpu"] for j in gids])
+                  r = geomean([med[j]["h_rss"] / med[j]["b_rss"] for j in gids])
+                  print(f"| {label} | {len(gids)} | {pct(w)} | {pct(c)} | {pct(r)} |")
+
+              sum_b = sum(med[j]["b_wall"] for j in ids)
+              sum_h = sum(med[j]["h_wall"] for j in ids)
+              sum_drop = (1.0 - sum_h / sum_b) * 100.0
+              print(f"\nSum of median wall times: **{sum_b:.2f} s → {sum_h:.2f} s** (**{sum_drop:.1f}%**).")
+              for lv in ("SIMPLE", "ADVANCED"):
+                  jid = f"onlyoffice-cell/{lv}"
+                  if jid in med:
+                      m = med[jid]
+                      md = (1.0 - m["h_wall"] / m["b_wall"]) * 100.0
+                      pd = (1.0 - m["paired_wall"]) * 100.0
+                      print(f"ONLYOFFICE {lv}: median wall {m['b_wall']:.2f} s → {m['h_wall']:.2f} s ({md:.1f}%), median paired reduction {pd:.1f}%.")
+
+              print("\n### Full `bench_ab.py` output\n")
+              with open("build/bench/ab.md", encoding="utf-8") as f:
+                  print(f.read())
+          EOF
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: benchmark-release-${{ inputs.current_version }}
+          path: |
+            build/bench/env.txt
+            build/bench/readme-summary.md
+            build/bench/java-vs-rust.json
+            build/bench/java-vs-rust.md
+            build/bench/ab/
+            build/bench/ab.md
+          if-no-files-found: ignore
