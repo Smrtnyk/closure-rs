@@ -4029,12 +4029,15 @@ impl NodeId {
     }
     // port: Node#setJSType
     pub fn set_jstype(self, ast: &mut Ast, x: Option<TypeId>) -> Self {
+        let cur = ast.node_type(self);
         check_state!(
-            matches!(ast.node_type(self), None | Some(JSTypeOrColor::JSType(_))),
+            matches!(cur, None | Some(JSTypeOrColor::JSType(_))),
             "%s",
             self.to_string(ast)
         );
-        ast.set_node_type(self, x.map(JSTypeOrColor::JSType));
+        if x.is_some() || cur.is_some() {
+            ast.set_node_type(self, x.map(JSTypeOrColor::JSType));
+        }
         self
     }
     // port: Node#getColor

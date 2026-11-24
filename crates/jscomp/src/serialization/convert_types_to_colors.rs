@@ -26,6 +26,7 @@ use crate::abstract_compiler::AbstractCompiler;
 use crate::compiler_pass::CompilerPass;
 use closure_rhino::check_state;
 use closure_rhino::fast_hash::IndexMap;
+use closure_rhino::jsdoc_info::{JSDocInfo, OptimizationTagsKey};
 use closure_rhino::jstype::TypeId;
 use closure_rhino::node::{Ast, NodeId};
 use std::cell::RefCell;
@@ -60,28 +61,65 @@ struct RemoveTypes;
 impl RemoveTypes {
     // port: ConvertTypesToColors.RemoveTypes#visit
     #[inline]
-    fn visit_node(ast: &mut Ast, n: NodeId) {
+    fn visit_node(ast: &mut Ast, n: NodeId, jsdoc_cache: &mut IndexMap<u32, Arc<JSDocInfo>>) {
         n.set_jstype(ast, None);
         n.clear_type_declaration_props(ast);
 
-        if n.get_jsdoc_info_ref(ast).is_some() {
-            let jsdoc = n.get_jsdoc_info(ast);
-            let converted =
-                JSDocSerializer::convert_jsdoc_info_for_optimizations(ast, jsdoc.as_deref());
-            n.set_jsdoc_info(ast, converted);
+        if let Some(jsdoc) = n.get_jsdoc_info_ref(ast) {
+            // Rust-only (performance divergence): drop JSDocs with no optimization-relevant
+            // fields without cloning or round-tripping, and share identical immutable
+            // optimization-only `Arc<JSDocInfo>` instances by their tag bitmask.
+            match jsdoc.optimization_tags_key() {
+                OptimizationTagsKey::Empty => {
+                    n.set_jsdoc_info(ast, None);
+                }
+                OptimizationTagsKey::TagsOnly(mask) => {
+                    let converted = if let Some(cached) = jsdoc_cache.get(&mask) {
+                        Some(Arc::clone(cached))
+                    } else {
+                        let jsdoc = n.get_jsdoc_info(ast);
+                        let converted = JSDocSerializer::convert_jsdoc_info_for_optimizations(
+                            ast,
+                            jsdoc.as_deref(),
+                        );
+                        if let Some(ref info) = converted {
+                            jsdoc_cache.insert(mask, Arc::clone(info));
+                        }
+                        converted
+                    };
+                    n.set_jsdoc_info(ast, converted);
+                }
+                OptimizationTagsKey::HasPayload => {
+                    let jsdoc = n.get_jsdoc_info(ast);
+                    let converted = JSDocSerializer::convert_jsdoc_info_for_optimizations(
+                        ast,
+                        jsdoc.as_deref(),
+                    );
+                    n.set_jsdoc_info(ast, converted);
+                }
+            }
         }
     }
 
     /// Rust-only (performance divergence): walk `n` directly in post-order without building a
     /// `NodeTraversal`.
     fn traverse(ast: &mut Ast, n: NodeId) {
+        let mut jsdoc_cache = IndexMap::default();
+        Self::traverse_with_cache(ast, n, &mut jsdoc_cache);
+    }
+
+    fn traverse_with_cache(
+        ast: &mut Ast,
+        n: NodeId,
+        jsdoc_cache: &mut IndexMap<u32, Arc<JSDocInfo>>,
+    ) {
         let mut child = n.get_first_child(ast);
         while let Some(c) = child {
             let next = c.get_next(ast);
-            Self::traverse(ast, c);
+            Self::traverse_with_cache(ast, c, jsdoc_cache);
             child = next;
         }
-        Self::visit_node(ast, n);
+        Self::visit_node(ast, n, jsdoc_cache);
     }
 }
 
@@ -90,6 +128,7 @@ struct RemoveTypesAndApplyColors {
     // TypeId is an index in this compiler's type registry. Resolve the immutable shard
     // once per observed type, including colors shared by many nodes.
     colors: Vec<Option<closure_rhino::jscomp_colors::color::Color>>,
+    jsdoc_cache: IndexMap<u32, Arc<JSDocInfo>>,
 }
 
 impl RemoveTypesAndApplyColors {
@@ -103,13 +142,16 @@ impl RemoveTypesAndApplyColors {
         for (id, &pointer) in pointers {
             colors[id.0 as usize] = Some(shard.get_color(pointer));
         }
-        Self { colors }
+        Self {
+            colors,
+            jsdoc_cache: IndexMap::default(),
+        }
     }
 
     // port: ConvertTypesToColors.RemoveTypesAndApplyColors#visit
     /// Rust-only (performance divergence): walk `n` directly in post-order without building a
     /// `NodeTraversal`.
-    fn traverse(&self, ast: &mut Ast, n: NodeId) {
+    fn traverse(&mut self, ast: &mut Ast, n: NodeId) {
         let mut child = n.get_first_child(ast);
         while let Some(c) = child {
             let next = c.get_next(ast);
@@ -119,7 +161,7 @@ impl RemoveTypesAndApplyColors {
         let old_type = n.get_jstype(ast);
         let old_type_before_cast = n.get_jstype_before_cast(ast);
 
-        RemoveTypes::visit_node(ast, n);
+        RemoveTypes::visit_node(ast, n, &mut self.jsdoc_cache);
 
         if let Some(color) = old_type
             .and_then(|id| self.colors.get(id.0 as usize))
@@ -182,7 +224,7 @@ impl CompilerPass for ConvertTypesToColors {
 
         let shard = color_pool_builder.add_optimization_shard(type_pool, color_ids, strings);
         let color_pool = color_pool_builder.build();
-        let callback = RemoveTypesAndApplyColors::new(&shard, &pointers);
+        let mut callback = RemoveTypesAndApplyColors::new(&shard, &pointers);
         callback.traverse(compiler, externs_and_js_root);
 
         compiler.clear_js_type_registry();

@@ -155,6 +155,9 @@ pub struct Es6RewriteModules {
     module_map: Option<Arc<ModuleMap>>,
     global_typed_scope: Option<TypedScope>,
     chunk_output_type: ChunkOutputType,
+    /// Rust-only (performance divergence): true iff at least one ES6 module declared a Closure
+    /// namespace; when false, `RewriteRequiresForEs6Modules` can never match any call.
+    has_es6_goog_namespace: bool,
 }
 
 impl Es6RewriteModules {
@@ -204,6 +207,7 @@ impl Es6RewriteModules {
             module_map,
             global_typed_scope,
             chunk_output_type,
+            has_es6_goog_namespace: false,
         }
     }
 
@@ -457,20 +461,17 @@ impl Es6RewriteModules {
         );
         let module_name = qualified_name.get_root(t);
 
-        let module_var = self.create_exports_object(&module_name, t, script, module_object_type);
+        let module_var =
+            self.create_exports_object(&module_name, t, script, module_object_type, &this_module);
 
         // Rename vars to not conflict in global scope.
-        NodeTraversal::traverse(
-            t.get_compiler(),
-            script,
-            &mut RenameGlobalVars {
-                outer: self,
-                this_module: this_module.clone(),
-            },
-        );
+        let mut renamer = RenameGlobalVars::new(self, this_module.clone(), script);
+        NodeTraversal::traverse(t.get_compiler(), script, &mut renamer);
+        let saw_goog = renamer.saw_goog;
 
         // Rename the exports object to something we can reference later.
         let first = module_var.get_first_child(t).unwrap();
+        let module_is_goog = module_name == "goog";
         first.set_string(t, module_name);
         module_var.make_non_indexable_recursive(t);
         self.declare_global_variable(first, t);
@@ -482,7 +483,11 @@ impl Es6RewriteModules {
         // don't want to rewrite "const foo = goog.require('foo')" to "const foo = foo". If we
         // rewrite our module scoped names first then we'll rewrite to
         // "const foo$module$fudge = goog.require('foo')", then to "const foo$module$fudge = foo".
-        self.rewrite_requires(t.get_compiler(), script);
+        // Rust-only (performance divergence): skip both rewriteRequires passes when the script
+        // contains no `goog` name reference at all (pure ES6 modules).
+        if saw_goog || module_is_goog {
+            self.rewrite_requires(t.get_compiler(), script);
+        }
 
         t.report_code_change();
     }
@@ -494,6 +499,7 @@ impl Es6RewriteModules {
         t: &mut NodeTraversal<'_>,
         script: NodeId,
         module_object_type: crate::ast_factory::Type,
+        this_module: &Arc<Module>,
     ) -> NodeId {
         let module_object = self.ast_factory.create_object_lit_with_type(
             t.get_compiler(),
@@ -534,12 +540,6 @@ impl Es6RewriteModules {
         first.set_declared_constant_var(t, true);
         let module_var_srcref = module_var.srcref_tree_if_missing(t, script);
         script.add_child_to_back(t, module_var_srcref);
-
-        let input = t.get_input().unwrap().clone();
-        let path = input.get_path(t.get_compiler());
-        let this_module = self
-            .get_module(&path)
-            .expect("java.lang.NullPointerException");
 
         for (exported_name, binding) in this_module.namespace() {
             let node_for_source_info = binding.source_node();
@@ -708,6 +708,11 @@ impl Es6RewriteModules {
                 },
             )
             .traverse(script);
+        // Rust-only (performance divergence): pass 2 only inlines names from
+        // `names_to_inline_by_alias`; when empty, it has no effect.
+        if self.names_to_inline_by_alias.is_empty() {
+            return;
+        }
         NodeTraversal::builder()
             .set_compiler(compiler)
             .set_callback_post_order(
@@ -1043,6 +1048,11 @@ impl CompilerPass for Es6RewriteModules {
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
         check_argument!(externs.is_root(compiler), "%s", externs.to_string(compiler));
         check_argument!(root.is_root(compiler), "%s", root.to_string(compiler));
+        self.has_es6_goog_namespace = self
+            .module_metadata_map
+            .get_modules_by_goog_namespace()
+            .values()
+            .any(|m| m.is_es6_module());
         NodeTraversal::traverse_roots(compiler, self, externs, root);
         // It is unusual to call this NodeUtil method instead of the TranspilationPasses one. This
         // pass is included in the {@code dependency_resolution} BUILD target and does not have
@@ -1064,13 +1074,17 @@ impl Callback for Es6RewriteModules {
         _parent: Option<NodeId>,
     ) -> bool {
         if n.is_script(node_traversal) {
-            // Trigger creation of the global scope before inserting any synthetic code.
-            node_traversal.get_scope();
-            RewriteRequiresForEs6Modules {
-                outer: self,
-                rename_table: RenameTable::default(),
+            // Rust-only (performance divergence): the outer traversal never reads its syntactic
+            // scope (RenameGlobalVars and rewrite_requires each run their own traversal), and
+            // RewriteRequiresForEs6Modules can only match when an ES6 module declared a Closure
+            // namespace.
+            if self.has_es6_goog_namespace {
+                RewriteRequiresForEs6Modules {
+                    outer: self,
+                    rename_table: RenameTable::default(),
+                }
+                .rewrite(node_traversal.get_compiler(), n);
             }
-            .rewrite(node_traversal.get_compiler(), n);
             if Self::is_es6_module_root(node_traversal, n) {
                 self.clear_per_file_state();
             } else {
@@ -1357,9 +1371,60 @@ impl Callback for RewriteRequiresForEs6Modules<'_> {
 struct RenameGlobalVars<'a> {
     outer: &'a Es6RewriteModules,
     this_module: Arc<Module>,
+    /// Rust-only (performance divergence): root SCRIPT node of this traversal; used to capture the
+    /// script's top-level declared names once without materializing inner function/block scopes.
+    script: NodeId,
+    /// Rust-only (performance divergence): Bloom mask over `(script top-level vars ∪
+    /// this_module.bound_names())` so unrelated NAMEs skip `t.get_scope()`.
+    candidate_mask: u64,
+    candidate_names: IndexSet<JsString>,
+    /// Rust-only (performance divergence): tracks whether any `goog` NAME may exist after renaming
+    /// so `rewrite_requires` can skip pure ES6 modules in O(1).
+    saw_goog: bool,
 }
 
-impl RenameGlobalVars<'_> {
+impl<'a> RenameGlobalVars<'a> {
+    fn new(outer: &'a Es6RewriteModules, this_module: Arc<Module>, script: NodeId) -> Self {
+        Self {
+            outer,
+            this_module,
+            script,
+            candidate_mask: 0,
+            candidate_names: IndexSet::<_>::default(),
+            saw_goog: false,
+        }
+    }
+
+    #[inline]
+    fn name_bit(name: &JsString) -> u64 {
+        1u64 << (name.hash_code() as u32 & 63)
+    }
+
+    #[inline]
+    fn is_candidate(&self, name: &JsString) -> bool {
+        (self.candidate_mask & Self::name_bit(name)) != 0 && self.candidate_names.contains(name)
+    }
+
+    fn init_candidates(&mut self, t: &mut NodeTraversal<'_>) {
+        use crate::abstract_scope::AbstractScope;
+        let root_scope = t.get_scope();
+        let compiler = t.get_compiler();
+        let data = root_scope.scope_data(compiler);
+        let bound_names = self.this_module.bound_names();
+        self.candidate_names
+            .reserve(data.vars.len() + bound_names.len());
+        let mut mask = 0u64;
+        for (name, _) in data.vars.iter() {
+            mask |= Self::name_bit(name);
+            self.candidate_names.insert(name.clone());
+        }
+        drop(data);
+        for name in bound_names.keys() {
+            mask |= Self::name_bit(name);
+            self.candidate_names.insert(name.clone());
+        }
+        self.candidate_mask = mask;
+    }
     /// Replaces the reference to a given binding. See
     /// `ModuleRenaming#getGlobalNameForJsDoc(ModuleMap, Binding, List)` for a JS Doc version.
     ///
@@ -1465,57 +1530,63 @@ impl RenameGlobalVars<'_> {
     fn fix_type_node(&self, t: &mut NodeTraversal<'_>, type_node: NodeId) {
         let outer = self.outer;
         if type_node.is_string_lit(t) {
-            let input = t.get_input().unwrap().clone();
-            let path = input.get_path(t.get_compiler());
-            let this_module = outer
-                .get_module(&path)
-                .expect("java.lang.NullPointerException");
+            // Rust-only (performance divergence): reuse `self.this_module` (same script) and skip
+            // `t.get_scope()` when the base name is neither a top-level var nor a module binding.
+            let this_module = &self.this_module;
             let name = type_node.get_string(t);
-            let splitted = dot_splitter_split_to_list(&name, 0);
-            let base_name = splitted[0].clone();
-            let mut rest = JsString::from("");
-            if splitted.len() > 1 {
-                rest = name.substring_from(base_name.length());
-            }
-            let scope = t.get_scope();
-            let var = scope.get_var(t.get_compiler(), base_name.clone());
-            if var.is_some_and(|var| var.is_global(t.get_compiler())) {
-                let new_name = ModuleRenaming::get_global_name_of_es_module_local_variable(
-                    t,
-                    this_module.metadata(),
-                    &base_name,
-                )
-                .join(t)
-                .concat(&rest);
-                self.maybe_set_new_name(t, type_node, &name, &new_name);
-            } else if var.is_none() && this_module.bound_names().contains_key(&base_name) {
-                // Imports have been detached, so they won't show up in scope. Thus if we have a
-                // variable not in scope that shares the name of an import it is the import.
-                let binding = this_module.bound_names().get(&base_name).unwrap();
-                let global_name = ModuleRenaming::get_global_name_for_js_doc(
-                    t,
-                    outer
-                        .module_map
-                        .as_ref()
-                        .expect("java.lang.NullPointerException"),
-                    binding,
-                    &splitted[1..],
-                );
-                self.maybe_set_new_name(t, type_node, &name, &global_name);
-
-                if outer.preprocessor_symbol_table.is_some() {
-                    // Jsdoc type node is a single STRING node that spans the whole type. For
-                    // example STRING node "bar.Foo". ES6 import rewrite replaces only "module"
-                    // part of the type: "bar.Foo" => "module$full$path$bar$Foo". We have to
-                    // record "bar" as alias.
-                    let only_base_name = t.new_string(base_name.clone()).srcref(t, type_node);
-                    only_base_name.set_length(t, base_name.length() as i32);
-                    let source_name = t.get_source_name();
-                    outer.maybe_add_alias_to_symbol_table(
+            let dot = name.index_of_char(b'.' as u16);
+            let candidate = if dot < 0 {
+                self.is_candidate(&name)
+            } else {
+                self.is_candidate(&name.substring(0, dot as usize))
+            };
+            if candidate {
+                let splitted = dot_splitter_split_to_list(&name, 0);
+                let base_name = splitted[0].clone();
+                let mut rest = JsString::from("");
+                if splitted.len() > 1 {
+                    rest = name.substring_from(base_name.length());
+                }
+                let scope = t.get_scope();
+                let var = scope.get_var(t.get_compiler(), base_name.clone());
+                if var.is_some_and(|var| var.is_global(t.get_compiler())) {
+                    let new_name = ModuleRenaming::get_global_name_of_es_module_local_variable(
                         t,
-                        only_base_name,
-                        source_name.as_deref(),
+                        this_module.metadata(),
+                        &base_name,
+                    )
+                    .join(t)
+                    .concat(&rest);
+                    self.maybe_set_new_name(t, type_node, &name, &new_name);
+                } else if var.is_none() && this_module.bound_names().contains_key(&base_name) {
+                    // Imports have been detached, so they won't show up in scope. Thus if we have a
+                    // variable not in scope that shares the name of an import it is the import.
+                    let binding = this_module.bound_names().get(&base_name).unwrap();
+                    let global_name = ModuleRenaming::get_global_name_for_js_doc(
+                        t,
+                        outer
+                            .module_map
+                            .as_ref()
+                            .expect("java.lang.NullPointerException"),
+                        binding,
+                        &splitted[1..],
                     );
+                    self.maybe_set_new_name(t, type_node, &name, &global_name);
+
+                    if outer.preprocessor_symbol_table.is_some() {
+                        // Jsdoc type node is a single STRING node that spans the whole type. For
+                        // example STRING node "bar.Foo". ES6 import rewrite replaces only "module"
+                        // part of the type: "bar.Foo" => "module$full$path$bar$Foo". We have to
+                        // record "bar" as alias.
+                        let only_base_name = t.new_string(base_name.clone()).srcref(t, type_node);
+                        only_base_name.set_length(t, base_name.length() as i32);
+                        let source_name = t.get_source_name();
+                        outer.maybe_add_alias_to_symbol_table(
+                            t,
+                            only_base_name,
+                            source_name.as_deref(),
+                        );
+                    }
                 }
             }
 
@@ -1549,10 +1620,13 @@ impl Callback for RenameGlobalVars<'_> {
     // port: NodeTraversal.AbstractPostOrderCallback#shouldTraverse
     fn should_traverse(
         &mut self,
-        _t: &mut NodeTraversal<'_>,
-        _n: NodeId,
+        t: &mut NodeTraversal<'_>,
+        n: NodeId,
         _parent: Option<NodeId>,
     ) -> bool {
+        if n == self.script {
+            self.init_candidates(t);
+        }
         true
     }
 
@@ -1566,10 +1640,17 @@ impl Callback for RenameGlobalVars<'_> {
         }
 
         if n.is_name(t) {
+            let name_ref = n.get_string_ref(t);
+            if name_ref == "goog" {
+                self.saw_goog = true;
+            }
+            if !self.is_candidate(name_ref) {
+                return;
+            }
             let name = n.get_string(t);
 
             let scope = t.get_scope();
-            let var = scope.get_var(t.get_compiler(), name.clone());
+            let var = scope.get_var(t.get_compiler(), &name);
             if var.is_some_and(|var| var.is_global(t.get_compiler())) {
                 // Avoid polluting the global namespace.
                 let new_name = ModuleRenaming::get_global_name_of_es_module_local_variable(
@@ -1578,6 +1659,9 @@ impl Callback for RenameGlobalVars<'_> {
                     &name,
                 )
                 .join(t);
+                if new_name == "goog" {
+                    self.saw_goog = true;
+                }
                 n.set_string(t, new_name);
                 n.set_original_name(t, Some(name));
                 t.report_code_change_at_node(n);
@@ -1593,6 +1677,11 @@ impl Callback for RenameGlobalVars<'_> {
                 let binding = self.this_module.bound_names().get(&name).unwrap().clone();
 
                 let replacement = self.replace(t.get_compiler(), n, &binding);
+                if !binding.metadata().is_es6_module()
+                    || (replacement.is_name(t) && replacement.get_string_ref(t) == "goog")
+                {
+                    self.saw_goog = true;
+                }
 
                 // `n.x()` may become `foo()`
                 let parent = parent.unwrap();

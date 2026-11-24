@@ -93,24 +93,29 @@ impl BasicBlock {
         n.is_case(ast)
     }
 
+    /// Rust-only (performance divergence): whether `root` begins a loop basic block, shared by
+    /// `BasicBlock::new` and `ReferenceCollector`'s `InferConsts` leaf fast path.
+    pub(crate) fn is_loop_root(ast: &Ast, root: NodeId) -> bool {
+        root.get_parent(ast).is_some_and(|parent| {
+            matches!(
+                parent.get_token(ast),
+                Token::DO
+                    | Token::WHILE
+                    | Token::FOR
+                    | Token::FOR_OF
+                    | Token::FOR_AWAIT_OF
+                    | Token::FOR_IN
+            )
+        })
+    }
+
     /// Creates a new block.
     ///
     /// `parent`: The containing block. `root`: The root node of the block.
     // port: BasicBlock#BasicBlock
     pub fn new(ast: &Ast, parent: Option<Rc<BasicBlock>>, root: NodeId) -> Rc<BasicBlock> {
         let is_function = root.is_function(ast);
-
-        let is_loop = if root.has_parent(ast) {
-            let p_type = root.get_parent(ast).unwrap().get_token(ast);
-            p_type == Token::DO
-                || p_type == Token::WHILE
-                || p_type == Token::FOR
-                || p_type == Token::FOR_OF
-                || p_type == Token::FOR_AWAIT_OF
-                || p_type == Token::FOR_IN
-        } else {
-            false
-        };
+        let is_loop = Self::is_loop_root(ast, root);
         Rc::new(BasicBlock {
             parent,
             root,

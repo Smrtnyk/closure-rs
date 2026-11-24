@@ -1,5 +1,4 @@
 /*
- * Copyright 2004 The Closure Compiler Authors.
  * Copyright 2009 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +14,7 @@
  * limitations under the License.
  */
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
-//   src/com/google/javascript/jscomp/InferJSDocInfo.java,
-//   src/com/google/javascript/jscomp/NodeTraversal.java.
+//   src/com/google/javascript/jscomp/InferJSDocInfo.java.
 
 //! Sets the JSDocInfo on all JSTypes, including their properties, using the JSDoc on the node
 //! defining that type or property.
@@ -25,17 +23,14 @@
 //! class comment of Java's `com.google.javascript.jscomp.InferJSDocInfo` for the three cases:
 //! nominal types, object type properties and anonymous structural types).
 use crate::{
-    abstract_compiler::AbstractCompiler,
-    compiler_pass::CompilerPass,
-    node_traversal::{Callback, NodeTraversal},
-    node_util::NodeUtil,
+    abstract_compiler::AbstractCompiler, compiler_pass::CompilerPass, node_util::NodeUtil,
 };
 use closure_jstype::{
     JSTypeRegistry, TypeId,
     enum_type::EnumType,
     js_type,
     prelude::{FunctionType, JSType, ObjectType},
-    property::PropertyKey,
+    property::{Property, PropertyKey},
 };
 use closure_rhino::{
     js_string::JsString,
@@ -65,56 +60,72 @@ impl InferJSDocInfo {
         };
 
         // Only allow JSDoc on variable declarations, named functions, named classes, and assigns.
-        let type_doc: Option<Arc<JSDocInfo>>;
+        let doc_node: NodeId;
         let aliased_type: Option<TypeId>; // if the right-hand side is a qualified name, its type
         let inferred_type: Option<TypeId>;
-        if NodeUtil::is_name_declaration(compiler, Some(parent)) {
-            // Case: `/** ... */ (var|let|const) x = function() { ... }`.
-            // Case: `(var|let|const) /** ... */ x = function() { ... }`.
-            let name_info = n.get_jsdoc_info(compiler);
-            type_doc = if name_info.is_some() {
-                name_info
-            } else {
-                parent.get_jsdoc_info(compiler)
-            };
-
-            inferred_type = n.get_jstype(compiler);
-            // Example: for `const y = x.y;`, the type of `x.y`.
-            let value = n.get_first_child(compiler);
-            aliased_type = match value {
-                Some(value) if value.is_qualified_name(compiler) => value.get_jstype(compiler),
-                _ => None,
-            };
-        } else if NodeUtil::is_function_declaration(compiler, parent)
-            || NodeUtil::is_class_declaration(compiler, parent)
-        {
-            // Case: `/** ... */ function f() { ... }`.
-            // Case: `/** ... */ class Foo() { ... }`.
-            type_doc = parent.get_jsdoc_info(compiler);
-            inferred_type = parent.get_jstype(compiler);
-            aliased_type = None; // the value is definitely a class or function, not a qualified name.
-        } else if parent.is_assign(compiler) && n.is_first_child_of(compiler, Some(parent)) {
-            type_doc = parent.get_jsdoc_info(compiler);
-            inferred_type = n.get_jstype(compiler);
-            // Example: y = x.y;
-            let value = n.get_next(compiler).unwrap();
-            aliased_type = if value.is_qualified_name(compiler) {
-                value.get_jstype(compiler)
-            } else {
-                None
-            };
-        } else {
-            return;
+        match parent.get_token(compiler) {
+            Token::VAR | Token::LET | Token::CONST => {
+                // Case: `/** ... */ (var|let|const) x = function() { ... }`.
+                // Case: `(var|let|const) /** ... */ x = function() { ... }`.
+                doc_node = if n.get_jsdoc_info_ref(compiler).is_some() {
+                    n
+                } else if parent.get_jsdoc_info_ref(compiler).is_some() {
+                    parent
+                } else {
+                    return;
+                };
+                inferred_type = n.get_jstype(compiler);
+                if inferred_type.is_none() {
+                    return;
+                }
+                // Example: for `const y = x.y;`, the type of `x.y`.
+                let value = n.get_first_child(compiler);
+                aliased_type = match value {
+                    Some(value) if value.is_qualified_name(compiler) => value.get_jstype(compiler),
+                    _ => None,
+                };
+            }
+            Token::FUNCTION | Token::CLASS
+                if NodeUtil::is_function_declaration(compiler, parent)
+                    || NodeUtil::is_class_declaration(compiler, parent) =>
+            {
+                // Case: `/** ... */ function f() { ... }`.
+                // Case: `/** ... */ class Foo() { ... }`.
+                if parent.get_jsdoc_info_ref(compiler).is_none() {
+                    return;
+                }
+                doc_node = parent;
+                inferred_type = parent.get_jstype(compiler);
+                if inferred_type.is_none() {
+                    return;
+                }
+                aliased_type = None; // the value is definitely a class or function, not a qualified name.
+            }
+            Token::ASSIGN if n.is_first_child_of(compiler, Some(parent)) => {
+                if parent.get_jsdoc_info_ref(compiler).is_none() {
+                    return;
+                }
+                doc_node = parent;
+                inferred_type = n.get_jstype(compiler);
+                if inferred_type.is_none() {
+                    return;
+                }
+                // Example: y = x.y;
+                let value = n.get_next(compiler).unwrap();
+                aliased_type = if value.is_qualified_name(compiler) {
+                    value.get_jstype(compiler)
+                } else {
+                    None
+                };
+            }
+            _ => return,
         }
 
-        let Some(type_doc) = type_doc else {
-            return;
-        };
-
-        let name = n.get_string(compiler);
         let (reg, ast) = compiler.get_type_registry_and_ast();
         let obj_type = Self::dereferenced(reg, ast, inferred_type);
         if Self::should_attach_jsdoc_to_nominal_type_or_shape(reg, ast, obj_type, aliased_type) {
+            let type_doc = doc_node.get_jsdoc_info(ast).unwrap();
+            let name = n.get_string(ast);
             Self::attach_jsdoc_info_to_nominal_type_or_shape(
                 reg,
                 obj_type.unwrap(),
@@ -131,9 +142,9 @@ impl InferJSDocInfo {
         n: NodeId,
         parent: NodeId,
     ) {
-        let Some(type_doc) = n.get_jsdoc_info(compiler) else {
+        if n.get_jsdoc_info_ref(compiler).is_none() {
             return;
-        };
+        }
 
         let owning_type: Option<TypeId> = if parent.is_class_members(compiler) {
             let ctor_jstype = parent.get_parent(compiler).unwrap().get_jstype(compiler);
@@ -180,6 +191,7 @@ impl InferJSDocInfo {
                 .get_property_jsdoc_info(reg, ast, prop_name.clone())
                 .is_none()
         {
+            let type_doc = n.get_jsdoc_info(ast).unwrap();
             owning_type.set_property_jsdoc_info(reg, ast, prop_name, Some(type_doc));
         }
 
@@ -197,11 +209,17 @@ impl InferJSDocInfo {
     ) {
         // Infer JSDocInfo on properties.
         // There are two ways to write doc comments on a property.
-        let type_doc: Option<Arc<JSDocInfo>>;
+        let doc_node: NodeId;
         let aliased_type: Option<TypeId>; // if the rhs is a qualified name, its type
         if parent.is_assign(compiler) && n.is_first_child_of(compiler, Some(parent)) {
             // Case: `/** @deprecated */ obj.prop = ...;`
-            type_doc = parent.get_jsdoc_info(compiler);
+            if !parent
+                .get_jsdoc_info_ref(compiler)
+                .is_some_and(|d| d.contains_declaration())
+            {
+                return;
+            }
+            doc_node = parent;
             let rhs = n.get_next(compiler).unwrap();
             // Example: for `/** @deprecated */ obj.prop = obj.newProp;`, the type of `obj.newProp`.
             aliased_type = if rhs.is_qualified_name(compiler) {
@@ -211,49 +229,57 @@ impl InferJSDocInfo {
             };
         } else if parent.is_expr_result(compiler) {
             // Case: `/** @deprecated */ obj.prop;`
-            type_doc = n.get_jsdoc_info(compiler);
+            if !n
+                .get_jsdoc_info_ref(compiler)
+                .is_some_and(|d| d.contains_declaration())
+            {
+                return;
+            }
+            doc_node = n;
             aliased_type = None; // there's no value being assigned here
         } else {
             return;
         }
 
-        let Some(type_doc) = type_doc else {
+        let Some(lhs_jstype) = n.get_first_child(compiler).unwrap().get_jstype(compiler) else {
             return;
         };
-        if !type_doc.contains_declaration() {
-            return;
-        }
-
-        let lhs_jstype = n.get_first_child(compiler).unwrap().get_jstype(compiler);
         let prop_name = n.get_string(compiler);
         let (reg, ast) = compiler.get_type_registry_and_ast();
-        let Some(lhs_type) = Self::dereferenced(reg, ast, lhs_jstype) else {
+        let Some(lhs_type) = Self::dereferenced(reg, ast, Some(lhs_jstype)) else {
             return;
         };
 
         // Put the JSDoc in the property slot, if there is one.
-        if lhs_type.has_own_property(reg, ast, prop_name.clone())
-            && lhs_type
-                .get_property_jsdoc_info(reg, ast, prop_name.clone())
-                .is_none()
+        let mut type_doc: Option<Arc<JSDocInfo>> = None;
+        let own_slot = lhs_type.get_own_slot(reg, ast, prop_name.clone());
+        if let Some(slot) = own_slot
+            && slot.get_jsdoc_info(reg).is_none()
         {
-            lhs_type.set_property_jsdoc_info(
-                reg,
-                ast,
-                prop_name.clone(),
-                Some(Arc::clone(&type_doc)),
-            );
+            let doc = doc_node.get_jsdoc_info(ast).unwrap();
+            lhs_type.set_property_jsdoc_info(reg, ast, prop_name.clone(), Some(Arc::clone(&doc)));
+            type_doc = Some(doc);
         }
 
-        let prop_jstype = lhs_type.get_property_type(reg, ast, prop_name);
+        let prop_jstype = if let Some(slot) = own_slot
+            && !lhs_type.is_templatized_type(reg)
+            && !lhs_type.is_function_type(reg)
+            && !lhs_type.is_no_object_type(reg)
+            && !lhs_type.is_no_type(reg)
+        {
+            slot.get_type(reg)
+        } else {
+            lhs_type.get_property_type(reg, ast, prop_name)
+        };
         let prop_type = Self::dereferenced(reg, ast, Some(prop_jstype));
         if Self::should_attach_jsdoc_to_nominal_type_or_shape(reg, ast, prop_type, aliased_type) {
+            let doc = type_doc.unwrap_or_else(|| doc_node.get_jsdoc_info(ast).unwrap());
             // Rust-only: Java computes the qualified name up front; it is only used here.
             let q_name = n.get_qualified_name(ast);
             Self::attach_jsdoc_info_to_nominal_type_or_shape(
                 reg,
                 prop_type.unwrap(),
-                type_doc,
+                doc,
                 q_name.as_ref(),
             );
         }
@@ -348,38 +374,49 @@ impl InferJSDocInfo {
         root: Option<NodeId>,
     ) {
         if let Some(externs) = externs {
-            NodeTraversal::traverse(compiler, externs, self);
+            let parent = externs.get_parent(compiler);
+            self.traverse(compiler, externs, parent);
         }
         if let Some(root) = root {
-            NodeTraversal::traverse(compiler, root, self);
+            let parent = root.get_parent(compiler);
+            self.traverse(compiler, root, parent);
         }
     }
-}
 
-impl CompilerPass for InferJSDocInfo {
-    // port: InferJSDocInfo#process
-    fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
-        self.process_nullable(compiler, Some(externs), Some(root));
-    }
-}
-
-impl Callback for InferJSDocInfo {
-    // port: NodeTraversal.AbstractPostOrderCallback#shouldTraverse
-    fn should_traverse(
-        &mut self,
-        _t: &mut NodeTraversal<'_>,
-        _n: NodeId,
-        _parent: Option<NodeId>,
-    ) -> bool {
-        true
-    }
-
+    /// Rust-only (performance divergence): direct post-order walk without `NodeTraversal` (this
+    /// pass never inspects scopes or inputs), skipping empty blocks and bare parameter names.
     // port: InferJSDocInfo#visit
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        match n.get_token(t) {
+    fn traverse(&mut self, compiler: &mut AbstractCompiler, n: NodeId, parent: Option<NodeId>) {
+        let token = n.get_token(compiler);
+        match token {
+            Token::PARAM_LIST => {
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    let next = c.get_next(compiler);
+                    // Bare parameter NAMEs have no children and `infer_jsdoc_for_name` ignores
+                    // PARAM_LIST parents.
+                    if c.has_children(compiler) || !c.is_name(compiler) {
+                        self.traverse(compiler, c, Some(n));
+                    }
+                    child = next;
+                }
+                return;
+            }
+            Token::BLOCK if !n.has_children(compiler) => return,
+            _ => {}
+        }
+
+        let mut child = n.get_first_child(compiler);
+        while let Some(c) = child {
+            let next = c.get_next(compiler);
+            self.traverse(compiler, c, Some(n));
+            child = next;
+        }
+
+        match token {
             Token::NAME => {
                 // Infer JSDocInfo on types of all type declarations on variables.
-                self.infer_jsdoc_for_name(t.get_compiler(), n, parent);
+                self.infer_jsdoc_for_name(compiler, n, parent);
             }
             Token::STRING_KEY
             | Token::GETTER_DEF
@@ -388,16 +425,19 @@ impl Callback for InferJSDocInfo {
             | Token::MEMBER_FIELD_DEF
             | Token::COMPUTED_PROP
             | Token::COMPUTED_FIELD_DEF => {
-                self.infer_jsdoc_for_object_key_or_class_field(
-                    t.get_compiler(),
-                    n,
-                    parent.unwrap(),
-                );
+                self.infer_jsdoc_for_object_key_or_class_field(compiler, n, parent.unwrap());
             }
             Token::GETPROP => {
-                self.infer_jsdoc_for_property(t.get_compiler(), n, parent.unwrap());
+                self.infer_jsdoc_for_property(compiler, n, parent.unwrap());
             }
             _ => {}
         }
+    }
+}
+
+impl CompilerPass for InferJSDocInfo {
+    // port: InferJSDocInfo#process
+    fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
+        self.process_nullable(compiler, Some(externs), Some(root));
     }
 }

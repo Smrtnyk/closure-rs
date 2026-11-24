@@ -40,6 +40,7 @@ use crate::{
     node_traversal::{Callback, NodeTraversal},
     node_util::{MatchDeclaration, MatchShallowStatement, NodeUtil},
     scope::Scope,
+    syntactic_scope_creator::{SyntacticScopeCreator, ensure_ancestor_scope},
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
@@ -49,6 +50,7 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::{rc::Rc, sync::Arc};
 
 pub static MISSED_REQUIRED_INLINING: DiagnosticType = DiagnosticType::warning(
@@ -128,25 +130,25 @@ impl InlineFunctions {
     // port: InlineFunctions#targetSizeAfterInlineExceedsLimit
     fn target_size_after_inline_exceeds_limit(
         max_size_after_inlining: i32,
-        t: &mut NodeTraversal<'_>,
+        ast: &mut Ast,
+        containing_function: Option<NodeId>,
         function_state: &FunctionState,
     ) -> bool {
-        let containing_function = t.get_enclosing_function();
         // Always inline at the top level,
         // unless maybeAddFunction has marked functionState as not inlinable.
         let Some(containing_function) = containing_function else {
             return false;
         };
-        let inlined_fun = function_state.get_fn().get_function_node(t);
-        if Self::is_always_inlinable(t, inlined_fun) {
+        let inlined_fun = function_state.get_fn().get_function_node(ast);
+        if Self::is_always_inlinable(ast, inlined_fun) {
             return false;
         }
 
-        let inlined_fun_body = NodeUtil::get_function_body(t, inlined_fun);
+        let inlined_fun_body = NodeUtil::get_function_body(ast, inlined_fun);
         let inlined_fun_size =
-            NodeUtil::count_ast_size_up_to_limit(t, inlined_fun_body, max_size_after_inlining);
+            NodeUtil::count_ast_size_up_to_limit(ast, inlined_fun_body, max_size_after_inlining);
         let target_fun_size =
-            NodeUtil::count_ast_size_up_to_limit(t, containing_function, max_size_after_inlining);
+            NodeUtil::count_ast_size_up_to_limit(ast, containing_function, max_size_after_inlining);
         inlined_fun_size + target_fun_size > max_size_after_inlining
     }
 
@@ -739,28 +741,48 @@ impl CompilerPass for InlineFunctions {
     fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
         check_state!(compiler.get_life_cycle_stage().is_normalized());
 
-        NodeTraversal::traverse(
-            compiler,
-            root,
-            &mut FindCandidateFunctions {
-                outer: self,
-                calls_seen: 0,
-            },
-        );
+        // Rust-only (performance divergence): direct AST walks for Walk 1 (FindCandidateFunctions)
+        // and Walk 2 (FindCandidatesReferences), avoiding NodeTraversal's per-node dispatch and
+        // materializing scopes lazily via `ensure_ancestor_scope` only at matched call sites.
+        {
+            let mut finder = FindCandidateFunctions::new(self, compiler, root);
+            let res = catch_unwind(AssertUnwindSafe(|| {
+                finder.walk_node(compiler, root, None, true);
+            }));
+            if let Err(payload) = res {
+                NodeTraversal::throw_unexpected_exception_at(
+                    compiler,
+                    finder.current_script,
+                    finder.current_node,
+                    payload,
+                );
+            }
+        }
         if self.fns.is_empty() {
             return; // Nothing left to do.
         }
-        NodeTraversal::traverse(
-            compiler,
-            root,
-            &mut FindCandidatesReferences::new(
+        {
+            let mut ref_finder = FindCandidatesReferences::new(
+                compiler,
+                root,
                 &mut self.fns,
                 &self.anon_fns,
                 &mut self.injector,
                 self.enforce_max_size_after_inlining,
                 self.max_size_after_inlining,
-            ),
-        );
+            );
+            let res = catch_unwind(AssertUnwindSafe(|| {
+                ref_finder.walk_node(compiler, root, None, None, root);
+            }));
+            if let Err(payload) = res {
+                NodeTraversal::throw_unexpected_exception_at(
+                    compiler,
+                    ref_finder.current_script,
+                    ref_finder.current_node,
+                    payload,
+                );
+            }
+        }
         self.trim_candidates_not_meeting_minimum_requirements();
         if self.fns.is_empty() {
             return; // Nothing left to do.
@@ -819,67 +841,200 @@ impl CompilerPass for InlineFunctions {
     }
 }
 
+fn chunk_of_script(compiler: &AbstractCompiler, script: NodeId) -> Option<JSChunk> {
+    script
+        .get_input_id(compiler)
+        .and_then(|id| compiler.get_input(&id))
+        .and_then(|input| input.get_chunk())
+}
+
 /// Find functions that might be inlined.
 struct FindCandidateFunctions<'a> {
     outer: &'a mut InlineFunctions,
     calls_seen: i32,
+    current_script: Option<NodeId>,
+    current_chunk: Option<JSChunk>,
+    current_node: Option<NodeId>,
 }
 
-impl Callback for FindCandidateFunctions<'_> {
-    fn should_traverse(
-        &mut self,
-        _t: &mut NodeTraversal<'_>,
-        _n: NodeId,
-        _parent: Option<NodeId>,
-    ) -> bool {
-        true
+impl<'a> FindCandidateFunctions<'a> {
+    fn new(outer: &'a mut InlineFunctions, compiler: &AbstractCompiler, root: NodeId) -> Self {
+        let current_script = NodeUtil::get_enclosing_script(compiler, root);
+        let current_chunk = current_script.and_then(|s| chunk_of_script(compiler, s));
+        Self {
+            outer,
+            calls_seen: 0,
+            current_script,
+            current_chunk,
+            current_node: None,
+        }
     }
 
-    // port: InlineFunctions.FindCandidateFunctions#visit
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        // Rust-only (performance divergence): dispatch on token once before checking scope.
-        match n.get_token(t) {
+    fn walk_node(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        parent: Option<NodeId>,
+        in_global_hoist_scope: bool,
+    ) {
+        let token = n.get_token(compiler);
+        match token {
+            Token::SCRIPT => {
+                let prev_script = self.current_script;
+                let prev_chunk = self.current_chunk.take();
+                self.current_script = Some(n);
+                self.current_chunk = chunk_of_script(compiler, n);
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    self.walk_node(compiler, c, Some(n), in_global_hoist_scope);
+                    child = c.get_next(compiler);
+                }
+                self.current_script = prev_script;
+                self.current_chunk = prev_chunk;
+                return;
+            }
+            Token::FUNCTION => {
+                let fn_name = n.get_first_child(compiler).unwrap();
+                let args = fn_name.get_next(compiler).unwrap();
+                let body = args.get_next(compiler).unwrap();
+                let is_decl = parent.is_some() && NodeUtil::is_function_declaration(compiler, n);
+                self.walk_node(
+                    compiler,
+                    fn_name,
+                    Some(n),
+                    if is_decl {
+                        in_global_hoist_scope
+                    } else {
+                        false
+                    },
+                );
+                self.walk_node(compiler, args, Some(n), false);
+                self.walk_node(compiler, body, Some(n), false);
+            }
+            Token::MODULE_BODY => {
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    self.walk_node(compiler, c, Some(n), false);
+                    child = c.get_next(compiler);
+                }
+                return;
+            }
+            Token::CLASS => {
+                let class_name = n.get_first_child(compiler).unwrap();
+                let extends_clause = class_name.get_next(compiler).unwrap();
+                let body = extends_clause.get_next(compiler).unwrap();
+                self.walk_node(compiler, extends_clause, Some(n), in_global_hoist_scope);
+                self.walk_node(compiler, class_name, Some(n), in_global_hoist_scope);
+                self.walk_node(compiler, body, Some(n), in_global_hoist_scope);
+                return;
+            }
+            Token::CLASS_MEMBERS => {
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    if c.is_computed_prop(compiler) || c.is_computed_field_def(compiler) {
+                        self.walk_node(
+                            compiler,
+                            c.get_first_child(compiler).unwrap(),
+                            Some(c),
+                            in_global_hoist_scope,
+                        );
+                    }
+                    child = c.get_next(compiler);
+                }
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    match c.get_token(compiler) {
+                        Token::COMPUTED_PROP => {
+                            self.walk_node(
+                                compiler,
+                                c.get_last_child(compiler).unwrap(),
+                                Some(c),
+                                in_global_hoist_scope,
+                            );
+                        }
+                        Token::COMPUTED_FIELD_DEF => {
+                            if c.has_two_children(compiler) {
+                                self.walk_node(
+                                    compiler,
+                                    c.get_last_child(compiler).unwrap(),
+                                    Some(c),
+                                    false,
+                                );
+                            }
+                        }
+                        Token::MEMBER_FIELD_DEF => {
+                            self.walk_node(compiler, c, Some(n), false);
+                        }
+                        _ => self.walk_node(compiler, c, Some(n), in_global_hoist_scope),
+                    }
+                    child = c.get_next(compiler);
+                }
+                return;
+            }
+            Token::BLOCK => {
+                let child_global =
+                    in_global_hoist_scope && !NodeUtil::is_class_static_block(compiler, n);
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    self.walk_node(compiler, c, Some(n), child_global);
+                    child = c.get_next(compiler);
+                }
+                return;
+            }
+            _ => {
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    self.walk_node(compiler, c, Some(n), in_global_hoist_scope);
+                    child = c.get_next(compiler);
+                }
+            }
+        }
+        // port: InlineFunctions.FindCandidateFunctions#visit
+        match token {
             Token::VAR | Token::LET | Token::CONST | Token::FUNCTION
-                if self.outer.reach.includes_globals() || !t.in_global_hoist_scope() =>
+                if self.outer.reach.includes_globals() || !in_global_hoist_scope =>
             {
-                self.find_named_functions(t, n, parent);
+                self.current_node = Some(n);
+                self.find_named_functions(compiler, n, parent);
             }
             Token::OPTCHAIN_CALL | Token::CALL
-                if self.outer.reach.includes_globals() || !t.in_global_hoist_scope() =>
+                if self.outer.reach.includes_globals() || !in_global_hoist_scope =>
             {
-                self.find_function_expressions(t, n);
+                self.current_node = Some(n);
+                self.find_function_expressions(compiler, n);
             }
             _ => {}
         }
     }
-}
 
-impl FindCandidateFunctions<'_> {
     // port: InlineFunctions.FindCandidateFunctions#findNamedFunctions
     fn find_named_functions(
         &mut self,
-        t: &mut NodeTraversal<'_>,
+        compiler: &mut AbstractCompiler,
         n: NodeId,
         parent: Option<NodeId>,
     ) {
-        if !NodeUtil::is_statement(t, n) {
+        if !NodeUtil::is_statement(compiler, n) {
             // There aren't any interesting functions here.
             return;
         }
 
-        match n.get_token(t) {
+        match n.get_token(compiler) {
             Token::VAR | Token::LET | Token::CONST => {
                 // Functions expressions in the form of:
                 //   var fooFn = function(x) { return ... }
-                check_state!(n.has_one_child(t), "%s", n.to_string(t));
-                let name_node = n.get_first_child(t).unwrap();
-                if name_node.is_name(t)
-                    && name_node.has_children(t)
-                    && name_node.get_first_child(t).unwrap().is_function(t)
+                check_state!(n.has_one_child(compiler), "%s", n.to_string(compiler));
+                let name_node = n.get_first_child(compiler).unwrap();
+                if name_node.is_name(compiler)
+                    && name_node.has_children(compiler)
+                    && name_node
+                        .get_first_child(compiler)
+                        .unwrap()
+                        .is_function(compiler)
                 {
-                    let chunk = t.get_chunk();
+                    let chunk = self.current_chunk.clone();
                     self.outer.maybe_add_function(
-                        t.get_compiler(),
+                        compiler,
                         Function::Var(FunctionVar::new(n)),
                         chunk,
                     );
@@ -889,11 +1044,13 @@ impl FindCandidateFunctions<'_> {
             }
             Token::FUNCTION => {
                 let parent = parent.unwrap();
-                check_state!(NodeUtil::is_statement_block(t, parent) || parent.is_label(t));
-                if NodeUtil::is_function_declaration(t, n) {
+                check_state!(
+                    NodeUtil::is_statement_block(compiler, parent) || parent.is_label(compiler)
+                );
+                if NodeUtil::is_function_declaration(compiler, n) {
                     let r#fn = Function::Named(NamedFunction::new(n));
-                    let chunk = t.get_chunk();
-                    self.outer.maybe_add_function(t.get_compiler(), r#fn, chunk);
+                    let chunk = self.current_chunk.clone();
+                    self.outer.maybe_add_function(compiler, r#fn, chunk);
                 }
             }
             _ => {}
@@ -903,17 +1060,17 @@ impl FindCandidateFunctions<'_> {
     /// Find function expressions that are called directly in the form of
     /// (function(a,b,...){...})(a,b,...) or (function(a,b,...){...}).call(this,a,b, ...)
     // port: InlineFunctions.FindCandidateFunctions#findFunctionExpressions
-    fn find_function_expressions(&mut self, t: &mut NodeTraversal<'_>, n: NodeId) {
-        match n.get_token(t) {
+    fn find_function_expressions(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+        match n.get_token(compiler) {
             Token::OPTCHAIN_CALL | Token::CALL => {
                 // Functions expressions in the form of:
                 //   (function(){})();
                 let mut fn_node = None;
-                if n.get_first_child(t).unwrap().is_function(t) {
-                    fn_node = n.get_first_child(t);
-                } else if NodeUtil::is_function_object_call(t, n) {
-                    let fn_identifying_node = n.get_first_first_child(t).unwrap();
-                    if fn_identifying_node.is_function(t) {
+                if n.get_first_child(compiler).unwrap().is_function(compiler) {
+                    fn_node = n.get_first_child(compiler);
+                } else if NodeUtil::is_function_object_call(compiler, n) {
+                    let fn_identifying_node = n.get_first_first_child(compiler).unwrap();
+                    if fn_identifying_node.is_function(compiler) {
                         fn_node = Some(fn_identifying_node);
                     }
                 }
@@ -922,12 +1079,13 @@ impl FindCandidateFunctions<'_> {
                 if let Some(fn_node) = fn_node {
                     let calls_seen = self.calls_seen;
                     self.calls_seen += 1;
-                    let r#fn =
-                        Function::Expression(FunctionExpression::new(t, fn_node, calls_seen));
+                    let r#fn = Function::Expression(FunctionExpression::new(
+                        compiler, fn_node, calls_seen,
+                    ));
                     // Rust-only: `fn` moves into maybeAddFunction; its name is read first.
-                    let name = r#fn.get_name(t);
-                    let chunk = t.get_chunk();
-                    self.outer.maybe_add_function(t.get_compiler(), r#fn, chunk);
+                    let name = r#fn.get_name(compiler);
+                    let chunk = self.current_chunk.clone();
+                    self.outer.maybe_add_function(compiler, r#fn, chunk);
                     self.outer.anon_fns.insert(fn_node, name);
                 }
             }
@@ -976,21 +1134,6 @@ impl<'a, C: CallVisitorCallback> CallVisitor<'a, C> {
     }
 
     // port: InlineFunctions.CallVisitor#CallVisitor
-    fn new(
-        fns: &'a mut IndexMap<JsString, FunctionState>,
-        anon_fns: &'a IndexMap<NodeId, JsString>,
-        callback: C,
-    ) -> Self {
-        let name_bloom = Self::build_name_bloom(fns);
-        Self {
-            function_map: fns,
-            anon_function_map: anon_fns,
-            callback,
-            allowed_nodes: None,
-            name_bloom,
-        }
-    }
-
     fn new_pruned(
         fns: &'a mut IndexMap<JsString, FunctionState>,
         anon_fns: &'a IndexMap<NodeId, JsString>,
@@ -1076,40 +1219,231 @@ impl<C: CallVisitorCallback> Callback for CallVisitor<'_, C> {
 
 /// Find references to functions that are inlinable.
 ///
-/// Java's FindCandidatesReferences is a CallVisitor that is its own CallVisitorCallback; here the
-/// callback side is `CandidateReferenceCollector`, which the CallVisitor owns.
+/// Rust-only (performance divergence): walks the AST directly instead of through `NodeTraversal`,
+/// materializing scopes lazily via `ensure_ancestor_scope` only when a call site matches a
+/// candidate function.
 struct FindCandidatesReferences<'a> {
-    call_visitor: CallVisitor<'a, CandidateReferenceCollector<'a>>,
-    functions_with_tagged_template_lit: IndexSet<NodeId>,
-}
-
-/// The CallVisitorCallback side of FindCandidatesReferences.
-struct CandidateReferenceCollector<'a> {
+    root: NodeId,
+    function_map: &'a mut IndexMap<JsString, FunctionState>,
+    anon_function_map: &'a IndexMap<NodeId, JsString>,
+    name_bloom: [u64; 64],
     injector: &'a mut FunctionInjector,
     enforce_max_size_after_inlining: bool,
     max_size_after_inlining: i32,
+    functions_with_tagged_template_lit: IndexSet<NodeId>,
+    scope_creator: SyntacticScopeCreator<'static>,
+    scope_memo: IndexMap<NodeId, Scope>,
+    current_script: Option<NodeId>,
+    current_chunk: Option<JSChunk>,
+    current_node: Option<NodeId>,
 }
 
 impl<'a> FindCandidatesReferences<'a> {
     // port: InlineFunctions.FindCandidatesReferences#FindCandidatesReferences
     fn new(
+        compiler: &AbstractCompiler,
+        root: NodeId,
         fns: &'a mut IndexMap<JsString, FunctionState>,
         anon_fns: &'a IndexMap<NodeId, JsString>,
         injector: &'a mut FunctionInjector,
         enforce_max_size_after_inlining: bool,
         max_size_after_inlining: i32,
     ) -> Self {
+        let name_bloom = CallVisitor::<Inline<'_>>::build_name_bloom(fns);
+        let current_script = NodeUtil::get_enclosing_script(compiler, root);
+        let current_chunk = current_script.and_then(|s| chunk_of_script(compiler, s));
         Self {
-            call_visitor: CallVisitor::new(
-                fns,
-                anon_fns,
-                CandidateReferenceCollector {
-                    injector,
-                    enforce_max_size_after_inlining,
-                    max_size_after_inlining,
-                },
-            ),
+            root,
+            function_map: fns,
+            anon_function_map: anon_fns,
+            name_bloom,
+            injector,
+            enforce_max_size_after_inlining,
+            max_size_after_inlining,
             functions_with_tagged_template_lit: IndexSet::<_>::default(),
+            scope_creator: SyntacticScopeCreator::new(),
+            scope_memo: IndexMap::default(),
+            current_script,
+            current_chunk,
+            current_node: None,
+        }
+    }
+
+    #[inline]
+    fn may_contain_name(&self, name: &JsString) -> bool {
+        let h = name.hash_code() as usize;
+        (self.name_bloom[(h >> 6) & 63] & (1u64 << (h & 63))) != 0
+    }
+
+    fn walk_node(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        parent: Option<NodeId>,
+        enclosing_fn: Option<NodeId>,
+        scope_root: NodeId,
+    ) {
+        let token = n.get_token(compiler);
+        match token {
+            Token::SCRIPT => {
+                let prev_script = self.current_script;
+                let prev_chunk = self.current_chunk.take();
+                self.current_script = Some(n);
+                self.current_chunk = chunk_of_script(compiler, n);
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    self.walk_node(compiler, c, Some(n), enclosing_fn, scope_root);
+                    child = c.get_next(compiler);
+                }
+                self.current_script = prev_script;
+                self.current_chunk = prev_chunk;
+                return;
+            }
+            Token::FUNCTION => {
+                let fn_name = n.get_first_child(compiler).unwrap();
+                let args = fn_name.get_next(compiler).unwrap();
+                let body = args.get_next(compiler).unwrap();
+                let is_decl = parent.is_some() && NodeUtil::is_function_declaration(compiler, n);
+                if is_decl {
+                    self.walk_node(compiler, fn_name, Some(n), enclosing_fn, scope_root);
+                } else {
+                    self.walk_node(compiler, fn_name, Some(n), Some(n), n);
+                }
+                self.walk_node(compiler, args, Some(n), Some(n), n);
+                self.walk_node(compiler, body, Some(n), Some(n), n);
+            }
+            Token::MODULE_BODY => {
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    self.walk_node(compiler, c, Some(n), enclosing_fn, n);
+                    child = c.get_next(compiler);
+                }
+                return;
+            }
+            Token::CLASS => {
+                let class_name = n.get_first_child(compiler).unwrap();
+                let extends_clause = class_name.get_next(compiler).unwrap();
+                let body = extends_clause.get_next(compiler).unwrap();
+                let is_expr = NodeUtil::is_class_expression(compiler, n);
+                self.walk_node(compiler, extends_clause, Some(n), enclosing_fn, scope_root);
+                self.walk_node(
+                    compiler,
+                    class_name,
+                    Some(n),
+                    enclosing_fn,
+                    if is_expr { n } else { scope_root },
+                );
+                self.walk_node(compiler, body, Some(n), enclosing_fn, n);
+                return;
+            }
+            Token::CLASS_MEMBERS => {
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    if c.is_computed_prop(compiler) || c.is_computed_field_def(compiler) {
+                        self.walk_node(
+                            compiler,
+                            c.get_first_child(compiler).unwrap(),
+                            Some(c),
+                            enclosing_fn,
+                            scope_root,
+                        );
+                    }
+                    child = c.get_next(compiler);
+                }
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    match c.get_token(compiler) {
+                        Token::COMPUTED_PROP => {
+                            self.walk_node(
+                                compiler,
+                                c.get_last_child(compiler).unwrap(),
+                                Some(c),
+                                enclosing_fn,
+                                scope_root,
+                            );
+                        }
+                        Token::COMPUTED_FIELD_DEF => {
+                            if c.has_two_children(compiler) {
+                                self.walk_node(
+                                    compiler,
+                                    c.get_last_child(compiler).unwrap(),
+                                    Some(c),
+                                    enclosing_fn,
+                                    c,
+                                );
+                            }
+                        }
+                        Token::MEMBER_FIELD_DEF => {
+                            self.walk_node(compiler, c, Some(n), enclosing_fn, c);
+                        }
+                        _ => self.walk_node(compiler, c, Some(n), enclosing_fn, scope_root),
+                    }
+                    child = c.get_next(compiler);
+                }
+                return;
+            }
+            Token::BLOCK => {
+                let child_scope = if !n.is_synthetic_block(compiler)
+                    && parent.is_some_and(|p| {
+                        !NodeUtil::is_switch_case(compiler, p) && !p.is_catch(compiler)
+                    }) {
+                    n
+                } else {
+                    scope_root
+                };
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    self.walk_node(compiler, c, Some(n), enclosing_fn, child_scope);
+                    child = c.get_next(compiler);
+                }
+                return;
+            }
+            Token::FOR
+            | Token::FOR_IN
+            | Token::FOR_OF
+            | Token::FOR_AWAIT_OF
+            | Token::SWITCH_BODY => {
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    self.walk_node(compiler, c, Some(n), enclosing_fn, n);
+                    child = c.get_next(compiler);
+                }
+                return;
+            }
+            _ => {
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    self.walk_node(compiler, c, Some(n), enclosing_fn, scope_root);
+                    child = c.get_next(compiler);
+                }
+            }
+        }
+        // port: InlineFunctions.FindCandidatesReferences#visit
+        match token {
+            Token::OPTCHAIN_CALL | Token::CALL => {
+                self.visit_calls(compiler, n, enclosing_fn, scope_root);
+            }
+            Token::NAME => {
+                self.check_name_usage(compiler, n, parent.unwrap());
+            }
+            Token::TAGGED_TEMPLATELIT => {
+                if let Some(enclosing_fn) = enclosing_fn {
+                    self.functions_with_tagged_template_lit.insert(enclosing_fn);
+                }
+            }
+            Token::FUNCTION
+                if !self.functions_with_tagged_template_lit.is_empty()
+                    && self.functions_with_tagged_template_lit.shift_remove(&n) =>
+            {
+                let function_state = self.get_function_state_for_function_node(compiler, n);
+                if let Some(function_state) = function_state {
+                    function_state.set_has_tagged_template_lit(true);
+                }
+                if let Some(enclosing_fn) = enclosing_fn {
+                    self.functions_with_tagged_template_lit.insert(enclosing_fn);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -1119,7 +1453,7 @@ impl<'a> FindCandidatesReferences<'a> {
         ast: &Ast,
         fn_node: NodeId,
     ) -> Option<&mut FunctionState> {
-        let mut name = self.call_visitor.anon_function_map.get(&fn_node).cloned();
+        let mut name = self.anon_function_map.get(&fn_node).cloned();
         if name.is_none() {
             if NodeUtil::is_function_declaration(ast, fn_node) {
                 name = Some(fn_node.get_first_child(ast).unwrap().get_string(ast));
@@ -1131,7 +1465,7 @@ impl<'a> FindCandidatesReferences<'a> {
             }
         }
         let name = name?;
-        let function_state = self.call_visitor.function_map.get_mut(&name);
+        let function_state = self.function_map.get_mut(&name);
         if let Some(function_state) = function_state
             && function_state.has_existing_function_definition()
             && function_state.get_fn().get_function_node(ast) == fn_node
@@ -1143,43 +1477,42 @@ impl<'a> FindCandidatesReferences<'a> {
 
     /// Find functions that can be inlined.
     // port: InlineFunctions.FindCandidatesReferences#checkNameUsage
-    fn check_name_usage(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: NodeId) {
-        check_state!(n.is_name(t), "%s", n.to_string(t));
-
+    #[inline]
+    fn check_name_usage(&mut self, compiler: &mut AbstractCompiler, n: NodeId, parent: NodeId) {
         // Rust-only (performance divergence): test Bloom filter before is_candidate_usage or
         // hash-map probing; the vast majority of NAME nodes are not candidate functions.
-        let name = n.get_string_ref(t);
-        if !self.call_visitor.may_contain_name(name) {
+        let name = n.get_string_ref(compiler);
+        if !self.may_contain_name(name) {
             return;
         }
-        if !self.call_visitor.function_map.contains_key(name) {
-            return;
-        }
-
-        if InlineFunctions::is_candidate_usage(t, n) {
+        if !self.function_map.contains_key(name) {
             return;
         }
 
+        if InlineFunctions::is_candidate_usage(compiler, n) {
+            return;
+        }
+
+        self.current_node = Some(n);
         // Other refs to a function name remove its candidacy for inlining
         // Rust-only: the name is read in place (performance divergence).
         let function_state = self
-            .call_visitor
             .function_map
-            .get_mut(n.get_string_ref(t))
+            .get_mut(n.get_string_ref(compiler))
             .unwrap();
 
         // If the name is being assigned to or modified as an L-value (e.g. `bar = something;`,
         // destructuring `[bar] = ...`, or `for (bar of ...)`), it cannot be inlined.
-        if NodeUtil::is_l_value(t, n) {
+        if NodeUtil::is_l_value(compiler, n) {
             // Mark the function as uninlinable.
-            function_state.disallow_inlining(t.get_compiler(), DisallowInliningReason::REASSIGNED);
-        } else if (parent.is_assign(t)
-            && parent.get_jsdoc_info_ref(t).is_some()
-            && parent.get_jsdoc_info(t).unwrap().is_constant()
-            && parent.get_second_child(t) == Some(n))
-            || (parent.get_parent(t).is_some()
-                && parent.get_parent(t).unwrap().is_const(t)
-                && parent.get_first_child(t) == Some(n))
+            function_state.disallow_inlining(compiler, DisallowInliningReason::REASSIGNED);
+        } else if (parent.is_assign(compiler)
+            && parent.get_jsdoc_info_ref(compiler).is_some()
+            && parent.get_jsdoc_info(compiler).unwrap().is_constant()
+            && parent.get_second_child(compiler) == Some(n))
+            || (parent.get_parent(compiler).is_some()
+                && parent.get_parent(compiler).unwrap().is_const(compiler)
+                && parent.get_first_child(compiler) == Some(n))
         {
             // e.g. const bar = foo; exports.bar = foo;
             // We can't see through this reference right now, but we will be able
@@ -1187,7 +1520,7 @@ impl<'a> FindCandidatesReferences<'a> {
             // this is probably okay with @requireInlining.
             function_state.set_remove(
                 false,
-                t.get_compiler(),
+                compiler,
                 CannotRemoveReason::UNREMOVABLE_REFERENCE,
                 ShouldWarnWhenRequireInliningCannotInline::NO,
             );
@@ -1197,140 +1530,167 @@ impl<'a> FindCandidatesReferences<'a> {
             // unremovable.
             function_state.set_remove_with_context(
                 false,
-                t.get_compiler(),
+                compiler,
                 CannotRemoveReason::UNREMOVABLE_REFERENCE,
                 ShouldWarnWhenRequireInliningCannotInline::YES,
                 /* contextNode= */ Some(parent),
             );
         }
     }
-}
 
-impl Callback for FindCandidatesReferences<'_> {
-    fn should_traverse(
-        &mut self,
-        _t: &mut NodeTraversal<'_>,
-        _n: NodeId,
-        _parent: Option<NodeId>,
-    ) -> bool {
-        true
-    }
-
-    // port: InlineFunctions.FindCandidatesReferences#visit
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        match n.get_token(t) {
-            Token::OPTCHAIN_CALL | Token::CALL => {
-                self.call_visitor.visit_calls(t, n, parent);
-            }
-            Token::NAME => {
-                self.check_name_usage(t, n, parent.unwrap());
-            }
-            Token::TAGGED_TEMPLATELIT => {
-                if let Some(enclosing_fn) = t.get_enclosing_function() {
-                    self.functions_with_tagged_template_lit.insert(enclosing_fn);
-                }
-            }
-            Token::FUNCTION
-                if !self.functions_with_tagged_template_lit.is_empty()
-                    && self.functions_with_tagged_template_lit.shift_remove(&n) =>
-            {
-                let function_state = self.get_function_state_for_function_node(t, n);
-                if let Some(function_state) = function_state {
-                    function_state.set_has_tagged_template_lit(true);
-                }
-                if let Some(enclosing_fn) = t.get_enclosing_function() {
-                    self.functions_with_tagged_template_lit.insert(enclosing_fn);
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-impl CallVisitorCallback for CandidateReferenceCollector<'_> {
     // port: InlineFunctions.FindCandidatesReferences#visitCallSite
-    fn visit_call_site(
+    fn visit_calls(
         &mut self,
-        t: &mut NodeTraversal<'_>,
+        compiler: &mut AbstractCompiler,
         call_node: NodeId,
-        function_state: &mut FunctionState,
+        enclosing_fn: Option<NodeId>,
+        scope_root: NodeId,
     ) {
-        let chunk = t.get_chunk();
-        self.maybe_add_reference(t, function_state, call_node, chunk);
-    }
-}
+        let child = call_node.get_first_child(compiler).unwrap();
+        let fn_key: Option<JsString> = if child.is_name(compiler) {
+            let name = child.get_string_ref(compiler);
+            if self.may_contain_name(name) && self.function_map.contains_key(name) {
+                Some(name.clone())
+            } else {
+                None
+            }
+        } else if child.is_function(compiler) {
+            self.anon_function_map
+                .get(&child)
+                .filter(|name| self.function_map.contains_key(*name))
+                .cloned()
+        } else if NodeUtil::is_function_object_call(compiler, call_node) {
+            check_state!(NodeUtil::is_normal_or_opt_chain_get(compiler, child));
+            let fn_identifying_node = child.get_first_child(compiler).unwrap();
+            if fn_identifying_node.is_name(compiler) {
+                let name = fn_identifying_node.get_string_ref(compiler);
+                if self.may_contain_name(name) && self.function_map.contains_key(name) {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            } else if fn_identifying_node.is_function(compiler) {
+                self.anon_function_map
+                    .get(&fn_identifying_node)
+                    .filter(|name| self.function_map.contains_key(*name))
+                    .cloned()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
-impl CandidateReferenceCollector<'_> {
+        let Some(fn_key) = fn_key else {
+            return;
+        };
+        self.current_node = Some(call_node);
+        let chunk = self.current_chunk.clone();
+        self.maybe_add_reference(
+            compiler,
+            &fn_key,
+            call_node,
+            chunk,
+            enclosing_fn,
+            scope_root,
+        );
+    }
+
     // port: InlineFunctions.FindCandidatesReferences#maybeAddReference
     fn maybe_add_reference(
         &mut self,
-        t: &mut NodeTraversal<'_>,
-        function_state: &mut FunctionState,
+        compiler: &mut AbstractCompiler,
+        fn_key: &JsString,
         call_node: NodeId,
         chunk: Option<JSChunk>,
+        enclosing_fn: Option<NodeId>,
+        scope_root: NodeId,
     ) {
-        if !function_state.can_inline() {
+        if !self.function_map[fn_key].can_inline() {
             return;
         }
 
-        let mut mode = if function_state.can_inline_directly() {
+        let mut mode = if self.function_map[fn_key].can_inline_directly() {
             InliningMode::DIRECT
         } else {
             InliningMode::BLOCK
         };
-        let mut reference_added =
-            self.maybe_add_reference_using_mode(t, function_state, call_node, chunk.clone(), mode);
+        let mut reference_added = self.maybe_add_reference_using_mode(
+            compiler,
+            fn_key,
+            call_node,
+            chunk.clone(),
+            mode,
+            enclosing_fn,
+            scope_root,
+        );
         if !reference_added && mode == InliningMode::DIRECT {
             // This reference can not be directly inlined, see if
             // block replacement inlining is possible.
             mode = InliningMode::BLOCK;
-            reference_added =
-                self.maybe_add_reference_using_mode(t, function_state, call_node, chunk, mode);
+            reference_added = self.maybe_add_reference_using_mode(
+                compiler,
+                fn_key,
+                call_node,
+                chunk,
+                mode,
+                enclosing_fn,
+                scope_root,
+            );
         }
 
         if !reference_added {
             // Don't try to remove a function if we can't inline all
             // the references.
-            function_state.set_remove_with_context(
-                false,
-                t.get_compiler(),
-                CannotRemoveReason::UNINLINABLE_REFERENCE,
-                ShouldWarnWhenRequireInliningCannotInline::NO,
-                /* contextNode= */ Some(call_node),
-            );
+            self.function_map
+                .get_mut(fn_key)
+                .unwrap()
+                .set_remove_with_context(
+                    false,
+                    compiler,
+                    CannotRemoveReason::UNINLINABLE_REFERENCE,
+                    ShouldWarnWhenRequireInliningCannotInline::NO,
+                    /* contextNode= */ Some(call_node),
+                );
         }
     }
 
     // port: InlineFunctions.FindCandidatesReferences#maybeAddReferenceUsingMode
+    #[allow(clippy::too_many_arguments)]
     fn maybe_add_reference_using_mode(
         &mut self,
-        t: &mut NodeTraversal<'_>,
-        function_state: &mut FunctionState,
+        compiler: &mut AbstractCompiler,
+        fn_key: &JsString,
         call_node: NodeId,
         chunk: Option<JSChunk>,
         mode: InliningMode,
+        enclosing_fn: Option<NodeId>,
+        scope_root: NodeId,
     ) -> bool {
-        // If many functions are inlined into the same function F in the same
-        // inlining round, then the size of F may exceed the max size.
-        // This could be avoided if we bail later, during the inlining phase, eg,
-        // in Inline#visitCallSite. However, that is not safe, because at that
-        // point expression decomposition has already run, and we want to
-        // decompose expressions only for the calls that are actually inlined.
+        let function_state = &self.function_map[fn_key];
         if self.enforce_max_size_after_inlining
             && InlineFunctions::target_size_after_inline_exceeds_limit(
                 self.max_size_after_inlining,
-                t,
+                compiler,
+                enclosing_fn,
                 function_state,
             )
         {
             return false;
         }
 
-        let scope = t.get_scope();
+        let scope = ensure_ancestor_scope(
+            compiler,
+            &mut self.scope_creator,
+            &mut self.scope_memo,
+            self.root,
+            scope_root,
+        );
         let mut candidate = Reference::new(call_node, scope, chunk, mode);
-        let fn_node = function_state.get_fn().get_function_node(t);
+        let function_state = &self.function_map[fn_key];
+        let fn_node = function_state.get_fn().get_function_node(compiler);
         let result = self.injector.can_inline_reference_to_function(
-            t.get_compiler(),
+            compiler,
             &candidate.base,
             fn_node,
             &function_state.get_names_to_alias(),
@@ -1340,7 +1700,10 @@ impl CandidateReferenceCollector<'_> {
         if result != CanInlineResult::NO {
             // Yeah!
             candidate.set_requires_decomposition(result == CanInlineResult::AFTER_PREPARATION);
-            function_state.add_reference(candidate);
+            self.function_map
+                .get_mut(fn_key)
+                .unwrap()
+                .add_reference(candidate);
             return true;
         }
 

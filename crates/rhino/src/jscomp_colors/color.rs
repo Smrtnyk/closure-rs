@@ -113,8 +113,8 @@ impl Color {
         }
         let mut instance_colors = IndexSet::<_>::default();
         let mut prototypes = IndexSet::<_>::default();
-        let mut new_elements = IndexSet::<_>::default();
-        let mut ids = IndexSet::<_>::default();
+        let mut new_elements =
+            IndexSet::with_capacity_and_hasher(elements.len(), Default::default());
         let mut own_properties = IndexSet::<_>::default();
         let mut is_closure_assert = true;
         let mut is_constructor = true;
@@ -124,11 +124,9 @@ impl Color {
             if element.is_union() {
                 for nested_element in element.get_union_elements() {
                     new_elements.insert(nested_element.clone());
-                    ids.insert(nested_element.get_id());
                 }
             } else {
                 new_elements.insert(element.clone());
-                ids.insert(element.get_id());
             }
             instance_colors.extend(element.get_instance_colors().iter().cloned());
             is_closure_assert &= element.is_closure_assert();
@@ -138,16 +136,58 @@ impl Color {
             properties_keep_original_name |= element.get_properties_keep_original_name();
             prototypes.extend(element.get_prototypes().iter().cloned());
         }
+        let union_id = ColorId::union_from_iter(new_elements.iter().map(Color::get_id));
         Builder::new()
             .set_closure_assert(is_closure_assert)
             .set_constructor(is_constructor)
-            .set_id(ColorId::union(&ids))
+            .set_id(union_id)
             .set_instance_colors(instance_colors)
             .set_invalidating(is_invalidating)
             .set_own_properties(own_properties)
             .set_properties_keep_original_name(properties_keep_original_name)
             .set_prototypes(prototypes)
             .set_union_elements(new_elements)
+            .build_union()
+    }
+
+    /// Rust-only (performance divergence): `create_union` when the caller already built an owned
+    /// `IndexSet<Color>` of non-union members (e.g. `ColorPool::reconcile_union_protos`), avoiding
+    /// rebuilding and re-hashing `new_elements`.
+    // port: Color#createUnion
+    pub fn create_union_owned_flat(elements: IndexSet<Color>) -> Color {
+        match elements.len() {
+            0 => panic!(""),
+            1 => return elements.into_iter().next().unwrap(),
+            _ => {}
+        }
+        let mut instance_colors = IndexSet::<_>::default();
+        let mut prototypes = IndexSet::<_>::default();
+        let mut own_properties = IndexSet::<_>::default();
+        let mut is_closure_assert = true;
+        let mut is_constructor = true;
+        let mut is_invalidating = false;
+        let mut properties_keep_original_name = false;
+        for element in &elements {
+            debug_assert!(!element.is_union());
+            instance_colors.extend(element.get_instance_colors().iter().cloned());
+            is_closure_assert &= element.is_closure_assert();
+            is_constructor &= element.is_constructor();
+            is_invalidating |= element.is_invalidating();
+            own_properties.extend(element.get_own_properties().iter().cloned());
+            properties_keep_original_name |= element.get_properties_keep_original_name();
+            prototypes.extend(element.get_prototypes().iter().cloned());
+        }
+        let union_id = ColorId::union_from_iter(elements.iter().map(Color::get_id));
+        Builder::new()
+            .set_closure_assert(is_closure_assert)
+            .set_constructor(is_constructor)
+            .set_id(union_id)
+            .set_instance_colors(instance_colors)
+            .set_invalidating(is_invalidating)
+            .set_own_properties(own_properties)
+            .set_properties_keep_original_name(properties_keep_original_name)
+            .set_prototypes(prototypes)
+            .set_union_elements(elements)
             .build_union()
     }
 

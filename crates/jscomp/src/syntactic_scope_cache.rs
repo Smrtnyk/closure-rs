@@ -333,6 +333,13 @@ impl SyntacticScopeCache {
     pub(crate) fn subtree_stamp(compiler: &mut AbstractCompiler, root: NodeId) -> u32 {
         compiler.ast.track_changes();
         Self::record_changes(compiler);
+        Self::cached_subtree_stamp(compiler, root)
+    }
+
+    /// Reads the recorded stamp of `root` after `subtree_stamp` has already drained pending
+    /// changes.
+    #[inline]
+    pub(crate) fn cached_subtree_stamp(compiler: &AbstractCompiler, root: NodeId) -> u32 {
         compiler
             .syntactic_scope_cache
             .stamps

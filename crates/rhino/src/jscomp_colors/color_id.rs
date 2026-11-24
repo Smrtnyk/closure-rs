@@ -82,17 +82,72 @@ impl ColorId {
     }
     // port: ColorId#union
     pub fn union(ids: &IndexSet<ColorId>) -> Self {
-        if ids.len() <= 1 {
-            return *ids.first().expect("");
+        Self::union_from_iter(ids.iter().copied())
+    }
+
+    /// Rust-only (performance divergence): compute `ColorId::union` directly from an iterator of
+    /// `ColorId`s (deduplicating after sorting) with a stack buffer for small unions (<= 16
+    /// members), avoiding intermediate `IndexSet<ColorId>` and `Vec` heap allocations.
+    // port: ColorId#union
+    pub fn union_from_iter(ids: impl Iterator<Item = ColorId>) -> Self {
+        let mut stack = [0i64; 16];
+        let mut len = 0usize;
+        let mut heap: Vec<i64> = Vec::new();
+        for id in ids {
+            if !heap.is_empty() {
+                heap.push(id.right_aligned);
+            } else if len < stack.len() {
+                stack[len] = id.right_aligned;
+                len += 1;
+            } else {
+                heap = Vec::with_capacity(32);
+                heap.extend_from_slice(&stack);
+                heap.push(id.right_aligned);
+            }
         }
-        let mut sorted: Vec<i64> = ids.iter().map(|id| id.right_aligned).collect();
-        sorted.sort();
-        let mut bytes = Vec::with_capacity(sorted.len() * 8);
-        for id in sorted {
-            bytes.extend_from_slice(&id.to_le_bytes());
-        }
-        Self {
-            right_aligned: farm_hash_fingerprint64::hash_bytes(&bytes),
+        if heap.is_empty() {
+            assert!(len > 0, "");
+            if len == 1 {
+                return Self {
+                    right_aligned: stack[0],
+                };
+            }
+            let slice = &mut stack[..len];
+            slice.sort_unstable();
+            let mut unique = 1usize;
+            for i in 1..len {
+                if slice[i] != slice[unique - 1] {
+                    slice[unique] = slice[i];
+                    unique += 1;
+                }
+            }
+            if unique == 1 {
+                return Self {
+                    right_aligned: slice[0],
+                };
+            }
+            let mut bytes = [0u8; 16 * 8];
+            for (i, &id) in slice[..unique].iter().enumerate() {
+                bytes[i * 8..(i + 1) * 8].copy_from_slice(&id.to_le_bytes());
+            }
+            Self {
+                right_aligned: farm_hash_fingerprint64::hash_bytes(&bytes[..unique * 8]),
+            }
+        } else {
+            heap.sort_unstable();
+            heap.dedup();
+            if heap.len() == 1 {
+                return Self {
+                    right_aligned: heap[0],
+                };
+            }
+            let mut bytes = Vec::with_capacity(heap.len() * 8);
+            for id in heap {
+                bytes.extend_from_slice(&id.to_le_bytes());
+            }
+            Self {
+                right_aligned: farm_hash_fingerprint64::hash_bytes(&bytes),
+            }
         }
     }
     // port: ColorId#hashCode

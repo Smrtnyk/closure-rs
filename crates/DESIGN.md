@@ -856,3 +856,55 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   conversion and type-pointer serialization use direct post-order AST walks and dense `Vec` caches
   indexed by `TypeId`; `PureFunctionIdentifier` indexes property summaries by raw property name to
   avoid per-lookup `"." + name` string allocations.
+- `jscomp/infer_consts.rs`, `remove_unused_code.rs`, `compiler.rs`, `reference_collector.rs`,
+  `reference.rs`, `basic_block.rs`, `syntactic_scope_cache.rs`: `InferConsts` skips unchanged
+  already-inferred scripts (`InferConstsCache`) and scans references in a single direct pass;
+  `RemoveUnusedCodeCache` extends to `ADVANCED` property-tracking runs via `PropertyAccess` /
+  `ReadOnlyPropertyAccess` replay and extern-property-set version guards (`CLOSURE_RS_RUC_CACHE=off`);
+  `ReferenceCollector` and `BasicBlock` reuse compact `Reference` / `BasicBlock` layouts and
+  zero-copy scope/site lookups.
+- `jscomp/inline_object_literals.rs`, `optimize_calls.rs`, `inline_simple_methods.rs`,
+  `inline_functions.rs`, `normalize.rs`, `make_declared_names_unique.rs`: `InlineObjectLiterals`
+  prunes candidate subtrees via pre-indexed object-literal functions; `OptimizeCalls` and
+  `InlineSimpleMethods` use direct recursive AST walks instead of `NodeTraversal` and avoid
+  redundant property-name copies; `InlineFunctions` skips unchanged call/declaration rescans and
+  reuses per-function analysis scratch; `Normalize` and `MakeDeclaredNamesUnique` avoid per-node
+  allocations and redundant name lookups when scopes have no conflicts.
+- `jscomp/deps/js_file_line_parser/lines.rs`, `deps/js_file_regex_parser.rs`, `compiler_input.rs`,
+  `parallel_parse.rs`, `deps/module_loader.rs`, `deps/module_resolver.rs`,
+  `deps/node_module_resolver.rs`, `find_module_dependencies.rs`, `modules/es_module_processor.rs`,
+  `es6_rewrite_modules.rs`: `Comments::strip` uses single-pass ASCII/UTF-16 scanning; `CompilerInput`
+  prebuilds `DependencyInfo` in parallel on parse workers (`prebuild_dependency_info_parallel`) while
+  `ImportQueue` seeds relative ES imports in BFS order; module resolvers avoid redundant path
+  normalizations and clones; `FindModuleDependencies`, `EsModuleProcessor`, and `Es6RewriteModules`
+  walk module statements directly and cache per-module export/import lookups.
+- `jscomp/typed_scope.rs`, `typed_scope_creator.rs`, `flow_scope.rs`, `linked_flow_scope.rs`,
+  `type_inference.rs`, `type_inference_pass.rs`, `infer_js_doc_info.rs`,
+  `jstype/js_type_registry.rs`, `jstype/property_map.rs`, `jstype/object_type.rs`,
+  `jstype/subtype_checker.rs`: `TypedScope` tracks qualified-name root prefixes and `this.`
+  presence (`may_have_qualified_name`, `may_have_this_qualified_name`), `JSTypeRegistry` tracks
+  qualified type roots and `property_registration_epoch` and indexes property-type maps in place
+  without cloning `Vec`s in `register_property_on_type` and `can_property_be_defined`, `PropertyMap`
+  walks secondary parents in place via `find_closest_of_type` and exposes `is_own_empty`,
+  `ObjectType::get_own_property_keys` builds a `Vec` directly without an intermediate `IndexSet`,
+  and `SubtypeChecker` matches covariant native names directly on `JsString`; `TypedScopeCreator`
+  fast-paths empty non-synthetic `BLOCK`s and plain function stubs without `NodeTraversal`;
+  `TypeInference` caches container-scope globals, checks `is_constructor` before mixin walks, and
+  uses zero-allocation `get_property_type` fast paths via `FlowScope::has_qualified_overlay`;
+  `InferJSDocInfo` walks the AST directly without `NodeTraversal`.
+- `jscomp/type_check.rs`, `type_validator.rs`, `rhino/jsdoc_info.rs`, `rhino/node.rs`,
+  `rhino/java_lang/string.rs`, `rhino/jscomp_colors/color_id.rs`, `rhino/jscomp_colors/color.rs`,
+  `jscomp/serialization/js_type_color_id_hasher.rs`,
+  `serialization/js_type_color_id_hasher_rhino.rs`, `serialization/js_type_reconserializer.rs`,
+  `serialization/serialize_types_to_pointers.rs`, `serialization/convert_types_to_colors.rs`,
+  `serialization/color_pool.rs`: `TypeValidator` stores `subtyping_mode` in an `AtomicU8`,
+  memoizes well-formed templatized types (`expect_well_formed_templatized_type_cached`), fast-paths
+  valid property assignments (`can_assign_to_property_fast`), and skips ancestor walks for
+  interface properties absent locally; `TypeCheck` fast-paths plain extern function stubs, memoizes
+  per-`TypeId` predicates (`type_check_flags`), caches `can_property_be_defined(UNKNOWN_TYPE, ...)`
+  (invalidated by `property_registration_epoch`), caches constructor nominal hierarchies, and checks
+  `can_assign_to_property_fast` before walking prototype chains for `@implicitCast`; color
+  serialization uses a Bloom filter and reusable UTF-8 byte buffer (`write_bytes_utf8`), a 16-slot
+  stack fast path in `ColorId::union_from_iter`, `OptimizationTagsKey` JSDoc `Arc` sharing in
+  `RemoveTypes`/`RemoveTypesAndApplyColors`, and single-borrow `AstProperties` iteration with
+  reusable `ReconcileScratch` sets.

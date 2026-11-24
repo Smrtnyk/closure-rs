@@ -137,7 +137,9 @@ impl Callback for FindMutableExports<'_> {
         _n: NodeId,
         _parent: Option<NodeId>,
     ) -> bool {
-        true
+        // Rust-only (performance divergence): stop descending once every local export is already
+        // marked mutable.
+        !self.exports_by_local_name.is_empty()
     }
 
     // port: EsModuleProcessor.FindMutableExports#visit
@@ -146,27 +148,27 @@ impl Callback for FindMutableExports<'_> {
             return;
         }
 
+        // Rust-only (performance divergence): check lvalue and local-export membership before
+        // calling `t.get_scope()`, avoiding scope allocation for non-exported names.
+        if !NodeUtil::is_l_value(t, n) {
+            return;
+        }
+        let name_ref = n.get_string_ref(t);
+        if !self.exports_by_local_name.contains_key(name_ref) {
+            return;
+        }
+
         let scope = t.get_scope();
-        if !NodeUtil::is_l_value(t, n)
-            || scope
-                .get_closest_hoist_scope(t.get_compiler())
-                .unwrap()
-                .is_module_scope(t.get_compiler())
+        if scope
+            .get_closest_hoist_scope(t.get_compiler())
+            .unwrap()
+            .is_module_scope(t.get_compiler())
         {
             return;
         }
 
         let name = n.get_string(t);
-        let exports: Vec<Export> = self
-            .exports_by_local_name
-            .get(&name)
-            .cloned()
-            .unwrap_or_default();
-        if exports.is_empty() {
-            return;
-        }
-
-        let var = scope.get_var(t.get_compiler(), name);
+        let var = scope.get_var(t.get_compiler(), &name);
 
         // A var declared in the module scope with the same name as an export must be the
         // export. And we know we're setting it in a function scope, so this cannot be the
@@ -181,21 +183,15 @@ impl Callback for FindMutableExports<'_> {
             }
         }
 
+        // Rust-only (performance divergence): marking an export mutated is idempotent, so remove
+        // this local name from the pending map once all of its exports have been marked.
+        let Some(exports) = self.exports_by_local_name.swap_remove(&name) else {
+            return;
+        };
         for e in exports {
             let i = self.exports.iter().position(|x| *x == e).unwrap();
             let mutated = e.mutated_copy();
-            self.exports[i] = mutated.clone();
-            let list = self
-                .exports_by_local_name
-                .get_mut(e.local_name().unwrap())
-                .unwrap();
-            if let Some(pos) = list.iter().position(|x| *x == e) {
-                list.remove(pos);
-            }
-            self.exports_by_local_name
-                .entry(e.local_name().unwrap().clone())
-                .or_default()
-                .push(mutated);
+            self.exports[i] = mutated;
         }
     }
 }
@@ -291,11 +287,15 @@ impl UnresolvedModuleBuilder {
             }
         }
 
-        NodeTraversal::traverse(
-            compiler,
-            self.root,
-            &mut FindMutableExports::new(&mut local_exports),
-        );
+        // Rust-only (performance divergence): skip FindMutableExports traversal when a module has
+        // no local exports.
+        if !local_exports.is_empty() {
+            NodeTraversal::traverse(
+                compiler,
+                self.root,
+                &mut FindMutableExports::new(&mut local_exports),
+            );
+        }
 
         UnresolvedModule::Es(UnresolvedEsModule::new(
             metadata,

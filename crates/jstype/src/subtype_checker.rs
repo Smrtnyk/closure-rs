@@ -745,16 +745,33 @@ pub fn get_template_key_if_covariant_type(type_: TypeId, reg: &JSTypeRegistry) -
     }
     let unwrapped = get_object_type_if_native(type_, reg)?;
     let name = unwrapped.get_reference_name(reg)?;
-    match name.to_string_lossy().as_str() {
-        "ReadonlyArray" => Some(reg.get_readonly_array_element_key()),
-        "IteratorLike" => Some(reg.get_iterator_like_value_template()),
-        "Iterator" => Some(reg.get_iterator_value_template()),
-        "Generator" => Some(reg.get_generator_value_template()),
-        "AsyncIterator" => Some(reg.get_async_iterator_value_template()),
-        "Iterable" => Some(reg.get_iterable_value_template()),
-        "IteratorIterable" => Some(reg.get_iterator_iterable_value_template()),
-        "IIterableResult" => Some(reg.get_i_iterable_result_value_template()),
-        "AsyncIterable" => Some(reg.get_async_iterable_value_template()),
+    // Rust-only (performance divergence): compare `JsString` directly by length + equality to
+    // avoid allocating a UTF-8 `String` via `to_string_lossy()` on every native subtype check.
+    match name.length() {
+        8 => {
+            if name == "Iterator" {
+                Some(reg.get_iterator_value_template())
+            } else if name == "Iterable" {
+                Some(reg.get_iterable_value_template())
+            } else {
+                None
+            }
+        }
+        9 if name == "Generator" => Some(reg.get_generator_value_template()),
+        12 if name == "IteratorLike" => Some(reg.get_iterator_like_value_template()),
+        13 => {
+            if name == "ReadonlyArray" {
+                Some(reg.get_readonly_array_element_key())
+            } else if name == "AsyncIterator" {
+                Some(reg.get_async_iterator_value_template())
+            } else if name == "AsyncIterable" {
+                Some(reg.get_async_iterable_value_template())
+            } else {
+                None
+            }
+        }
+        15 if name == "IIterableResult" => Some(reg.get_i_iterable_result_value_template()),
+        16 if name == "IteratorIterable" => Some(reg.get_iterator_iterable_value_template()),
         _ => None,
     }
 }

@@ -95,16 +95,11 @@ impl SerializeTypesToPointers {
         // store its offset from the shared string pool, preserving serialization order.
         let properties_referenced_in_ast =
             Rc::new(RefCell::new(IndexMap::<_, Option<i32>>::default()));
-        let properties = Rc::clone(&properties_referenced_in_ast);
-        let strings = Rc::clone(string_pool_builder);
-        let js_type_reconserializer = JSTypeReconserializer::with_property_pointers(
+        let js_type_reconserializer = JSTypeReconserializer::with_ast_properties(
             registry,
             invalidating_types,
-            Box::new(move |name| {
-                let mut properties = properties.borrow_mut();
-                let slot = properties.get_mut(name)?;
-                Some(*slot.get_or_insert_with(|| strings.borrow_mut().put(name)))
-            }),
+            Rc::clone(&properties_referenced_in_ast),
+            Rc::clone(string_pool_builder),
             serialization_options,
         );
         Self::new(js_type_reconserializer, properties_referenced_in_ast)

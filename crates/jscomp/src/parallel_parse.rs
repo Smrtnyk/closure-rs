@@ -128,6 +128,29 @@ impl ImportQueue {
         for entry in deps.entry_points() {
             pending.enqueue(Self::job_for_path(&paths, entry.name())?);
         }
+        // Rust-only (performance divergence): seed the queue with reachable modules from any
+        // already-cached DependencyInfo so all worker threads start immediately without stalling
+        // behind the single entry-point parse.
+        let mut by_provide: IndexMap<String, Vec<usize>> = IndexMap::default();
+        for (i, job) in jobs.iter().enumerate() {
+            for provide in job.input.get_known_provides() {
+                by_provide.entry(provide).or_default().push(i);
+            }
+        }
+        if !by_provide.is_empty() {
+            let mut cursor = 0usize;
+            while cursor < pending.pending.len() {
+                let i = pending.pending[cursor];
+                cursor += 1;
+                for req in jobs[i].input.get_known_requires() {
+                    if let Some(targets) = by_provide.get(req.get_symbol()) {
+                        for &target in targets {
+                            pending.enqueue(target);
+                        }
+                    }
+                }
+            }
+        }
         for (i, job) in jobs.iter().enumerate() {
             if job.input.get_source_file().is_extern() {
                 pending.enqueue(i);

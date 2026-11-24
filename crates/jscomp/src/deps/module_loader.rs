@@ -181,21 +181,23 @@ impl ModuleLoader {
         for p in paths {
             *dupe_module_paths.entry(p).or_default() += 1;
         }
-        let entries: Vec<_> = dupe_module_paths
-            .iter()
-            .map(|(p, count)| {
-                if *count == 1 {
-                    p.clone()
-                } else {
-                    format!("{p} x {count}")
-                }
-            })
-            .collect();
-        check_state!(
-            total == dupe_module_paths.len(),
-            "Duplicate module paths after resolving: %s",
-            format!("[{}]", entries.join(", "))
-        );
+        if total != dupe_module_paths.len() {
+            let entries: Vec<_> = dupe_module_paths
+                .iter()
+                .map(|(p, count)| {
+                    if *count == 1 {
+                        p.clone()
+                    } else {
+                        format!("{p} x {count}")
+                    }
+                })
+                .collect();
+            check_state!(
+                false,
+                "Duplicate module paths after resolving: %s",
+                format!("[{}]", entries.join(", "))
+            );
+        }
         dupe_module_paths.into_keys().collect()
     }
     // port: ModuleLoader#normalize

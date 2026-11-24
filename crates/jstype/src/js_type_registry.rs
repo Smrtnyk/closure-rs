@@ -113,6 +113,11 @@ pub struct JSTypeRegistry {
     native_types: Vec<Option<TypeId>>,
     // HashBasedTable is lookup-only; no Java hash iteration is observable.
     scoped_name_table: IndexMap<(NodeId, JsString), TypeId>,
+    /// Rust-only (performance divergence): root prefixes (before first `.`) of dotted type names
+    /// registered in `scoped_name_table`, letting `TypeInference::get_property_type` skip
+    /// `get_qualified_name` + `get_type` when no dotted type shares the root.
+    qualified_type_roots: IndexSet<JsString>,
+    has_this_qualified_type_root: bool,
     closure_namespaces: IndexMap<JsString, ClosureNamespace>,
     name_table_global_root: NodeId,
     // Both hash-key and hash-value maps are lookup-only.
@@ -126,6 +131,10 @@ pub struct JSTypeRegistry {
     dropped_properties_of_unions: IndexSet<JsString>,
     // Java hash keys are lookup-only; value sets retain insertion hashes and Java equals.
     each_ref_type_indexed_by_property: IndexMap<JsString, Vec<(i32, TypeId)>>,
+    /// Rust-only (performance divergence): monotonic counter incremented whenever a new entry is
+    /// inserted into `non_ref_types_indexed_by_property` or `each_ref_type_indexed_by_property`,
+    /// allowing `TypeCheck` to safely cache `can_property_be_defined(UNKNOWN_TYPE, name)`.
+    property_registration_epoch: u64,
     i_object_index_template_key: Option<TypeId>,
     i_object_element_template_key: Option<TypeId>,
     iterable_value_template: Option<TypeId>,
@@ -760,6 +769,11 @@ impl JSTypeRegistry {
                 .extend(supertype.get_property_map(self).get_own_property_names());
         }
     }
+    /// Rust-only (performance divergence): returns the monotonic property-registration epoch for
+    /// cache invalidation in `TypeCheck`.
+    pub fn property_registration_epoch(&self) -> u64 {
+        self.property_registration_epoch
+    }
     // port: JSTypeRegistry#registerPropertyOnType
     pub fn register_property_on_type(
         &mut self,
@@ -778,18 +792,59 @@ impl JSTypeRegistry {
             type_ = self.get_sentinel_object_literal(ast);
         }
         let is_ref = type_.to_maybe_object_type(self).is_some() && type_.has_reference_name(self);
-        let values = if is_ref {
-            self.each_ref_type_indexed_by_property.get(&property_name)
-        } else {
-            self.non_ref_types_indexed_by_property.get(&property_name)
-        }
-        .cloned()
-        .unwrap_or_default();
         let hash = type_.hash_code(self);
-        let present = values.iter().any(|(stored_hash, t)| {
-            *stored_hash == hash && (*t == type_ || type_.equals(self, ast, *t))
-        });
+        // Rust-only (performance divergence): scan the indexed slice without cloning the whole
+        // `Vec` on every registration; only fall back to indexed `&mut self` `equals` checks on
+        // hash collisions with a distinct `TypeId`.
+        let mut present = false;
+        let mut first_collision = None;
+        let len = {
+            let values = if is_ref {
+                self.each_ref_type_indexed_by_property.get(&property_name)
+            } else {
+                self.non_ref_types_indexed_by_property.get(&property_name)
+            };
+            if let Some(values) = values {
+                for (i, &(stored_hash, t)) in values.iter().enumerate() {
+                    if stored_hash == hash {
+                        if t == type_ {
+                            present = true;
+                            break;
+                        }
+                        if first_collision.is_none() {
+                            first_collision = Some(i);
+                        }
+                    }
+                }
+                values.len()
+            } else {
+                0
+            }
+        };
+        if !present && let Some(start) = first_collision {
+            for i in start..len {
+                let entry = if is_ref {
+                    self.each_ref_type_indexed_by_property
+                        .get(&property_name)
+                        .and_then(|v| v.get(i))
+                        .copied()
+                } else {
+                    self.non_ref_types_indexed_by_property
+                        .get(&property_name)
+                        .and_then(|v| v.get(i))
+                        .copied()
+                };
+                if let Some((stored_hash, t)) = entry
+                    && stored_hash == hash
+                    && (t == type_ || type_.equals(self, ast, t))
+                {
+                    present = true;
+                    break;
+                }
+            }
+        }
         if !present {
+            self.property_registration_epoch += 1;
             if is_ref {
                 self.each_ref_type_indexed_by_property
                     .entry(property_name)
@@ -811,32 +866,59 @@ impl JSTypeRegistry {
         property_name: impl Into<JsString>,
     ) -> PropDefinitionKind {
         let property_name = property_name.into();
-        if type_.is_struct(self, ast) {
+        if !type_.is_empty_type(self) && !type_.is_unknown_type(self, ast) {
+            match type_.get_property_kind(self, ast, property_name.clone()) {
+                HasPropertyKind::KNOWN_PRESENT => return PropDefinitionKind::KNOWN,
+                HasPropertyKind::MAYBE_PRESENT => return PropDefinitionKind::LOOSE_UNION,
+                HasPropertyKind::ABSENT => {
+                    if type_.is_struct(self, ast) {
+                        return PropDefinitionKind::UNKNOWN;
+                    }
+                }
+            }
+        } else if type_.is_struct(self, ast) {
             return match type_.get_property_kind(self, ast, property_name) {
                 HasPropertyKind::KNOWN_PRESENT => PropDefinitionKind::KNOWN,
                 HasPropertyKind::MAYBE_PRESENT => PropDefinitionKind::LOOSE_UNION,
                 HasPropertyKind::ABSENT => PropDefinitionKind::UNKNOWN,
             };
         }
-        if !type_.is_empty_type(self) && !type_.is_unknown_type(self, ast) {
-            match type_.get_property_kind(self, ast, property_name.clone()) {
-                HasPropertyKind::KNOWN_PRESENT => return PropDefinitionKind::KNOWN,
-                HasPropertyKind::MAYBE_PRESENT => return PropDefinitionKind::LOOSE_UNION,
-                HasPropertyKind::ABSENT => {}
-            }
-        }
-        let mut associated_types = self
+        // Rust-only (performance divergence): index into the append-only property vectors without
+        // cloning them; most queries match on the very first entry.
+        let non_ref_len = self
             .non_ref_types_indexed_by_property
             .get(&property_name)
-            .cloned()
-            .unwrap_or_default();
-        associated_types.extend(
-            self.each_ref_type_indexed_by_property
+            .map_or(0, Vec::len);
+        let ref_len = self
+            .each_ref_type_indexed_by_property
+            .get(&property_name)
+            .map_or(0, Vec::len);
+        for i in 0..non_ref_len {
+            let Some(&(_, alternative)) = self
+                .non_ref_types_indexed_by_property
                 .get(&property_name)
-                .cloned()
-                .unwrap_or_default(),
-        );
-        for (_, alternative) in associated_types {
+                .and_then(|v| v.get(i))
+            else {
+                break;
+            };
+            let greatest_subtype = alternative.get_greatest_subtype(self, ast, type_);
+            if !greatest_subtype.is_empty_type(self) {
+                if greatest_subtype.to_maybe_record_type(self).is_some()
+                    && greatest_subtype.is_synthetic(self)
+                {
+                    continue;
+                }
+                return PropDefinitionKind::LOOSE;
+            }
+        }
+        for i in 0..ref_len {
+            let Some(&(_, alternative)) = self
+                .each_ref_type_indexed_by_property
+                .get(&property_name)
+                .and_then(|v| v.get(i))
+            else {
+                break;
+            };
             let greatest_subtype = alternative.get_greatest_subtype(self, ast, type_);
             if !greatest_subtype.is_empty_type(self) {
                 if greatest_subtype.to_maybe_record_type(self).is_some()
@@ -995,6 +1077,8 @@ impl JSTypeRegistry {
             reporter: SharedErrorReporter::new(reporter),
             native_types: vec![None; JSTypeNative::VALUES.len()],
             scoped_name_table: IndexMap::<_, _>::default(),
+            qualified_type_roots: IndexSet::<_>::default(),
+            has_this_qualified_type_root: false,
             closure_namespaces: IndexMap::<_, _>::default(),
             name_table_global_root: ast.new_node(Token::ROOT),
             non_nullable_type_names: IndexMap::<_, _>::default(),
@@ -1004,6 +1088,7 @@ impl JSTypeRegistry {
             properties_of_supertypes_in_unions: IndexSet::<_>::default(),
             dropped_properties_of_unions: IndexSet::<_>::default(),
             each_ref_type_indexed_by_property: IndexMap::<_, _>::default(),
+            property_registration_epoch: 0,
             i_object_index_template_key: None,
             i_object_element_template_key: None,
             iterable_value_template: None,
@@ -1197,8 +1282,37 @@ impl JSTypeRegistry {
         type_: TypeId,
         name: JsString,
     ) {
+        let dot = name.index_of_char(u16::from(b'.'));
+        if dot > 0 {
+            let root = name.substring(0, dot as usize);
+            if root == "this" {
+                self.has_this_qualified_type_root = true;
+            }
+            self.qualified_type_roots.insert(root);
+        }
         self.scoped_name_table
             .insert((self.get_root_node_for_scope(ast, scope), name), type_);
+    }
+
+    /// Rust-only (performance divergence): whether any dotted type name in `scoped_name_table`
+    /// starts with `root`.
+    #[inline]
+    pub fn has_qualified_type_root(&self, root: &JsString) -> bool {
+        self.qualified_type_roots.contains(root)
+    }
+
+    /// Rust-only (performance divergence): whether any dotted type name in `scoped_name_table`
+    /// starts with `"this"`.
+    #[inline]
+    pub fn has_this_qualified_type_root(&self) -> bool {
+        self.has_this_qualified_type_root
+    }
+
+    /// Rust-only (performance divergence): whether any `goog.provide` / `goog.module` namespaces
+    /// are registered.
+    #[inline]
+    pub fn has_closure_namespaces(&self) -> bool {
+        !self.closure_namespaces.is_empty()
     }
     // port: JSTypeRegistry#register
     fn register(
@@ -1447,7 +1561,13 @@ impl JSTypeRegistry {
             }
         }
         let t = slot_type?;
-        if t.is_all_type(self) || t.is_no_type(self) {
+        if t.is_all_type(self)
+            || t.is_no_type(self)
+            || matches!(
+                t.get_type_class(self),
+                crate::js_type_class::JSTypeClass::UNKNOWN
+            )
+        {
             return None;
         }
         // Rust-only (performance divergence): the suffix starts at the dot after the root

@@ -118,15 +118,26 @@ impl NodeModuleResolver {
         module_address: &str,
     ) -> Option<String> {
         for extension in Self::FILE_EXTENSIONS_TO_SEARCH {
-            let mut candidate = format!("{module_address}{extension}");
+            // Rust-only (performance divergence): avoid allocating when `extension` is empty and
+            // reuse `canonical` in `locate_canonicalized` instead of canonicalizing twice.
+            let candidate: std::borrow::Cow<'_, str> = if extension.is_empty() {
+                std::borrow::Cow::Borrowed(module_address)
+            } else {
+                std::borrow::Cow::Owned(format!("{module_address}{extension}"))
+            };
             let canonical = self.base.canonicalize_path(script_address, &candidate);
-            if let Some(mapping) = self.package_json_main_entries.get(&canonical) {
-                candidate = mapping.clone();
-                if candidate == ModuleLoader::JSC_BROWSER_SKIPLISTED_MARKER {
+            if !self.package_json_main_entries.is_empty()
+                && let Some(mapping) = self.package_json_main_entries.get(&canonical)
+            {
+                if mapping == ModuleLoader::JSC_BROWSER_SKIPLISTED_MARKER {
                     return None;
                 }
+                if let Some(address) = self.base.locate(script_address, mapping) {
+                    return Some(address);
+                }
+                continue;
             }
-            if let Some(address) = self.base.locate(script_address, &candidate) {
+            if let Some(address) = self.base.locate_canonicalized(canonical) {
                 return Some(address);
             }
         }

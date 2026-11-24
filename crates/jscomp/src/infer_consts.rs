@@ -20,12 +20,46 @@
 
 use crate::abstract_compiler::AbstractCompiler;
 use crate::compiler_pass::CompilerPass;
+use crate::node_traversal::NodeTraversal;
 use crate::reference_collection::ReferenceCollection;
-use crate::reference_collector::ReferenceCollector;
+use crate::reference_collector::{Behavior, ReferenceCollector};
+use crate::reference_map::ReferenceMap;
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use crate::var::VarId;
 use closure_rhino::node::NodeId;
 use closure_rhino::token::Token;
+
+/// Rust-only (performance divergence): enables `ReferenceCollector`'s zero-allocation leaf
+/// function fast path for `InferConsts`.
+struct InferConstsBehavior;
+
+impl Behavior for InferConstsBehavior {
+    fn infer_consts_leaf_fast_path(&self) -> bool {
+        true
+    }
+
+    fn after_exit_scope(&mut self, _t: &mut NodeTraversal<'_>, _reference_map: &dyn ReferenceMap) {}
+}
+
+/// Rust-only (performance divergence): `InferConsts` only sets monotone `declared_constant_var`
+/// and `inferred_constant_var` flags, so variables already marked inferred-const whose declared
+/// status cannot change need no reference collection on subsequent rounds.
+fn var_needs_const_analysis(compiler: &AbstractCompiler, v: VarId) -> bool {
+    if v.is_implicit_goog_namespace(compiler) {
+        return false;
+    }
+    let Some(name_node) = v.get_name_node(compiler) else {
+        return v.get_jsdoc_info(compiler).is_some_and(|d| d.is_constant());
+    };
+    if !name_node.is_inferred_constant_var(compiler) {
+        return true;
+    }
+    !name_node.is_declared_constant_var(compiler)
+        && (name_node
+            .get_parent(compiler)
+            .is_some_and(|p| p.is_const(compiler))
+            || v.get_jsdoc_info(compiler).is_some_and(|d| d.is_constant()))
+}
 
 /// Attaches the CONST_VAR annotation to any variable that's
 /// 1) Provably well-defined and assigned once in its lifetime.
@@ -57,18 +91,22 @@ impl InferConsts {
         }
 
         let name_node = v.get_name_node(compiler);
-        let doc_info = v.get_jsdoc_info(compiler);
-        if doc_info.is_some_and(|doc_info| doc_info.is_constant()) {
-            name_node
-                .expect("InferConsts#considerVar nameNode")
-                .set_declared_constant_var(compiler, true);
-        } else if name_node
-            .is_some_and(|name_node| name_node.get_parent(compiler).unwrap().is_const(compiler))
-        {
-            name_node.unwrap().set_declared_constant_var(compiler, true);
+        if !name_node.is_some_and(|n| n.is_declared_constant_var(compiler)) {
+            let doc_info = v.get_jsdoc_info(compiler);
+            if doc_info.is_some_and(|doc_info| doc_info.is_constant()) {
+                name_node
+                    .expect("InferConsts#considerVar nameNode")
+                    .set_declared_constant_var(compiler, true);
+            } else if name_node
+                .is_some_and(|name_node| name_node.get_parent(compiler).unwrap().is_const(compiler))
+            {
+                name_node.unwrap().set_declared_constant_var(compiler, true);
+            }
         }
 
-        if Self::is_inferred_const(compiler, v, ref_collection) {
+        if !name_node.is_some_and(|n| n.is_inferred_constant_var(compiler))
+            && Self::is_inferred_const(compiler, v, ref_collection)
+        {
             name_node.unwrap().set_inferred_constant_var(compiler, true);
         }
     }
@@ -130,10 +168,11 @@ impl CompilerPass for InferConsts {
     // port: InferConsts#process
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, js: NodeId) {
         let mut scope_creator = SyntacticScopeCreator::new();
-        let mut collector = ReferenceCollector::new(
+        let mut collector = ReferenceCollector::new_with_filter(
             compiler,
-            ReferenceCollector::DO_NOTHING_BEHAVIOR,
+            InferConstsBehavior,
             &mut scope_creator,
+            Box::new(var_needs_const_analysis),
         );
         collector.reuse_reference_sites();
         collector.process(compiler, js);

@@ -25,6 +25,7 @@
 //! identity where Java compares with `==`.
 use crate::{
     abstract_compiler::AbstractCompiler,
+    abstract_scope::ImplicitVar,
     closure_coding_convention::ClosureCodingConvention,
     coding_convention::{AssertionFunctionLookup, AssertionKind, CodingConvention},
     control_flow_graph::{Branch, ControlFlowGraph},
@@ -202,6 +203,12 @@ struct InferenceTransfer<'a> {
     // Scopes that have had their unbound untyped vars inferred as undefined.
     inferred_unbound_vars: IndexSet<TypedScope>,
 
+    /// Rust-only (performance divergence): cached `container_scope.is_global(compiler)` and
+    /// single-entry caches for `flow_through` scope lookup and unbound-var tracking.
+    container_scope_is_global: bool,
+    last_scope_root: Option<(NodeId, TypedScope)>,
+    last_inferred_unbound_scope: Option<TypedScope>,
+
     // For convenience
     unknown_type: TypeId,
     number_addition_supertype: TypeId,
@@ -326,6 +333,7 @@ impl<'a> InferenceTransfer<'a> {
             reg.get_native_type(JSTypeNative::NUMBER_ADDITION_SUPERTYPE);
 
         let root = syntactic_scope.get_root_node(compiler);
+        let container_scope_is_global = syntactic_scope.is_global(compiler);
         let bottom = TypedScope::create_lattice_bottom(compiler, root);
         let bottom_scope: FS = LinkedFlowScope::create_entry_lattice(bottom);
         Self {
@@ -337,6 +345,9 @@ impl<'a> InferenceTransfer<'a> {
             module_import_resolver,
             opt_chain_array_deque: VecDeque::new(),
             inferred_unbound_vars: IndexSet::<_>::default(),
+            container_scope_is_global,
+            last_scope_root: None,
+            last_inferred_unbound_scope: None,
             unknown_type,
             number_addition_supertype,
         }
@@ -367,11 +378,23 @@ impl<'a> InferenceTransfer<'a> {
         // Inferred types of ES module imports/exports aren't knowable until after TypeInference
         // runs. First update the type of all imports in the scope, then do flow-sensitive
         // inference, then update the implicit '*exports*' object.
-        let module = {
+        let module = if root.is_module_body(compiler)
+            || (root.is_block(compiler)
+                && NodeUtil::is_bundled_goog_module_scope_root(compiler, root))
+        {
             let module_map = compiler.get_module_map().cloned();
             ModuleImportResolver::get_module_from_scope_root(module_map.as_deref(), compiler, root)
+        } else {
+            None
         };
-        let syntactic_block_scope = self.scope_creator.create_scope_for_node(compiler, root);
+        let syntactic_block_scope = match self.last_scope_root {
+            Some((cached_root, cached_scope)) if cached_root == root => cached_scope,
+            _ => {
+                let s = self.scope_creator.create_scope_for_node(compiler, root);
+                self.last_scope_root = Some((root, s));
+                s
+            }
+        };
         if let Some(module) = &module
             && module.metadata().is_es6_module()
         {
@@ -393,7 +416,9 @@ impl<'a> InferenceTransfer<'a> {
         output = self.infer_declaratively_unbound_vars_without_types(compiler, output);
         output = self.traverse(compiler, n, output);
 
-        self.update_module_scope(compiler, module, syntactic_block_scope);
+        if module.is_some() {
+            self.update_module_scope(compiler, module, syntactic_block_scope);
+        }
         output
     }
 
@@ -411,6 +436,10 @@ impl<'a> InferenceTransfer<'a> {
         mut flow: FS,
     ) -> FS {
         let scope = flow.get_declaration_scope(compiler);
+        if self.last_inferred_unbound_scope == Some(scope) {
+            return flow;
+        }
+        self.last_inferred_unbound_scope = Some(scope);
         if !self.inferred_unbound_vars.insert(scope) {
             return flow;
         }
@@ -1913,10 +1942,16 @@ impl InferenceTransfer<'_> {
 
         let target_type = target.get_jstype(compiler); // may be null
 
-        let right = NodeUtil::get_r_value_of_l_value(compiler, target);
-        if Self::is_possible_mixin_application(compiler, target, right) {
-            let (reg, ast) = compiler.get_type_registry_and_ast();
-            Self::add_missing_interface_properties(reg, ast, target_type);
+        // Rust-only (performance divergence): `add_missing_interface_properties` is a no-op unless
+        // `target_type` is a constructor, so check that before walking ancestors for externs/JSDoc.
+        if let Some(target_type) = target_type
+            && target_type.is_constructor(compiler.get_type_registry())
+        {
+            let right = NodeUtil::get_r_value_of_l_value(compiler, target);
+            if Self::is_possible_mixin_application(compiler, target, right) {
+                let (reg, ast) = compiler.get_type_registry_and_ast();
+                Self::add_missing_interface_properties(reg, ast, Some(target_type));
+            }
         }
 
         match target.get_token(compiler) {
@@ -2028,7 +2063,10 @@ impl InferenceTransfer<'_> {
                 }
             }
             Token::GETPROP => {
-                if target.is_qualified_name(compiler) {
+                // Rust-only (performance divergence): `LinkedFlowScope::infer_qualified_slot` is a
+                // no-op when `function_scope` is global, so skip allocating `get_qualified_name`
+                // and querying declaredness in the global scope.
+                if !self.container_scope_is_global && target.is_qualified_name(compiler) {
                     let qualified_name = target.get_qualified_name(compiler).unwrap();
                     let mut declared_slot_type = false;
                     let raw_obj_type = target
@@ -2222,8 +2260,17 @@ impl InferenceTransfer<'_> {
         object_type: TypeId,
         scope: &FS,
     ) -> bool {
+        // Rust-only (performance divergence): for non-"prototype" properties already present on
+        // `object_type`, `should_define` is unconditionally false, so skip `get_qualified_name`
+        // allocation and `get_declared_var` lookup.
+        let prop_name = getprop.get_string(compiler);
+        if prop_name != "prototype" {
+            let (reg, ast) = compiler.get_type_registry_and_ast();
+            if object_type.has_own_property(reg, ast, prop_name.clone()) {
+                return false;
+            }
+        }
         if getprop.is_qualified_name(compiler) {
-            let prop_name = getprop.get_string(compiler);
             let q_name = getprop.get_qualified_name(compiler).unwrap();
             let var = Self::get_declared_var(compiler, scope, q_name);
             if let Some(var) = var
@@ -2438,11 +2485,13 @@ impl InferenceTransfer<'_> {
         }
 
         let parent = n.get_parent(compiler).unwrap();
-        if NodeUtil::is_name_declaration(compiler, Some(parent))
+        if let Some(ctor_type) = type_
+            && ctor_type.is_constructor(compiler.get_type_registry())
+            && NodeUtil::is_name_declaration(compiler, Some(parent))
             && Self::is_possible_mixin_application(compiler, n, /* rvalue= */ None)
         {
             let (reg, ast) = compiler.get_type_registry_and_ast();
-            Self::add_missing_interface_properties(reg, ast, type_);
+            Self::add_missing_interface_properties(reg, ast, Some(ctor_type));
         }
 
         if parent.is_let(compiler) {
@@ -4121,11 +4170,16 @@ impl InferenceTransfer<'_> {
         n: NodeId,
         mut scope: FS,
     ) -> FS {
+        // Rust-only (performance divergence): `narrow_scope` on a non-NAME in global scope calls
+        // `LinkedFlowScope::infer_qualified_slot`, which is a no-op.
+        if self.container_scope_is_global && !n.is_name(compiler) {
+            return scope;
+        }
         if n.is_qualified_name(compiler) {
             let type_ = self.get_js_type(compiler, n);
             let (reg, ast) = compiler.get_type_registry_and_ast();
             let narrowed = type_.restrict_by_not_null_or_undefined(reg, ast);
-            if !type_.equals(reg, ast, narrowed) {
+            if narrowed != type_ && !type_.equals(reg, ast, narrowed) {
                 scope = self.narrow_scope(compiler, scope, n, narrowed);
             }
         }
@@ -4150,26 +4204,69 @@ impl InferenceTransfer<'_> {
         let mut property_type: Option<TypeId> = None;
         let mut is_locally_inferred = false;
 
-        // Scopes sometimes contain inferred type info about qualified names.
-        let qualified_name = n.get_qualified_name(compiler);
-        let (var, declaration) = match &qualified_name {
-            Some(name) => scope.get_slot_with_declaration(compiler, name),
-            None => (None, None),
+        // Rust-only (performance divergence): find the qualified-name root without allocating
+        // `get_qualified_name`, and consult `TypedScope::qualified_roots` / `has_qualified_overlay`
+        // before building the full dotted string or probing scopes / the type registry.
+        let mut root_node = n;
+        while root_node.is_get_prop(compiler) {
+            root_node = root_node.get_first_child(compiler).unwrap();
+        }
+        let root_token = root_node.get_token(compiler);
+        let is_qname = match root_token {
+            Token::NAME => !root_node.get_string_ref(compiler).is_empty(),
+            Token::THIS | Token::SUPER => true,
+            _ => false,
         };
-        if let Some(var) = var {
-            let var_type = var.get_type(compiler);
-            if let Some(var_type) = var_type {
-                let is_declared = !var.is_type_inferred(compiler);
-                let declared_var = declaration.or_else(|| {
-                    Self::get_declared_var(compiler, scope, qualified_name.as_ref().unwrap())
-                });
-                // Java's `var != getDeclaredVar(scope, qualifiedName)` (object identity).
-                is_locally_inferred = !matches!(
-                    (&var, declared_var),
-                    (FlowSlot::Var(v), Some(d)) if *v == d
-                );
-                if is_declared || is_locally_inferred {
-                    property_type = Some(var_type);
+
+        let mut qualified_name: Option<JsString> = None;
+        let mut cached_root_var: Option<Option<TypedVar>> = None;
+        if is_qname {
+            let declaration_scope = scope.get_declaration_scope(compiler);
+            let may_have_slot = if scope.has_qualified_overlay() {
+                true
+            } else {
+                match root_token {
+                    Token::NAME => {
+                        let root_str = root_node.get_string(compiler);
+                        if ImplicitVar::of(&root_str).is_some() {
+                            true
+                        } else {
+                            let (has, root_var) =
+                                declaration_scope.may_have_qualified_name(compiler, &root_str);
+                            cached_root_var = Some(root_var);
+                            has
+                        }
+                    }
+                    Token::THIS => declaration_scope.may_have_this_qualified_name(compiler),
+                    _ => true,
+                }
+            };
+            if may_have_slot {
+                qualified_name = n.get_qualified_name(compiler);
+                let (var, declaration) = match &qualified_name {
+                    Some(name) => scope.get_slot_with_declaration(compiler, name),
+                    None => (None, None),
+                };
+                if let Some(var) = var {
+                    let var_type = var.get_type(compiler);
+                    if let Some(var_type) = var_type {
+                        let is_declared = !var.is_type_inferred(compiler);
+                        let declared_var = declaration.or_else(|| {
+                            Self::get_declared_var(
+                                compiler,
+                                scope,
+                                qualified_name.as_ref().unwrap(),
+                            )
+                        });
+                        // Java's `var != getDeclaredVar(scope, qualifiedName)` (object identity).
+                        is_locally_inferred = !matches!(
+                            (&var, declared_var),
+                            (FlowSlot::Var(v), Some(d)) if *v == d
+                        );
+                        if is_declared || is_locally_inferred {
+                            property_type = Some(var_type);
+                        }
+                    }
                 }
             }
         }
@@ -4184,19 +4281,81 @@ impl InferenceTransfer<'_> {
             }
         }
 
-        if property_type.is_none_or(|t| {
-            let (reg, ast) = compiler.get_type_registry_and_ast();
-            t.is_unknown_type(reg, ast)
-        }) && let Some(qualified_name) = &qualified_name
+        if is_qname
+            && property_type.is_none_or(|t| {
+                let (reg, ast) = compiler.get_type_registry_and_ast();
+                t.is_unknown_type(reg, ast)
+            })
         {
-            // If we find this node in the registry, then we can infer its type.
-            let declaration_scope = scope.get_declaration_scope(compiler);
-            let view = declaration_scope.as_static_typed_scope(compiler);
-            let (reg, ast) = compiler.get_type_registry_and_ast();
-            let found = reg.get_type(ast, Some(view), qualified_name.clone());
-            let reg_type = object_type::cast(reg, found);
-            if let Some(reg_type) = reg_type {
-                property_type = reg_type.get_constructor(reg);
+            let should_check_registry = match root_token {
+                Token::NAME => {
+                    let root_str = root_node.get_string(compiler);
+                    let reg = compiler.get_type_registry();
+                    if reg.has_closure_namespaces()
+                        || reg.has_qualified_type_root(&root_str)
+                        || ImplicitVar::of(&root_str).is_some()
+                    {
+                        true
+                    } else {
+                        let root_var = match cached_root_var {
+                            Some(v) => v,
+                            None => {
+                                scope
+                                    .get_declaration_scope(compiler)
+                                    .may_have_qualified_name(compiler, &root_str)
+                                    .1
+                            }
+                        };
+                        root_var
+                            .and_then(|v| v.get_type(compiler))
+                            .is_some_and(|t| {
+                                let (reg, ast) = compiler.get_type_registry_and_ast();
+                                !t.is_all_type(reg)
+                                    && !t.is_no_type(reg)
+                                    && !matches!(t.get_type_class(reg), JSTypeClass::UNKNOWN)
+                                    && t.is_object_type(reg, ast)
+                            })
+                    }
+                }
+                Token::THIS => {
+                    let reg = compiler.get_type_registry();
+                    if reg.has_closure_namespaces() || reg.has_this_qualified_type_root() {
+                        true
+                    } else {
+                        let this_type = scope
+                            .get_declaration_scope(compiler)
+                            .get_type_of_this(compiler);
+                        this_type.is_some_and(|t| {
+                            let (reg, ast) = compiler.get_type_registry_and_ast();
+                            // For 1-level `this.prop`, if `this_type` matches `obj_type` and
+                            // `find_property_type` returned `None`, `this_type` cannot have an
+                            // own property named `prop_name`.
+                            let missing_direct_prop = n.get_first_child(ast) == Some(root_node)
+                                && property_type.is_none()
+                                && obj_type == Some(t);
+                            !(t.is_all_type(reg)
+                                || t.is_no_type(reg)
+                                || matches!(t.get_type_class(reg), JSTypeClass::UNKNOWN)
+                                || !t.is_object_type(reg, ast)
+                                || missing_direct_prop)
+                        })
+                    }
+                }
+                _ => true,
+            };
+            if should_check_registry
+                && let Some(qualified_name) =
+                    qualified_name.or_else(|| n.get_qualified_name(compiler))
+            {
+                // If we find this node in the registry, then we can infer its type.
+                let declaration_scope = scope.get_declaration_scope(compiler);
+                let view = declaration_scope.as_static_typed_scope(compiler);
+                let (reg, ast) = compiler.get_type_registry_and_ast();
+                let found = reg.get_type(ast, Some(view), qualified_name);
+                let reg_type = object_type::cast(reg, found);
+                if let Some(reg_type) = reg_type {
+                    property_type = reg_type.get_constructor(reg);
+                }
             }
         }
 
@@ -4204,7 +4363,10 @@ impl InferenceTransfer<'_> {
             None => self.unknown_type,
             Some(property_type) => {
                 let (reg, ast) = compiler.get_type_registry_and_ast();
-                if property_type.equals(reg, ast, self.unknown_type) && is_locally_inferred {
+                if is_locally_inferred
+                    && (property_type == self.unknown_type
+                        || property_type.equals(reg, ast, self.unknown_type))
+                {
                     // If the type has been checked in this scope,
                     // then use CHECKED_UNKNOWN_TYPE instead to indicate that.
                     reg.get_native_type(JSTypeNative::CHECKED_UNKNOWN_TYPE)

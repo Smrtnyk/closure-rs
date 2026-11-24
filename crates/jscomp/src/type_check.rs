@@ -38,6 +38,7 @@ use crate::{
     reverse_abstract_interpreter::ReverseAbstractInterpreter,
     scope::ScopeId,
     scope_creator::ScopeCreator,
+    source_file::declarations,
     type_inference_pass::TypeInferencePass,
     type_validator::{self, TypeValidator},
     typed_scope::TypedScope,
@@ -478,6 +479,19 @@ struct SuggestionPair {
     distance: i32,
 }
 
+/// Rust-only (performance divergence): bitflags memoized per `TypeId` in `TypeCheck`.
+const TC_FLAG_POPULATED: u8 = 1 << 0;
+const TC_FLAG_IS_DICT: u8 = 1 << 1;
+const TC_FLAG_IS_STRUCT: u8 = 1 << 2;
+const TC_FLAG_NOT_NULL_OR_UNDEF_OK: u8 = 1 << 3;
+const TC_FLAG_IS_UNION: u8 = 1 << 4;
+const TC_FLAG_MAY_BE_READONLY_ARRAY: u8 = 1 << 5;
+const TC_FLAG_IS_UNKNOWN: u8 = 1 << 6;
+const TC_FLAG_IS_EMPTY: u8 = 1 << 7;
+
+/// Rust-only (performance divergence): cached constructor nominal inheritance summary.
+type CtorNominalInfo = (bool, Option<TypeId>, Arc<[TypeId]>);
+
 /// Checks the types of JS expressions against any declared type information.
 ///
 /// The Java fields `compiler` and `typeRegistry` are not stored (DESIGN §6): every method takes
@@ -510,6 +524,38 @@ pub struct TypeCheck {
 
     /// Logs types for @logTypeInCompiler.
     debug_type_logger: Option<DebugTypeLogger>,
+
+    /// Rust-only (performance divergence): cached `compiler.is_debug_logging_enabled()` for the
+    /// current `check()` pass to skip per-node logger checks when disabled.
+    debug_logging_enabled: bool,
+
+    /// Rust-only (performance divergence): dense memo table indexed by `TypeId.0` of types already
+    /// verified well-formed by `WellFormedTemplatizedTypeVerifier`.
+    well_formed_templatized_types: Vec<bool>,
+
+    /// Rust-only (performance divergence): dense memo table indexed by `TypeId.0` of JSDoc types
+    /// already verified free of non-stringifiable object keys.
+    clean_object_key_types: Vec<bool>,
+
+    /// Rust-only (performance divergence): cached native `UNKNOWN_TYPE`, `CHECKED_UNKNOWN_TYPE`,
+    /// `NUMBER_TYPE`, and `READONLY_ARRAY_TYPE` for the current `check()` pass.
+    cached_unknown_type: Option<TypeId>,
+    cached_checked_unknown_type: Option<TypeId>,
+    cached_number_type: Option<TypeId>,
+    cached_readonly_array_type: Option<TypeId>,
+
+    /// Rust-only (performance divergence): dense per-`TypeId` memo table of immutable type
+    /// predicates queried on `GETPROP`, `ASSIGN`, and node-accounting checks.
+    type_check_flags: Vec<u8>,
+
+    /// Rust-only (performance divergence): memoizes `JSTypeRegistry::can_property_be_defined`
+    /// for `UNKNOWN_TYPE`, invalidated if `property_registration_epoch()` advances.
+    unknown_prop_defined_cache: closure_rhino::fast_hash::IndexMap<JsString, PropDefinitionKind>,
+    unknown_prop_cache_epoch: u64,
+
+    /// Rust-only (performance divergence): caches `(has_unknown_or_empty_supertype,
+    /// super_class_constructor, all_implemented_interfaces)` per constructor `TypeId`.
+    ctor_nominal_info: closure_rhino::fast_hash::IndexMap<TypeId, CtorNominalInfo>,
 }
 
 impl TypeCheck {
@@ -536,6 +582,17 @@ impl TypeCheck {
             unknown_count: 0,
             in_externs: false,
             debug_type_logger: None,
+            debug_logging_enabled: false,
+            well_formed_templatized_types: Vec::new(),
+            clean_object_key_types: Vec::new(),
+            cached_unknown_type: None,
+            cached_checked_unknown_type: None,
+            cached_number_type: None,
+            cached_readonly_array_type: None,
+            type_check_flags: Vec::new(),
+            unknown_prop_defined_cache: closure_rhino::fast_hash::IndexMap::default(),
+            unknown_prop_cache_epoch: 0,
+            ctor_nominal_info: closure_rhino::fast_hash::IndexMap::default(),
         }
     }
 
@@ -653,6 +710,17 @@ impl TypeCheck {
     // port: TypeCheck#check
     pub fn check(&mut self, compiler: &mut AbstractCompiler, node: NodeId, externs: bool) {
         self.in_externs = externs;
+        self.debug_logging_enabled = compiler.is_debug_logging_enabled();
+        self.cached_unknown_type = Some(self.get_native_type(compiler, UNKNOWN_TYPE));
+        self.cached_checked_unknown_type =
+            Some(self.get_native_type(compiler, JSTypeNative::CHECKED_UNKNOWN_TYPE));
+        self.cached_number_type = Some(self.get_native_type(compiler, NUMBER_TYPE));
+        self.cached_readonly_array_type = Some(self.get_native_type(compiler, READONLY_ARRAY_TYPE));
+        let epoch = compiler.get_type_registry().property_registration_epoch();
+        if epoch != self.unknown_prop_cache_epoch {
+            self.unknown_prop_defined_cache.clear();
+            self.unknown_prop_cache_epoch = epoch;
+        }
         let mut scope_creator = self.scope_creator.take();
         let top_scope = self.top_scope.unwrap();
         {
@@ -689,13 +757,15 @@ impl TypeCheck {
         &mut self,
         t: &mut NodeTraversal<'_>,
         n: NodeId,
-        _parent: Option<NodeId>,
+        parent: Option<NodeId>,
     ) -> bool {
         // Start logging types if we're in debug mode and this node was annotated.
-        self.debug_type_logger
-            .as_mut()
-            .unwrap()
-            .maybe_start_logging_at(t.get_compiler(), n);
+        if self.debug_logging_enabled {
+            self.debug_type_logger
+                .as_mut()
+                .unwrap()
+                .maybe_start_logging_at(t.get_compiler(), n);
+        }
 
         if n.is_script(t) {
             if NodeUtil::is_from_type_summary(t, n) {
@@ -710,30 +780,113 @@ impl TypeCheck {
             self.validator.set_subtyping_mode(self.subtyping_mode);
         } else if n.is_function(t) {
             // normal type checking
-            let outer_scope = t.get_typed_scope();
-            // Check for a bug in IE9 (quirks mode) and earlier where bleeding function names would
-            // refer to the wrong variable (i.e. "var x; var y = function x() { use(x); }" would pass
-            // the 'x' from the outer scope, rather than the local alias bled into the function).
-            let name = n.get_first_child(t).unwrap().get_string(t);
-            let compiler = t.get_compiler();
-            let var = outer_scope.get_var(compiler, name);
-            if let Some(var) = var
-                && var
-                    .get_scope(compiler)
-                    .has_same_container_scope(compiler, outer_scope)
-                // Ideally, we would want to check whether the type in the scope
-                // differs from the type being defined, but then the extern
-                // redeclarations of built-in types generates spurious warnings.
-                && !var
-                    .get_type(compiler)
-                    .is_some_and(|ty| Self::is_function_type_instance(compiler, ty))
-                && !TypeValidator::has_duplicate_declaration_suppression(
-                    compiler,
-                    var.get_name_node(compiler).expect("NullPointerException"),
-                )
+            let fn_name_node = n.get_first_child(t).unwrap();
+            let fn_name_empty = fn_name_node.get_string_ref(t).is_empty();
+            let mut outer_var_type: Option<TypeId> = None;
+            if !fn_name_empty {
+                let outer_scope = t.get_typed_scope();
+                // Check for a bug in IE9 (quirks mode) and earlier where bleeding function names
+                // would refer to the wrong variable (i.e.
+                // "var x; var y = function x() { use(x); }" would pass the 'x' from the outer
+                // scope, rather than the local alias bled into the function).
+                let name = fn_name_node.get_string(t);
+                let compiler = t.get_compiler();
+                let var = outer_scope.get_var(compiler, name);
+                if let Some(var) = var {
+                    outer_var_type = var.get_type(compiler);
+                    if var
+                        .get_scope(compiler)
+                        .has_same_container_scope(compiler, outer_scope)
+                        // Ideally, we would want to check whether the type in the scope
+                        // differs from the type being defined, but then the extern
+                        // redeclarations of built-in types generates spurious warnings.
+                        && !outer_var_type
+                            .is_some_and(|ty| Self::is_function_type_instance(compiler, ty))
+                        && !TypeValidator::has_duplicate_declaration_suppression(
+                            compiler,
+                            var.get_name_node(compiler).expect("NullPointerException"),
+                        )
+                    {
+                        let var_name = var.get_name(compiler).to_string();
+                        Self::report(compiler, n, &FUNCTION_MASKS_VARIABLE, &[&var_name]);
+                    }
+                }
+            }
+
+            // Rust-only (performance divergence): browser externs contain thousands of empty
+            // function stubs (`function(a, b) {}` / `function Foo(a) {}`). Handle their bare-name
+            // children and empty body inline here and return `false` so `NodeTraversal` skips
+            // pushing and popping two `TypedScope`s (function + empty block) per stub.
+            if self.in_externs
+                && !self.debug_logging_enabled
+                && !parent.is_some_and(|p| {
+                    matches!(
+                        p.get_token(t),
+                        Token::FUNCTION | Token::FOR_OF | Token::FOR_AWAIT_OF
+                    )
+                })
+                && declarations::is_plain_function_stub(t, n)
             {
-                let var_name = var.get_name(compiler).to_string();
-                Self::report(compiler, n, &FUNCTION_MASKS_VARIABLE, &[&var_name]);
+                let param_list = fn_name_node.get_next(t).unwrap();
+                let body = param_list.get_next(t).unwrap();
+                let params_ready = param_list.children(t).all(|p| p.get_jstype(t).is_some());
+                let can_resolve_fn_name = fn_name_empty
+                    || fn_name_node.get_jstype(t).is_some()
+                    || (NodeUtil::is_function_declaration(t, n) && {
+                        let fn_name_str = fn_name_node.get_string_ref(t);
+                        fn_name_str != "arguments"
+                            && param_list
+                                .children(t)
+                                .all(|p| p.get_string_ref(t) != fn_name_str)
+                    });
+                if params_ready && can_resolve_fn_name {
+                    let compiler = t.get_compiler();
+                    // Post-order child 1: function name
+                    self.validator.expect_well_formed_templatized_type_cached(
+                        compiler,
+                        fn_name_node,
+                        &mut self.well_formed_templatized_types,
+                    );
+                    if !fn_name_empty && fn_name_node.get_jstype(compiler).is_none() {
+                        let ty = outer_var_type
+                            .unwrap_or_else(|| self.get_native_type(compiler, UNKNOWN_TYPE));
+                        fn_name_node.set_jstype(compiler, Some(ty));
+                    }
+                    self.check_jsdoc_info_contains_object_with_bad_key(compiler, fn_name_node);
+                    // Post-order child 2: param list + params
+                    let mut param = param_list.get_first_child(compiler);
+                    while let Some(p) = param {
+                        self.validator.expect_well_formed_templatized_type_cached(
+                            compiler,
+                            p,
+                            &mut self.well_formed_templatized_types,
+                        );
+                        self.check_jsdoc_info_contains_object_with_bad_key(compiler, p);
+                        param = p.get_next(compiler);
+                    }
+                    self.validator.expect_well_formed_templatized_type_cached(
+                        compiler,
+                        param_list,
+                        &mut self.well_formed_templatized_types,
+                    );
+                    self.check_jsdoc_info_contains_object_with_bad_key(compiler, param_list);
+                    // Post-order child 3: empty body block
+                    self.validator.expect_well_formed_templatized_type_cached(
+                        compiler,
+                        body,
+                        &mut self.well_formed_templatized_types,
+                    );
+                    self.check_jsdoc_info_contains_object_with_bad_key(compiler, body);
+                    // Post-order self: FUNCTION node
+                    self.validator.expect_well_formed_templatized_type_cached(
+                        compiler,
+                        n,
+                        &mut self.well_formed_templatized_types,
+                    );
+                    self.visit_function(compiler, n);
+                    self.check_jsdoc_info_contains_object_with_bad_key(compiler, n);
+                    return false;
+                }
             }
 
             // TODO(user): Only traverse the function's body. The function's
@@ -769,8 +922,11 @@ impl TypeCheck {
         // To be explicitly set to false if the node is not typeable.
         let mut typeable = true;
 
-        self.validator
-            .expect_well_formed_templatized_type(t.get_compiler(), n);
+        self.validator.expect_well_formed_templatized_type_cached(
+            t.get_compiler(),
+            n,
+            &mut self.well_formed_templatized_types,
+        );
 
         match n.get_token(t) {
             Token::CAST => {
@@ -858,18 +1014,22 @@ impl TypeCheck {
                 left = n.get_first_child(compiler).unwrap();
                 self.check_prop_creation(compiler, left);
                 let n_type = self.get_js_type(compiler, n);
-                let is_number = {
+                let is_number = self.cached_number_type == Some(n_type) || {
                     let (reg, ast) = compiler.get_type_registry_and_ast();
                     n_type.is_number(reg, ast)
                 };
                 let left_js_type = self.get_js_type(compiler, left);
                 if is_number {
-                    self.validator.expect_number(
-                        compiler,
-                        left,
-                        left_js_type,
-                        "increment/decrement",
-                    );
+                    if self.cached_number_type != Some(left_js_type)
+                        && !self.is_cached_unknown(left_js_type)
+                    {
+                        self.validator.expect_number(
+                            compiler,
+                            left,
+                            left_js_type,
+                            "increment/decrement",
+                        );
+                    }
                     self.ensure_typed_native(compiler, n, NUMBER_TYPE);
                 } else {
                     self.validator.expect_big_int_or_number(
@@ -966,84 +1126,92 @@ impl TypeCheck {
                 let compiler = t.get_compiler();
                 left_type = self.get_js_type(compiler, left_side);
                 right_type = self.get_js_type(compiler, right_side);
-                let (right_unknown, left_unknown, right_numeric, left_numeric) = {
-                    let (reg, ast) = compiler.get_type_registry_and_ast();
-                    (
-                        right_type.is_unknown_type(reg, ast),
-                        left_type.is_unknown_type(reg, ast),
-                        right_type.is_big_int_or_number(reg, ast),
-                        left_type.is_big_int_or_number(reg, ast),
-                    )
-                };
-                if right_unknown {
-                    // validate comparable left
-                    self.validator.expect_unknown_or_comparable(
-                        compiler,
-                        left_side,
-                        left_type,
-                        "left side of comparison",
-                    );
-                } else if left_unknown {
-                    // validate comparable right
-                    self.validator.expect_unknown_or_comparable(
-                        compiler,
-                        right_side,
-                        right_type,
-                        "right side of comparison",
-                    );
-                } else if right_numeric {
-                    // validate left operand for numeric comparison
-                    self.validator.expect_big_int_or_number(
-                        compiler,
-                        left_side,
-                        left_type,
-                        "left side of numeric comparison",
-                    );
-                } else if left_numeric {
-                    // validate right operand for numeric comparison
-                    self.validator.expect_big_int_or_number(
-                        compiler,
-                        right_side,
-                        right_type,
-                        "right side of numeric comparison",
-                    );
-                } else {
-                    let error_msg = "expected matching types in comparison";
-                    self.validator.expect_matching_types_strict(
-                        compiler, n, left_type, right_type, error_msg,
-                    );
-                    let both_number_context = {
+                // Rust-only (performance divergence): `number` and `unknown` are always valid
+                // operands for relational comparisons with no diagnostics.
+                let left_num_or_unk =
+                    self.cached_number_type == Some(left_type) || self.is_cached_unknown(left_type);
+                let right_num_or_unk = self.cached_number_type == Some(right_type)
+                    || self.is_cached_unknown(right_type);
+                if !(left_num_or_unk && right_num_or_unk) {
+                    let (right_unknown, left_unknown, right_numeric, left_numeric) = {
                         let (reg, ast) = compiler.get_type_registry_and_ast();
-                        left_type.matches_number_context(reg, ast)
-                            && right_type.matches_number_context(reg, ast)
+                        (
+                            right_type.is_unknown_type(reg, ast),
+                            left_type.is_unknown_type(reg, ast),
+                            right_type.is_big_int_or_number(reg, ast),
+                            left_type.is_big_int_or_number(reg, ast),
+                        )
                     };
-                    if !both_number_context {
-                        // Whether the comparison is numeric will be determined at runtime
-                        // each time the expression is evaluated. Regardless, both operands
-                        // should match a string context.
-                        let mut message = "left side of comparison";
-                        self.validator
-                            .expect_string(compiler, left_side, left_type, message);
-                        let string_type = self.get_native_type(compiler, STRING_TYPE);
-                        self.validator.expect_not_null_or_undefined(
-                            t,
+                    if right_unknown {
+                        // validate comparable left
+                        self.validator.expect_unknown_or_comparable(
+                            compiler,
                             left_side,
                             left_type,
-                            message,
-                            string_type,
+                            "left side of comparison",
                         );
-                        message = "right side of comparison";
-                        let compiler = t.get_compiler();
-                        self.validator
-                            .expect_string(compiler, right_side, right_type, message);
-                        let string_type = self.get_native_type(compiler, STRING_TYPE);
-                        self.validator.expect_not_null_or_undefined(
-                            t,
+                    } else if left_unknown {
+                        // validate comparable right
+                        self.validator.expect_unknown_or_comparable(
+                            compiler,
                             right_side,
                             right_type,
-                            message,
-                            string_type,
+                            "right side of comparison",
                         );
+                    } else if right_numeric {
+                        // validate left operand for numeric comparison
+                        self.validator.expect_big_int_or_number(
+                            compiler,
+                            left_side,
+                            left_type,
+                            "left side of numeric comparison",
+                        );
+                    } else if left_numeric {
+                        // validate right operand for numeric comparison
+                        self.validator.expect_big_int_or_number(
+                            compiler,
+                            right_side,
+                            right_type,
+                            "right side of numeric comparison",
+                        );
+                    } else {
+                        let error_msg = "expected matching types in comparison";
+                        self.validator.expect_matching_types_strict(
+                            compiler, n, left_type, right_type, error_msg,
+                        );
+                        let both_number_context = {
+                            let (reg, ast) = compiler.get_type_registry_and_ast();
+                            left_type.matches_number_context(reg, ast)
+                                && right_type.matches_number_context(reg, ast)
+                        };
+                        if !both_number_context {
+                            // Whether the comparison is numeric will be determined at runtime
+                            // each time the expression is evaluated. Regardless, both operands
+                            // should match a string context.
+                            let mut message = "left side of comparison";
+                            self.validator
+                                .expect_string(compiler, left_side, left_type, message);
+                            let string_type = self.get_native_type(compiler, STRING_TYPE);
+                            self.validator.expect_not_null_or_undefined(
+                                t,
+                                left_side,
+                                left_type,
+                                message,
+                                string_type,
+                            );
+                            message = "right side of comparison";
+                            let compiler = t.get_compiler();
+                            self.validator
+                                .expect_string(compiler, right_side, right_type, message);
+                            let string_type = self.get_native_type(compiler, STRING_TYPE);
+                            self.validator.expect_not_null_or_undefined(
+                                t,
+                                right_side,
+                                right_type,
+                                message,
+                                string_type,
+                            );
+                        }
                     }
                 }
                 self.ensure_typed_native(t.get_compiler(), n, BOOLEAN_TYPE);
@@ -1346,19 +1514,22 @@ impl TypeCheck {
             }
         }
 
-        // Visit the body of blockless arrow functions
-        if NodeUtil::is_blockless_arrow_function_result(t, n) {
-            self.visit_implicit_return_expression(t, n);
-        }
-
-        // Visit the loop initializer of a for-of loop
-        // We do this check here, instead of when visiting FOR_OF, in order to get the correct
-        // TypedScope.
-        let n_parent = n.get_parent(t).unwrap();
-        if (n_parent.is_for_of(t) || n_parent.is_for_await_of(t))
-            && n_parent.get_first_child(t) == Some(n)
-        {
-            self.check_for_of_types(t, n_parent);
+        // Visit the body of blockless arrow functions and loop initializers of for-of loops.
+        // We do the for-of check here, instead of when visiting FOR_OF, in order to get the
+        // correct TypedScope.
+        let n_parent = parent.unwrap_or_else(|| n.get_parent(t).unwrap());
+        match n_parent.get_token(t) {
+            Token::FUNCTION
+                if n_parent.is_arrow_function(t)
+                    && !n.is_block(t)
+                    && n_parent.get_last_child(t) == Some(n) =>
+            {
+                self.visit_implicit_return_expression(t, n);
+            }
+            Token::FOR_OF | Token::FOR_AWAIT_OF if n_parent.get_first_child(t) == Some(n) => {
+                self.check_for_of_types(t, n_parent);
+            }
+            _ => {}
         }
 
         // Don't count externs since the user's code may not even use that part.
@@ -1366,20 +1537,24 @@ impl TypeCheck {
 
         // Record typing logs and metrics.
         if typeable {
-            self.debug_type_logger
-                .as_mut()
-                .unwrap()
-                .maybe_log_type_of_node(t.get_compiler(), n);
+            if self.debug_logging_enabled {
+                self.debug_type_logger
+                    .as_mut()
+                    .unwrap()
+                    .maybe_log_type_of_node(t.get_compiler(), n);
+            }
             self.do_percent_typed_accounting(t.get_compiler(), n);
         }
 
         self.check_jsdoc_info_contains_object_with_bad_key(t.get_compiler(), n);
 
         // If this is the node which started logging types, stop logging.
-        self.debug_type_logger
-            .as_mut()
-            .unwrap()
-            .stop_logging_if_this_is_where_we_started(n);
+        if self.debug_logging_enabled {
+            self.debug_type_logger
+                .as_mut()
+                .unwrap()
+                .stop_logging_if_this_is_where_we_started(n);
+        }
     }
 
     // port: TypeCheck#visitUnaryPlus
@@ -1502,21 +1677,23 @@ impl TypeCheck {
         let type_ = n.get_jstype(compiler);
         match type_ {
             None => self.null_count += 1,
-            Some(type_)
-                if {
+            Some(type_) => {
+                let is_unknown = self.is_cached_unknown(type_) || {
                     let (reg, ast) = compiler.get_type_registry_and_ast();
                     type_.is_unknown_type(reg, ast)
-                } =>
-            {
-                if self.report_unknown_types
-                    && !n.get_parent(compiler).unwrap().is_expr_result(compiler)
-                {
-                    let error = JSError::make(compiler, n, &UNKNOWN_EXPR_TYPE, &[]);
-                    compiler.report(error);
+                };
+                if is_unknown {
+                    if self.report_unknown_types
+                        && !n.get_parent(compiler).unwrap().is_expr_result(compiler)
+                    {
+                        let error = JSError::make(compiler, n, &UNKNOWN_EXPR_TYPE, &[]);
+                        compiler.report(error);
+                    }
+                    self.unknown_count += 1;
+                } else {
+                    self.typed_count += 1;
                 }
-                self.unknown_count += 1;
             }
-            Some(_) => self.typed_count += 1,
         }
     }
 
@@ -1782,21 +1959,32 @@ impl TypeCheck {
 
             // If we successfully found a non-unknown declared type, validate the assignment and
             // don't do any further checks.
-            let is_unknown = {
+            let is_unknown = self.is_cached_unknown(expected_property_type) || {
                 let (reg, ast) = compiler.get_type_registry_and_ast();
                 expected_property_type.is_unknown_type(reg, ast)
             };
             if !is_unknown {
-                // Note: if the property has @implicitCast at its declaration, we don't check any
-                // assignments to it.
-                if !Self::property_is_implicit_cast(compiler, object_cast_type, &pname) {
-                    self.validator.expect_can_assign_to_property_of(
+                // Rust-only (performance divergence): if the assignment is already valid on the
+                // fast path (no diagnostics or side effects), skip walking the prototype chain for
+                // `@implicitCast`.
+                let fast_ok = {
+                    let (reg, ast) = compiler.get_type_registry_and_ast();
+                    TypeValidator::can_assign_to_property_fast(
+                        reg,
+                        ast,
+                        right_type,
+                        expected_property_type,
+                    )
+                };
+                if !fast_ok && !Self::property_is_implicit_cast(compiler, object_cast_type, &pname)
+                {
+                    self.validator.expect_can_assign_to_property_of_js(
                         compiler,
                         node_to_warn,
                         right_type,
                         expected_property_type,
                         object,
-                        &pname.to_string(),
+                        &pname,
                     );
                 }
                 return;
@@ -1884,12 +2072,13 @@ impl TypeCheck {
         if lvalue.is_get_prop(compiler) {
             let first = lvalue.get_first_child(compiler).unwrap();
             let obj_type = self.get_js_type(compiler, first);
-            let (reg, ast) = compiler.get_type_registry_and_ast();
-            if !obj_type.is_empty_type(reg) && !obj_type.is_unknown_type(reg, ast) {
+            let obj_flags = self.get_type_check_flags(compiler, obj_type);
+            if (obj_flags & (TC_FLAG_IS_EMPTY | TC_FLAG_IS_UNKNOWN)) == 0 {
+                let (reg, ast) = compiler.get_type_registry_and_ast();
                 let prop_name = lvalue.get_string(ast);
                 let kind = reg.can_property_be_defined(ast, obj_type, prop_name);
                 if kind != PropDefinitionKind::KNOWN {
-                    if obj_type.is_struct(reg, ast) {
+                    if (obj_flags & TC_FLAG_IS_STRUCT) != 0 {
                         if obj_type
                             .restrict_by_not_null_or_undefined(reg, ast)
                             .is_union_type(reg)
@@ -2429,17 +2618,33 @@ impl TypeCheck {
             return;
         }
 
+        // Rust-only (performance divergence): memoize superclass/interface hierarchy info per
+        // constructor so classes with hundreds of prototype methods don't re-walk superchains.
+        let (has_unknown_super, super_ctor, implemented_interfaces) =
+            if let Some((has_unk, super_c, ifaces)) = self.ctor_nominal_info.get(&ctor_type) {
+                (*has_unk, *super_c, Arc::clone(ifaces))
+            } else {
+                let has_unk = Self::has_unknown_or_empty_supertype(compiler, ctor_type);
+                let (super_c, ifaces): (Option<TypeId>, Arc<[TypeId]>) = if has_unk {
+                    (None, Arc::from([]))
+                } else {
+                    let (reg, ast) = compiler.get_type_registry_and_ast();
+                    let super_c = ctor_type.get_super_class_constructor(reg, ast);
+                    let ifaces = ctor_type.get_all_implemented_interfaces(reg, ast).into();
+                    (super_c, ifaces)
+                };
+                self.ctor_nominal_info
+                    .insert(ctor_type, (has_unk, super_c, Arc::clone(&ifaces)));
+                (has_unk, super_c, ifaces)
+            };
+
         // If the supertype doesn't resolve correctly, we've warned about this already.
-        if Self::has_unknown_or_empty_supertype(compiler, ctor_type) {
+        if has_unknown_super {
             return;
         }
 
         let mut found_property = false;
 
-        let super_ctor = {
-            let (reg, ast) = compiler.get_type_registry_and_ast();
-            ctor_type.get_super_class_constructor(reg, ast)
-        };
         if let Some(super_ctor) = super_ctor {
             let prop_slot = {
                 let (reg, ast) = compiler.get_type_registry_and_ast();
@@ -2490,11 +2695,7 @@ impl TypeCheck {
             }
         }
 
-        let implemented_interfaces = {
-            let (reg, ast) = compiler.get_type_registry_and_ast();
-            ctor_type.get_all_implemented_interfaces(reg, ast)
-        };
-        for implemented_interface in implemented_interfaces {
+        for &implemented_interface in implemented_interfaces.iter() {
             let (reg, ast) = compiler.get_type_registry_and_ast();
             if implemented_interface.is_unknown_type(reg, ast)
                 || implemented_interface.is_empty_type(reg)
@@ -2938,12 +3139,9 @@ impl TypeCheck {
         // and what isn't.
         let obj_node = n.get_first_child(t).unwrap();
         let child_type = self.get_js_type(t.get_compiler(), obj_node);
+        let child_flags = self.get_type_check_flags(t.get_compiler(), child_type);
 
-        let is_dict = {
-            let (reg, ast) = t.get_compiler().get_type_registry_and_ast();
-            child_type.is_dict(reg, ast)
-        };
-        if is_dict {
+        if (child_flags & TC_FLAG_IS_DICT) != 0 {
             Self::report(
                 t.get_compiler(),
                 n,
@@ -2951,15 +3149,65 @@ impl TypeCheck {
                 &["'.'", "dict"],
             );
         } else {
-            let object_type = self.get_native_type(t.get_compiler(), OBJECT_TYPE);
-            if self.validator.expect_not_null_or_undefined(
-                t,
-                n,
-                child_type,
-                "No properties on this expression",
-                object_type,
-            ) {
-                self.check_property_access_for_get_prop(t.get_compiler(), n);
+            let ok = if (child_flags & TC_FLAG_NOT_NULL_OR_UNDEF_OK) != 0 {
+                true
+            } else {
+                let object_type = self.get_native_type(t.get_compiler(), OBJECT_TYPE);
+                self.validator.expect_not_null_or_undefined(
+                    t,
+                    n,
+                    child_type,
+                    "No properties on this expression",
+                    object_type,
+                )
+            };
+            if ok {
+                let compiler = t.get_compiler();
+                let prop_type = self.get_js_type(compiler, n);
+                let (is_abstract_non_ctor, prop_equals_unknown) = {
+                    let unknown = self
+                        .cached_unknown_type
+                        .unwrap_or_else(|| self.get_native_type(compiler, UNKNOWN_TYPE));
+                    let (reg, ast) = compiler.get_type_registry_and_ast();
+                    let is_abs = prop_type
+                        .to_maybe_function_type(reg)
+                        .is_some_and(|ft| ft.is_abstract(reg) && !ft.is_constructor(reg));
+                    let eq_unk = prop_type == unknown
+                        || (prop_type.is_unknown_type(reg, ast)
+                            && prop_type.equals(reg, ast, unknown));
+                    (is_abs, eq_unk)
+                };
+                if is_abstract_non_ctor {
+                    self.check_abstract_property_access(compiler, n);
+                }
+                if prop_equals_unknown {
+                    if self.cached_unknown_type == Some(child_type) {
+                        self.check_property_access_on_unknown(
+                            compiler,
+                            child_type,
+                            n,
+                            Some(obj_node),
+                        );
+                    } else {
+                        self.check_property_access(
+                            compiler,
+                            child_type,
+                            n,
+                            prop_type,
+                            Some(obj_node),
+                        );
+                    }
+                } else if (child_flags & TC_FLAG_IS_UNION) != 0
+                    && !Self::is_l_value_get_prop(compiler, n)
+                {
+                    self.check_property_access_helper(
+                        compiler,
+                        child_type,
+                        n,
+                        Some(obj_node),
+                        true,
+                    );
+                }
             }
         }
         self.ensure_typed(t.get_compiler(), n);
@@ -3150,15 +3398,15 @@ impl TypeCheck {
         prop_type: TypeId,
         obj_node: Option<NodeId>,
     ) {
-        let is_getprop = NodeUtil::is_normal_or_opt_chain_get_prop(compiler, prop_node);
-        let prop_name = prop_node.get_string(compiler);
-
-        let prop_type_is_unknown = {
+        let prop_type_is_unknown = self.cached_unknown_type == Some(prop_type) || {
+            let unknown = self
+                .cached_unknown_type
+                .unwrap_or_else(|| self.get_native_type(compiler, UNKNOWN_TYPE));
             let (reg, ast) = compiler.get_type_registry_and_ast();
-            let unknown = reg.get_native_type(UNKNOWN_TYPE);
-            prop_type.equals(reg, ast, unknown)
+            prop_type.is_unknown_type(reg, ast) && prop_type.equals(reg, ast, unknown)
         };
         if prop_type_is_unknown {
+            let prop_name = prop_node.get_string(compiler);
             let object_type = {
                 let (reg, ast) = compiler.get_type_registry_and_ast();
                 child_type = child_type.autobox(reg, ast);
@@ -3168,11 +3416,14 @@ impl TypeCheck {
                 // We special-case object types so that checks on enums can be
                 // much stricter, and so that we can use hasProperty (which is much
                 // faster in most cases).
-                let missing = {
+                let missing = self.cached_unknown_type == Some(object_type) || {
+                    let unknown = self
+                        .cached_unknown_type
+                        .unwrap_or_else(|| self.get_native_type(compiler, UNKNOWN_TYPE));
                     let (reg, ast) = compiler.get_type_registry_and_ast();
-                    let unknown = reg.get_native_type(UNKNOWN_TYPE);
                     !object_type.has_property(reg, ast, StringKey::new(prop_name.clone()))
-                        || object_type.equals(reg, ast, unknown)
+                        || (object_type.is_unknown_type(reg, ast)
+                            && object_type.equals(reg, ast, unknown))
                 };
                 if missing {
                     let is_enum_type = {
@@ -3200,7 +3451,7 @@ impl TypeCheck {
                 self.check_property_access_helper(compiler, child_type, prop_node, obj_node, false);
             }
         } else if child_type.is_union_type(compiler.get_type_registry())
-            && is_getprop
+            && NodeUtil::is_normal_or_opt_chain_get_prop(compiler, prop_node)
             && !Self::is_l_value_get_prop(compiler, prop_node)
         {
             // NOTE: strict property assignment checks are done on assignment.
@@ -3217,6 +3468,65 @@ impl TypeCheck {
             && parent.get_first_child(compiler) == Some(n)
     }
 
+    /// Rust-only (performance divergence): fast path for `GETPROP` when both receiver and property
+    /// types are exact `UNKNOWN_TYPE`, memoizing `can_property_be_defined(UNKNOWN_TYPE, name)`
+    /// without cloning `JsString` on cache hits.
+    fn check_property_access_on_unknown(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        unknown_type: TypeId,
+        prop_node: NodeId,
+        obj_node: Option<NodeId>,
+    ) {
+        if !self.report_missing_properties
+            || Self::allow_strict_property_access_on_node(compiler, prop_node)
+        {
+            return;
+        }
+        let kind = self.lookup_unknown_prop_defined(compiler, unknown_type, prop_node);
+        if kind != PropDefinitionKind::UNKNOWN {
+            return;
+        }
+        let strict_report = Self::is_q_name_assignment_target(compiler, prop_node)
+            || Self::allow_loose_property_access_on_node(compiler, prop_node);
+        self.report_missing_property(
+            compiler,
+            obj_node,
+            unknown_type,
+            prop_node,
+            kind,
+            strict_report,
+        );
+    }
+
+    /// Rust-only (performance divergence): cached `can_property_be_defined(UNKNOWN_TYPE, name)`
+    /// invalidated whenever `JSTypeRegistry::property_registration_epoch()` advances.
+    fn lookup_unknown_prop_defined(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        unknown_type: TypeId,
+        prop_node: NodeId,
+    ) -> PropDefinitionKind {
+        let epoch = compiler.get_type_registry().property_registration_epoch();
+        if epoch != self.unknown_prop_cache_epoch {
+            self.unknown_prop_defined_cache.clear();
+            self.unknown_prop_cache_epoch = epoch;
+        }
+        if let Some(&kind) = self
+            .unknown_prop_defined_cache
+            .get(prop_node.get_string_ref(compiler))
+        {
+            return kind;
+        }
+        let prop_name = prop_node.get_string(compiler);
+        let kind = {
+            let (reg, ast) = compiler.get_type_registry_and_ast();
+            reg.can_property_be_defined(ast, unknown_type, prop_name.clone())
+        };
+        self.unknown_prop_defined_cache.insert(prop_name, kind);
+        kind
+    }
+
     /// `strict_check`: Whether this is a check that is only performed when "strict missing
     /// properties" checks are enabled.
     // port: TypeCheck#checkPropertyAccessHelper
@@ -3229,19 +3539,22 @@ impl TypeCheck {
         strict_check: bool,
     ) {
         let is_getprop = NodeUtil::is_normal_or_opt_chain_get_prop(compiler, prop_node);
-        let prop_name = prop_node.get_string(compiler);
+        let obj_flags = self.get_type_check_flags(compiler, object_type);
 
         if !self.report_missing_properties
-            || object_type.is_empty_type(compiler.get_type_registry())
+            || (obj_flags & TC_FLAG_IS_EMPTY) != 0
             || (is_getprop && Self::allow_strict_property_access_on_node(compiler, prop_node))
         {
             return;
         }
 
-        let (kind, is_unknown_type) = {
+        let is_unknown_type = (obj_flags & TC_FLAG_IS_UNKNOWN) != 0;
+        let kind = if self.is_cached_unknown(object_type) {
+            self.lookup_unknown_prop_defined(compiler, object_type, prop_node)
+        } else {
+            let prop_name = prop_node.get_string(compiler);
             let (reg, ast) = compiler.get_type_registry_and_ast();
-            let kind = reg.can_property_be_defined(ast, object_type, prop_name);
-            (kind, object_type.is_unknown_type(reg, ast))
+            reg.can_property_be_defined(ast, object_type, prop_name)
         };
         if kind == PropDefinitionKind::KNOWN {
             return;
@@ -3255,10 +3568,7 @@ impl TypeCheck {
             return;
         }
 
-        let is_struct = {
-            let (reg, ast) = compiler.get_type_registry_and_ast();
-            object_type.is_struct(reg, ast)
-        };
+        let is_struct = (obj_flags & TC_FLAG_IS_STRUCT) != 0;
         let loose_property_declaration =
             !is_struct && is_getprop && Self::is_q_name_assignment_target(compiler, prop_node);
         // always false for destructuring
@@ -4560,10 +4870,14 @@ impl TypeCheck {
             );
             return;
         }
-        let operator_is_number = {
+        let operator_is_number = self.cached_number_type == Some(operator_type) || {
             let (reg, ast) = compiler.get_type_registry_and_ast();
             operator_type.is_number(reg, ast)
         };
+        let left_num_or_unk =
+            self.cached_number_type == Some(left_type) || self.is_cached_unknown(left_type);
+        let right_num_or_unk =
+            self.cached_number_type == Some(right_type) || self.is_cached_unknown(right_type);
         match op {
             Token::ASSIGN_LSH
             | Token::ASSIGN_RSH
@@ -4578,50 +4892,59 @@ impl TypeCheck {
                     //     ignores the operand types for it and always sets the operator's type to
                     //     'number'. Thus, if one of the operands is a bigint, we'll end up
                     //     reporting that as an error here.
-                    let op_str = NodeUtil::op_to_str(n.get_token(compiler)).unwrap_or("null");
-                    let left_matches = {
-                        let (reg, ast) = compiler.get_type_registry_and_ast();
-                        left_type.matches_number_context(reg, ast)
-                    };
-                    if !left_matches {
-                        let left_string = Self::type_to_string(compiler, left_type);
-                        Self::report(compiler, left, &BIT_OPERATION, &[op_str, &left_string]);
-                    } else {
-                        self.validator.expect_number_strict(
-                            compiler,
-                            n,
-                            left_type,
-                            &format!("operator {op_str}"),
-                        );
+                    if !left_num_or_unk {
+                        let op_str = NodeUtil::op_to_str(n.get_token(compiler)).unwrap_or("null");
+                        let left_matches = {
+                            let (reg, ast) = compiler.get_type_registry_and_ast();
+                            left_type.matches_number_context(reg, ast)
+                        };
+                        if !left_matches {
+                            let left_string = Self::type_to_string(compiler, left_type);
+                            Self::report(compiler, left, &BIT_OPERATION, &[op_str, &left_string]);
+                        } else {
+                            self.validator.expect_number_strict(
+                                compiler,
+                                n,
+                                left_type,
+                                &format!("operator {op_str}"),
+                            );
+                        }
                     }
-                    let right_matches = {
-                        let (reg, ast) = compiler.get_type_registry_and_ast();
-                        right_type.matches_number_context(reg, ast)
-                    };
-                    if !right_matches {
-                        let right_string = Self::type_to_string(compiler, right_type);
-                        Self::report(compiler, right, &BIT_OPERATION, &[op_str, &right_string]);
-                    } else {
-                        self.validator.expect_number_strict(
-                            compiler,
-                            n,
-                            right_type,
-                            &format!("operator {op_str}"),
-                        );
+                    if !right_num_or_unk {
+                        let op_str = NodeUtil::op_to_str(n.get_token(compiler)).unwrap_or("null");
+                        let right_matches = {
+                            let (reg, ast) = compiler.get_type_registry_and_ast();
+                            right_type.matches_number_context(reg, ast)
+                        };
+                        if !right_matches {
+                            let right_string = Self::type_to_string(compiler, right_type);
+                            Self::report(compiler, right, &BIT_OPERATION, &[op_str, &right_string]);
+                        } else {
+                            self.validator.expect_number_strict(
+                                compiler,
+                                n,
+                                right_type,
+                                &format!("operator {op_str}"),
+                            );
+                        }
                     }
                 } else {
-                    self.validator.expect_big_int_or_number(
-                        compiler,
-                        left,
-                        left_type,
-                        "left operand",
-                    );
-                    self.validator.expect_big_int_or_number(
-                        compiler,
-                        right,
-                        right_type,
-                        "right operand",
-                    );
+                    if !left_num_or_unk {
+                        self.validator.expect_big_int_or_number(
+                            compiler,
+                            left,
+                            left_type,
+                            "left operand",
+                        );
+                    }
+                    if !right_num_or_unk {
+                        self.validator.expect_big_int_or_number(
+                            compiler,
+                            right,
+                            right_type,
+                            "right operand",
+                        );
+                    }
                 }
             }
             Token::ASSIGN_DIV
@@ -4637,23 +4960,31 @@ impl TypeCheck {
                 if operator_is_number {
                     // TypeInference set the operator type to 'number', so we know bigint isn't
                     // involved.
-                    self.validator
-                        .expect_number(compiler, left, left_type, "left operand");
-                    self.validator
-                        .expect_number(compiler, right, right_type, "right operand");
+                    if !left_num_or_unk {
+                        self.validator
+                            .expect_number(compiler, left, left_type, "left operand");
+                    }
+                    if !right_num_or_unk {
+                        self.validator
+                            .expect_number(compiler, right, right_type, "right operand");
+                    }
                 } else {
-                    self.validator.expect_big_int_or_number(
-                        compiler,
-                        left,
-                        left_type,
-                        "left operand",
-                    );
-                    self.validator.expect_big_int_or_number(
-                        compiler,
-                        right,
-                        right_type,
-                        "right operand",
-                    );
+                    if !left_num_or_unk {
+                        self.validator.expect_big_int_or_number(
+                            compiler,
+                            left,
+                            left_type,
+                            "left operand",
+                        );
+                    }
+                    if !right_num_or_unk {
+                        self.validator.expect_big_int_or_number(
+                            compiler,
+                            right,
+                            right_type,
+                            "right operand",
+                        );
+                    }
                 }
             }
             Token::ASSIGN_BITAND
@@ -4664,31 +4995,39 @@ impl TypeCheck {
             | Token::BITOR => {
                 if operator_is_number {
                     // This condition is meant to catch any old cases (where bigint isn't involved)
-                    self.validator.expect_bitwiseable(
-                        compiler,
-                        left,
-                        left_type,
-                        "bad left operand to bitwise operator",
-                    );
-                    self.validator.expect_bitwiseable(
-                        compiler,
-                        right,
-                        right_type,
-                        "bad right operand to bitwise operator",
-                    );
+                    if !left_num_or_unk {
+                        self.validator.expect_bitwiseable(
+                            compiler,
+                            left,
+                            left_type,
+                            "bad left operand to bitwise operator",
+                        );
+                    }
+                    if !right_num_or_unk {
+                        self.validator.expect_bitwiseable(
+                            compiler,
+                            right,
+                            right_type,
+                            "bad right operand to bitwise operator",
+                        );
+                    }
                 } else {
-                    self.validator.expect_big_int_or_number(
-                        compiler,
-                        left,
-                        left_type,
-                        "bad left operand to bitwise operator",
-                    );
-                    self.validator.expect_big_int_or_number(
-                        compiler,
-                        right,
-                        right_type,
-                        "bad right operand to bitwise operator",
-                    );
+                    if !left_num_or_unk {
+                        self.validator.expect_big_int_or_number(
+                            compiler,
+                            left,
+                            left_type,
+                            "bad left operand to bitwise operator",
+                        );
+                    }
+                    if !right_num_or_unk {
+                        self.validator.expect_big_int_or_number(
+                            compiler,
+                            right,
+                            right_type,
+                            "bad right operand to bitwise operator",
+                        );
+                    }
                 }
             }
             Token::ASSIGN_ADD | Token::ADD => {}
@@ -4873,7 +5212,19 @@ impl TypeCheck {
     ) -> TypeId {
         if let Some(object_type) = object_type {
             let (reg, ast) = compiler.get_type_registry_and_ast();
-            if JSType::has_property(object_type, reg, ast, property_name.clone())
+            // Rust-only (performance divergence): for non-templatized objects, resolve the
+            // property slot once instead of walking the prototype chain three times.
+            if !object_type.is_templatized_type(reg)
+                && !object_type.is_function_type(reg)
+                && !object_type.is_no_object_type(reg)
+                && !object_type.is_no_type(reg)
+            {
+                if let Some(slot) = object_type.get_slot(reg, ast, property_name)
+                    && !slot.is_type_inferred(reg)
+                {
+                    return slot.get_type(reg);
+                }
+            } else if JSType::has_property(object_type, reg, ast, property_name.clone())
                 && !object_type.is_property_type_inferred(reg, ast, property_name.clone())
             {
                 return object_type.get_property_type(reg, ast, property_name);
@@ -4947,42 +5298,84 @@ impl TypeCheck {
         compiler: &mut AbstractCompiler,
         n: NodeId,
     ) {
-        if let Some(info) = n.get_jsdoc_info(compiler) {
-            self.check_type_contains_object_with_bad_key(compiler, n, info.get_type().as_deref());
-            self.check_type_contains_object_with_bad_key(
-                compiler,
-                n,
-                info.get_return_type().as_deref(),
-            );
-            self.check_type_contains_object_with_bad_key(
-                compiler,
-                n,
-                info.get_typedef_type().as_deref(),
-            );
-            if let Some(parameters) = info.parameter_types() {
-                for expression in parameters.values().flatten() {
-                    self.check_type_contains_object_with_bad_key(compiler, n, Some(expression));
+        let Some(info) = n.get_jsdoc_info_ref(&compiler.ast) else {
+            return;
+        };
+        if !info.has_any_bad_key_checked_type() {
+            return;
+        }
+        // Rust-only (performance divergence): collect only `TypeId`s not already known clean in
+        // `self.clean_object_key_types`, borrowing `&JSDocInfo` and `&JSTypeExpression` without
+        // cloning `Arc`s or allocating when all types hit the cache.
+        let mut inline = [TypeId(0); 4];
+        let mut inline_len = 0usize;
+        let mut overflow: Option<Vec<TypeId>> = None;
+        let mut push_expr = |expr: &JSTypeExpression| {
+            if let Some(real_type) = expr.get_root().get_jstype(&compiler.ast)
+                && !self
+                    .clean_object_key_types
+                    .get(real_type.0 as usize)
+                    .copied()
+                    .unwrap_or(false)
+            {
+                if inline_len < inline.len() {
+                    inline[inline_len] = real_type;
+                    inline_len += 1;
+                } else {
+                    overflow.get_or_insert_with(Vec::new).push(real_type);
                 }
+            }
+        };
+        if let Some(expr) = info.get_type_ref() {
+            push_expr(expr);
+        }
+        if let Some(expr) = info.get_return_type_ref() {
+            push_expr(expr);
+        }
+        if let Some(expr) = info.get_typedef_type_ref() {
+            push_expr(expr);
+        }
+        if let Some(parameters) = info.parameter_types() {
+            for expression in parameters.values().flatten() {
+                push_expr(expression);
+            }
+        }
+        for &real_type in &inline[..inline_len] {
+            self.check_resolved_type_contains_object_with_bad_key(compiler, n, real_type);
+        }
+        if let Some(extra) = overflow {
+            for real_type in extra {
+                self.check_resolved_type_contains_object_with_bad_key(compiler, n, real_type);
             }
         }
     }
 
     // port: TypeCheck#checkTypeContainsObjectWithBadKey
-    fn check_type_contains_object_with_bad_key(
+    fn check_resolved_type_contains_object_with_bad_key(
         &mut self,
         compiler: &mut AbstractCompiler,
         n: NodeId,
-        type_: Option<&JSTypeExpression>,
+        real_type: TypeId,
     ) {
-        if let Some(type_) = type_
-            && let Some(real_type) = type_.get_root().get_jstype(compiler)
+        let idx = real_type.0 as usize;
+        if self
+            .clean_object_key_types
+            .get(idx)
+            .copied()
+            .unwrap_or(false)
         {
-            let object_with_bad_key =
-                self.find_object_with_non_stringifiable_key(compiler, real_type, &mut Vec::new());
-            if let Some(object_with_bad_key) = object_with_bad_key {
-                let s = Self::type_to_string(compiler, object_with_bad_key);
-                Self::report(compiler, n, &NON_STRINGIFIABLE_OBJECT_KEY, &[&s]);
+            return;
+        }
+        let object_with_bad_key =
+            self.find_object_with_non_stringifiable_key(compiler, real_type, &mut Vec::new());
+        if let Some(object_with_bad_key) = object_with_bad_key {
+            let s = Self::type_to_string(compiler, object_with_bad_key);
+            Self::report(compiler, n, &NON_STRINGIFIABLE_OBJECT_KEY, &[&s]);
+        } else {
+            if idx >= self.clean_object_key_types.len() {
+                self.clean_object_key_types.resize(idx + 1, false);
             }
+            self.clean_object_key_types[idx] = true;
         }
     }
 
@@ -5212,8 +5605,91 @@ impl TypeCheck {
     ///
     /// This is basically unsound since it checks just "ReadonlyArray" so casting up to
     /// "Iterable" or down to "Array" will defeat it; but it should catch basic errors.
+    #[inline]
+    fn is_cached_unknown(&self, type_: TypeId) -> bool {
+        self.cached_unknown_type == Some(type_) || self.cached_checked_unknown_type == Some(type_)
+    }
+
+    /// Rust-only (performance divergence): lazily computes and caches immutable per-`TypeId`
+    /// predicates queried on every `GETPROP`, `ASSIGN`, and node-accounting step.
+    fn get_type_check_flags(&mut self, compiler: &mut AbstractCompiler, type_: TypeId) -> u8 {
+        let idx = type_.0 as usize;
+        if idx < self.type_check_flags.len() {
+            let flags = self.type_check_flags[idx];
+            if flags != 0 {
+                return flags;
+            }
+        }
+        let ro_array = self
+            .cached_readonly_array_type
+            .unwrap_or_else(|| self.get_native_type(compiler, READONLY_ARRAY_TYPE));
+        let is_cached_unk = self.is_cached_unknown(type_);
+        let (reg, ast) = compiler.get_type_registry_and_ast();
+        let mut flags = TC_FLAG_POPULATED;
+        if type_.is_dict(reg, ast) {
+            flags |= TC_FLAG_IS_DICT;
+        }
+        if type_.is_struct(reg, ast) {
+            flags |= TC_FLAG_IS_STRUCT;
+        }
+        if self
+            .validator
+            .is_not_null_or_undefined_always_ok(reg, ast, type_)
+        {
+            flags |= TC_FLAG_NOT_NULL_OR_UNDEF_OK;
+        }
+        if type_.is_union_type(reg) {
+            flags |= TC_FLAG_IS_UNION;
+        }
+        let may_be_ro = if let Some(union) = type_.to_maybe_union_type(reg) {
+            let alternates = union.get_alternates(reg, ast);
+            alternates.iter().any(|&alt| {
+                let referenced = alt
+                    .to_maybe_templatized_type(reg)
+                    .map(|t| TemplatizedType::get_referenced_type(t, reg));
+                ro_array.equals(reg, ast, alt) || ro_array.equals(reg, ast, referenced)
+            })
+        } else {
+            let cls = type_.get_type_class(reg);
+            if type_ == ro_array
+                || matches!(
+                    cls,
+                    closure_jstype::js_type_class::JSTypeClass::TEMPLATIZED
+                        | closure_jstype::js_type_class::JSTypeClass::NAMED
+                        | closure_jstype::js_type_class::JSTypeClass::PROXY_OBJECT
+                        | closure_jstype::js_type_class::JSTypeClass::TEMPLATE
+                )
+            {
+                let referenced = type_
+                    .to_maybe_templatized_type(reg)
+                    .map(|t| TemplatizedType::get_referenced_type(t, reg));
+                ro_array.equals(reg, ast, type_) || ro_array.equals(reg, ast, referenced)
+            } else {
+                false
+            }
+        };
+        if may_be_ro {
+            flags |= TC_FLAG_MAY_BE_READONLY_ARRAY;
+        }
+        if is_cached_unk || type_.is_unknown_type(reg, ast) {
+            flags |= TC_FLAG_IS_UNKNOWN;
+        }
+        if type_.is_empty_type(reg) {
+            flags |= TC_FLAG_IS_EMPTY;
+        }
+        if idx >= self.type_check_flags.len() {
+            self.type_check_flags.resize(idx + 1, 0);
+        }
+        self.type_check_flags[idx] = flags;
+        flags
+    }
+
     // port: TypeCheck#checkNotReadonlyPropertyAssignment
-    fn check_not_readonly_property_assignment(&self, compiler: &mut AbstractCompiler, lhs: NodeId) {
+    fn check_not_readonly_property_assignment(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        lhs: NodeId,
+    ) {
         // We only care about element or property assignments.
         if !lhs.is_get_prop(compiler) && !lhs.is_get_elem(compiler) {
             return;
@@ -5225,19 +5701,41 @@ impl TypeCheck {
             return;
         };
 
+        if (self.get_type_check_flags(compiler, lhs_type) & TC_FLAG_MAY_BE_READONLY_ARRAY) == 0 {
+            return;
+        }
+
         // We could be a reference to "ReadonlyArray" or a templatized wrapper.
-        let ro_array = self.get_native_type(compiler, READONLY_ARRAY_TYPE);
-        let alternates = Self::flatten_union(compiler, lhs_type);
-        for &type_ in alternates.iter() {
-            let matches = {
-                let referenced = Self::maybe_referenced_type(compiler, type_);
+        let ro_array = self
+            .cached_readonly_array_type
+            .unwrap_or_else(|| self.get_native_type(compiler, READONLY_ARRAY_TYPE));
+        let union = lhs_type.to_maybe_union_type(compiler.get_type_registry());
+        if let Some(union) = union {
+            let alternates = {
                 let (reg, ast) = compiler.get_type_registry_and_ast();
-                ro_array.equals(reg, ast, type_) || ro_array.equals(reg, ast, referenced)
+                union.get_alternates(reg, ast)
+            };
+            for &type_ in alternates.iter() {
+                let matches = {
+                    let referenced = Self::maybe_referenced_type(compiler, type_);
+                    let (reg, ast) = compiler.get_type_registry_and_ast();
+                    ro_array.equals(reg, ast, type_) || ro_array.equals(reg, ast, referenced)
+                };
+                if matches {
+                    let s = Self::type_to_string(compiler, type_);
+                    Self::report(compiler, lhs, &PROPERTY_ASSIGNMENT_TO_READONLY_VALUE, &[&s]);
+                    break;
+                }
+            }
+        } else {
+            let matches = {
+                let referenced = Self::maybe_referenced_type(compiler, lhs_type);
+                let (reg, ast) = compiler.get_type_registry_and_ast();
+                ro_array.equals(reg, ast, lhs_type) || ro_array.equals(reg, ast, referenced)
             };
             if matches {
-                let s = Self::type_to_string(compiler, type_);
+                let s = Self::type_to_string(compiler, lhs_type);
                 Self::report(compiler, lhs, &PROPERTY_ASSIGNMENT_TO_READONLY_VALUE, &[&s]);
-                break;
             }
         }
     }
@@ -5247,16 +5745,6 @@ impl TypeCheck {
         let reg = compiler.get_type_registry();
         let maybe_templatized = type_.to_maybe_templatized_type(reg);
         maybe_templatized.map(|t| TemplatizedType::get_referenced_type(t, reg))
-    }
-
-    // port: TypeCheck#flattenUnion
-    fn flatten_union(compiler: &mut AbstractCompiler, maybe_union: TypeId) -> Arc<Vec<TypeId>> {
-        let (reg, ast) = compiler.get_type_registry_and_ast();
-        let union = maybe_union.to_maybe_union_type(reg);
-        match union {
-            None => Arc::new(vec![maybe_union]),
-            Some(union) => union.get_alternates(reg, ast),
-        }
     }
 
     // port: TypeCheck#declaresOverride

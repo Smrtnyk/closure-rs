@@ -935,6 +935,19 @@ enum PackedPropertyValues {
     Single(PropertyValue),
     Multiple(Vec<PropertyValue>),
 }
+/// Rust-only (performance divergence): classification of the subset of JSDoc fields retained by
+/// `JSDocSerializer::convert_jsdoc_info_for_optimizations`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OptimizationTagsKey {
+    /// No optimization-relevant tags or payload fields are present (converts to `None`).
+    Empty,
+    /// Only boolean/enum optimization tags are present, packed uniquely into this bitmask.
+    TagsOnly(u32),
+    /// At least one string/config payload field (`license`, `description`, `alternateMessageId`,
+    /// `meaning`, `perFileClosureUnawareMode`) is present.
+    HasPayload,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct JSDocInfo {
     property_bits: u64,
@@ -1450,11 +1463,15 @@ impl JSDocInfo {
     }
     // port: JSDocInfo#getReturnType
     pub fn get_return_type(&self) -> Option<Arc<JSTypeExpression>> {
+        self.get_return_type_ref().map(Arc::clone)
+    }
+    /// Rust-only: borrowed `get_return_type` without cloning the `Arc`.
+    #[inline]
+    pub fn get_return_type_ref(&self) -> Option<&Arc<JSTypeExpression>> {
         RETURN_TYPE
             .get(self)
             .and_then(PropertyValue::as_type_expr)
-            .cloned()
-            .flatten()
+            .and_then(Option::as_ref)
     }
     // port: JSDocInfo#getEnumParameterType
     pub fn get_enum_parameter_type(&self) -> Option<Arc<JSTypeExpression>> {
@@ -1466,18 +1483,197 @@ impl JSDocInfo {
     }
     // port: JSDocInfo#getTypedefType
     pub fn get_typedef_type(&self) -> Option<Arc<JSTypeExpression>> {
+        self.get_typedef_type_ref().map(Arc::clone)
+    }
+    /// Rust-only: borrowed `get_typedef_type` without cloning the `Arc`.
+    #[inline]
+    pub fn get_typedef_type_ref(&self) -> Option<&Arc<JSTypeExpression>> {
         TYPEDEF_TYPE
             .get(self)
             .and_then(PropertyValue::as_type_expr)
-            .cloned()
-            .flatten()
+            .and_then(Option::as_ref)
     }
     // port: JSDocInfo#getType
     pub fn get_type(&self) -> Option<Arc<JSTypeExpression>> {
+        self.get_type_ref().map(Arc::clone)
+    }
+    /// Rust-only: borrowed `get_type` without cloning the `Arc`.
+    #[inline]
+    pub fn get_type_ref(&self) -> Option<&Arc<JSTypeExpression>> {
         TYPE.get(self)
             .and_then(PropertyValue::as_type_expr)
-            .cloned()
-            .flatten()
+            .and_then(Option::as_ref)
+    }
+    /// Rust-only: whether any of `type`, `returnType`, `typedefType`, or `parameters` is present.
+    #[inline]
+    pub fn has_any_bad_key_checked_type(&self) -> bool {
+        (self.property_keys_bitset
+            & (TYPE.mask | RETURN_TYPE.mask | TYPEDEF_TYPE.mask | PARAMETERS.mask))
+            != 0
+    }
+    /// Rust-only (performance divergence): fast classification of the subset of fields serialized
+    /// by `JSDocSerializer::convert_jsdoc_info_for_optimizations`, enabling zero-allocation drop
+    /// of non-optimization JSDocs and per-pass `Arc<JSDocInfo>` deduplication for tag-only JSDocs.
+    pub fn optimization_tags_key(&self) -> OptimizationTagsKey {
+        const SERIALIZED_BITS: u64 = Bit::FILEOVERVIEW.mask()
+            | Bit::SASS_GENERATED_CSS_TS.mask()
+            | Bit::NOCOVERAGE.mask()
+            | Bit::NOINLINE.mask()
+            | Bit::ENCOURAGE_INLINING.mask()
+            | Bit::REQUIRE_INLINING.mask()
+            | Bit::NOCOLLAPSE.mask()
+            | Bit::PROVIDE_GOOG.mask()
+            | Bit::PROVIDE_ALREADY_PROVIDED.mask()
+            | Bit::TYPE_SUMMARY.mask()
+            | Bit::PURE_OR_BREAK_MY_CODE.mask()
+            | Bit::COLLAPSIBLE_OR_BREAK_MY_CODE.mask()
+            | Bit::DEFINE.mask()
+            | Bit::CONST.mask()
+            | Bit::NOSIDEEFFECTS.mask()
+            | Bit::CONSTRUCTOR.mask()
+            | Bit::INTERFACE.mask()
+            | Bit::RECORD.mask()
+            | Bit::ABSTRACT.mask()
+            | Bit::USED_VIA_DOT_CONSTRUCTOR.mask();
+        const PAYLOAD_KEYS: u64 = LICENSE.mask
+            | DESCRIPTION.mask
+            | ALTERNATE_MESSAGE_ID.mask
+            | MEANING.mask
+            | CLOSURE_UNAWARE_CONFIG_VALUE.mask;
+        const TAG_KEYS: u64 = THIS_TYPE.mask
+            | ENUM_PARAMETER_TYPE.mask
+            | ID_GENERATOR.mask
+            | MODIFIES.mask
+            | THROWS_ANNOTATIONS.mask
+            | SUPPRESSIONS.mask;
+
+        let bits = self.property_bits & SERIALIZED_BITS;
+        let keys = self.property_keys_bitset;
+        if (keys & PAYLOAD_KEYS) != 0 {
+            return OptimizationTagsKey::HasPayload;
+        }
+        if bits == 0 && (keys & TAG_KEYS) == 0 {
+            return OptimizationTagsKey::Empty;
+        }
+        let mut mask = 0u32;
+        if (bits & Bit::FILEOVERVIEW.mask()) != 0 {
+            mask |= 1 << 0;
+        }
+        if (bits & Bit::SASS_GENERATED_CSS_TS.mask()) != 0 {
+            mask |= 1 << 1;
+        }
+        if (bits & Bit::NOCOVERAGE.mask()) != 0 {
+            mask |= 1 << 2;
+        }
+        if (bits & Bit::NOINLINE.mask()) != 0 {
+            mask |= 1 << 3;
+        }
+        if (bits & Bit::ENCOURAGE_INLINING.mask()) != 0 {
+            mask |= 1 << 4;
+        }
+        if (bits & Bit::REQUIRE_INLINING.mask()) != 0 {
+            mask |= 1 << 5;
+        }
+        if (bits & Bit::NOCOLLAPSE.mask()) != 0 {
+            mask |= 1 << 6;
+        }
+        if (bits & Bit::PROVIDE_GOOG.mask()) != 0 {
+            mask |= 1 << 7;
+        }
+        if (bits & Bit::PROVIDE_ALREADY_PROVIDED.mask()) != 0 {
+            mask |= 1 << 8;
+        }
+        if (bits & Bit::TYPE_SUMMARY.mask()) != 0 {
+            mask |= 1 << 9;
+        }
+        if (bits & Bit::PURE_OR_BREAK_MY_CODE.mask()) != 0 {
+            mask |= 1 << 10;
+        }
+        if (bits & Bit::COLLAPSIBLE_OR_BREAK_MY_CODE.mask()) != 0 {
+            mask |= 1 << 11;
+        }
+        if (bits & Bit::DEFINE.mask()) != 0 {
+            mask |= 1 << 12;
+        }
+        if (bits & Bit::CONST.mask()) != 0 {
+            mask |= 1 << 13;
+        }
+        if (bits & Bit::NOSIDEEFFECTS.mask()) != 0 {
+            mask |= 1 << 14;
+        }
+        if (bits & Bit::CONSTRUCTOR.mask()) != 0 {
+            mask |= 1 << 15;
+        }
+        if (bits & (Bit::INTERFACE.mask() | Bit::RECORD.mask())) != 0 {
+            mask |= 1 << 16;
+        }
+        if (bits & Bit::ABSTRACT.mask()) != 0 {
+            mask |= 1 << 17;
+        }
+        if (bits & Bit::USED_VIA_DOT_CONSTRUCTOR.mask()) != 0 {
+            mask |= 1 << 18;
+        }
+        if (keys & THIS_TYPE.mask) != 0 {
+            mask |= 1 << 19;
+        }
+        if (keys & ENUM_PARAMETER_TYPE.mask) != 0 {
+            mask |= 1 << 20;
+        }
+        if (keys & ID_GENERATOR.mask) != 0 {
+            let gen_bits: u32 = match ID_GENERATOR
+                .get(self)
+                .and_then(PropertyValue::as_id_generator)
+            {
+                Some(IdGenerator::CONSISTENT) => 1,
+                Some(IdGenerator::STABLE) => 2,
+                Some(IdGenerator::XID) => 3,
+                Some(IdGenerator::MAPPED) => 4,
+                Some(IdGenerator::UNIQUE) => 5,
+                None => 0,
+            };
+            mask |= gen_bits << 21; // bits 21..=23
+        }
+        if (keys & MODIFIES.mask) != 0
+            && let Some(modifies) = MODIFIES.get(self).and_then(PropertyValue::as_str_set)
+        {
+            for m in modifies {
+                if m == "this" {
+                    mask |= 1 << 24;
+                } else {
+                    mask |= 1 << 25;
+                }
+            }
+        }
+        if (keys & THROWS_ANNOTATIONS.mask) != 0
+            && THROWS_ANNOTATIONS
+                .get(self)
+                .and_then(PropertyValue::as_str_list)
+                .is_some_and(|v| !v.is_empty())
+        {
+            mask |= 1 << 26;
+        }
+        if (keys & SUPPRESSIONS.mask) != 0
+            && let Some(suppressions) = SUPPRESSIONS
+                .get(self)
+                .and_then(PropertyValue::as_suppressions)
+        {
+            for (set, _) in suppressions {
+                for name in set {
+                    if name == "partialAlias" {
+                        mask |= 1 << 27;
+                    } else if name == "messageConventions" {
+                        mask |= 1 << 28;
+                    } else if name == "untranspilableFeatures" {
+                        mask |= 1 << 29;
+                    }
+                }
+            }
+        }
+        if mask == 0 {
+            OptimizationTagsKey::Empty
+        } else {
+            OptimizationTagsKey::TagsOnly(mask)
+        }
     }
     // port: JSDocInfo#getThisType
     pub fn get_this_type(&self) -> Option<Arc<JSTypeExpression>> {

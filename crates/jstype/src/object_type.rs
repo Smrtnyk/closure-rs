@@ -692,15 +692,16 @@ impl ObjectType for TypeId {
     }
     // port: ObjectType#getOwnPropertyKeys
     fn get_own_property_keys(self, reg: &JSTypeRegistry) -> Vec<PropertyKey> {
-        self.get_own_property_names(reg)
-            .into_iter()
-            .map(PropertyKey::String)
-            .chain(
-                self.get_own_property_known_symbols(reg)
-                    .into_iter()
-                    .map(PropertyKey::Symbol),
-            )
-            .collect()
+        // Rust-only (performance divergence): collect directly into a `Vec` without allocating an
+        // intermediate `IndexSet` (names from `for_each_own_property_name` are already unique).
+        let mut keys = Vec::new();
+        for_each_own_property_name(self, reg, |name| {
+            keys.push(PropertyKey::String(name.clone()));
+        });
+        for sym in self.get_own_property_known_symbols(reg) {
+            keys.push(PropertyKey::Symbol(sym));
+        }
+        keys
     }
     // port: ObjectType#isPropertyTypeInferred
     fn is_property_type_inferred(

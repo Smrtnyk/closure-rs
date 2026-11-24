@@ -144,6 +144,12 @@ impl Reference {
         Self::is_declaration_helper(ast, self.name_node)
     }
 
+    /// Rust-only (performance divergence): declaration check on a bare `NAME` node without
+    /// allocating a `Reference`.
+    pub(crate) fn is_declaration_node(ast: &Ast, name_node: NodeId) -> bool {
+        Self::is_declaration_helper(ast, name_node)
+    }
+
     // port: Reference#isDeclarationHelper
     fn is_declaration_helper(ast: &Ast, node: NodeId) -> bool {
         let parent = node.get_parent(ast).unwrap();
@@ -232,12 +238,17 @@ impl Reference {
     /// Determines whether the variable is initialized at the declaration.
     // port: Reference#isInitializingDeclaration
     pub fn is_initializing_declaration(&self, ast: &Ast) -> bool {
+        Self::is_initializing_declaration_node(ast, self.name_node)
+    }
+
+    /// Rust-only (performance divergence): initializing-declaration check on a bare `NAME` node
+    /// without allocating a `Reference`.
+    pub(crate) fn is_initializing_declaration_node(ast: &Ast, name_node: NodeId) -> bool {
         // VAR and LET are the only types of variable declarations that may not initialize
         // their variables. Catch blocks, named functions, and parameters all do.
-        (self.is_declaration(ast)
-            && !self.get_parent(ast).is_var(ast)
-            && !self.get_parent(ast).is_let(ast))
-            || self.name_node.has_children(ast)
+        let parent = name_node.get_parent(ast).unwrap();
+        (Self::is_declaration_helper(ast, name_node) && !parent.is_var(ast) && !parent.is_let(ast))
+            || name_node.has_children(ast)
     }
 
     /// For an assignment, variable declaration, or function declaration return the assigned
@@ -279,14 +290,20 @@ impl Reference {
     /// match.
     // port: Reference#isLvalue
     pub fn is_lvalue(&self, ast: &Ast) -> bool {
-        let parent = self.get_parent(ast);
+        Self::is_lvalue_node(ast, self.name_node)
+    }
+
+    /// Rust-only (performance divergence): lvalue check on a bare `NAME` node without allocating a
+    /// `Reference`.
+    pub(crate) fn is_lvalue_node(ast: &Ast, name_node: NodeId) -> bool {
+        let parent = name_node.get_parent(ast).unwrap();
         let parent_type = parent.get_token(ast);
         match parent_type {
             Token::VAR | Token::LET | Token::CONST => {
-                self.name_node.has_children(ast)
-                    || Self::is_lhs_of_enhanced_for_expression(ast, self.name_node)
+                name_node.has_children(ast)
+                    || Self::is_lhs_of_enhanced_for_expression(ast, name_node)
             }
-            Token::DEFAULT_VALUE => parent.get_first_child(ast) == Some(self.name_node),
+            Token::DEFAULT_VALUE => parent.get_first_child(ast) == Some(name_node),
             Token::INC
             | Token::DEC
             | Token::CATCH
@@ -295,14 +312,14 @@ impl Reference {
             | Token::PARAM_LIST => true,
             Token::FOR | Token::FOR_IN | Token::FOR_OF | Token::FOR_AWAIT_OF => {
                 NodeUtil::is_enhanced_for(ast, parent)
-                    && parent.get_first_child(ast) == Some(self.name_node)
+                    && parent.get_first_child(ast) == Some(name_node)
             }
             Token::ARRAY_PATTERN | Token::STRING_KEY | Token::COMPUTED_PROP => {
-                NodeUtil::is_lhs_by_destructuring(ast, self.name_node)
+                NodeUtil::is_lhs_by_destructuring(ast, name_node)
             }
             _ => {
                 NodeUtil::is_assignment_op(ast, parent)
-                    && parent.get_first_child(ast) == Some(self.name_node)
+                    && parent.get_first_child(ast) == Some(name_node)
             }
         }
     }

@@ -68,6 +68,13 @@ pub(crate) struct TypedScopeData {
     pub(crate) is_bottom: bool,
     // Will shrink over time. Java swaps in ImmutableSet.of() once empty.
     pub(crate) reserved_names: IndexSet<JsString>,
+    /// Rust-only (performance divergence): root prefixes (before first `.`) of qualified variable
+    /// names declared in `abstract_scope.vars`, allowing `TypeInference::get_property_type` to
+    /// skip allocating `get_qualified_name` and probing scopes when no qualified var exists.
+    pub(crate) qualified_roots: IndexSet<JsString>,
+    /// Rust-only (performance divergence): whether any qualified var starting with `"this."` was
+    /// declared in this scope.
+    pub(crate) has_this_qualified: bool,
     /// Rust-only: the canonical closure-jstype view (Java: this object as a StaticTypedScope),
     /// created on first use and never freed (PORT_NOTES, "TypedScope and TypedVar views").
     pub(crate) view: OnceLock<&'static Arc<TypedScopeView>>,
@@ -273,6 +280,8 @@ impl TypedScope {
             module,
             is_bottom,
             reserved_names,
+            qualified_roots: IndexSet::default(),
+            has_this_qualified: false,
             view: OnceLock::new(),
         });
         drop(arena);
@@ -595,6 +604,65 @@ impl TypedScope {
         }
     }
 
+    /// Rust-only (performance divergence): under one arena read, check whether any scope on the
+    /// enclosing chain from `self` to global (or the owning scope of `root_name`) has any declared
+    /// qualified var starting with `root_name.`, and also return the `TypedVar` for `root_name` if
+    /// found.
+    pub(crate) fn may_have_qualified_name(
+        self,
+        compiler: &AbstractCompiler,
+        root_name: &JsString,
+    ) -> (bool, Option<TypedVar>) {
+        let arena = TypedScopeArena::read(compiler);
+        let mut cur = self;
+        let mut root_var = None;
+        let mut has_qualified = false;
+        loop {
+            let scope_data = &arena.scopes[cur.index()];
+            if !has_qualified && scope_data.qualified_roots.contains(root_name) {
+                has_qualified = true;
+            }
+            if root_var.is_none()
+                && let Some(&var) = scope_data.abstract_scope.vars.get(root_name)
+            {
+                root_var = Some(var);
+            }
+            match scope_data.parent {
+                Some(parent) => cur = parent,
+                None => break,
+            }
+        }
+        if !has_qualified && let Some(var) = root_var {
+            let owner = closure_rhino::check_not_null!(arena.vars[var.index()].abstract_var.scope);
+            has_qualified = arena.scopes[owner.index()]
+                .qualified_roots
+                .contains(root_name);
+        }
+        (has_qualified, root_var)
+    }
+
+    /// Rust-only (performance divergence): under one arena read, check whether any scope on the
+    /// enclosing chain from `self` to global (or the `this` scope) has any declared qualified var
+    /// starting with `"this."`.
+    pub(crate) fn may_have_this_qualified_name(self, compiler: &AbstractCompiler) -> bool {
+        let this_scope = self.get_scope_of_this(compiler);
+        let arena = TypedScopeArena::read(compiler);
+        if arena.scopes[this_scope.index()].has_this_qualified {
+            return true;
+        }
+        let mut cur = self;
+        loop {
+            let scope_data = &arena.scopes[cur.index()];
+            if scope_data.has_this_qualified {
+                return true;
+            }
+            match scope_data.parent {
+                Some(parent) => cur = parent,
+                None => return false,
+            }
+        }
+    }
+
     // port: TypedScope#getTopmostScopeOfEventualDeclaration
     pub fn get_topmost_scope_of_eventual_declaration(
         self,
@@ -678,6 +746,27 @@ impl AbstractScope for TypedScope {
         name: &JsString,
     ) -> Option<TypedScope> {
         TypedScope::get_topmost_scope_of_eventual_declaration(self, compiler, name.clone())
+    }
+    fn declare_internal(self, compiler: &mut AbstractCompiler, name: JsString, var: TypedVar) {
+        let dot = name.index_of_char(u16::from(b'.'));
+        let mut arena = TypedScopeArena::write(compiler);
+        let scope = &mut arena.scopes[self.index()];
+        if dot > 0 {
+            let root = name.substring(0, dot as usize);
+            if root == "this" {
+                scope.has_this_qualified = true;
+            }
+            scope.qualified_roots.insert(root);
+        }
+        scope.abstract_scope.vars.insert(name, var);
+    }
+    fn clear_vars_internal(self, compiler: &mut AbstractCompiler) {
+        let mut arena = TypedScopeArena::write(compiler);
+        let scope = &mut arena.scopes[self.index()];
+        scope.abstract_scope.vars.clear();
+        scope.abstract_scope.implicit_vars.clear();
+        scope.qualified_roots.clear();
+        scope.has_this_qualified = false;
     }
 }
 

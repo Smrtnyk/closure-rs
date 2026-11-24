@@ -90,6 +90,12 @@ pub trait FlowScope: LatticeElement {
     // port: StaticTypedScope#getTypeOfThis
     fn get_type_of_this(&self, compiler: &mut AbstractCompiler) -> Option<TypeId>;
 
+    /// Rust-only (performance divergence): whether any overlay slot in this flow scope has a
+    /// qualified (dotted) name. Conservatively defaults to `true`.
+    fn has_qualified_overlay(&self) -> bool {
+        true
+    }
+
     /// Rust-only: Java's casts of a FlowScope to its class (`(LinkedFlowScope) input`).
     fn as_any_arc(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
 }

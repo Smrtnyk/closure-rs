@@ -354,7 +354,11 @@ impl Builder {
                 }
             })
             .collect();
-        let mut rows = Definitions::default();
+        let total_protos: usize = shards
+            .iter()
+            .map(|s| s.types.get_type_count() as usize)
+            .sum();
+        let mut rows = Definitions::with_capacity_and_hasher(total_protos, Default::default());
         for shard in &shards {
             for (i, proto) in shard.types.get_type_list().iter().enumerate() {
                 let id = shard.view.trimmed_offset_to_id[i];
@@ -365,6 +369,7 @@ impl Builder {
                 self.has_proto_rows = true;
             }
         }
+        self.id_to_color.reserve(rows.len());
 
         for id in standard_colors::AXIOMATIC_COLORS.keys() {
             MalformedTypedAstException::check_well_formed_with_param(
@@ -375,7 +380,9 @@ impl Builder {
         }
 
         for &id in rows.keys() {
-            self.lookup_or_reconcile_color(id, &rows);
+            if !self.id_to_color.contains_key(&id) {
+                self.lookup_or_reconcile_color(id, &rows);
+            }
         }
 
         for &color_id in color_registry::REQUIRED_IDS.iter() {
@@ -471,9 +478,31 @@ impl Builder {
         row: &[Definition<'_>],
         rows: &Definitions,
     ) -> Color {
-        let mut instance_colors: IndexSet<Color> = IndexSet::<_>::default();
-        let mut prototypes: IndexSet<Color> = IndexSet::<_>::default();
-        let mut own_properties: IndexSet<JsString> = IndexSet::<_>::default();
+        let (inst_cap, proto_cap, prop_cap) = if row.len() == 1 && row[0].proto.has_object() {
+            let obj = row[0].proto.get_object();
+            (
+                obj.get_instance_type_list().len(),
+                obj.get_prototype_list().len(),
+                obj.get_own_property_count() as usize,
+            )
+        } else {
+            (0, 0, 0)
+        };
+        let mut instance_colors: IndexSet<Color> = if inst_cap > 0 {
+            IndexSet::with_capacity_and_hasher(inst_cap, Default::default())
+        } else {
+            IndexSet::default()
+        };
+        let mut prototypes: IndexSet<Color> = if proto_cap > 0 {
+            IndexSet::with_capacity_and_hasher(proto_cap, Default::default())
+        } else {
+            IndexSet::default()
+        };
+        let mut own_properties: IndexSet<JsString> = if prop_cap > 0 {
+            IndexSet::with_capacity_and_hasher(prop_cap, Default::default())
+        } else {
+            IndexSet::default()
+        };
         let mut is_closure_assert = Tri::UNKNOWN;
         let mut is_constructor = false;
         let mut is_invalidating = false;
@@ -532,7 +561,16 @@ impl Builder {
         row: &[Definition<'_>],
         rows: &Definitions,
     ) -> Color {
-        let mut union: IndexSet<Color> = IndexSet::<_>::default();
+        let union_cap = if row.len() == 1 && row[0].proto.has_union() {
+            row[0].proto.get_union().get_union_member_list().len()
+        } else {
+            0
+        };
+        let mut union: IndexSet<Color> = if union_cap > 0 {
+            IndexSet::with_capacity_and_hasher(union_cap, Default::default())
+        } else {
+            IndexSet::default()
+        };
         for Definition { shard, proto } in row {
             check_state!(proto.has_union(), "%s", format!("{proto:?}"));
             let union_member_list = proto.get_union().get_union_member_list();
@@ -548,7 +586,7 @@ impl Builder {
             }
         }
 
-        let result = Color::create_union(&union);
+        let result = Color::create_union_owned_flat(union);
         check_state!(id == result.get_id(), "%s == %s", id, result);
         result
     }
@@ -601,9 +639,8 @@ fn create_union_color_id(proto: &TypeProto, all_object_ids: &[Option<ColorId>]) 
         "Union has too few members",
         &DebugParam(&proto),
     );
-    let mut members: IndexSet<ColorId> = IndexSet::<_>::default();
     let union_member_list = proto.get_union().get_union_member_list();
-    for &member_pointer in union_member_list {
+    ColorId::union_from_iter(union_member_list.iter().map(|&member_pointer| {
         let member_id = if TypePointers::is_axiomatic(member_pointer) {
             Some(OFFSET_TO_AXIOMATIC_COLOR[member_pointer as usize].get_id())
         } else {
@@ -614,9 +651,8 @@ fn create_union_color_id(proto: &TypeProto, all_object_ids: &[Option<ColorId>]) 
             "Union member not found",
             &DebugParam(&proto),
         );
-        members.insert(member_id.unwrap());
-    }
-    ColorId::union(&members)
+        member_id.unwrap()
+    }))
 }
 
 // port: ColorPool#validatePointer
