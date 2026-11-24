@@ -148,17 +148,17 @@ Run these commands from the repository root on Linux x64 with the pinned JDK and
 
 ```sh
 scripts/fetch_bench.sh
-npm install --prefix build/bench/npm --no-save --ignore-scripts closure-rs@20261117.2.0
-python3 scripts/run_bench.py --bin build/bench/npm/node_modules/closure-rs/bin/linux-x64/closure-rs \
+npm install --prefix build/bench/current --no-save --ignore-scripts closure-rs@20261117.4.0
+python3 scripts/run_bench.py --bin build/bench/current/node_modules/closure-rs/bin/linux-x64/closure-rs \
   --project onlyoffice-cell --project three-srcmap --project fabric-srcmap \
   --project d3-bundle-srcmap --project lodash-bundle-srcmap --reps 5 --fail-on-mismatch
 ```
 
-For the release comparison, use the `20261117.2.0` binary installed above as the baseline.
+For the release comparison, install `20261117.3.0` as the baseline and compare against `20261117.4.0` above.
 
 ```sh
-npm install --prefix build/bench/current --no-save --ignore-scripts closure-rs@20261117.3.0
-python3 scripts/bench_ab.py --base build/bench/npm/node_modules/closure-rs/bin/linux-x64/closure-rs \
+npm install --prefix build/bench/prev --no-save --ignore-scripts closure-rs@20261117.3.0
+python3 scripts/bench_ab.py --base build/bench/prev/node_modules/closure-rs/bin/linux-x64/closure-rs \
   --head build/bench/current/node_modules/closure-rs/bin/linux-x64/closure-rs --variants --rounds 6
 ```
 
