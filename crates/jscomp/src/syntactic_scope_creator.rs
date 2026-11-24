@@ -104,7 +104,7 @@ impl SyntacticScopeCreator<'_> {
         // has changed since is handed out again instead of being scanned anew (see
         // SyntacticScopeCache).
         let context = if self.reusable {
-            ScopeContext::of(compiler, n)
+            ScopeContext::of(compiler, n, parent)
         } else {
             None
         };
@@ -619,4 +619,77 @@ impl RedeclarationHandler for DefaultRedeclarationHandler {
         _input: Option<CompilerInput>,
     ) {
     }
+}
+
+/// Rust-only (performance divergence): lazily materializes only the scope chain from `root` down
+/// to `target_scope_root` (matching `NodeTraversal`'s exact scope push rules) and caches each
+/// created scope in `memo`. Lets per-function passes skip creating scopes for unchanged or
+/// ineligible functions while preserving exact scope depths for `SyntacticScopeCache`.
+pub(crate) fn ensure_ancestor_scope(
+    compiler: &mut AbstractCompiler,
+    scope_creator: &mut dyn ScopeCreator,
+    memo: &mut closure_rhino::fast_hash::IndexMap<NodeId, ScopeId>,
+    root: NodeId,
+    target_scope_root: NodeId,
+) -> ScopeId {
+    if let Some(&scope) = memo.get(&target_scope_root) {
+        return scope;
+    }
+    let mut path: Vec<(NodeId, NodeId)> = Vec::new();
+    let mut cur = target_scope_root;
+    while cur != root {
+        let parent = cur
+            .get_parent(compiler)
+            .expect("target_scope_root must be under root");
+        path.push((parent, cur));
+        cur = parent;
+    }
+    let mut current_scope = if let Some(&scope) = memo.get(&root) {
+        scope
+    } else {
+        let scope = scope_creator.create_scope(compiler, root, None);
+        memo.insert(root, scope);
+        scope
+    };
+    // Walk from just below `root` down to `target_scope_root`'s parent.
+    // `path.last()` has `anc == root` (already created); inspect every intermediate ancestor.
+    for &(anc, child) in path.iter().rev() {
+        if anc == root {
+            continue;
+        }
+        let pushes_scope = match anc.get_token(compiler) {
+            Token::FUNCTION | Token::MODULE_BODY | Token::MEMBER_FIELD_DEF => true,
+            Token::CLASS => Some(child) != anc.get_second_child(compiler),
+            Token::COMPUTED_FIELD_DEF => {
+                anc.has_two_children(compiler) && Some(child) == anc.get_last_child(compiler)
+            }
+            Token::BLOCK => {
+                !anc.is_synthetic_block(compiler)
+                    && anc.get_parent(compiler).is_some_and(|p| {
+                        !NodeUtil::is_switch_case(compiler, p) && !p.is_catch(compiler)
+                    })
+            }
+            Token::FOR
+            | Token::FOR_IN
+            | Token::FOR_OF
+            | Token::FOR_AWAIT_OF
+            | Token::SWITCH_BODY => true,
+            _ => false,
+        };
+        if pushes_scope {
+            current_scope = if let Some(&scope) = memo.get(&anc) {
+                scope
+            } else {
+                let scope = scope_creator.create_scope(compiler, anc, Some(current_scope));
+                memo.insert(anc, scope);
+                scope
+            };
+        }
+    }
+    if target_scope_root == root {
+        return current_scope;
+    }
+    let scope = scope_creator.create_scope(compiler, target_scope_root, Some(current_scope));
+    memo.insert(target_scope_root, scope);
+    scope
 }

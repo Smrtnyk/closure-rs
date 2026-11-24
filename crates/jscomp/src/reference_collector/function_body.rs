@@ -21,22 +21,76 @@
 use super::is_non_local_module_specifier_name;
 use crate::abstract_compiler::AbstractCompiler;
 use crate::basic_block::BasicBlock;
-use crate::node_traversal::traverses_children_in_order_without_scope;
+use crate::node_traversal::has_traversal_handler;
+use crate::node_util::NodeUtil;
 use crate::syntactic_scope_cache::SyntacticScopeCache;
 use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
+use closure_rhino::token::Token;
 use std::sync::Arc;
 
-pub(super) enum Site {
+const TAG_SHIFT: u32 = 29;
+const TAG_REFERENCE: u32 = 0 << TAG_SHIFT;
+const TAG_ENTER_BLOCK: u32 = 1 << TAG_SHIFT;
+const TAG_EXIT_BLOCK: u32 = 2 << TAG_SHIFT;
+const TAG_ENTER_EMPTY_SCOPE: u32 = 3 << TAG_SHIFT;
+const TAG_EXIT_EMPTY_SCOPE: u32 = 4 << TAG_SHIFT;
+const PAYLOAD_MASK: u32 = (1 << TAG_SHIFT) - 1;
+
+/// Compact 8-byte site record for cached reference-collection replay.
+#[derive(Clone, Copy)]
+pub(crate) struct Site(NodeId, u32);
+
+pub(super) enum SiteKind {
     Reference(NodeId, u32),
     EnterBlock(NodeId),
     ExitBlock(NodeId),
+    EnterEmptyScope(NodeId),
+    ExitEmptyScope,
 }
 
-pub(super) struct FunctionBodySites {
+impl Site {
+    #[inline]
+    fn reference(node: NodeId, slot: u32) -> Option<Self> {
+        (slot <= PAYLOAD_MASK).then_some(Self(node, TAG_REFERENCE | slot))
+    }
+
+    #[inline]
+    fn enter_block(node: NodeId) -> Self {
+        Self(node, TAG_ENTER_BLOCK)
+    }
+
+    #[inline]
+    fn exit_block(node: NodeId) -> Self {
+        Self(node, TAG_EXIT_BLOCK)
+    }
+
+    #[inline]
+    fn enter_empty_scope(node: NodeId) -> Self {
+        Self(node, TAG_ENTER_EMPTY_SCOPE)
+    }
+
+    #[inline]
+    fn exit_empty_scope(node: NodeId) -> Self {
+        Self(node, TAG_EXIT_EMPTY_SCOPE)
+    }
+
+    #[inline]
+    pub(super) fn decode(self) -> SiteKind {
+        match self.1 & !PAYLOAD_MASK {
+            TAG_REFERENCE => SiteKind::Reference(self.0, self.1 & PAYLOAD_MASK),
+            TAG_ENTER_BLOCK => SiteKind::EnterBlock(self.0),
+            TAG_EXIT_BLOCK => SiteKind::ExitBlock(self.0),
+            TAG_ENTER_EMPTY_SCOPE => SiteKind::EnterEmptyScope(self.0),
+            _ => SiteKind::ExitEmptyScope,
+        }
+    }
+}
+
+pub(crate) struct FunctionBodySites {
     /// First occurrence of each spelling in the order in which the collector visits it.
-    pub(super) first_names: Box<[NodeId]>,
+    pub(crate) first_names: Box<[NodeId]>,
     pub(super) sites: Box<[Site]>,
 }
 
@@ -46,7 +100,7 @@ impl FunctionBodySites {
         let mut sites = Vec::new();
         let mut child = body.get_first_child(ast);
         while let Some(n) = child {
-            if !Self::collect_node(ast, n, body, &mut names, &mut sites) {
+            if !Self::collect_node(ast, n, body, false, &mut names, &mut sites) {
                 return None;
             }
             child = n.get_next(ast);
@@ -61,25 +115,58 @@ impl FunctionBodySites {
         ast: &'a Ast,
         n: NodeId,
         parent: NodeId,
+        in_nested_scope: bool,
         names: &mut IndexMap<&'a JsString, NodeId>,
         sites: &mut Vec<Site>,
     ) -> bool {
-        if !traverses_children_in_order_without_scope(n.get_token(ast)) {
+        let token = n.get_token(ast);
+        if has_traversal_handler(token) || token == Token::CATCH {
             return false;
         }
+        if in_nested_scope
+            && matches!(
+                token,
+                Token::LET | Token::CONST | Token::IMPORT | Token::EXPORT
+            )
+        {
+            return false;
+        }
+        // Rust-only (performance divergence): nested BLOCK/FOR/SWITCH_BODY subtrees that declare
+        // no lexical bindings resolve every NAME identically to `body`'s scope and have no-op
+        // empty scope exits, while `EnterEmptyScope`/`ExitEmptyScope` reconstruct each Reference's
+        // exact ScopeId lazily.
+        let creates_scope = match token {
+            Token::BLOCK => {
+                if n.is_synthetic_block(ast) {
+                    return false;
+                }
+                !NodeUtil::is_switch_case(ast, parent) && !parent.is_catch(ast)
+            }
+            Token::FOR
+            | Token::FOR_IN
+            | Token::FOR_OF
+            | Token::FOR_AWAIT_OF
+            | Token::SWITCH_BODY => true,
+            _ => false,
+        };
         let boundary = BasicBlock::is_block_boundary(ast, n, Some(parent));
         let start = sites.len();
         if boundary {
-            sites.push(Site::EnterBlock(n));
+            sites.push(Site::enter_block(n));
         }
+        if creates_scope {
+            sites.push(Site::enter_empty_scope(n));
+        }
+        let content_start = sites.len();
+        let child_nested = in_nested_scope || creates_scope;
         let mut child = n.get_first_child(ast);
         while let Some(c) = child {
-            if !Self::collect_node(ast, c, n, names, sites) {
+            if !Self::collect_node(ast, c, n, child_nested, names, sites) {
                 return false;
             }
             child = c.get_next(ast);
         }
-        if (n.is_name(ast) || n.is_import_star(ast))
+        if (token == Token::NAME || token == Token::IMPORT_STAR)
             && !is_non_local_module_specifier_name(ast, n, parent)
         {
             let Some(spelling) = n.string_payload(ast) else {
@@ -87,18 +174,71 @@ impl FunctionBodySites {
                 return false;
             };
             let name = names.entry(spelling);
-            let slot = u32::try_from(name.index()).unwrap();
+            let slot = u32::try_from(name.index()).ok();
+            let Some(site) = slot.and_then(|s| Site::reference(n, s)) else {
+                return false;
+            };
             name.or_insert(n);
-            sites.push(Site::Reference(n, slot));
+            sites.push(site);
         }
-        if boundary {
-            if sites.len() == start + 1 {
-                sites.truncate(start);
-            } else {
-                sites.push(Site::ExitBlock(n));
+        if sites.len() == content_start {
+            sites.truncate(start);
+        } else {
+            if creates_scope {
+                sites.push(Site::exit_empty_scope(n));
+            }
+            if boundary {
+                sites.push(Site::exit_block(n));
             }
         }
         true
+    }
+
+    /// Rust-only (performance divergence): builds a compact replay stream containing only
+    /// references whose slot is in `keep_slots` (remapped to `0..keep_slots.len()`), dropping any
+    /// nested block or empty-scope frames that contain no kept references. Reuses caller scratch
+    /// buffers to avoid per-function temporary allocations.
+    pub(crate) fn prune_to_slots(
+        &self,
+        keep_slots: &[u32],
+        remap: &mut Vec<u32>,
+        frames: &mut Vec<usize>,
+        out: &mut Vec<Site>,
+    ) -> Box<[Site]> {
+        if keep_slots.is_empty() {
+            return Box::new([]);
+        }
+        remap.clear();
+        remap.resize(self.first_names.len(), u32::MAX);
+        for (new_slot, &old_slot) in keep_slots.iter().enumerate() {
+            remap[old_slot as usize] = new_slot as u32;
+        }
+        out.clear();
+        frames.clear();
+        for &site in &self.sites {
+            match site.decode() {
+                SiteKind::Reference(node, old_slot) => {
+                    let new_slot = remap[old_slot as usize];
+                    if new_slot != u32::MAX {
+                        out.push(Site::reference(node, new_slot).expect("remapped slot fits"));
+                    }
+                }
+                SiteKind::EnterBlock(_) | SiteKind::EnterEmptyScope(_) => {
+                    frames.push(out.len());
+                    out.push(site);
+                }
+                SiteKind::ExitBlock(_) | SiteKind::ExitEmptyScope => {
+                    let start = frames.pop().expect("balanced enter/exit frame");
+                    if out.len() == start + 1 {
+                        out.truncate(start);
+                    } else {
+                        out.push(site);
+                    }
+                }
+            }
+        }
+        debug_assert!(frames.is_empty());
+        out.as_slice().into()
     }
 }
 
@@ -108,7 +248,13 @@ pub(crate) struct FunctionReferenceCache {
 }
 
 impl FunctionReferenceCache {
-    pub(super) fn sites(
+    pub(crate) fn has_cached_sites(&self, body: NodeId) -> bool {
+        self.bodies
+            .get(&body)
+            .is_some_and(|(_, sites)| sites.is_some())
+    }
+
+    pub(crate) fn sites(
         compiler: &mut AbstractCompiler,
         body: NodeId,
     ) -> Option<Arc<FunctionBodySites>> {

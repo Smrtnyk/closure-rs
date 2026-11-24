@@ -276,6 +276,21 @@ fn may_have_work(name: &str, compiler: &AbstractCompiler) -> bool {
                 || seen(WatchedName::ModuleContentsGoogPrefix)
         }
 
+        // REWRITE_DYNAMIC_IMPORT (rewrite_dynamic_imports.rs). (1) reads options and makes an AST
+        // factory (L4). (2) one traversal of the sources (L1); `visit` returns unless the node is
+        // Token::DYNAMIC_IMPORT; both post-traversal actions require a DYNAMIC_IMPORT to have been
+        // seen. (3) all reports are inside the DYNAMIC_IMPORT branch. (4) none.
+        "REWRITE_DYNAMIC_IMPORT" => compiler.has_seen_token(Token::DYNAMIC_IMPORT),
+
+        // renameLabels (rename_labels.rs). (1) allocates a local DefaultNameSupplier. (2) one
+        // traversal of the sources (L1, L2); `should_traverse` acts only on Token::LABEL and
+        // `visit` acts only on LABEL, BREAK or CONTINUE with a label name child. Without any LABEL
+        // or LABEL_NAME token, `namespace_stack`'s rename maps stay empty and no node is edited.
+        // (3) none. (4) none.
+        "renameLabels" => {
+            compiler.has_seen_token(Token::LABEL) || compiler.has_seen_token(Token::LABEL_NAME)
+        }
+
         _ => true,
     }
 }
@@ -359,7 +374,7 @@ mod tests {
         (compiler, externs, root, script)
     }
 
-    const GATED: [&str; 14] = [
+    const GATED: [&str; 16] = [
         "removeCastNodes",
         "checkSuper",
         "checkTypeImportCodeReferences",
@@ -374,6 +389,8 @@ mod tests {
         "generateExports",
         "replaceToggles",
         "closureOptimizePrimitives",
+        "REWRITE_DYNAMIC_IMPORT",
+        "renameLabels",
     ];
 
     /// The gated passes whose gate is open in `compiler`.
@@ -452,7 +469,7 @@ mod tests {
 
     #[test]
     fn each_gate_opens_for_its_own_trigger() {
-        let cases: [(&str, MakeNodes); 8] = [
+        let cases: [(&str, MakeNodes); 10] = [
             ("removeCastNodes", |c| {
                 let x = IR::name(c, "x");
                 IR::cast(c, x, None);
@@ -480,6 +497,12 @@ mod tests {
             }),
             ("closureOptimizePrimitives", |c| {
                 IR::name(c, "goog$object$create");
+            }),
+            ("REWRITE_DYNAMIC_IMPORT", |c| {
+                c.new_node(Token::DYNAMIC_IMPORT);
+            }),
+            ("renameLabels", |c| {
+                c.new_node(Token::LABEL);
             }),
         ];
         for (name, make) in cases {

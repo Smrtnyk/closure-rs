@@ -32,7 +32,10 @@ use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::java_util::priority_queue::PriorityQueue;
 use closure_rhino::jscomp_base::linked_identity_hash_map::LinkedIdentityHashMap;
 use closure_rhino::{
-    check_argument, check_not_null, check_state, js_string::JsString, node::NodeId, token::Token,
+    check_argument, check_not_null, check_state,
+    js_string::JsString,
+    node::{Ast, NodeId},
+    token::Token,
 };
 use std::collections::VecDeque;
 
@@ -44,6 +47,7 @@ pub struct ControlFlowAnalysis {
     ast_position_counter: i32,
     priority_counter: i32,
     should_traverse_functions: bool,
+    can_continue_after_errors: bool,
     root: NodeId,
     linear_scripts: Option<Box<LinearScripts>>,
     exception_handler: VecDeque<NodeId>,
@@ -84,44 +88,65 @@ impl Builder {
     // port: ControlFlowAnalysis.Builder#computeCfg
     pub fn compute_cfg(self, compiler: &mut AbstractCompiler) -> ControlFlowGraph<NodeId> {
         let root = check_not_null!(self.cfg_root, "Need to call setCfgRoot()");
-        let mut cfa = ControlFlowAnalysis::new(
-            compiler,
+        ControlFlowAnalysis::compute_cfg_readonly(
+            &compiler.ast,
+            compiler.get_options().can_continue_after_errors(),
             root,
             self.should_traverse_functions,
             self.edge_annotations,
-        );
-        cfa.compute_cfg(compiler, root);
-        cfa.cfg
+        )
     }
 }
 impl ControlFlowAnalysis {
     // port: ControlFlowAnalysis#ControlFlowAnalysis
     // port: ControlFlowAnalysis#computeCfg
     fn new(
-        compiler: &AbstractCompiler,
+        ast: &Ast,
+        can_continue_after_errors: bool,
         root: NodeId,
         should_traverse_functions: bool,
         edge_annotations: bool,
     ) -> Self {
         // The owning Rust CFG is allocated here; Java validates the root before that allocation.
         check_argument!(
-            NodeUtil::is_valid_cfg_root(compiler, root),
+            NodeUtil::is_valid_cfg_root(ast, root),
             "Unexpected control flow graph root %s",
-            root.to_string(compiler)
+            root.to_string(ast)
         );
         let cfg =
-            ControlFlowGraph::new_ast(Self::compute_fall_through(compiler, root), edge_annotations);
+            ControlFlowGraph::new_ast(Self::compute_fall_through(ast, root), edge_annotations);
         Self {
             cfg,
             ast_position: None,
             ast_position_counter: 0,
             priority_counter: 0,
             should_traverse_functions,
+            can_continue_after_errors,
             root,
             linear_scripts: None,
             exception_handler: VecDeque::new(),
             finally_map: IndexMap::<_, _>::default(),
         }
+    }
+    /// Rust-only (performance divergence): computes a CFG read-only against `&Ast` using a direct
+    /// traversal instead of allocating `NodeTraversal`, safe to execute concurrently across worker
+    /// threads.
+    pub(crate) fn compute_cfg_readonly(
+        ast: &Ast,
+        can_continue_after_errors: bool,
+        root: NodeId,
+        should_traverse_functions: bool,
+        edge_annotations: bool,
+    ) -> ControlFlowGraph<NodeId> {
+        let mut cfa = Self::new(
+            ast,
+            can_continue_after_errors,
+            root,
+            should_traverse_functions,
+            edge_annotations,
+        );
+        cfa.compute_cfg_ast(ast, root);
+        cfa.cfg
     }
     // port: ControlFlowAnalysis#builder
     pub fn builder() -> Builder {
@@ -131,7 +156,7 @@ impl ControlFlowAnalysis {
     /// in source order, before the implicit return. Capture node identities before entry
     /// inference, just as building the full CFG would.
     pub(crate) fn linear_function(
-        compiler: &AbstractCompiler,
+        compiler: &Ast,
         function: NodeId,
     ) -> Option<(NodeId, Vec<NodeId>)> {
         if !function.is_function(compiler) {
@@ -204,9 +229,15 @@ impl ControlFlowAnalysis {
             }
         }
 
-        let mut cfa = Self::new(compiler, root, false, true);
+        let mut cfa = Self::new(
+            &compiler.ast,
+            compiler.get_options().can_continue_after_errors(),
+            root,
+            false,
+            true,
+        );
         cfa.linear_scripts = Some(Box::new(scripts));
-        cfa.compute_cfg(compiler, root);
+        cfa.compute_cfg_ast(&compiler.ast, root);
         (cfa.cfg, cfa.linear_scripts.unwrap())
     }
 
@@ -215,25 +246,25 @@ impl ControlFlowAnalysis {
         &self.cfg
     }
     // port: ControlFlowAnalysis#computeCfg
-    fn compute_cfg(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
+    fn compute_cfg_ast(&mut self, ast: &Ast, root: NodeId) {
         self.root = root;
         self.ast_position = Some(LinkedIdentityHashMap::default());
         self.ast_position_counter = 0;
-        NodeTraversal::traverse(compiler, root, self);
+        self.traverse_ast(ast, root, None);
         self.ast_position_counter += 1;
         self.ast_position
             .as_mut()
             .unwrap()
             .put(None, Some(self.ast_position_counter));
         self.priority_counter = 0;
-        self.prioritize_from_entry_node(compiler, self.cfg.get_entry());
+        self.prioritize_from_entry_node(ast, self.cfg.get_entry());
         if self.should_traverse_functions {
             for candidate in self.cfg.get_nodes() {
                 if candidate
                     .get_value(&self.cfg)
-                    .is_some_and(|n| n.is_function(compiler))
+                    .is_some_and(|n| n.is_function(ast))
                 {
-                    self.prioritize_from_entry_node(compiler, candidate);
+                    self.prioritize_from_entry_node(ast, candidate);
                 }
             }
         }
@@ -249,12 +280,110 @@ impl ControlFlowAnalysis {
             .get_implicit_return()
             .set_priority(&mut self.cfg, self.priority_counter);
     }
+
+    /// Direct read-only AST walk matching `NodeTraversal::traverse` order (including `CLASS`
+    /// extends-before-name-before-body and `SCRIPT` linear-script short-circuit).
+    fn traverse_ast(&mut self, ast: &Ast, n: NodeId, parent: Option<NodeId>) {
+        match n.get_token(ast) {
+            Token::SCRIPT => {
+                if !self.should_traverse_node(ast, n, parent) {
+                    return;
+                }
+                if self
+                    .linear_scripts
+                    .as_ref()
+                    .is_some_and(|scripts| scripts.contains_key(&n))
+                {
+                    let follow = self.compute_follow_node_with_cfa(ast, n);
+                    self.create_edge(n, Branch::UNCOND, follow);
+                    return;
+                }
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    let next = c.get_next(ast);
+                    self.traverse_ast(ast, c, Some(n));
+                    child = next;
+                }
+                self.visit_node(ast, n);
+            }
+            Token::CLASS => {
+                if !self.should_traverse_node(ast, n, parent) {
+                    return;
+                }
+                let class_name = n.get_first_child(ast).unwrap();
+                let extends_clause = class_name.get_next(ast).unwrap();
+                let body = extends_clause.get_next(ast).unwrap();
+                self.traverse_ast(ast, extends_clause, Some(n));
+                self.traverse_ast(ast, class_name, Some(n));
+                self.traverse_ast(ast, body, Some(n));
+                self.visit_node(ast, n);
+            }
+            _ => {
+                if !self.should_traverse_node(ast, n, parent) {
+                    return;
+                }
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    let next = c.get_next(ast);
+                    self.traverse_ast(ast, c, Some(n));
+                    child = next;
+                }
+                self.visit_node(ast, n);
+            }
+        }
+    }
+
+    fn should_traverse_node(&mut self, ast: &Ast, n: NodeId, parent: Option<NodeId>) -> bool {
+        if self.should_traverse_into_children(ast, n, parent) {
+            self.ast_position
+                .as_mut()
+                .unwrap()
+                .put(Some(n), Some(self.ast_position_counter));
+            self.ast_position_counter += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn visit_node(&mut self, ast: &Ast, n: NodeId) {
+        match n.get_token(ast) {
+            Token::IF => self.handle_if(ast, n),
+            Token::WHILE => self.handle_while(ast, n),
+            Token::DO => self.handle_do(ast, n),
+            Token::FOR => self.handle_for(ast, n),
+            Token::FOR_IN | Token::FOR_OF | Token::FOR_AWAIT_OF => self.handle_enhanced_for(ast, n),
+            Token::SWITCH => self.handle_switch(ast, n),
+            Token::CASE => self.handle_case(ast, n),
+            Token::DEFAULT_CASE => self.handle_default(ast, n),
+            Token::BLOCK | Token::ROOT | Token::SCRIPT | Token::MODULE_BODY => {
+                self.handle_stmt_list(ast, n)
+            }
+            Token::FUNCTION => self.handle_function(ast, n),
+            Token::EXPR_RESULT => self.handle_expr(ast, n),
+            Token::THROW => self.handle_throw(ast, n),
+            Token::TRY => self.handle_try(ast, n),
+            Token::CATCH => self.handle_catch(ast, n),
+            Token::BREAK => self.handle_break(ast, n),
+            Token::CONTINUE => self.handle_continue(ast, n),
+            Token::RETURN => self.handle_return(ast, n),
+            Token::WITH => self.handle_with(ast, n),
+            Token::SWITCH_BODY
+            | Token::LABEL
+            | Token::CLASS_MEMBERS
+            | Token::MEMBER_FUNCTION_DEF
+            | Token::MEMBER_FIELD_DEF
+            | Token::COMPUTED_FIELD_DEF => {}
+            _ => self.handle_stmt(ast, n),
+        }
+    }
+
     // port: ControlFlowAnalysis#priorityComparator
     // Comparator.comparingInt(digraphNode -> checkNotNull(astPosition.get(value), value)): Java's
     // PriorityQueue calls it only when it compares two queued nodes, so a CFG node without an AST
     // position (an expression-bodied arrow nested in the cfg root's body) fails only there.
     fn priority_comparator<'a>(
-        compiler: &'a AbstractCompiler,
+        ast: &'a Ast,
         cfg: &'a ControlFlowGraph<NodeId>,
         ast_position: &'a LinkedIdentityHashMap<Option<NodeId>, i32>,
     ) -> impl FnMut(&DiGraphNode, &DiGraphNode) -> std::cmp::Ordering + 'a {
@@ -262,26 +391,24 @@ impl ControlFlowAnalysis {
             *check_not_null!(
                 ast_position.get(digraph_node.get_value(cfg)),
                 "%s",
-                cfg.format_node_value(compiler, digraph_node.get_value(cfg).as_ref())
+                digraph_node
+                    .get_value(cfg)
+                    .map_or_else(|| "null".to_string(), |n| n.to_string(ast))
             )
         };
         move |a, b| key(a).cmp(&key(b))
     }
     // port: ControlFlowAnalysis#prioritizeFromEntryNode
-    fn prioritize_from_entry_node(&mut self, compiler: &AbstractCompiler, entry: DiGraphNode) {
+    fn prioritize_from_entry_node(&mut self, ast: &Ast, entry: DiGraphNode) {
         let mut worklist: PriorityQueue<DiGraphNode> = PriorityQueue::new(10);
         worklist.add(
             entry,
-            &mut Self::priority_comparator(
-                compiler,
-                &self.cfg,
-                self.ast_position.as_ref().unwrap(),
-            ),
+            &mut Self::priority_comparator(ast, &self.cfg, self.ast_position.as_ref().unwrap()),
         );
 
         while !worklist.is_empty() {
             let current = worklist.remove(&mut Self::priority_comparator(
-                compiler,
+                ast,
                 &self.cfg,
                 self.ast_position.as_ref().unwrap(),
             ));
@@ -299,17 +426,18 @@ impl ControlFlowAnalysis {
                 cfg.node_out_edges(current)
                     .iter()
                     .map(|edge| cfg.edge_node_b(*edge)),
-                &mut Self::priority_comparator(compiler, cfg, self.ast_position.as_ref().unwrap()),
+                &mut Self::priority_comparator(ast, cfg, self.ast_position.as_ref().unwrap()),
             );
         }
     }
     // port: ControlFlowAnalysis#shouldTraverseIntoChildren
     fn should_traverse_into_children(
         &mut self,
-        compiler: &AbstractCompiler,
+        ast: &Ast,
         n: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
+        let compiler = ast;
         match n.get_token(compiler) {
             Token::FUNCTION => {
                 if self.should_traverse_functions
@@ -388,7 +516,7 @@ impl ControlFlowAnalysis {
         true
     }
     // port: ControlFlowAnalysis#handleIf
-    fn handle_if(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_if(&mut self, compiler: &Ast, node: NodeId) {
         let then_block = node.get_second_child(compiler).unwrap();
         let else_block = then_block.get_next(compiler);
         self.create_edge(
@@ -409,7 +537,7 @@ impl ControlFlowAnalysis {
         );
     }
     // port: ControlFlowAnalysis#handleWhile
-    fn handle_while(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_while(&mut self, compiler: &Ast, node: NodeId) {
         let cond = node.get_first_child(compiler).unwrap();
         self.create_edge(
             node,
@@ -430,7 +558,7 @@ impl ControlFlowAnalysis {
         );
     }
     // port: ControlFlowAnalysis#handleDo
-    fn handle_do(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_do(&mut self, compiler: &Ast, node: NodeId) {
         let body = node.get_first_child(compiler).unwrap();
         self.create_edge(
             node,
@@ -449,7 +577,7 @@ impl ControlFlowAnalysis {
         );
     }
     // port: ControlFlowAnalysis#handleEnhancedFor
-    fn handle_enhanced_for(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_enhanced_for(&mut self, compiler: &Ast, node: NodeId) {
         let item = node.get_first_child(compiler).unwrap();
         let collection = item.get_next(compiler).unwrap();
         let body = collection.get_next(compiler).unwrap();
@@ -468,7 +596,7 @@ impl ControlFlowAnalysis {
         }
     }
     // port: ControlFlowAnalysis#handleFor
-    fn handle_for(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_for(&mut self, compiler: &Ast, node: NodeId) {
         let init = node.get_first_child(compiler).unwrap();
         let cond = init.get_next(compiler).unwrap();
         let iter = cond.get_next(compiler).unwrap();
@@ -489,7 +617,7 @@ impl ControlFlowAnalysis {
         self.connect_to_possible_exception_handler(compiler, iter, iter);
     }
     // port: ControlFlowAnalysis#handleSwitch
-    fn handle_switch(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_switch(&mut self, compiler: &Ast, node: NodeId) {
         let body = node.get_last_child(compiler).unwrap();
         self.create_edge(node, Branch::UNCOND, Some(body));
         let next = Self::get_next_sibling_of_type(
@@ -512,7 +640,7 @@ impl ControlFlowAnalysis {
         );
     }
     // port: ControlFlowAnalysis#handleCase
-    fn handle_case(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_case(&mut self, compiler: &Ast, node: NodeId) {
         self.create_edge(node, Branch::ON_TRUE, node.get_second_child(compiler));
         let next =
             Self::get_next_sibling_of_type(compiler, node.get_next(compiler), &[Token::CASE]);
@@ -540,11 +668,11 @@ impl ControlFlowAnalysis {
         );
     }
     // port: ControlFlowAnalysis#handleDefault
-    fn handle_default(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_default(&mut self, compiler: &Ast, node: NodeId) {
         self.create_edge(node, Branch::UNCOND, node.get_first_child(compiler));
     }
     // port: ControlFlowAnalysis#handleWith
-    fn handle_with(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_with(&mut self, compiler: &Ast, node: NodeId) {
         self.create_edge(node, Branch::UNCOND, node.get_last_child(compiler));
         self.connect_to_possible_exception_handler(
             compiler,
@@ -553,7 +681,7 @@ impl ControlFlowAnalysis {
         );
     }
     // port: ControlFlowAnalysis#handleStmtList
-    fn handle_stmt_list(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_stmt_list(&mut self, compiler: &Ast, node: NodeId) {
         let parent = node.get_parent(compiler);
         if node.is_block(compiler)
             && parent.is_some_and(|p| {
@@ -591,7 +719,7 @@ impl ControlFlowAnalysis {
         }
     }
     // port: ControlFlowAnalysis#handleFunction
-    fn handle_function(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_function(&mut self, compiler: &Ast, node: NodeId) {
         check_state!(node.is_function(compiler));
         check_state!(node.has_x_children(compiler, 3));
         self.create_edge(
@@ -606,25 +734,25 @@ impl ControlFlowAnalysis {
         self.exception_handler.pop_front();
     }
     // port: ControlFlowAnalysis#handleExpr
-    fn handle_expr(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_expr(&mut self, compiler: &Ast, node: NodeId) {
         let follow = self.compute_follow_node_with_cfa(compiler, node);
         self.create_edge(node, Branch::UNCOND, follow);
         self.connect_to_possible_exception_handler(compiler, node, node);
     }
     // port: ControlFlowAnalysis#handleThrow
-    fn handle_throw(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_throw(&mut self, compiler: &Ast, node: NodeId) {
         self.connect_to_possible_exception_handler(compiler, node, node);
     }
     // port: ControlFlowAnalysis#handleTry
-    fn handle_try(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_try(&mut self, compiler: &Ast, node: NodeId) {
         self.create_edge(node, Branch::UNCOND, node.get_first_child(compiler));
     }
     // port: ControlFlowAnalysis#handleCatch
-    fn handle_catch(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_catch(&mut self, compiler: &Ast, node: NodeId) {
         self.create_edge(node, Branch::UNCOND, node.get_last_child(compiler));
     }
     // port: ControlFlowAnalysis#handleBreak
-    fn handle_break(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_break(&mut self, compiler: &Ast, node: NodeId) {
         let label = node
             .get_first_child(compiler)
             .map(|n| n.get_string(compiler));
@@ -649,7 +777,7 @@ impl ControlFlowAnalysis {
                 last_jump = cur;
             }
             if parent.is_none() {
-                if compiler.get_options().can_continue_after_errors() {
+                if self.can_continue_after_errors {
                     return;
                 }
                 panic!("Cannot find break target.");
@@ -669,7 +797,7 @@ impl ControlFlowAnalysis {
         }
     }
     // port: ControlFlowAnalysis#handleContinue
-    fn handle_continue(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_continue(&mut self, compiler: &Ast, node: NodeId) {
         let label = node
             .get_first_child(compiler)
             .map(|n| n.get_string(compiler));
@@ -709,7 +837,7 @@ impl ControlFlowAnalysis {
         }
     }
     // port: ControlFlowAnalysis#handleReturn
-    fn handle_return(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_return(&mut self, compiler: &Ast, node: NodeId) {
         let mut last_jump = None;
         for i in 0..self.exception_handler.len() {
             let handler = self.exception_handler[i];
@@ -740,26 +868,22 @@ impl ControlFlowAnalysis {
         }
     }
     // port: ControlFlowAnalysis#handleStmt
-    fn handle_stmt(&mut self, compiler: &AbstractCompiler, node: NodeId) {
+    fn handle_stmt(&mut self, compiler: &Ast, node: NodeId) {
         let follow = self.compute_follow_node_with_cfa(compiler, node);
         self.create_edge(node, Branch::UNCOND, follow);
         self.connect_to_possible_exception_handler(compiler, node, node);
     }
     // port: ControlFlowAnalysis#computeFollowNode(Node, ControlFlowAnalysis)
-    pub fn compute_follow_node_with_cfa(
-        &mut self,
-        compiler: &AbstractCompiler,
-        node: NodeId,
-    ) -> Option<NodeId> {
+    pub fn compute_follow_node_with_cfa(&mut self, compiler: &Ast, node: NodeId) -> Option<NodeId> {
         Self::compute_follow_node_from(compiler, node, node, Some(self))
     }
     // port: ControlFlowAnalysis#computeFollowNode(Node)
-    pub fn compute_follow_node(compiler: &AbstractCompiler, node: NodeId) -> Option<NodeId> {
+    pub fn compute_follow_node(compiler: &Ast, node: NodeId) -> Option<NodeId> {
         Self::compute_follow_node_from(compiler, node, node, None)
     }
     // port: ControlFlowAnalysis#computeFollowNode(Node, Node, ControlFlowAnalysis)
     fn compute_follow_node_from(
-        compiler: &AbstractCompiler,
+        compiler: &Ast,
         from_node: NodeId,
         node: NodeId,
         mut cfa: Option<&mut Self>,
@@ -839,7 +963,7 @@ impl ControlFlowAnalysis {
         }
     }
     // port: ControlFlowAnalysis#computeFallThrough
-    pub fn compute_fall_through(compiler: &AbstractCompiler, n: NodeId) -> NodeId {
+    pub fn compute_fall_through(compiler: &Ast, n: NodeId) -> NodeId {
         match n.get_token(compiler) {
             Token::DO | Token::FOR => {
                 Self::compute_fall_through(compiler, n.get_first_child(compiler).unwrap())
@@ -868,7 +992,7 @@ impl ControlFlowAnalysis {
     // port: ControlFlowAnalysis#connectToPossibleExceptionHandler
     fn connect_to_possible_exception_handler(
         &mut self,
-        compiler: &AbstractCompiler,
+        compiler: &Ast,
         cfg_node: NodeId,
         target: NodeId,
     ) {
@@ -879,7 +1003,7 @@ impl ControlFlowAnalysis {
     // port: ControlFlowAnalysis#connectToPossibleExceptionHandlerUnconditionally
     fn connect_to_possible_exception_handler_unconditionally(
         &mut self,
-        compiler: &AbstractCompiler,
+        compiler: &Ast,
         cfg_node: NodeId,
     ) {
         let mut last_jump = cfg_node;
@@ -922,7 +1046,7 @@ impl ControlFlowAnalysis {
     }
     // port: ControlFlowAnalysis#getNextSiblingOfType
     fn get_next_sibling_of_type(
-        compiler: &AbstractCompiler,
+        compiler: &Ast,
         mut first: Option<NodeId>,
         types: &[Token],
     ) -> Option<NodeId> {
@@ -937,29 +1061,17 @@ impl ControlFlowAnalysis {
         None
     }
     // port: ControlFlowAnalysis#isBreakTarget
-    pub fn is_break_target(
-        compiler: &AbstractCompiler,
-        target: NodeId,
-        label: Option<&JsString>,
-    ) -> bool {
+    pub fn is_break_target(compiler: &Ast, target: NodeId, label: Option<&JsString>) -> bool {
         Self::is_break_structure(compiler, target, label.is_some())
             && Self::match_label(compiler, target.get_parent(compiler), label)
     }
     // port: ControlFlowAnalysis#isContinueTarget
-    pub fn is_continue_target(
-        compiler: &AbstractCompiler,
-        target: NodeId,
-        label: Option<&JsString>,
-    ) -> bool {
+    pub fn is_continue_target(compiler: &Ast, target: NodeId, label: Option<&JsString>) -> bool {
         NodeUtil::is_loop_structure(compiler, target)
             && Self::match_label(compiler, target.get_parent(compiler), label)
     }
     // port: ControlFlowAnalysis#matchLabel
-    fn match_label(
-        compiler: &AbstractCompiler,
-        mut target: Option<NodeId>,
-        label: Option<&JsString>,
-    ) -> bool {
+    fn match_label(compiler: &Ast, mut target: Option<NodeId>, label: Option<&JsString>) -> bool {
         let Some(label) = label else {
             return true;
         };
@@ -973,7 +1085,7 @@ impl ControlFlowAnalysis {
         false
     }
     // port: ControlFlowAnalysis#mayThrowException
-    pub fn may_throw_exception(compiler: &AbstractCompiler, n: NodeId) -> bool {
+    pub fn may_throw_exception(compiler: &Ast, n: NodeId) -> bool {
         match n.get_token(compiler) {
             Token::CALL
             | Token::OPTCHAIN_CALL
@@ -1004,7 +1116,7 @@ impl ControlFlowAnalysis {
         false
     }
     // port: ControlFlowAnalysis#isBreakStructure
-    pub fn is_break_structure(compiler: &AbstractCompiler, n: NodeId, labeled: bool) -> bool {
+    pub fn is_break_structure(compiler: &Ast, n: NodeId, labeled: bool) -> bool {
         match n.get_token(compiler) {
             Token::FOR
             | Token::FOR_IN
@@ -1018,7 +1130,7 @@ impl ControlFlowAnalysis {
         }
     }
     // port: ControlFlowAnalysis#getExceptionHandler
-    pub fn get_exception_handler(compiler: &AbstractCompiler, mut n: NodeId) -> Option<NodeId> {
+    pub fn get_exception_handler(compiler: &Ast, mut n: NodeId) -> Option<NodeId> {
         while !n.is_script(compiler) && !n.is_function(compiler) {
             let catch = Self::get_catch_handler_for_block(compiler, n);
             if catch.is_some() {
@@ -1029,10 +1141,7 @@ impl ControlFlowAnalysis {
         None
     }
     // port: ControlFlowAnalysis#getCatchHandlerForBlock
-    pub fn get_catch_handler_for_block(
-        compiler: &AbstractCompiler,
-        block: NodeId,
-    ) -> Option<NodeId> {
+    pub fn get_catch_handler_for_block(compiler: &Ast, block: NodeId) -> Option<NodeId> {
         if block.is_block(compiler)
             && block
                 .get_parent(compiler)
@@ -1057,16 +1166,7 @@ impl Callback for ControlFlowAnalysis {
         n: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
-        if self.should_traverse_into_children(t.get_compiler(), n, parent) {
-            self.ast_position
-                .as_mut()
-                .unwrap()
-                .put(Some(n), Some(self.ast_position_counter));
-            self.ast_position_counter += 1;
-            true
-        } else {
-            false
-        }
+        self.should_traverse_node(&t.get_compiler().ast, n, parent)
     }
     fn should_traverse_script(
         &mut self,
@@ -1082,7 +1182,7 @@ impl Callback for ControlFlowAnalysis {
             .as_ref()
             .is_some_and(|scripts| scripts.contains_key(&script))
         {
-            let follow = self.compute_follow_node_with_cfa(t.get_compiler(), script);
+            let follow = self.compute_follow_node_with_cfa(&t.get_compiler().ast, script);
             self.create_edge(script, Branch::UNCOND, follow);
             return false;
         }
@@ -1090,38 +1190,7 @@ impl Callback for ControlFlowAnalysis {
     }
     // port: ControlFlowAnalysis#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-        let compiler = t.get_compiler();
-        match n.get_token(compiler) {
-            Token::IF => self.handle_if(compiler, n),
-            Token::WHILE => self.handle_while(compiler, n),
-            Token::DO => self.handle_do(compiler, n),
-            Token::FOR => self.handle_for(compiler, n),
-            Token::FOR_IN | Token::FOR_OF | Token::FOR_AWAIT_OF => {
-                self.handle_enhanced_for(compiler, n)
-            }
-            Token::SWITCH => self.handle_switch(compiler, n),
-            Token::CASE => self.handle_case(compiler, n),
-            Token::DEFAULT_CASE => self.handle_default(compiler, n),
-            Token::BLOCK | Token::ROOT | Token::SCRIPT | Token::MODULE_BODY => {
-                self.handle_stmt_list(compiler, n)
-            }
-            Token::FUNCTION => self.handle_function(compiler, n),
-            Token::EXPR_RESULT => self.handle_expr(compiler, n),
-            Token::THROW => self.handle_throw(compiler, n),
-            Token::TRY => self.handle_try(compiler, n),
-            Token::CATCH => self.handle_catch(compiler, n),
-            Token::BREAK => self.handle_break(compiler, n),
-            Token::CONTINUE => self.handle_continue(compiler, n),
-            Token::RETURN => self.handle_return(compiler, n),
-            Token::WITH => self.handle_with(compiler, n),
-            Token::SWITCH_BODY
-            | Token::LABEL
-            | Token::CLASS_MEMBERS
-            | Token::MEMBER_FUNCTION_DEF
-            | Token::MEMBER_FIELD_DEF
-            | Token::COMPUTED_FIELD_DEF => {}
-            _ => self.handle_stmt(compiler, n),
-        }
+        self.visit_node(&t.get_compiler().ast, n);
     }
 }
 

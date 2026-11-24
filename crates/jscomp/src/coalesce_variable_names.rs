@@ -43,20 +43,24 @@ use crate::{
     data_flow_analysis::DataFlowAnalysis,
     graph::{adjacency_graph::AdjacencyGraph, graph_node::GraphNode},
     live_variables_analysis::{
-        LiveVariableLattice, LiveVariablesAnalysis, MAX_VARIABLES_TO_ANALYZE,
+        LiveVariableLattice, LiveVariablesAnalysis, MAX_VARIABLES_TO_ANALYZE, PreparedLiveness,
     },
     memoized_scope_creator::MemoizedScopeCreator,
     node_traversal::{Callback, NodeTraversal, ScopedCallback},
     node_util::NodeUtil,
     scope::ScopeId,
     scope_creator::ScopeCreator,
-    syntactic_scope_creator::SyntacticScopeCreator,
+    syntactic_scope_creator::{SyntacticScopeCreator, ensure_ancestor_scope},
     var::VarId,
 };
 use closure_parsing::parser::feature_set::FeatureSet;
-use closure_rhino::fast_hash::IndexMap;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
-    check_not_null, check_state, ir::IR, js_string::JsString, node::NodeId, token::Token,
+    check_not_null, check_state,
+    ir::IR,
+    js_string::JsString,
+    node::{Ast, NodeId},
+    token::Token,
 };
 use std::{cell::RefCell, collections::BTreeSet, collections::VecDeque, rc::Rc};
 
@@ -130,8 +134,163 @@ impl Coloring {
 }
 
 struct FunctionColoring {
-    liveness: LiveVariablesAnalysis,
+    all_vars: IndexMap<JsString, VarId>,
+    ordered_vars: Vec<VarId>,
+    live_uninit_loop_lets: IndexSet<VarId>,
     coloring: Coloring,
+}
+
+/// Rust-only (performance divergence): per-function inputs prepared on the main thread so CFG,
+/// liveness, interference-graph construction, and greedy coloring can run concurrently on worker
+/// threads without retaining CFGs or liveness lattices in memory.
+struct PreparedCoalesceJob {
+    fn_node: NodeId,
+    prepared: PreparedLiveness,
+    es3_escape_2_params: bool,
+    variables_by_name: IndexMap<JsString, u128>,
+    base_eligible: u128,
+    parameters: u128,
+    var_indices: Vec<i32>,
+    uninit_loop_lets: Vec<(usize, NodeId, i32)>,
+}
+
+/// Rust-only (performance divergence): compact fixed-size coloring result returned by worker
+/// threads without heap allocations (zero cross-thread frees). `color_by_var[i]` holds the color
+/// index of `ordered_vars[i]` or `u8::MAX` if ineligible.
+struct CompactColoringOutput {
+    color_by_var: [u8; MAX_VARIABLES_TO_ANALYZE as usize],
+    num_colors: u8,
+    live_uninit_mask: u128,
+}
+
+impl PreparedCoalesceJob {
+    fn run_borrowed(
+        &self,
+        ast: &Ast,
+        can_continue_after_errors: bool,
+    ) -> Option<CompactColoringOutput> {
+        let cfg = ControlFlowAnalysis::compute_cfg_readonly(
+            ast,
+            can_continue_after_errors,
+            self.fn_node,
+            false,
+            true,
+        );
+        let borrowed = self
+            .prepared
+            .run_borrowed(ast, cfg, self.es3_escape_2_params);
+        let variables = self.prepared.ordered_vars();
+        let mut eligible = self.base_eligible;
+        let escaped_bits = borrowed.ordered_escaped_bits();
+        for index in 0..variables.len() {
+            if escaped_bits.get(index as i32) {
+                eligible &= !(1u128 << index);
+            }
+        }
+        if eligible.count_ones() < 2 {
+            return None;
+        }
+        let parameters = self.parameters & eligible;
+        let cfg_ref = borrowed.cfg();
+        let mut neighbors = [0u128; MAX_VARIABLES_TO_ANALYZE as usize];
+        let neighbors = &mut neighbors[..variables.len()];
+        for cfg_node in cfg_ref.get_nodes() {
+            if cfg_ref.is_implicit_return(cfg_node) {
+                continue;
+            }
+            let state = borrowed.flow_state(cfg_node);
+            let live_in = live_bits(state.get_in());
+            let live_out = live_bits(state.get_out());
+            mark_conflicts(neighbors, live_in, live_in);
+            mark_conflicts(neighbors, live_out, live_out);
+            let root = cfg_node.get_value(cfg_ref).unwrap();
+            let mut live_range_checker = LiveRangeChecker {
+                root,
+                variables_by_name: &self.variables_by_name,
+                writes: 0,
+                reads: 0,
+            };
+            live_range_checker.check(ast, root);
+            live_range_checker.set_crossing_variables(neighbors, live_out);
+        }
+        for (index, row) in neighbors.iter_mut().enumerate() {
+            *row &= eligible;
+            if parameters & (1u128 << index) != 0 {
+                *row |= parameters;
+            }
+        }
+        let mut order: [(usize, std::cmp::Reverse<u32>, i32); MAX_VARIABLES_TO_ANALYZE as usize] =
+            [(0, std::cmp::Reverse(0), 0); MAX_VARIABLES_TO_ANALYZE as usize];
+        let mut order_len = 0usize;
+        for (index, &row) in neighbors.iter().enumerate().take(variables.len()) {
+            let bit = 1u128 << index;
+            if eligible & bit != 0 {
+                let degree = row.count_ones() + u32::from(row & bit != 0);
+                order[order_len] = (index, std::cmp::Reverse(degree), self.var_indices[index]);
+                order_len += 1;
+            }
+        }
+        let order = &mut order[..order_len];
+        order.sort_by_key(|&(_, degree, tie)| (degree, tie));
+        let mut color_by_var = [u8::MAX; MAX_VARIABLES_TO_ANALYZE as usize];
+        let mut num_colors = 0u8;
+        let mut remaining = eligible;
+        while remaining != 0 {
+            let mut blocked = 0u128;
+            for &(index, _, _) in order.iter() {
+                let bit = 1u128 << index;
+                if remaining & bit != 0 && blocked & bit == 0 {
+                    color_by_var[index] = num_colors;
+                    remaining &= !bit;
+                    blocked |= neighbors[index];
+                }
+            }
+            num_colors += 1;
+        }
+        // When every color group has size 1, no variable is renamed to another representative.
+        if usize::from(num_colors) == order_len {
+            return None;
+        }
+        let mut live_uninit_mask = 0u128;
+        for &(var_ord_idx, let_node, var_index) in &self.uninit_loop_lets {
+            if var_index >= 0
+                && let Some(cfg_node) = cfg_ref.get_node(&Some(let_node))
+                && borrowed.flow_state(cfg_node).get_out().is_live(var_index)
+            {
+                live_uninit_mask |= 1u128 << var_ord_idx;
+            }
+        }
+        Some(CompactColoringOutput {
+            color_by_var,
+            num_colors,
+            live_uninit_mask,
+        })
+    }
+
+    fn materialize(self, out: CompactColoringOutput) -> FunctionColoring {
+        let ordered = self.prepared.ordered_vars();
+        let mut colors = IndexMap::with_capacity_and_hasher(ordered.len(), Default::default());
+        let mut live_uninit_loop_lets = IndexSet::default();
+        for (index, &v) in ordered.iter().enumerate() {
+            let color = out.color_by_var[index];
+            if color != u8::MAX {
+                colors.insert(v, usize::from(color));
+            }
+            if out.live_uninit_mask & (1u128 << index) != 0 {
+                live_uninit_loop_lets.insert(v);
+            }
+        }
+        let coloring = Coloring {
+            colors,
+            representatives: vec![None; usize::from(out.num_colors)],
+        };
+        FunctionColoring {
+            all_vars: self.prepared.into_all_vars(),
+            ordered_vars: Vec::new(),
+            live_uninit_loop_lets,
+            coloring,
+        }
+    }
 }
 
 pub struct CoalesceVariableNames {
@@ -144,6 +303,10 @@ pub struct CoalesceVariableNames {
     should_optimize_scope_stack: VecDeque<bool>,
     // Rust-only: the cfg-root stack of the NodeTraversal.AbstractCfgCallback superclass.
     cfgs: VecDeque<NodeId>,
+    /// Rust-only (performance divergence): precomputed colorings from parallel Phase 2 when
+    /// `!use_pseudo_names && export_tests_are_pure()`. Absent key means `should_optimize_scope`
+    /// returned `None` (too many vars).
+    precomputed: Option<IndexMap<NodeId, Option<FunctionColoring>>>,
 }
 
 impl CoalesceVariableNames {
@@ -165,6 +328,7 @@ impl CoalesceVariableNames {
             )))),
             should_optimize_scope_stack: VecDeque::new(),
             cfgs: VecDeque::new(),
+            precomputed: None,
         }
     }
 
@@ -211,6 +375,18 @@ impl CoalesceVariableNames {
 
     // port: CoalesceVariableNames#enterScopeWithCfg
     fn enter_scope_with_cfg(&mut self, t: &mut NodeTraversal<'_>) {
+        if let Some(precomputed) = &mut self.precomputed {
+            let scope_root = t.get_scope_root().unwrap();
+            if scope_root.is_function(t)
+                && let Some(coloring) = precomputed.swap_remove(&scope_root)
+            {
+                self.should_optimize_scope_stack.push_front(true);
+                self.colorings.push(coloring);
+            } else {
+                self.should_optimize_scope_stack.push_front(false);
+            }
+            return;
+        }
         let mut scope_creator = self.scope_creator.clone();
         let Some(all_vars_declared_in_function) =
             Self::should_optimize_scope(t, &mut scope_creator)
@@ -266,8 +442,36 @@ impl CoalesceVariableNames {
 
         liveness.analyze_indexed(compiler);
         let coloring = Self::compute_variable_names_interference_graph(compiler, &liveness);
-        self.colorings
-            .push(Some(FunctionColoring { liveness, coloring }));
+        if !self.use_pseudo_names && coloring.representatives.len() == coloring.colors.len() {
+            self.colorings.push(None);
+            return;
+        }
+        let mut live_uninit_loop_lets = IndexSet::default();
+        let cfg = liveness.get_cfg();
+        for &v in liveness.get_all_variables_in_order() {
+            if let Some(name_node) = v.get_name_node(compiler)
+                && Self::is_uninitialized_let_name_in_loop_body(compiler, name_node)
+            {
+                let let_node = name_node.get_parent(compiler).unwrap();
+                let cfg_node = check_not_null!(cfg.get_node(&Some(let_node)));
+                let var_index = liveness.get_var_index(&v.get_name(compiler));
+                if var_index >= 0 && liveness.flow_state(cfg_node).get_out().is_live(var_index) {
+                    live_uninit_loop_lets.insert(v);
+                }
+            }
+        }
+        let ordered_vars = if self.use_pseudo_names {
+            liveness.get_all_variables_in_order().to_vec()
+        } else {
+            Vec::new()
+        };
+        let all_vars = liveness.into_all_vars();
+        self.colorings.push(Some(FunctionColoring {
+            all_vars,
+            ordered_vars,
+            live_uninit_loop_lets,
+            coloring,
+        }));
     }
 
     // port: CoalesceVariableNames#exitScopeWithCfg
@@ -369,17 +573,18 @@ impl CoalesceVariableNames {
         compiler: &mut AbstractCompiler,
         liveness: &LiveVariablesAnalysis,
     ) -> Coloring {
-        let cfg = liveness.get_cfg();
         let escaped = liveness.get_escaped_locals();
         let variables = liveness.get_all_variables_in_order();
-        let mut neighbors = vec![0u128; variables.len()];
         let mut eligible = 0u128;
         let mut parameters = 0u128;
         let mut variables_by_name = IndexMap::<JsString, u128>::default();
+        let mut var_indices = Vec::with_capacity(variables.len());
         for (index, &v) in variables.iter().enumerate() {
             let bit = 1u128 << index;
+            let name = v.get_name(compiler);
+            var_indices.push(liveness.get_var_index(&name));
             // LiveRangeChecker matches by spelling, including declarations in different scopes.
-            *variables_by_name.entry(v.get_name(compiler)).or_default() |= bit;
+            *variables_by_name.entry(name).or_default() |= bit;
             // Java Set<Var>.contains uses the inherited ScopedName equality.
             if escaped.iter().any(|e| e.equals(compiler, v)) {
                 continue;
@@ -420,7 +625,27 @@ impl CoalesceVariableNames {
                 parameters |= bit;
             }
         }
+        Self::compute_coloring_readonly(
+            &compiler.ast,
+            liveness,
+            &variables_by_name,
+            eligible,
+            parameters,
+            &var_indices,
+        )
+    }
 
+    fn compute_coloring_readonly(
+        ast: &Ast,
+        liveness: &LiveVariablesAnalysis,
+        variables_by_name: &IndexMap<JsString, u128>,
+        eligible: u128,
+        parameters: u128,
+        var_indices: &[i32],
+    ) -> Coloring {
+        let cfg = liveness.get_cfg();
+        let variables = liveness.get_all_variables_in_order();
+        let mut neighbors = vec![0u128; variables.len()];
         // Go through every CFG node in the program and look at variables that are live.
         // Set the pair of live variables in interferenceBitSet so we can add an edge between them.
         for cfg_node in cfg.get_nodes() {
@@ -441,11 +666,11 @@ impl CoalesceVariableNames {
             let root = cfg_node.get_value(cfg).unwrap();
             let mut live_range_checker = LiveRangeChecker {
                 root,
-                variables_by_name: &variables_by_name,
+                variables_by_name,
                 writes: 0,
                 reads: 0,
             };
-            live_range_checker.check(compiler, root);
+            live_range_checker.check(ast, root);
             live_range_checker.set_crossing_variables(&mut neighbors, live_out);
         }
 
@@ -455,9 +680,12 @@ impl CoalesceVariableNames {
                 *row |= parameters;
             }
         }
-        Coloring::from_interference(variables, &neighbors, eligible, |v| {
-            liveness.get_var_index(&v.get_name(compiler))
-        })
+        let mut index_by_var =
+            IndexMap::<VarId, i32>::with_capacity_and_hasher(variables.len(), Default::default());
+        for (&v, &idx) in variables.iter().zip(var_indices.iter()) {
+            index_by_var.insert(v, idx);
+        }
+        Coloring::from_interference(variables, &neighbors, eligible, |v| index_by_var[&v])
     }
 
     /// Returns whether this variable's declaration also declares other names.
@@ -667,13 +895,25 @@ impl CoalesceVariableNames {
         if !Self::is_uninitialized_let_name_in_loop_body(compiler, name_node) {
             return false;
         }
-        let let_node = name_node.get_parent(compiler).unwrap();
-        let liveness = &self.colorings.last().unwrap().as_ref().unwrap().liveness;
-        let cfg = liveness.get_cfg();
-        let cfg_node = check_not_null!(cfg.get_node(&Some(let_node)));
-        let state = liveness.flow_state(cfg_node);
-        let var_index = liveness.get_var_index(&original_var.get_name(compiler));
-        var_index >= 0 && state.get_out().is_live(var_index)
+        self.colorings
+            .last()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .live_uninit_loop_lets
+            .contains(&original_var)
+    }
+
+    fn collect_functions(ast: &Ast, n: NodeId, out: &mut Vec<NodeId>) {
+        if n.is_function(ast) {
+            out.push(n);
+        }
+        let mut child = n.get_first_child(ast);
+        while let Some(c) = child {
+            let next = c.get_next(ast);
+            Self::collect_functions(ast, c, out);
+            child = next;
+        }
     }
 }
 
@@ -682,11 +922,173 @@ impl CompilerPass for CoalesceVariableNames {
     fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
         // checkNotNull(externs) and checkNotNull(root): a NodeId is never null.
         let mut scope_creator = self.scope_creator.clone();
+        // Rust-only (performance divergence): precompute CFG, liveness, interference graphs, and
+        // greedy colorings in parallel across functions (dropping CFGs and liveness immediately on
+        // workers), then apply rewrites sequentially in exact NodeTraversal order.
+        if !self.use_pseudo_names && compiler.get_coding_convention().export_tests_are_pure() {
+            let mut functions = Vec::new();
+            Self::collect_functions(&compiler.ast, root, &mut functions);
+            if crate::parallel_parse::parallel_thread_count(functions.len(), 600, 8) > 1 {
+                let is_es3 =
+                    FeatureSet::ES3.contains(compiler.get_options().get_output_feature_set());
+                let can_continue_after_errors = compiler.get_options().can_continue_after_errors();
+                let mut scope_memo = IndexMap::default();
+                let mut precomputed: IndexMap<NodeId, Option<FunctionColoring>> =
+                    IndexMap::default();
+                let mut any_merges = false;
+                const CHUNK_SIZE: usize = 2048;
+                for chunk in functions.chunks(CHUNK_SIZE) {
+                    let mut jobs = Vec::with_capacity(chunk.len());
+                    for &fn_node in chunk {
+                        let scope = ensure_ancestor_scope(
+                            compiler,
+                            &mut scope_creator,
+                            &mut scope_memo,
+                            root,
+                            fn_node,
+                        );
+                        let all_vars = NodeUtil::get_all_vars_declared_in_function(
+                            compiler,
+                            &mut scope_creator,
+                            scope,
+                        );
+                        let vars = all_vars.get_all_variables_in_order();
+                        if MAX_VARIABLES_TO_ANALYZE <= vars.len() as i32 {
+                            continue;
+                        }
+                        if vars.len() < 2 || vars.iter().all(|v| v.is_param(compiler)) {
+                            precomputed.insert(fn_node, None);
+                            continue;
+                        }
+                        let prepared = PreparedLiveness::new(
+                            compiler,
+                            scope,
+                            None,
+                            &mut scope_creator,
+                            all_vars,
+                        );
+                        let ordered = prepared.ordered_vars();
+                        let mut base_eligible = 0u128;
+                        let mut parameters = 0u128;
+                        let mut variables_by_name = IndexMap::<JsString, u128>::default();
+                        let mut var_indices = Vec::with_capacity(ordered.len());
+                        let mut uninit_loop_lets = Vec::new();
+                        let mut name_to_index = IndexMap::<JsString, i32>::default();
+                        for (idx, &v) in ordered.iter().enumerate() {
+                            name_to_index.insert(v.get_name(compiler), idx as i32);
+                        }
+                        for (index, &v) in ordered.iter().enumerate() {
+                            let bit = 1u128 << index;
+                            let name = v.get_name(compiler);
+                            let var_index = name_to_index[&name];
+                            var_indices.push(var_index);
+                            *variables_by_name.entry(name).or_default() |= bit;
+                            if let Some(name_node) = v.get_name_node(compiler)
+                                && Self::is_uninitialized_let_name_in_loop_body(compiler, name_node)
+                            {
+                                let let_node = name_node.get_parent(compiler).unwrap();
+                                uninit_loop_lets.push((index, let_node, var_index));
+                            }
+                            if v.get_parent_node(compiler).unwrap().is_function(compiler)
+                                || v.get_parent_node(compiler).unwrap().is_class(compiler)
+                                || Self::is_in_multiple_lvalue_decl(compiler, v)
+                            {
+                                continue;
+                            }
+                            base_eligible |= bit;
+                            if v.is_param(compiler) {
+                                parameters |= bit;
+                            }
+                        }
+                        let es3_escape_2_params = is_es3
+                            && NodeUtil::get_function_parameters(compiler, fn_node)
+                                .has_two_children(compiler);
+                        jobs.push(PreparedCoalesceJob {
+                            fn_node,
+                            prepared,
+                            es3_escape_2_params,
+                            variables_by_name,
+                            base_eligible,
+                            parameters,
+                            var_indices,
+                            uninit_loop_lets,
+                        });
+                    }
+                    let threads = crate::parallel_parse::parallel_thread_count(jobs.len(), 256, 8);
+                    if threads < 2 {
+                        for job in jobs {
+                            let fn_node = job.fn_node;
+                            let out = job.run_borrowed(&compiler.ast, can_continue_after_errors);
+                            let res = out.map(|o| job.materialize(o));
+                            any_merges |= res.is_some();
+                            precomputed.insert(fn_node, res);
+                        }
+                    } else {
+                        let ast = &compiler.ast;
+                        let jobs_ref = &jobs;
+                        let next = std::sync::atomic::AtomicUsize::new(0);
+                        let mut outputs: Vec<Option<CompactColoringOutput>> =
+                            (0..jobs.len()).map(|_| None).collect();
+                        let worker_batches: Vec<Vec<(usize, CompactColoringOutput)>> =
+                            std::thread::scope(|scope| {
+                                let mut handles = Vec::with_capacity(threads);
+                                for _ in 0..threads {
+                                    let next = &next;
+                                    let handle = std::thread::Builder::new()
+                                        .name("closure-coalesce".into())
+                                        .stack_size(crate::compiler_executor::COMPILER_STACK_SIZE)
+                                        .spawn_scoped(scope, move || {
+                                            let mut local = Vec::new();
+                                            loop {
+                                                let idx = next.fetch_add(
+                                                    1,
+                                                    std::sync::atomic::Ordering::Relaxed,
+                                                );
+                                                let Some(job) = jobs_ref.get(idx) else {
+                                                    break;
+                                                };
+                                                if let Some(out) =
+                                                    job.run_borrowed(ast, can_continue_after_errors)
+                                                {
+                                                    local.push((idx, out));
+                                                }
+                                            }
+                                            local
+                                        })
+                                        .expect("spawn coalesce worker");
+                                    handles.push(handle);
+                                }
+                                handles
+                                    .into_iter()
+                                    .map(|h| h.join().expect("coalesce worker panicked"))
+                                    .collect()
+                            });
+                        for batch in worker_batches {
+                            for (idx, out) in batch {
+                                outputs[idx] = Some(out);
+                            }
+                        }
+                        for (job, out) in jobs.into_iter().zip(outputs) {
+                            let fn_node = job.fn_node;
+                            let res = out.map(|o| job.materialize(o));
+                            any_merges |= res.is_some();
+                            precomputed.insert(fn_node, res);
+                        }
+                    }
+                }
+                if !any_merges {
+                    compiler.set_life_cycle_stage(LifeCycleStage::RAW);
+                    return;
+                }
+                self.precomputed = Some(precomputed);
+            }
+        }
         NodeTraversal::builder()
             .set_compiler(compiler)
             .set_callback(self)
             .set_scope_creator(&mut scope_creator)
             .traverse(root);
+        self.precomputed = None;
         compiler.set_life_cycle_stage(LifeCycleStage::RAW);
     }
 }
@@ -711,11 +1113,7 @@ impl Callback for CoalesceVariableNames {
             return;
         }
         let parent = parent.unwrap();
-        let Some(&var) = function
-            .liveness
-            .get_all_variables()
-            .get(n.get_string_ref(t))
-        else {
+        let Some(&var) = function.all_vars.get(n.get_string_ref(t)) else {
             return;
         };
         let coloring = &mut function.coloring;
@@ -746,7 +1144,7 @@ impl Callback for CoalesceVariableNames {
             // we should not sacrifice performance for non-debugging compilation to
             // make this fast.
             let mut all_merged_names: BTreeSet<JsString> = BTreeSet::new();
-            for &i_var in function.liveness.get_all_variables_in_order() {
+            for &i_var in &function.ordered_vars {
                 // Look for all the variables that can be merged (in the graph by now)
                 // and it is merged with the current coalescedVar.
                 if coloring.colors.get(&i_var) == Some(&color) {
@@ -846,7 +1244,7 @@ struct LiveRangeChecker<'a> {
 
 impl LiveRangeChecker<'_> {
     // port: CoalesceVariableNames.LiveRangeChecker#check
-    fn check(&mut self, compiler: &AbstractCompiler, n: NodeId) {
+    fn check(&mut self, compiler: &Ast, n: NodeId) {
         // For most AST nodes, traverse the subtree in postorder because that's how the
         // expressions are evaluated.
         if n == self.root || !ControlFlowGraph::is_entering_new_cfg_node(compiler, n) {
@@ -874,7 +1272,7 @@ impl LiveRangeChecker<'_> {
     }
 
     // port: CoalesceVariableNames.LiveRangeChecker#visit
-    fn visit(&mut self, compiler: &AbstractCompiler, n: NodeId, parent: NodeId) {
+    fn visit(&mut self, compiler: &Ast, n: NodeId, parent: NodeId) {
         // port: CoalesceVariableNames.LiveRangeChecker#isAssignTo
         if n.is_name(compiler) {
             let bits = self
@@ -918,7 +1316,7 @@ impl LiveRangeChecker<'_> {
 
     /// Returns whether any LiveRangeChecker would be interested in the node.
     // port: CoalesceVariableNames.LiveRangeChecker#shouldVisit
-    fn should_visit(compiler: &AbstractCompiler, n: NodeId) -> bool {
+    fn should_visit(compiler: &Ast, n: NodeId) -> bool {
         n.is_name(compiler)
             || (n.has_children(compiler) && n.get_first_child(compiler).unwrap().is_name(compiler))
     }

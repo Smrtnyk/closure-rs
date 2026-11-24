@@ -48,7 +48,7 @@ use super::{
 };
 use crate::{
     AbstractCompiler,
-    colors::{Color, color_registry::ColorRegistry},
+    colors::{Color, ColorId, color_registry::ColorRegistry},
     compiler_pass::CompilerPass,
     diagnostic::{log_file::StreamedJsonProducer, logs_gson::LogsGsonObject},
     diagnostic_type::DiagnosticType,
@@ -63,7 +63,6 @@ use crate::{
         union_find::UnionFind,
     },
     js_error::JSError,
-    node_traversal::NodeTraversal,
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{check_argument, js_string::JsString, node::NodeId};
@@ -80,7 +79,7 @@ pub static PROPERTY_INVALIDATION: DiagnosticType = DiagnosticType::error(
 pub struct DisambiguateProperties {
     properties_that_must_disambiguate: IndexSet<JsString>,
     registry: Arc<ColorRegistry>,
-    may_have_property_seen_set: IndexSet<Color>,
+    may_have_property_seen_set: Vec<ColorId>,
 }
 
 impl DisambiguateProperties {
@@ -92,7 +91,7 @@ impl DisambiguateProperties {
         Self {
             properties_that_must_disambiguate,
             registry: Arc::clone(compiler.get_color_registry()),
-            may_have_property_seen_set: IndexSet::<_>::default(),
+            may_have_property_seen_set: Vec::new(),
         }
     }
 }
@@ -138,7 +137,7 @@ impl CompilerPass for DisambiguateProperties {
                 find_refs.defer_extern_only_renames();
             }
             let externs_parent = externs.get_parent(compiler).unwrap();
-            NodeTraversal::traverse(compiler, externs_parent, &mut find_refs);
+            find_refs.traverse_ast(compiler, externs_parent);
             find_refs.get_property_index()
         };
 
@@ -155,52 +154,69 @@ impl CompilerPass for DisambiguateProperties {
             },
         );
 
-        let all_known_types = flattener.get_all_known_types();
-        graph_builder.add_all(&mut flattener, &mut arena, all_known_types);
-        let mut graph = graph_builder.build(&mut flattener, &mut arena);
+        let has_non_extern_prop = !compact
+            || prop_index
+                .values()
+                .any(|&p| !p.is_extern_only(&arena) && !p.is_invalidated(&arena));
+        if has_non_extern_prop {
+            let all_known_types = flattener.get_all_known_types();
+            graph_builder.add_all(&mut flattener, &mut arena, all_known_types);
+            let mut graph = graph_builder.build(&mut flattener, &mut arena);
 
-        // Model legacy behavior from the old (pre-January 2021) disambiguator.
-        // TODO(b/177695515): delete this section.
-        for color_graph_node in flattener.get_all_known_types() {
-            if graph.get_out_edges(&color_graph_node).is_empty() {
-                // Skipping leaf types improves code size, especially as "namespace" types are all
-                // leaf types and will often have their declared properties collapsed into
-                // variables.
-                continue;
-            }
-            if color_graph_node.get_color(&arena).is_union() {
-                // Only need this step for SINGLE ColorGraphNodes because
-                // and we will add properties of each alternate elsewhere in this loop.
-                continue;
-            }
-            Self::register_own_declared_properties(&mut arena, color_graph_node, &prop_index);
-        }
-
-        self.log_for_diagnostics(compiler, "graph", &mut || {
-            let mut nodes = graph
-                .get_nodes()
-                .into_iter()
-                .map(|n| TypeNodeJson::new(&graph, &arena, n))
-                .collect::<Vec<_>>();
-            nodes.sort_by_key(|x| x.index);
-            Some(Box::new(nodes))
-        });
-
-        self.invalidate_based_on_type(&flattener, &mut arena);
-        let mut rename_propagation = compact.then(|| RenamePropagation::new(&mut arena));
-
-        FixedPointGraphTraversal::new_traversal(
-            |_graph: &mut ColorGraph,
-             src: ColorGraphNodeId,
-             e: EdgeReason,
-             dest: ColorGraphNodeId| {
-                match &mut rename_propagation {
-                    Some(p) => p.traverse_edge(&mut arena, src, dest),
-                    None => propagator.traverse_edge(&mut arena, src, Some(e), dest),
+            // Model legacy behavior from the old (pre-January 2021) disambiguator.
+            // TODO(b/177695515): delete this section.
+            for color_graph_node in flattener.get_all_known_types() {
+                if graph.get_out_edges(&color_graph_node).is_empty() {
+                    // Skipping leaf types improves code size, especially as "namespace" types are all
+                    // leaf types and will often have their declared properties collapsed into
+                    // variables.
+                    continue;
                 }
-            },
-        )
-        .compute_fixed_point(&mut graph);
+                if color_graph_node.get_color(&arena).is_union() {
+                    // Only need this step for SINGLE ColorGraphNodes because
+                    // and we will add properties of each alternate elsewhere in this loop.
+                    continue;
+                }
+                Self::register_own_declared_properties(&mut arena, color_graph_node, &prop_index);
+            }
+
+            self.log_for_diagnostics(compiler, "graph", &mut || {
+                let mut nodes = graph
+                    .get_nodes()
+                    .into_iter()
+                    .map(|n| TypeNodeJson::new(&graph, &arena, n))
+                    .collect::<Vec<_>>();
+                nodes.sort_by_key(|x| x.index);
+                Some(Box::new(nodes))
+            });
+
+            self.invalidate_based_on_type(&flattener, &mut arena);
+            if compact {
+                let (mut rename_propagation, active_entries) =
+                    RenamePropagation::new_for_graph(&mut arena, &graph);
+                if !active_entries.is_empty() {
+                    FixedPointGraphTraversal::new_traversal(
+                        |_graph: &mut ColorGraph,
+                         src: ColorGraphNodeId,
+                         _e: EdgeReason,
+                         dest: ColorGraphNodeId| {
+                            rename_propagation.traverse_edge(&mut arena, src, dest)
+                        },
+                    )
+                    .compute_fixed_point_from_set(&mut graph, active_entries);
+                }
+            } else {
+                FixedPointGraphTraversal::new_traversal(
+                    |_graph: &mut ColorGraph,
+                     src: ColorGraphNodeId,
+                     e: EdgeReason,
+                     dest: ColorGraphNodeId| {
+                        propagator.traverse_edge(&mut arena, src, Some(e), dest)
+                    },
+                )
+                .compute_fixed_point(&mut graph);
+            }
+        }
 
         let mut tracker_summary_generator = TrackerSummaryGenerator::default();
         for prop in prop_index.values().copied() {
@@ -350,19 +366,20 @@ impl DisambiguateProperties {
         flattener: &ColorGraphNodeFactory,
         arena: &mut DisambiguateArena,
     ) {
+        let mut props_scratch = Vec::new();
         for r#type in flattener.get_all_known_types() {
+            if r#type.get_associated_props(arena).is_empty() {
+                continue;
+            }
             if r#type.get_color(arena).is_invalidating() {
-                let props = r#type
-                    .get_associated_props(arena)
-                    .keys()
-                    .copied()
-                    .collect::<Vec<_>>();
-                for prop in props {
-                    let index = r#type.get_index(arena);
+                props_scratch.clear();
+                props_scratch.extend(r#type.get_associated_props(arena).keys().copied());
+                let index = r#type.get_index(arena);
+                for &prop in &props_scratch {
                     prop.invalidate(arena, Invalidation::invalidating_type(index));
                 }
             } else {
-                self.invalidate_non_declared_property_accesses(arena, r#type);
+                self.invalidate_non_declared_property_accesses(arena, r#type, &mut props_scratch);
             }
         }
     }
@@ -379,6 +396,7 @@ impl DisambiguateProperties {
         &mut self,
         arena: &mut DisambiguateArena,
         color_graph_node: ColorGraphNodeId,
+        props_scratch: &mut Vec<PropertyClusteringId>,
     ) {
         let color = color_graph_node.get_color(arena).clone();
         check_argument!(
@@ -386,19 +404,18 @@ impl DisambiguateProperties {
             "Not applicable to invalidating types. All their properties are invalidated"
         );
 
-        let props = color_graph_node
-            .get_associated_props(arena)
-            .keys()
-            .copied()
-            .collect::<Vec<_>>();
-        for prop in props {
+        props_scratch.clear();
+        props_scratch.extend(color_graph_node.get_associated_props(arena).keys().copied());
+        let index = color_graph_node.get_index(arena);
+        for &prop in props_scratch.iter() {
             if prop.is_invalidated(arena) {
                 continue; // Skip unnecessary `hasProperty` lookups which can be expensive.
             }
 
-            let name = prop.get_name(arena).clone();
-            if !self.may_have_property(&color, &name) {
-                let index = color_graph_node.get_index(arena);
+            let name = prop.get_name(arena);
+            let registry = &*self.registry;
+            let seen = &mut self.may_have_property_seen_set;
+            if !Self::may_have_property_inner(registry, seen, &color, name) {
                 prop.invalidate(arena, Invalidation::undeclared_access(index));
             }
         }
@@ -410,31 +427,34 @@ impl DisambiguateProperties {
     ///
     /// TODO(b/177695515): delete this method
     // port: DisambiguateProperties#mayHaveProperty
-    fn may_have_property(&mut self, color: &Color, property_name: &JsString) -> bool {
-        // try
-        let result = 'try_block: {
-            if !self.may_have_property_seen_set.insert(color.clone()) {
-                break 'try_block false;
-            }
-
-            if color.is_union() {
-                break 'try_block color
-                    .get_union_elements()
-                    .iter()
-                    .any(|element| self.may_have_property(element, property_name));
-            }
-
-            if color.get_own_properties().contains(property_name) {
-                break 'try_block true;
-            }
-            let registry = Arc::clone(&self.registry);
+    fn may_have_property_inner(
+        registry: &ColorRegistry,
+        seen: &mut Vec<ColorId>,
+        color: &Color,
+        property_name: &JsString,
+    ) -> bool {
+        // Rust-only (performance divergence): borrow `ColorRegistry` and track visited colors by
+        // `ColorId` in a small stack instead of cloning `Arc<ColorRegistry>` and `Color`.
+        let id = color.get_id();
+        if seen.contains(&id) {
+            return false;
+        }
+        seen.push(id);
+        let result = if color.is_union() {
+            color.get_union_elements().iter().any(|element| {
+                Self::may_have_property_inner(registry, seen, element, property_name)
+            })
+        } else if color.get_own_properties().contains(property_name) {
+            true
+        } else {
             registry
                 .get_disambiguation_supertypes(color)
                 .iter()
-                .any(|element| self.may_have_property(element, property_name))
+                .any(|element| {
+                    Self::may_have_property_inner(registry, seen, element, property_name)
+                })
         };
-        // finally
-        self.may_have_property_seen_set.shift_remove(color);
+        seen.pop();
         result
     }
 

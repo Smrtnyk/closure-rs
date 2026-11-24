@@ -93,10 +93,16 @@ impl ScopeContext {
 
     /// The context of a scope rooted at `root`, or None when scopes of `root` are not kept (the
     /// cache is off, or the root is not in a script).
-    pub(crate) fn of(compiler: &AbstractCompiler, root: NodeId) -> Option<Self> {
+    pub(crate) fn of(
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+        parent: Option<ScopeId>,
+    ) -> Option<Self> {
         if *MODE == Mode::Off {
             return None;
         }
+        compiler.ast.track_changes();
+        SyntacticScopeCache::record_changes(compiler);
         if root.is_root(compiler) {
             let mut scripts = Vec::new();
             let mut child = root.get_first_child(compiler);
@@ -119,10 +125,35 @@ impl ScopeContext {
                 scripts: Some(scripts.into_boxed_slice()),
             });
         }
+        // Rust-only (performance divergence): when the parent scope's context was verified in
+        // this exact AST change round, stop walking parents once we reach the parent scope root.
+        let parent_hint = parent.and_then(|parent_scope| {
+            let cache = &compiler.syntactic_scope_cache;
+            let current_tag = cache.round.wrapping_add(1);
+            let entry = cache.entries.get(parent_scope.index())?;
+            if entry.context_tag == current_tag
+                && let (Some(script), Some(change_root)) = (entry.script, entry.change_root)
+            {
+                Some((parent_scope.get_root_node(compiler), script, change_root))
+            } else {
+                None
+            }
+        });
         let mut change_root = None;
+        let mut script = None;
         let mut node = Some(root);
         while let Some(current) = node {
             if current.is_script(compiler) {
+                script = Some(current);
+                break;
+            }
+            if let Some((parent_root, parent_script, parent_change_root)) = parent_hint
+                && current == parent_root
+            {
+                script = Some(parent_script);
+                if change_root.is_none() {
+                    change_root = Some(parent_change_root);
+                }
                 break;
             }
             if change_root.is_none() && current.is_function(compiler) {
@@ -130,7 +161,7 @@ impl ScopeContext {
             }
             node = current.get_parent(compiler);
         }
-        let script = node?;
+        let script = script?;
         let kind = if root.is_function(compiler) {
             NodeUtil::is_function_expression(compiler, root)
         } else if root.is_class(compiler) {
@@ -157,6 +188,8 @@ struct Entry {
     scanned_at: u32,
     /// The pass (`Compiler::current_pass_index`) that last received the scope.
     handed_out_in: i32,
+    /// `cache.round.wrapping_add(1)` when `script` and `change_root` were last verified; 0 = none.
+    context_tag: u32,
     script: Option<NodeId>,
     change_root: Option<NodeId>,
     kind: bool,
@@ -188,9 +221,17 @@ pub(crate) struct SyntacticScopeCache {
     stamps: Vec<u32>,
     /// The number of `record_changes` rounds that found changed nodes.
     round: u32,
+    /// Rust-only (performance divergence): per node, the last round of `record_changes` that found
+    /// an in-place change to `JSDOC_INFO`, `SIDE_EFFECT_FLAGS`, `IS_CONSTANT_NAME`, or
+    /// `CONSTANT_VAR_FLAGS` in its change scope.
+    flag_stamps: Vec<u32>,
+    /// The number of `record_changes` rounds that found flag-changed nodes.
+    flag_round: u32,
     cursor: AstChangeCursor,
     /// Scratch list of changed nodes.
     changed: Vec<NodeId>,
+    /// Scratch list of flag-changed nodes.
+    changed_flags: Vec<NodeId>,
     /// The kept scope of each root node, by node: 0 for none, else the scope's index + 1.
     by_root: Vec<u32>,
     /// The bookkeeping of each kept scope, by scope.
@@ -205,10 +246,12 @@ impl SyntacticScopeCache {
     /// AST, so unlike the compiler's change reports this misses none.
     fn record_changes(compiler: &mut AbstractCompiler) {
         let mut changed = std::mem::take(&mut compiler.syntactic_scope_cache.changed);
-        if !compiler
+        let mut changed_flags = std::mem::take(&mut compiler.syntactic_scope_cache.changed_flags);
+        let continuous = compiler
             .ast
-            .take_changes_since(&mut compiler.syntactic_scope_cache.cursor, &mut changed)
-        {
+            .take_changes_since(&mut compiler.syntactic_scope_cache.cursor, &mut changed);
+        compiler.ast.take_changed_flag_nodes(&mut changed_flags);
+        if !continuous {
             // Public callers can move whole arenas or drain the log between compiler passes.
             // In either case its old node IDs and stamps no longer identify reusable analyses.
             let old = std::mem::take(&mut compiler.syntactic_scope_cache.by_root);
@@ -220,7 +263,12 @@ impl SyntacticScopeCache {
             cache.global_scripts.clear();
             cache.script_declarations.clear();
             cache.stamps.clear();
+            cache.flag_stamps.clear();
+            changed_flags.clear();
             compiler.function_reference_sites = Default::default();
+            compiler.remove_unused_code_cache = Default::default();
+            compiler.flow_inline_clean_cache = Default::default();
+            compiler.inline_vars_clean_cache = Default::default();
         }
         if !changed.is_empty() {
             let cache = &mut compiler.syntactic_scope_cache;
@@ -245,7 +293,31 @@ impl SyntacticScopeCache {
             }
             changed.clear();
         }
+        if !changed_flags.is_empty() {
+            let cache = &mut compiler.syntactic_scope_cache;
+            cache.flag_round += 1;
+            let round = cache.flag_round;
+            for &n in &changed_flags {
+                let mut node = Some(n);
+                while let Some(current) = node {
+                    let index = current.arena_index();
+                    if cache.flag_stamps.len() <= index {
+                        cache.flag_stamps.resize(index + 1, 0);
+                    }
+                    if cache.flag_stamps[index] == round {
+                        break;
+                    }
+                    cache.flag_stamps[index] = round;
+                    if current.is_function(&compiler.ast) || current.is_script(&compiler.ast) {
+                        break;
+                    }
+                    node = current.get_parent(&compiler.ast);
+                }
+            }
+            changed_flags.clear();
+        }
         compiler.syntactic_scope_cache.changed = changed;
+        compiler.syntactic_scope_cache.changed_flags = changed_flags;
     }
 
     /// Whether the change scope rooted at `change_root` changed in a round at or after `round`.
@@ -267,6 +339,23 @@ impl SyntacticScopeCache {
             .get(root.arena_index())
             .copied()
             .unwrap_or(0)
+    }
+
+    /// Rust-only (performance divergence): `(structural_stamp, flag_stamp)` for `root`'s change
+    /// scope, advancing on either structural edits or in-place `JSDOC_INFO`, `SIDE_EFFECT_FLAGS`,
+    /// `IS_CONSTANT_NAME`, or `CONSTANT_VAR_FLAGS` updates inside `root`.
+    pub(crate) fn subtree_stamp_with_flags(
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+    ) -> (u32, u32) {
+        compiler.ast.track_changes();
+        Self::record_changes(compiler);
+        let cache = &compiler.syntactic_scope_cache;
+        let idx = root.arena_index();
+        (
+            cache.stamps.get(idx).copied().unwrap_or(0),
+            cache.flag_stamps.get(idx).copied().unwrap_or(0),
+        )
     }
 
     /// The round from which a change makes a scope scanned now stale.
@@ -319,8 +408,11 @@ impl SyntacticScopeCache {
             }
             scope.set_parent(compiler, parent);
         }
-        compiler.syntactic_scope_cache.entries[scope.index()].handed_out_in =
-            compiler.current_pass_index();
+        let pass_index = compiler.current_pass_index();
+        let current_tag = compiler.syntactic_scope_cache.round.wrapping_add(1);
+        let entry = &mut compiler.syntactic_scope_cache.entries[scope.index()];
+        entry.handed_out_in = pass_index;
+        entry.context_tag = current_tag;
         Some(scope)
     }
 
@@ -332,9 +424,11 @@ impl SyntacticScopeCache {
         scanned_at: u32,
         context: ScopeContext,
     ) {
+        let context_tag = compiler.syntactic_scope_cache.round.wrapping_add(1);
         let entry = Entry {
             scanned_at,
             handed_out_in: compiler.current_pass_index(),
+            context_tag,
             script: context.script,
             change_root: context.change_root,
             kind: context.kind,
@@ -370,6 +464,9 @@ impl SyntacticScopeCache {
         let slot = &mut cache.by_root[root.arena_index()];
         if *slot as usize == scope.index() + 1 {
             *slot = 0;
+        }
+        if let Some(entry) = cache.entries.get_mut(scope.index()) {
+            entry.context_tag = 0;
         }
         cache.global_scripts.swap_remove(&scope);
         scope.set_kept(compiler, false);

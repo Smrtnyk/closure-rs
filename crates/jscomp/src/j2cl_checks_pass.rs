@@ -25,7 +25,6 @@ use crate::{
     diagnostic_type::DiagnosticType,
     js_error::JSError,
     node_traversal::{Callback, NodeTraversal},
-    node_util::NodeUtil,
 };
 use closure_jstype::{JSTypeRegistry, TypeId, prelude::*};
 use closure_rhino::node::{Ast, NodeId};
@@ -54,33 +53,6 @@ impl J2clChecksPass {
         Self
     }
 
-    /// Reports an error if the node is a reference equality check of the specified type.
-    // port: J2clChecksPass#checkReferenceEquality
-    fn check_reference_equality(
-        &self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-        type_name: &str,
-        file_name: &str,
-    ) {
-        if n.is_sheq(compiler) || n.is_eq(compiler) || n.is_shne(compiler) || n.is_ne(compiler) {
-            let first_js_type = n.get_first_child(compiler).unwrap().get_jstype(compiler);
-            let last_js_type = n.get_last_child(compiler).unwrap().get_jstype(compiler);
-            let has_type = self.is_type(compiler, first_js_type, file_name)
-                || self.is_type(compiler, last_js_type, file_name);
-            let has_null_type = self.is_null_type(compiler, first_js_type)
-                || self.is_null_type(compiler, last_js_type);
-            if has_type && !has_null_type {
-                compiler.report(JSError::make(
-                    compiler,
-                    n,
-                    &J2CL_REFERENCE_EQUALITY,
-                    &[type_name],
-                ));
-            }
-        }
-    }
-
     // port: J2clChecksPass#isNullType
     fn is_null_type(&self, compiler: &mut AbstractCompiler, js_type: Option<TypeId>) -> bool {
         let Some(js_type) = js_type else {
@@ -90,35 +62,41 @@ impl J2clChecksPass {
         js_type.is_null_type(reg) || js_type.is_void_type(reg)
     }
 
-    // port: J2clChecksPass#isType
-    fn is_type(
-        &self,
-        compiler: &mut AbstractCompiler,
-        js_type: Option<TypeId>,
-        file_name: &str,
-    ) -> bool {
-        let Some(js_type) = js_type else {
-            return false;
-        };
-        let (reg, ast) = compiler.get_type_registry_and_ast();
-        let js_type = js_type.restrict_by_not_null_or_undefined(reg, ast);
-        if js_type.to_maybe_object_type(reg).is_none() {
-            return false;
-        }
-        let source_name = self.get_source_name(reg, ast, js_type);
-        source_name.is_some_and(|source_name| source_name.ends_with(file_name))
-    }
-
     // port: J2clChecksPass#getSourceName
-    fn get_source_name(&self, reg: &JSTypeRegistry, ast: &Ast, js_type: TypeId) -> Option<String> {
+    fn get_source_name<'a>(
+        &self,
+        reg: &JSTypeRegistry,
+        ast: &'a Ast,
+        js_type: TypeId,
+    ) -> Option<&'a str> {
         let constructor = js_type
             .to_maybe_object_type(reg)
             .unwrap()
             .get_constructor(reg);
         let Some(constructor) = constructor else {
-            return Some(String::new());
+            return Some("");
         };
-        NodeUtil::get_source_name(ast, FunctionType::get_source(constructor, reg)?)
+        let mut current = Some(FunctionType::get_source(constructor, reg)?);
+        while let Some(node) = current {
+            if let Some(file) = node.get_static_source_file_ref(ast) {
+                return Some(file.get_name());
+            }
+            current = node.get_parent(ast);
+        }
+        None
+    }
+
+    // port: J2clChecksPass#isType
+    fn type_source_name<'a>(
+        &self,
+        reg: &mut JSTypeRegistry,
+        ast: &'a Ast,
+        js_type: Option<TypeId>,
+    ) -> Option<&'a str> {
+        let js_type = js_type?;
+        let js_type = js_type.restrict_by_not_null_or_undefined(reg, ast);
+        js_type.to_maybe_object_type(reg)?;
+        self.get_source_name(reg, ast, js_type)
     }
 }
 
@@ -134,9 +112,44 @@ impl Callback for J2clChecksPass {
     }
 
     // port: J2clChecksPass#visit
+    // port: J2clChecksPass#checkReferenceEquality
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-        for (type_name, file_name) in REFERENCE_EQUALITY_TYPE_PATTERNS {
-            self.check_reference_equality(t.get_compiler(), n, type_name, file_name);
+        // Rust-only (performance divergence): filter equality operators once and borrow each
+        // operand's constructor source name once instead of allocating per pattern.
+        if !(n.is_sheq(t) || n.is_eq(t) || n.is_shne(t) || n.is_ne(t)) {
+            return;
+        }
+        let compiler = t.get_compiler();
+        let first_js_type = n.get_first_child(compiler).unwrap().get_jstype(compiler);
+        let last_js_type = n.get_last_child(compiler).unwrap().get_jstype(compiler);
+        if first_js_type.is_none() && last_js_type.is_none() {
+            return;
+        }
+        if self.is_null_type(compiler, first_js_type) || self.is_null_type(compiler, last_js_type) {
+            return;
+        }
+        let mut matched = [false; 3];
+        {
+            let (reg, ast) = compiler.get_type_registry_and_ast();
+            let first_src = self.type_source_name(reg, ast, first_js_type);
+            let last_src = self.type_source_name(reg, ast, last_js_type);
+            for (idx, (_, file_name)) in REFERENCE_EQUALITY_TYPE_PATTERNS.iter().enumerate() {
+                if first_src.is_some_and(|s| s.ends_with(file_name))
+                    || last_src.is_some_and(|s| s.ends_with(file_name))
+                {
+                    matched[idx] = true;
+                }
+            }
+        }
+        for (idx, (type_name, _)) in REFERENCE_EQUALITY_TYPE_PATTERNS.iter().enumerate() {
+            if matched[idx] {
+                compiler.report(JSError::make(
+                    compiler,
+                    n,
+                    &J2CL_REFERENCE_EQUALITY,
+                    &[type_name],
+                ));
+            }
         }
     }
 }

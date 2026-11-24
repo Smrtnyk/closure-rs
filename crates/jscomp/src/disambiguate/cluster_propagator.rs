@@ -19,13 +19,17 @@
 //! Port of `disambiguate/ClusterPropagator.java`.
 
 use super::{
-    color_graph_builder::EdgeReason,
+    color_graph_builder::{ColorGraph, EdgeReason},
     color_graph_node::{
         ColorGraphNodeId, DisambiguateArena, PropAssociation, PropertyClusteringId,
     },
 };
-use crate::{colors::standard_colors, graph::union_find::UnionFind};
-use closure_rhino::fast_hash::{IndexMap, IndexSet};
+use crate::{
+    colors::standard_colors,
+    graph::{adjacency_graph::AdjacencyGraph, graph_node::GraphNode, union_find::UnionFind},
+};
+use closure_rhino::fast_hash::IndexSet;
+use std::collections::VecDeque;
 
 /// A callback to propagate clusterings across a type graph.
 ///
@@ -88,15 +92,21 @@ impl ClusterPropagator {
 
 /// After invalidation the ordinary renamer only needs the clusters of source properties.
 /// Extern-only properties still schedule the same graph edges. Store their membership in
-/// sparse 64-property words so a single edge can propagate many of them at once.
+/// sorted `(word_index, bits)` pairs so a single edge can merge them linearly without per-node
+/// hash maps.
 #[derive(Default)]
 struct PropagatedProperties {
     source: IndexSet<PropertyClusteringId>,
-    externs: IndexMap<u32, u64>,
+    externs: Vec<(u32, u64)>,
 }
 
 pub(super) struct RenamePropagation {
     nodes: Vec<PropagatedProperties>,
+    /// Rust-only (performance divergence): when present, marks the backward closure of nodes
+    /// reachable from any non-invalidated source property. Nodes outside this set can never carry
+    /// a source property or enqueue one that can.
+    active: Option<Vec<bool>>,
+    merge_scratch: Vec<(u32, u64)>,
 }
 
 impl RenamePropagation {
@@ -111,7 +121,12 @@ impl RenamePropagation {
                         continue;
                     }
                     if prop.is_extern_only(arena) {
-                        *properties.externs.entry(prop.0 / 64).or_default() |= 1 << (prop.0 % 64);
+                        let word = prop.0 / 64;
+                        let bit = 1u64 << (prop.0 % 64);
+                        match properties.externs.binary_search_by_key(&word, |&(w, _)| w) {
+                            Ok(pos) => properties.externs[pos].1 |= bit,
+                            Err(pos) => properties.externs.insert(pos, (word, bit)),
+                        }
                     } else {
                         properties.source.insert(prop);
                     }
@@ -119,7 +134,80 @@ impl RenamePropagation {
                 properties
             })
             .collect();
-        Self { nodes }
+        Self {
+            nodes,
+            active: None,
+            merge_scratch: Vec::new(),
+        }
+    }
+
+    /// Rust-only (performance divergence): builds `RenamePropagation` and prunes the fixed-point
+    /// entry set to `Ancestors(Reachable(nodes_with_source_props))` in original graph node order.
+    pub(super) fn new_for_graph(
+        arena: &mut DisambiguateArena,
+        graph: &ColorGraph,
+    ) -> (Self, Vec<ColorGraphNodeId>) {
+        let mut this = Self::new(arena);
+        let n = this.nodes.len();
+        let mut reach_src = vec![false; n];
+        let mut queue = VecDeque::new();
+        for (i, props) in this.nodes.iter().enumerate() {
+            if !props.source.is_empty() {
+                let id = ColorGraphNodeId(i as u32);
+                if let Some(di_node) = graph.get_node(&id) {
+                    reach_src[i] = true;
+                    queue.push_back((id, di_node));
+                }
+            }
+        }
+        if queue.is_empty() {
+            this.active = Some(vec![false; n]);
+            return (this, Vec::new());
+        }
+        while let Some((id, di_node)) = queue.pop_front() {
+            if id.get_color(arena).ptr_eq(&standard_colors::TOP_OBJECT) {
+                continue;
+            }
+            for edge in di_node.get_out_edges(graph) {
+                let dest_node = edge.get_destination(graph);
+                let dest_id = *dest_node.get_value(graph);
+                if !reach_src[dest_id.0 as usize] {
+                    reach_src[dest_id.0 as usize] = true;
+                    queue.push_back((dest_id, dest_node));
+                }
+            }
+        }
+
+        let mut active = reach_src;
+        for (i, &is_active) in active.iter().enumerate() {
+            if is_active {
+                let id = ColorGraphNodeId(i as u32);
+                if let Some(di_node) = graph.get_node(&id) {
+                    queue.push_back((id, di_node));
+                }
+            }
+        }
+        while let Some((_, di_node)) = queue.pop_front() {
+            for edge in di_node.get_in_edges(graph) {
+                let src_node = edge.get_source(graph);
+                let src_id = *src_node.get_value(graph);
+                if !active[src_id.0 as usize]
+                    && !src_id.get_color(arena).ptr_eq(&standard_colors::TOP_OBJECT)
+                {
+                    active[src_id.0 as usize] = true;
+                    queue.push_back((src_id, src_node));
+                }
+            }
+        }
+
+        let entries = graph
+            .get_nodes()
+            .into_iter()
+            .map(|di_node| *di_node.get_value(graph))
+            .filter(|id| active[id.0 as usize])
+            .collect();
+        this.active = Some(active);
+        (this, entries)
     }
 
     pub(super) fn traverse_edge(
@@ -135,6 +223,13 @@ impl RenamePropagation {
             // An associated source property already contains this node in its cluster.
             return false;
         }
+        if self
+            .active
+            .as_ref()
+            .is_some_and(|active| !active[dest.0 as usize])
+        {
+            return false;
+        }
         let [from, to] = self
             .nodes
             .get_disjoint_mut([src.0 as usize, dest.0 as usize])
@@ -144,10 +239,63 @@ impl RenamePropagation {
             changed |= to.source.insert(prop);
             prop.get_clusters_mut(arena).union(src, dest);
         }
-        for (&word, &bits) in &from.externs {
-            let old = to.externs.entry(word).or_default();
-            changed |= bits & !*old != 0;
-            *old |= bits;
+        if !from.externs.is_empty() {
+            if to.externs.is_empty() {
+                to.externs.extend_from_slice(&from.externs);
+                changed = true;
+            } else {
+                // Fast scan in place: update overlapping words and detect whether any new word
+                // must be inserted.
+                let mut i = 0;
+                let mut j = 0;
+                let mut needs_insert = false;
+                while i < from.externs.len() && j < to.externs.len() {
+                    let (fw, fb) = from.externs[i];
+                    let (tw, tb) = to.externs[j];
+                    if fw == tw {
+                        if fb & !tb != 0 {
+                            to.externs[j].1 = tb | fb;
+                            changed = true;
+                        }
+                        i += 1;
+                        j += 1;
+                    } else if fw < tw {
+                        needs_insert = true;
+                        break;
+                    } else {
+                        j += 1;
+                    }
+                }
+                if i < from.externs.len() {
+                    needs_insert = true;
+                }
+                if needs_insert {
+                    changed = true;
+                    self.merge_scratch.clear();
+                    self.merge_scratch
+                        .reserve(from.externs.len() + to.externs.len());
+                    let mut fi = 0;
+                    let mut ti = 0;
+                    while fi < from.externs.len() && ti < to.externs.len() {
+                        let (fw, fb) = from.externs[fi];
+                        let (tw, tb) = to.externs[ti];
+                        if fw == tw {
+                            self.merge_scratch.push((fw, fb | tb));
+                            fi += 1;
+                            ti += 1;
+                        } else if fw < tw {
+                            self.merge_scratch.push((fw, fb));
+                            fi += 1;
+                        } else {
+                            self.merge_scratch.push((tw, tb));
+                            ti += 1;
+                        }
+                    }
+                    self.merge_scratch.extend_from_slice(&from.externs[fi..]);
+                    self.merge_scratch.extend_from_slice(&to.externs[ti..]);
+                    std::mem::swap(&mut to.externs, &mut self.merge_scratch);
+                }
+            }
         }
         changed
     }

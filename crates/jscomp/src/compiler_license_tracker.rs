@@ -92,6 +92,47 @@ impl LicenseTracker for SeenSetLicenseTracker {
         state.currently_seen_licenses.clear();
         result
     }
+    fn supports_deduped_replay(&self) -> bool {
+        true
+    }
+}
+
+/// Rust-only (performance divergence): records the minimal ordered sequence of nodes needed to
+/// replay `LicenseTracker::track_licenses_for_node` identically after printing a script on a
+/// worker thread (all root/script nodes, plus each non-script node where `StaticSourceFile` name
+/// changes).
+#[derive(Default)]
+pub(crate) struct RecordingLicenseTracker {
+    nodes: Vec<NodeId>,
+    last_seen_file: String,
+}
+
+impl RecordingLicenseTracker {
+    pub(crate) fn into_nodes(self) -> Vec<NodeId> {
+        self.nodes
+    }
+}
+
+impl LicenseTracker for RecordingLicenseTracker {
+    fn track_licenses_for_node(&mut self, ast: &Ast, node: NodeId) {
+        if node.is_root(ast) || node.is_script(ast) {
+            self.nodes.push(node);
+            return;
+        }
+        let Some(file) = node.get_static_source_file_ref(ast) else {
+            return;
+        };
+        let name = file.get_name();
+        if self.last_seen_file != name {
+            self.last_seen_file.clear();
+            self.last_seen_file.push_str(name);
+            self.nodes.push(node);
+        }
+    }
+
+    fn emit_licenses(&self) -> IndexSet<JsString> {
+        IndexSet::default()
+    }
 }
 fn license_for_file(ast: &Ast, scripts: &Scripts, file: &str) -> Option<JsString> {
     scripts
@@ -131,6 +172,9 @@ macro_rules! delegate {
             }
             fn emit_licenses(&self) -> IndexSet<JsString> {
                 self.0.emit_licenses()
+            }
+            fn supports_deduped_replay(&self) -> bool {
+                true
             }
         }
     };
@@ -253,5 +297,8 @@ impl LicenseTracker for ChunkGraphAwareLicenseTracker {
             .extend(result.iter().cloned());
         state.licenses_new_in_current_file.clear();
         result
+    }
+    fn supports_deduped_replay(&self) -> bool {
+        true
     }
 }

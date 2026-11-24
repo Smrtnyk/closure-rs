@@ -1,5 +1,4 @@
 /*
- * Copyright 2004 The Closure Compiler Authors.
  * Copyright 2010 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +14,6 @@
  * limitations under the License.
  */
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
-//   src/com/google/javascript/jscomp/NodeTraversal.java,
 //   src/com/google/javascript/jscomp/PeepholeOptimizationsPass.java.
 
 //! Port of `PeepholeOptimizationsPass.java`.
@@ -25,13 +23,19 @@
 
 use crate::{
     abstract_compiler::AbstractCompiler,
-    abstract_peephole_optimization::AbstractPeepholeOptimization,
+    abstract_peephole_optimization::{AbstractPeepholeOptimization, FastTokenFilter},
+    change_tracker::ChangeTracker,
     compiler_pass::CompilerPass,
-    node_traversal::{Callback, NodeTraversal, ScopedCallback},
+    node_traversal::NodeTraversal,
     node_util::NodeUtil,
+    platform::Platform,
 };
 use closure_parsing::parser::feature_set::FeatureSet;
-use closure_rhino::{node::NodeId, token::Token};
+use closure_rhino::{
+    node::{Ast, NodeId},
+    token::Token,
+};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 pub struct PeepholeOptimizationsPass {
     pass_name: String,
@@ -100,30 +104,36 @@ impl CompilerPass for PeepholeOptimizationsPass {
             .as_ref()
             .is_none_or(|nodes| !nodes.is_empty())
         {
-            match &changed_scope_nodes {
+            // Rust-only (performance divergence): walk the AST directly in post-order instead of
+            // building a `NodeTraversal` / `MemoizedScopeCreator` for every changed scope root, and
+            // filter high-frequency `NAME` / `GETPROP` tokens inline before virtual dispatch.
+            let mut walker = PeepWalker {
+                candidates: self.candidates.as_deref(),
+                peephole_optimizations: &mut self.peephole_optimizations,
+                has_pending_features: false,
+                last_script: None,
+                last_node: None,
+            };
+            let result = catch_unwind(AssertUnwindSafe(|| match &changed_scope_nodes {
                 None => {
-                    // changedScopeNodes is null if this is the first run of
-                    // peepholeOptimizationsPass.
-                    NodeTraversal::traverse(
-                        compiler,
-                        root,
-                        &mut PeepCallback {
-                            peephole_optimizations: &mut self.peephole_optimizations,
-                            candidates: self.candidates.as_deref(),
-                        },
-                    );
+                    walker.traverse_full(compiler, root, None);
+                    walker.flush_features(compiler, None);
                 }
                 Some(nodes) => {
-                    NodeTraversal::traverse_scope_roots(
-                        compiler,
-                        nodes,
-                        &mut PeepCallback {
-                            peephole_optimizations: &mut self.peephole_optimizations,
-                            candidates: self.candidates.as_deref(),
-                        },
-                        /* traverseNested= */ false,
-                    );
+                    for &scope_node in nodes {
+                        let script = find_enclosing_script(compiler, scope_node);
+                        walker.traverse_scope_root(compiler, scope_node, scope_node, script);
+                        walker.flush_features(compiler, script);
+                    }
                 }
+            }));
+            if let Err(unexpected_exception) = result {
+                NodeTraversal::throw_unexpected_exception_at(
+                    compiler,
+                    walker.last_script,
+                    walker.last_node,
+                    unexpected_exception,
+                );
             }
 
             // Cancel the fixed point if requested.
@@ -144,6 +154,11 @@ impl CompilerPass for PeepholeOptimizationsPass {
 struct CandidateRules {
     tokens: [u16; Token::PLACEHOLDER3 as usize + 1],
     unrestricted: u16,
+    name_always: u16,
+    name_undefined: u16,
+    getprop_always: u16,
+    getprop_window: u16,
+    getprop_literal: u16,
 }
 
 impl CandidateRules {
@@ -154,6 +169,11 @@ impl CandidateRules {
         let mut rules = Box::new(Self {
             tokens: [0; Token::PLACEHOLDER3 as usize + 1],
             unrestricted: 0,
+            name_always: 0,
+            name_undefined: 0,
+            getprop_always: 0,
+            getprop_window: 0,
+            getprop_literal: 0,
         });
         for (index, optimization) in optimizations.iter().enumerate() {
             let bit = 1 << index;
@@ -161,9 +181,29 @@ impl CandidateRules {
                 Some(tokens) => {
                     for &token in tokens {
                         *rules.tokens.get_mut(token as usize)? |= bit;
+                        match token {
+                            Token::NAME => match optimization.fast_token_filter(Token::NAME) {
+                                FastTokenFilter::NameIsUndefined => rules.name_undefined |= bit,
+                                _ => rules.name_always |= bit,
+                            },
+                            Token::GETPROP => {
+                                match optimization.fast_token_filter(Token::GETPROP) {
+                                    FastTokenFilter::GetPropOnWindow => rules.getprop_window |= bit,
+                                    FastTokenFilter::GetPropOnLiteral => {
+                                        rules.getprop_literal |= bit
+                                    }
+                                    _ => rules.getprop_always |= bit,
+                                }
+                            }
+                            _ => {}
+                        }
                     }
                 }
-                None => rules.unrestricted |= bit,
+                None => {
+                    rules.unrestricted |= bit;
+                    rules.name_always |= bit;
+                    rules.getprop_always |= bit;
+                }
             }
         }
         if rules.unrestricted.count_ones() as usize == optimizations.len() {
@@ -175,94 +215,228 @@ impl CandidateRules {
         Some(rules)
     }
 
-    fn for_token(&self, token: Token) -> u16 {
-        self.tokens
-            .get(token as usize)
-            .copied()
-            .unwrap_or(self.unrestricted)
+    #[inline]
+    fn mask_for_node(&self, ast: &Ast, n: NodeId, token: Token) -> u16 {
+        match token {
+            Token::NAME => {
+                let mut mask = self.name_always;
+                if self.name_undefined != 0
+                    && n.string_payload(ast).is_some_and(|s| s == "undefined")
+                {
+                    mask |= self.name_undefined;
+                }
+                mask
+            }
+            Token::GETPROP => {
+                let mut mask = self.getprop_always;
+                if (self.getprop_window | self.getprop_literal) != 0
+                    && let Some(left) = n.get_first_child(ast)
+                {
+                    match left.get_token(ast) {
+                        Token::NAME
+                            if self.getprop_window != 0
+                                && left.string_payload(ast).is_some_and(|s| s == "window") =>
+                        {
+                            mask |= self.getprop_window;
+                        }
+                        Token::OBJECTLIT | Token::ARRAYLIT | Token::STRINGLIT => {
+                            mask |= self.getprop_literal;
+                        }
+                        _ => {}
+                    }
+                }
+                mask
+            }
+            _ => self
+                .tokens
+                .get(token as usize)
+                .copied()
+                .unwrap_or(self.unrestricted),
+        }
     }
 }
 
-struct PeepCallback<'a> {
+fn find_enclosing_script(ast: &Ast, mut n: NodeId) -> Option<NodeId> {
+    loop {
+        if n.is_script(ast) {
+            return Some(n);
+        }
+        n = n.get_parent(ast)?;
+    }
+}
+
+#[inline]
+fn is_scope_exit_token(token: Token) -> bool {
+    matches!(
+        token,
+        Token::FUNCTION
+            | Token::MODULE_BODY
+            | Token::CLASS
+            | Token::MEMBER_FIELD_DEF
+            | Token::COMPUTED_FIELD_DEF
+            | Token::BLOCK
+            | Token::FOR
+            | Token::FOR_IN
+            | Token::FOR_OF
+            | Token::FOR_AWAIT_OF
+            | Token::SWITCH_BODY
+    )
+}
+
+struct PeepWalker<'a> {
     candidates: Option<&'a CandidateRules>,
     peephole_optimizations: &'a mut [Box<dyn AbstractPeepholeOptimization>],
+    has_pending_features: bool,
+    last_script: Option<NodeId>,
+    last_node: Option<NodeId>,
 }
 
-impl Callback for PeepCallback<'_> {
-    // port: NodeTraversal.AbstractScopedCallback#shouldTraverse
-    fn should_traverse(
+impl PeepWalker<'_> {
+    fn traverse_full(
         &mut self,
-        _node_traversal: &mut NodeTraversal<'_>,
-        _n: NodeId,
-        _parent: Option<NodeId>,
-    ) -> bool {
-        true
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        current_script: Option<NodeId>,
+    ) {
+        let token = n.get_token(compiler);
+        let script = if token == Token::SCRIPT {
+            if Platform::is_thread_interrupted() {
+                self.last_script = Some(n);
+                self.last_node = Some(n);
+                panic!("java.lang.InterruptedException");
+            }
+            Some(n)
+        } else {
+            current_script
+        };
+        let mut child = n.get_first_child(compiler);
+        while let Some(c) = child {
+            let next = c.get_next(compiler);
+            self.traverse_full(compiler, c, script);
+            child = next;
+        }
+        if self.has_pending_features && is_scope_exit_token(token) {
+            self.flush_features(compiler, script);
+        }
+        let current_token = n.get_token(compiler);
+        self.visit_node(compiler, n, current_token, script);
+        if self.has_pending_features && token == Token::SCRIPT {
+            self.flush_features(compiler, script);
+        }
     }
 
-    // port: PeepholeOptimizationsPass.PeepCallback#visit
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
+    fn traverse_scope_root(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        scope_node: NodeId,
+        n: NodeId,
+        current_script: Option<NodeId>,
+    ) {
+        if n != scope_node && ChangeTracker::is_change_scope_root(compiler, n) {
+            return;
+        }
+        let token = n.get_token(compiler);
+        let script = if token == Token::SCRIPT {
+            if Platform::is_thread_interrupted() {
+                self.last_script = Some(n);
+                self.last_node = Some(n);
+                panic!("java.lang.InterruptedException");
+            }
+            Some(n)
+        } else {
+            current_script
+        };
+        let mut child = n.get_first_child(compiler);
+        while let Some(c) = child {
+            let next = c.get_next(compiler);
+            self.traverse_scope_root(compiler, scope_node, c, script);
+            child = next;
+        }
+        if self.has_pending_features && is_scope_exit_token(token) {
+            self.flush_features(compiler, script);
+        }
+        let current_token = n.get_token(compiler);
+        self.visit_node(compiler, n, current_token, script);
+    }
+
+    #[inline]
+    fn visit_node(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        initial_token: Token,
+        current_script: Option<NodeId>,
+    ) {
         let mut current_node = n;
         let mut next = 0;
         if let Some(rules) = self.candidates {
-            let mut remaining = u16::MAX;
-            while next < self.peephole_optimizations.len() {
-                // A rewrite can return a different node or retag the current one in place.
-                // Leave foreign IDs to the ordinary callbacks, which may replace them again.
-                let Some(token) = current_node.token_if_present(t) else {
+            let mut candidates = rules.mask_for_node(compiler, current_node, initial_token);
+            if candidates == 0 {
+                return;
+            }
+            self.last_script = current_script;
+            self.last_node = Some(n);
+            loop {
+                let i = candidates.trailing_zeros() as usize;
+                let optim = &mut self.peephole_optimizations[i];
+                let Some(result) = optim.optimize_subtree(compiler, current_node) else {
+                    if !optim.get_new_features().is_empty() {
+                        self.has_pending_features = true;
+                    }
+                    return;
+                };
+                if !optim.get_new_features().is_empty() {
+                    self.has_pending_features = true;
+                }
+                current_node = result;
+                next = i + 1;
+                if next >= self.peephole_optimizations.len() {
+                    return;
+                }
+                let remaining = (u16::MAX << i) << 1;
+                let Some(token) = current_node.token_if_present(compiler) else {
                     break;
                 };
-                let candidates = rules.for_token(token) & remaining;
+                candidates = rules.mask_for_node(compiler, current_node, token) & remaining;
                 if candidates == 0 {
                     return;
                 }
-                let i = candidates.trailing_zeros() as usize;
-                let Some(result) =
-                    self.peephole_optimizations[i].optimize_subtree(t.get_compiler(), current_node)
-                else {
-                    return;
-                };
-                current_node = result;
-                next = i + 1;
-                remaining = (u16::MAX << i) << 1;
             }
         }
+        self.last_script = current_script;
+        self.last_node = Some(n);
         for optim in &mut self.peephole_optimizations[next..] {
-            match optim.optimize_subtree(t.get_compiler(), current_node) {
-                Some(node) => current_node = node,
-                None => return,
+            match optim.optimize_subtree(compiler, current_node) {
+                Some(node) => {
+                    if !optim.get_new_features().is_empty() {
+                        self.has_pending_features = true;
+                    }
+                    current_node = node;
+                }
+                None => {
+                    if !optim.get_new_features().is_empty() {
+                        self.has_pending_features = true;
+                    }
+                    return;
+                }
             }
         }
     }
 
-    fn as_scoped_callback(&mut self) -> Option<&mut dyn ScopedCallback> {
-        Some(self)
-    }
-}
-
-impl ScopedCallback for PeepCallback<'_> {
-    // port: PeepholeOptimizationsPass.PeepCallback#enterScope
-    fn enter_scope(&mut self, _t: &mut NodeTraversal<'_>) {}
-
-    // port: PeepholeOptimizationsPass.PeepCallback#exitScope
-    fn exit_scope(&mut self, t: &mut NodeTraversal<'_>) {
-        // Call updateFeatures() here, instead of immediately after
-        // `optim.optimizeSubtree(currentNode)` in visit, to avoid repeating work for
-        // every AST node x every peephole optimization. In practice, profiling shows a small
-        // but measurable improvement for large projects. See comments on cl/856752797.
-        self.update_features(t);
-    }
-}
-
-impl PeepCallback<'_> {
     // port: PeepholeOptimizationsPass.PeepCallback#updateFeatures
-    fn update_features(&mut self, t: &mut NodeTraversal<'_>) {
+    fn flush_features(&mut self, compiler: &mut AbstractCompiler, current_script: Option<NodeId>) {
+        if !self.has_pending_features {
+            return;
+        }
+        self.has_pending_features = false;
         for optim in self.peephole_optimizations.iter_mut() {
             let new_features = optim.get_new_features();
-            if !new_features.is_empty() {
-                let current_script = t.get_current_script().unwrap();
+            if !new_features.is_empty()
+                && let Some(script) = current_script
+            {
                 NodeUtil::add_features_to_script(
-                    t.get_compiler(),
-                    current_script,
+                    compiler,
+                    script,
                     FeatureSet::BARE_MINIMUM.with_set(&new_features),
                 );
             }

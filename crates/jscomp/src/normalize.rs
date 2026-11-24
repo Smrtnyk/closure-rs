@@ -182,6 +182,10 @@ impl<'a> Builder<'a> {
 /// Also invokes t.getScope() on every scope, for use with the `DuplicateDeclarationHandler`.
 struct PropagateConstantPropertyOverVars {
     assert_on_change: bool,
+    /// Rust-only (performance divergence): caches per-VarId constant status (0 = unknown,
+    /// 1 = not constant, 2 = constant) so repeated references to the same variable avoid
+    /// re-checking JSDoc and AST structure.
+    var_const_cache: Vec<u8>,
 }
 
 impl PropagateConstantPropertyOverVars {
@@ -189,6 +193,7 @@ impl PropagateConstantPropertyOverVars {
     fn new(forbid_changes: bool) -> Self {
         Self {
             assert_on_change: forbid_changes,
+            var_const_cache: Vec::new(),
         }
     }
 }
@@ -224,21 +229,43 @@ impl Callback for PropagateConstantPropertyOverVars {
         if !n.is_name(t) || n.get_string_ref(t).is_empty() {
             return;
         }
+        if n.get_boolean_prop(t, Prop::IS_CONSTANT_NAME) {
+            return;
+        }
 
         // Find the JSDocInfo for a top-level variable
         let scope = t.get_scope();
-        let name = n.get_string(t);
-        let var = scope.get_var(t.get_compiler(), name);
+        let var = scope.get_var_of_node(t.get_compiler(), n);
         let compiler: &AbstractCompiler = t.get_compiler();
-        let info = var.and_then(|var| var.get_jsdoc_info(compiler));
 
-        let should_be_constant = var.is_some_and(|var| {
-            var.is_const(compiler)
-                || Normalize::is_function_expression_name_node(compiler, var.get_node(compiler))
-        }) || info.as_ref().is_some_and(|info| info.is_constant())
+        let var_is_const = match var {
+            Some(var) => {
+                let idx = var.index();
+                let cached = self.var_const_cache.get(idx).copied().unwrap_or(0);
+                if cached != 0 {
+                    cached == 2
+                } else {
+                    let val = var.is_const(compiler)
+                        || Normalize::is_function_expression_name_node(
+                            compiler,
+                            var.get_node(compiler),
+                        )
+                        || var
+                            .get_jsdoc_info(compiler)
+                            .is_some_and(|info| info.is_constant());
+                    if self.var_const_cache.len() <= idx {
+                        self.var_const_cache.resize(idx + 1, 0);
+                    }
+                    self.var_const_cache[idx] = if val { 2 } else { 1 };
+                    val
+                }
+            }
+            None => false,
+        };
+
+        let should_be_constant = var_is_const
             || NodeUtil::is_constant_by_convention(compiler, compiler.get_coding_convention(), n);
-        let is_marked_constant = n.get_boolean_prop(compiler, Prop::IS_CONSTANT_NAME);
-        if should_be_constant && !is_marked_constant {
+        if should_be_constant {
             if self.assert_on_change {
                 let name = n.get_string(t);
                 panic!(

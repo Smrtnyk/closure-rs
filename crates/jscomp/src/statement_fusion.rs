@@ -212,6 +212,11 @@ impl AbstractPeepholeOptimization for StatementFusion {
         "com.google.javascript.jscomp.StatementFusion"
     }
 
+    // Rust-only (performance divergence): StatementFusion only acts on BLOCK nodes.
+    fn candidate_tokens(&self) -> Option<&'static [Token]> {
+        Some(&[Token::BLOCK])
+    }
+
     // port: StatementFusion#optimizeSubtree
     fn optimize_subtree(&mut self, compiler: &mut AbstractCompiler, n: NodeId) -> Option<NodeId> {
         if n.get_parent(compiler).unwrap().is_function(compiler)

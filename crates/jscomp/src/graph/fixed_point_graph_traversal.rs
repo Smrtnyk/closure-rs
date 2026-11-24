@@ -21,27 +21,32 @@ use super::{
     graph::GraphEdge,
     graph_node::GraphNode,
 };
-use closure_rhino::fast_hash::IndexSet;
 use std::{collections::VecDeque, marker::PhantomData};
 
 /// Java's `LinkedHashSet` work set. Elements keep their first insertion position
 /// and the traversal only ever removes the head, so a FIFO of distinct entries
-/// plus a membership set iterates identically, with O(1) head removal.
+/// plus a dense membership table iterates identically, with O(1) head removal.
 struct WorkSet {
     queue: VecDeque<DiGraphNode>,
-    members: IndexSet<DiGraphNode>,
+    // Rust-only (performance divergence): dense membership vector indexed by `DiGraphNode.0`
+    // avoids hash-set traffic on every edge relaxation.
+    members: Vec<bool>,
 }
 impl WorkSet {
     // port: LinkedHashSet#LinkedHashSet
-    fn new() -> Self {
+    fn new(node_count: usize) -> Self {
         Self {
-            queue: VecDeque::new(),
-            members: IndexSet::<_>::default(),
+            queue: VecDeque::with_capacity(node_count),
+            members: vec![false; node_count],
         }
     }
     // port: LinkedHashSet#add
     fn add(&mut self, node: DiGraphNode) {
-        if self.members.insert(node) {
+        if node.0 >= self.members.len() {
+            self.members.resize(node.0 + 1, false);
+        }
+        if !self.members[node.0] {
+            self.members[node.0] = true;
             self.queue.push_back(node);
         }
     }
@@ -55,7 +60,8 @@ impl WorkSet {
     }
     // port: LinkedHashSet#remove
     fn remove(&mut self, node: DiGraphNode) {
-        if self.members.swap_remove(&node) {
+        if node.0 < self.members.len() && self.members[node.0] {
+            self.members[node.0] = false;
             if self.queue.front() == Some(&node) {
                 self.queue.pop_front();
             } else if let Some(i) = self.queue.iter().position(|n| *n == node) {
@@ -136,7 +142,7 @@ impl<N: Clone, E: Clone, C> FixedPointGraphTraversal<N, E, C> {
             .get_node_count()
             .min(Self::MAX_NODE_COUNT_FOR_ITERATION_LIMIT) as u64;
         let max_iterations = (node_count * node_count * node_count).max(100);
-        let mut work_set = WorkSet::new();
+        let mut work_set = WorkSet::new(graph.get_node_count());
         for n in entry_set {
             work_set.add(graph.get_node(&n).expect(""));
         }

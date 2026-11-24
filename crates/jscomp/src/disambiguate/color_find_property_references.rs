@@ -122,38 +122,88 @@ impl<'a> ColorFindPropertyReferences<'a> {
         self.prop_index.take().unwrap()
     }
 
+    /// Rust-only (performance divergence): walk `root` directly in post-order without creating
+    /// a `NodeTraversal`, tracking `from_externs` once per `SCRIPT`.
+    pub(super) fn traverse_ast(&mut self, compiler: &AbstractCompiler, root: NodeId) {
+        self.traverse_subtree(compiler, root, false);
+    }
+
+    fn traverse_subtree(&mut self, compiler: &AbstractCompiler, n: NodeId, from_externs: bool) {
+        let token = n.get_token(compiler);
+        let from_externs = if token == Token::SCRIPT {
+            n.is_from_externs(compiler)
+        } else {
+            from_externs
+        };
+        let mut child = n.get_first_child(compiler);
+        while let Some(c) = child {
+            self.traverse_subtree(compiler, c, from_externs);
+            child = c.get_next(compiler);
+        }
+        self.visit_node(compiler, from_externs, n, token);
+    }
+
+    #[inline]
+    fn visit_node(
+        &mut self,
+        compiler: &AbstractCompiler,
+        from_externs: bool,
+        n: NodeId,
+        token: Token,
+    ) {
+        match token {
+            Token::GETPROP | Token::OPTCHAIN_GETPROP => {
+                let owner = n.get_first_child(compiler).unwrap().get_color(compiler);
+                self.register_property_use_direct(compiler, from_externs, n, owner)
+            }
+            Token::OBJECTLIT => self.handle_object_lit(compiler, from_externs, n),
+            Token::CALL => self.handle_call(compiler, from_externs, n),
+            Token::CLASS => self.handle_class(compiler, from_externs, n),
+            Token::OBJECT_PATTERN => self.handle_object_pattern(compiler, from_externs, n),
+            Token::FUNCTION => self.handle_function(compiler, n),
+            _ => {}
+        }
+    }
+
     // port: ColorFindPropertyReferences#handleObjectLit
-    fn handle_object_lit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId) {
+    fn handle_object_lit(&mut self, compiler: &AbstractCompiler, from_externs: bool, n: NodeId) {
         // Object.defineProperties literals are handled at the CALL node.
-        let parent = n.get_parent(t).unwrap();
-        if parent.is_call(t) && NodeUtil::is_object_define_properties_definition(t, parent) {
+        let parent = n.get_parent(compiler).unwrap();
+        if parent.is_call(compiler)
+            && NodeUtil::is_object_define_properties_definition(compiler, parent)
+        {
             return;
         }
 
-        let owner = n.get_color(t);
-        self.traverse_objectlit_like(t, n, &|_ast, _m| owner.clone());
+        let owner = n.get_color(compiler);
+        self.traverse_objectlit_like(compiler, from_externs, n, &|_ast, _m| owner.clone());
     }
 
     /// Examines calls in case they are Object.defineProperties calls
     // port: ColorFindPropertyReferences#handleCall
-    fn handle_call(&mut self, t: &mut NodeTraversal<'_>, call: NodeId) {
-        let target = call.get_first_child(t).unwrap();
-        if !target.is_qualified_name(t) {
+    fn handle_call(&mut self, compiler: &AbstractCompiler, from_externs: bool, call: NodeId) {
+        let target = call.get_first_child(compiler).unwrap();
+        if !target.is_qualified_name(compiler) {
             return;
         }
 
-        if (self.is_property_reflector)(t.get_compiler(), target) {
-            self.handle_property_reflector_call(t, call);
-        } else if NodeUtil::is_object_define_properties_definition(t, call) {
-            self.handle_object_define_properties(t, call);
+        if (self.is_property_reflector)(compiler, target) {
+            self.handle_property_reflector_call(compiler, from_externs, call);
+        } else if NodeUtil::is_object_define_properties_definition(compiler, call) {
+            self.handle_object_define_properties(compiler, from_externs, call);
         }
     }
 
     // port: ColorFindPropertyReferences#handleClass
-    fn handle_class(&mut self, t: &mut NodeTraversal<'_>, class_node: NodeId) {
-        let class_type = class_node.get_color(t);
-        let class_members = NodeUtil::get_class_members(t, class_node);
-        self.traverse_objectlit_like(t, class_members, &|ast, m| {
+    fn handle_class(
+        &mut self,
+        compiler: &AbstractCompiler,
+        from_externs: bool,
+        class_node: NodeId,
+    ) {
+        let class_type = class_node.get_color(compiler);
+        let class_members = NodeUtil::get_class_members(compiler, class_node);
+        self.traverse_objectlit_like(compiler, from_externs, class_members, &|ast, m| {
             if m.is_static_member(ast) {
                 class_type.clone()
             } else if m.is_member_field_def(ast) {
@@ -197,54 +247,76 @@ impl<'a> ColorFindPropertyReferences<'a> {
     }
 
     // port: ColorFindPropertyReferences#handleObjectPattern
-    fn handle_object_pattern(&mut self, t: &mut NodeTraversal<'_>, pattern: NodeId) {
-        let owner = pattern.get_color(t);
-        self.traverse_objectlit_like(t, pattern, &|_ast, _m| owner.clone());
+    fn handle_object_pattern(
+        &mut self,
+        compiler: &AbstractCompiler,
+        from_externs: bool,
+        pattern: NodeId,
+    ) {
+        let owner = pattern.get_color(compiler);
+        self.traverse_objectlit_like(compiler, from_externs, pattern, &|_ast, _m| owner.clone());
     }
 
     // port: ColorFindPropertyReferences#handlePropertyReflectorCall
-    fn handle_property_reflector_call(&mut self, t: &mut NodeTraversal<'_>, call: NodeId) {
-        let name = call.get_second_child(t);
-        let Some(name) = name.filter(|name| name.is_string_lit(t)) else {
+    fn handle_property_reflector_call(
+        &mut self,
+        compiler: &AbstractCompiler,
+        from_externs: bool,
+        call: NodeId,
+    ) {
+        let name = call.get_second_child(compiler);
+        let Some(name) = name.filter(|name| name.is_string_lit(compiler)) else {
             return;
         };
 
-        let obj = name.get_next(t);
-        let obj_color = obj.and_then(|obj| obj.get_color(t));
-        self.register_property_use(t, name, obj_color);
+        let obj = name.get_next(compiler);
+        let obj_color = obj.and_then(|obj| obj.get_color(compiler));
+        self.register_property_use_direct(compiler, from_externs, name, obj_color);
     }
 
     // port: ColorFindPropertyReferences#handleObjectDefineProperties
-    fn handle_object_define_properties(&mut self, t: &mut NodeTraversal<'_>, call: NodeId) {
-        let type_obj = call.get_second_child(t).unwrap();
-        let object_literal = type_obj.get_next(t).unwrap();
-        if !object_literal.is_object_lit(t) {
+    fn handle_object_define_properties(
+        &mut self,
+        compiler: &AbstractCompiler,
+        from_externs: bool,
+        call: NodeId,
+    ) {
+        let type_obj = call.get_second_child(compiler).unwrap();
+        let object_literal = type_obj.get_next(compiler).unwrap();
+        if !object_literal.is_object_lit(compiler) {
             return;
         }
 
-        let r#type = type_obj.get_color(t);
-        self.traverse_objectlit_like(t, object_literal, &|_ast, _m| r#type.clone());
+        let r#type = type_obj.get_color(compiler);
+        self.traverse_objectlit_like(compiler, from_externs, object_literal, &|_ast, _m| {
+            r#type.clone()
+        });
     }
 
     // port: ColorFindPropertyReferences#traverseObjectlitLike
     fn traverse_objectlit_like(
         &mut self,
-        t: &mut NodeTraversal<'_>,
+        compiler: &AbstractCompiler,
+        from_externs: bool,
         n: NodeId,
         member_owner_fn: &dyn Fn(&Ast, NodeId) -> Option<Color>,
     ) {
         // The keys in an object pattern are r-values, not l-values, but they are still accesses.
-        check_state!(n.is_object_lit(t) || n.is_object_pattern(t) || n.is_class_members(t));
+        check_state!(
+            n.is_object_lit(compiler)
+                || n.is_object_pattern(compiler)
+                || n.is_class_members(compiler)
+        );
 
-        let mut child = n.get_first_child(t);
+        let mut child = n.get_first_child(compiler);
         while let Some(c) = child {
-            match c.get_token(t) {
+            match c.get_token(compiler) {
                 Token::BLOCK
                 | Token::COMPUTED_PROP
                 | Token::COMPUTED_FIELD_DEF
                 | Token::OBJECT_REST
                 | Token::OBJECT_SPREAD => {
-                    child = c.get_next(t);
+                    child = c.get_next(compiler);
                     continue;
                 }
                 Token::STRING_KEY
@@ -252,37 +324,35 @@ impl<'a> ColorFindPropertyReferences<'a> {
                 | Token::MEMBER_FIELD_DEF
                 | Token::GETTER_DEF
                 | Token::SETTER_DEF => {
-                    if c.is_quoted_string_key(t) {
-                        child = c.get_next(t);
+                    if c.is_quoted_string_key(compiler) {
+                        child = c.get_next(compiler);
                         continue; // These won't be renamed due to our assumptions. Ignore them.
                     }
 
-                    let owner = member_owner_fn(t, c);
-                    self.register_property_use(t, c, owner);
+                    let owner = member_owner_fn(compiler, c);
+                    self.register_property_use_direct(compiler, from_externs, c, owner);
                 }
                 _ => panic!(
                     "Unexpected child of {}: {}",
-                    n.get_token(t),
-                    c.to_string_tree(t)
+                    n.get_token(compiler),
+                    c.to_string_tree(compiler)
                 ),
             }
-            child = c.get_next(t);
+            child = c.get_next(compiler);
         }
     }
 
     /// Update all datastructures as necessary to consider property use {@code site} from type
     /// {@code owner}.
     // port: ColorFindPropertyReferences#registerPropertyUse
-    fn register_property_use(
+    fn register_property_use_direct(
         &mut self,
-        t: &mut NodeTraversal<'_>,
+        ast: &Ast,
+        from_externs: bool,
         site: NodeId,
         owner: Option<Color>,
     ) {
-        // The containing script owns the use even if the individual node has different
-        // source-file metadata (b/186056977).
-        let from_externs = t.get_current_script().unwrap().is_from_externs(t);
-        let site_string = site.get_string_ref(t);
+        let site_string = site.get_string_ref(ast);
         let prop_index = self.prop_index.as_mut().unwrap();
         let prop = match prop_index.get(site_string) {
             Some(&prop) => {
@@ -338,17 +408,23 @@ impl Callback for ColorFindPropertyReferences<'_> {
 
     // port: ColorFindPropertyReferences#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-        match n.get_token(t) {
-            Token::GETPROP | Token::OPTCHAIN_GETPROP => {
-                let owner = n.get_first_child(t).unwrap().get_color(t);
-                self.register_property_use(t, n, owner)
-            }
-            Token::OBJECTLIT => self.handle_object_lit(t, n),
-            Token::CALL => self.handle_call(t, n),
-            Token::CLASS => self.handle_class(t, n),
-            Token::OBJECT_PATTERN => self.handle_object_pattern(t, n),
-            Token::FUNCTION => self.handle_function(t, n),
-            _ => {}
+        let token = n.get_token(t);
+        if matches!(
+            token,
+            Token::GETPROP
+                | Token::OPTCHAIN_GETPROP
+                | Token::OBJECTLIT
+                | Token::CALL
+                | Token::CLASS
+                | Token::OBJECT_PATTERN
+                | Token::FUNCTION
+        ) {
+            let from_externs = if token == Token::FUNCTION {
+                false
+            } else {
+                t.get_current_script().unwrap().is_from_externs(t)
+            };
+            self.visit_node(t.get_compiler(), from_externs, n, token);
         }
     }
 }

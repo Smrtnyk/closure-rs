@@ -1,5 +1,4 @@
 /*
- * Copyright 2004 The Closure Compiler Authors.
  * Copyright 2020 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +14,6 @@
  * limitations under the License.
  */
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
-//   src/com/google/javascript/jscomp/NodeTraversal.java,
 //   src/com/google/javascript/jscomp/serialization/ConvertTypesToColors.java.
 
 //! Port of serialization/ConvertTypesToColors.java.
@@ -26,7 +24,6 @@ use super::serialize_types_to_pointers::SerializeTypesToPointers;
 use super::string_pool::StringPool;
 use crate::abstract_compiler::AbstractCompiler;
 use crate::compiler_pass::CompilerPass;
-use crate::node_traversal::{Callback, NodeTraversal};
 use closure_rhino::check_state;
 use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::jstype::TypeId;
@@ -62,33 +59,28 @@ struct RemoveTypes;
 
 impl RemoveTypes {
     // port: ConvertTypesToColors.RemoveTypes#visit
+    #[inline]
     fn visit_node(ast: &mut Ast, n: NodeId) {
         n.set_jstype(ast, None);
         n.clear_type_declaration_props(ast);
 
-        let jsdoc = n.get_jsdoc_info(ast);
-        if let Some(jsdoc) = jsdoc {
+        if n.get_jsdoc_info_ref(ast).is_some() {
+            let jsdoc = n.get_jsdoc_info(ast);
             let converted =
-                JSDocSerializer::convert_jsdoc_info_for_optimizations(ast, Some(&jsdoc));
+                JSDocSerializer::convert_jsdoc_info_for_optimizations(ast, jsdoc.as_deref());
             n.set_jsdoc_info(ast, converted);
         }
     }
-}
 
-impl Callback for RemoveTypes {
-    // port: NodeTraversal.AbstractPostOrderCallback#shouldTraverse
-    fn should_traverse(
-        &mut self,
-        _t: &mut NodeTraversal<'_>,
-        _n: NodeId,
-        _parent: Option<NodeId>,
-    ) -> bool {
-        true
-    }
-
-    // port: ConvertTypesToColors.RemoveTypes#visit
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-        let ast: &mut Ast = t.get_compiler();
+    /// Rust-only (performance divergence): walk `n` directly in post-order without building a
+    /// `NodeTraversal`.
+    fn traverse(ast: &mut Ast, n: NodeId) {
+        let mut child = n.get_first_child(ast);
+        while let Some(c) = child {
+            let next = c.get_next(ast);
+            Self::traverse(ast, c);
+            child = next;
+        }
         Self::visit_node(ast, n);
     }
 }
@@ -113,22 +105,17 @@ impl RemoveTypesAndApplyColors {
         }
         Self { colors }
     }
-}
-
-impl Callback for RemoveTypesAndApplyColors {
-    // port: NodeTraversal.AbstractPostOrderCallback#shouldTraverse
-    fn should_traverse(
-        &mut self,
-        _t: &mut NodeTraversal<'_>,
-        _n: NodeId,
-        _parent: Option<NodeId>,
-    ) -> bool {
-        true
-    }
 
     // port: ConvertTypesToColors.RemoveTypesAndApplyColors#visit
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-        let ast: &mut Ast = t.get_compiler();
+    /// Rust-only (performance divergence): walk `n` directly in post-order without building a
+    /// `NodeTraversal`.
+    fn traverse(&self, ast: &mut Ast, n: NodeId) {
+        let mut child = n.get_first_child(ast);
+        while let Some(c) = child {
+            let next = c.get_next(ast);
+            self.traverse(ast, c);
+            child = next;
+        }
         let old_type = n.get_jstype(ast);
         let old_type_before_cast = n.get_jstype_before_cast(ast);
 
@@ -170,7 +157,7 @@ impl CompilerPass for ConvertTypesToColors {
         let externs_and_js_root = root.get_parent(compiler).unwrap();
 
         if !compiler.has_type_checking_run() {
-            NodeTraversal::traverse(compiler, externs_and_js_root, &mut RemoveTypes);
+            RemoveTypes::traverse(compiler, externs_and_js_root);
             compiler.clear_js_type_registry();
             compiler.init_runtime_library_typed_asts(None);
             return;
@@ -195,8 +182,8 @@ impl CompilerPass for ConvertTypesToColors {
 
         let shard = color_pool_builder.add_optimization_shard(type_pool, color_ids, strings);
         let color_pool = color_pool_builder.build();
-        let mut callback = RemoveTypesAndApplyColors::new(&shard, &pointers);
-        NodeTraversal::traverse(compiler, externs_and_js_root, &mut callback);
+        let callback = RemoveTypesAndApplyColors::new(&shard, &pointers);
+        callback.traverse(compiler, externs_and_js_root);
 
         compiler.clear_js_type_registry();
         compiler.set_color_registry(Arc::clone(color_pool.get_registry()));

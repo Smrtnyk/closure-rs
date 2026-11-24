@@ -1623,3 +1623,12 @@ fn nested_default_reads_the_outer_binding() {
     let mut t = FlowSensitiveInlineVariablesTest::set_up();
     t.no_inline("var value = 1; print(function(p = value) { return p; });");
 }
+
+#[test]
+fn inline_function_referencing_extern_global() {
+    let mut t = FlowSensitiveInlineVariablesTest::set_up();
+    t.inline(
+        "var f = () => alert(1); print(f);",
+        "var f; print(() => alert(1));",
+    );
+}

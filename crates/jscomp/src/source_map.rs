@@ -191,8 +191,9 @@ pub struct SourceMap {
     /// compilation job have been generated from, and used to create a source map that maps all the way
     /// back to original inputs. {@code null} if no such mapping is wanted.
     mapping: Option<Box<dyn SourceFileMapping + Send>>,
-    /// Rust-only: the last source file name seen by `add_mapping_for_node`, and as a JS string.
-    last_source_file_name: Option<(String, JsString)>,
+    /// Rust-only: the last source file name seen by `add_mapping_for_node`, its `JsString`, and
+    /// its prefix-fixed `JsString`.
+    last_source_file_name: Option<(String, JsString, JsString)>,
     /// Rust-only (performance divergence): what `mapping` found for the previous node.
     mapping_cache: crate::source_file_mapping::SourceMappingCache,
 }
@@ -229,31 +230,38 @@ impl SourceMap {
         if source_file.is_none() || node.get_lineno(ast) < 0 {
             return;
         }
-        // Rust-only: the file name converted for the previous node is reused
+        // Rust-only: the file name converted (and prefix-fixed) for the previous node is reused
         // (performance divergence).
         let source_file = source_file.unwrap();
         if self
             .last_source_file_name
             .as_ref()
-            .is_none_or(|(name, _)| name != source_file.get_name())
+            .is_none_or(|(name, _, _)| name != source_file.get_name())
         {
             let name = source_file.get_name();
-            self.last_source_file_name = Some((name.to_owned(), JsString::from(name)));
+            let js_name = JsString::from(name);
+            let fixed_name = if self.prefix_mappings.is_empty() {
+                js_name.clone()
+            } else {
+                self.fixup_source_location(&js_name)
+            };
+            self.last_source_file_name = Some((name.to_owned(), js_name, fixed_name));
         }
-        let mut source_file_name = self.last_source_file_name.as_ref().unwrap().1.clone();
         let mut line_no = node.get_lineno(ast);
         let mut char_no = node.get_charno(ast);
         let mut original_name = Self::get_original_name(ast, node);
-        if let Some(mapping) = &self.mapping {
+        let source_file_name = if let Some(mapping) = &self.mapping {
+            let raw_source_file_name = &self.last_source_file_name.as_ref().unwrap().1;
             let source_mapping = mapping.get_source_mapping_cached(
                 &mut self.mapping_cache,
-                &source_file_name,
+                raw_source_file_name,
                 line_no,
                 char_no,
             );
             if source_mapping.is_none() {
                 // The source file does not have a input map. We consider this to be an
                 // original source range and include it in the output map.
+                self.last_source_file_name.as_ref().unwrap().2.clone()
             } else if source_mapping.as_ref().unwrap() == OriginalMapping::get_default_instance() {
                 // The source file does have an input map, but it does not map the
                 // location. We consider this to be a synthetic code range and do not
@@ -263,18 +271,21 @@ impl SourceMap {
             } else {
                 // The source file mapped our code range to its original source location.
                 let source_mapping = source_mapping.unwrap();
-                source_file_name = source_mapping.get_original_file();
+                let mut mapped_file = source_mapping.get_original_file();
                 line_no = source_mapping.get_line_number();
                 char_no = source_mapping.get_column_position();
                 let identifier = source_mapping.get_identifier();
                 if source_mapping.has_identifier() && !identifier.is_empty() {
                     original_name = Some(identifier);
                 }
+                if !self.prefix_mappings.is_empty() {
+                    mapped_file = self.fixup_source_location(&mapped_file);
+                }
+                mapped_file
             }
-        }
-        if !self.prefix_mappings.is_empty() {
-            source_file_name = self.fixup_source_location(&source_file_name);
-        }
+        } else {
+            self.last_source_file_name.as_ref().unwrap().2.clone()
+        };
         // Rhino source lines are one based but for v3 source maps, we make
         // them zero based.
         let line_base_offset = 1;
@@ -352,6 +363,7 @@ impl SourceMap {
     pub fn reset(&mut self) {
         self.generator.reset();
         self.source_location_fixup_cache.clear();
+        self.last_source_file_name = None;
     }
     // port: SourceMap#setStartingPosition
     pub fn set_starting_position(&mut self, offset_line: i32, offset_index: i32) {
@@ -381,6 +393,7 @@ impl SourceMap {
         source_map_location_mappings: Vec<Box<dyn LocationMapping>>,
     ) {
         self.prefix_mappings = source_map_location_mappings;
+        self.last_source_file_name = None;
     }
     // port: SourceMap#setSourceFileMapping
     pub fn set_source_file_mapping(&mut self, mapping: Option<Box<dyn SourceFileMapping + Send>>) {

@@ -136,6 +136,13 @@ pub struct Compiler {
         Option<crate::reference_collector::ExternsReferenceSummary>,
     /// Ordered reference sites in function bodies inspected by InlineVariables.
     pub(crate) function_reference_sites: crate::reference_collector::FunctionReferenceCache,
+    /// Cached semantic summaries of unchanged leaf functions for RemoveUnusedCode.
+    pub(crate) remove_unused_code_cache: crate::remove_unused_code::RemoveUnusedCodeCache,
+    /// Cached unchanged leaf functions known to have no flow-sensitive inline candidates.
+    pub(crate) flow_inline_clean_cache:
+        crate::flow_sensitive_inline_variables::FlowInlineCleanCache,
+    /// Cached unchanged leaf functions known to have no `InlineVariables` local rewrites.
+    pub(crate) inline_vars_clean_cache: crate::inline_variables::InlineVarsCleanCache,
     accessor_summary: Option<Arc<crate::accessor_summary::AccessorSummary>>,
     unique_name_id: Arc<std::sync::atomic::AtomicI32>,
     unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier,
@@ -253,6 +260,9 @@ impl Compiler {
             extern_properties_js: ExternPropertiesJs::default(),
             externs_reference_summary: None,
             function_reference_sites: Default::default(),
+            remove_unused_code_cache: Default::default(),
+            flow_inline_clean_cache: Default::default(),
+            inline_vars_clean_cache: Default::default(),
             accessor_summary: None,
             unique_name_id: Arc::new(std::sync::atomic::AtomicI32::new(0)),
             unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier::default(),
@@ -997,6 +1007,15 @@ impl Compiler {
     }
     // port: Compiler#setLifeCycleStage
     pub fn set_life_cycle_stage(&mut self, stage: crate::abstract_compiler::LifeCycleStage) {
+        // Rust-only (performance divergence): drop optimization-loop caches when leaving a
+        // normalized stage (e.g. `markUnnormalized` before denormalize/rename/codegen) to avoid
+        // holding them alongside codegen buffers.
+        if self.stage.is_normalized() && !stage.is_normalized() {
+            self.inline_vars_clean_cache = Default::default();
+            self.flow_inline_clean_cache = Default::default();
+            self.remove_unused_code_cache = Default::default();
+            self.function_reference_sites = Default::default();
+        }
         self.stage = stage;
     }
     // port: Compiler#getScriptNode
@@ -1425,6 +1444,9 @@ impl Compiler {
         self.change_tracker.set_externs_root(externs);
         self.externs_reference_summary = None;
         self.function_reference_sites = Default::default();
+        self.remove_unused_code_cache = Default::default();
+        self.flow_inline_clean_cache = Default::default();
+        self.inline_vars_clean_cache = Default::default();
         self.extern_and_js_root = Some(IR::root(self, &[externs, js]));
     }
     // port: Compiler#getChunkGraph
@@ -2262,24 +2284,21 @@ impl Compiler {
                 let mut cb = CodeBuilder::default();
                 let mut tracker =
                     crate::compiler_license_tracker::SingleBinaryLicenseTracker::new(compiler);
+                let mut scripts = Vec::new();
                 if let Some(js_root) = compiler.js_root {
                     let mut i = 0;
                     if compiler.get_options().should_print_externs() {
-                        for script in compiler
-                            .externs_root
-                            .unwrap()
-                            .children(compiler)
-                            .collect::<Vec<_>>()
-                        {
-                            compiler.to_source_with_builder(&mut cb, &mut tracker, i, script);
+                        for script in compiler.externs_root.unwrap().children(compiler) {
+                            scripts.push((i, script));
                             i += 1;
                         }
                     }
-                    for script in js_root.children(compiler).collect::<Vec<_>>() {
-                        compiler.to_source_with_builder(&mut cb, &mut tracker, i, script);
+                    for script in js_root.children(compiler) {
+                        scripts.push((i, script));
                         i += 1;
                     }
                 }
+                compiler.emit_scripts_to_builder(&mut cb, &mut tracker, &scripts);
                 cb.to_js_string()
             }));
             compiler.stop_tracer(tracer, "toSource");
@@ -2316,10 +2335,11 @@ impl Compiler {
                 return closure_rhino::js_string::JsString::default();
             }
             let mut cb = CodeBuilder::default();
+            let mut scripts = Vec::with_capacity(chunk_externs.len() + inputs.len());
             let mut seq = 0;
             for extern_input in &chunk_externs {
                 let script_node = extern_input.get_ast_root(compiler);
-                compiler.to_source_with_builder(&mut cb, tracker, seq, script_node);
+                scripts.push((seq, script_node));
                 seq += 1;
             }
             for input in &inputs {
@@ -2327,11 +2347,127 @@ impl Compiler {
                     continue;
                 }
                 let root = input.get_ast_root(compiler);
-                compiler.to_source_with_builder(&mut cb, tracker, seq, root);
+                scripts.push((seq, root));
                 seq += 1;
             }
+            compiler.emit_scripts_to_builder(&mut cb, tracker, &scripts);
             cb.to_js_string()
         })
+    }
+    /// Rust-only (performance divergence): prints scripts in parallel on worker threads when a
+    /// chunk or single output contains multiple scripts and the license tracker supports deduped
+    /// node replay, then emits delimiters, licenses, code, and source-map mappings in exact
+    /// script order.
+    fn emit_scripts_to_builder(
+        &mut self,
+        cb: &mut CodeBuilder,
+        tracker: &mut (dyn crate::code_printer::LicenseTracker + Send),
+        scripts: &[(i32, NodeId)],
+    ) {
+        let non_empty = if tracker.supports_deduped_replay()
+            && !self.get_options().should_print_input_delimiter()
+            && self.node_count() >= 500_000
+        {
+            scripts
+                .iter()
+                .filter(|&&(_, root)| root.has_children(&self.ast))
+                .count()
+        } else {
+            0
+        };
+        let threads = crate::parallel_parse::parallel_thread_count(non_empty, 2, 4);
+        if threads < 2 {
+            for &(seq, root) in scripts {
+                self.to_source_with_builder(cb, tracker, seq, root);
+            }
+            return;
+        }
+        let ast = &self.ast;
+        let options = self.get_options();
+        let tag_as_type_summary = options.should_generate_typed_externs();
+        let emit_use_strict = options.should_emit_use_strict();
+        let next = std::sync::atomic::AtomicUsize::new(0);
+        let mut ordered: Vec<Option<(crate::code_printer::SourceAndMappings, Vec<NodeId>)>> =
+            (0..scripts.len()).map(|_| None).collect();
+        let worker_outputs: Vec<Vec<(usize, crate::code_printer::SourceAndMappings, Vec<NodeId>)>> =
+            std::thread::scope(|scope| {
+                let mut handles = Vec::with_capacity(threads);
+                for _ in 0..threads {
+                    let next = &next;
+                    let handle = std::thread::Builder::new()
+                        .name("closure-codegen".into())
+                        .stack_size(crate::compiler_executor::COMPILER_STACK_SIZE)
+                        .spawn_scoped(scope, move || {
+                            let mut local = Vec::new();
+                            loop {
+                                let idx =
+                                    next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                                let Some(&(seq, root)) = scripts.get(idx) else {
+                                    break;
+                                };
+                                let mut rec =
+                                    crate::compiler_license_tracker::RecordingLicenseTracker::default();
+                                let sam = crate::code_printer::Builder::with_compiler_options(
+                                    root, options,
+                                )
+                                .set_tag_as_type_summary(tag_as_type_summary)
+                                .set_tag_as_strict(seq == 0 && emit_use_strict)
+                                .set_license_tracker(Some(&mut rec))
+                                .build_with_source_mappings(ast);
+                                local.push((idx, sam, rec.into_nodes()));
+                            }
+                            local
+                        })
+                        .expect("spawn codegen worker");
+                    handles.push(handle);
+                }
+                handles
+                    .into_iter()
+                    .map(|h| h.join().expect("codegen worker panicked"))
+                    .collect()
+            });
+        for batch in worker_outputs {
+            for (idx, sam, nodes) in batch {
+                ordered[idx] = Some((sam, nodes));
+            }
+        }
+        let gather_source_map = self.get_options().should_gather_source_map_info();
+        for item in ordered {
+            let (source_and_mappings, license_nodes) = item.unwrap();
+            for node in license_nodes {
+                tracker.track_licenses_for_node(&self.ast, node);
+            }
+            for license in tracker.emit_licenses() {
+                cb.append("/*\n").append(license).append("*/\n");
+            }
+            let code = source_and_mappings.source;
+            if code.is_empty() {
+                continue;
+            }
+            if gather_source_map {
+                self.source_map
+                    .as_ref()
+                    .unwrap()
+                    .lock()
+                    .unwrap()
+                    .set_starting_position(cb.get_line_index(), cb.get_column_index());
+            }
+            let chars = code.as_units();
+            let length = chars.len();
+            let last_char = chars[length - 1];
+            let second_last_char = if length >= 2 { chars[length - 2] } else { 0 };
+            let has_semicolon = last_char == 59 || (last_char == 10 && second_last_char == 59);
+            cb.append(code);
+            if !has_semicolon {
+                cb.append(";");
+            }
+            if gather_source_map {
+                let mut map = self.source_map.as_ref().unwrap().lock().unwrap();
+                for mapping in source_and_mappings.mappings.unwrap() {
+                    map.add_mapping(self, &mapping);
+                }
+            }
+        }
     }
     // port: Compiler#toSource(CodeBuilder, LicenseTracker, int, Node)
     pub fn to_source_with_builder(
@@ -2415,8 +2551,7 @@ impl Compiler {
         first_output: bool,
         tracker: &mut dyn crate::code_printer::LicenseTracker,
     ) -> crate::code_printer::SourceAndMappings {
-        crate::code_printer::Builder::new(n)
-            .set_compiler_options(self.get_options())
+        crate::code_printer::Builder::with_compiler_options(n, self.get_options())
             .set_tag_as_type_summary(self.get_options().should_generate_typed_externs())
             .set_tag_as_strict(first_output && self.get_options().should_emit_use_strict())
             .set_license_tracker(Some(tracker))
@@ -5138,6 +5273,9 @@ impl Compiler {
         self.change_tracker.set_externs_root(externs_root);
         self.externs_reference_summary = None;
         self.function_reference_sites = Default::default();
+        self.remove_unused_code_cache = Default::default();
+        self.flow_inline_clean_cache = Default::default();
+        self.inline_vars_clean_cache = Default::default();
         self.js_root = Some(js_root);
         self.inputs_by_id.clear();
         self.excerpt_provider.files.lock().unwrap().clear();

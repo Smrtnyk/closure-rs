@@ -53,7 +53,7 @@ use closure_rhino::{
     ir::IR,
     js_string::JsString,
     jsdoc_info::JSDocInfo,
-    node::{Ast, NodeId, Prop},
+    node::{Ast, NodeId, Prop, WatchedName},
     qualified_name::QualifiedName,
     static_source_file::StaticSourceFile,
     token::Token,
@@ -162,6 +162,98 @@ struct RefData {
     scope: Option<ScopeId>,
 }
 
+/// Rust-only (performance divergence): limits `GlobalNamespace` construction to names rooted at
+/// `roots`, skipping `SCRIPT`, `FUNCTION`, `BLOCK`, `FOR*`, and `SWITCH_BODY` subtrees that lie off
+/// any ancestor path to a matching `NAME`.
+struct WatchedRootsFilter {
+    roots: IndexSet<JsString>,
+    paths: Vec<u64>,
+}
+
+impl WatchedRootsFilter {
+    fn build(ast: &Ast, externs_root: NodeId, root: NodeId, roots: IndexSet<JsString>) -> Self {
+        let mut paths = vec![0u64; (ast.node_count() as usize).div_ceil(64)];
+        let check_goog = ast.has_seen_name(WatchedName::Goog);
+        let check_exports = roots.contains(&JsString::from("exports"));
+
+        fn mark_path(ast: &Ast, paths: &mut [u64], mut n: NodeId) {
+            loop {
+                let idx = n.arena_index();
+                let word = idx >> 6;
+                let bit = 1u64 << (idx & 63);
+                if word >= paths.len() || paths[word] & bit != 0 {
+                    break;
+                }
+                paths[word] |= bit;
+                let Some(parent) = n.get_parent(ast) else {
+                    break;
+                };
+                n = parent;
+            }
+        }
+
+        fn scan(
+            ast: &Ast,
+            roots: &IndexSet<JsString>,
+            check_goog: bool,
+            check_exports: bool,
+            paths: &mut [u64],
+            n: NodeId,
+        ) {
+            match n.get_token(ast) {
+                Token::NAME => {
+                    let s = n.get_string_ref(ast);
+                    if roots.contains(s) || (check_goog && s == "goog") {
+                        mark_path(ast, paths, n);
+                    }
+                }
+                Token::MODULE_BODY if check_exports => {
+                    mark_path(ast, paths, n);
+                }
+                Token::BLOCK
+                    if check_exports && NodeUtil::is_bundled_goog_module_scope_root(ast, n) =>
+                {
+                    mark_path(ast, paths, n);
+                }
+                _ => {}
+            }
+            let mut child = n.get_first_child(ast);
+            while let Some(c) = child {
+                scan(ast, roots, check_goog, check_exports, paths, c);
+                child = c.get_next(ast);
+            }
+        }
+
+        scan(
+            ast,
+            &roots,
+            check_goog,
+            check_exports,
+            &mut paths,
+            externs_root,
+        );
+        scan(ast, &roots, check_goog, check_exports, &mut paths, root);
+        Self { roots, paths }
+    }
+
+    #[inline]
+    fn has_path(&self, n: NodeId) -> bool {
+        let idx = n.arena_index();
+        let word = idx >> 6;
+        word < self.paths.len() && (self.paths[word] & (1u64 << (idx & 63))) != 0
+    }
+
+    #[inline]
+    fn matches_name(&self, name: &JsString) -> bool {
+        let dot = name.index_of_char(u16::from(b'.'));
+        if dot < 0 {
+            self.roots.contains(name)
+        } else {
+            self.roots.contains(&name.substring(0, dot as usize))
+        }
+    }
+}
+
 pub struct GlobalNamespace {
     enable_implicitly_aliased_values: bool,
     root: NodeId,
@@ -180,6 +272,8 @@ pub struct GlobalNamespace {
     name_map_by_module: IndexMap<(ModuleMetadataKey, JsString), Name>,
     // Limits traversal to scripts matching the given predicate.
     should_traverse_script: Arc<ScriptPredicate>,
+    // Rust-only (performance divergence): optional root-name filter for passes like ProcessDefines.
+    watched_roots: Option<WatchedRootsFilter>,
     // Rust-only arenas backing the Name and Ref handles.
     names: Vec<NameData>,
     refs: Vec<RefData>,
@@ -203,6 +297,24 @@ impl GlobalNamespace {
     // port: GlobalNamespace#GlobalNamespace(AbstractCompiler,Node,Node)
     pub fn new(compiler: &mut AbstractCompiler, externs_root: NodeId, root: NodeId) -> Self {
         Self::new_full(None, compiler, Some(externs_root), root)
+    }
+
+    /// Rust-only (performance divergence): builds a `GlobalNamespace` restricted to names whose
+    /// root identifier is in `roots`, skipping scripts and scope containers off any path to them.
+    pub(crate) fn new_filtered_roots(
+        compiler: &mut AbstractCompiler,
+        externs_root: NodeId,
+        root: NodeId,
+        roots: IndexSet<JsString>,
+    ) -> Self {
+        let mut gn = Self::new_full(None, compiler, Some(externs_root), root);
+        gn.watched_roots = Some(WatchedRootsFilter::build(
+            &compiler.ast,
+            externs_root,
+            root,
+            roots,
+        ));
+        gn
     }
 
     // port: GlobalNamespace#GlobalNamespace(LogFile,AbstractCompiler,Node,Node)
@@ -229,6 +341,7 @@ impl GlobalNamespace {
             name_map: IndexMap::<_, _>::default(),
             name_map_by_module: IndexMap::<_, _>::default(),
             should_traverse_script: Arc::new(|_, _| true),
+            watched_roots: None,
             names: Vec::new(),
             refs: Vec::new(),
         }
@@ -699,6 +812,22 @@ impl Callback for BuildGlobalNamespace<'_> {
         if n.is_script(t) && !(self.gn.should_traverse_script)(t.get_compiler(), n) {
             return false;
         }
+        if let Some(filter) = &self.gn.watched_roots
+            && matches!(
+                n.get_token(t),
+                Token::SCRIPT
+                    | Token::FUNCTION
+                    | Token::BLOCK
+                    | Token::FOR
+                    | Token::FOR_IN
+                    | Token::FOR_OF
+                    | Token::FOR_AWAIT_OF
+                    | Token::SWITCH_BODY
+            )
+            && !filter.has_path(n)
+        {
+            return false;
+        }
         if self.gn.has_externs_root() && n.is_script(t) {
             // When checking type-summary files, we want to consider them like normal code
             // for some things (like alias inlining) but like externs for other things.
@@ -752,7 +881,13 @@ impl<'g> BuildGlobalNamespace<'g> {
         );
         let is_goog_module = cur_metadata.is_goog_module();
         self.cur_metadata = Some(cur_metadata);
-        if is_goog_module {
+        if is_goog_module
+            && self
+                .gn
+                .watched_roots
+                .as_ref()
+                .is_none_or(|filter| filter.roots.contains(&JsString::from("exports")))
+        {
             let metadata = self.cur_metadata.clone();
             self.get_or_create_name(&JsString::from("exports"), metadata.as_ref());
         }
@@ -889,10 +1024,20 @@ impl<'g> BuildGlobalNamespace<'g> {
                                 .unwrap()
                                 .get_qualified_name(compiler)
                                 .unwrap();
-                            let metadata = self.cur_metadata.clone();
-                            let global_name = self.get_or_create_name(&qname, metadata.as_ref());
-                            global_name
-                                .set_boolean_property(self.gn, NameProp::IS_USED_HAS_OWN_PROPERTY);
+                            if self
+                                .gn
+                                .watched_roots
+                                .as_ref()
+                                .is_none_or(|filter| filter.matches_name(&qname))
+                            {
+                                let metadata = self.cur_metadata.clone();
+                                let global_name =
+                                    self.get_or_create_name(&qname, metadata.as_ref());
+                                global_name.set_boolean_property(
+                                    self.gn,
+                                    NameProp::IS_USED_HAS_OWN_PROPERTY,
+                                );
+                            }
                         }
                     }
                     _ => {
@@ -929,7 +1074,14 @@ impl<'g> BuildGlobalNamespace<'g> {
                     // it can create multiple names, e.g. `goog.provide('a.b.c');` creates the
                     // global names a, a.b, and a.b.c. Other sets only create a single global name.
                     let namespace = n.get_second_child(compiler).unwrap().get_string(compiler);
-                    self.create_names_from_provide(&namespace);
+                    if self
+                        .gn
+                        .watched_roots
+                        .as_ref()
+                        .is_none_or(|filter| filter.matches_name(&namespace))
+                    {
+                        self.create_names_from_provide(&namespace);
+                    }
                     return;
                 }
                 return;
@@ -942,6 +1094,12 @@ impl<'g> BuildGlobalNamespace<'g> {
         let Some(name) = name else {
             return;
         };
+
+        if let Some(filter) = &self.gn.watched_roots
+            && !filter.matches_name(&name)
+        {
+            return;
+        }
 
         let root = self.gn.get_root_node_for_name(compiler, &name, scope);
         // We are only interested in global and module names.

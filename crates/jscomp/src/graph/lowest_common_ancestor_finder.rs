@@ -20,7 +20,7 @@ use super::{
     di_graph::{DiGraph, DiGraphNode},
     graph_node::GraphNode,
 };
-use closure_rhino::fast_hash::{IndexMap, IndexSet};
+use closure_rhino::fast_hash::IndexSet;
 use std::{
     collections::VecDeque,
     hash::{Hash, Hasher},
@@ -86,7 +86,10 @@ impl Hash for Color {
     }
 }
 pub struct LowestCommonAncestorFinder<N, E> {
-    search_coloring: IndexMap<DiGraphNode, Color>,
+    // Rust-only (performance divergence): dense coloring table indexed by `DiGraphNode.0` plus
+    // a list of touched nodes in first-visit order, avoiding per-call hash maps and Vec clones.
+    dense_coloring: Vec<Color>,
+    touched: Vec<DiGraphNode>,
     search_queue: VecDeque<DiGraphNode>,
     marker: PhantomData<(N, E)>,
 }
@@ -94,15 +97,33 @@ impl<N: Clone + Eq + Hash, E> LowestCommonAncestorFinder<N, E> {
     // port: LowestCommonAncestorFinder#LowestCommonAncestorFinder
     pub fn new() -> Self {
         Self {
-            search_coloring: IndexMap::<_, _>::default(),
+            dense_coloring: Vec::new(),
+            touched: Vec::new(),
             search_queue: VecDeque::new(),
             marker: PhantomData,
         }
     }
+    #[inline]
+    fn get_color(&self, node: DiGraphNode) -> Color {
+        self.dense_coloring
+            .get(node.0)
+            .copied()
+            .unwrap_or(Color::BLANK)
+    }
+    #[inline]
+    fn set_color(&mut self, node: DiGraphNode, color: Color) {
+        if node.0 >= self.dense_coloring.len() {
+            self.dense_coloring.resize(node.0 + 1, Color::BLANK);
+        }
+        if self.dense_coloring[node.0] == Color::BLANK {
+            self.touched.push(node);
+        }
+        self.dense_coloring[node.0] = color;
+    }
     // port: LowestCommonAncestorFinder#findAll
     pub fn find_all<G: DiGraph<N, E>>(&mut self, graph: &G, roots: &IndexSet<N>) -> IndexSet<N> {
         closure_rhino::check_argument!(roots.len() <= 31, "Too many roots.");
-        closure_rhino::check_state!(self.search_coloring.is_empty());
+        closure_rhino::check_state!(self.touched.is_empty());
         let all_color = Color::create(1_i32.wrapping_shl(roots.len() as u32).wrapping_sub(1));
         let mut bit_for_root = 1_i32;
         for root in roots {
@@ -112,25 +133,26 @@ impl<N: Clone + Eq + Hash, E> LowestCommonAncestorFinder<N, E> {
                 graph.value_to_string(root)
             );
             let color = Color::create(bit_for_root);
-            self.search_coloring
-                .entry(root_node)
-                .and_modify(|c| *c = c.mix(color))
-                .or_insert(color);
+            let old_color = self.get_color(root_node);
+            self.set_color(root_node, old_color.mix(color));
             self.paint_ancestors(graph, root_node, color);
             bit_for_root = bit_for_root.wrapping_shl(1);
         }
-        for node in self.search_coloring.keys().copied().collect::<Vec<_>>() {
-            if self.search_coloring[&node] == all_color {
+        let touched_len = self.touched.len();
+        for i in 0..touched_len {
+            let node = self.touched[i];
+            if self.dense_coloring[node.0] == all_color {
                 self.paint_ancestors(graph, node, Color::NOT_LOWEST);
             }
         }
         let mut results = IndexSet::<_>::default();
-        for (node, color) in &self.search_coloring {
-            if *color == all_color {
+        for &node in &self.touched {
+            if self.dense_coloring[node.0] == all_color {
                 results.insert(node.get_value(graph).clone());
             }
+            self.dense_coloring[node.0] = Color::BLANK;
         }
-        self.search_coloring.clear();
+        self.touched.clear();
         self.search_queue.clear();
         results
     }
@@ -144,14 +166,10 @@ impl<N: Clone + Eq + Hash, E> LowestCommonAncestorFinder<N, E> {
                 if parent == root {
                     continue;
                 }
-                let old_color = self
-                    .search_coloring
-                    .get(&parent)
-                    .copied()
-                    .unwrap_or(Color::BLANK);
+                let old_color = self.get_color(parent);
                 if !old_color.contains(color) {
                     self.search_queue.push_back(parent);
-                    self.search_coloring.insert(parent, old_color.mix(color));
+                    self.set_color(parent, old_color.mix(color));
                 }
             }
         }

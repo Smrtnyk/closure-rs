@@ -783,11 +783,37 @@ impl CompilerPass for InlineFunctions {
         }
         self.resolve_inline_conflicts(compiler);
         self.decompose_expressions(compiler);
-        NodeTraversal::traverse(
-            compiler,
-            root,
-            &mut CallVisitor::new(&mut self.fns, &self.anon_fns, Inline::new(&self.injector)),
-        );
+        // Rust-only (performance divergence): walk only the ancestor paths of surviving inlinable
+        // call sites instead of the entire AST in Walk 3.
+        let mut allowed_nodes = IndexSet::<NodeId>::default();
+        for function_state in self.fns.values() {
+            if function_state.can_inline() {
+                for r#ref in function_state.get_references() {
+                    let mut cur = Some(r#ref.base.call_node);
+                    while let Some(node) = cur {
+                        if !allowed_nodes.insert(node) {
+                            break;
+                        }
+                        if node == root {
+                            break;
+                        }
+                        cur = node.get_parent(compiler);
+                    }
+                }
+            }
+        }
+        if !allowed_nodes.is_empty() {
+            NodeTraversal::traverse(
+                compiler,
+                root,
+                &mut CallVisitor::new_pruned(
+                    &mut self.fns,
+                    &self.anon_fns,
+                    Inline::new(&self.injector),
+                    allowed_nodes,
+                ),
+            );
+        }
 
         self.remove_inlined_functions(compiler);
     }
@@ -811,9 +837,19 @@ impl Callback for FindCandidateFunctions<'_> {
 
     // port: InlineFunctions.FindCandidateFunctions#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        if self.outer.reach.includes_globals() || !t.in_global_hoist_scope() {
-            self.find_named_functions(t, n, parent);
-            self.find_function_expressions(t, n);
+        // Rust-only (performance divergence): dispatch on token once before checking scope.
+        match n.get_token(t) {
+            Token::VAR | Token::LET | Token::CONST | Token::FUNCTION
+                if self.outer.reach.includes_globals() || !t.in_global_hoist_scope() =>
+            {
+                self.find_named_functions(t, n, parent);
+            }
+            Token::OPTCHAIN_CALL | Token::CALL
+                if self.outer.reach.includes_globals() || !t.in_global_hoist_scope() =>
+            {
+                self.find_function_expressions(t, n);
+            }
+            _ => {}
         }
     }
 }
@@ -916,19 +952,58 @@ struct CallVisitor<'a, C> {
     callback: C,
     function_map: &'a mut IndexMap<JsString, FunctionState>,
     anon_function_map: &'a IndexMap<NodeId, JsString>,
+    /// Rust-only (performance divergence): optional set of nodes along ancestor paths to surviving
+    /// call sites (used in Walk 3) and a 4096-bit Bloom filter over `function_map` keys.
+    allowed_nodes: Option<IndexSet<NodeId>>,
+    name_bloom: [u64; 64],
 }
 
 impl<'a, C: CallVisitorCallback> CallVisitor<'a, C> {
+    #[inline]
+    fn build_name_bloom(fns: &IndexMap<JsString, FunctionState>) -> [u64; 64] {
+        let mut bloom = [0u64; 64];
+        for name in fns.keys() {
+            let h = name.hash_code() as usize;
+            bloom[(h >> 6) & 63] |= 1u64 << (h & 63);
+        }
+        bloom
+    }
+
+    #[inline]
+    fn may_contain_name(&self, name: &JsString) -> bool {
+        let h = name.hash_code() as usize;
+        (self.name_bloom[(h >> 6) & 63] & (1u64 << (h & 63))) != 0
+    }
+
     // port: InlineFunctions.CallVisitor#CallVisitor
     fn new(
         fns: &'a mut IndexMap<JsString, FunctionState>,
         anon_fns: &'a IndexMap<NodeId, JsString>,
         callback: C,
     ) -> Self {
+        let name_bloom = Self::build_name_bloom(fns);
         Self {
             function_map: fns,
             anon_function_map: anon_fns,
             callback,
+            allowed_nodes: None,
+            name_bloom,
+        }
+    }
+
+    fn new_pruned(
+        fns: &'a mut IndexMap<JsString, FunctionState>,
+        anon_fns: &'a IndexMap<NodeId, JsString>,
+        callback: C,
+        allowed_nodes: IndexSet<NodeId>,
+    ) -> Self {
+        let name_bloom = Self::build_name_bloom(fns);
+        Self {
+            function_map: fns,
+            anon_function_map: anon_fns,
+            callback,
+            allowed_nodes: Some(allowed_nodes),
+            name_bloom,
         }
     }
 
@@ -938,30 +1013,43 @@ impl<'a, C: CallVisitorCallback> CallVisitor<'a, C> {
             Token::OPTCHAIN_CALL | Token::CALL => {
                 // Function calls
                 let child = n.get_first_child(t).unwrap();
-                let mut name: Option<JsString> = None;
                 // NOTE: The normalization pass ensures that local names do not collide with
                 // global names.
-                if child.is_name(t) {
-                    name = Some(child.get_string(t));
+                let fn_state = if child.is_name(t) {
+                    let name = child.get_string_ref(t);
+                    if self.may_contain_name(name) {
+                        self.function_map.get_mut(name)
+                    } else {
+                        None
+                    }
                 } else if child.is_function(t) {
-                    name = self.anon_function_map.get(&child).cloned();
+                    self.anon_function_map
+                        .get(&child)
+                        .and_then(|name| self.function_map.get_mut(name))
                 } else if NodeUtil::is_function_object_call(t, n) {
                     check_state!(NodeUtil::is_normal_or_opt_chain_get(t, child));
                     let fn_identifying_node = child.get_first_child(t).unwrap();
                     if fn_identifying_node.is_name(t) {
-                        name = Some(fn_identifying_node.get_string(t));
+                        let name = fn_identifying_node.get_string_ref(t);
+                        if self.may_contain_name(name) {
+                            self.function_map.get_mut(name)
+                        } else {
+                            None
+                        }
                     } else if fn_identifying_node.is_function(t) {
-                        name = self.anon_function_map.get(&fn_identifying_node).cloned();
+                        self.anon_function_map
+                            .get(&fn_identifying_node)
+                            .and_then(|name| self.function_map.get_mut(name))
+                    } else {
+                        None
                     }
-                }
+                } else {
+                    None
+                };
 
-                if let Some(name) = name {
-                    let function_state = self.function_map.get_mut(&name);
-
-                    // Only visit call-sites for functions that can be inlined.
-                    if let Some(function_state) = function_state {
-                        self.callback.visit_call_site(t, n, function_state);
-                    }
+                // Only visit call-sites for functions that can be inlined.
+                if let Some(function_state) = fn_state {
+                    self.callback.visit_call_site(t, n, function_state);
                 }
             }
             _ => {}
@@ -973,10 +1061,12 @@ impl<C: CallVisitorCallback> Callback for CallVisitor<'_, C> {
     fn should_traverse(
         &mut self,
         _t: &mut NodeTraversal<'_>,
-        _n: NodeId,
+        n: NodeId,
         _parent: Option<NodeId>,
     ) -> bool {
-        true
+        self.allowed_nodes
+            .as_ref()
+            .is_none_or(|allowed| allowed.contains(&n))
     }
 
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
@@ -1056,16 +1146,27 @@ impl<'a> FindCandidatesReferences<'a> {
     fn check_name_usage(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: NodeId) {
         check_state!(n.is_name(t), "%s", n.to_string(t));
 
+        // Rust-only (performance divergence): test Bloom filter before is_candidate_usage or
+        // hash-map probing; the vast majority of NAME nodes are not candidate functions.
+        let name = n.get_string_ref(t);
+        if !self.call_visitor.may_contain_name(name) {
+            return;
+        }
+        if !self.call_visitor.function_map.contains_key(name) {
+            return;
+        }
+
         if InlineFunctions::is_candidate_usage(t, n) {
             return;
         }
 
         // Other refs to a function name remove its candidacy for inlining
         // Rust-only: the name is read in place (performance divergence).
-        let function_state = self.call_visitor.function_map.get_mut(n.get_string_ref(t));
-        let Some(function_state) = function_state else {
-            return;
-        };
+        let function_state = self
+            .call_visitor
+            .function_map
+            .get_mut(n.get_string_ref(t))
+            .unwrap();
 
         // If the name is being assigned to or modified as an L-value (e.g. `bar = something;`,
         // destructuring `[bar] = ...`, or `for (bar of ...)`), it cannot be inlined.
@@ -1117,26 +1218,31 @@ impl Callback for FindCandidatesReferences<'_> {
 
     // port: InlineFunctions.FindCandidatesReferences#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        self.call_visitor.visit_calls(t, n, parent);
-        if n.is_name(t) {
-            self.check_name_usage(t, n, parent.unwrap());
-        } else if n.is_tagged_template_lit(t) {
-            let enclosing_fn = t.get_enclosing_function();
-            if let Some(enclosing_fn) = enclosing_fn {
-                self.functions_with_tagged_template_lit.insert(enclosing_fn);
+        match n.get_token(t) {
+            Token::OPTCHAIN_CALL | Token::CALL => {
+                self.call_visitor.visit_calls(t, n, parent);
             }
-        } else if n.is_function(t)
-            && !self.functions_with_tagged_template_lit.is_empty()
-            && self.functions_with_tagged_template_lit.shift_remove(&n)
-        {
-            let function_state = self.get_function_state_for_function_node(t, n);
-            if let Some(function_state) = function_state {
-                function_state.set_has_tagged_template_lit(true);
+            Token::NAME => {
+                self.check_name_usage(t, n, parent.unwrap());
             }
-            let enclosing_fn = t.get_enclosing_function();
-            if let Some(enclosing_fn) = enclosing_fn {
-                self.functions_with_tagged_template_lit.insert(enclosing_fn);
+            Token::TAGGED_TEMPLATELIT => {
+                if let Some(enclosing_fn) = t.get_enclosing_function() {
+                    self.functions_with_tagged_template_lit.insert(enclosing_fn);
+                }
             }
+            Token::FUNCTION
+                if !self.functions_with_tagged_template_lit.is_empty()
+                    && self.functions_with_tagged_template_lit.shift_remove(&n) =>
+            {
+                let function_state = self.get_function_state_for_function_node(t, n);
+                if let Some(function_state) = function_state {
+                    function_state.set_has_tagged_template_lit(true);
+                }
+                if let Some(enclosing_fn) = t.get_enclosing_function() {
+                    self.functions_with_tagged_template_lit.insert(enclosing_fn);
+                }
+            }
+            _ => {}
         }
     }
 }

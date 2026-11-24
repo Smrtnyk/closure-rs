@@ -30,9 +30,37 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+// Rust-only (performance divergence): store up to 128 bits inline to avoid heap allocations
+// for small compiler analysis bitsets (liveness, reaching definitions, etc.).
+const INLINE_WORDS: usize = 2;
+
+#[derive(Debug)]
+enum BitSetWords {
+    Inline([u64; INLINE_WORDS]),
+    Heap(Vec<u64>),
+}
+
+impl BitSetWords {
+    #[inline]
+    fn as_slice(&self) -> &[u64] {
+        match self {
+            Self::Inline(arr) => arr,
+            Self::Heap(vec) => vec,
+        }
+    }
+
+    #[inline]
+    fn as_mut_slice(&mut self) -> &mut [u64] {
+        match self {
+            Self::Inline(arr) => arr,
+            Self::Heap(vec) => vec,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct BitSet {
-    words: Vec<u64>,
+    words: BitSetWords,
     words_in_use: usize,
     size_is_sticky: bool,
     capacity: AtomicUsize,
@@ -50,7 +78,7 @@ impl BitSet {
         // initWords(BITS_PER_WORD)
         let words = Self::word_index(BITS_PER_WORD - 1) + 1;
         Self {
-            words: vec![0; words],
+            words: BitSetWords::Inline([0; INLINE_WORDS]),
             words_in_use: 0,
             size_is_sticky: false,
             capacity: AtomicUsize::new(words),
@@ -59,11 +87,17 @@ impl BitSet {
     // port: BitSet#BitSet(int)
     pub fn new(nbits: i32) -> Self {
         assert!(nbits >= 0, "nbits < 0: {nbits}");
+        let words_len = (nbits as usize).div_ceil(64);
+        let words = if words_len <= INLINE_WORDS {
+            BitSetWords::Inline([0; INLINE_WORDS])
+        } else {
+            BitSetWords::Heap(vec![0; words_len])
+        };
         Self {
-            words: vec![0; (nbits as usize).div_ceil(64)],
+            words,
             words_in_use: 0,
             size_is_sticky: true,
-            capacity: AtomicUsize::new((nbits as usize).div_ceil(64)),
+            capacity: AtomicUsize::new(words_len),
         }
     }
     // port: BitSet#size
@@ -74,14 +108,26 @@ impl BitSet {
     pub fn get(&self, bit_index: i32) -> bool {
         assert!(bit_index >= 0, "bitIndex < 0: {bit_index}");
         let word_index = bit_index as usize >> 6;
-        word_index < self.words_in_use && (self.words[word_index] & (1u64 << (bit_index & 63))) != 0
+        word_index < self.words_in_use
+            && (self.words.as_slice()[word_index] & (1u64 << (bit_index & 63))) != 0
     }
     // port: BitSet#ensureCapacity
     fn ensure_capacity(&mut self, words_required: usize) {
         let capacity = self.capacity.load(Ordering::Relaxed);
         if capacity < words_required {
             let new_capacity = (2 * capacity).max(words_required);
-            self.words.resize(new_capacity, 0);
+            match &mut self.words {
+                BitSetWords::Inline(arr) => {
+                    if new_capacity > INLINE_WORDS {
+                        let mut vec = vec![0; new_capacity];
+                        vec[..self.words_in_use].copy_from_slice(&arr[..self.words_in_use]);
+                        self.words = BitSetWords::Heap(vec);
+                    }
+                }
+                BitSetWords::Heap(vec) => {
+                    vec.resize(new_capacity, 0);
+                }
+            }
             self.capacity.store(new_capacity, Ordering::Relaxed);
             self.size_is_sticky = false;
         }
@@ -96,7 +142,8 @@ impl BitSet {
     }
     // port: BitSet#recalculateWordsInUse
     fn recalculate_words_in_use(&mut self) {
-        while self.words_in_use > 0 && self.words[self.words_in_use - 1] == 0 {
+        let slice = self.words.as_slice();
+        while self.words_in_use > 0 && slice[self.words_in_use - 1] == 0 {
             self.words_in_use -= 1;
         }
     }
@@ -105,7 +152,7 @@ impl BitSet {
         assert!(bit_index >= 0, "bitIndex < 0: {bit_index}");
         let word_index = bit_index as usize >> 6;
         self.expand_to(word_index);
-        self.words[word_index] |= 1u64 << (bit_index & 63);
+        self.words.as_mut_slice()[word_index] |= 1u64 << (bit_index & 63);
     }
     // port: BitSet#or
     pub fn or(&mut self, set: &Self) {
@@ -114,16 +161,21 @@ impl BitSet {
             self.ensure_capacity(set.words_in_use);
             self.words_in_use = set.words_in_use;
         }
+        let dst = self.words.as_mut_slice();
+        let src = set.words.as_slice();
         for i in 0..words_in_common {
-            self.words[i] |= set.words[i];
+            dst[i] |= src[i];
         }
-        self.words[words_in_common..set.words_in_use]
-            .copy_from_slice(&set.words[words_in_common..set.words_in_use]);
+        dst[words_in_common..set.words_in_use]
+            .copy_from_slice(&src[words_in_common..set.words_in_use]);
     }
     // port: BitSet#andNot
     pub fn and_not(&mut self, set: &Self) {
-        for i in (0..self.words_in_use.min(set.words_in_use)).rev() {
-            self.words[i] &= !set.words[i];
+        let n = self.words_in_use.min(set.words_in_use);
+        let dst = self.words.as_mut_slice();
+        let src = set.words.as_slice();
+        for i in (0..n).rev() {
+            dst[i] &= !src[i];
         }
         self.recalculate_words_in_use();
     }
@@ -134,7 +186,8 @@ impl BitSet {
         if u >= self.words_in_use {
             return -1;
         }
-        let mut word = self.words[u] & (u64::MAX << (from_index & 63));
+        let slice = self.words.as_slice();
+        let mut word = slice[u] & (u64::MAX << (from_index & 63));
         loop {
             if word != 0 {
                 return (u as i32 * 64).wrapping_add(word.trailing_zeros() as i32);
@@ -143,13 +196,15 @@ impl BitSet {
             if u == self.words_in_use {
                 return -1;
             }
-            word = self.words[u];
+            word = slice[u];
         }
     }
     // port: BitSet#intersects
     pub fn intersects(&self, set: &Self) -> bool {
+        let a = self.words.as_slice();
+        let b = set.words.as_slice();
         for i in (0..self.words_in_use.min(set.words_in_use)).rev() {
-            if (self.words[i] & set.words[i]) != 0 {
+            if (a[i] & b[i]) != 0 {
                 return true;
             }
         }
@@ -157,7 +212,7 @@ impl BitSet {
     }
     // port: BitSet#cardinality
     pub fn cardinality(&self) -> i32 {
-        self.words[..self.words_in_use]
+        self.words.as_slice()[..self.words_in_use]
             .iter()
             .map(|w| w.count_ones() as i32)
             .sum()
@@ -168,9 +223,10 @@ impl BitSet {
     }
     // port: BitSet#clear()
     pub fn clear(&mut self) {
+        let slice = self.words.as_mut_slice();
         while self.words_in_use > 0 {
             self.words_in_use -= 1;
-            self.words[self.words_in_use] = 0;
+            slice[self.words_in_use] = 0;
         }
     }
     // port: BitSet#clear(int)
@@ -180,14 +236,15 @@ impl BitSet {
         if word_index >= self.words_in_use {
             return;
         }
-        self.words[word_index] &= !(1u64 << (bit_index & 63));
+        self.words.as_mut_slice()[word_index] &= !(1u64 << (bit_index & 63));
         self.recalculate_words_in_use();
     }
     // port: BitSet#hashCode
     pub fn hash_code(&self) -> i32 {
+        let slice = self.words.as_slice();
         let mut h = 1234u64;
         for i in (0..self.words_in_use).rev() {
-            h ^= self.words[i].wrapping_mul(i as u64 + 1);
+            h ^= slice[i].wrapping_mul(i as u64 + 1);
         }
         ((h >> 32) ^ h) as i32
     }
@@ -203,8 +260,18 @@ impl Clone for BitSet {
             self.capacity.store(self.words_in_use, Ordering::Relaxed);
             self.words_in_use
         };
+        let src = self.words.as_slice();
+        let words = if capacity <= INLINE_WORDS {
+            let mut arr = [0u64; INLINE_WORDS];
+            arr[..self.words_in_use].copy_from_slice(&src[..self.words_in_use]);
+            BitSetWords::Inline(arr)
+        } else {
+            let mut vec = vec![0; capacity];
+            vec[..self.words_in_use].copy_from_slice(&src[..self.words_in_use]);
+            BitSetWords::Heap(vec)
+        };
         Self {
-            words: self.words[..capacity].to_vec(),
+            words,
             words_in_use: self.words_in_use,
             size_is_sticky: self.size_is_sticky,
             capacity: AtomicUsize::new(capacity),
@@ -215,7 +282,8 @@ impl PartialEq for BitSet {
     // port: BitSet#equals
     fn eq(&self, other: &Self) -> bool {
         self.words_in_use == other.words_in_use
-            && self.words[..self.words_in_use] == other.words[..other.words_in_use]
+            && self.words.as_slice()[..self.words_in_use]
+                == other.words.as_slice()[..other.words_in_use]
     }
 }
 impl Eq for BitSet {}

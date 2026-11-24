@@ -62,6 +62,23 @@ impl AbstractPeepholeOptimization for MinimizeExitPoints {
         "com.google.javascript.jscomp.MinimizeExitPoints"
     }
 
+    // Rust-only (performance divergence): restrict dispatch to control-flow containers (plus
+    // SCRIPT so the normalization precondition still fires on empty unnormalized scripts).
+    fn candidate_tokens(&self) -> Option<&'static [Token]> {
+        Some(&[
+            Token::SCRIPT,
+            Token::LABEL,
+            Token::FOR,
+            Token::FOR_IN,
+            Token::FOR_OF,
+            Token::FOR_AWAIT_OF,
+            Token::WHILE,
+            Token::DO,
+            Token::BLOCK,
+            Token::SWITCH,
+        ])
+    }
+
     // port: MinimizeExitPoints#optimizeSubtree
     fn optimize_subtree(&mut self, compiler: &mut AbstractCompiler, n: NodeId) -> Option<NodeId> {
         check_state!(

@@ -43,7 +43,7 @@ use closure_rhino::js_string::JsString;
 use closure_rhino::js_type_expression::JSTypeExpression;
 use closure_rhino::jscomp_base::tri::Tri;
 use closure_rhino::jsdoc_info::{Bit, JSDocInfo};
-use closure_rhino::node::{NodeId, WatchedName};
+use closure_rhino::node::{Ast, NodeId, WatchedName};
 use closure_rhino::token::Token;
 use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
@@ -535,7 +535,12 @@ impl ProcessDefines {
 
     /// Finds all defines, and creates a [`Define`] data structure for each one.
     // port: ProcessDefines#collectDefines
-    fn collect_defines(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
+    fn collect_defines(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+        skip_namespace_scan: bool,
+    ) {
         // Rust-only (performance divergence): the collector only observes top-level
         // CLOSURE_DEFINES assignments and script names matched by the configured pattern.
         if self.recognize_closure_defines
@@ -548,74 +553,77 @@ impl ProcessDefines {
                 .set_callback(&mut collector)
                 .traverse(root);
         }
-        let namespace = self.namespace();
-        let mut namespace = namespace.borrow_mut();
         // Rust-only (performance divergence): every selected declaration needs @define.
         // An injected namespace can outlive this pass; materialize it at Java's original point.
-        let names = if self.namespace_supplier.is_some() || compiler.has_seen_jsdoc_bit(Bit::DEFINE)
-        {
-            namespace.get_all_symbols(compiler)
-        } else {
-            Vec::new()
-        };
-        for name in names {
-            let gn = &*namespace;
-            let Some(mut declaration) = self.select_define_declaration(compiler, gn, name) else {
-                continue;
-            };
+        if !skip_namespace_scan {
+            let namespace = self.namespace();
+            let mut namespace = namespace.borrow_mut();
+            let names =
+                if self.namespace_supplier.is_some() || compiler.has_seen_jsdoc_bit(Bit::DEFINE) {
+                    namespace.get_all_symbols(compiler)
+                } else {
+                    Vec::new()
+                };
+            for name in names {
+                let gn = &*namespace;
+                let Some(mut declaration) = self.select_define_declaration(compiler, gn, name)
+                else {
+                    continue;
+                };
 
-            let mut total_sets = name.get_total_sets(gn);
-            let value_parent = get_value_parent_for_define(compiler, gn, declaration);
-            let value = value_parent.and_then(|vp| vp.get_last_child(compiler));
+                let mut total_sets = name.get_total_sets(gn);
+                let value_parent = get_value_parent_for_define(compiler, gn, declaration);
+                let value = value_parent.and_then(|vp| vp.get_last_child(compiler));
 
-            let define_name = if self.is_goog_define_call(compiler, value)
-                && self.verify_goog_define(compiler, value.unwrap())
-            {
-                let name_node = value.unwrap().get_second_child(compiler).unwrap();
-                name_node.get_string(compiler)
-            } else {
-                name.get_full_name(gn)
-            };
-            let existing_define = match self.define_by_define_name.get(&define_name) {
-                Some(existing) => Some((existing.declaration, existing.name)),
-                None => {
-                    self.define_by_define_name.insert(
-                        define_name.clone(),
-                        Define::new(
-                            compiler,
-                            gn,
+                let define_name = if self.is_goog_define_call(compiler, value)
+                    && self.verify_goog_define(compiler, value.unwrap())
+                {
+                    let name_node = value.unwrap().get_second_child(compiler).unwrap();
+                    name_node.get_string(compiler)
+                } else {
+                    name.get_full_name(gn)
+                };
+                let existing_define = match self.define_by_define_name.get(&define_name) {
+                    Some(existing) => Some((existing.declaration, existing.name)),
+                    None => {
+                        self.define_by_define_name.insert(
                             define_name.clone(),
-                            name,
-                            declaration,
-                            value_parent,
-                            value,
-                        ),
-                    );
-                    None
-                }
-            };
-
-            if let Some((existing_declaration, existing_name)) = existing_define {
-                declaration = existing_declaration;
-                total_sets += existing_name.get_total_sets(gn);
-            }
-
-            /*
-             * We have to report this here because otherwise we don't remember which names have
-             * the same define name. It's not worth it tracking a set of names, because it makes
-             * the rest of the pass more complex.
-             */
-            if total_sets > 1 {
-                for r in name.get_refs(gn) {
-                    if r.is_set(gn) && r != declaration {
-                        let location = declaration.get_node(gn).unwrap().get_location(compiler);
-                        let error = JSError::make(
-                            compiler,
-                            r.get_node(gn).unwrap(),
-                            &NON_CONST_DEFINE,
-                            &[&define_name.to_string(), &location],
+                            Define::new(
+                                compiler,
+                                gn,
+                                define_name.clone(),
+                                name,
+                                declaration,
+                                value_parent,
+                                value,
+                            ),
                         );
-                        compiler.report(error);
+                        None
+                    }
+                };
+
+                if let Some((existing_declaration, existing_name)) = existing_define {
+                    declaration = existing_declaration;
+                    total_sets += existing_name.get_total_sets(gn);
+                }
+
+                /*
+                 * We have to report this here because otherwise we don't remember which names have
+                 * the same define name. It's not worth it tracking a set of names, because it makes
+                 * the rest of the pass more complex.
+                 */
+                if total_sets > 1 {
+                    for r in name.get_refs(gn) {
+                        if r.is_set(gn) && r != declaration {
+                            let location = declaration.get_node(gn).unwrap().get_location(compiler);
+                            let error = JSError::make(
+                                compiler,
+                                r.get_node(gn).unwrap(),
+                                &NON_CONST_DEFINE,
+                                &[&define_name.to_string(), &location],
+                            );
+                            compiler.report(error);
+                        }
                     }
                 }
             }
@@ -712,7 +720,7 @@ impl ProcessDefines {
 
     // port: ProcessDefines#validateDefineDeclarations
     fn validate_define_declarations(&mut self, compiler: &mut AbstractCompiler) {
-        if !self.mode.check() {
+        if !self.mode.check() || self.define_by_define_name.is_empty() {
             return;
         }
 
@@ -776,15 +784,30 @@ impl ProcessDefines {
     /// Checks for misplaced @define and goog.define calls
     // port: ProcessDefines#reportInvalidDefineLocations
     #[allow(clippy::collapsible_if)] // Java's nested ifs
-    fn report_invalid_define_locations(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
+    fn report_invalid_define_locations(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+        live_root_defines: Option<&[NodeId]>,
+    ) {
         if !self.mode.check() {
             return;
         }
-        // Each diagnostic below requires one of these spellings or the JSDoc bit.
+        // Each diagnostic below requires one of these spellings or an unaccounted @define JSDoc.
         let check_goog =
             self.recognize_closure_defines && compiler.has_seen_name(WatchedName::Goog);
+        let has_unaccounted_define = match live_root_defines {
+            Some(nodes) => nodes.iter().any(|&n| {
+                n.get_jsdoc_info_ref(compiler).is_some_and(|j| {
+                    !self
+                        .known_define_jsdocs
+                        .contains(&JsDocByIdentity(Arc::clone(j)))
+                })
+            }),
+            None => compiler.has_seen_jsdoc_bit(Bit::DEFINE),
+        };
         if !check_goog
-            && !compiler.has_seen_jsdoc_bit(Bit::DEFINE)
+            && !has_unaccounted_define
             && !compiler.has_seen_name(WatchedName::ClosureDefines)
         {
             return;
@@ -1158,15 +1181,245 @@ impl ProcessDefines {
         }
         true
     }
+    /// Rust-only (performance divergence): returns `(all_live_define_nodes, root_live_define_nodes)`
+    /// for nodes attached under `externs` or `root` whose current `JSDocInfo` has `@define`.
+    fn collect_live_define_nodes(
+        ast: &Ast,
+        externs: NodeId,
+        root: NodeId,
+    ) -> (Vec<NodeId>, Vec<NodeId>) {
+        let candidates = ast.nodes_with_jsdoc_bit(Bit::DEFINE);
+        let mut all = Vec::with_capacity(candidates.len());
+        let mut in_root = Vec::new();
+        for n in candidates {
+            let mut cur = Some(n);
+            while let Some(node) = cur {
+                if node == root {
+                    all.push(n);
+                    in_root.push(n);
+                    break;
+                }
+                if node == externs {
+                    all.push(n);
+                    break;
+                }
+                cur = node.get_parent(ast);
+            }
+        }
+        (all, in_root)
+    }
+
+    /// Rust-only (performance divergence): extracts the exact set of global/module root names
+    /// that can be declared by `define_nodes`, or `None` if a full `GlobalNamespace` is needed
+    /// (complex target shape, or a check-mode define whose RHS may depend on another global const).
+    fn extract_define_watched_roots(
+        &self,
+        compiler: &AbstractCompiler,
+        define_nodes: &[NodeId],
+    ) -> Option<IndexSet<JsString>> {
+        let ast: &Ast = compiler;
+        let check_mode = self.mode.check();
+        let mut roots = IndexSet::<JsString>::default();
+
+        fn rhs_may_need_const_table(
+            pass: &ProcessDefines,
+            compiler: &AbstractCompiler,
+            val: Option<NodeId>,
+        ) -> bool {
+            let Some(val) = val else {
+                return false;
+            };
+            match val.get_token(compiler) {
+                Token::STRINGLIT | Token::NUMBER | Token::TRUE | Token::FALSE => false,
+                Token::NOT | Token::NEG | Token::POS => {
+                    rhs_may_need_const_table(pass, compiler, val.get_first_child(compiler))
+                }
+                Token::AND
+                | Token::OR
+                | Token::COALESCE
+                | Token::ADD
+                | Token::BITAND
+                | Token::BITNOT
+                | Token::BITOR
+                | Token::BITXOR
+                | Token::DIV
+                | Token::EQ
+                | Token::EXPONENT
+                | Token::GE
+                | Token::GT
+                | Token::LE
+                | Token::LSH
+                | Token::LT
+                | Token::MOD
+                | Token::MUL
+                | Token::NE
+                | Token::RSH
+                | Token::SHEQ
+                | Token::SHNE
+                | Token::SUB
+                | Token::URSH => {
+                    rhs_may_need_const_table(pass, compiler, val.get_first_child(compiler))
+                        || rhs_may_need_const_table(pass, compiler, val.get_last_child(compiler))
+                }
+                Token::HOOK => {
+                    rhs_may_need_const_table(pass, compiler, val.get_first_child(compiler))
+                        || rhs_may_need_const_table(pass, compiler, val.get_second_child(compiler))
+                        || rhs_may_need_const_table(pass, compiler, val.get_last_child(compiler))
+                }
+                Token::CALL => {
+                    if !pass.is_goog_define_call(compiler, Some(val))
+                        || !val.has_x_children(compiler, 3)
+                    {
+                        false
+                    } else {
+                        rhs_may_need_const_table(
+                            pass,
+                            compiler,
+                            val.get_child_at_index(compiler, 2),
+                        )
+                    }
+                }
+                Token::NAME | Token::GETPROP => true,
+                _ => false,
+            }
+        }
+
+        fn extract_qname_root(ast: &Ast, mut n: NodeId) -> Option<JsString> {
+            if !n.is_qualified_name(ast) {
+                return None;
+            }
+            while n.is_get_prop(ast) {
+                n = n.get_first_child(ast)?;
+            }
+            n.is_name(ast).then(|| n.get_string(ast))
+        }
+
+        fn collect_from_node(
+            pass: &ProcessDefines,
+            compiler: &AbstractCompiler,
+            ast: &Ast,
+            node: NodeId,
+            check_mode: bool,
+            roots: &mut IndexSet<JsString>,
+        ) -> bool {
+            match node.get_token(ast) {
+                Token::NAME => {
+                    roots.insert(node.get_string(ast));
+                    if check_mode && !node.is_from_externs(ast) {
+                        let parent = node.get_parent(ast);
+                        let rhs = if parent
+                            .is_some_and(|p| NodeUtil::is_name_declaration(ast, Some(p)))
+                        {
+                            node.get_first_child(ast)
+                        } else if parent.is_some_and(|p| {
+                            p.is_assign(ast) && p.get_first_child(ast) == Some(node)
+                        }) {
+                            node.get_next(ast)
+                        } else {
+                            None
+                        };
+                        if rhs_may_need_const_table(pass, compiler, rhs) {
+                            return false;
+                        }
+                    }
+                    true
+                }
+                Token::GETPROP => {
+                    let Some(root) = extract_qname_root(ast, node) else {
+                        return false;
+                    };
+                    roots.insert(root);
+                    if check_mode && !node.is_from_externs(ast) {
+                        let parent = node.get_parent(ast);
+                        let rhs = if parent.is_some_and(|p| {
+                            p.is_assign(ast) && p.get_first_child(ast) == Some(node)
+                        }) {
+                            node.get_next(ast)
+                        } else {
+                            None
+                        };
+                        if rhs_may_need_const_table(pass, compiler, rhs) {
+                            return false;
+                        }
+                    }
+                    true
+                }
+                Token::VAR | Token::LET | Token::CONST | Token::DECLARE => {
+                    let mut child = node.get_first_child(ast);
+                    while let Some(c) = child {
+                        if !c.is_name(ast)
+                            || !collect_from_node(pass, compiler, ast, c, check_mode, roots)
+                        {
+                            return false;
+                        }
+                        child = c.get_next(ast);
+                    }
+                    true
+                }
+                Token::ASSIGN => {
+                    let Some(lhs) = node.get_first_child(ast) else {
+                        return false;
+                    };
+                    let Some(root) = extract_qname_root(ast, lhs) else {
+                        return false;
+                    };
+                    roots.insert(root);
+                    if check_mode
+                        && !node.is_from_externs(ast)
+                        && rhs_may_need_const_table(pass, compiler, lhs.get_next(ast))
+                    {
+                        return false;
+                    }
+                    true
+                }
+                Token::EXPR_RESULT | Token::EXPORT => {
+                    let Some(child) = node.get_first_child(ast) else {
+                        return false;
+                    };
+                    collect_from_node(pass, compiler, ast, child, check_mode, roots)
+                }
+                _ => false,
+            }
+        }
+
+        for &node in define_nodes {
+            if !collect_from_node(self, compiler, ast, node, check_mode, &mut roots) {
+                return None;
+            }
+        }
+        Some(roots)
+    }
 }
 
 impl CompilerPass for ProcessDefines {
     // port: ProcessDefines#process
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
-        self.init_namespace(compiler, externs, root);
-        self.collect_defines(compiler, root);
-        self.report_invalid_define_locations(compiler, root);
-        if self.mode.check() && !self.define_by_define_name.is_empty() {
+        // Rust-only (performance divergence): when no shared namespace is injected, inspect live
+        // `@define` JSDoc nodes directly so repos without `@define` skip `GlobalNamespace`
+        // completely and repos with a handful of `@define`s (e.g. `$jscomp.*`) only trace those
+        // root names.
+        let mut live_root_defines: Option<Vec<NodeId>> = None;
+        let mut skip_namespace_scan = false;
+        let mut skip_valid_expr_table = false;
+        if self.namespace_supplier.is_none() {
+            let (all_live, in_root) = Self::collect_live_define_nodes(compiler, externs, root);
+            if all_live.is_empty() {
+                skip_namespace_scan = true;
+            } else if let Some(roots) = self.extract_define_watched_roots(compiler, &all_live) {
+                self.namespace = Some(Rc::new(RefCell::new(GlobalNamespace::new_filtered_roots(
+                    compiler, externs, root, roots,
+                ))));
+                skip_valid_expr_table = true;
+            } else {
+                self.init_namespace(compiler, externs, root);
+            }
+            live_root_defines = Some(in_root);
+        } else {
+            self.init_namespace(compiler, externs, root);
+        }
+        self.collect_defines(compiler, root, skip_namespace_scan);
+        self.report_invalid_define_locations(compiler, root, live_root_defines.as_deref());
+        if self.mode.check() && !self.define_by_define_name.is_empty() && !skip_valid_expr_table {
             self.collect_valid_define_value_expressions(compiler);
         }
         self.validate_define_declarations(compiler);

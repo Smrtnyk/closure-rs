@@ -35,14 +35,34 @@ impl Util {
     /// The result is ASCII. Bounded writes avoid building a second copy of embedded source files.
     pub(crate) fn write_escaped_string(out: &mut dyn Write, s: &JsString) -> fmt::Result {
         let units = s.as_units();
-        let mut buf = [0u8; 1024];
+        let mut buf = [0u8; 16384];
         buf[0] = b'"';
         let mut len = 1;
-        for (i, &c) in units.iter().enumerate() {
-            // Keep room for a six-byte Unicode escape and the closing quote.
-            if len > buf.len() - 7 {
+        let mut i = 0;
+        let n = units.len();
+        while i < n {
+            // Fast-path runs of plain printable ASCII that never need escaping.
+            let avail = (buf.len() - 7).saturating_sub(len);
+            if avail == 0 {
                 out.write_str(std::str::from_utf8(&buf[..len]).unwrap())?;
                 len = 0;
+                continue;
+            }
+            let c = units[i];
+            if (0x20..=0x7f).contains(&c) && !matches!(c, 0x22 | 0x3c | 0x3e | 0x5c) {
+                let run_limit = (i + avail).min(n);
+                let mut j = i;
+                while j < run_limit {
+                    let u = units[j];
+                    if !(0x20..=0x7f).contains(&u) || matches!(u, 0x22 | 0x3c | 0x3e | 0x5c) {
+                        break;
+                    }
+                    buf[len] = u as u8;
+                    len += 1;
+                    j += 1;
+                }
+                i = j;
+                continue;
             }
             let hex;
             let escape: &[u8] = match c {
@@ -61,6 +81,7 @@ impl Util {
                 0x20..=0x7f => {
                     buf[len] = c as u8;
                     len += 1;
+                    i += 1;
                     continue;
                 }
                 _ => {
@@ -70,6 +91,7 @@ impl Util {
             };
             buf[len..len + escape.len()].copy_from_slice(escape);
             len += escape.len();
+            i += 1;
         }
         buf[len] = b'"';
         out.write_str(std::str::from_utf8(&buf[..=len]).unwrap())

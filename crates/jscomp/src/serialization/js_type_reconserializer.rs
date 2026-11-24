@@ -97,7 +97,9 @@ pub struct JSTypeReconserializer {
     unknown_record: i32,
     top_function_record: i32,
 
-    type_to_record_cache: IndexMap<TypeId, i32>,
+    // Rust-only (performance divergence): dense lookup table indexed by `TypeId.0` (`-1` = absent),
+    // avoiding hash lookups on every serialized type.
+    type_to_record_cache: Vec<i32>,
     seen_type_records: IndexMap<ColorId, SeenTypeRecord>,
     disambiguate_edges: IndexMap<i32, IndexSet<i32>>,
 
@@ -167,7 +169,7 @@ impl JSTypeReconserializer {
             serialization_mode,
             unknown_record: -1,
             top_function_record: -1,
-            type_to_record_cache: IndexMap::<_, _>::default(),
+            type_to_record_cache: Vec::new(),
             seen_type_records: IndexMap::<_, _>::default(),
             disambiguate_edges: IndexMap::<_, _>::default(),
             state: State::COLLECTING_TYPES,
@@ -273,7 +275,9 @@ impl JSTypeReconserializer {
             }
         }
 
-        if let Some(&jstype_record) = self.type_to_record_cache.get(&r#type) {
+        if let Some(&jstype_record) = self.type_to_record_cache.get(r#type.0 as usize)
+            && jstype_record >= 0
+        {
             return jstype_record;
         }
 
@@ -405,7 +409,11 @@ impl JSTypeReconserializer {
             .or_insert_with(|| SeenTypeRecord::new(id, pointer));
         record.jstypes.push(jstype);
         let record = record.pointer;
-        self.type_to_record_cache.insert(jstype, record);
+        let idx = jstype.0 as usize;
+        if idx >= self.type_to_record_cache.len() {
+            self.type_to_record_cache.resize(idx + 1, -1);
+        }
+        self.type_to_record_cache[idx] = record;
 
         record
     }
@@ -683,7 +691,11 @@ impl JSTypeReconserializer {
         // debugging are the strings, to avoid the memory overhead of calculating all string
         // representations at once
         let mut color_id_to_types: IndexMap<String, Vec<TypeId>> = IndexMap::<_, _>::default();
-        for (&jstype, &record) in &self.type_to_record_cache {
+        for (idx, &record) in self.type_to_record_cache.iter().enumerate() {
+            if record < 0 {
+                continue;
+            }
+            let jstype = TypeId(idx as u32);
             color_id_to_types
                 .entry(self.record(record).color_id.to_string())
                 .or_default()
