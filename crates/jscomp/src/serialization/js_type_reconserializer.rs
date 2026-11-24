@@ -91,7 +91,7 @@ pub struct JSTypeReconserializer {
     serialization_mode: SerializationOptions,
     invalidating_types: InvalidatingTypes,
     hasher: JSTypeColorIdHasher,
-    property_pointer: Box<PropertyPointer>,
+    property_pointer: PropertyPointerSource,
 
     // Cache some commonly used types.
     unknown_record: i32,
@@ -107,6 +107,49 @@ pub struct JSTypeReconserializer {
 }
 
 type PropertyPointer = dyn Fn(&JsString) -> Option<i32>;
+
+/// Rust-only (performance divergence): concrete storage for the AST-property lookup path so
+/// `generate_type_pool` can borrow `properties` and `strings` once across the entire pool build
+/// instead of doing a `RefCell::borrow_mut` + dynamic call on every own property of every object.
+enum PropertyPointerSource {
+    Callback(Box<PropertyPointer>),
+    AstProperties {
+        properties: Rc<RefCell<IndexMap<JsString, Option<i32>>>>,
+        strings: Rc<RefCell<StringPoolBuilder>>,
+    },
+}
+
+enum PropertyLookup<'a> {
+    Callback(&'a PropertyPointer),
+    AstProperties {
+        properties: &'a mut IndexMap<JsString, Option<i32>>,
+        strings: &'a mut StringPoolBuilder,
+    },
+}
+
+impl PropertyLookup<'_> {
+    #[inline]
+    fn get_or_put(&mut self, name: &JsString) -> Option<i32> {
+        match self {
+            Self::Callback(f) => f(name),
+            Self::AstProperties {
+                properties,
+                strings,
+            } => {
+                let slot = properties.get_mut(name)?;
+                Some(*slot.get_or_insert_with(|| strings.put(name)))
+            }
+        }
+    }
+}
+
+/// Rust-only (performance divergence): scratch sets reused across `reconcile_object_types` calls.
+#[derive(Default)]
+struct ReconcileScratch {
+    instance_pointers: IndexSet<i32>,
+    prototype_pointers: IndexSet<i32>,
+    own_properties: IndexSet<i32>,
+}
 
 // This is a one-way mapping because some JSTypes go to the same Color.
 // port: JSTypeReconserializer#JSTYPE_NATIVE_TO_AXIOMATIC_COLOR_MAP
@@ -156,10 +199,29 @@ fn jstype_native_to_axiomatic_color_map() -> [(JSTypeNative, &'static Color); 20
 
 impl JSTypeReconserializer {
     // port: JSTypeReconserializer#<init>
-    pub(super) fn with_property_pointers(
+    pub(super) fn with_ast_properties(
         registry: &JSTypeRegistry,
         invalidating_types: InvalidatingTypes,
-        property_pointer: Box<PropertyPointer>,
+        properties: Rc<RefCell<IndexMap<JsString, Option<i32>>>>,
+        strings: Rc<RefCell<StringPoolBuilder>>,
+        serialization_mode: SerializationOptions,
+    ) -> Self {
+        Self::new_inner(
+            registry,
+            invalidating_types,
+            PropertyPointerSource::AstProperties {
+                properties,
+                strings,
+            },
+            serialization_mode,
+        )
+    }
+
+    // port: JSTypeReconserializer#<init>
+    fn new_inner(
+        registry: &JSTypeRegistry,
+        invalidating_types: InvalidatingTypes,
+        property_pointer: PropertyPointerSource,
         serialization_mode: SerializationOptions,
     ) -> Self {
         let mut this = Self {
@@ -197,13 +259,13 @@ impl JSTypeReconserializer {
         should_propagate_property_name: Box<dyn Fn(&JsString) -> bool>,
         serialization_mode: SerializationOptions,
     ) -> Self {
-        Self::with_property_pointers(
+        Self::new_inner(
             registry,
             invalidating_types,
-            Box::new(move |name| {
+            PropertyPointerSource::Callback(Box::new(move |name| {
                 should_propagate_property_name(name)
                     .then(|| string_pool_builder.borrow_mut().put(name))
-            }),
+            })),
             serialization_mode,
         )
     }
@@ -217,6 +279,15 @@ impl JSTypeReconserializer {
     /// Returns the pointer of the record of `type` (Java returns the record itself).
     // port: JSTypeReconserializer#recordType
     fn record_type(&mut self, reg: &mut JSTypeRegistry, ast: &Ast, r#type: TypeId) -> i32 {
+        // Rust-only (performance divergence): check the dense cache before type-class dispatch;
+        // forwarded types are never stored in `type_to_record_cache`, and seeded axiomatic types
+        // already map directly to their target record.
+        if let Some(&jstype_record) = self.type_to_record_cache.get(r#type.0 as usize)
+            && jstype_record >= 0
+        {
+            return jstype_record;
+        }
+
         let forwarded_type: Option<TypeId> = if r#type.is_named_type(reg) {
             Some(closure_jstype::named_type::NamedType::get_referenced_type(
                 r#type.to_maybe_named_type(reg).unwrap(),
@@ -275,12 +346,6 @@ impl JSTypeReconserializer {
             }
         }
 
-        if let Some(&jstype_record) = self.type_to_record_cache.get(r#type.0 as usize)
-            && jstype_record >= 0
-        {
-            return jstype_record;
-        }
-
         if r#type.is_union_type(reg) {
             let union = r#type.to_maybe_union_type(reg).unwrap();
             return self.record_union_type(reg, ast, union);
@@ -294,8 +359,9 @@ impl JSTypeReconserializer {
 
     // port: JSTypeReconserializer#recordUnionType
     fn record_union_type(&mut self, reg: &mut JSTypeRegistry, ast: &Ast, r#type: TypeId) -> i32 {
-        let mut alt_records: IndexSet<i32> = IndexSet::<_>::default();
         let alternates = r#type.get_alternates(reg, ast);
+        let mut alt_records: IndexSet<i32> =
+            IndexSet::with_capacity_and_hasher(alternates.len(), Default::default());
         for &alt_type in alternates.iter() {
             let alt = self.record_type(reg, ast, alt_type);
             match &self.record(alt).union_members {
@@ -314,11 +380,11 @@ impl JSTypeReconserializer {
             return *alt_records.first().unwrap();
         }
 
-        let mut alternate_ids: IndexSet<ColorId> = IndexSet::<_>::default();
-        for &alt_record in &alt_records {
-            alternate_ids.insert(self.record(alt_record).color_id);
-        }
-        let union_id = ColorId::union(&alternate_ids);
+        let union_id = ColorId::union_from_iter(
+            alt_records
+                .iter()
+                .map(|&alt_record| self.record(alt_record).color_id),
+        );
         let record = self.get_or_create_record(union_id, r#type);
 
         let run_validation = self.serialization_mode.run_validation();
@@ -443,10 +509,12 @@ impl JSTypeReconserializer {
         reg: &mut JSTypeRegistry,
         ast: &Ast,
         seen: i32,
+        property_lookup: &mut PropertyLookup<'_>,
+        scratch: &mut ReconcileScratch,
     ) -> TypeProto {
-        let mut instance_pointers: IndexSet<i32> = IndexSet::<_>::default();
-        let mut prototype_pointers: IndexSet<i32> = IndexSet::<_>::default();
-        let mut own_properties: IndexSet<i32> = IndexSet::<_>::default();
+        scratch.instance_pointers.clear();
+        scratch.prototype_pointers.clear();
+        scratch.own_properties.clear();
         let mut is_closure_assert = false;
         let mut is_constructor = false;
         let mut is_invalidating = false;
@@ -471,9 +539,13 @@ impl JSTypeReconserializer {
                 if fn_type.has_instance_type(reg)
                     && let Some(instance_type) = fn_type.get_instance_type(reg)
                 {
-                    instance_pointers.insert(self.serialize_type(reg, ast, instance_type));
+                    scratch
+                        .instance_pointers
+                        .insert(self.serialize_type(reg, ast, instance_type));
                     let prototype = FunctionType::get_prototype(fn_type, reg, ast);
-                    prototype_pointers.insert(self.serialize_type(reg, ast, prototype));
+                    scratch
+                        .prototype_pointers
+                        .insert(self.serialize_type(reg, ast, prototype));
                     is_constructor |= fn_type.is_constructor(reg);
                 }
 
@@ -486,8 +558,8 @@ impl JSTypeReconserializer {
                 |own_property| {
                     // TODO(b/169899789): consider omitting common, well-known properties like
                     // "prototype" to save space.
-                    if let Some(pointer) = (self.property_pointer)(own_property) {
-                        own_properties.insert(pointer);
+                    if let Some(pointer) = property_lookup.get_or_put(own_property) {
+                        scratch.own_properties.insert(pointer);
                     }
                 },
             );
@@ -503,9 +575,9 @@ impl JSTypeReconserializer {
         }
 
         let object_proto = ObjectTypeProto::new_builder()
-            .add_all_instance_type(instance_pointers)
-            .add_all_own_property(own_properties)
-            .add_all_prototype(prototype_pointers)
+            .add_all_instance_type(scratch.instance_pointers.iter().copied())
+            .add_all_own_property(scratch.own_properties.iter().copied())
+            .add_all_prototype(scratch.prototype_pointers.iter().copied())
             .set_closure_assert(is_closure_assert)
             .set_is_invalidating(is_invalidating)
             .set_marked_constructor(is_constructor)
@@ -635,28 +707,75 @@ impl JSTypeReconserializer {
 
         self.state = State::GENERATING_POOL;
 
-        let mut i = 0;
-        while i < self.seen_type_records.len() {
-            let (color_id, pointer, is_union) = {
-                let seen = &self.seen_type_records[i];
-                (seen.color_id, seen.pointer, seen.union_members.is_some())
-            };
-            i += 1;
-            if standard_colors::AXIOMATIC_COLORS.contains_key(&color_id) {
-                check_state!(
-                    TypePointers::is_axiomatic(pointer),
-                    "Missing .type for SeenTypeRecord %s",
-                    format!("{:?}", self.record(pointer))
-                );
-                continue;
+        let mut scratch = ReconcileScratch::default();
+        // Temporarily take `property_pointer` out of `self` so `reconcile_object_types` can borrow
+        // `self` mutably (to serialize referenced prototypes/instances) without re-borrowing
+        // `RefCell` on every property.
+        let property_source = std::mem::replace(
+            &mut self.property_pointer,
+            PropertyPointerSource::Callback(Box::new(|_| None)),
+        );
+        match &property_source {
+            PropertyPointerSource::AstProperties {
+                properties,
+                strings,
+            } => {
+                let mut props_guard = properties.borrow_mut();
+                let mut strs_guard = strings.borrow_mut();
+                let mut lookup = PropertyLookup::AstProperties {
+                    properties: &mut props_guard,
+                    strings: &mut strs_guard,
+                };
+                let mut i = 0;
+                while i < self.seen_type_records.len() {
+                    let (color_id, pointer, is_union) = {
+                        let seen = &self.seen_type_records[i];
+                        (seen.color_id, seen.pointer, seen.union_members.is_some())
+                    };
+                    i += 1;
+                    if standard_colors::AXIOMATIC_COLORS.contains_key(&color_id) {
+                        check_state!(
+                            TypePointers::is_axiomatic(pointer),
+                            "Missing .type for SeenTypeRecord %s",
+                            format!("{:?}", self.record(pointer))
+                        );
+                        continue;
+                    }
+                    let type_proto = if is_union {
+                        self.reconcile_union_types(self.record(pointer))
+                    } else {
+                        self.reconcile_object_types(reg, ast, pointer, &mut lookup, &mut scratch)
+                    };
+                    builder = builder.add_type(type_proto);
+                }
             }
-            let type_proto = if is_union {
-                self.reconcile_union_types(self.record(pointer))
-            } else {
-                self.reconcile_object_types(reg, ast, pointer)
-            };
-            builder = builder.add_type(type_proto);
+            PropertyPointerSource::Callback(callback) => {
+                let mut lookup = PropertyLookup::Callback(callback.as_ref());
+                let mut i = 0;
+                while i < self.seen_type_records.len() {
+                    let (color_id, pointer, is_union) = {
+                        let seen = &self.seen_type_records[i];
+                        (seen.color_id, seen.pointer, seen.union_members.is_some())
+                    };
+                    i += 1;
+                    if standard_colors::AXIOMATIC_COLORS.contains_key(&color_id) {
+                        check_state!(
+                            TypePointers::is_axiomatic(pointer),
+                            "Missing .type for SeenTypeRecord %s",
+                            format!("{:?}", self.record(pointer))
+                        );
+                        continue;
+                    }
+                    let type_proto = if is_union {
+                        self.reconcile_union_types(self.record(pointer))
+                    } else {
+                        self.reconcile_object_types(reg, ast, pointer, &mut lookup, &mut scratch)
+                    };
+                    builder = builder.add_type(type_proto);
+                }
+            }
         }
+        self.property_pointer = property_source;
 
         for (&subtype, supertypes) in &self.disambiguate_edges {
             for &supertype in supertypes {

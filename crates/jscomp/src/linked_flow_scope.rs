@@ -42,6 +42,9 @@ pub struct LinkedFlowScope {
     function_scope: TypedScope,
     // The TypedScope for the block that this flow scope is defined for.
     syntactic_scope: TypedScope,
+    /// Rust-only (performance divergence): conservative summary of whether any overlay scope in
+    /// `scopes` contains a qualified (dotted) slot name.
+    has_qualified_overlay: bool,
 }
 
 impl LinkedFlowScope {
@@ -54,11 +57,14 @@ impl LinkedFlowScope {
         scopes: HamtPMap<TypedScope, OverlayScopeRef>,
         syntactic_scope: TypedScope,
         function_scope: TypedScope,
+        has_qualified_overlay: bool,
     ) -> Self {
+        let has_qualified_overlay = has_qualified_overlay && !scopes.is_empty();
         Self {
             scopes,
             syntactic_scope,
             function_scope,
+            has_qualified_overlay,
         }
     }
 
@@ -72,6 +78,9 @@ impl LinkedFlowScope {
         compiler: &AbstractCompiler,
         scope: TypedScope,
     ) -> HamtPMap<TypedScope, OverlayScopeRef> {
+        if self.scopes.is_empty() {
+            return self.scopes.clone();
+        }
         let mut this_scope = Some(self.syntactic_scope);
         let mut that_scope = Some(scope);
         let mut this_depth = self.syntactic_scope.get_depth(compiler);
@@ -103,7 +112,7 @@ impl LinkedFlowScope {
     // port: LinkedFlowScope#createEntryLattice
     /// Creates an entry lattice for the flow.
     pub fn create_entry_lattice(scope: TypedScope) -> Arc<LinkedFlowScope> {
-        Arc::new(Self::new(HamtPMap::empty(), scope, scope))
+        Arc::new(Self::new(HamtPMap::empty(), scope, scope, false))
     }
 
     // port: LinkedFlowScope#getRootOfQualifiedName
@@ -357,10 +366,13 @@ impl FlowScope for LinkedFlowScope {
             self.scopes.minus(&scope.0.scope)
         };
         if !new_scopes.ptr_eq(&self.scopes) {
+            let has_qualified =
+                self.has_qualified_overlay || symbol.as_units().contains(&u16::from(b'.'));
             Arc::new(LinkedFlowScope::new(
                 new_scopes,
                 self.syntactic_scope,
                 self.function_scope,
+                has_qualified,
             ))
         } else {
             self
@@ -511,6 +523,7 @@ impl FlowScope for LinkedFlowScope {
                 self.trim_scopes(compiler, typed_scope),
                 typed_scope,
                 self.function_scope,
+                self.has_qualified_overlay,
             ))
         } else {
             self
@@ -520,6 +533,10 @@ impl FlowScope for LinkedFlowScope {
     // port: LinkedFlowScope#getDeclarationScope
     fn get_declaration_scope(&self, _compiler: &AbstractCompiler) -> TypedScope {
         self.syntactic_scope
+    }
+
+    fn has_qualified_overlay(&self) -> bool {
+        self.has_qualified_overlay
     }
 
     fn as_any_arc(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
@@ -605,10 +622,12 @@ impl FlowScopeJoinOp {
         } else {
             result.function_scope
         };
+        let has_qualified = result.has_qualified_overlay || linked_input.has_qualified_overlay;
         self.result = Some(Arc::new(LinkedFlowScope::new(
             LinkedFlowScope::join(compiler, &result, &linked_input, common),
             common,
             function_scope,
+            has_qualified,
         )));
     }
 

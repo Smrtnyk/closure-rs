@@ -60,7 +60,10 @@ use closure_rhino::{
 };
 use std::{
     collections::BTreeSet,
-    sync::{Arc, LazyLock, Mutex, MutexGuard, PoisonError},
+    sync::{
+        Arc, LazyLock, Mutex, MutexGuard, PoisonError,
+        atomic::{AtomicU8, Ordering},
+    },
 };
 
 // port: TypeValidator#INVALID_CAST
@@ -178,8 +181,10 @@ pub struct TypeValidator {
     iterable_or_async_iterable: TypeId,
 
     // In TypeCheck, when we are analyzing a file with .java.js suffix, we set
-    // this field to IGNORE_NULL_UNDEFINED
-    subtyping_mode: Mutex<SubtypingMode>,
+    // this field to IGNORE_NULL_UNDEFINED.
+    // Rust-only (performance divergence): stored atomically (0 = NORMAL, 1 = IGNORE_NULL_UNDEFINED)
+    // to avoid mutex lock/unlock overhead on every type validation check.
+    subtyping_mode: AtomicU8,
 
     mismatches: Mutex<Accumulator>,
 }
@@ -211,7 +216,7 @@ impl TypeValidator {
             null_or_undefined,
             promise_of_unknown_type,
             iterable_or_async_iterable,
-            subtyping_mode: Mutex::new(SubtypingMode::NORMAL),
+            subtyping_mode: AtomicU8::new(0),
             mismatches: Mutex::new(Accumulator::new()),
         }
     }
@@ -250,18 +255,21 @@ impl TypeValidator {
 
     // port: TypeValidator#setSubtypingMode
     pub fn set_subtyping_mode(&self, mode: SubtypingMode) {
-        *self
-            .subtyping_mode
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = mode;
+        let raw = match mode {
+            SubtypingMode::NORMAL => 0,
+            SubtypingMode::IGNORE_NULL_UNDEFINED => 1,
+        };
+        self.subtyping_mode.store(raw, Ordering::Relaxed);
     }
 
     /// Rust-only: reads `subtypingMode`.
+    #[inline]
     fn subtyping_mode(&self) -> SubtypingMode {
-        *self
-            .subtyping_mode
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+        if self.subtyping_mode.load(Ordering::Relaxed) == 0 {
+            SubtypingMode::NORMAL
+        } else {
+            SubtypingMode::IGNORE_NULL_UNDEFINED
+        }
     }
 
     /// Rust-only: the `mismatches` accumulator.
@@ -722,6 +730,21 @@ impl TypeValidator {
         }
     }
 
+    /// Rust-only (performance divergence): true when `expect_not_null_or_undefined` is guaranteed
+    /// to return `true` without diagnostics for `type_` (regardless of scope/node), allowing
+    /// `TypeCheck` to memoize this predicate per `TypeId`.
+    pub(crate) fn is_not_null_or_undefined_always_ok(
+        &self,
+        reg: &mut JSTypeRegistry,
+        ast: &Ast,
+        type_: TypeId,
+    ) -> bool {
+        type_.is_no_type(reg)
+            || type_.is_unknown_type(reg, ast)
+            || !self.is_subtype_of_null_or_undefined(reg, ast, type_)
+            || Self::contains_forward_declared_unresolved_name(reg, ast, type_)
+    }
+
     /// Expect the type to be anything but the null or void type. If the expectation is not met,
     /// issue a warning at the provided node's source code position. Note that a union type that
     /// includes the void type and at least one other type meets the expectation.
@@ -969,12 +992,58 @@ impl TypeValidator {
         )
     }
 
+    /// Rust-only (performance divergence): fast-path check matching the no-diagnostic early return
+    /// of `expect_can_assign_to_property_of_type`, so callers can avoid walking prototype chains
+    /// for `@implicitCast` or allocating error closures when the assignment is already valid.
+    pub(crate) fn can_assign_to_property_fast(
+        reg: &mut JSTypeRegistry,
+        ast: &Ast,
+        right_type: TypeId,
+        left_type: TypeId,
+    ) -> bool {
+        if left_type.is_template_type(reg) {
+            let left = left_type.to_maybe_template_type(reg).unwrap();
+            right_type.contains_reference_ancestor(reg, ast, left)
+                || right_type.is_unknown_type(reg, ast)
+                || left.is_unknown_type(reg, ast)
+        } else {
+            left_type.is_no_type(reg) || right_type.is_subtype_of(reg, ast, left_type)
+        }
+    }
+
     /// Expect that the first type can be assigned to a symbol of the second type.
     ///
     /// `n`: The node to issue warnings on. `right_type`: The type on the RHS of the assign.
     /// `left_type`: The type of the symbol on the LHS of the assign. `owner_type`: The owner of
     /// the property being assigned to. `prop_name`: The name of the property being assigned to.
     /// Returns true if the types matched, false otherwise.
+    /// Rust-only (performance divergence): `expect_can_assign_to_property_of` taking `&JsString`
+    /// and checking the fast path before allocating a `Box` closure or `String` property name.
+    // port: TypeValidator#expectCanAssignToPropertyOf(Node,JSType,JSType,Node,String)
+    pub(crate) fn expect_can_assign_to_property_of_js(
+        &self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        right_type: TypeId,
+        left_type: TypeId,
+        owner: NodeId,
+        prop_name: &JsString,
+    ) -> bool {
+        let (reg, ast) = compiler.get_type_registry_and_ast();
+        if Self::can_assign_to_property_fast(reg, ast, right_type, left_type) {
+            return true;
+        }
+        let prop_name_str = prop_name.to_string();
+        self.expect_can_assign_to_property_of(
+            compiler,
+            n,
+            right_type,
+            left_type,
+            owner,
+            &prop_name_str,
+        )
+    }
+
     // port: TypeValidator#expectCanAssignToPropertyOf(Node,JSType,JSType,JSType,Supplier,String)
     #[allow(clippy::too_many_arguments)]
     pub fn expect_can_assign_to_property_of_type(
@@ -1436,6 +1505,20 @@ impl TypeValidator {
         instance: TypeId,
         ancestor_interface: TypeId,
     ) {
+        // Rust-only (performance divergence): for an interface `instance`, `expect_interface_property`
+        // only checks properties locally owned by `instance` or its own implicit prototype. If
+        // neither defines any own properties, skip scanning ancestor interface properties entirely.
+        {
+            let (reg, ast) = compiler.get_type_registry_and_ast();
+            if ObjectType::get_constructor(instance, reg).is_some_and(|ctor| ctor.is_interface(reg))
+                && instance.get_property_map(reg).is_own_empty()
+                && instance
+                    .get_implicit_prototype(reg, ast)
+                    .is_none_or(|proto| proto.get_property_map(reg).is_own_empty())
+            {
+                return;
+            }
+        }
         // Case: `/** @interface */ class Foo { constructor() { this.prop; } }`
         let reg = compiler.get_type_registry();
         for prop in ancestor_interface.get_own_property_keys(reg) {
@@ -1462,8 +1545,19 @@ impl TypeValidator {
         prop_name: PropertyKey,
     ) {
         let (reg, ast) = compiler.get_type_registry_and_ast();
-        let prop_slot = instance.find_closest_definition(reg, ast, prop_name.clone());
         let instance_ctor = ObjectType::get_constructor(instance, reg).unwrap();
+        // Rust-only (performance divergence): for an interface, both missing and non-local
+        // properties return early without diagnostics, so avoid walking ancestor graphs unless
+        // `instance` or its own implicit prototype declares the property.
+        if instance_ctor.is_interface(reg)
+            && !instance.has_own_property(reg, ast, prop_name.clone())
+            && !instance
+                .get_implicit_prototype(reg, ast)
+                .is_some_and(|proto| proto.has_own_property(reg, ast, prop_name.clone()))
+        {
+            return;
+        }
+        let prop_slot = instance.find_closest_definition(reg, ast, prop_name.clone());
         let not_implemented = match prop_slot {
             None => true,
             Some(prop_slot) => {
@@ -1912,6 +2006,40 @@ impl TypeValidator {
         }
         if let Some((found, required, error)) = verifier.pending_report {
             self.register_mismatch_and_report(compiler, found, required, error);
+        }
+    }
+
+    /// Rust-only (performance divergence): `expect_well_formed_templatized_type` backed by a
+    /// per-`TypeCheck` dense memo table of `TypeId`s already known to be well-formed. Because
+    /// `WellFormedTemplatizedTypeVerifier` only reads immutable `JSType` structure and reports
+    /// nothing when it returns `true`, a verified `TypeId` never needs re-traversal on later AST
+    /// nodes (ill-formed types are never cached so every offending node reports as in Java).
+    // port: TypeValidator#expectWellFormedTemplatizedType
+    pub(crate) fn expect_well_formed_templatized_type_cached(
+        &self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        well_formed_cache: &mut Vec<bool>,
+    ) {
+        let Some(type_) = n.get_jstype(&compiler.ast) else {
+            return;
+        };
+        let idx = type_.0 as usize;
+        if well_formed_cache.get(idx).copied().unwrap_or(false) {
+            return;
+        }
+        let mut verifier = WellFormedTemplatizedTypeVerifier::new(n);
+        let ok = {
+            let (reg, ast) = compiler.get_type_registry_and_ast();
+            type_.visit(reg, ast, &mut verifier)
+        };
+        if let Some((found, required, error)) = verifier.pending_report {
+            self.register_mismatch_and_report(compiler, found, required, error);
+        } else if ok {
+            if idx >= well_formed_cache.len() {
+                well_formed_cache.resize(idx + 1, false);
+            }
+            well_formed_cache[idx] = true;
         }
     }
 }

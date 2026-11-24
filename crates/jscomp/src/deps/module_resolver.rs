@@ -70,6 +70,11 @@ impl ModuleResolverBase {
     // port: ModuleResolver#locate
     pub fn locate(&self, script_address: &str, name: &str) -> Option<String> {
         let canonicalized_path = self.canonicalize_path(script_address, name);
+        self.locate_canonicalized(canonicalized_path)
+    }
+    /// Rust-only (performance divergence): `locate` when the caller already computed
+    /// `canonicalize_path(script_address, name)`.
+    pub(crate) fn locate_canonicalized(&self, canonicalized_path: String) -> Option<String> {
         let normalized_path = if ModuleLoader::is_ambiguous_identifier(&canonicalized_path) {
             format!("/{canonicalized_path}")
         } else {

@@ -294,7 +294,7 @@ crates/jscomp/src/ijs/process_const_jsdoc_callback.rs	391be2ebf90820c5	Apache-2.
 crates/jscomp/src/implicit_nullability_check.rs	9c166e2dfca7f8b4	Apache-2.0	closure:src/com/google/javascript/jscomp/ImplicitNullabilityCheck.java; closure:src/com/google/javascript/jscomp/NodeUtil.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
 crates/jscomp/src/index_provider.rs	ff191a98f9eae6f6	Apache-2.0	closure:src/com/google/javascript/jscomp/IndexProvider.java
 crates/jscomp/src/infer_consts.rs	fd58d922fc50cc8e	Apache-2.0	closure:src/com/google/javascript/jscomp/InferConsts.java
-crates/jscomp/src/infer_js_doc_info.rs	2ad70e452da76beb	Apache-2.0	closure:src/com/google/javascript/jscomp/InferJSDocInfo.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
+crates/jscomp/src/infer_js_doc_info.rs	269beee24d6e6774	Apache-2.0	closure:src/com/google/javascript/jscomp/InferJSDocInfo.java
 crates/jscomp/src/inject_closure_unaware_runtime_libraries.rs	69b42b9795a83d55	Apache-2.0	closure:src/com/google/javascript/jscomp/InjectClosureUnawareRuntimeLibraries.java; closure:test/com/google/javascript/jscomp/TranspileAndOptimizeClosureUnawareTest.java
 crates/jscomp/src/inject_runtime_libraries.rs	7d3490dd7ba90d14	Apache-2.0	closure:src/com/google/javascript/jscomp/InjectRuntimeLibraries.java
 crates/jscomp/src/inject_transpilation_runtime_libraries.rs	be754c2e0d410f7f	Apache-2.0	closure:src/com/google/javascript/jscomp/InjectTranspilationRuntimeLibraries.java
@@ -303,7 +303,7 @@ crates/jscomp/src/inline_cost_estimator.rs	955bb176921edf9e	Apache-2.0	closure:s
 crates/jscomp/src/inline_functions.rs	05f71a691a576884	Apache-2.0	closure:src/com/google/javascript/jscomp/InlineFunctions.java
 crates/jscomp/src/inline_object_literals.rs	9422c0abbed4a15f	Apache-2.0	closure:src/com/google/javascript/jscomp/InlineObjectLiterals.java
 crates/jscomp/src/inline_properties.rs	e2121b0f00e977e4	Apache-2.0	closure:src/com/google/javascript/jscomp/InlineProperties.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
-crates/jscomp/src/inline_simple_methods.rs	52d6bde6d7ff5730	Apache-2.0	closure:src/com/google/javascript/jscomp/InlineSimpleMethods.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
+crates/jscomp/src/inline_simple_methods.rs	f45340a5bd410cd7	Apache-2.0	closure:src/com/google/javascript/jscomp/InlineSimpleMethods.java
 crates/jscomp/src/inline_variables.rs	be824076a822efa5	Apache-2.0	closure:src/com/google/javascript/jscomp/InlineVariables.java
 crates/jscomp/src/instrument_async_context.rs	79f1acefe5ca2ccf	Apache-2.0	closure:src/com/google/javascript/jscomp/InstrumentAsyncContext.java
 crates/jscomp/src/invalidating_types.rs	2b07daa0059ec225	Apache-2.0	closure:src/com/google/javascript/jscomp/InvalidatingTypes.java

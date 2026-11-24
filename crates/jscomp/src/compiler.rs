@@ -2658,21 +2658,20 @@ impl Compiler {
         let tracer = self.new_tracer(crate::pass_names::PARSE_INPUTS);
         self.before_pass(crate::pass_names::PARSE_INPUTS);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // Rust-only (performance divergence): parse the inputs ahead on worker threads.
-            let all_inputs: Vec<CompilerInput> = self
-                .externs
-                .iter()
-                .cloned()
-                .chain(self.get_inputs_in_order())
-                .collect();
-            crate::parallel_parse::start(self, &all_inputs);
+            // Rust-only (performance divergence): preparse any non-snapshot externs first, then
+            // after module loader setup precompute regex DependencyInfo in parallel (warming
+            // SourceFile's UTF-16 cache with a single disk read per file) before launching JS
+            // preparse workers so the two pools never contend or trip `machine_is_busy` on each
+            // other.
+            let externs = self.externs.clone();
+            crate::parallel_parse::start(self, &externs);
             if self.get_options().get_num_parallel_threads() > 1 {
                 crate::prebuild_ast::PrebuildAst::new(
                     self.get_options().get_num_parallel_threads(),
                 )
-                .prebuild(self, &self.externs.clone());
+                .prebuild(self, &externs);
             }
-            for input in self.externs.clone() {
+            for input in externs {
                 let n = input.get_ast_root(self);
                 if self.has_errors() {
                     return None;
@@ -2683,6 +2682,7 @@ impl Compiler {
                     .unwrap()
                     .insert(input.get_source_file().get_name().into(), n);
             }
+            crate::parallel_parse::finish(self);
             if self
                 .get_options()
                 .get_language_in()
@@ -2694,6 +2694,12 @@ impl Compiler {
             } else {
                 self.module_loader = crate::deps::module_loader::EMPTY.clone();
             }
+            // Rust-only (performance divergence): precompute regex DependencyInfo in parallel
+            // before dependency discovery and extern/nocompile scanning read every input, then
+            // start parallel JS parsing against the warmed SourceFile cache.
+            let ordered_inputs = self.get_inputs_in_order();
+            CompilerInput::prebuild_dependency_info_parallel(self, &ordered_inputs);
+            crate::parallel_parse::start(self, &ordered_inputs);
             if self
                 .get_options()
                 .get_dependency_options()

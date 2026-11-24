@@ -208,6 +208,11 @@ impl JsFileRegexParser {
     }
     // port: JsFileRegexParser#applyGoogMatcher
     fn apply_goog_matcher(&mut self, line: &JsString) -> Result<bool, ParseException> {
+        // Rust-only (performance divergence): every match of GOOG_PROVIDE_REQUIRE_PATTERN contains
+        // the literal "goog.", so reject lines without it before running the Unicode regex.
+        if line.index_of("goog.") < 0 {
+            return Ok(false);
+        }
         let mut line_has_provides_or_requires = false;
         self.goog_matcher.reset(line);
         while self.goog_matcher.find() {

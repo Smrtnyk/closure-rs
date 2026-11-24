@@ -91,17 +91,20 @@ static USE_LEAF_CACHE: LazyLock<bool> =
 
 const NO_LEAF: u32 = u32::MAX;
 
-/// Rust-only (performance divergence): deduplicated semantic summary of an unchanged leaf
-/// function for `RemoveUnusedCode`. Holds only the outer-scope variable references (in first-seen
-/// order, with whether each marks the var not-removable) and non-extern pinned property names.
+/// Rust-only (performance divergence): deduplicated semantic summary of an unchanged function
+/// subtree for `RemoveUnusedCode`. Holds the outer-scope variable references (in first-seen
+/// order, with whether each marks the var not-removable), interned non-extern property IDs
+/// (`RemoveUnusedCodeCache::prop_universe`), polyfill preconditions, and nested function stamps.
 struct LeafFunctionSummary {
     stamp: u32,
     parent: Option<NodeId>,
     flags: u16,
     polyfill_mask: u128,
+    required_used_polyfills: u128,
+    nested_stamps: Box<[(NodeId, u32)]>,
     outer_vars: Box<[(NodeId, bool)]>,
-    pinned_props: Box<[JsString]>,
-    required_pinned_props: Box<[JsString]>,
+    pinned_props: Box<[u32]>,
+    required_pinned_props: Box<[u32]>,
 }
 
 /// Rust-only (performance divergence): compiler-owned cache of [`LeafFunctionSummary`] entries
@@ -111,6 +114,7 @@ pub(crate) struct RemoveUnusedCodeCache {
     accessor_summary: Option<Arc<AccessorSummary>>,
     extern_properties: Option<Arc<IndexSet<JsString>>>,
     polyfill_universe: IndexSet<JsString>,
+    prop_universe: IndexSet<JsString>,
     summaries: IndexMap<NodeId, Arc<LeafFunctionSummary>>,
 }
 
@@ -131,9 +135,19 @@ impl RemoveUnusedCodeCache {
             .is_some_and(|e| Arc::ptr_eq(e, extern_properties));
         if !accessor_same || !externs_same {
             self.summaries.clear();
+            self.prop_universe.clear();
         }
         self.accessor_summary = accessor_summary.cloned();
         self.extern_properties = Some(Arc::clone(extern_properties));
+    }
+
+    fn intern_prop(&mut self, prop: JsString) -> u32 {
+        if let Some(i) = self.prop_universe.get_index_of(&prop) {
+            i as u32
+        } else {
+            let (i, _) = self.prop_universe.insert_full(prop);
+            i as u32
+        }
     }
 
     fn polyfill_bit(&mut self, key: &JsString) -> Option<u128> {
@@ -153,8 +167,10 @@ struct LeafRecorder {
     start_stamp: u32,
     fparam_depth: i32,
     polyfill_mask: u128,
+    required_used_polyfills: u128,
     aborted: bool,
     last_outer_var: Option<VarId>,
+    nested_stamps: Vec<(NodeId, u32)>,
     outer_vars: Vec<(VarId, NodeId, bool)>,
     pinned_props: Vec<JsString>,
     required_pinned_props: Vec<JsString>,
@@ -164,6 +180,7 @@ struct LeafRecorder {
 impl LeafRecorder {
     fn clear_buffers(&mut self) {
         self.aborted = true;
+        self.nested_stamps = Vec::new();
         self.outer_vars = Vec::new();
         self.pinned_props = Vec::new();
         self.required_pinned_props = Vec::new();
@@ -308,7 +325,11 @@ pub struct RemoveUnusedCode {
     leaf_recorders: Vec<LeafRecorder>,
     can_use_leaf_cache: bool,
     current_polyfill_mask: u128,
+    removable_polyfill_mask: u128,
     polyfill_mask_overflow: bool,
+    /// Dense pinned-property mirror indexed by `RemoveUnusedCodeCache::prop_universe` ID so
+    /// leaf-summary cache hits check/replay pinned properties without string hashing.
+    pinned_prop_ids: Vec<bool>,
 }
 
 impl RemoveUnusedCode {
@@ -360,7 +381,9 @@ impl RemoveUnusedCode {
             leaf_recorders: Vec::new(),
             can_use_leaf_cache: false,
             current_polyfill_mask: 0,
+            removable_polyfill_mask: 0,
             polyfill_mask_overflow: false,
+            pinned_prop_ids: Vec::new(),
         };
         // All Vars that are completely unremovable will share this VarInfo instance.
         this.canonical_unremovable_var_info = this.new_var_info(VarInfo::CanonicalUnremovable);
@@ -663,15 +686,24 @@ impl RemoveUnusedCode {
             && compiler.get_coding_convention().export_tests_are_pure()
             && !self.removal_log.as_ref().unwrap().is_logging()
             && !self.unremovable_log.as_ref().unwrap().is_logging();
+        self.pinned_prop_ids.clear();
         if self.can_use_leaf_cache {
             let accessor = compiler.get_accessor_summary().cloned();
             compiler
                 .remove_unused_code_cache
                 .sync_environment(accessor.as_ref(), &self.extern_properties);
+            let prop_universe = &compiler.remove_unused_code_cache.prop_universe;
+            self.pinned_prop_ids.resize(prop_universe.len(), false);
+            for prop in &self.pinned_property_names {
+                if let Some(idx) = prop_universe.get_index_of(prop) {
+                    self.pinned_prop_ids[idx] = true;
+                }
+            }
         }
         self.active_leaf = NO_LEAF;
         self.leaf_recorders.clear();
         self.current_polyfill_mask = 0;
+        self.removable_polyfill_mask = 0;
         self.polyfill_mask_overflow = false;
 
         self.worklist.push_back(Continuation::new(root, scope));
@@ -687,12 +719,16 @@ impl RemoveUnusedCode {
                     rec.clear_buffers();
                     NO_LEAF
                 } else {
+                    rec.last_outer_var = None;
                     continuation.leaf_owner
                 }
             } else {
                 NO_LEAF
             };
             self.continuation_apply(compiler, continuation);
+            if self.active_leaf != NO_LEAF {
+                self.leaf_recorders[self.active_leaf as usize].last_outer_var = None;
+            }
             self.active_leaf = prev_leaf;
         }
         self.active_leaf = NO_LEAF;
@@ -775,6 +811,11 @@ impl RemoveUnusedCode {
             if SyntacticScopeCache::subtree_stamp(compiler, rec.function) != rec.start_stamp {
                 continue;
             }
+            if !rec.nested_stamps.iter().all(|&(nested_fn, nested_stamp)| {
+                SyntacticScopeCache::cached_subtree_stamp(compiler, nested_fn) == nested_stamp
+            }) {
+                continue;
+            }
             let all_locals_stable = rec.local_var_infos.iter().all(|&vi| {
                 !self.var_info_is_removable(vi) || self.is_benign_unused_param(compiler, vi)
             }) && (!self.remove_globals
@@ -784,22 +825,37 @@ impl RemoveUnusedCode {
             if !all_locals_stable {
                 continue;
             }
+            if !rec
+                .required_pinned_props
+                .iter()
+                .all(|prop| self.pinned_property_names.contains(prop))
+            {
+                continue;
+            }
             dedup.clear();
             for prop in rec.pinned_props {
                 if !self.extern_properties.contains(&prop) {
                     dedup.insert(prop);
                 }
             }
-            let pinned_props: Box<[JsString]> = dedup.drain(..).collect();
+            let pinned_props: Box<[u32]> = dedup
+                .drain(..)
+                .map(|prop| compiler.remove_unused_code_cache.intern_prop(prop))
+                .collect();
             for prop in rec.required_pinned_props {
                 dedup.insert(prop);
             }
-            let required_pinned_props: Box<[JsString]> = dedup.drain(..).collect();
+            let required_pinned_props: Box<[u32]> = dedup
+                .drain(..)
+                .map(|prop| compiler.remove_unused_code_cache.intern_prop(prop))
+                .collect();
             let summary = LeafFunctionSummary {
                 stamp: rec.start_stamp,
                 parent: rec.parent,
                 flags,
                 polyfill_mask: rec.polyfill_mask,
+                required_used_polyfills: rec.required_used_polyfills,
+                nested_stamps: rec.nested_stamps.into_boxed_slice(),
                 outer_vars: rec
                     .outer_vars
                     .into_iter()
@@ -860,7 +916,6 @@ impl RemoveUnusedCode {
         match r#type {
             Token::CATCH => self.traverse_catch(compiler, n, scope),
             Token::FUNCTION => {
-                self.abort_active_leaf();
                 {
                     // If this function is a removable var, then create a continuation
                     // for it instead of traversing immediately.
@@ -961,7 +1016,7 @@ impl RemoveUnusedCode {
                         // In `#x in o`, `#x` is a NAME node representing a private property (not
                         // a variable in `scope`); pin the property name so the declaration of
                         // `#x` is kept, and skip variable lookup.
-                        self.mark_property_name_as_pinned(n.get_string_ref(compiler));
+                        self.mark_property_name_as_pinned(compiler, n.get_string_ref(compiler));
                         return;
                     }
                     let var_info = self.traverse_name_node(compiler, n, scope);
@@ -1026,10 +1081,22 @@ impl RemoveUnusedCode {
             .polyfills
             .contains_key(get_prop.get_string_ref(compiler))
         {
-            self.abort_active_leaf();
+            let mut any_removable = false;
             for info in self.polyfills.get(get_prop.get_string_ref(compiler)) {
                 if self.polyfill_infos[info.0].is_removable {
+                    any_removable = true;
                     self.polyfill_info_consider_possible_reference(compiler, info, get_prop);
+                }
+            }
+            if !any_removable && self.active_leaf != NO_LEAF {
+                let key = get_prop.get_string(compiler);
+                if let Some(bit) = compiler.remove_unused_code_cache.polyfill_bit(&key) {
+                    let rec = &mut self.leaf_recorders[self.active_leaf as usize];
+                    if !rec.aborted {
+                        rec.required_used_polyfills |= bit;
+                    }
+                } else {
+                    self.abort_active_leaf();
                 }
             }
         }
@@ -1042,7 +1109,7 @@ impl RemoveUnusedCode {
             )
         {
             // must record as reference to the property and continue traversal.
-            self.mark_property_name_as_pinned(get_prop.get_string_ref(compiler));
+            self.mark_property_name_as_pinned(compiler, get_prop.get_string_ref(compiler));
             self.traverse_node(compiler, object_node, scope);
         } else if object_node.is_this(compiler) {
             // This is probably the declaration of a class field in a constructor.
@@ -1075,7 +1142,7 @@ impl RemoveUnusedCode {
             }
         } else {
             // TODO(bradfordcsmith): add removal of `varName.propName;`
-            self.mark_property_name_as_pinned(get_prop.get_string_ref(compiler));
+            self.mark_property_name_as_pinned(compiler, get_prop.get_string_ref(compiler));
             self.traverse_node(compiler, object_node, scope);
         }
     }
@@ -1216,11 +1283,22 @@ impl RemoveUnusedCode {
         // Rust-only: the name is read in place, copied only for a polyfill
         // (performance divergence).
         if self.polyfills.contains_key(n.get_string_ref(compiler)) {
-            self.abort_active_leaf();
             let name = n.get_string(compiler);
+            let mut any_removable = false;
             for info in self.polyfills.get(&name) {
                 if self.polyfill_infos[info.0].is_removable {
+                    any_removable = true;
                     self.polyfill_info_consider_possible_reference(compiler, info, n);
+                }
+            }
+            if !any_removable && self.active_leaf != NO_LEAF {
+                if let Some(bit) = compiler.remove_unused_code_cache.polyfill_bit(&name) {
+                    let rec = &mut self.leaf_recorders[self.active_leaf as usize];
+                    if !rec.aborted {
+                        rec.required_used_polyfills |= bit;
+                    }
+                } else {
+                    self.abort_active_leaf();
                 }
             }
         }
@@ -1270,7 +1348,10 @@ impl RemoveUnusedCode {
             if let Some(property_name_node) = property_name_node
                 && property_name_node.is_string_lit(compiler)
             {
-                self.mark_property_name_as_pinned(property_name_node.get_string_ref(compiler));
+                self.mark_property_name_as_pinned(
+                    compiler,
+                    property_name_node.get_string_ref(compiler),
+                );
             }
             self.traverse_children(compiler, call_node, scope);
         } else if NodeUtil::is_object_define_properties_definition(compiler, call_node) {
@@ -1293,6 +1374,7 @@ impl RemoveUnusedCode {
             if self.can_use_leaf_cache && !self.polyfill_mask_overflow {
                 if let Some(bit) = compiler.remove_unused_code_cache.polyfill_bit(&key) {
                     self.current_polyfill_mask |= bit;
+                    self.removable_polyfill_mask |= bit;
                 } else {
                     self.polyfill_mask_overflow = true;
                 }
@@ -1465,7 +1547,7 @@ impl RemoveUnusedCode {
             if p.is_quoted_string_key(compiler) {
                 // Quoted property name counts as a reference to the property and protects it from
                 // removal.
-                self.mark_property_name_as_pinned(p.get_string_ref(compiler));
+                self.mark_property_name_as_pinned(compiler, p.get_string_ref(compiler));
                 self.traverse_node(compiler, p.get_only_child(compiler), scope);
             } else if p.is_string_key(compiler) {
                 let definition = p.get_only_child(compiler);
@@ -1730,7 +1812,7 @@ impl RemoveUnusedCode {
                 // because of some reflection patterns.
                 // Note that we are intentionally treating both quoted and unquoted keys as
                 // references.
-                self.mark_property_name_as_pinned(p.get_string_ref(compiler));
+                self.mark_property_name_as_pinned(compiler, p.get_string_ref(compiler));
                 self.traverse_node(compiler, p.get_first_child(compiler).unwrap(), scope);
             } else {
                 self.traverse_node(compiler, p, scope);
@@ -2153,7 +2235,7 @@ impl RemoveUnusedCode {
                 }
                 Token::STRING_KEY => {
                     if !e.is_quoted_string_key(compiler) {
-                        self.mark_property_name_as_pinned(e.get_string_ref(compiler));
+                        self.mark_property_name_as_pinned(compiler, e.get_string_ref(compiler));
                     }
                     let target = e.get_only_child(compiler);
                     self.traverse_indirect_assignment(compiler, e, target, scope);
@@ -2486,12 +2568,12 @@ impl RemoveUnusedCode {
         );
 
         // Rust-only (performance divergence): replay deduplicated semantic summary for unchanged
-        // leaf functions across repeated optimization rounds. Entering a nested function aborts
-        // any outer recorder (marking it non-leaf) so this inner function can still hit or record.
-        self.abort_active_leaf();
+        // function subtrees across repeated optimization rounds. On a hit inside an active outer
+        // recorder, absorb this summary bottom-up so enclosing functions with nested callbacks
+        // can also cache on the next round; on a miss, abort any outer recorder so this function
+        // can record cleanly on its own.
         if self.can_use_leaf_cache
             && !self.polyfill_mask_overflow
-            && !function.is_arrow_function(compiler)
             && let Some(summary) = compiler
                 .remove_unused_code_cache
                 .summaries
@@ -2499,27 +2581,78 @@ impl RemoveUnusedCode {
                 .cloned()
             && summary.flags == self.flags_bits()
             && (self.current_polyfill_mask & !summary.polyfill_mask) == 0
+            && (self.removable_polyfill_mask & summary.required_used_polyfills) == 0
             && summary.parent == function.get_parent(compiler)
             && summary.stamp == SyntacticScopeCache::subtree_stamp(compiler, function)
             && summary
+                .nested_stamps
+                .iter()
+                .all(|&(nested_fn, nested_stamp)| {
+                    SyntacticScopeCache::cached_subtree_stamp(compiler, nested_fn) == nested_stamp
+                })
+            && summary
                 .required_pinned_props
                 .iter()
-                .all(|prop| self.pinned_property_names.contains(prop))
+                .all(|&prop_id| self.pinned_prop_ids[prop_id as usize])
         {
+            if self.active_leaf != NO_LEAF {
+                let rec = &mut self.leaf_recorders[self.active_leaf as usize];
+                if !rec.aborted {
+                    if rec.nested_stamps.len() + 1 + summary.nested_stamps.len() > 16 {
+                        self.abort_active_leaf();
+                    } else {
+                        rec.nested_stamps.push((function, summary.stamp));
+                        rec.nested_stamps.extend_from_slice(&summary.nested_stamps);
+                        rec.required_used_polyfills |= summary.required_used_polyfills;
+                        let prop_universe = &compiler.remove_unused_code_cache.prop_universe;
+                        for &prop_id in &summary.required_pinned_props {
+                            rec.record_required_pinned(prop_universe[prop_id as usize].clone());
+                        }
+                        for &prop_id in &summary.pinned_props {
+                            rec.record_pinned(&prop_universe[prop_id as usize]);
+                        }
+                    }
+                }
+            }
             for &(name_node, mark_not_removable) in &summary.outer_vars {
                 let var = self.get_var_for_name_node(compiler, name_node, parent_scope);
                 let var_info = self.traverse_var(compiler, var);
+                if self.active_leaf != NO_LEAF {
+                    let rec = &mut self.leaf_recorders[self.active_leaf as usize];
+                    if !rec.aborted {
+                        if var.get_scope(compiler).get_depth(compiler) < rec.fparam_depth {
+                            if var.is_arguments(compiler) {
+                                self.abort_active_leaf();
+                            } else {
+                                rec.last_outer_var = Some(var);
+                                if !rec.outer_vars.iter().any(|e| e.0 == var) {
+                                    if rec.outer_vars.len() >= 64 {
+                                        self.abort_active_leaf();
+                                    } else {
+                                        rec.outer_vars.push((var, name_node, false));
+                                    }
+                                }
+                            }
+                        } else {
+                            rec.last_outer_var = None;
+                        }
+                    }
+                }
                 if mark_not_removable {
                     self.var_info_set_is_explicitly_not_removable(compiler, var_info, |_| {
                         String::new()
                     });
                 }
             }
-            for prop in &summary.pinned_props {
-                self.mark_property_name_as_pinned(prop);
+            if self.active_leaf != NO_LEAF {
+                self.leaf_recorders[self.active_leaf as usize].last_outer_var = None;
+            }
+            for &prop_id in &summary.pinned_props {
+                self.mark_property_name_as_pinned_by_id(compiler, prop_id);
             }
             return;
         }
+        self.abort_active_leaf();
 
         let paramlist = NodeUtil::get_function_parameters(compiler, function);
         let body = function.get_last_child(compiler).unwrap();
@@ -2539,10 +2672,7 @@ impl RemoveUnusedCode {
             .scope_creator
             .create_scope(compiler, body, Some(fparam_scope));
 
-        if self.can_use_leaf_cache
-            && !self.polyfill_mask_overflow
-            && !function.is_arrow_function(compiler)
-        {
+        if self.can_use_leaf_cache && !self.polyfill_mask_overflow {
             let start_stamp = SyntacticScopeCache::subtree_stamp(compiler, function);
             let rec_idx = self.leaf_recorders.len() as u32;
             self.leaf_recorders.push(LeafRecorder {
@@ -2551,8 +2681,10 @@ impl RemoveUnusedCode {
                 start_stamp,
                 fparam_depth: fparam_scope.get_depth(compiler),
                 polyfill_mask: self.current_polyfill_mask,
+                required_used_polyfills: 0,
                 aborted: false,
                 last_outer_var: None,
+                nested_stamps: Vec::new(),
                 outer_vars: Vec::new(),
                 pinned_props: Vec::new(),
                 required_pinned_props: Vec::new(),
@@ -2575,6 +2707,9 @@ impl RemoveUnusedCode {
 
         self.traverse_node(compiler, paramlist, fparam_scope);
         self.traverse_children(compiler, body, fbody_scope);
+        if self.active_leaf != NO_LEAF {
+            self.leaf_recorders[self.active_leaf as usize].last_outer_var = None;
+        }
         self.active_leaf = NO_LEAF;
 
         self.all_function_param_scopes.push(fparam_scope);
@@ -2625,7 +2760,11 @@ impl RemoveUnusedCode {
     }
 
     // port: RemoveUnusedCode#markPropertyNameAsPinned
-    fn mark_property_name_as_pinned(&mut self, property_name: &JsString) {
+    fn mark_property_name_as_pinned(
+        &mut self,
+        compiler: &AbstractCompiler,
+        property_name: &JsString,
+    ) {
         // Rust-only (performance divergence): when no property removal option is enabled,
         // `is_independently_removable` is always false and `removables_for_property_names` stays
         // empty, so tracking pinned property names has no observable effect.
@@ -2642,10 +2781,42 @@ impl RemoveUnusedCode {
             return;
         }
         self.pinned_property_names.insert(property_name.clone());
+        if !self.pinned_prop_ids.is_empty()
+            && let Some(idx) = compiler
+                .remove_unused_code_cache
+                .prop_universe
+                .get_index_of(property_name)
+        {
+            self.pinned_prop_ids[idx] = true;
+        }
         if !self.extern_properties.contains(property_name) {
             // Continue traversal of all values for this property and keep them.
             let saved_leaf = std::mem::replace(&mut self.active_leaf, NO_LEAF);
             for removable in self.removables_for_property_names.remove_all(property_name) {
+                self.removable_apply_continuations(removable);
+            }
+            self.active_leaf = saved_leaf;
+        }
+    }
+
+    /// Rust-only (performance divergence): O(1) pinned-property replay by interned
+    /// `prop_universe` ID for `LeafFunctionSummary` cache hits (`active_leaf` is `NO_LEAF`).
+    #[inline]
+    fn mark_property_name_as_pinned_by_id(&mut self, compiler: &AbstractCompiler, prop_id: u32) {
+        if !self.tracks_removable_properties() || self.pinned_prop_ids[prop_id as usize] {
+            return;
+        }
+        let property_name =
+            compiler.remove_unused_code_cache.prop_universe[prop_id as usize].clone();
+        self.pinned_prop_ids[prop_id as usize] = true;
+        if self.pinned_property_names.insert(property_name.clone())
+            && !self.extern_properties.contains(&property_name)
+        {
+            let saved_leaf = std::mem::replace(&mut self.active_leaf, NO_LEAF);
+            for removable in self
+                .removables_for_property_names
+                .remove_all(&property_name)
+            {
                 self.removable_apply_continuations(removable);
             }
             self.active_leaf = saved_leaf;
@@ -2692,7 +2863,7 @@ impl RemoveUnusedCode {
                 self.removable_apply_continuations(removable);
                 // This assignment counts as a reference, since we won't be removing it.
                 // This is necessary in order to preserve getters and setters for the property.
-                self.mark_property_name_as_pinned(&property_name);
+                self.mark_property_name_as_pinned(compiler, &property_name);
             }
         } else {
             self.removable_apply_continuations(removable);
@@ -2721,7 +2892,7 @@ impl RemoveUnusedCode {
         if (recorded.has_getter() && usage.has_getter() && !self.assume_getters_are_pure)
             || (recorded.has_setter() && usage.has_setter())
         {
-            self.mark_property_name_as_pinned(prop_name);
+            self.mark_property_name_as_pinned(compiler, prop_name);
             return true;
         }
 
@@ -2957,7 +3128,10 @@ impl RemoveUnusedCode {
                 .unwrap()
                 .is_param_list(compiler)
             {
-                self.var_info_set_has_non_local_or_non_literal_value(var_info);
+                // Always re-run by `traverse_var` on cache hits; setting the flag directly avoids
+                // spuriously aborting an active recorder that references an enclosing parameter.
+                self.real_var_info(var_info)
+                    .has_non_local_or_non_literal_value = true;
             }
             // Cannot use canonicalUnremovableVarInfo for the 2 non-removable cases below, because
             // each varInfo needs to track what value is assigned to it for the purpose of
@@ -5106,6 +5280,19 @@ impl RemoveUnusedCode {
         {
             self.polyfill_info_consider_possible_reference_internal(compiler, polyfill_info, n);
             if !self.polyfill_infos[polyfill_info.0].is_removable {
+                if self.can_use_leaf_cache && !self.polyfill_mask_overflow {
+                    let key = self.polyfill_infos[polyfill_info.0].key.clone();
+                    let any_still_removable = self
+                        .polyfills
+                        .get(&key)
+                        .into_iter()
+                        .any(|id| self.polyfill_infos[id.0].is_removable);
+                    if !any_still_removable
+                        && let Some(bit) = compiler.remove_unused_code_cache.polyfill_bit(&key)
+                    {
+                        self.removable_polyfill_mask &= !bit;
+                    }
+                }
                 self.removable_apply_continuations(removable);
             }
         }

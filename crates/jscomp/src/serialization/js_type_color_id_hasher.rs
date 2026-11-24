@@ -36,7 +36,7 @@
 //! Port of serialization/JSTypeColorIdHasher.java.
 use closure_jstype::prelude::*;
 use closure_rhino::common_hash::farm_hash_fingerprint64;
-use closure_rhino::java_lang::string::get_bytes_utf8;
+use closure_rhino::java_lang::string::write_bytes_utf8;
 use closure_rhino::js_string::JsString;
 use closure_rhino::jscomp_colors::color_id::ColorId;
 use closure_rhino::jscomp_colors::standard_colors;
@@ -51,16 +51,26 @@ mod rhino;
 pub struct JSTypeColorIdHasher {
     /// Java's `ImmutableMap<ObjectType, ColorId>`, looked up with `JSType#equals`.
     standard_color_object_ids: Vec<(i32, TypeId, ColorId)>,
+    /// Rust-only (performance divergence): 64-bit Bloom mask over `standard_color_object_ids`
+    /// hashes to skip the 13-entry scan for non-matching types.
+    standard_hash_bloom: u64,
+    /// Rust-only (performance divergence): reusable byte buffer for `farmHashFingerprint64`,
+    /// avoiding a heap allocation per hashed object type and per string.
+    scratch_bytes: std::cell::RefCell<Vec<u8>>,
 }
 
 /// port: Hashing#farmHashFingerprint64 (a non-streaming hash function: its Hasher buffers the bytes
 /// it is given and fingerprints them all at once)
-#[derive(Default)]
-struct Hasher {
-    bytes: Vec<u8>,
+struct Hasher<'a> {
+    bytes: &'a mut Vec<u8>,
 }
 
-impl Hasher {
+impl<'a> Hasher<'a> {
+    fn new(bytes: &'a mut Vec<u8>) -> Self {
+        bytes.clear();
+        Self { bytes }
+    }
+
     // port: AbstractHasher#putInt (little-endian)
     fn put_int(&mut self, i: i32) -> &mut Self {
         self.bytes.extend_from_slice(&i.to_le_bytes());
@@ -69,13 +79,13 @@ impl Hasher {
 
     // port: AbstractHasher#putString(CharSequence, Charset)
     fn put_string_utf8(&mut self, s: &JsString) -> &mut Self {
-        self.bytes.extend_from_slice(&get_bytes_utf8(s));
+        write_bytes_utf8(s, self.bytes);
         self
     }
 
     // port: AbstractNonStreamingHashFunction.BufferingHasher#hash (HashCode#asLong)
     fn hash_as_long(&self) -> i64 {
-        farm_hash_fingerprint64::hash_bytes(&self.bytes)
+        farm_hash_fingerprint64::hash_bytes(self.bytes)
     }
 }
 
@@ -135,7 +145,8 @@ impl JSTypeColorIdHasher {
 
     // port: JSTypeColorIdHasher#<init>
     pub fn new(registry: &JSTypeRegistry) -> Self {
-        let mut standard_color_object_ids: Vec<(i32, TypeId, ColorId)> = Vec::new();
+        let mut standard_color_object_ids: Vec<(i32, TypeId, ColorId)> = Vec::with_capacity(13);
+        let mut standard_hash_bloom = 0u64;
         for (native, id) in Self::NATIVE_TYPE_TO_ID {
             let key = registry.get_native_object_type(native);
             // ImmutableMap#toImmutableMap throws on a duplicate key.
@@ -143,10 +154,14 @@ impl JSTypeColorIdHasher {
                 standard_color_object_ids.iter().all(|&(_, k, _)| k != key),
                 "Multiple entries with same key"
             );
-            standard_color_object_ids.push((key.hash_code(registry), key, id));
+            let hash = key.hash_code(registry);
+            standard_hash_bloom |= 1u64 << ((hash as u32) & 63);
+            standard_color_object_ids.push((hash, key, id));
         }
         Self {
             standard_color_object_ids,
+            standard_hash_bloom,
+            scratch_bytes: std::cell::RefCell::new(Vec::with_capacity(64)),
         }
     }
 
@@ -171,7 +186,8 @@ impl JSTypeColorIdHasher {
             return box_id;
         }
 
-        let mut hasher = Hasher::default();
+        let mut scratch = self.scratch_bytes.borrow_mut();
+        let mut hasher = Hasher::new(&mut scratch);
 
         if r#type.is_function_type(registry) {
             let fn_type = r#type.to_maybe_function_type(registry).unwrap();
@@ -181,7 +197,7 @@ impl JSTypeColorIdHasher {
         }
 
         if let Some(name) = r#type.get_reference_name(registry) {
-            self.put_reference_name_type(&mut hasher, registry, r#type, &name);
+            Self::put_reference_name_type(&mut hasher, registry, r#type, &name);
         } else {
             closure_jstype::object_type::for_each_own_property_name(r#type, registry, |name| {
                 Self::put_utf8(&mut hasher, name);
@@ -193,8 +209,7 @@ impl JSTypeColorIdHasher {
 
     // port: JSTypeColorIdHasher#putReferenceNameType
     fn put_reference_name_type(
-        &self,
-        hasher: &mut Hasher,
+        hasher: &mut Hasher<'_>,
         registry: &JSTypeRegistry,
         r#type: TypeId,
         name: &JsString,
@@ -238,7 +253,7 @@ impl JSTypeColorIdHasher {
     }
 
     // port: JSTypeColorIdHasher#putUtf8
-    fn put_utf8(hasher: &mut Hasher, s: &JsString) {
+    fn put_utf8(hasher: &mut Hasher<'_>, s: &JsString) {
         hasher.put_string_utf8(s);
     }
 }

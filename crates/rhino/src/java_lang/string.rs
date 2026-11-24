@@ -131,11 +131,21 @@ pub fn split_units(value: &JsString, regex: &str) -> Vec<JsString> {
 
 // port: java.lang.String#encodeUTF8_UTF16 (String#getBytes(UTF_8), replacement enabled)
 pub fn get_bytes_utf8(value: &JsString) -> Vec<u8> {
-    let mut dst = Vec::new();
+    let mut dst = Vec::with_capacity(value.length());
+    write_bytes_utf8(value, &mut dst);
+    dst
+}
+
+/// Rust-only (performance divergence): append `get_bytes_utf8(value)` into an existing buffer so
+/// streaming hashers (such as `JSTypeColorIdHasher`) avoid a heap allocation per string.
+// port: java.lang.String#encodeUTF8_UTF16 (String#getBytes(UTF_8), replacement enabled)
+pub fn write_bytes_utf8(value: &JsString, dst: &mut Vec<u8>) {
+    let units = value.as_units();
+    dst.reserve(units.len());
     let mut sp = 0;
-    let sl = value.length();
+    let sl = units.len();
     while sp < sl {
-        let c = value.char_at(sp);
+        let c = units[sp];
         sp += 1;
         if c < 0x80 {
             dst.push(c as u8);
@@ -143,12 +153,8 @@ pub fn get_bytes_utf8(value: &JsString) -> Vec<u8> {
             dst.push((0xc0 | (c >> 6)) as u8);
             dst.push((0x80 | (c & 0x3f)) as u8);
         } else if (0xd800..=0xdfff).contains(&c) {
-            if (0xd800..=0xdbff).contains(&c)
-                && sp < sl
-                && (0xdc00..=0xdfff).contains(&value.char_at(sp))
-            {
-                let uc =
-                    0x10000 + ((c as u32 - 0xd800) << 10) + (value.char_at(sp) as u32 - 0xdc00);
+            if (0xd800..=0xdbff).contains(&c) && sp < sl && (0xdc00..=0xdfff).contains(&units[sp]) {
+                let uc = 0x10000 + ((c as u32 - 0xd800) << 10) + (units[sp] as u32 - 0xdc00);
                 sp += 1;
                 dst.push((0xf0 | (uc >> 18)) as u8);
                 dst.push((0x80 | ((uc >> 12) & 0x3f)) as u8);
@@ -163,7 +169,6 @@ pub fn get_bytes_utf8(value: &JsString) -> Vec<u8> {
             dst.push((0x80 | (c & 0x3f)) as u8);
         }
     }
-    dst
 }
 
 /// Rust-only JDK emulation of `String.toLowerCase(Locale.ROOT)`: the Unicode default case

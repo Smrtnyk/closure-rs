@@ -51,6 +51,15 @@ pub type UniqueIdSupplierFn = Arc<dyn Fn() -> String + Send + Sync>;
 /// from their child renamers (`hoistRenamer`); Java identity is `Rc::ptr_eq`.
 pub type RenamerRef = Rc<RefCell<dyn Renamer>>;
 
+/// Rust-only (performance divergence): scope frame on `MakeDeclaredNamesUnique::renamer_stack`.
+/// Empty non-hoisting child scopes omit allocating a `Renamer` (`renamer: None`), and per-frame
+/// 64-bit Bloom masks skip `RefCell::borrow()` + hash probes for names with no replacement.
+struct StackFrame {
+    renamer: Option<RenamerRef>,
+    own_mask: u64,
+    cumulative_mask: u64,
+}
+
 /// Find all Functions, VARs, and Exception names and make them unique. Specifically, it will not
 /// modify object properties.
 pub struct MakeDeclaredNamesUnique {
@@ -58,7 +67,7 @@ pub struct MakeDeclaredNamesUnique {
     // was in place, so it was necessary to maintain this separate stack, rather than just using
     // the NodeTraversal's stack of scopes, in order to handle catch blocks and function names
     // correctly. (Java's ArrayDeque pushes at its head; the head is the last element here.)
-    renamer_stack: Vec<RenamerRef>,
+    renamer_stack: Vec<StackFrame>,
     root_renamer: RenamerRef,
     mark_changes: bool,
     assert_on_change: bool,
@@ -79,9 +88,12 @@ impl MakeDeclaredNamesUnique {
         }
     }
 
-    // port: MakeDeclaredNamesUnique#builder
-    pub fn builder() -> Builder {
-        Builder::new()
+    fn nearest_renamer(&self) -> &RenamerRef {
+        self.renamer_stack
+            .iter()
+            .rev()
+            .find_map(|f| f.renamer.as_ref())
+            .expect("renamer stack has a root renamer")
     }
 
     // port: MakeDeclaredNamesUnique#getContextualRenameInverter
@@ -89,6 +101,11 @@ impl MakeDeclaredNamesUnique {
         _compiler: &mut AbstractCompiler,
     ) -> Box<dyn CompilerPass> {
         Box::new(ContextualRenameInverter::new())
+    }
+
+    // port: MakeDeclaredNamesUnique#builder
+    pub fn builder() -> Builder {
+        Builder::new()
     }
 
     // port: MakeDeclaredNamesUnique#visitNameOrImportStar
@@ -102,7 +119,7 @@ impl MakeDeclaredNamesUnique {
         if n.is_name(t) && NodeUtil::is_nonlocal_module_export_name(t, n) {
             return;
         }
-        let Some(new_name) = self.get_replacement_name(&n.get_string(t)) else {
+        let Some(new_name) = self.get_replacement_name(n.get_string_ref(t)) else {
             return;
         };
         if self.assert_on_change {
@@ -113,8 +130,8 @@ impl MakeDeclaredNamesUnique {
             );
         }
 
-        let renamer = self.renamer_stack.last().unwrap().clone();
-        if renamer.borrow().strip_const_if_replaced() {
+        let strip_const = self.nearest_renamer().borrow().strip_const_if_replaced();
+        if strip_const {
             n.put_boolean_prop(t, Prop::IS_CONSTANT_NAME, false);
             let js_doc_info_node = NodeUtil::get_best_jsdoc_info_node(t, n);
             if let Some(js_doc_info_node) = js_doc_info_node
@@ -141,10 +158,19 @@ impl MakeDeclaredNamesUnique {
     /// Walks the stack of name maps and finds the replacement name for the current scope.
     // port: MakeDeclaredNamesUnique#getReplacementName
     fn get_replacement_name(&self, old_name: &JsString) -> Option<JsString> {
-        for renamer in self.renamer_stack.iter().rev() {
-            let new_name = renamer.borrow().get_replacement_name(old_name);
-            if new_name.is_some() {
-                return new_name;
+        let top = self.renamer_stack.last()?;
+        let bit = 1u64 << (old_name.hash_code() & 63);
+        if (top.cumulative_mask & bit) == 0 {
+            return None;
+        }
+        for frame in self.renamer_stack.iter().rev() {
+            if (frame.own_mask & bit) != 0
+                && let Some(renamer) = &frame.renamer
+            {
+                let new_name = renamer.borrow().get_replacement_name(old_name);
+                if new_name.is_some() {
+                    return new_name;
+                }
             }
         }
         None
@@ -161,14 +187,22 @@ impl MakeDeclaredNamesUnique {
         );
 
         let scope = t.get_scope();
+        let top_renamer = self.renamer_stack.last().unwrap().renamer.as_ref().unwrap();
+        let mut borrowed = top_renamer.borrow_mut();
         for v in scope.get_var_iterable(t.get_compiler()) {
             let name = v.get_name(t.get_compiler());
-            self.renamer_stack
-                .last()
-                .unwrap()
-                .borrow_mut()
-                .add_declared_name(&name, false);
+            borrowed.add_declared_name(&name, false);
         }
+        let own_mask = borrowed.replacement_mask();
+        drop(borrowed);
+        let parent_mask = if self.renamer_stack.len() >= 2 {
+            self.renamer_stack[self.renamer_stack.len() - 2].cumulative_mask
+        } else {
+            0
+        };
+        let top = self.renamer_stack.last_mut().unwrap();
+        top.own_mask = own_mask;
+        top.cumulative_mask = parent_mask | own_mask;
     }
 }
 
@@ -201,23 +235,54 @@ impl ScopedCallback for MakeDeclaredNamesUnique {
     fn enter_scope(&mut self, t: &mut NodeTraversal<'_>) {
         let declaration_root = check_not_null!(t.get_scope_root());
 
-        let renamer: RenamerRef = if self.renamer_stack.is_empty() {
+        if self.renamer_stack.is_empty() {
             // If the contextual renamer is being used, the starting context can not
             // be a function.
             check_state!(
                 !declaration_root.is_function(t)
                     || !self.root_renamer.borrow().is_contextual_renamer()
             );
-            self.root_renamer.clone()
-        } else {
-            let hoist = !declaration_root.is_function(t)
-                && !NodeUtil::creates_block_scope(t, declaration_root);
-            let scope_root = check_not_null!(t.get_scope_root());
-            let top = self.renamer_stack.last().unwrap().clone();
-            top.borrow().create_for_child_scope(t, scope_root, hoist)
-        };
+            self.renamer_stack.push(StackFrame {
+                renamer: Some(self.root_renamer.clone()),
+                own_mask: 0,
+                cumulative_mask: 0,
+            });
+            self.find_declared_names(t, declaration_root);
+            return;
+        }
 
-        self.renamer_stack.push(renamer);
+        let hoist =
+            !declaration_root.is_function(t) && !NodeUtil::creates_block_scope(t, declaration_root);
+        let scope = t.get_scope();
+        if !hoist
+            && self.renamer_stack.len() > 1
+            && scope.get_var_count(t.get_compiler()) == 0
+            && (NodeUtil::creates_block_scope(t, declaration_root)
+                || declaration_root.is_function(t))
+        {
+            check_state!(
+                NodeUtil::creates_scope(t, declaration_root) || declaration_root.is_script(t),
+                "%s",
+                declaration_root.to_string(t)
+            );
+            let parent_mask = self.renamer_stack.last().unwrap().cumulative_mask;
+            self.renamer_stack.push(StackFrame {
+                renamer: None,
+                own_mask: 0,
+                cumulative_mask: parent_mask,
+            });
+            return;
+        }
+
+        let scope_root = check_not_null!(t.get_scope_root());
+        let top = self.nearest_renamer().clone();
+        let renamer = top.borrow().create_for_child_scope(t, scope_root, hoist);
+        let parent_mask = self.renamer_stack.last().unwrap().cumulative_mask;
+        self.renamer_stack.push(StackFrame {
+            renamer: Some(renamer),
+            own_mask: 0,
+            cumulative_mask: parent_mask,
+        });
 
         self.find_declared_names(t, declaration_root);
     }
@@ -315,6 +380,12 @@ pub trait Renamer {
     // (BoilerplateRenamer extends ContextualRenamer).
     fn is_contextual_renamer(&self) -> bool {
         false
+    }
+
+    /// Rust-only (performance divergence): 64-bit Bloom mask of `old_name.hash_code() & 63` for
+    /// all keys that currently map to a non-`None` replacement in this renamer.
+    fn replacement_mask(&self) -> u64 {
+        u64::MAX
     }
 }
 
@@ -908,6 +979,8 @@ pub struct ContextualRenamer {
     // By contrast, this is a different map for each ContextualRenamer because it's just keeping
     // track of the names used by this renamer. (A null value: the name keeps its name.)
     declarations: IndexMap<JsString, Option<JsString>>,
+    /// Rust-only (performance divergence): 64-bit Bloom mask of renamed keys in `declarations`.
+    own_replacement_mask: u64,
     global: bool,
 
     // None is Java's `hoistRenamer == this`.
@@ -974,6 +1047,7 @@ impl ContextualRenamer {
             global: true,
             name_usage: Rc::new(RefCell::new(IndexMap::<_, _>::default())),
             declarations: IndexMap::<_, _>::default(),
+            own_replacement_mask: 0,
             hoist_renamer: None,
             this,
         }
@@ -1022,6 +1096,7 @@ impl ContextualRenamer {
                     global: false,
                     name_usage,
                     declarations: IndexMap::<_, _>::default(),
+                    own_replacement_mask: 0,
                     hoist_renamer,
                     this,
                 })
@@ -1032,8 +1107,44 @@ impl ContextualRenamer {
     /// Given a name and the associated id, create a new unique name.
     // port: MakeDeclaredNamesUnique.ContextualRenamer#getUniqueName
     fn get_unique_name(name: &JsString, id: i32) -> JsString {
-        name.concat(&Self::UNIQUE_ID_SEPARATOR.into())
-            .concat(&JsString::from(id.to_string()))
+        const SEP: &[u16] = &[
+            b'$' as u16,
+            b'j' as u16,
+            b's' as u16,
+            b'c' as u16,
+            b'o' as u16,
+            b'm' as u16,
+            b'p' as u16,
+            b'$' as u16,
+        ];
+        let base = name.as_units();
+        let mut digits = [0u8; 16];
+        let mut n = id as i64;
+        let mut len = 0usize;
+        if n < 0 {
+            n = -n;
+        }
+        if n == 0 {
+            digits[0] = b'0';
+            len = 1;
+        } else {
+            while n > 0 {
+                digits[len] = b'0' + (n % 10) as u8;
+                n /= 10;
+                len += 1;
+            }
+        }
+        let sign = usize::from(id < 0);
+        let mut out = Vec::with_capacity(base.len() + SEP.len() + sign + len);
+        out.extend_from_slice(base);
+        out.extend_from_slice(SEP);
+        if id < 0 {
+            out.push(b'-' as u16);
+        }
+        for &d in digits[..len].iter().rev() {
+            out.push(d as u16);
+        }
+        JsString::from_units(out)
     }
 
     // port: MakeDeclaredNamesUnique.ContextualRenamer#reserveName
@@ -1107,6 +1218,9 @@ impl Renamer for ContextualRenamer {
                         self.reserve_name(&unique_name); // reserve this new name so that it's never reused
                         new_name = Some(unique_name);
                     }
+                    if new_name.is_some() {
+                        self.own_replacement_mask |= 1u64 << (name.hash_code() & 63);
+                    }
                     self.declarations.insert(name.clone(), new_name);
                 }
             }
@@ -1151,6 +1265,10 @@ impl Renamer for ContextualRenamer {
     fn is_contextual_renamer(&self) -> bool {
         true
     }
+
+    fn replacement_mask(&self) -> u64 {
+        self.own_replacement_mask
+    }
 }
 
 /// Rename every declared name to be unique. Typically, this would be used when injecting code to
@@ -1159,6 +1277,7 @@ impl Renamer for ContextualRenamer {
 /// Used by the FunctionInjector
 pub struct InlineRenamer {
     declarations: IndexMap<JsString, JsString>,
+    own_replacement_mask: u64,
     unique_id_supplier: UniqueIdSupplierFn,
     id_prefix: String,
     remove_constness: bool,
@@ -1198,6 +1317,7 @@ impl InlineRenamer {
                 let this: Weak<RefCell<dyn Renamer>> = this.clone();
                 RefCell::new(Self {
                     declarations: IndexMap::<_, _>::default(),
+                    own_replacement_mask: 0,
                     unique_id_supplier,
                     id_prefix,
                     remove_constness,
@@ -1251,6 +1371,7 @@ impl Renamer for InlineRenamer {
             hoist_renamer.borrow_mut().add_declared_name(name, hoisted);
         } else if !self.declarations.contains_key(name) {
             let unique_name = self.get_unique_name(name);
+            self.own_replacement_mask |= 1u64 << (name.hash_code() & 63);
             self.declarations.insert(name.clone(), unique_name);
         }
     }
@@ -1288,6 +1409,10 @@ impl Renamer for InlineRenamer {
             Some(hoist_renamer) => hoist_renamer.clone(),
             None => self.this(),
         }
+    }
+
+    fn replacement_mask(&self) -> u64 {
+        self.own_replacement_mask
     }
 }
 
@@ -1360,6 +1485,10 @@ impl Renamer for BoilerplateRenamer {
     fn is_contextual_renamer(&self) -> bool {
         true
     }
+
+    fn replacement_mask(&self) -> u64 {
+        self.base.replacement_mask()
+    }
 }
 
 /// Only rename things that match specific names. Wraps another renamer.
@@ -1415,5 +1544,9 @@ impl Renamer for TargettedRenamer {
     // port: MakeDeclaredNamesUnique.TargettedRenamer#getHoistRenamer
     fn get_hoist_renamer(&self) -> RenamerRef {
         self.delegate.borrow().get_hoist_renamer()
+    }
+
+    fn replacement_mask(&self) -> u64 {
+        self.delegate.borrow().replacement_mask()
     }
 }

@@ -170,9 +170,7 @@ impl TypeInferencePass {
             compiler,
             inference_root,
             cfg_scopes,
-            |compiler, node, scope| {
-                self.infer_scope(compiler, node, scope);
-            },
+            |compiler, node, scope| self.infer_scope(compiler, node, scope),
         );
 
         // Normalize TypedVars to have the '?' type instead of null after inference is complete.

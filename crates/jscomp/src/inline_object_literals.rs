@@ -18,7 +18,6 @@
 
 use crate::{
     abstract_compiler::AbstractCompiler,
-    abstract_scope::ImplicitVar,
     compiler_pass::CompilerPass,
     node_traversal::NodeTraversal,
     node_util::NodeUtil,
@@ -64,16 +63,16 @@ impl InlineObjectLiterals {
 }
 
 /// The pass can split a binding only if some declaration or assignment supplies an OBJECTLIT.
-/// Keep every binding of those spellings. Function names must still resolve for the collector's
-/// hoisted jumps, and the four implicit names must still materialize their slots.
+/// Keep every binding of those spellings, plus hoisted function declaration names so
+/// `ReferenceCollector` still performs hoisted jumps in exact reference order.
 #[derive(Default)]
 struct CandidateNames {
     assigned_objects: IndexSet<JsString>,
     to_resolve: IndexSet<JsString>,
-    /// Rust-only (performance divergence): top-level FUNCTION nodes that contain at least one
-    /// candidate OBJECTLIT assignment. A local variable declared in any other top-level function
-    /// cannot be assigned an OBJECTLIT and needs no reference collection.
-    candidate_top_fns: IndexSet<NodeId>,
+    /// Rust-only (performance divergence): all `FUNCTION` nodes that contain (directly or in a
+    /// nested function) at least one candidate `OBJECTLIT` assignment. A `FUNCTION` absent from
+    /// this set cannot declare any inlinable object variable.
+    candidate_fns: IndexSet<NodeId>,
     has_script_level_object_lit: bool,
 }
 
@@ -90,6 +89,7 @@ impl CandidateNames {
             &[Token::OBJECTLIT, Token::FUNCTION],
             |ast, candidates| {
                 let mut names = Self::default();
+                let mut enclosing_fns = Vec::new();
                 for &node in candidates {
                     // Postings can include detached nodes and nodes whose token changed.
                     match node.get_token(ast) {
@@ -106,17 +106,23 @@ impl CandidateNames {
                             else {
                                 continue;
                             };
-                            let Some(top_fn) =
-                                Self::in_scanned_tree_top_fn(ast, node, scope_root, excluded)
-                            else {
+                            enclosing_fns.clear();
+                            if !Self::collect_enclosing_fns_in_scanned_tree(
+                                ast,
+                                node,
+                                scope_root,
+                                excluded,
+                                &mut enclosing_fns,
+                            ) {
                                 continue;
-                            };
-                            match top_fn {
-                                Some(fn_node) => {
-                                    names.candidate_top_fns.insert(fn_node);
-                                }
-                                None => {
-                                    names.has_script_level_object_lit = true;
+                            }
+                            if enclosing_fns.is_empty() {
+                                names.has_script_level_object_lit = true;
+                            } else {
+                                for &fn_node in &enclosing_fns {
+                                    if !names.candidate_fns.insert(fn_node) {
+                                        break;
+                                    }
                                 }
                             }
                             if !lhs
@@ -127,6 +133,11 @@ impl CandidateNames {
                             }
                         }
                         Token::FUNCTION => {
+                            if node.get_parent(ast).is_none()
+                                || !NodeUtil::is_hoisted_function_declaration(ast, node)
+                            {
+                                continue;
+                            }
                             let Some(name) = node.get_first_child(ast).filter(|n| n.is_name(ast))
                             else {
                                 continue;
@@ -140,9 +151,7 @@ impl CandidateNames {
                             {
                                 continue;
                             }
-                            if Self::in_scanned_tree_top_fn(ast, node, scope_root, excluded)
-                                .is_some()
-                            {
+                            if Self::is_in_scanned_tree(ast, node, scope_root, excluded) {
                                 names.to_resolve.insert(name.get_string(ast));
                             }
                         }
@@ -155,61 +164,69 @@ impl CandidateNames {
         names
             .to_resolve
             .extend(names.assigned_objects.iter().cloned());
-        names.to_resolve.extend(
-            [
-                ImplicitVar::ARGUMENTS,
-                ImplicitVar::EXPORTS,
-                ImplicitVar::SUPER,
-                ImplicitVar::THIS,
-            ]
-            .map(ImplicitVar::js_name),
-        );
         Some(names)
     }
 
-    /// Returns `Some(top_level_fn)` if `node` lies in the scanned tree (excluding `excluded`),
-    /// where `top_level_fn` is the outermost `FUNCTION` ancestor below `scope_root` (or `None`
-    /// if the node is outside every function).
-    fn in_scanned_tree_top_fn(
+    /// Collects all enclosing `FUNCTION` nodes of `node` (innermost first) if `node` lies in the
+    /// scanned tree below `scope_root` (excluding `excluded`).
+    fn collect_enclosing_fns_in_scanned_tree(
         ast: &Ast,
         mut node: NodeId,
         scope_root: NodeId,
         excluded: Option<NodeId>,
-    ) -> Option<Option<NodeId>> {
+        out: &mut Vec<NodeId>,
+    ) -> bool {
         // Arena postings include unreachable nodes. An unrelated cyclic parent chain
         // cannot belong to the scanned tree.
-        let mut top_fn = None;
         for _ in 0..ast.node_count() {
             if Some(node) == excluded {
-                return None;
+                return false;
             }
             if node.is_function(ast) {
-                top_fn = Some(node);
+                out.push(node);
             }
-            let parent = node.get_parent(ast)?;
+            let Some(parent) = node.get_parent(ast) else {
+                return false;
+            };
             if parent == scope_root {
-                return Some(top_fn);
+                return true;
             }
             node = parent;
         }
-        None
+        false
     }
 
-    fn top_level_function(ast: &Ast, mut node: NodeId) -> Option<NodeId> {
-        let mut top_fn = None;
-        while let Some(parent) = node.get_parent(ast) {
-            if node.is_function(ast) {
-                top_fn = Some(node);
+    fn is_in_scanned_tree(
+        ast: &Ast,
+        mut node: NodeId,
+        scope_root: NodeId,
+        excluded: Option<NodeId>,
+    ) -> bool {
+        for _ in 0..ast.node_count() {
+            if Some(node) == excluded {
+                return false;
             }
-            if parent.is_script(ast) || parent.is_root(ast) {
-                break;
+            let Some(parent) = node.get_parent(ast) else {
+                return false;
+            };
+            if parent == scope_root {
+                return true;
             }
             node = parent;
         }
-        if node.is_function(ast) {
-            top_fn = Some(node);
+        false
+    }
+
+    fn enclosing_function(ast: &Ast, mut node: NodeId) -> Option<NodeId> {
+        loop {
+            if node.is_function(ast) {
+                return Some(node);
+            }
+            if node.is_script(ast) || node.is_root(ast) {
+                return None;
+            }
+            node = node.get_parent(ast)?;
         }
-        top_fn
     }
 
     /// Splitting a property can introduce an object initializer or turn a property assignment
@@ -235,7 +252,7 @@ impl CompilerPass for InlineObjectLiterals {
             referenced_scopes: IndexSet::default(),
             safe_name_id_supplier: self.safe_name_id_supplier.clone(),
             stale_vars: IndexSet::<_>::default(),
-            last_scope_top_fn: None,
+            last_scope_enclosing_fn: None,
         };
         let mut scope_creator = SyntacticScopeCreator::new();
         let mut callback = ReferenceCollector::new(compiler, behavior, &mut scope_creator);
@@ -259,13 +276,19 @@ struct InliningBehavior {
     // Java: Set<Var> (LinkedHashSet). Var's equals/hashCode are ScopedName's (name and scope
     // root), so the set is keyed by exactly those two values.
     stale_vars: IndexSet<(JsString, NodeId)>,
-    /// One-entry cache mapping a scope root to its enclosing top-level FUNCTION (if any).
-    last_scope_top_fn: Option<(NodeId, Option<NodeId>)>,
+    /// One-entry cache mapping a scope root to its immediate enclosing FUNCTION (if any).
+    last_scope_enclosing_fn: Option<(NodeId, Option<NodeId>)>,
 }
 
 impl Behavior for InliningBehavior {
     fn can_reuse_function_reference_sites(&self) -> bool {
         true
+    }
+
+    fn can_skip_function_with_no_needed_names(&self, _ast: &Ast, fn_node: NodeId) -> bool {
+        self.candidates
+            .as_ref()
+            .is_some_and(|names| !names.candidate_fns.contains(&fn_node))
     }
 
     fn needs_name(&self, ast: &Ast, node: NodeId) -> bool {
@@ -287,17 +310,17 @@ impl Behavior for InliningBehavior {
                 if !names.assigned_objects.contains(&name) {
                     return false;
                 }
-                let top_fn = match self.last_scope_top_fn {
-                    Some((cached_root, top_fn)) if cached_root == scope_root => top_fn,
+                let enclosing_fn = match self.last_scope_enclosing_fn {
+                    Some((cached_root, enclosing_fn)) if cached_root == scope_root => enclosing_fn,
                     _ => {
-                        let top_fn = CandidateNames::top_level_function(compiler, scope_root);
-                        self.last_scope_top_fn = Some((scope_root, top_fn));
-                        top_fn
+                        let enclosing_fn = CandidateNames::enclosing_function(compiler, scope_root);
+                        self.last_scope_enclosing_fn = Some((scope_root, enclosing_fn));
+                        enclosing_fn
                     }
                 };
-                match top_fn {
+                match enclosing_fn {
                     Some(fn_node) => {
-                        if !names.candidate_top_fns.contains(&fn_node) {
+                        if !names.candidate_fns.contains(&fn_node) {
                             return false;
                         }
                     }
@@ -881,10 +904,12 @@ mod candidate_tests {
         let names = collect(&mut compiler);
         assert!(names.assigned_objects.contains(&JsString::from("object")));
         assert!(names.to_resolve.contains(&JsString::from("hoisted")));
-        assert!(
-            CandidateNames::in_scanned_tree_top_fn(&compiler.ast, value, scope_root, Some(sibling))
-                .is_none()
-        );
+        assert!(!CandidateNames::is_in_scanned_tree(
+            &compiler.ast,
+            value,
+            scope_root,
+            Some(sibling)
+        ));
 
         name.detach(&mut compiler.ast);
         function.set_token(&mut compiler.ast, Token::BLOCK);

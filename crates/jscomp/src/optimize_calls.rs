@@ -21,15 +21,21 @@
 //! `PureFunctionIdentifier`).
 
 use crate::abstract_compiler::AbstractCompiler;
+use crate::coding_convention::CodingConvention;
 use crate::compiler_pass::CompilerPass;
-use crate::node_traversal::{Callback, NodeTraversal, ScopedCallback};
+use crate::node_traversal::NodeTraversal;
 use crate::node_util::NodeUtil;
+use crate::parallel_parse::parallel_thread_count;
 use crate::scope::ScopeId;
+use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
-use closure_rhino::node::NodeId;
+use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use closure_rhino::{check_argument, check_not_null, check_state};
+use std::any::Any;
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Java's `OptimizeCalls.CallGraphCompilerPass`. The compiler is passed explicitly
 /// (DESIGN.md section 6) instead of being a field of the pass.
@@ -247,11 +253,13 @@ impl CompilerPass for OptimizeCalls {
         }
 
         let mut references = ReferenceMap::new();
-        {
-            let mut callback =
-                ReferenceMapBuildingCallback::new(compiler, &mut references, self.consider_externs);
-            NodeTraversal::traverse_roots(compiler, &mut callback, externs, root);
-        }
+        ReferenceMapBuilder::collect(
+            compiler,
+            externs,
+            root,
+            self.consider_externs,
+            &mut references,
+        );
         Self::eliminate_accessors_from(compiler, &mut references);
 
         for pass in &mut self.passes {
@@ -592,109 +600,372 @@ impl ReferenceMap {
     }
 }
 
-struct ReferenceMapBuildingCallback<'a> {
-    /// Rust-only: Java's set of extern property names, as JS strings (compared without
-    /// converting each property name, performance divergence).
-    extern_props: std::sync::Arc<IndexSet<JsString>>,
-    references: &'a mut ReferenceMap,
-    global_scope: Option<ScopeId>,
-    // The enclosing OptimizeCalls instance's `considerExterns` field (Java inner class).
+/// Rust-only (performance divergence): direct read-only `&Ast` walker for
+/// `ReferenceMapBuildingCallback`. Only builds `global_scope` (reusing `SyntacticScopeCache`,
+/// avoiding creating local scopes across the whole AST) and fans out independent script chunks
+/// across worker threads on large multi-script inputs while merging in exact AST order.
+struct ReferenceMapBuilder<'a> {
+    ast: &'a Ast,
+    coding_convention: &'a dyn CodingConvention,
+    extern_props: &'a IndexSet<JsString>,
+    global_names: &'a IndexSet<JsString>,
+    global_name_bloom: [u64; 64],
     consider_externs: bool,
+    current_script: Option<NodeId>,
+    current_node: Option<NodeId>,
+    names: IndexMap<JsString, Vec<NodeId>>,
+    props: IndexMap<JsString, Vec<NodeId>>,
 }
 
-impl<'a> ReferenceMapBuildingCallback<'a> {
+struct WalkFailure {
+    script: Option<NodeId>,
+    node: Option<NodeId>,
+    payload: Box<dyn Any + Send>,
+}
+
+impl ReferenceMapBuilder<'_> {
     // port: OptimizeCalls.ReferenceMapBuildingCallback#ReferenceMapBuildingCallback
-    fn new(
-        compiler: &AbstractCompiler,
-        references: &'a mut ReferenceMap,
+    // port: OptimizeCalls.ReferenceMapBuildingCallback#enterScope
+    // port: OptimizeCalls.ReferenceMapBuildingCallback#exitScope
+    fn collect(
+        compiler: &mut AbstractCompiler,
+        externs: NodeId,
+        root: NodeId,
         consider_externs: bool,
-    ) -> Self {
-        Self {
-            extern_props: compiler
-                .get_extern_property_set_js()
-                .cloned()
-                .unwrap_or_default(),
-            references,
-            global_scope: None,
-            consider_externs,
+        references: &mut ReferenceMap,
+    ) {
+        let scope_root = check_not_null!(externs.get_parent(compiler));
+        check_state!(root.get_parent(compiler) == Some(scope_root));
+
+        let global_scope = SyntacticScopeCreator::new().create_scope(compiler, scope_root, None);
+        references.global_scope = Some(global_scope);
+
+        let mut global_names = IndexSet::<JsString>::default();
+        let mut global_name_bloom = [0u64; 64];
+        for var in global_scope.get_var_iterable(compiler) {
+            if consider_externs || !var.is_extern(compiler) {
+                let name = var.get_name(compiler);
+                let h = name.hash_code() as usize;
+                global_name_bloom[(h >> 6) & 63] |= 1u64 << (h & 63);
+                global_names.insert(name);
+            }
+        }
+        let extern_props = compiler
+            .get_extern_property_set_js()
+            .cloned()
+            .unwrap_or_default();
+
+        // Collect ordered top-level units (scripts under `externs` and `root`) so large
+        // multi-script compilations can scan chunks in parallel while merging in exact AST order.
+        let mut units: Vec<NodeId> = Vec::new();
+        for tree in [externs, root] {
+            if tree.is_root(compiler) {
+                let mut child = tree.get_first_child(compiler);
+                while let Some(c) = child {
+                    if !c.is_script(compiler) || consider_externs || !c.is_from_externs(compiler) {
+                        units.push(c);
+                    }
+                    child = c.get_next(compiler);
+                }
+            } else if !tree.is_script(compiler)
+                || consider_externs
+                || !tree.is_from_externs(compiler)
+            {
+                units.push(tree);
+            }
+        }
+
+        let threads = if compiler.ast.node_count() >= 50_000 {
+            parallel_thread_count(units.len(), 4, 8)
+        } else {
+            1
+        };
+
+        if threads <= 1 {
+            let err = {
+                let ast: &Ast = &compiler.ast;
+                let coding_convention = compiler.get_coding_convention();
+                let mut builder = ReferenceMapBuilder {
+                    ast,
+                    coding_convention,
+                    extern_props: &extern_props,
+                    global_names: &global_names,
+                    global_name_bloom,
+                    consider_externs,
+                    current_script: None,
+                    current_node: None,
+                    names: std::mem::take(&mut references.names),
+                    props: std::mem::take(&mut references.props),
+                };
+                let result = catch_unwind(AssertUnwindSafe(|| {
+                    for &unit in &units {
+                        builder.walk_node(unit, true);
+                    }
+                }));
+                references.names = builder.names;
+                references.props = builder.props;
+                result.err().map(|payload| WalkFailure {
+                    script: builder.current_script,
+                    node: builder.current_node,
+                    payload,
+                })
+            };
+            if let Some(fail) = err {
+                NodeTraversal::throw_unexpected_exception_at(
+                    compiler,
+                    fail.script,
+                    fail.node,
+                    fail.payload,
+                );
+            }
+            return;
+        }
+
+        let num_buckets = (threads * 2).min(units.len());
+        let bucket_size = units.len().div_ceil(num_buckets);
+        let slices: Vec<&[NodeId]> = units.chunks(bucket_size).collect();
+        let next_bucket = AtomicUsize::new(0);
+        type BucketMaps = (
+            IndexMap<JsString, Vec<NodeId>>,
+            IndexMap<JsString, Vec<NodeId>>,
+        );
+        let mut results: Vec<Option<Result<BucketMaps, WalkFailure>>> =
+            (0..slices.len()).map(|_| None).collect();
+
+        {
+            let ast: &Ast = &compiler.ast;
+            let coding_convention = compiler.get_coding_convention();
+            std::thread::scope(|scope| {
+                let slice_ref = &slices;
+                let next_ref = &next_bucket;
+                let extern_props_ref = &*extern_props;
+                let global_names_ref = &global_names;
+                let mut handles = Vec::with_capacity(threads);
+                for _ in 0..threads {
+                    handles.push(scope.spawn(move || {
+                        let mut local = Vec::new();
+                        loop {
+                            let idx = next_ref.fetch_add(1, Ordering::Relaxed);
+                            if idx >= slice_ref.len() {
+                                break;
+                            }
+                            let mut builder = ReferenceMapBuilder {
+                                ast,
+                                coding_convention,
+                                extern_props: extern_props_ref,
+                                global_names: global_names_ref,
+                                global_name_bloom,
+                                consider_externs,
+                                current_script: None,
+                                current_node: None,
+                                names: IndexMap::default(),
+                                props: IndexMap::default(),
+                            };
+                            let res = catch_unwind(AssertUnwindSafe(|| {
+                                for &unit in slice_ref[idx] {
+                                    builder.walk_node(unit, true);
+                                }
+                            }));
+                            let out = match res {
+                                Ok(()) => Ok((builder.names, builder.props)),
+                                Err(payload) => Err(WalkFailure {
+                                    script: builder.current_script,
+                                    node: builder.current_node,
+                                    payload,
+                                }),
+                            };
+                            local.push((idx, out));
+                        }
+                        local
+                    }));
+                }
+                for handle in handles {
+                    for (idx, out) in handle.join().expect("optimize_calls worker panicked") {
+                        results[idx] = Some(out);
+                    }
+                }
+            });
+        }
+
+        for slot in results {
+            match slot.expect("every bucket processed") {
+                Ok((names, props)) => {
+                    for (k, mut v) in names {
+                        match references.names.entry(k) {
+                            indexmap::map::Entry::Vacant(e) => {
+                                e.insert(v);
+                            }
+                            indexmap::map::Entry::Occupied(mut e) => {
+                                e.get_mut().append(&mut v);
+                            }
+                        }
+                    }
+                    for (k, mut v) in props {
+                        match references.props.entry(k) {
+                            indexmap::map::Entry::Vacant(e) => {
+                                e.insert(v);
+                            }
+                            indexmap::map::Entry::Occupied(mut e) => {
+                                e.get_mut().append(&mut v);
+                            }
+                        }
+                    }
+                }
+                Err(fail) => {
+                    NodeTraversal::throw_unexpected_exception_at(
+                        compiler,
+                        fail.script,
+                        fail.node,
+                        fail.payload,
+                    );
+                }
+            }
         }
     }
 
+    // port: OptimizeCalls.ReferenceMapBuildingCallback#shouldTraverse
+    fn walk_node(&mut self, n: NodeId, in_global_scope: bool) {
+        let ast = self.ast;
+        let token = n.get_token(ast);
+        match token {
+            Token::SCRIPT => {
+                if !((self.consider_externs && in_global_scope) || !n.is_from_externs(ast)) {
+                    return;
+                }
+                let prev_script = self.current_script;
+                self.current_script = Some(n);
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    self.walk_node(c, in_global_scope);
+                    child = c.get_next(ast);
+                }
+                self.current_script = prev_script;
+                return;
+            }
+            Token::CLASS => {
+                let class_name = n.get_first_child(ast).unwrap();
+                let extends_clause = class_name.get_next(ast).unwrap();
+                let body = extends_clause.get_next(ast).unwrap();
+                self.walk_node(extends_clause, in_global_scope);
+                self.walk_node(class_name, false);
+                self.walk_node(body, false);
+                return;
+            }
+            Token::CLASS_MEMBERS => {
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    if c.is_computed_prop(ast) || c.is_computed_field_def(ast) {
+                        self.walk_node(c.get_first_child(ast).unwrap(), false);
+                    }
+                    child = c.get_next(ast);
+                }
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    match c.get_token(ast) {
+                        Token::COMPUTED_PROP => {
+                            self.walk_node(c.get_last_child(ast).unwrap(), false);
+                        }
+                        Token::COMPUTED_FIELD_DEF => {
+                            if c.has_two_children(ast) {
+                                self.walk_node(c.get_last_child(ast).unwrap(), false);
+                            }
+                        }
+                        _ => self.walk_node(c, false),
+                    }
+                    child = c.get_next(ast);
+                }
+                return;
+            }
+            _ => {
+                let child_global = in_global_scope
+                    && !matches!(
+                        token,
+                        Token::FUNCTION
+                            | Token::MODULE_BODY
+                            | Token::BLOCK
+                            | Token::FOR
+                            | Token::FOR_IN
+                            | Token::FOR_OF
+                            | Token::FOR_AWAIT_OF
+                            | Token::SWITCH_BODY
+                    );
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    self.walk_node(c, child_global);
+                    child = c.get_next(ast);
+                }
+            }
+        }
+        self.visit(n, token);
+    }
+
     // port: OptimizeCalls.ReferenceMapBuildingCallback#visitSuper
-    fn visit_super(&mut self, compiler: &mut AbstractCompiler, super_node: NodeId) {
+    fn visit_super(&mut self, super_node: NodeId) {
+        let ast = self.ast;
         // Determine whether this is a super() constructor call.
         // If it is, identify the super class and record this as a reference to that.
-        let parent = super_node.get_parent(compiler).unwrap();
-        if parent.is_call(compiler) && super_node.is_first_child_of(compiler, Some(parent)) {
-            let enclosing_class = check_not_null!(NodeUtil::get_enclosing_class(compiler, parent));
-            let extends_node = enclosing_class.get_second_child(compiler).unwrap();
+        let parent = super_node.get_parent(ast).unwrap();
+        if parent.is_call(ast) && super_node.is_first_child_of(ast, Some(parent)) {
+            let enclosing_class = check_not_null!(NodeUtil::get_enclosing_class(ast, parent));
+            let extends_node = enclosing_class.get_second_child(ast).unwrap();
             check_state!(
-                !extends_node.is_empty(compiler),
+                !extends_node.is_empty(ast),
                 "super call appears in class without extends clause"
             );
-            if extends_node.is_name(compiler) {
-                self.maybe_add_name_reference(compiler, extends_node, super_node);
-            } else if extends_node.is_get_prop(compiler) {
+            if extends_node.is_name(ast) {
+                self.maybe_add_name_reference(extends_node, super_node);
+            } else if extends_node.is_get_prop(ast) {
                 // NOTE: Theoretically we could also include an optional chain getprop here, but
                 // A) it's a runtime error if the value ends up being undefined, so that's bad code
                 // B) the author is indicating uncertainty, so we should be cautious.
-                self.maybe_add_prop_reference(extends_node.get_string_ref(compiler), super_node);
+                self.maybe_add_prop_reference(extends_node.get_string_ref(ast), super_node);
             } // else we cannot tell what super() is referencing (e.g. `class extends getMixin() {`)
         }
     }
 
     // port: OptimizeCalls.ReferenceMapBuildingCallback#maybeAddNameReference
-    /// Rust-only: takes the NAME node whose string Java passes, and reads it in place.
-    fn maybe_add_name_reference(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        name_node: NodeId,
-        n: NodeId,
-    ) {
-        // TODO(b/129503101): Why are we limiting ourselves to global names?
-        let var = check_not_null!(self.global_scope).get_var_of_node(compiler, name_node);
-        if let Some(var) = var
-            && (self.consider_externs || !var.is_extern(compiler))
-        {
-            // As every name declaration is unique due to normalizations, it is only necessary to
-            // build the global scope and ask it if it knows about a name as it can never be
-            // shadowed.
-            self.references
-                .add_name_reference(name_node.get_string(compiler), n);
+    #[inline]
+    fn maybe_add_name_reference(&mut self, name_node: NodeId, n: NodeId) {
+        let name = name_node.get_string_ref(self.ast);
+        let h = name.hash_code() as usize;
+        if (self.global_name_bloom[(h >> 6) & 63] & (1u64 << (h & 63))) == 0 {
+            return;
+        }
+        if self.global_names.contains(name) {
+            ReferenceMap::add_reference(&mut self.names, name.clone(), n);
         }
     }
 
     // port: OptimizeCalls.ReferenceMapBuildingCallback#maybeAddPropReference
+    #[inline]
     fn maybe_add_prop_reference(&mut self, name: &JsString, n: NodeId) {
         if self.consider_externs || !self.extern_props.contains(name) {
-            self.references.add_prop_reference(name.clone(), n);
+            ReferenceMap::add_reference(&mut self.props, name.clone(), n);
         }
     }
-}
 
-impl Callback for ReferenceMapBuildingCallback<'_> {
     // port: OptimizeCalls.ReferenceMapBuildingCallback#visit
-    #[allow(clippy::collapsible_match)] // Retain Java control flow.
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _unused: Option<NodeId>) {
-        match n.get_token(t) {
+    #[inline]
+    fn visit(&mut self, n: NodeId, token: Token) {
+        let ast = self.ast;
+        match token {
             Token::NAME => {
-                self.maybe_add_name_reference(t.get_compiler(), n, n);
+                self.maybe_add_name_reference(n, n);
             }
             Token::OPTCHAIN_GETPROP | Token::GETPROP => {
-                self.maybe_add_prop_reference(n.get_string_ref(t), n);
+                self.maybe_add_prop_reference(n.get_string_ref(ast), n);
             }
             Token::CALL => {
                 // If we are using goog.reflect.objectProperty on this symbol, we will assume that
                 // it gets referenced.
-                let fn_name = n.get_first_child(t).unwrap();
-                let compiler = t.get_compiler();
-                if compiler
-                    .get_coding_convention()
-                    .is_property_rename_function(compiler, fn_name)
+                let fn_name = n.get_first_child(ast).unwrap();
+                if self
+                    .coding_convention
+                    .is_property_rename_function(ast, fn_name)
                 {
-                    let prop_name = NodeUtil::get_argument_for_call_or_new(compiler, n, 0);
+                    let prop_name = NodeUtil::get_argument_for_call_or_new(ast, n, 0);
                     if let Some(prop_name) = prop_name {
-                        self.maybe_add_prop_reference(prop_name.get_string_ref(compiler), n);
+                        self.maybe_add_prop_reference(prop_name.get_string_ref(ast), n);
                     }
                 }
             }
@@ -703,14 +974,17 @@ impl Callback for ReferenceMapBuildingCallback<'_> {
             | Token::GETTER_DEF
             | Token::SETTER_DEF
             | Token::MEMBER_FUNCTION_DEF
-            | Token::MEMBER_FIELD_DEF => {
+            | Token::MEMBER_FIELD_DEF
                 // ignore quoted keys.
-                if !n.is_quoted_string_key(t) {
-                    self.maybe_add_prop_reference(n.get_string_ref(t), n);
-                }
+                if !n.is_quoted_string_key(ast) =>
+            {
+                self.maybe_add_prop_reference(n.get_string_ref(ast), n);
             }
 
-            Token::SUPER => self.visit_super(t.get_compiler(), n),
+            Token::SUPER => {
+                self.current_node = Some(n);
+                self.visit_super(n);
+            }
             // Ignore quoted and computed keys.
             // TODO(johnlenz): support symbols.
             Token::COMPUTED_PROP
@@ -724,37 +998,4 @@ impl Callback for ReferenceMapBuildingCallback<'_> {
             _ => {}
         }
     }
-
-    // port: OptimizeCalls.ReferenceMapBuildingCallback#shouldTraverse
-    fn should_traverse(
-        &mut self,
-        t: &mut NodeTraversal<'_>,
-        n: NodeId,
-        _parent: Option<NodeId>,
-    ) -> bool {
-        if n.is_script(t) {
-            // Even when considering externs, we only care about top-level identifiers. Dummy
-            // function parameters, for example, shouldn't be considered references.
-            (self.consider_externs && t.in_global_scope()) || !n.is_from_externs(t)
-        } else {
-            true
-        }
-    }
-
-    fn as_scoped_callback(&mut self) -> Option<&mut dyn ScopedCallback> {
-        Some(self)
-    }
-}
-
-impl ScopedCallback for ReferenceMapBuildingCallback<'_> {
-    // port: OptimizeCalls.ReferenceMapBuildingCallback#enterScope
-    fn enter_scope(&mut self, t: &mut NodeTraversal<'_>) {
-        if t.in_global_scope() {
-            self.global_scope = Some(t.get_scope());
-            self.references.global_scope = self.global_scope;
-        }
-    }
-
-    // port: OptimizeCalls.ReferenceMapBuildingCallback#exitScope
-    fn exit_scope(&mut self, _t: &mut NodeTraversal<'_>) {}
 }

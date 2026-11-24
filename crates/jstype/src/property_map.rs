@@ -260,8 +260,7 @@ impl PropertyMap {
         let mut source = parent_source;
         loop {
             for o in Self::secondary_parent_objects_of(source, reg, ast) {
-                let parent = o.get_property_map(reg).clone();
-                if let Some(e) = parent.find_closest(reg, ast, name.clone()) {
+                if let Some(e) = Self::find_closest_of_type(o, reg, ast, name) {
                     return Some(e);
                 }
             }
@@ -306,6 +305,11 @@ impl PropertyMap {
                     .map(|(_, p)| *p)
             }),
         }
+    }
+    /// Rust-only (performance divergence): true when this map itself stores no own string or
+    /// known-symbol properties (without touching parents or caches).
+    pub fn is_own_empty(&self) -> bool {
+        self.properties.is_empty() && self.known_symbols.as_ref().is_none_or(|v| v.is_empty())
     }
     // port: PropertyMap#getPropertiesCount
     pub fn get_properties_count(&self, reg: &mut JSTypeRegistry, ast: &Ast) -> usize {

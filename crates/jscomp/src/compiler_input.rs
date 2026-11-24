@@ -494,6 +494,128 @@ impl CompilerInput {
     pub fn add_require(&self, require: Require) {
         self.state.lock().unwrap().extra_requires.push(require);
     }
+    /// Rust-only (performance divergence): precomputes regex `SimpleDependencyInfo` for uncached
+    /// inputs in parallel using `std::thread::scope`, reusing one `JsFileRegexParser` per worker
+    /// and replaying any diagnostics in exact input order.
+    pub(crate) fn prebuild_dependency_info_parallel(
+        compiler: &mut AbstractCompiler,
+        inputs: &[CompilerInput],
+    ) {
+        if !crate::deps::js_file_regex_parser::JsFileRegexParser::is_supported()
+            || !compiler.prefer_regex_parser()
+        {
+            return;
+        }
+        let mut seen = IndexSet::<CompilerInput>::default();
+        let mut uncached = Vec::new();
+        for input in inputs {
+            let state = input.state.lock().unwrap();
+            if state.compiler && state.dependency_info.is_none() && seen.insert(input.clone()) {
+                uncached.push(input.clone());
+            }
+        }
+        let threads = crate::parallel_parse::parallel_thread_count(uncached.len(), 8, 8);
+        if threads < 2 {
+            return;
+        }
+        struct RecordingErrorManager {
+            errors: Vec<(crate::check_level::CheckLevel, JSError)>,
+        }
+        impl crate::error_handler::ErrorHandler for RecordingErrorManager {
+            fn report(&mut self, level: crate::check_level::CheckLevel, error: JSError) {
+                self.errors.push((level, error));
+            }
+        }
+        impl crate::error_manager::ErrorManager for RecordingErrorManager {
+            fn generate_report(&mut self, _ast: &closure_rhino::node::Ast) {}
+            fn get_error_count(&self) -> i32 {
+                0
+            }
+            fn get_warning_count(&self) -> i32 {
+                0
+            }
+            fn get_errors(&self) -> Vec<JSError> {
+                Vec::new()
+            }
+            fn get_warnings(&self) -> Vec<JSError> {
+                Vec::new()
+            }
+            fn set_typed_percent(&mut self, _typed_percent: f64) {}
+            fn get_typed_percent(&self) -> f64 {
+                0.0
+            }
+        }
+        type PrebuiltEntry = (
+            SimpleDependencyInfo,
+            bool,
+            Vec<(crate::check_level::CheckLevel, JSError)>,
+        );
+        let loader = compiler.get_module_loader().clone();
+        let chunk_size = uncached.len().div_ceil(threads);
+        let mut chunks_out: Vec<Vec<PrebuiltEntry>> = std::thread::scope(|scope| {
+            let mut handles = Vec::with_capacity(threads);
+            for chunk in uncached.chunks(chunk_size) {
+                let loader = loader.clone();
+                handles.push(scope.spawn(move || {
+                    let recorder =
+                        Arc::new(Mutex::new(RecordingErrorManager { errors: Vec::new() }));
+                    let shared: crate::deps::js_file_line_parser::SharedErrorManager =
+                        recorder.clone();
+                    let mut parser =
+                        crate::deps::js_file_regex_parser::JsFileRegexParser::new(shared);
+                    parser.set_module_loader(loader).set_include_goog_base(true);
+                    let mut out = Vec::with_capacity(chunk.len());
+                    for input in chunk {
+                        recorder.lock().unwrap().errors.clear();
+                        let (info, lazy) = match input.source_file.read_source() {
+                            Ok(code) => {
+                                if let Some(info) = input.source_file.bundled_dependency_info(&code)
+                                {
+                                    (info, true)
+                                } else {
+                                    let info = parser.parse_file(
+                                        input.get_name(),
+                                        input.get_name(),
+                                        code.into_text(),
+                                    );
+                                    (info, true)
+                                }
+                            }
+                            Err(error) => {
+                                recorder.lock().unwrap().errors.push((
+                                    crate::check_level::CheckLevel::ERROR,
+                                    JSError::make_without_location(
+                                        &READ_ERROR,
+                                        &[input.get_name(), &error.to_string()],
+                                    ),
+                                ));
+                                ((**SimpleDependencyInfo::EMPTY).clone(), false)
+                            }
+                        };
+                        let errs = std::mem::take(&mut recorder.lock().unwrap().errors);
+                        out.push((info, lazy, errs));
+                    }
+                    out
+                }));
+            }
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        let mut iter = uncached.into_iter();
+        for chunk in chunks_out.drain(..) {
+            for (info, lazy, errors) in chunk {
+                let input = iter.next().unwrap();
+                for (level, error) in errors {
+                    compiler.get_error_manager().report(level, error);
+                }
+                let mut state = input.state.lock().unwrap();
+                if state.dependency_info.is_none() {
+                    state.dependency_info = Some(info);
+                    state.is_lazy_dependency_info = lazy;
+                }
+            }
+        }
+    }
+
     // port: CompilerInput#getDependencyInfo
     pub fn get_dependency_info(&self, compiler: &mut AbstractCompiler) -> SimpleDependencyInfo {
         if self.state.lock().unwrap().dependency_info.is_none() {

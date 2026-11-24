@@ -232,16 +232,14 @@ impl Callback for FindModuleDependencies {
         n: NodeId,
         _parent: Option<NodeId>,
     ) -> bool {
-        let resolution_mode = t.get_compiler().get_options().get_module_resolution_mode();
-        if self.supports_common_js_modules
-            && n.is_function(t)
-            && ProcessCommonJSModules::is_common_js_dynamic_import_callback(
+        if self.supports_common_js_modules && n.is_function(t) {
+            let resolution_mode = t.get_compiler().get_options().get_module_resolution_mode();
+            if ProcessCommonJSModules::is_common_js_dynamic_import_callback(
                 t,
                 Some(n),
                 resolution_mode,
-            )
-        {
-            if self.dynamic_import_scope.is_none() {
+            ) && self.dynamic_import_scope.is_none()
+            {
                 self.dynamic_import_scope = Some(t.get_scope());
             }
         }
@@ -252,22 +250,34 @@ impl Callback for FindModuleDependencies {
     // port: FindModuleDependencies#visit
     #[allow(clippy::collapsible_if)] // Retain Java control flow.
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        let resolution_mode = t.get_compiler().get_options().get_module_resolution_mode();
-        if NodeUtil::is_shallow_statement_tree(t, parent) {
-            if n.is_expr_result(t) {
-                let maybe_get_prop = n.get_first_first_child(t);
-                if let Some(maybe_get_prop) = maybe_get_prop
-                    && (GOOG_PROVIDE.matches(t, maybe_get_prop)
-                        || GOOG_MODULE.matches(t, maybe_get_prop))
-                {
-                    self.module_type = ModuleType::GOOG;
-                    return;
-                }
+        // Rust-only (performance divergence): when CommonJS is disabled, only five token kinds can
+        // trigger any branch below; reject all others in one match before parent/scope checks.
+        let token = n.get_token(t);
+        if !self.supports_common_js_modules
+            && !matches!(
+                token,
+                Token::EXPR_RESULT
+                    | Token::CALL
+                    | Token::EXPORT
+                    | Token::IMPORT
+                    | Token::DYNAMIC_IMPORT
+            )
+        {
+            return;
+        }
+        if token == Token::EXPR_RESULT && NodeUtil::is_shallow_statement_tree(t, parent) {
+            let maybe_get_prop = n.get_first_first_child(t);
+            if let Some(maybe_get_prop) = maybe_get_prop
+                && (GOOG_PROVIDE.matches(t, maybe_get_prop)
+                    || GOOG_MODULE.matches(t, maybe_get_prop))
+            {
+                self.module_type = ModuleType::GOOG;
+                return;
             }
         }
 
         // goog.requireDynamic()
-        if NodeUtil::is_goog_require_dynamic_call(t, n) {
+        if token == Token::CALL && NodeUtil::is_goog_require_dynamic_call(t, n) {
             let namespace = n.get_last_child(t).unwrap().get_string(t).to_string_lossy();
             t.get_input()
                 .unwrap()
@@ -275,7 +285,7 @@ impl Callback for FindModuleDependencies {
                 .add_require_dynamic_imports(namespace);
         }
 
-        if self.supports_es6_modules && n.is_export(t) {
+        if self.supports_es6_modules && token == Token::EXPORT {
             self.module_type = ModuleType::ES6;
             if n.get_boolean_prop(t, NodeId::EXPORT_DEFAULT) {
                 // export default
@@ -284,11 +294,11 @@ impl Callback for FindModuleDependencies {
                 // export {x, y as z} from 'moduleIdentifier';
                 self.add_es6_module_import_to_graph(t, n);
             }
-        } else if self.supports_es6_modules && n.is_import(t) {
+        } else if self.supports_es6_modules && token == Token::IMPORT {
             self.module_type = ModuleType::ES6;
             self.add_es6_module_import_to_graph(t, n);
         } else if self.supports_es6_modules
-            && n.get_token(t) == Token::DYNAMIC_IMPORT
+            && token == Token::DYNAMIC_IMPORT
             && n.get_first_child(t).unwrap().is_string(t)
         {
             let path = n
@@ -304,6 +314,7 @@ impl Callback for FindModuleDependencies {
                 input.add_dynamic_require(module_path.to_module_name());
             }
         } else if self.supports_common_js_modules {
+            let resolution_mode = t.get_compiler().get_options().get_module_resolution_mode();
             if self.module_type != ModuleType::GOOG
                 && ProcessCommonJSModules::is_common_js_export(t, n, resolution_mode)
             {
@@ -343,9 +354,10 @@ impl Callback for FindModuleDependencies {
             // TODO(ChadKillingsworth) add require.ensure support
         }
 
-        if let Some(parent) = parent
-            && (parent.is_expr_result(t) || !t.in_global_hoist_scope())
+        if token == Token::CALL
+            && let Some(parent) = parent
             && NodeUtil::is_goog_require_call(t, n)
+            && (parent.is_expr_result(t) || !t.in_global_hoist_scope())
             && n.get_second_child(t).is_some()
             && n.get_second_child(t).unwrap().is_string_lit(t)
         {
@@ -363,7 +375,13 @@ impl Callback for FindModuleDependencies {
     }
 
     fn as_scoped_callback(&mut self) -> Option<&mut dyn ScopedCallback> {
-        Some(self)
+        // Rust-only (performance divergence): `dynamic_import_scope` is only set for CommonJS
+        // callbacks, so non-CommonJS files never need scope exit hooks or scope creation.
+        if self.supports_common_js_modules {
+            Some(self)
+        } else {
+            None
+        }
     }
 }
 
@@ -373,7 +391,9 @@ impl ScopedCallback for FindModuleDependencies {
 
     // port: FindModuleDependencies#exitScope
     fn exit_scope(&mut self, t: &mut NodeTraversal<'_>) {
-        if Some(t.get_scope()) == self.dynamic_import_scope {
+        // Rust-only (performance divergence): avoid `t.get_scope()` when no dynamic import scope is
+        // active.
+        if self.dynamic_import_scope.is_some() && Some(t.get_scope()) == self.dynamic_import_scope {
             self.dynamic_import_scope = None;
         }
     }

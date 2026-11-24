@@ -38,6 +38,7 @@ use crate::var::VarId;
 use closure_rhino::check_state;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::{Ast, NodeId};
+use closure_rhino::token::Token;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::LazyLock;
@@ -64,6 +65,22 @@ pub struct ReferenceCollector<'a, B: Behavior> {
 
 /// Java's `Predicate<Var>`.
 pub type VarFilter<'a> = Box<dyn Fn(&AbstractCompiler, VarId) -> bool + 'a>;
+
+/// Rust-only (performance divergence): per-local-variable tracking state for `InferConsts`'s
+/// zero-allocation leaf-function fast path.
+struct InferConstLocal {
+    decl_node: NodeId,
+    decl_token: Token,
+    assign_count: u8,
+    assign_in_loop: bool,
+    seen_first_ref: bool,
+    first_is_init_decl: bool,
+    init_block_depth: u32,
+    init_block_id: u32,
+    well_defined: bool,
+}
+
+const SLOT_UNASSIGNED: u32 = u32::MAX;
 
 /// The fields of `ReferenceCollector` that its inner `CollectorCallback` reads and writes.
 pub struct CollectorCallback<'a, B: Behavior> {
@@ -98,8 +115,12 @@ pub struct CollectorCallback<'a, B: Behavior> {
     replay_scope_stack: Vec<(NodeId, Option<ScopeId>)>,
     /// Scratch stack of nested basic blocks lazily materialized during cached site replay.
     replay_block_stack: Vec<(NodeId, Option<Rc<BasicBlock>>)>,
-    /// Scratch list of resolved `(slot, var)` pairs for `InlineVariables` clean-leaf hits.
+    /// Scratch list of resolved `(slot, var)` pairs for leaf-function fast paths.
     free_vars_scratch: Vec<(u32, VarId)>,
+    /// Scratch buffers for `InferConsts`'s zero-allocation leaf-function fast path.
+    infer_locals: Vec<InferConstLocal>,
+    infer_slot_to_local: Vec<u32>,
+    infer_block_stack: Vec<(u32, bool)>,
 
     /// Rust-only (performance divergence): `process(externs, root)` may skip the externs (see
     /// `skip_externs_when_unread`).
@@ -195,6 +216,9 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
                 replay_scope_stack: Vec::new(),
                 replay_block_stack: Vec::new(),
                 free_vars_scratch: Vec::new(),
+                infer_locals: Vec::new(),
+                infer_slot_to_local: Vec::new(),
+                infer_block_stack: Vec::new(),
                 reuse_sites: false,
                 may_skip_externs: false,
                 skipped_externs: None,
@@ -649,6 +673,417 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         true
     }
 
+    /// Rust-only (performance divergence): evaluates `InferConsts` directly for simple-param leaf
+    /// functions using cached `FunctionBodySites`, avoiding allocating `ScopeId`, `VarId`,
+    /// `BasicBlock`, and `Reference` objects for all local variables and parameters while still
+    /// recording any active outer-scope references identically to normal traversal.
+    fn try_infer_consts_leaf_function(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        fn_node: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        let fn_name = fn_node.get_first_child(t).unwrap();
+        let args = fn_name.get_next(t).unwrap();
+        let body = args.get_next(t).unwrap();
+        if !body.is_block(t) {
+            return false;
+        }
+        let is_fn_decl = parent.is_some() && NodeUtil::is_function_declaration(t, fn_node);
+        let is_fn_expr_named =
+            !NodeUtil::is_function_declaration(t, fn_node) && !fn_name.get_string_ref(t).is_empty();
+        if is_fn_expr_named
+            && (!NodeUtil::is_function_expression(t, fn_node)
+                || fn_name.get_string_ref(t) == "arguments")
+        {
+            return false;
+        }
+
+        // Validate simple NAME-only parameter list before building local state.
+        let mut param = args.get_first_child(t);
+        while let Some(p) = param {
+            if !p.is_name(t) {
+                return false;
+            }
+            let Some(spelling) = p.string_payload(t) else {
+                return false;
+            };
+            if spelling.is_empty() || spelling == "arguments" {
+                return false;
+            }
+            param = p.get_next(t);
+        }
+
+        let Some(body_sites) = FunctionReferenceCache::sites(t.get_compiler(), body) else {
+            return false;
+        };
+
+        // Populate `fn_scope` locals (parameters first, then bleeding function expression name,
+        // matching `SyntacticScopeCreator#populate`).
+        self.infer_locals.clear();
+        let mut param = args.get_first_child(t);
+        while let Some(p) = param {
+            let spelling = p.get_string_ref(t);
+            if let Some(existing) = self
+                .infer_locals
+                .iter_mut()
+                .find(|l| l.decl_node.get_string_ref(t) == spelling)
+            {
+                existing.assign_count = existing.assign_count.saturating_add(1);
+            } else {
+                self.infer_locals.push(InferConstLocal {
+                    decl_node: p,
+                    decl_token: Token::PARAM_LIST,
+                    assign_count: 1,
+                    assign_in_loop: false,
+                    seen_first_ref: true,
+                    first_is_init_decl: true,
+                    init_block_depth: 0,
+                    init_block_id: 0,
+                    well_defined: true,
+                });
+            }
+            param = p.get_next(t);
+        }
+        if is_fn_expr_named {
+            let spelling = fn_name.get_string_ref(t);
+            if let Some(existing) = self
+                .infer_locals
+                .iter_mut()
+                .find(|l| l.decl_node.get_string_ref(t) == spelling)
+            {
+                existing.assign_count = existing.assign_count.saturating_add(1);
+            } else {
+                self.infer_locals.push(InferConstLocal {
+                    decl_node: fn_name,
+                    decl_token: Token::FUNCTION,
+                    assign_count: 1,
+                    assign_in_loop: false,
+                    seen_first_ref: true,
+                    first_is_init_decl: true,
+                    init_block_depth: 0,
+                    init_block_id: 0,
+                    well_defined: true,
+                });
+            }
+        }
+        let fn_scope_local_count = self.infer_locals.len();
+
+        // Discover `body_scope` declarations from `body_sites` in exact AST order.
+        self.infer_slot_to_local.clear();
+        self.infer_slot_to_local
+            .resize(body_sites.first_names.len(), SLOT_UNASSIGNED);
+        for &site in &body_sites.sites {
+            let SiteKind::Reference(node, slot) = site.decode() else {
+                continue;
+            };
+            if node.is_import_star(t) {
+                return false;
+            }
+            let p = node.get_parent(t).unwrap();
+            let pt = p.get_token(t);
+            match pt {
+                Token::VAR | Token::LET | Token::CONST => {
+                    let spelling = node.get_string_ref(t);
+                    if spelling.is_empty() || spelling == "arguments" {
+                        return false;
+                    }
+                    if self.infer_slot_to_local[slot as usize] != SLOT_UNASSIGNED {
+                        continue;
+                    }
+                    if let Some((idx, existing)) = self.infer_locals[..fn_scope_local_count]
+                        .iter()
+                        .enumerate()
+                        .find(|(_, l)| l.decl_node.get_string_ref(t) == spelling)
+                    {
+                        if existing.decl_token == Token::PARAM_LIST {
+                            // `isShadowingAllowed` is false for function parameters: the var
+                            // redeclaration resolves to the parameter in `fn_scope`.
+                            self.infer_slot_to_local[slot as usize] = idx as u32;
+                        } else {
+                            // Bleeding function expression name shadowed in body (rare): fall back.
+                            return false;
+                        }
+                    } else {
+                        let idx = self.infer_locals.len() as u32;
+                        self.infer_locals.push(InferConstLocal {
+                            decl_node: node,
+                            decl_token: pt,
+                            assign_count: 0,
+                            assign_in_loop: false,
+                            seen_first_ref: false,
+                            first_is_init_decl: false,
+                            init_block_depth: 0,
+                            init_block_id: 0,
+                            well_defined: true,
+                        });
+                        self.infer_slot_to_local[slot as usize] = idx;
+                    }
+                }
+                Token::ARRAY_PATTERN
+                | Token::OBJECT_PATTERN
+                | Token::STRING_KEY
+                | Token::COMPUTED_PROP
+                | Token::ITER_REST
+                | Token::OBJECT_REST
+                | Token::DEFAULT_VALUE
+                | Token::DESTRUCTURING_LHS
+                | Token::IMPORT
+                | Token::IMPORT_SPEC
+                | Token::CLASS
+                | Token::FUNCTION
+                | Token::CATCH
+                    if Reference::is_declaration_node(t, node) =>
+                {
+                    return false;
+                }
+                _ => {}
+            }
+        }
+
+        // Resolve all remaining slots: `fn_scope` bindings, implicit `arguments`, or free outer vars.
+        let enclosing_scope = t.get_scope();
+        if is_fn_decl {
+            t.position_at_node(fn_name);
+            if self.collect_hoisted_functions_in_reference_order
+                && self.needs_name(t, fn_name)
+                && let Some(v) = enclosing_scope.get_var_of_node(t.get_compiler(), fn_name)
+                && self.pending_hoisted_function(t.get_compiler(), v).is_some()
+            {
+                return false;
+            }
+        }
+        let is_arrow = fn_node.is_arrow_function(t);
+        self.free_vars_scratch.clear();
+        for (slot, &first_name) in body_sites.first_names.iter().enumerate() {
+            if self.infer_slot_to_local[slot] != SLOT_UNASSIGNED {
+                continue;
+            }
+            let spelling = first_name.get_string_ref(t);
+            if spelling.is_empty() {
+                return false;
+            }
+            if let Some(idx) = self.infer_locals[..fn_scope_local_count]
+                .iter()
+                .position(|l| l.decl_node.get_string_ref(t) == spelling)
+            {
+                self.infer_slot_to_local[slot] = idx as u32;
+                continue;
+            }
+            if !is_arrow && spelling == "arguments" {
+                // Resolves to `fn_scope`'s implicit `arguments` var (`name_node = None`, no-op).
+                continue;
+            }
+            t.position_at_node(first_name);
+            if !self.needs_name(t, first_name) {
+                continue;
+            }
+            let var = enclosing_scope.get_var_of_node(t.get_compiler(), first_name);
+            if self.collect_hoisted_functions_in_reference_order
+                && var.is_some_and(|v| self.pending_hoisted_function(t.get_compiler(), v).is_some())
+            {
+                return false;
+            }
+            if let Some(v) = var
+                && (self.var_filter)(t.get_compiler(), v)
+                && self.behavior.needs_variable(t.get_compiler(), v)
+            {
+                self.free_vars_scratch.push((slot as u32, v));
+            }
+        }
+
+        // Single linear pass over `body_sites.sites` to evaluate all local variables.
+        self.infer_block_stack.clear();
+        self.infer_block_stack.push((0, false));
+        let mut next_block_id: u32 = 1;
+        let mut loop_depth: u32 = 0;
+        for &site in &body_sites.sites {
+            match site.decode() {
+                SiteKind::Reference(node, slot) => {
+                    let local_idx = self.infer_slot_to_local[slot as usize];
+                    if local_idx != SLOT_UNASSIGNED {
+                        let local = &mut self.infer_locals[local_idx as usize];
+                        let is_init_decl = Reference::is_initializing_declaration_node(t, node);
+                        let is_assign = is_init_decl || Reference::is_lvalue_node(t, node);
+                        if !local.seen_first_ref {
+                            local.seen_first_ref = true;
+                            local.first_is_init_decl = is_init_decl;
+                            let depth = (self.infer_block_stack.len() - 1) as u32;
+                            local.init_block_depth = depth;
+                            local.init_block_id = self.infer_block_stack[depth as usize].0;
+                        } else if local.well_defined {
+                            let depth = local.init_block_depth as usize;
+                            if self.infer_block_stack.get(depth).map(|&(id, _)| id)
+                                != Some(local.init_block_id)
+                            {
+                                local.well_defined = false;
+                            }
+                        }
+                        if is_assign {
+                            local.assign_count = local.assign_count.saturating_add(1);
+                            if loop_depth > 0 {
+                                local.assign_in_loop = true;
+                            }
+                        }
+                    }
+                }
+                SiteKind::EnterBlock(n) => {
+                    let is_loop = BasicBlock::is_loop_root(t, n);
+                    let id = next_block_id;
+                    next_block_id += 1;
+                    self.infer_block_stack.push((id, is_loop));
+                    if is_loop {
+                        loop_depth += 1;
+                    }
+                }
+                SiteKind::ExitBlock(_) => {
+                    let (_, is_loop) = self.infer_block_stack.pop().expect("balanced block");
+                    if is_loop {
+                        loop_depth -= 1;
+                    }
+                }
+                SiteKind::EnterEmptyScope(_) | SiteKind::ExitEmptyScope => {}
+            }
+        }
+
+        // Apply `declared_constant_var` and `inferred_constant_var` flags directly on each local.
+        let compiler = t.get_compiler();
+        for local in &self.infer_locals {
+            let name_node = local.decl_node;
+            if !name_node.is_declared_constant_var(compiler)
+                && (local.decl_token == Token::CONST
+                    || NodeUtil::get_best_jsdoc_info(compiler, name_node)
+                        .is_some_and(|d| d.is_constant()))
+            {
+                name_node.set_declared_constant_var(compiler, true);
+            }
+            if !name_node.is_inferred_constant_var(compiler)
+                && local.assign_count == 1
+                && !local.assign_in_loop
+            {
+                let is_inferred = match local.decl_token {
+                    Token::CONST | Token::PARAM_LIST | Token::FUNCTION => true,
+                    Token::LET => {
+                        !name_node.get_parent(compiler).unwrap().is_let(compiler)
+                            || name_node.has_children(compiler)
+                    }
+                    Token::VAR => local.first_is_init_decl && local.well_defined,
+                    _ => false,
+                };
+                if is_inferred {
+                    name_node.set_inferred_constant_var(compiler, true);
+                }
+            }
+        }
+
+        // Record outer-scope function declaration name and any active free outer references.
+        let boundary = BasicBlock::is_block_boundary(t, fn_node, parent);
+        let has_free_refs = !self.free_vars_scratch.is_empty();
+        if boundary && (is_fn_decl || has_free_refs) {
+            self.push_new_block(t, fn_node);
+        }
+        if is_fn_decl {
+            t.position_at_node(fn_name);
+            if self.needs_name(t, fn_name)
+                && let Some(v) = enclosing_scope.get_var_of_node(t.get_compiler(), fn_name)
+            {
+                self.add_reference(v, fn_name, t, enclosing_scope);
+            }
+        }
+        if has_free_refs {
+            self.body_bindings.clear();
+            self.body_bindings
+                .resize(body_sites.first_names.len(), (None, None));
+            for i in 0..self.free_vars_scratch.len() {
+                let (slot, v) = self.free_vars_scratch[i];
+                let entry = self.reference_map.entry(v);
+                self.body_bindings[slot as usize] = (Some(v), Some(entry.index()));
+                entry.or_default();
+            }
+            // For any outer variable referenced inside `fn_node`, `fn_node`'s single function
+            // BasicBlock and empty child ScopeId give identical `is_assigned_once_in_lifetime`
+            // (always false for assignments inside `fn_node`) and `is_well_defined` (every block
+            // inside `fn_node` is a descendant of `fn_block`).
+            let empty_fn_scope =
+                ScopeId::create_child_scope(t.get_compiler(), enclosing_scope, fn_node);
+            let fn_block = BasicBlock::new(t, self.block_stack.back().cloned(), fn_node);
+            for &site in &body_sites.sites {
+                if let SiteKind::Reference(name, slot) = site.decode()
+                    && let Some(index) = self.body_bindings[slot as usize].1
+                {
+                    t.position_at_node(name);
+                    Rc::make_mut(&mut self.reference_map[index]).add(Reference::in_scope(
+                        name,
+                        t,
+                        fn_block.clone(),
+                        empty_fn_scope,
+                    ));
+                }
+            }
+        }
+        if boundary && (is_fn_decl || has_free_refs) {
+            self.pop_last_block(t, fn_node);
+        }
+        true
+    }
+
+    /// Rust-only (performance divergence): skips entering a simple-param leaf function when the
+    /// behavior guarantees no local variable declared inside it can be needed and none of the
+    /// names in its parameters or cached `FunctionBodySites` pass `needs_name`.
+    fn try_skip_function_with_no_needed_names(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        fn_node: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        let fn_name = fn_node.get_first_child(t).unwrap();
+        let args = fn_name.get_next(t).unwrap();
+        let body = args.get_next(t).unwrap();
+        if !body.is_block(t) {
+            return false;
+        }
+        let mut param = args.get_first_child(t);
+        while let Some(p) = param {
+            if !p.is_name(t) || self.needs_name(t, p) {
+                return false;
+            }
+            param = p.get_next(t);
+        }
+        let is_fn_decl = parent.is_some() && NodeUtil::is_function_declaration(t, fn_node);
+        if !is_fn_decl && !fn_name.get_string_ref(t).is_empty() && self.needs_name(t, fn_name) {
+            return false;
+        }
+        let Some(body_sites) = FunctionReferenceCache::sites(t.get_compiler(), body) else {
+            return false;
+        };
+        for &name in &body_sites.first_names {
+            if self.needs_name(t, name) {
+                return false;
+            }
+        }
+        if is_fn_decl && self.needs_name(t, fn_name) {
+            let enclosing_scope = t.get_scope();
+            t.position_at_node(fn_name);
+            let var = enclosing_scope.get_var_of_node(t.get_compiler(), fn_name);
+            if self.collect_hoisted_functions_in_reference_order
+                && var.is_some_and(|v| self.pending_hoisted_function(t.get_compiler(), v).is_some())
+            {
+                return false;
+            }
+            if let Some(v) = var {
+                let boundary = BasicBlock::is_block_boundary(t, fn_node, parent);
+                if boundary {
+                    self.push_new_block(t, fn_node);
+                }
+                self.add_reference(v, fn_name, t, enclosing_scope);
+                if boundary {
+                    self.pop_last_block(t, fn_node);
+                }
+            }
+        }
+        true
+    }
+
     fn materialize_replay_scope(
         t: &mut NodeTraversal<'_>,
         root_scope: ScopeId,
@@ -780,11 +1215,25 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
             && self.narrow_scope.is_none()
             && self.externs_refer_only_to_externs != Some(true)
             && *REUSE_REFERENCE_SITES
-            && self.behavior.use_inline_vars_clean_cache()
             && node_traversal.has_cached_source_input()
-            && self.try_skip_clean_leaf_function(node_traversal, n, parent)
         {
-            return false;
+            if self.behavior.use_inline_vars_clean_cache()
+                && self.try_skip_clean_leaf_function(node_traversal, n, parent)
+            {
+                return false;
+            }
+            if self.behavior.infer_consts_leaf_fast_path()
+                && self.try_infer_consts_leaf_function(node_traversal, n, parent)
+            {
+                return false;
+            }
+            if self
+                .behavior
+                .can_skip_function_with_no_needed_names(node_traversal, n)
+                && self.try_skip_function_with_no_needed_names(node_traversal, n, parent)
+            {
+                return false;
+            }
         }
 
         self.behavior
@@ -934,6 +1383,19 @@ pub trait Behavior {
     /// Rust-only (performance divergence): opt in for `InlineVariables` to skip unchanged clean
     /// leaf functions via `AbstractCompiler::inline_vars_clean_cache`.
     fn use_inline_vars_clean_cache(&self) -> bool {
+        false
+    }
+
+    /// Rust-only (performance divergence): opt in for `InferConsts` to evaluate simple-param leaf
+    /// functions directly from `FunctionBodySites` without allocating local scopes or references.
+    fn infer_consts_leaf_fast_path(&self) -> bool {
+        false
+    }
+
+    /// Rust-only (performance divergence): opt in when `fn_node` declares no variables needed by
+    /// this behavior, allowing `ReferenceCollector` to skip entering `fn_node` if its parameters
+    /// and cached `FunctionBodySites` contain no `needs_name` spellings.
+    fn can_skip_function_with_no_needed_names(&self, _ast: &Ast, _fn_node: NodeId) -> bool {
         false
     }
 

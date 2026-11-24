@@ -33,6 +33,11 @@ impl Comments {
         line: JsString,
         mut visit_doc: impl FnMut(&JsString) -> bool,
     ) -> Option<JsString> {
+        // Rust-only (performance divergence): most lines are outside block comments and contain no
+        // `/`, so neither `//` nor `/*` can match.
+        if !self.in_multiline_comment && !line.as_units().contains(&(b'/' as u16)) {
+            return Some(line);
+        }
         let mut revised_line = line;
         let mut revised_js_doc_comment_line = JsString::from("");
         if self.in_multiline_comment {

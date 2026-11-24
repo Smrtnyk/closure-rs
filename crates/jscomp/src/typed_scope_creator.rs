@@ -500,11 +500,19 @@ impl TypedScopeCreator {
         // show up in the type registry.
         let new_scope;
 
-        let module = ModuleImportResolver::get_module_from_scope_root(
-            self.module_map.as_deref(),
-            compiler,
-            root,
-        );
+        let module = if self.module_map.is_some()
+            && (root.is_module_body(compiler)
+                || (root.is_block(compiler)
+                    && NodeUtil::is_bundled_goog_module_scope_root(compiler, root)))
+        {
+            ModuleImportResolver::get_module_from_scope_root(
+                self.module_map.as_deref(),
+                compiler,
+                root,
+            )
+        } else {
+            None
+        };
         if typed_parent.is_none() {
             check_state!(root.is_root(compiler), "%s", root.to_string(compiler));
             let externs_root = root
@@ -537,14 +545,17 @@ impl TypedScopeCreator {
             // name is declared, pre-populate this TypedScope with all qualified name roots. This
             // prevents type resolution from accidentally returning a type from an outer scope that
             // is shadowed.
-            let mut reserved_names = IndexSet::<_>::default();
             // Java HashMap#remove; the map is never iterated, so the O(1) swap_remove keeps
             // the output (shift_remove is O(n) per call).
-            reserved_names.extend(
-                self.reserved_names_for_scope
-                    .swap_remove(&root)
-                    .unwrap_or_default(),
-            );
+            let mut reserved_names = match self.reserved_names_for_scope.swap_remove(&root) {
+                Some(names) if !names.is_empty() => {
+                    let mut set =
+                        IndexSet::with_capacity_and_hasher(names.len(), Default::default());
+                    set.extend(names);
+                    set
+                }
+                _ => IndexSet::default(),
+            };
             if module.is_some() && module.as_ref().unwrap().metadata().is_goog_module() {
                 // TypedScopeCreator treats default export assignments, like `exports = class {};`,
                 // as declarations. However, the untyped scope only contains an implicit slot for
@@ -568,6 +579,18 @@ impl TypedScopeCreator {
                 reserved_names,
                 module.clone(),
             );
+            // Rust-only (performance divergence): an empty non-synthetic BLOCK outside a module
+            // has no children, no literal types, and no NormalScopeBuilder actions, so skip
+            // constructing AbstractScopeBuilder and NodeTraversal (covers all ~5K browser extern
+            // function stub bodies).
+            if root.is_block(compiler)
+                && !root.has_children(compiler)
+                && !root.is_synthetic_block(compiler)
+                && module.is_none()
+            {
+                let _ = NodeUtil::get_source_file(compiler, Some(root));
+                return new_scope;
+            }
         }
 
         let scope_builder;
@@ -987,8 +1010,9 @@ struct AbstractScopeBuilder<'a> {
     /// The current hoist scope.
     current_hoist_scope: TypedScope,
 
-    /// The current source file that we're in.
-    source_name: Option<String>,
+    /// Whether the current node has a source file name (Java stores `sourceName` only to assert
+    /// non-null in `assertDefinitionNode` and `defineVars`).
+    has_source_name: bool,
 
     /// The InputId of the current node.
     input_id: Option<Arc<InputId>>,
@@ -1020,7 +1044,7 @@ impl<'a> AbstractScopeBuilder<'a> {
             current_hoist_scope: scope
                 .get_closest_hoist_scope(compiler)
                 .expect("NullPointerException"),
-            source_name: None,
+            has_source_name: false,
             input_id: None,
             deferred_actions: Vec::new(),
             deferred_statements: IndexSet::default(),
@@ -1044,6 +1068,22 @@ impl<'a> AbstractScopeBuilder<'a> {
     fn build(&mut self, compiler: &mut AbstractCompiler) {
         let root = self.current_scope.get_root_node(compiler);
         self.initialize_module_scope(compiler, root);
+
+        // Rust-only (performance divergence): plain function stubs (bare NAME parameters, empty
+        // body) have no inner declarations or literal types, so run `handle_function_inputs`
+        // directly without constructing a `NodeTraversal`.
+        if self.kind == ScopeBuilderKind::FunctionScopeBuilder
+            && declarations::is_plain_function_stub(compiler, root)
+            && compiler
+                .get_options_opt()
+                .is_some_and(|opts| opts.get_synthetic_block_start_marker().is_none())
+        {
+            self.input_id = NodeUtil::get_input_id(compiler, root);
+            check_not_null!(self.input_id.as_ref());
+            self.has_source_name = NodeUtil::get_source_file(compiler, Some(root)).is_some();
+            self.handle_function_inputs(compiler);
+            return;
+        }
 
         let current_scope = self.current_scope;
         let mut scope_creator = ASSERT_NO_SCOPES_CREATED;
@@ -1623,7 +1663,7 @@ impl<'a> AbstractScopeBuilder<'a> {
     /// of the specified type.
     // port: TypedScopeCreator.AbstractScopeBuilder#assertDefinitionNode
     fn assert_definition_node(&self, compiler: &AbstractCompiler, n: NodeId, type_: Token) {
-        check_state!(self.source_name.is_some());
+        check_state!(self.has_source_name);
         check_state!(n.get_token(compiler) == type_, "%s", n.to_string(compiler));
     }
 
@@ -1671,7 +1711,7 @@ impl<'a> AbstractScopeBuilder<'a> {
     /// Defines a variable declared with `var`, `let`, or `const`.
     // port: TypedScopeCreator.AbstractScopeBuilder#defineVars
     fn define_vars(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
-        check_state!(self.source_name.is_some());
+        check_state!(self.has_source_name);
         check_state!(NodeUtil::is_name_declaration(compiler, Some(n)));
         let info = n.get_jsdoc_info(compiler);
         // `var` declarations are hoisted, but `let` and `const` are not.
@@ -2978,7 +3018,7 @@ impl Callback for AbstractScopeBuilder<'_> {
             || (parent.is_none() && self.input_id.is_some())
         {
             check_not_null!(self.input_id.as_ref());
-            self.source_name = NodeUtil::get_source_name(compiler, n);
+            self.has_source_name = NodeUtil::get_source_file(compiler, Some(n)).is_some();
         }
         if parent.is_none() || self.in_current_scope(t) {
             self.visit_preorder(t, n, parent);
@@ -3082,7 +3122,7 @@ impl Callback for AbstractScopeBuilder<'_> {
                 t.position_at_node(value);
                 if record & declarations::HAS_FUNCTION != 0 {
                     check_not_null!(self.input_id.as_ref());
-                    self.source_name = NodeUtil::get_source_name(t, value);
+                    self.has_source_name = NodeUtil::get_source_file(t, Some(value)).is_some();
                     self.define_function_literal(t.get_compiler(), value);
                 } else {
                     self.attach_literal_types(t.get_compiler(), value);
@@ -5747,7 +5787,7 @@ impl SlotDefiner {
             // Java's sourceName parameter is unused by the method body.
             validator.expect_undeclared_variable(
                 compiler,
-                builder.source_name.as_deref().unwrap_or_default(),
+                "",
                 input.clone(),
                 declaration_node,
                 parent.expect("NullPointerException"),

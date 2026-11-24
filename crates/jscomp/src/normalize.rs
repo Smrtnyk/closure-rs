@@ -186,6 +186,10 @@ struct PropagateConstantPropertyOverVars {
     /// 1 = not constant, 2 = constant) so repeated references to the same variable avoid
     /// re-checking JSDoc and AST structure.
     var_const_cache: Vec<u8>,
+    /// Rust-only (performance divergence): per-scope cumulative 64-bit Bloom bitmask of constant
+    /// variable names declared in the current scope chain, skipping `scope.get_var_of_node` for
+    /// non-matching `NAME`s.
+    scope_const_masks: Vec<u64>,
 }
 
 impl PropagateConstantPropertyOverVars {
@@ -194,6 +198,7 @@ impl PropagateConstantPropertyOverVars {
         Self {
             assert_on_change: forbid_changes,
             var_const_cache: Vec::new(),
+            scope_const_masks: Vec::new(),
         }
     }
 }
@@ -203,12 +208,31 @@ impl ScopedCallback for PropagateConstantPropertyOverVars {
     fn enter_scope(&mut self, t: &mut NodeTraversal<'_>) {
         // Cause the scope to be created, which will cause duplicate
         // to be found.
-        t.get_scope();
+        let scope = t.get_scope();
+        let compiler = t.get_compiler();
+        let mut mask = self.scope_const_masks.last().copied().unwrap_or(0);
+        for var in scope.get_var_iterable(compiler) {
+            let idx = var.index();
+            let val = var.is_const(compiler)
+                || Normalize::is_function_expression_name_node(compiler, var.get_node(compiler))
+                || var
+                    .get_jsdoc_info(compiler)
+                    .is_some_and(|info| info.is_constant());
+            if self.var_const_cache.len() <= idx {
+                self.var_const_cache.resize(idx + 1, 0);
+            }
+            self.var_const_cache[idx] = if val { 2 } else { 1 };
+            if val {
+                let h = var.get_name(compiler).hash_code() as usize;
+                mask |= 1u64 << (h & 63);
+            }
+        }
+        self.scope_const_masks.push(mask);
     }
 
     // port: Normalize.PropagateConstantPropertyOverVars#exitScope
     fn exit_scope(&mut self, _t: &mut NodeTraversal<'_>) {
-        // Nothing to do.
+        self.scope_const_masks.pop();
     }
 }
 
@@ -233,36 +257,43 @@ impl Callback for PropagateConstantPropertyOverVars {
             return;
         }
 
-        // Find the JSDocInfo for a top-level variable
-        let scope = t.get_scope();
-        let var = scope.get_var_of_node(t.get_compiler(), n);
-        let compiler: &AbstractCompiler = t.get_compiler();
+        let mask = self.scope_const_masks.last().copied().unwrap_or(0);
+        let bit = 1u64 << (n.get_string_ref(t).hash_code() & 63);
+        let var_is_const = if (mask & bit) != 0 {
+            // Find the JSDocInfo for a top-level variable
+            let scope = t.get_scope();
+            let var = scope.get_var_of_node(t.get_compiler(), n);
+            let compiler: &AbstractCompiler = t.get_compiler();
 
-        let var_is_const = match var {
-            Some(var) => {
-                let idx = var.index();
-                let cached = self.var_const_cache.get(idx).copied().unwrap_or(0);
-                if cached != 0 {
-                    cached == 2
-                } else {
-                    let val = var.is_const(compiler)
-                        || Normalize::is_function_expression_name_node(
-                            compiler,
-                            var.get_node(compiler),
-                        )
-                        || var
-                            .get_jsdoc_info(compiler)
-                            .is_some_and(|info| info.is_constant());
-                    if self.var_const_cache.len() <= idx {
-                        self.var_const_cache.resize(idx + 1, 0);
+            match var {
+                Some(var) => {
+                    let idx = var.index();
+                    let cached = self.var_const_cache.get(idx).copied().unwrap_or(0);
+                    if cached != 0 {
+                        cached == 2
+                    } else {
+                        let val = var.is_const(compiler)
+                            || Normalize::is_function_expression_name_node(
+                                compiler,
+                                var.get_node(compiler),
+                            )
+                            || var
+                                .get_jsdoc_info(compiler)
+                                .is_some_and(|info| info.is_constant());
+                        if self.var_const_cache.len() <= idx {
+                            self.var_const_cache.resize(idx + 1, 0);
+                        }
+                        self.var_const_cache[idx] = if val { 2 } else { 1 };
+                        val
                     }
-                    self.var_const_cache[idx] = if val { 2 } else { 1 };
-                    val
                 }
+                None => false,
             }
-            None => false,
+        } else {
+            false
         };
 
+        let compiler: &AbstractCompiler = t.get_compiler();
         let should_be_constant = var_is_const
             || NodeUtil::is_constant_by_convention(compiler, compiler.get_coding_convention(), n);
         if should_be_constant {

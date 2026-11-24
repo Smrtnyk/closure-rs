@@ -1,5 +1,4 @@
 /*
- * Copyright 2004 The Closure Compiler Authors.
  * Copyright 2007 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,22 +14,25 @@
  * limitations under the License.
  */
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
-//   src/com/google/javascript/jscomp/InlineSimpleMethods.java,
-//   src/com/google/javascript/jscomp/NodeTraversal.java.
+//   src/com/google/javascript/jscomp/InlineSimpleMethods.java.
 
 use crate::{
-    abstract_compiler::AbstractCompiler,
-    ast_analyzer::AstAnalyzer,
-    compiler_pass::CompilerPass,
-    invocations_callback::InvocationsCallback,
-    node_traversal::{Callback, NodeTraversal},
-    node_util::NodeUtil,
+    abstract_compiler::AbstractCompiler, ast_analyzer::AstAnalyzer,
+    coding_convention::CodingConvention, compiler_pass::CompilerPass,
+    node_traversal::NodeTraversal, node_util::NodeUtil, parallel_parse::parallel_thread_count,
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
-    check_not_null, check_state, ir::IR, js_string::JsString, node::NodeId, token::Token,
+    check_not_null, check_state,
+    ir::IR,
+    js_string::JsString,
+    node::{Ast, NodeId},
+    token::Token,
 };
+use std::any::Any;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Inlines methods that take no arguments and have only a return statement returning a property.
 /// Because it works on method names rather than type inference, a method with multiple
@@ -245,21 +247,28 @@ impl InlineSimpleMethods {
 
     /// Remove the provided object and its method call.
     // port: InlineSimpleMethods#inlineEmptyMethod
-    fn inline_empty_method(&mut self, t: &mut NodeTraversal<'_>, parent: NodeId, call: NodeId) {
+    fn inline_empty_method(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        parent: NodeId,
+        call: NodeId,
+    ) {
         // If the return value of the method call is read,
         // replace it with "void 0". Otherwise, remove the call entirely.
 
-        if NodeUtil::is_expr_call(t, parent) {
-            let empty = IR::empty(t);
-            parent.replace_with(t, empty);
-            NodeUtil::mark_functions_deleted(t.get_compiler(), parent);
+        let replacement = if NodeUtil::is_expr_call(compiler, parent) {
+            let empty = IR::empty(compiler);
+            parent.replace_with(compiler, empty);
+            NodeUtil::mark_functions_deleted(compiler, parent);
+            empty
         } else {
             let src_location = call;
-            let undefined = NodeUtil::new_undefined_node(t, Some(src_location));
-            call.replace_with(t, undefined);
-            NodeUtil::mark_functions_deleted(t.get_compiler(), call);
-        }
-        t.report_code_change();
+            let undefined = NodeUtil::new_undefined_node(compiler, Some(src_location));
+            call.replace_with(compiler, undefined);
+            NodeUtil::mark_functions_deleted(compiler, call);
+            undefined
+        };
+        compiler.report_change_to_enclosing_scope(replacement);
         self.mutation_epoch = self.mutation_epoch.wrapping_add(1);
     }
 
@@ -276,38 +285,6 @@ impl InlineSimpleMethods {
         }
 
         false
-    }
-
-    /// Adds a node that may represent a function signature (if it's a function itself or the name
-    /// of a function).
-    // port: InlineSimpleMethods#addPossibleSignature
-    fn add_possible_signature(
-        &mut self,
-        ast: &closure_rhino::node::Ast,
-        name: &JsString,
-        node: Option<NodeId>,
-    ) {
-        if let Some(node) = node.filter(|node| node.is_function(ast)) {
-            // The node we're looking at is a function, so we can add it directly
-            self.add_signature(name, node);
-        } else if !self.is_non_inlineable(name) {
-            self.non_inlineable_properties.insert(name.clone());
-        }
-    }
-
-    // port: InlineSimpleMethods#addSignature
-    fn add_signature(&mut self, name: &JsString, function: NodeId) {
-        if self.is_non_inlineable(name) {
-            return;
-        }
-
-        if let Some((set, _)) = self.method_definitions.get_mut(name) {
-            set.insert(function);
-        } else {
-            let mut set = IndexSet::<NodeId>::default();
-            set.insert(function);
-            self.method_definitions.insert(name.clone(), (set, 0));
-        }
     }
 
     // port: InlineSimpleMethods#getPropName
@@ -342,12 +319,10 @@ impl CompilerPass for InlineSimpleMethods {
         check_state!(self.method_definitions.is_empty());
         // checkState(externs != null): a NodeId is never null.
 
-        NodeTraversal::traverse_roots(
-            compiler,
-            &mut GatherSignatures { outer: self },
-            externs,
-            root,
-        );
+        let scope_root = check_not_null!(externs.get_parent(compiler));
+        check_state!(root.get_parent(compiler) == Some(scope_root));
+        self.gather_signatures_direct(compiler, externs, root);
+
         // Rust-only (performance divergence): strip properties already blacklisted during
         // GatherSignatures and skip the second traversal if no inlineable candidates remain.
         self.method_definitions.retain(|name, (defs, _)| {
@@ -356,7 +331,382 @@ impl CompilerPass for InlineSimpleMethods {
                 && !self.non_inlineable_properties.contains(name)
         });
         if !self.method_definitions.is_empty() {
-            NodeTraversal::traverse(compiler, root, &mut InlineTrivialAccessors { outer: self });
+            let mut bloom = [0u64; 64];
+            for name in self.method_definitions.keys() {
+                let h = name.hash_code() as usize;
+                bloom[(h >> 6) & 63] |= 1u64 << (h & 63);
+            }
+            let mut inliner = InlineTrivialAccessors {
+                outer: self,
+                name_bloom: bloom,
+                current_script: None,
+                current_node: None,
+            };
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                inliner.walk_node(compiler, root, None);
+            }));
+            if let Err(payload) = result {
+                NodeTraversal::throw_unexpected_exception_at(
+                    compiler,
+                    inliner.current_script,
+                    inliner.current_node,
+                    payload,
+                );
+            }
+        }
+    }
+}
+
+struct WalkFailure {
+    script: Option<NodeId>,
+    node: Option<NodeId>,
+    payload: Box<dyn Any + Send>,
+}
+
+/// Rust-only (performance divergence): per-bucket signature collector for parallel
+/// `GatherSignatures`.
+struct BucketGatherer<'a> {
+    ast: &'a Ast,
+    coding_convention: &'a dyn CodingConvention,
+    extern_properties: &'a IndexSet<JsString>,
+    non_inlineable_properties: IndexSet<JsString>,
+    method_definitions: IndexMap<JsString, IndexSet<NodeId>>,
+    current_script: Option<NodeId>,
+    current_node: Option<NodeId>,
+}
+
+impl<'a> BucketGatherer<'a> {
+    fn new(
+        ast: &'a Ast,
+        coding_convention: &'a dyn CodingConvention,
+        extern_properties: &'a IndexSet<JsString>,
+    ) -> Self {
+        Self {
+            ast,
+            coding_convention,
+            extern_properties,
+            non_inlineable_properties: IndexSet::default(),
+            method_definitions: IndexMap::default(),
+            current_script: None,
+            current_node: None,
+        }
+    }
+
+    #[inline]
+    fn is_non_inlineable(&self, name: &JsString) -> bool {
+        self.extern_properties.contains(name) || self.non_inlineable_properties.contains(name)
+    }
+
+    // port: InlineSimpleMethods#addPossibleSignature
+    // port: InlineSimpleMethods#addSignature
+    fn add_possible_signature(&mut self, name: &JsString, node: Option<NodeId>) {
+        if let Some(node) = node.filter(|node| node.is_function(self.ast)) {
+            if !self.is_non_inlineable(name) {
+                if let Some(set) = self.method_definitions.get_mut(name) {
+                    set.insert(node);
+                } else {
+                    let mut set = IndexSet::default();
+                    set.insert(node);
+                    self.method_definitions.insert(name.clone(), set);
+                }
+            }
+        } else if !self.is_non_inlineable(name) {
+            self.non_inlineable_properties.insert(name.clone());
+        }
+    }
+
+    // port: InlineSimpleMethods.GatherSignatures#processPrototypeParent
+    fn process_prototype_parent(&mut self, n: NodeId) {
+        let ast = self.ast;
+        match n.get_token(ast) {
+            Token::GETPROP | Token::GETELEM => {
+                let grandparent = n.get_grandparent(ast).unwrap();
+                let name = InlineSimpleMethods::get_prop_name_ref(ast, n);
+                if let Some(name) = name
+                    && grandparent.is_assign(ast)
+                {
+                    let assignee = grandparent.get_second_child(ast);
+                    self.add_possible_signature(name, assignee);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn walk_node(&mut self, n: NodeId, parent: Option<NodeId>) {
+        let ast = self.ast;
+        let token = n.get_token(ast);
+        match token {
+            Token::SCRIPT => {
+                let prev = self.current_script;
+                self.current_script = Some(n);
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    self.walk_node(c, Some(n));
+                    child = c.get_next(ast);
+                }
+                self.current_script = prev;
+                return;
+            }
+            Token::CLASS => {
+                let class_name = n.get_first_child(ast).unwrap();
+                let extends_clause = class_name.get_next(ast).unwrap();
+                let body = extends_clause.get_next(ast).unwrap();
+                self.walk_node(extends_clause, Some(n));
+                self.walk_node(class_name, Some(n));
+                self.walk_node(body, Some(n));
+                return;
+            }
+            Token::CLASS_MEMBERS => {
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    if c.is_computed_prop(ast) || c.is_computed_field_def(ast) {
+                        self.walk_node(c.get_first_child(ast).unwrap(), Some(c));
+                    }
+                    child = c.get_next(ast);
+                }
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    match c.get_token(ast) {
+                        Token::COMPUTED_PROP => {
+                            self.walk_node(c.get_last_child(ast).unwrap(), Some(c));
+                        }
+                        Token::COMPUTED_FIELD_DEF => {
+                            if c.has_two_children(ast) {
+                                self.walk_node(c.get_last_child(ast).unwrap(), Some(c));
+                            }
+                        }
+                        _ => self.walk_node(c, Some(n)),
+                    }
+                    child = c.get_next(ast);
+                }
+            }
+            _ => {
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    self.walk_node(c, Some(n));
+                    child = c.get_next(ast);
+                }
+            }
+        }
+        self.visit(n, parent, token);
+    }
+
+    // port: InlineSimpleMethods.GatherSignatures#visit
+    #[inline]
+    fn visit(&mut self, n: NodeId, parent: Option<NodeId>, token: Token) {
+        let ast = self.ast;
+        match token {
+            Token::GETPROP | Token::GETELEM => {
+                let Some(name) = InlineSimpleMethods::get_prop_name_ref(ast, n) else {
+                    return;
+                };
+                let parent = parent.unwrap();
+
+                if *name == "prototype" {
+                    self.process_prototype_parent(parent);
+                } else if parent.is_assign(ast) && n.is_first_child_of(ast, Some(parent)) {
+                    let next = n.get_next(ast);
+                    self.add_possible_signature(name, next);
+                }
+            }
+            Token::OBJECTLIT | Token::CLASS_MEMBERS => {
+                self.current_node = Some(n);
+                let mut key = n.get_first_child(ast);
+                while let Some(k) = key {
+                    match k.get_token(ast) {
+                        Token::MEMBER_FUNCTION_DEF
+                        | Token::MEMBER_FIELD_DEF
+                        | Token::STRING_KEY => {
+                            let name = k.get_string_ref(ast);
+                            let first = k.get_first_child(ast);
+                            self.add_possible_signature(name, first);
+                        }
+                        Token::SETTER_DEF | Token::GETTER_DEF => {
+                            let name = k.get_string_ref(ast);
+                            if !self.is_non_inlineable(name) {
+                                self.non_inlineable_properties.insert(name.clone());
+                            }
+                        }
+                        Token::COMPUTED_PROP
+                        | Token::OBJECT_SPREAD
+                        | Token::COMPUTED_FIELD_DEF
+                        | Token::BLOCK => {}
+                        _ => panic!("Unexpected {} key: {}", token, k.to_string(ast)),
+                    }
+                    key = k.get_next(ast);
+                }
+            }
+            Token::CALL
+                if self
+                    .coding_convention
+                    .is_property_rename_function(ast, n.get_first_child(ast).unwrap()) =>
+            {
+                let name = n.get_second_child(ast).unwrap().get_string(ast);
+                self.non_inlineable_properties.insert(name);
+            }
+            _ => {}
+        }
+    }
+}
+
+impl InlineSimpleMethods {
+    /// Rust-only (performance divergence): direct `&Ast` walk for `GatherSignatures`, fanning out
+    /// script chunks across worker threads on large multi-script inputs while merging in exact AST
+    /// order.
+    fn gather_signatures_direct(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        externs: NodeId,
+        root: NodeId,
+    ) {
+        let mut units: Vec<(NodeId, Option<NodeId>)> = Vec::new();
+        for tree in [externs, root] {
+            if tree.is_root(compiler) {
+                let mut child = tree.get_first_child(compiler);
+                while let Some(c) = child {
+                    units.push((c, Some(tree)));
+                    child = c.get_next(compiler);
+                }
+            } else {
+                units.push((tree, tree.get_parent(compiler)));
+            }
+        }
+
+        let threads = if compiler.ast.node_count() >= 50_000 {
+            parallel_thread_count(units.len(), 4, 8)
+        } else {
+            1
+        };
+
+        if threads <= 1 {
+            let outcome = {
+                let ast: &Ast = &compiler.ast;
+                let coding_convention = compiler.get_coding_convention();
+                let mut gatherer =
+                    BucketGatherer::new(ast, coding_convention, &self.extern_properties);
+                let result = catch_unwind(AssertUnwindSafe(|| {
+                    for &(unit, parent) in &units {
+                        gatherer.walk_node(unit, parent);
+                    }
+                }));
+                match result {
+                    Ok(()) => Ok((
+                        gatherer.non_inlineable_properties,
+                        gatherer.method_definitions,
+                    )),
+                    Err(payload) => Err(WalkFailure {
+                        script: gatherer.current_script,
+                        node: gatherer.current_node,
+                        payload,
+                    }),
+                }
+            };
+            match outcome {
+                Ok((non_inlineable, method_defs)) => {
+                    self.non_inlineable_properties.extend(non_inlineable);
+                    for (name, defs) in method_defs {
+                        if !self.is_non_inlineable(&name) {
+                            self.method_definitions.insert(name, (defs, 0));
+                        }
+                    }
+                }
+                Err(fail) => {
+                    NodeTraversal::throw_unexpected_exception_at(
+                        compiler,
+                        fail.script,
+                        fail.node,
+                        fail.payload,
+                    );
+                }
+            }
+            return;
+        }
+
+        let num_buckets = (threads * 2).min(units.len());
+        let bucket_size = units.len().div_ceil(num_buckets);
+        let slices: Vec<&[(NodeId, Option<NodeId>)]> = units.chunks(bucket_size).collect();
+        let next_bucket = AtomicUsize::new(0);
+        type BucketSignatures = (IndexSet<JsString>, IndexMap<JsString, IndexSet<NodeId>>);
+        let mut results: Vec<Option<Result<BucketSignatures, WalkFailure>>> =
+            (0..slices.len()).map(|_| None).collect();
+
+        {
+            let ast: &Ast = &compiler.ast;
+            let coding_convention = compiler.get_coding_convention();
+            let extern_properties_ref = &*self.extern_properties;
+            std::thread::scope(|scope| {
+                let slice_ref = &slices;
+                let next_ref = &next_bucket;
+                let mut handles = Vec::with_capacity(threads);
+                for _ in 0..threads {
+                    handles.push(scope.spawn(move || {
+                        let mut local = Vec::new();
+                        loop {
+                            let idx = next_ref.fetch_add(1, Ordering::Relaxed);
+                            if idx >= slice_ref.len() {
+                                break;
+                            }
+                            let mut gatherer =
+                                BucketGatherer::new(ast, coding_convention, extern_properties_ref);
+                            let res = catch_unwind(AssertUnwindSafe(|| {
+                                for &(unit, parent) in slice_ref[idx] {
+                                    gatherer.walk_node(unit, parent);
+                                }
+                            }));
+                            let out = match res {
+                                Ok(()) => Ok((
+                                    gatherer.non_inlineable_properties,
+                                    gatherer.method_definitions,
+                                )),
+                                Err(payload) => Err(WalkFailure {
+                                    script: gatherer.current_script,
+                                    node: gatherer.current_node,
+                                    payload,
+                                }),
+                            };
+                            local.push((idx, out));
+                        }
+                        local
+                    }));
+                }
+                for handle in handles {
+                    for (idx, out) in handle
+                        .join()
+                        .expect("inline_simple_methods worker panicked")
+                    {
+                        results[idx] = Some(out);
+                    }
+                }
+            });
+        }
+
+        for slot in results {
+            match slot.expect("every bucket processed") {
+                Ok((non_inlineable, method_defs)) => {
+                    self.non_inlineable_properties.extend(non_inlineable);
+                    for (name, defs) in method_defs {
+                        if !self.is_non_inlineable(&name) {
+                            match self.method_definitions.entry(name) {
+                                indexmap::map::Entry::Vacant(e) => {
+                                    e.insert((defs, 0));
+                                }
+                                indexmap::map::Entry::Occupied(mut e) => {
+                                    e.get_mut().0.extend(defs);
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(fail) => {
+                    NodeTraversal::throw_unexpected_exception_at(
+                        compiler,
+                        fail.script,
+                        fail.node,
+                        fail.payload,
+                    );
+                }
+            }
         }
     }
 }
@@ -364,46 +714,103 @@ impl CompilerPass for InlineSimpleMethods {
 /// For each method call, see if it is a candidate for inlining, and do the inlining if so.
 struct InlineTrivialAccessors<'a> {
     outer: &'a mut InlineSimpleMethods,
+    name_bloom: [u64; 64],
+    current_script: Option<NodeId>,
+    current_node: Option<NodeId>,
 }
 
-impl Callback for InlineTrivialAccessors<'_> {
-    // port: NodeTraversal.AbstractPostOrderCallback#shouldTraverse
-    fn should_traverse(
-        &mut self,
-        _t: &mut NodeTraversal<'_>,
-        _n: NodeId,
-        _parent: Option<NodeId>,
-    ) -> bool {
-        true
+impl InlineTrivialAccessors<'_> {
+    fn walk_node(&mut self, compiler: &mut AbstractCompiler, n: NodeId, parent: Option<NodeId>) {
+        let token = n.get_token(compiler);
+        match token {
+            Token::SCRIPT => {
+                let prev = self.current_script;
+                self.current_script = Some(n);
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    let next = c.get_next(compiler);
+                    self.walk_node(compiler, c, Some(n));
+                    child = next;
+                }
+                self.current_script = prev;
+                return;
+            }
+            Token::CLASS => {
+                let class_name = n.get_first_child(compiler).unwrap();
+                let extends_clause = class_name.get_next(compiler).unwrap();
+                let body = extends_clause.get_next(compiler).unwrap();
+                self.walk_node(compiler, extends_clause, Some(n));
+                self.walk_node(compiler, class_name, Some(n));
+                self.walk_node(compiler, body, Some(n));
+                return;
+            }
+            Token::CLASS_MEMBERS => {
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    let next = c.get_next(compiler);
+                    if c.is_computed_prop(compiler) || c.is_computed_field_def(compiler) {
+                        self.walk_node(compiler, c.get_first_child(compiler).unwrap(), Some(c));
+                    }
+                    child = next;
+                }
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    let next = c.get_next(compiler);
+                    match c.get_token(compiler) {
+                        Token::COMPUTED_PROP => {
+                            self.walk_node(compiler, c.get_last_child(compiler).unwrap(), Some(c));
+                        }
+                        Token::COMPUTED_FIELD_DEF => {
+                            if c.has_two_children(compiler) {
+                                self.walk_node(
+                                    compiler,
+                                    c.get_last_child(compiler).unwrap(),
+                                    Some(c),
+                                );
+                            }
+                        }
+                        _ => self.walk_node(compiler, c, Some(n)),
+                    }
+                    child = next;
+                }
+                return;
+            }
+            _ => {
+                let mut child = n.get_first_child(compiler);
+                while let Some(c) = child {
+                    let next = c.get_next(compiler);
+                    self.walk_node(compiler, c, Some(n));
+                    child = next;
+                }
+            }
+        }
+        if token == Token::CALL {
+            self.visit_call(compiler, n, parent);
+        }
     }
 
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        // Rust-only (performance divergence): skip cloning the method name when the call target is
-        // not among the surviving inlineable method definitions.
-        if !n.is_call(t) {
-            return;
-        }
-        let callee = n.get_first_child(t).unwrap();
-        if !callee.is_get_prop(t) {
-            return;
-        }
-        let call_name = callee.get_string_ref(t);
-        if !self.outer.method_definitions.contains_key(call_name) {
-            return;
-        }
-        InvocationsCallback::visit(self, t, n, parent);
-    }
-}
-
-impl InvocationsCallback for InlineTrivialAccessors<'_> {
     // port: InlineSimpleMethods.InlineTrivialAccessors#visit
-    fn visit_with_call_name(
+    #[inline]
+    fn visit_call(
         &mut self,
-        t: &mut NodeTraversal<'_>,
+        compiler: &mut AbstractCompiler,
         call_node: NodeId,
         parent: Option<NodeId>,
-        call_name: JsString,
     ) {
+        let callee = call_node.get_first_child(compiler).unwrap();
+        if !callee.is_get_prop(compiler) {
+            return;
+        }
+        let call_name_ref = callee.get_string_ref(compiler);
+        let h = call_name_ref.hash_code() as usize;
+        if (self.name_bloom[(h >> 6) & 63] & (1u64 << (h & 63))) == 0 {
+            return;
+        }
+        if !self.outer.method_definitions.contains_key(call_name_ref) {
+            return;
+        }
+        self.current_node = Some(call_node);
+        let call_name = call_name_ref.clone();
         let outer = &mut *self.outer;
         if outer.is_non_inlineable(&call_name) {
             return;
@@ -415,13 +822,14 @@ impl InvocationsCallback for InlineTrivialAccessors<'_> {
             return;
         }
         let first_definition = *definitions.iter().next().unwrap();
-        if *verified_epoch != outer.mutation_epoch {
+        let epoch_match = *verified_epoch == outer.mutation_epoch;
+        if !epoch_match {
             // Exit early if all method definitions are not equivalent, and mark this method as not
             // inlineable.
-            let not_equiv = definitions.len() > 1
-                && !outer.all_definitions_equivalent(t.get_compiler(), definitions);
+            let not_equiv =
+                definitions.len() > 1 && !outer.all_definitions_equivalent(compiler, definitions);
             let not_inlineable =
-                not_equiv || outer.any_definitions_not_inlineable(t.get_compiler(), definitions);
+                not_equiv || outer.any_definitions_not_inlineable(compiler, definitions);
             if not_inlineable {
                 outer.method_definitions.swap_remove(&call_name);
                 outer.non_inlineable_properties.insert(call_name);
@@ -430,159 +838,38 @@ impl InvocationsCallback for InlineTrivialAccessors<'_> {
             outer.method_definitions.get_mut(&call_name).unwrap().1 = outer.mutation_epoch;
         }
 
+        // Fast check of the definition's body shape before checking call arguments.
+        let returned = InlineSimpleMethods::returned_expression(compiler, first_definition);
+        let is_prop_return = returned.is_some_and(|r| {
+            InlineSimpleMethods::is_property_tree(compiler, r)
+                && !first_definition.is_arrow_function(compiler)
+        });
+        let is_const_return = !is_prop_return
+            && returned.is_some_and(|r| NodeUtil::is_literal_value(compiler, r, false));
+        let is_empty_return =
+            returned.is_none() && InlineSimpleMethods::is_empty_method(compiler, first_definition);
+        if !is_prop_return && !is_const_return && !is_empty_return {
+            return;
+        }
+
         // Do not inline if the callsite is a derived class calling a base method using `super.`
-        // Only the immediate receiver matters: `super` elsewhere in the receiver chain or in the
-        // arguments stays at the call site, and InvocationsCallback guarantees the callee is a
-        // GETPROP. Avoid searching the whole call subtree, which is quadratic for long call chains.
-        let receiver =
-            check_not_null!(check_not_null!(call_node.get_first_child(t)).get_first_child(t));
-        if !outer.args_may_have_side_effects(t.get_compiler(), call_node) && !receiver.is_super(t) {
-            // Verify this is a trivial return
-            let returned = InlineSimpleMethods::returned_expression(t, first_definition);
-            if let Some(returned) = returned {
-                if InlineSimpleMethods::is_property_tree(t, returned)
-                    && !first_definition.is_arrow_function(t)
-                {
-                    outer.inline_property_return(t.get_compiler(), call_node, returned);
-                } else if NodeUtil::is_literal_value(t, returned, false) && {
-                    let callee = call_node.get_first_child(t).unwrap();
-                    !outer
-                        .ast_analyzer
-                        .may_have_side_effects(t.get_compiler(), callee)
-                } {
-                    outer.inline_const_return(t.get_compiler(), call_node, returned);
+        let receiver = check_not_null!(
+            check_not_null!(call_node.get_first_child(compiler)).get_first_child(compiler)
+        );
+        if !outer.args_may_have_side_effects(compiler, call_node) && !receiver.is_super(compiler) {
+            if is_prop_return {
+                outer.inline_property_return(compiler, call_node, returned.unwrap());
+            } else if is_const_return {
+                let callee = call_node.get_first_child(compiler).unwrap();
+                if !outer.ast_analyzer.may_have_side_effects(compiler, callee) {
+                    outer.inline_const_return(compiler, call_node, returned.unwrap());
                 }
-            } else if InlineSimpleMethods::is_empty_method(t, first_definition) && {
-                let callee = call_node.get_first_child(t).unwrap();
-                !outer
-                    .ast_analyzer
-                    .may_have_side_effects(t.get_compiler(), callee)
-            } {
-                outer.inline_empty_method(t, parent.unwrap(), call_node);
-            }
-        }
-    }
-}
-
-/// Gather signatures from the source to be compiled.
-struct GatherSignatures<'a> {
-    outer: &'a mut InlineSimpleMethods,
-}
-
-impl GatherSignatures<'_> {
-    /// Processes the parent of a GETPROP prototype, which can either be another GETPROP (in the
-    /// case of Foo.prototype.bar), or can be an assignment (in the case of Foo.prototype = ...).
-    // port: InlineSimpleMethods.GatherSignatures#processPrototypeParent
-    fn process_prototype_parent(&mut self, ast: &closure_rhino::node::Ast, n: NodeId) {
-        match n.get_token(ast) {
-            Token::GETPROP | Token::GETELEM => {
-                // Foo.prototype.getBar = function() { ... } or
-                // Foo.prototype.getBar = getBaz (where getBaz is a function)
-                // parse tree looks like:
-                // assign                          <- parent
-                //     getprop                     <- n
-                //         getprop
-                //             name Foo
-                //             string prototype
-                //         string getBar
-                //     function or name            <- assignee
-                let grandparent = n.get_grandparent(ast).unwrap();
-                let name = InlineSimpleMethods::get_prop_name_ref(ast, n);
-                if let Some(name) = name
-                    && grandparent.is_assign(ast)
-                {
-                    let assignee = grandparent.get_second_child(ast);
-                    self.outer.add_possible_signature(ast, name, assignee);
+            } else if is_empty_return {
+                let callee = call_node.get_first_child(compiler).unwrap();
+                if !outer.ast_analyzer.may_have_side_effects(compiler, callee) {
+                    outer.inline_empty_method(compiler, parent.unwrap(), call_node);
                 }
             }
-            _ => {}
-        }
-    }
-}
-
-impl Callback for GatherSignatures<'_> {
-    // port: NodeTraversal.AbstractPostOrderCallback#shouldTraverse
-    fn should_traverse(
-        &mut self,
-        _t: &mut NodeTraversal<'_>,
-        _n: NodeId,
-        _parent: Option<NodeId>,
-    ) -> bool {
-        true
-    }
-
-    // port: InlineSimpleMethods.GatherSignatures#visit
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
-        match n.get_token(t) {
-            Token::GETPROP | Token::GETELEM => {
-                // TODO(b/251573710): Handle ES2015+ language features that can reference
-                // properties
-                let Some(name) = InlineSimpleMethods::get_prop_name_ref(t, n) else {
-                    return;
-                };
-                let parent = parent.unwrap();
-
-                if *name == "prototype" {
-                    self.process_prototype_parent(t, parent);
-                } else {
-                    // Static methods of the form Foo.bar = function() {} or
-                    // Static methods of the form Foo.bar = baz (where baz is a
-                    // function name). Parse tree looks like:
-                    // assign                 <- parent
-                    //      getprop           <- n
-                    //          name Foo
-                    //          string bar
-                    //      function or name  <- n.getNext()
-                    if parent.is_assign(t) && n.is_first_child_of(t, Some(parent)) {
-                        let next = n.get_next(t);
-                        self.outer.add_possible_signature(t, name, next);
-                    }
-                }
-            }
-            Token::OBJECTLIT | Token::CLASS_MEMBERS => {
-                let mut key = n.get_first_child(t);
-                while let Some(k) = key {
-                    match k.get_token(t) {
-                        Token::MEMBER_FUNCTION_DEF
-                        | Token::MEMBER_FIELD_DEF
-                        | Token::STRING_KEY => {
-                            let name = k.get_string_ref(t);
-                            let first = k.get_first_child(t);
-                            self.outer.add_possible_signature(t, name, first);
-                        }
-                        Token::SETTER_DEF | Token::GETTER_DEF => {
-                            let name = k.get_string_ref(t);
-                            if !self.outer.is_non_inlineable(name) {
-                                self.outer.non_inlineable_properties.insert(name.clone());
-                            }
-                        }
-                        Token::COMPUTED_PROP // complicated
-                        | Token::OBJECT_SPREAD
-                        | Token::COMPUTED_FIELD_DEF
-                        | Token::BLOCK => {} // ES2022 static initialization blocks are never methods.
-                        _ => panic!(
-                            "Unexpected {} key: {}",
-                            n.get_token(t),
-                            k.to_string(t)
-                        ),
-                    }
-                    key = k.get_next(t);
-                }
-            }
-            Token::CALL => {
-                // If a goog.reflect.objectProperty is used for a method's name, we can't assume
-                // that the method can be safely inlined.
-                let compiler: &AbstractCompiler = t.get_compiler();
-                if compiler
-                    .get_coding_convention()
-                    .is_property_rename_function(compiler, n.get_first_child(compiler).unwrap())
-                {
-                    // Other code guarantees that getSecondChild() is a STRINGLIT
-                    let name = n.get_second_child(compiler).unwrap().get_string(compiler);
-                    self.outer.non_inlineable_properties.insert(name);
-                }
-            }
-            _ => {}
         }
     }
 }
