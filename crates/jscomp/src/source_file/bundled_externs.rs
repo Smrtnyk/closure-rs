@@ -812,10 +812,10 @@ mod tests {
             let mut nodes = vec![root];
             while let Some(n) = nodes.pop() {
                 assert!(
-                    !matches!(
+                    !(matches!(
                         n.get_token(&ast),
                         Token::DELPROP | Token::WITH | Token::CLASS
-                    ) && !(n.is_object_lit(&ast) && n.has_children(&ast))
+                    ) || n.is_object_lit(&ast) && n.has_children(&ast))
                         && !(n.is_assign(&ast)
                             && n.get_first_child(&ast).is_some_and(|lhs| {
                                 lhs.is_name(&ast)

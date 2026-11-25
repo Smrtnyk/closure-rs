@@ -1,4 +1,5 @@
 /*
+ * Copyright 2004 The Closure Compiler Authors.
  * Copyright 2006 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +15,8 @@
  * limitations under the License.
  */
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
-//   src/com/google/javascript/jscomp/AnalyzePrototypeProperties.java.
+//   src/com/google/javascript/jscomp/AnalyzePrototypeProperties.java,
+//   src/com/google/javascript/jscomp/NodeTraversal.java.
 
 //! Port of AnalyzePrototypeProperties.java.
 //!
