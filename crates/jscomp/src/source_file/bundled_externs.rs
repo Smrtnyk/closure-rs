@@ -811,20 +811,17 @@ mod tests {
             // StrictModeCheck reports nothing for such a script.
             let mut nodes = vec![root];
             while let Some(n) = nodes.pop() {
-                assert!(
-                    !(matches!(
-                        n.get_token(&ast),
-                        Token::DELPROP | Token::WITH | Token::CLASS
-                    ) || n.is_object_lit(&ast) && n.has_children(&ast))
-                        && !(n.is_assign(&ast)
-                            && n.get_first_child(&ast).is_some_and(|lhs| {
-                                lhs.is_name(&ast)
-                                    && (lhs.get_string_ref(&ast) == "arguments"
-                                        || lhs.get_string_ref(&ast) == "eval")
-                            })),
-                    "{}",
-                    file.get_name()
-                );
+                let strict_target = n.is_assign(&ast)
+                    && n.get_first_child(&ast).is_some_and(|lhs| {
+                        lhs.is_name(&ast)
+                            && (lhs.get_string_ref(&ast) == "arguments"
+                                || lhs.get_string_ref(&ast) == "eval")
+                    });
+                let checked_shape = matches!(
+                    n.get_token(&ast),
+                    Token::DELPROP | Token::WITH | Token::CLASS
+                ) || (n.is_object_lit(&ast) && n.has_children(&ast));
+                assert!(!strict_target && !checked_shape, "{}", file.get_name());
                 nodes.extend(n.children(&ast));
             }
             checked += 1;
