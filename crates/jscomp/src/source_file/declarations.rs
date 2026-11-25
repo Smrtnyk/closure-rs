@@ -154,6 +154,44 @@ fn is_function_stub(ast: &Ast, function: NodeId, declaration: bool) -> bool {
     })
 }
 
+/// An `OTHER` statement that the Normalize fast paths for `normalize_clean` scripts handle:
+/// a stray `;`, or a computed member of a bare qualified name keyed by another one, alone
+/// (`C.prototype[Symbol.x];`) or assigned an empty anonymous function with plain parameters
+/// (`C.prototype[Symbol.iterator] = function() {};`).
+pub(crate) enum CleanOther {
+    Empty,
+    /// The GETELEM node.
+    Element(NodeId),
+    /// The GETELEM node and the assigned function.
+    ElementStub(NodeId, NodeId),
+}
+
+pub(crate) fn clean_other(ast: &Ast, statement: NodeId) -> Option<CleanOther> {
+    fn bare_element(ast: &Ast, n: NodeId) -> bool {
+        n.is_get_elem(ast)
+            && n.has_two_children(ast)
+            && bare_name(ast, n.get_first_child(ast).unwrap())
+            && bare_name(ast, n.get_second_child(ast).unwrap())
+    }
+    if statement.is_empty(ast) {
+        return (!statement.has_children(ast)).then_some(CleanOther::Empty);
+    }
+    if !statement.is_expr_result(ast) || !statement.has_one_child(ast) {
+        return None;
+    }
+    let expr = statement.get_first_child(ast)?;
+    if bare_element(ast, expr) {
+        return Some(CleanOther::Element(expr));
+    }
+    if !expr.is_assign(ast) || !expr.has_two_children(ast) {
+        return None;
+    }
+    let target = expr.get_first_child(ast)?;
+    let value = expr.get_second_child(ast)?;
+    (bare_element(ast, target) && is_function_stub(ast, value, false))
+        .then_some(CleanOther::ElementStub(target, value))
+}
+
 impl Declaration {
     /// Recheck the build record against the current statement. Return all sites at which
     /// its two initial-scope visitors can have observable effects.

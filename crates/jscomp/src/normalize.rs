@@ -308,7 +308,21 @@ impl Callback for PropagateConstantPropertyOverVars {
                             self.visit(t, root, root.get_parent(t));
                         }
                     }
-                    _ => unreachable!("normalize_clean scripts contain no OTHER statements"),
+                    _ => match declarations::clean_other(t, statement)
+                        .expect("normalize_clean OTHER statement")
+                    {
+                        declarations::CleanOther::Empty => {}
+                        declarations::CleanOther::Element(element)
+                        | declarations::CleanOther::ElementStub(element, _) => {
+                            for side in [
+                                element.get_first_child(t).unwrap(),
+                                element.get_second_child(t).unwrap(),
+                            ] {
+                                let root = bare_root_name(t, side);
+                                self.visit(t, root, root.get_parent(t));
+                            }
+                        }
+                    },
                 }
             }
             debug_assert_eq!(child, suffix);
@@ -1127,7 +1141,35 @@ impl Callback for NormalizeStatements {
                         self.annotate_constants_by_convention(t.get_compiler(), root);
                     }
                 }
-                _ => unreachable!("normalize_clean scripts contain no OTHER statements"),
+                _ => {
+                    let (element, stub) = match declarations::clean_other(t, statement)
+                        .expect("normalize_clean OTHER statement")
+                    {
+                        declarations::CleanOther::Empty => continue,
+                        declarations::CleanOther::Element(element) => (element, None),
+                        declarations::CleanOther::ElementStub(element, stub) => {
+                            (element, Some(stub))
+                        }
+                    };
+                    for side in [
+                        element.get_first_child(t).unwrap(),
+                        element.get_second_child(t).unwrap(),
+                    ] {
+                        let root = bare_root_name(t, side);
+                        self.annotate_constants_by_convention(t.get_compiler(), root);
+                    }
+                    if let Some(stub) = stub {
+                        if let Some(renamer) = &mut self.make_declared_names_unique {
+                            renamer.process_plain_extern_stub_params(t, stub);
+                        }
+                        let params = stub.get_second_child(t).unwrap();
+                        let mut p = params.get_first_child(t);
+                        while let Some(param) = p {
+                            self.annotate_constants_by_convention(t.get_compiler(), param);
+                            p = param.get_next(t);
+                        }
+                    }
+                }
             }
         }
         debug_assert_eq!(child, suffix_after);
