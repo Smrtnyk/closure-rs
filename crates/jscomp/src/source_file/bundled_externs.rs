@@ -620,6 +620,124 @@ mod tests {
         }
     }
 
+    /// The diagnostics of VariableReferenceCheck, every one enabled, after the passes before it
+    /// that change the externs.
+    fn variable_reference_diagnostics(
+        extra_externs: &str,
+        code: &str,
+        skip: bool,
+    ) -> (Vec<String>, usize) {
+        use crate::{
+            check_level::CheckLevel,
+            compiler::Compiler,
+            compiler_options::{CompilerOptions, LanguageMode},
+            compiler_pass::CompilerPass,
+            declared_global_externs_on_window::DeclaredGlobalExternsOnWindow,
+            diagnostic_group::DiagnosticGroup,
+            var_check::VAR_MULTIPLY_DECLARED_ERROR,
+            variable_reference_check::*,
+        };
+        let mut options = CompilerOptions::new();
+        options.set_language_in(LanguageMode::ECMASCRIPT_NEXT);
+        for diagnostic in [
+            &EARLY_REFERENCE,
+            &EARLY_EXPORTS_REFERENCE,
+            &REDECLARED_VARIABLE,
+            &EARLY_REFERENCE_ERROR,
+            &REASSIGNED_CONSTANT,
+            &REDECLARED_VARIABLE_ERROR,
+            &DECLARATION_NOT_DIRECTLY_IN_BLOCK,
+            &UNUSED_LOCAL_ASSIGNMENT,
+            &VAR_MULTIPLY_DECLARED_ERROR,
+        ] {
+            options.set_warning_level(DiagnosticGroup::for_type(diagnostic), CheckLevel::WARNING);
+        }
+        let mut externs: Vec<Arc<SourceFile>> = SourceFile::bundled_externs(Environment::BROWSER)
+            .into_iter()
+            .map(Arc::new)
+            .collect();
+        if !extra_externs.is_empty() {
+            externs.push(Arc::new(SourceFile::from_code_with_kind(
+                "extra.js",
+                extra_externs,
+                SourceKind::EXTERN,
+            )));
+        }
+        let mut compiler = Compiler::new();
+        compiler.init(
+            &externs,
+            &[Arc::new(SourceFile::from_code("app.js", code))],
+            options,
+        );
+        compiler.parse_inputs();
+        let externs = compiler.get_externs_root().unwrap();
+        let root = compiler.get_js_root().unwrap();
+        DeclaredGlobalExternsOnWindow::new(&compiler).process(&mut compiler, externs, root);
+        let mut check = VariableReferenceCheck::new(&compiler);
+        check.set_skip_bundled_externs(skip);
+        check.process(&mut compiler, externs, root);
+        let diagnostics = compiler
+            .get_errors()
+            .into_iter()
+            .chain(compiler.get_warnings())
+            .map(|e| e.to_string())
+            .collect();
+        (diagnostics, check.skipped_bundled_scripts())
+    }
+
+    /// `VariableReferenceCheck` leaves out the references in the bundled externs because they
+    /// report nothing for the bundled externs alone, with every diagnostic of the pass enabled.
+    /// An externs update that breaks this fails here.
+    #[test]
+    fn variable_reference_check_reports_nothing_for_the_bundled_externs() {
+        let (diagnostics, skipped) = variable_reference_diagnostics("", "", false);
+        assert_eq!(skipped, 0);
+        assert_eq!(diagnostics, Vec::<String>::new());
+        let (diagnostics, skipped) = variable_reference_diagnostics("", "", true);
+        assert_eq!(
+            skipped,
+            SourceFile::bundled_externs(Environment::BROWSER).len()
+        );
+        assert_eq!(diagnostics, Vec::<String>::new());
+    }
+
+    #[test]
+    fn variable_reference_check_skips_bundled_prefixes_without_changing_diagnostics() {
+        let mut reported = 0;
+        for (extra, code, skips) in [
+            (
+                "",
+                "window['x'] = 1; Infinity = 2; Symbol.iterator; Array.prototype.y = 1;",
+                true,
+            ),
+            (
+                "",
+                "let a = b; let b = 1; const c = 1; c = 2; d = 1; var d;",
+                true,
+            ),
+            ("", "Array = 1; Array; function f() { return Array; }", true),
+            (
+                "var extra; Array.extra; extra = Symbol;",
+                "extra = 1; Symbol = extra;",
+                true,
+            ),
+            ("", "export var window = 1; window = 2;", true),
+            ("", "var performance = 1; performance = 2;", false),
+            ("", "Symbol(); function Symbol() {}", false),
+            ("", "{ let Array = 1; } try {} catch (Map) {}", false),
+            ("var Array;", "Array = 2;", false),
+            ("function Map() {}", "", false),
+        ] {
+            let (expected, skipped) = variable_reference_diagnostics(extra, code, false);
+            assert_eq!(skipped, 0);
+            let (actual, skipped) = variable_reference_diagnostics(extra, code, true);
+            assert_eq!(skipped > 0, skips, "{extra} / {code}");
+            assert_eq!(actual, expected, "{extra} / {code}");
+            reported += expected.len();
+        }
+        assert!(reported >= 5, "{reported}");
+    }
+
     #[test]
     fn declarations_require_the_snapshot_loaded_for_this_script() {
         use crate::{

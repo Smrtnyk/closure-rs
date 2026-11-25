@@ -1109,7 +1109,8 @@ impl Callback for VarCheck {
         script: NodeId,
         parent: Option<NodeId>,
     ) -> bool {
-        if t.in_global_scope()
+        if *crate::variable_reference_check::SKIP_BUNDLED_EXTERNS
+            && t.in_global_scope()
             && let Some((facts, first)) =
                 t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNonParamNames)
             && facts.normalize_clean

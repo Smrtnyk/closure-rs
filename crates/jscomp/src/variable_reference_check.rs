@@ -126,6 +126,8 @@ pub struct VariableReferenceCheck {
 
     /// Rust-only (performance divergence): see `ReferenceCheckingBehavior::bundled_scripts`.
     skip_bundled_externs: bool,
+    /// Rust-only: how many bundled extern scripts the last `process` left out.
+    skipped_bundled_scripts: usize,
 }
 
 /// Rust-only: `CLOSURE_RS_BUNDLED_EXTERN_SKIPS=off` traverses the unchanged bundled externs in
@@ -143,7 +145,13 @@ impl VariableReferenceCheck {
             check_unused_locals,
             blocks_with_declarations: Vec::new(),
             skip_bundled_externs: *SKIP_BUNDLED_EXTERNS,
+            skipped_bundled_scripts: 0,
         }
+    }
+
+    /// Rust-only: how many bundled extern scripts the last `process` left out.
+    pub fn skipped_bundled_scripts(&self) -> usize {
+        self.skipped_bundled_scripts
     }
 
     /// Rust-only: whether `process` may leave out the original statements of the bundled
@@ -461,6 +469,7 @@ impl CompilerPass for VariableReferenceCheck {
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
         let mut scope_creator = SyntacticScopeCreator::new();
         let skip_bundled_externs = self.skip_bundled_externs;
+        self.skipped_bundled_scripts = 0;
         let behavior = ReferenceCheckingBehavior::new(self);
         let mut collector = ReferenceCollector::new(compiler, behavior, &mut scope_creator);
         collector.reuse_reference_sites();
@@ -740,6 +749,7 @@ impl<'a> ReferenceCheckingBehavior<'a> {
 impl Behavior for ReferenceCheckingBehavior<'_> {
     fn skip_bundled_extern_prefixes(&mut self, scripts: &IndexSet<NodeId>) {
         self.bundled_scripts = scripts.clone();
+        self.outer.skipped_bundled_scripts = scripts.len();
     }
 
     // port: VariableReferenceCheck.ReferenceCheckingBehavior#afterExitScope
