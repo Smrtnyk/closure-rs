@@ -63,7 +63,7 @@ crates/jscomp/src/access_control_utils.rs	2a2074d50823ce57	Apache-2.0	closure:sr
 crates/jscomp/src/accessor_summary.rs	a9bf09179e59cb10	Apache-2.0	closure:src/com/google/javascript/jscomp/AccessorSummary.java
 crates/jscomp/src/alias_strings.rs	d74824bfa4e64fa1	Apache-2.0	closure:src/com/google/javascript/jscomp/AliasStrings.java
 crates/jscomp/src/allow_list_warnings_guard.rs	99fda5b3fbf35197	Apache-2.0	closure:src/com/google/javascript/jscomp/AllowlistWarningsGuard.java
-crates/jscomp/src/analyze_prototype_properties.rs	c5ed5af35bed3586	Apache-2.0	closure:src/com/google/javascript/jscomp/AnalyzePrototypeProperties.java
+crates/jscomp/src/analyze_prototype_properties.rs	aa3db99e0486cfd4	Apache-2.0	closure:src/com/google/javascript/jscomp/AnalyzePrototypeProperties.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
 crates/jscomp/src/angular_pass.rs	476e276119876b45	Apache-2.0	closure:src/com/google/javascript/jscomp/AngularPass.java; closure:src/com/google/javascript/jscomp/NodeTraversal.java
 crates/jscomp/src/annotations/legacy_set_feature_set_caller.rs	1a68c4c4c5bf9536	Apache-2.0	closure:src/com/google/javascript/jscomp/annotations/LegacySetFeatureSetCaller.java
 crates/jscomp/src/annotations/mod.rs	322fc2ba37b98b96	Apache-2.0	-

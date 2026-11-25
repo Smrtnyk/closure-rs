@@ -1,4 +1,5 @@
 /*
+ * Copyright 2004 The Closure Compiler Authors.
  * Copyright 2006 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +15,8 @@
  * limitations under the License.
  */
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
-//   src/com/google/javascript/jscomp/AnalyzePrototypeProperties.java.
+//   src/com/google/javascript/jscomp/AnalyzePrototypeProperties.java,
+//   src/com/google/javascript/jscomp/NodeTraversal.java.
 
 //! Port of AnalyzePrototypeProperties.java.
 //!
@@ -38,10 +40,7 @@ use crate::graph::graph::Graph;
 use crate::graph::linked_directed_graph::LinkedDirectedGraph;
 use crate::js_chunk::JSChunk;
 use crate::js_chunk_graph::JSChunkGraph;
-use crate::node_traversal::{
-    AbstractPostOrderCallback, AbstractPostOrderCallbackInterface, Callback, NodeTraversal,
-    ScopedCallback,
-};
+use crate::node_traversal::{Callback, NodeTraversal, ScopedCallback};
 use crate::node_util::NodeUtil;
 use crate::scope::ScopeId;
 use crate::var::VarId;
@@ -241,7 +240,7 @@ impl CompilerPass for AnalyzePrototypeProperties {
             NodeTraversal::traverse(
                 compiler,
                 extern_root,
-                &mut AbstractPostOrderCallback::new(ProcessExternProperties { outer: self }),
+                &mut ProcessExternProperties { outer: self },
             );
         }
 
@@ -840,18 +839,60 @@ struct ProcessExternProperties<'a> {
     outer: &'a mut AnalyzePrototypeProperties,
 }
 
-impl AbstractPostOrderCallbackInterface for ProcessExternProperties<'_> {
+impl ProcessExternProperties<'_> {
+    fn mark_extern_property(&mut self, name: &JsString) {
+        let extern_node = self.outer.extern_node;
+        let first_chunk = self.outer.first_chunk.clone();
+        let name_info = self
+            .outer
+            .get_name_info_for_name(name, AnalyzePrototypeProperties::PROPERTY);
+        self.outer
+            .symbol_graph
+            .connect(extern_node, first_chunk, name_info);
+    }
+}
+
+// port: NodeTraversal.AbstractPostOrderCallback
+impl Callback for ProcessExternProperties<'_> {
+    fn should_traverse(
+        &mut self,
+        _t: &mut NodeTraversal<'_>,
+        _n: NodeId,
+        _parent: Option<NodeId>,
+    ) -> bool {
+        true
+    }
+
+    /// Rust-only (performance divergence): Java visits every GETPROP of the bundled externs. In
+    /// an unchanged `normalize_clean` bundled prefix the only nodes this callback marks are
+    /// GETPROPs (no class members or object literal keys), so its `properties` summary lists
+    /// their names in traversal order, each once. Marking a name again only adds another edge
+    /// from `[extern]` with the same chunk, which changes no NameInfo in the fixed point; the
+    /// NameInfos are made in the same order. Statements appended to the script are visited.
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        if *crate::variable_reference_check::SKIP_BUNDLED_EXTERNS
+            && let Some((facts, first)) =
+                t.bundled_script_prefix(script, closure_rhino::node::SnapshotUse::Syntax)
+            && facts.normalize_clean
+        {
+            for &name in facts.properties {
+                self.mark_extern_property(&JsString::from(name));
+            }
+            t.traverse_script_suffix(script, parent, first, self);
+            return false;
+        }
+        true
+    }
+
     // port: AnalyzePrototypeProperties.ProcessExternProperties#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
         if n.is_get_prop(t) {
-            let extern_node = self.outer.extern_node;
-            let first_chunk = self.outer.first_chunk.clone();
-            let name_info = self
-                .outer
-                .get_name_info_for_name(&n.get_string(t), AnalyzePrototypeProperties::PROPERTY);
-            self.outer
-                .symbol_graph
-                .connect(extern_node, first_chunk, name_info);
+            self.mark_extern_property(&n.get_string(t));
         } else if n.is_member_function_def(t) || n.is_getter_def(t) || n.is_setter_def(t) {
             // As of 2019-08-29 the only user of this class is CrossChunkMethodMotion, which never
             // moves static methods, but that could change. So, we're intentionally including

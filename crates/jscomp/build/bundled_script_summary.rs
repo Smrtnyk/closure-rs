@@ -52,7 +52,7 @@ pub(super) fn generate(
             ast: &Ast,
             n: NodeId,
             in_global_expression: bool,
-            in_plain_stub: bool,
+            in_function_scope: bool,
         ) -> Option<()> {
             let token = n.get_token(ast);
             if matches!(
@@ -112,7 +112,7 @@ pub(super) fn generate(
             if token == Token::IMPORT_STAR {
                 self.extern_referenced_names_invalid = true;
             }
-            let child_in_plain_stub = if token == Token::FUNCTION {
+            let child_in_function_scope = if token == Token::FUNCTION {
                 let plain = declarations::is_plain_function_stub(ast, n);
                 if plain {
                     let fn_name = n.get_first_child(ast).unwrap();
@@ -136,9 +136,11 @@ pub(super) fn generate(
                 } else {
                     self.normalize_clean = false;
                 }
-                plain && in_global_expression
+                // The name of a function expression and the plain parameters of any function
+                // bind in the function's own scope, whatever its body holds.
+                in_global_expression
             } else {
-                in_plain_stub
+                in_function_scope
             };
             for child in n.children(ast) {
                 if child.is_script(ast) {
@@ -146,20 +148,22 @@ pub(super) fn generate(
                 }
                 // Only a property expression reached entirely through these nodes is
                 // guaranteed to share the SCRIPT's scope. Creating a function or block
-                // scope can itself invoke the redeclaration handler.
+                // scope can itself invoke the redeclaration handler. GETELEM covers
+                // `C.prototype[Symbol.iterator] = function() {};`.
                 let global = in_global_expression
                     && matches!(
                         token,
                         Token::SCRIPT
                             | Token::EXPR_RESULT
                             | Token::GETPROP
+                            | Token::GETELEM
                             | Token::ASSIGN
                             | Token::NAME
                             | Token::VAR
                             | Token::CONST
                             | Token::LET
                     );
-                self.visit(ast, child, global, child_in_plain_stub)?;
+                self.visit(ast, child, global, child_in_function_scope)?;
             }
             if let Some(name) = bundled_script::property(ast, n, n.get_parent(ast)) {
                 self.properties.insert(name.to_string_lossy());
@@ -192,14 +196,18 @@ pub(super) fn generate(
                 }
                 // Names that resolve in global scope for ReferenceCollector::skip_externs_when_unread.
                 if !s.is_empty() {
-                    let is_plain_stub_param =
-                        in_plain_stub && parent_tok == Token::PARAM_LIST && !n.has_children(ast);
-                    let is_global_fn_decl_name = in_plain_stub
+                    let is_plain_param = in_function_scope
+                        && parent_tok == Token::PARAM_LIST
+                        && !n.has_children(ast);
+                    let is_function_name = in_function_scope
                         && parent_tok == Token::FUNCTION
-                        && parent.get_first_child(ast) == Some(n)
+                        && parent.get_first_child(ast) == Some(n);
+                    let is_global_fn_decl_name = is_function_name
                         && parent.get_parent(ast).is_some_and(|gp| gp.is_script(ast));
-                    if is_plain_stub_param {
-                        // Resolves to this extern function's own param Var (always is_extern).
+                    if is_plain_param || (is_function_name && !is_global_fn_decl_name) {
+                        // Resolves to this extern function's own param Var, or for a named
+                        // function expression to the name declared in its own function scope
+                        // (always is_extern).
                     } else if in_global_expression || is_global_fn_decl_name {
                         if let Ok(name) = String::from_utf16(s.as_units()) {
                             self.extern_referenced_names.insert(name);
@@ -262,9 +270,12 @@ pub(super) fn generate(
         }
     }
     let mut records = Records {
-        normalize_clean: declaration_records
-            .iter()
-            .all(|&r| r != declarations::OTHER),
+        normalize_clean: script
+            .children(ast)
+            .zip(declaration_records)
+            .all(|(statement, &r)| {
+                r != declarations::OTHER || declarations::clean_other(ast, statement).is_some()
+            }),
         ..Records::default()
     };
     records.visit(ast, script, true, false)?;

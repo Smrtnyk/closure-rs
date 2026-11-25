@@ -1095,6 +1095,38 @@ impl Callback for VarCheck {
         true
     }
 
+    /// Rust-only (performance divergence): Java visits every NAME of the bundled externs. In an
+    /// unchanged `normalize_clean` bundled prefix every function is an empty stub with distinct
+    /// plain parameters (its scopes declare each name once, so the redeclaration handler is not
+    /// called), its parameters resolve in their own scope and in their own input, and the
+    /// remaining names are `extern_referenced_names`, resolved in the global scope. When the
+    /// global scope declares all of them, `checkName` finds every var and reports nothing: an
+    /// extern input belongs to no chunk, and a NAME in an extern file is not a strong use of a weak
+    /// implicit goog namespace. Statements appended to the script are visited as usual.
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        if *crate::variable_reference_check::SKIP_BUNDLED_EXTERNS
+            && t.in_global_scope()
+            && let Some((facts, first)) =
+                t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNonParamNames)
+            && facts.normalize_clean
+            && let Some(names) = facts.extern_referenced_names
+        {
+            // Java makes the global scope at the first NAME of the first script it visits, and
+            // reports nothing between entering the script and that NAME.
+            t.get_scope();
+            if t.global_declares_all(names) {
+                t.traverse_script_suffix(script, parent, first, self);
+                return false;
+            }
+        }
+        self.should_traverse(t, script, parent)
+    }
+
     // port: VarCheck#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
         if n.is_name(t) {

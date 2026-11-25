@@ -138,6 +138,16 @@ pub struct CollectorCallback<'a, B: Behavior> {
     /// Rust-only: while the externs are traversed to make an `ExternsReferenceSummary`, whether
     /// every NAME seen in them resolved to a var declared in the externs.
     externs_refer_only_to_externs: Option<bool>,
+    /// Rust-only (performance divergence): see `skip_bundled_extern_prefixes`.
+    bundled_prefixes: BundledPrefixes,
+}
+
+/// Rust-only: whether the traversal leaves out the original statements of the bundled externs
+/// (`ReferenceCollector::skip_bundled_extern_prefixes`).
+enum BundledPrefixes {
+    Traverse,
+    Undecided,
+    Skip(IndexSet<NodeId>),
 }
 
 /// Rust-only (crates/DESIGN.md, "Performance divergences"): whether the NAMEs of the externs
@@ -233,6 +243,7 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
                 may_skip_externs: false,
                 skipped_externs: None,
                 externs_refer_only_to_externs: None,
+                bundled_prefixes: BundledPrefixes::Traverse,
             },
             scope_creator: creator,
         }
@@ -281,6 +292,21 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
     /// until the externs change.
     pub fn skip_externs_when_unread(&mut self) {
         self.callback.may_skip_externs = true;
+    }
+
+    /// Rust-only (crates/DESIGN.md, "Performance divergences"): lets `process(externs, root)` leave
+    /// out the original statements of the unchanged bundled extern scripts (Java traverses them),
+    /// for a behavior that observes only scope exits and treats a var those statements declare
+    /// as declared before every other reference (`Behavior::skip_bundled_extern_prefixes`). This
+    /// is decided when the first extern script is reached. It needs every bundled script
+    /// recorded, unchanged in syntax and names, ahead of every other script; every global name
+    /// they use (`extern_referenced_names`) declared by one of them; and no other script
+    /// declaring such a name. Their other names are parameters and function expression names
+    /// bound in their own extern scopes, and their functions have no names in their bodies, so
+    /// no other var has a reference in them. A behavior opting in must show, for the bundled
+    /// externs alone, that their references report nothing.
+    pub(crate) fn skip_bundled_extern_prefixes(&mut self) {
+        self.callback.bundled_prefixes = BundledPrefixes::Undecided;
     }
 
     /// Opt in for an internal traversal whose behavior only observes scope exits and whose
@@ -545,6 +571,14 @@ impl<B: Behavior> CollectorCallback<'_, B> {
             || self
                 .skipped_externs
                 .is_some_and(|externs| is_inside(compiler, function, externs))
+        {
+            return None;
+        }
+        // A skipped bundled script precedes every reference this traversal visits, so the full
+        // traversal has collected its hoisted functions by then.
+        if let BundledPrefixes::Skip(scripts) = &self.bundled_prefixes
+            && NodeUtil::get_enclosing_script(compiler, function)
+                .is_some_and(|script| scripts.contains(&script))
         {
             return None;
         }
@@ -1491,6 +1525,122 @@ impl<B: Behavior> CollectorCallback<'_, B> {
     }
 }
 
+/// Rust-only (performance divergence): the bundled extern scripts that
+/// `skip_bundled_extern_prefixes` may leave out, decided at the first script of the externs.
+fn skippable_bundled_prefixes(
+    t: &mut NodeTraversal<'_>,
+    first: NodeId,
+) -> Option<IndexSet<NodeId>> {
+    use crate::abstract_scope::AbstractScope;
+    use closure_rhino::node::SnapshotUse;
+
+    let externs = first.get_parent(t)?;
+    let compiler = t.get_compiler();
+    if compiler.get_externs_root() != Some(externs)
+        || externs.get_first_child(compiler) != Some(first)
+    {
+        return None;
+    }
+    let root = externs.get_next(compiler)?;
+    let mut scripts = IndexSet::default();
+    let mut names: Vec<&'static [&'static str]> = Vec::new();
+    let mut others: Vec<NodeId> = Vec::new();
+    let mut other_script = false;
+    let mut child = Some(first);
+    while let Some(script) = child {
+        child = script.get_next(t);
+        if !other_script
+            && let Some((facts, suffix)) =
+                t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames)
+            && let Some(referenced) = facts.extern_referenced_names
+        {
+            scripts.insert(script);
+            names.push(referenced);
+            let mut statement = suffix;
+            while let Some(s) = statement {
+                others.push(s);
+                statement = s.get_next(t);
+            }
+        } else if script.has_children(t) {
+            other_script = true;
+            others.push(script);
+        }
+        // An empty script (the synthetic externs at this point) has no references.
+    }
+    if scripts.is_empty() {
+        return None;
+    }
+    let global = t.get_scope();
+    let compiler = t.get_compiler();
+    let declared_in_scripts = |name: &JsString| {
+        global
+            .scope_data(compiler)
+            .vars
+            .get(name)
+            .copied()
+            .and_then(|v| v.get_name_node(compiler))
+            .and_then(|n| NodeUtil::get_enclosing_script(compiler, n))
+            .is_some_and(|script| scripts.contains(&script))
+    };
+    let mut checked: IndexSet<&'static str> = IndexSet::default();
+    for &name in names.iter().flat_map(|names| names.iter()) {
+        if checked.insert(name) && !declared_in_scripts(&JsString::from(name)) {
+            return None;
+        }
+    }
+    others.extend(root.children(compiler));
+    for n in others {
+        if !n
+            .get_first_child(compiler)
+            .is_some_and(|c| c.is_module_body(compiler))
+            && declares_any(compiler, n, &declared_in_scripts)
+        {
+            return None;
+        }
+    }
+    Some(scripts)
+}
+
+/// Rust-only: whether a declaration outside functions and classes in `n` (any NAME it may bind in
+/// the scope that holds `n`, or in a block or catch scope inside it) satisfies `declared`.
+fn declares_any(ast: &Ast, n: NodeId, declared: &dyn Fn(&JsString) -> bool) -> bool {
+    fn names_in(ast: &Ast, n: NodeId, declared: &dyn Fn(&JsString) -> bool) -> bool {
+        (n.is_name(ast) && declared(n.get_string_ref(ast)))
+            || n.children(ast).any(|c| names_in(ast, c, declared))
+    }
+    match n.get_token(ast) {
+        Token::FUNCTION | Token::CLASS => {
+            let name = n.get_first_child(ast).unwrap();
+            name.is_name(ast) && declared(name.get_string_ref(ast))
+        }
+        Token::VAR | Token::LET | Token::CONST => n.children(ast).any(|target| {
+            if target.is_name(ast) {
+                declared(target.get_string_ref(ast))
+                    || target.children(ast).any(|c| declares_any(ast, c, declared))
+            } else {
+                // A destructuring pattern and its initializer.
+                target
+                    .get_first_child(ast)
+                    .is_some_and(|p| names_in(ast, p, declared))
+                    || target
+                        .children(ast)
+                        .skip(1)
+                        .any(|c| declares_any(ast, c, declared))
+            }
+        }),
+        Token::CATCH => n.children(ast).enumerate().any(|(i, c)| {
+            if i == 0 {
+                names_in(ast, c, declared)
+            } else {
+                declares_any(ast, c, declared)
+            }
+        }),
+        Token::IMPORT => names_in(ast, n, declared),
+        Token::MODULE_BODY => false,
+        _ => n.children(ast).any(|c| declares_any(ast, c, declared)),
+    }
+}
+
 /// Rust-only: whether `n` is `root` or below it.
 fn is_inside(ast: &Ast, n: NodeId, root: NodeId) -> bool {
     let mut node = Some(n);
@@ -1512,6 +1662,36 @@ fn is_non_local_module_specifier_name(ast: &Ast, n: NodeId, parent: NodeId) -> b
 }
 
 impl<B: Behavior> Callback for CollectorCallback<'_, B> {
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        if matches!(self.bundled_prefixes, BundledPrefixes::Undecided) {
+            self.bundled_prefixes = match skippable_bundled_prefixes(t, script) {
+                Some(scripts) => {
+                    self.behavior.skip_bundled_extern_prefixes(&scripts);
+                    BundledPrefixes::Skip(scripts)
+                }
+                None => BundledPrefixes::Traverse,
+            };
+        }
+        if !self.should_traverse(t, script, parent) {
+            return false;
+        }
+        if let BundledPrefixes::Skip(scripts) = &self.bundled_prefixes
+            && scripts.contains(&script)
+        {
+            let (_, first) = t
+                .bundled_script_prefix(script, closure_rhino::node::SnapshotUse::SyntaxAndNames)
+                .expect("checked bundled script");
+            t.traverse_script_suffix(script, parent, first, self);
+            return false;
+        }
+        true
+    }
+
     fn traverse_block_children(
         &mut self,
         t: &mut NodeTraversal<'_>,
@@ -1551,6 +1731,16 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
             }
         }
 
+        // Rust-only (performance divergence): a traversal that starts at a function (the jump to
+        // a hoisted function, `maybe_jump_to_hoisted_function`) has not looked up its input yet,
+        // and the shortcuts below are taken only with a known input. The lookup has no other
+        // effect; without an input the ordinary visitor reports it at the first name, as before.
+        if parent.is_none()
+            && n.is_function(node_traversal)
+            && node_traversal.get_scope_root().is_some()
+        {
+            let _ = node_traversal.get_input();
+        }
         if n.is_function(node_traversal)
             && (parent.is_some() || node_traversal.get_scope_root().is_some())
             && self.narrow_scope.is_none()
@@ -1795,6 +1985,10 @@ pub trait Behavior {
         _added_reference: Option<&Reference>,
     ) {
     }
+
+    /// Rust-only: the collector left out the original statements of these bundled extern scripts
+    /// (`ReferenceCollector::skip_bundled_extern_prefixes`).
+    fn skip_bundled_extern_prefixes(&mut self, _scripts: &IndexSet<NodeId>) {}
 
     /// Called after we finish with a scope.
     // port: ReferenceCollector.Behavior#afterExitScope
