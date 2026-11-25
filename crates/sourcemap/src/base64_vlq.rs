@@ -77,6 +77,23 @@ impl Base64VLQ {
         }
         Ok(())
     }
+    // Rust-only (performance divergence): fast ASCII byte encoder for `SourceMapGeneratorV3`'s
+    // internal `MappingBuffer`, avoiding per-digit UTF-8 conversion and `fmt::Result` overhead.
+    #[inline]
+    pub(crate) fn encode_to_bytes(out: &mut Vec<u8>, value: i32) {
+        let mut value = Self::to_vlq_signed(value) as u32;
+        loop {
+            let mut digit = (value & (Self::VLQ_BASE_MASK as u32)) as usize;
+            value >>= Self::VLQ_BASE_SHIFT;
+            if value > 0 {
+                digit |= Self::VLQ_CONTINUATION_BIT as usize;
+            }
+            out.push(Base64::BASE64_MAP[digit]);
+            if value == 0 {
+                break;
+            }
+        }
+    }
     // port: Base64VLQ#decode
     pub fn decode(input: &mut dyn CharIterator) -> i32 {
         Self::decode_from(input)

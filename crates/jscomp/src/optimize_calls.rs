@@ -35,7 +35,6 @@ use closure_rhino::token::Token;
 use closure_rhino::{check_argument, check_not_null, check_state};
 use std::any::Any;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Java's `OptimizeCalls.CallGraphCompilerPass`. The compiler is passed explicitly
 /// (DESIGN.md section 6) instead of being a field of the pass.
@@ -655,15 +654,30 @@ impl ReferenceMapBuilder<'_> {
             .cloned()
             .unwrap_or_default();
 
-        // Collect ordered top-level units (scripts under `externs` and `root`) so large
-        // multi-script compilations can scan chunks in parallel while merging in exact AST order.
-        let mut units: Vec<NodeId> = Vec::new();
-        for tree in [externs, root] {
+        // Collect ordered top-level units (scripts under `externs` and `root`, or top-level
+        // statements of a single large non-module script) so multi-script and single-bundle
+        // compilations scan chunks in parallel while merging in exact AST order.
+        let mut units: Vec<(NodeId, Option<NodeId>)> = Vec::new();
+        for (is_externs, tree) in [(true, externs), (false, root)] {
             if tree.is_root(compiler) {
                 let mut child = tree.get_first_child(compiler);
                 while let Some(c) = child {
                     if !c.is_script(compiler) || consider_externs || !c.is_from_externs(compiler) {
-                        units.push(c);
+                        if !is_externs
+                            && c.is_script(compiler)
+                            && let Some(first) = c.get_first_child(compiler)
+                            && !first.is_module_body(compiler)
+                            && c.get_next(compiler).is_none()
+                            && units.is_empty()
+                        {
+                            let mut st = Some(first);
+                            while let Some(s) = st {
+                                units.push((s, Some(c)));
+                                st = s.get_next(compiler);
+                            }
+                        } else {
+                            units.push((c, None));
+                        }
                     }
                     child = c.get_next(compiler);
                 }
@@ -671,12 +685,12 @@ impl ReferenceMapBuilder<'_> {
                 || consider_externs
                 || !tree.is_from_externs(compiler)
             {
-                units.push(tree);
+                units.push((tree, None));
             }
         }
 
-        let threads = if compiler.ast.node_count() >= 50_000 {
-            parallel_thread_count(units.len(), 4, 8)
+        let threads = if compiler.ast.node_count() >= 20_000 {
+            parallel_thread_count(units.len(), 2, 8)
         } else {
             1
         };
@@ -698,7 +712,10 @@ impl ReferenceMapBuilder<'_> {
                     props: std::mem::take(&mut references.props),
                 };
                 let result = catch_unwind(AssertUnwindSafe(|| {
-                    for &unit in &units {
+                    for &(unit, script) in &units {
+                        if script.is_some() {
+                            builder.current_script = script;
+                        }
                         builder.walk_node(unit, true);
                     }
                 }));
@@ -723,8 +740,7 @@ impl ReferenceMapBuilder<'_> {
 
         let num_buckets = (threads * 2).min(units.len());
         let bucket_size = units.len().div_ceil(num_buckets);
-        let slices: Vec<&[NodeId]> = units.chunks(bucket_size).collect();
-        let next_bucket = AtomicUsize::new(0);
+        let slices: Vec<&[(NodeId, Option<NodeId>)]> = units.chunks(bucket_size).collect();
         type BucketMaps = (
             IndexMap<JsString, Vec<NodeId>>,
             IndexMap<JsString, Vec<NodeId>>,
@@ -735,56 +751,49 @@ impl ReferenceMapBuilder<'_> {
         {
             let ast: &Ast = &compiler.ast;
             let coding_convention = compiler.get_coding_convention();
-            std::thread::scope(|scope| {
-                let slice_ref = &slices;
-                let next_ref = &next_bucket;
-                let extern_props_ref = &*extern_props;
-                let global_names_ref = &global_names;
-                let mut handles = Vec::with_capacity(threads);
-                for _ in 0..threads {
-                    handles.push(scope.spawn(move || {
-                        let mut local = Vec::new();
-                        loop {
-                            let idx = next_ref.fetch_add(1, Ordering::Relaxed);
-                            if idx >= slice_ref.len() {
-                                break;
+            let extern_props_ref = &*extern_props;
+            let global_names_ref = &global_names;
+            let worker_batches = crate::parallel_parse::run_scoped_indexed(
+                "closure-optcalls",
+                threads,
+                &slices,
+                |_idx, slice| {
+                    let mut builder = ReferenceMapBuilder {
+                        ast,
+                        coding_convention,
+                        extern_props: extern_props_ref,
+                        global_names: global_names_ref,
+                        global_name_bloom,
+                        consider_externs,
+                        current_script: None,
+                        current_node: None,
+                        names: IndexMap::default(),
+                        props: IndexMap::default(),
+                    };
+                    let res = catch_unwind(AssertUnwindSafe(|| {
+                        for &(unit, script) in *slice {
+                            if script.is_some() {
+                                builder.current_script = script;
                             }
-                            let mut builder = ReferenceMapBuilder {
-                                ast,
-                                coding_convention,
-                                extern_props: extern_props_ref,
-                                global_names: global_names_ref,
-                                global_name_bloom,
-                                consider_externs,
-                                current_script: None,
-                                current_node: None,
-                                names: IndexMap::default(),
-                                props: IndexMap::default(),
-                            };
-                            let res = catch_unwind(AssertUnwindSafe(|| {
-                                for &unit in slice_ref[idx] {
-                                    builder.walk_node(unit, true);
-                                }
-                            }));
-                            let out = match res {
-                                Ok(()) => Ok((builder.names, builder.props)),
-                                Err(payload) => Err(WalkFailure {
-                                    script: builder.current_script,
-                                    node: builder.current_node,
-                                    payload,
-                                }),
-                            };
-                            local.push((idx, out));
+                            builder.walk_node(unit, true);
                         }
-                        local
                     }));
+                    let out = match res {
+                        Ok(()) => Ok((builder.names, builder.props)),
+                        Err(payload) => Err(WalkFailure {
+                            script: builder.current_script,
+                            node: builder.current_node,
+                            payload,
+                        }),
+                    };
+                    Some(out)
+                },
+            );
+            for batch in worker_batches {
+                for (idx, out) in batch {
+                    results[idx] = Some(out);
                 }
-                for handle in handles {
-                    for (idx, out) in handle.join().expect("optimize_calls worker panicked") {
-                        results[idx] = Some(out);
-                    }
-                }
-            });
+            }
         }
 
         for slot in results {

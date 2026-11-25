@@ -928,7 +928,7 @@ impl CompilerPass for CoalesceVariableNames {
         if !self.use_pseudo_names && compiler.get_coding_convention().export_tests_are_pure() {
             let mut functions = Vec::new();
             Self::collect_functions(&compiler.ast, root, &mut functions);
-            if crate::parallel_parse::parallel_thread_count(functions.len(), 600, 8) > 1 {
+            if crate::parallel_parse::parallel_thread_count(functions.len(), 64, 8) > 1 {
                 let is_es3 =
                     FeatureSet::ES3.contains(compiler.get_options().get_output_feature_set());
                 let can_continue_after_errors = compiler.get_options().can_continue_after_errors();
@@ -936,7 +936,7 @@ impl CompilerPass for CoalesceVariableNames {
                 let mut precomputed: IndexMap<NodeId, Option<FunctionColoring>> =
                     IndexMap::default();
                 let mut any_merges = false;
-                const CHUNK_SIZE: usize = 2048;
+                const CHUNK_SIZE: usize = 4096;
                 for chunk in functions.chunks(CHUNK_SIZE) {
                     let mut jobs = Vec::with_capacity(chunk.len());
                     for &fn_node in chunk {
@@ -1014,7 +1014,7 @@ impl CompilerPass for CoalesceVariableNames {
                             uninit_loop_lets,
                         });
                     }
-                    let threads = crate::parallel_parse::parallel_thread_count(jobs.len(), 256, 8);
+                    let threads = crate::parallel_parse::parallel_thread_count(jobs.len(), 64, 8);
                     if threads < 2 {
                         for job in jobs {
                             let fn_node = job.fn_node;
@@ -1025,44 +1025,14 @@ impl CompilerPass for CoalesceVariableNames {
                         }
                     } else {
                         let ast = &compiler.ast;
-                        let jobs_ref = &jobs;
-                        let next = std::sync::atomic::AtomicUsize::new(0);
                         let mut outputs: Vec<Option<CompactColoringOutput>> =
                             (0..jobs.len()).map(|_| None).collect();
-                        let worker_batches: Vec<Vec<(usize, CompactColoringOutput)>> =
-                            std::thread::scope(|scope| {
-                                let mut handles = Vec::with_capacity(threads);
-                                for _ in 0..threads {
-                                    let next = &next;
-                                    let handle = std::thread::Builder::new()
-                                        .name("closure-coalesce".into())
-                                        .stack_size(crate::compiler_executor::COMPILER_STACK_SIZE)
-                                        .spawn_scoped(scope, move || {
-                                            let mut local = Vec::new();
-                                            loop {
-                                                let idx = next.fetch_add(
-                                                    1,
-                                                    std::sync::atomic::Ordering::Relaxed,
-                                                );
-                                                let Some(job) = jobs_ref.get(idx) else {
-                                                    break;
-                                                };
-                                                if let Some(out) =
-                                                    job.run_borrowed(ast, can_continue_after_errors)
-                                                {
-                                                    local.push((idx, out));
-                                                }
-                                            }
-                                            local
-                                        })
-                                        .expect("spawn coalesce worker");
-                                    handles.push(handle);
-                                }
-                                handles
-                                    .into_iter()
-                                    .map(|h| h.join().expect("coalesce worker panicked"))
-                                    .collect()
-                            });
+                        let worker_batches = crate::parallel_parse::run_scoped_indexed(
+                            "closure-coalesce",
+                            threads,
+                            &jobs,
+                            |_idx, job| job.run_borrowed(ast, can_continue_after_errors),
+                        );
                         for batch in worker_batches {
                             for (idx, out) in batch {
                                 outputs[idx] = Some(out);

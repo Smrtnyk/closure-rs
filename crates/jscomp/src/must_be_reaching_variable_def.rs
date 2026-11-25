@@ -233,8 +233,27 @@ impl PreparedMustDef {
     ) -> Self {
         let mut escaped_var_ids = IndexSet::default();
         let mut param_var_ids = IndexSet::default();
+        let escaped_keys: Option<IndexSet<(JsString, NodeId)>> = if escaped.len() > 4 {
+            let mut set = IndexSet::default();
+            set.reserve(escaped.len());
+            for &e in escaped {
+                set.insert((e.get_name(compiler), e.get_scope_root(compiler)));
+            }
+            Some(set)
+        } else {
+            None
+        };
         for &var in all_vars_in_fn.values() {
-            if escaped.iter().any(|e| e.equals(compiler, var)) {
+            let is_esc = if escaped.is_empty() {
+                false
+            } else if escaped.contains(&var) {
+                true
+            } else if let Some(keys) = &escaped_keys {
+                keys.contains(&(var.get_name(compiler), var.get_scope_root(compiler)))
+            } else {
+                escaped.iter().any(|e| e.equals(compiler, var))
+            };
+            if is_esc {
                 escaped_var_ids.insert(var);
             }
             if var.is_param(compiler) {

@@ -185,11 +185,14 @@ impl PackedRows<&[u8]> {
         let lists = arena.property_lists(ast, source, map, &strings);
         // Packed property indices are one-based. Slot zero describes nodes without properties.
         let mut properties = Vec::with_capacity(lists.len() + 1);
-        properties.push((None, 0, None));
-        properties.extend(lists.into_iter().map(|head| {
-            let (mask, doc, _) = super::prop_list_summary(Some(&head));
-            (Some(head), mask, doc)
-        }));
+        properties.push((None, 0u64, None, 0i32, 0u8));
+        properties.extend(
+            lists
+                .into_iter()
+                .map(|head| super::split_inline_from_list(Some(head))),
+        );
+        let has_any_ct = properties.iter().any(|p| p.3 != 0);
+        let has_any_se = properties.iter().any(|p| p.4 != 0);
         let word = |row: &[u8; ROW_BYTES], at| u16::from_le_bytes([row[at], row[at + 1]]);
         let link =
             |local| NonZeroU32::new(u32::from(local)).map(|n| NodeId(n.checked_add(base).unwrap()));
@@ -238,6 +241,17 @@ impl PackedRows<&[u8]> {
         }));
         for (i, name) in self.original_names {
             NodeId::store_original_name(ast, map.node_at(i), Some(strings[name].clone()));
+        }
+        if has_any_ct || has_any_se {
+            for (i, row) in rows.iter().enumerate() {
+                let p = &properties[usize::from(word(row, 16))];
+                if p.3 != 0 {
+                    ast.set_inline_change_time(map.node_at(i).arena_index(), p.3);
+                }
+                if p.4 != 0 {
+                    ast.set_inline_side_effect_flags(map.node_at(i).arena_index(), p.4);
+                }
+            }
         }
         root
     }
@@ -345,7 +359,12 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
             properties: IndexMap::default(),
         };
         let mut nodes = Vec::with_capacity(ast.nodes.len());
-        for ((data, &links), cold) in ast.nodes.iter().zip(&ast.links).zip(&ast.cold) {
+        // Keep any newly materialized inline-property heads alive for the entire capture so
+        // `Encoder::properties` (keyed by `Arc::as_ptr`) never observes reused heap addresses.
+        let mut kept_materialized = Vec::new();
+        for (idx, ((data, &links), cold)) in
+            ast.nodes.iter().zip(&ast.links).zip(&ast.cold).enumerate()
+        {
             let kind = match &data.kind {
                 NodeKind::Node => Kind::Plain,
                 NodeKind::Number { number } => Kind::Number(*number),
@@ -356,6 +375,22 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
                     cooked: s.cooked.as_ref().map(|v| enc.string(v)),
                 },
             };
+            let node_id = NodeId(NonZeroU32::new(idx as u32 + 1).unwrap());
+            let full_head = ast.materialize_full_prop_list(node_id);
+            let head = match full_head {
+                Some(head) => {
+                    let id = enc.property(&head)?;
+                    if data
+                        .prop_list_head
+                        .as_ref()
+                        .is_none_or(|orig| !Arc::ptr_eq(&head, orig))
+                    {
+                        kept_materialized.push(head);
+                    }
+                    Some(id)
+                }
+                None => None,
+            };
             nodes.push(Node {
                 links,
                 lineno_charno: cold.lineno_charno,
@@ -364,10 +399,7 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
                     .original_name
                     .map(|id| enc.string(ast.original_name(id))),
                 kind,
-                head: match &data.prop_list_head {
-                    Some(head) => Some(enc.property(head)?),
-                    None => None,
-                },
+                head,
             });
         }
         Some(Self {
@@ -508,10 +540,28 @@ impl<F: super::OpaqueProp + Clone> AstSnapshot<F> {
             NodeId::store_original_name(ast, map.node_at(i), Some(string(name)));
         }
         let root = map.map(self.root);
-        let properties = self.property_lists(ast, source, map, &strings);
+        let properties: Vec<_> = self
+            .property_lists(ast, source, map, &strings)
+            .into_iter()
+            .map(|head| super::split_inline_from_list(Some(head)))
+            .collect();
         for (i, head) in heads.into_iter().enumerate() {
             if let Some(index) = head {
-                ast.set_props(map.node_at(i), Some(properties[index].clone()));
+                let (ref list, mask, ref doc, ct, se) = properties[index];
+                let dst = map.node_at(i);
+                let slot = dst.arena_index();
+                if let Some(info) = doc {
+                    ast.presence.note_jsdoc(info);
+                }
+                ast.nodes[slot].prop_list_head = list.clone();
+                ast.prop_masks[slot] = mask;
+                ast.jsdocs[slot] = doc.clone();
+                if ct != 0 {
+                    ast.set_inline_change_time(slot, ct);
+                }
+                if se != 0 {
+                    ast.set_inline_side_effect_flags(slot, se);
+                }
             }
         }
         root

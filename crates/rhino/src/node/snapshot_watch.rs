@@ -24,14 +24,18 @@ use std::any::Any;
 pub(super) const STRUCTURE: u8 = 1;
 pub(super) const NAME: u8 = 2;
 pub(super) const DOC: u8 = 4;
+pub(super) const PARAM_NAME: u8 = 8;
 
 /// Which inputs a build-time script record depends on. Syntax includes tokens, child
 /// links and property spellings. An identifier rename or a JSDoc replacement affects only
-/// consumers that inspect those values.
+/// consumers that inspect those values. `SyntaxAndNonParamNames` tolerates plain function
+/// parameter renames (such as `MakeDeclaredNamesUnique` during `Normalize`) while still
+/// invalidating on any global/body identifier rename.
 #[derive(Clone, Copy)]
 pub enum SnapshotUse {
     Syntax,
     SyntaxAndNames,
+    SyntaxAndNonParamNames,
     SyntaxAndJsDoc,
     SyntaxNamesAndJsDoc,
 }
@@ -119,7 +123,8 @@ impl Ast {
         }
         let mask = match usage {
             SnapshotUse::Syntax => STRUCTURE,
-            SnapshotUse::SyntaxAndNames => STRUCTURE | NAME,
+            SnapshotUse::SyntaxAndNames => STRUCTURE | NAME | PARAM_NAME,
+            SnapshotUse::SyntaxAndNonParamNames => STRUCTURE | NAME,
             SnapshotUse::SyntaxAndJsDoc => {
                 // Each parse may use the same out-of-range template bound. It contributes
                 // no fields while it is still the ordinary leaf QMARK.
@@ -134,7 +139,7 @@ impl Ast {
                 }
                 STRUCTURE | DOC
             }
-            SnapshotUse::SyntaxNamesAndJsDoc => STRUCTURE | NAME | DOC,
+            SnapshotUse::SyntaxNamesAndJsDoc => STRUCTURE | NAME | PARAM_NAME | DOC,
         };
         if range.changes & mask != 0 {
             return None;

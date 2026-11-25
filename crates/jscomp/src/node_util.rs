@@ -3258,15 +3258,11 @@ impl NodeUtil {
     }
 
     // port: NodeUtil#isLatin
+    #[inline]
     pub fn is_latin(s: &JsString) -> bool {
-        let len = s.length();
-        for index in 0..len {
-            let c = s.char_at(index);
-            if c > Self::LARGEST_BASIC_LATIN {
-                return false;
-            }
-        }
-        true
+        // Rust-only (performance divergence): iterate directly over the UTF-16 slice so LLVM can
+        // auto-vectorize the Latin check.
+        s.as_units().iter().all(|&c| c <= Self::LARGEST_BASIC_LATIN)
     }
 
     // port: NodeUtil#isValidSimpleName
@@ -5086,6 +5082,12 @@ impl NodeUtil {
         compiler: &mut AbstractCompiler,
         externs: NodeId,
     ) -> IndexSet<JsString> {
+        // Rust-only (performance divergence): read precomputed non-param variable names for
+        // unchanged bundled extern prefixes plus shallow scan of appended/synthetic global scripts,
+        // avoiding a full ReferenceCollector traversal of ~250K extern AST nodes.
+        if let Some(names) = Self::try_collect_bundled_extern_variable_names(compiler, externs) {
+            return names;
+        }
         use crate::{
             reference_collector::ReferenceCollector, syntactic_scope_creator::SyntacticScopeCreator,
         };
@@ -5103,6 +5105,93 @@ impl NodeUtil {
             }
         }
         externs_names
+    }
+
+    fn try_collect_bundled_extern_variable_names(
+        ast: &Ast,
+        externs: NodeId,
+    ) -> Option<IndexSet<JsString>> {
+        use crate::source_file::bundled_script::BundledScript;
+        use closure_rhino::node::SnapshotUse;
+
+        fn scan_simple_global_decls(ast: &Ast, n: NodeId, out: &mut IndexSet<JsString>) -> bool {
+            let token = n.get_token(ast);
+            match token {
+                Token::FUNCTION
+                | Token::CLASS
+                | Token::BLOCK
+                | Token::MODULE_BODY
+                | Token::CATCH
+                | Token::FOR
+                | Token::FOR_IN
+                | Token::FOR_OF
+                | Token::FOR_AWAIT_OF
+                | Token::SWITCH_BODY
+                | Token::DESTRUCTURING_LHS
+                | Token::IMPORT
+                | Token::EXPORT => return false,
+                Token::VAR | Token::LET | Token::CONST => {
+                    let mut child = n.get_first_child(ast);
+                    while let Some(c) = child {
+                        if !c.is_name(ast) || c.get_string_ref(ast).is_empty() {
+                            return false;
+                        }
+                        out.insert(c.get_string(ast));
+                        if let Some(init) = c.get_first_child(ast)
+                            && !scan_simple_global_decls(ast, init, out)
+                        {
+                            return false;
+                        }
+                        child = c.get_next(ast);
+                    }
+                    return true;
+                }
+                _ => {}
+            }
+            let mut child = n.get_first_child(ast);
+            while let Some(c) = child {
+                if !scan_simple_global_decls(ast, c, out) {
+                    return false;
+                }
+                child = c.get_next(ast);
+            }
+            true
+        }
+
+        let mut names = IndexSet::<JsString>::default();
+        let mut saw_bundled = false;
+        let mut script = externs.get_first_child(ast);
+        while let Some(s) = script {
+            if !s.is_script(ast) {
+                return None;
+            }
+            if let Some((facts, suffix)) =
+                ast.parsed_script_record::<BundledScript>(s, SnapshotUse::SyntaxAndNonParamNames)
+                && let Some(declared) = facts.declared_var_names
+            {
+                saw_bundled = true;
+                for &name in declared {
+                    names.insert(JsString::from(name));
+                }
+                let mut stmt = suffix;
+                while let Some(st) = stmt {
+                    if !scan_simple_global_decls(ast, st, &mut names) {
+                        return None;
+                    }
+                    stmt = st.get_next(ast);
+                }
+            } else {
+                let mut stmt = s.get_first_child(ast);
+                while let Some(st) = stmt {
+                    if !scan_simple_global_decls(ast, st, &mut names) {
+                        return None;
+                    }
+                    stmt = st.get_next(ast);
+                }
+            }
+            script = s.get_next(ast);
+        }
+        saw_bundled.then_some(names)
     }
     // port: NodeUtil#createSynthesizedExternsSymbol
     pub fn create_synthesized_externs_symbol(

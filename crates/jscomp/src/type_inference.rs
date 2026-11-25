@@ -316,6 +316,44 @@ impl<'a> TypeInference<'a> {
             node = param.get_next(compiler);
         }
     }
+
+    /// Rust-only (performance divergence): directly sets parameter AST `JSType`s on an unchanged
+    /// bundled extern plain function stub whose local `TypedScope` was omitted.
+    pub(crate) fn infer_extern_stub_parameter_nodes_only(
+        compiler: &mut AbstractCompiler,
+        function: NodeId,
+    ) {
+        let params = function.get_second_child(compiler).unwrap();
+        let mut node = params.get_first_child(compiler);
+        if node.is_none() {
+            return;
+        }
+        let function_type = function.get_jstype(compiler);
+        let registry = compiler.get_type_registry();
+        let unknown = registry.get_native_object_type(JSTypeNative::UNKNOWN_TYPE);
+        if let Some(signature) =
+            closure_jstype::js_type::to_maybe_function_type(registry, function_type)
+        {
+            let parameters = signature.get_parameters(registry);
+            let mut types = parameters.iter();
+            while let Some(param) = node {
+                let inferred = types
+                    .next()
+                    .map(|parameter| parameter.get_jstype())
+                    .or_else(|| param.get_jstype(compiler))
+                    .unwrap_or(unknown);
+                param.set_jstype(compiler, Some(inferred));
+                node = param.get_next(compiler);
+            }
+        } else {
+            while let Some(param) = node {
+                if param.get_jstype(compiler).is_none() {
+                    param.set_jstype(compiler, Some(unknown));
+                }
+                node = param.get_next(compiler);
+            }
+        }
+    }
 }
 
 impl<'a> InferenceTransfer<'a> {

@@ -20,7 +20,7 @@ use closure_rhino::js_string::JsString;
 
 pub struct Base64;
 impl Base64 {
-    const BASE64_MAP: &'static [u8] =
+    pub(crate) const BASE64_MAP: &'static [u8] =
         b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     const BASE64_DECODE_MAP: [i32; 256] = Self::init_decode_map();
 

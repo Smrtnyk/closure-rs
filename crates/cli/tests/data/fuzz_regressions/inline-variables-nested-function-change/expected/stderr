@@ -1,0 +1,5 @@
+in.js:7:12: WARNING - [JSC_UNREACHABLE_CODE] unreachable code
+  7|             var b = 0;
+                 ^^^^^^^^^^
+
+0 error(s), 1 warning(s)

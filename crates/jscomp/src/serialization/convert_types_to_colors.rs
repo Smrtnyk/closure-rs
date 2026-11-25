@@ -62,8 +62,14 @@ impl RemoveTypes {
     // port: ConvertTypesToColors.RemoveTypes#visit
     #[inline]
     fn visit_node(ast: &mut Ast, n: NodeId, jsdoc_cache: &mut IndexMap<u32, Arc<JSDocInfo>>) {
+        use closure_rhino::node::Prop;
+        const TYPE_DECL_MASK: u64 = (1 << Prop::TYPE_BEFORE_CAST as u8)
+            | (1 << Prop::DECLARED_TYPE_EXPR as u8)
+            | (1 << Prop::TYPEDEF_TYPE as u8);
         n.set_jstype(ast, None);
-        n.clear_type_declaration_props(ast);
+        if ast.node_has_any_prop(n, TYPE_DECL_MASK) {
+            n.clear_type_declaration_props(ast);
+        }
 
         if let Some(jsdoc) = n.get_jsdoc_info_ref(ast) {
             // Rust-only (performance divergence): drop JSDocs with no optimization-relevant
@@ -102,10 +108,36 @@ impl RemoveTypes {
     }
 
     /// Rust-only (performance divergence): walk `n` directly in post-order without building a
-    /// `NodeTraversal`.
+    /// `NodeTraversal`, skipping nodes with no types, type-declaration props, or JSDoc via one
+    /// dense bitmask check when the arena is untyped.
     fn traverse(ast: &mut Ast, n: NodeId) {
         let mut jsdoc_cache = IndexMap::default();
-        Self::traverse_with_cache(ast, n, &mut jsdoc_cache);
+        if ast.has_types() {
+            Self::traverse_with_cache(ast, n, &mut jsdoc_cache);
+        } else {
+            Self::traverse_untyped_with_cache(ast, n, &mut jsdoc_cache);
+        }
+    }
+
+    fn traverse_untyped_with_cache(
+        ast: &mut Ast,
+        n: NodeId,
+        jsdoc_cache: &mut IndexMap<u32, Arc<JSDocInfo>>,
+    ) {
+        use closure_rhino::node::Prop;
+        const RELEVANT_MASK: u64 = (1 << Prop::JSDOC_INFO as u8)
+            | (1 << Prop::TYPE_BEFORE_CAST as u8)
+            | (1 << Prop::DECLARED_TYPE_EXPR as u8)
+            | (1 << Prop::TYPEDEF_TYPE as u8);
+        let mut child = n.get_first_child(ast);
+        while let Some(c) = child {
+            let next = c.get_next(ast);
+            Self::traverse_untyped_with_cache(ast, c, jsdoc_cache);
+            child = next;
+        }
+        if ast.node_has_any_prop(n, RELEVANT_MASK) {
+            Self::visit_node(ast, n, jsdoc_cache);
+        }
     }
 
     fn traverse_with_cache(

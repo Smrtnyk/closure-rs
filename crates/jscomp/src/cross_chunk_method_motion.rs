@@ -815,7 +815,16 @@ impl CompilerPass for CrossChunkMethodMotion {
     fn process(&mut self, compiler: &mut AbstractCompiler, extern_root: NodeId, root: NodeId) {
         // If there are < 2 chunks, then we will never move anything,
         // so we're done.
-        if compiler.get_chunk_graph().unwrap().get_chunk_count() > 1 {
+        // Rust-only (performance divergence): ignore empty chunks (such as the empty `$weak$`
+        // chunk) — with at most one populated chunk, every declaration and reference shares that
+        // chunk so no method can move deeper.
+        let graph = compiler.get_chunk_graph().unwrap();
+        let populated_chunks = graph
+            .get_all_chunks()
+            .iter()
+            .filter(|chunk| !chunk.get_inputs().is_empty())
+            .count();
+        if graph.get_chunk_count() > 1 && populated_chunks > 1 {
             self.analyzer.process(compiler, extern_root, root);
             let all_name_info = self.analyzer.get_all_name_info();
             self.move_methods(compiler, all_name_info);

@@ -1,0 +1,14 @@
+{
+ "argv": [
+  "--compilation_level=SIMPLE",
+  "--js",
+  "in.js",
+  "--js_output_file",
+  "out/out.js"
+ ],
+ "origin": "fz-d391fe746448 (seed 7601): InlineVariables skipped an unchanged top-level function although a function nested in it had changed since the last run; a nested function is a change scope of its own",
+ "exit_code": 0,
+ "outputs": [
+  "out/out.js"
+ ]
+}

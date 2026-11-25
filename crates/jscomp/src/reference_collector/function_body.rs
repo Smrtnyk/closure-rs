@@ -254,6 +254,16 @@ impl FunctionReferenceCache {
             .is_some_and(|(_, sites)| sites.is_some())
     }
 
+    pub(crate) fn cached_sites_with_stamp(
+        &self,
+        body: NodeId,
+        stamp: u32,
+    ) -> Option<Arc<FunctionBodySites>> {
+        self.bodies
+            .get(&body)
+            .and_then(|(old_stamp, sites)| (*old_stamp == stamp).then(|| sites.clone()).flatten())
+    }
+
     pub(crate) fn sites(
         compiler: &mut AbstractCompiler,
         body: NodeId,
@@ -270,6 +280,58 @@ impl FunctionReferenceCache {
             .bodies
             .insert(body, (stamp, sites.clone()));
         sites
+    }
+
+    /// Rust-only (performance divergence): finds uncached or stale non-empty function bodies under
+    /// `root` and computes their `FunctionBodySites` in parallel on `&Ast` before traversal begins.
+    pub(crate) fn precompute_parallel(compiler: &mut AbstractCompiler, root: NodeId) {
+        fn collect_dirty(compiler: &mut AbstractCompiler, n: NodeId, out: &mut Vec<(NodeId, u32)>) {
+            if n.is_function(compiler)
+                && let Some(body) = n.get_last_child(compiler)
+                && body.is_block(compiler)
+                && body.has_children(compiler)
+            {
+                let stamp = SyntacticScopeCache::subtree_stamp(compiler, body);
+                let up_to_date = compiler
+                    .function_reference_sites
+                    .bodies
+                    .get(&body)
+                    .is_some_and(|(old_stamp, _)| *old_stamp == stamp);
+                if !up_to_date {
+                    out.push((body, stamp));
+                }
+            }
+            let mut child = n.get_first_child(compiler);
+            while let Some(c) = child {
+                collect_dirty(compiler, c, out);
+                child = c.get_next(compiler);
+            }
+        }
+
+        let mut dirty = Vec::new();
+        collect_dirty(compiler, root, &mut dirty);
+        let threads = crate::parallel_parse::parallel_thread_count(dirty.len(), 64, 8);
+        if threads < 2 {
+            return;
+        }
+        let ast = &compiler.ast;
+        let batches = crate::parallel_parse::run_scoped_indexed(
+            "closure-refsites",
+            threads,
+            &dirty,
+            |_idx, &(body, stamp)| {
+                let sites = FunctionBodySites::collect(ast, body).map(Arc::new);
+                Some((body, stamp, sites))
+            },
+        );
+        for batch in batches {
+            for (_idx, (body, stamp, sites)) in batch {
+                compiler
+                    .function_reference_sites
+                    .bodies
+                    .insert(body, (stamp, sites));
+            }
+        }
     }
 }
 

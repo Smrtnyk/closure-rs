@@ -81,10 +81,18 @@ pub struct EncodedWriter<'a> {
 /// Java Appendable accepts UTF-16 text before a Writer applies its charset.
 pub trait JavaAppendable: Write {
     fn append(&mut self, value: &JsString) -> io::Result<()>;
+    /// Rust-only (performance divergence): writes valid UTF-8 text without buffering the entire
+    /// output into an intermediate string or re-validating UTF-8 on flush.
+    fn write_utf8_str(&mut self, value: &str) -> io::Result<()> {
+        self.write_all(value.as_bytes())
+    }
 }
 impl<T: JavaAppendable + ?Sized> JavaAppendable for Box<T> {
     fn append(&mut self, value: &JsString) -> io::Result<()> {
         (**self).append(value)
+    }
+    fn write_utf8_str(&mut self, value: &str) -> io::Result<()> {
+        (**self).write_utf8_str(value)
     }
 }
 impl JavaAppendable for Vec<u8> {
@@ -156,11 +164,135 @@ impl JavaAppendable for EncodedWriter<'_> {
         if self.closed {
             return Err(io::Error::other("Stream closed"));
         }
-        self.pending_chars
-            .extend(String::from_utf8_lossy(&self.pending).encode_utf16());
-        self.pending.clear();
-        self.pending_chars.extend_from_slice(value.as_units());
+        if !self.pending.is_empty() {
+            self.pending_chars
+                .extend(String::from_utf8_lossy(&self.pending).encode_utf16());
+            self.pending.clear();
+        }
+        let units = value.as_units();
+        // Rust-only (performance divergence): flush large UTF-16 outputs in bounded chunks so
+        // multi-megabyte JS outputs do not double-buffer the full file in `pending_chars`.
+        if self.pending_chars.is_empty() && units.len() >= 65_536 {
+            let mut offset = 0;
+            while offset < units.len() {
+                let mut end = (offset + 65_536).min(units.len());
+                if end < units.len() && (0xd800..=0xdbff).contains(&units[end - 1]) {
+                    end += 1;
+                }
+                self.stream.write_all(&encode_units(
+                    &units[offset..end],
+                    self.charset,
+                    self.emit_bom,
+                ))?;
+                self.emit_bom = false;
+                offset = end;
+            }
+            return Ok(());
+        }
+        self.pending_chars.extend_from_slice(units);
+        if self.pending_chars.len() >= 65_536
+            && self
+                .pending_chars
+                .last()
+                .copied()
+                .is_none_or(|u| !(0xd800..=0xdbff).contains(&u))
+        {
+            self.stream.write_all(&encode_units(
+                &self.pending_chars,
+                self.charset,
+                self.emit_bom,
+            ))?;
+            self.pending_chars.clear();
+            self.emit_bom = false;
+        }
         Ok(())
+    }
+
+    fn write_utf8_str(&mut self, value: &str) -> io::Result<()> {
+        if self.closed {
+            return Err(io::Error::other("Stream closed"));
+        }
+        if self.charset == Charset::UTF_8 && self.pending_chars.is_empty() {
+            if !self.pending.is_empty() {
+                let text = String::from_utf8_lossy(&self.pending);
+                self.stream.write_all(text.as_bytes())?;
+                self.pending.clear();
+            }
+            if !value.is_empty() {
+                self.stream.write_all(value.as_bytes())?;
+                self.emit_bom = false;
+            }
+            return Ok(());
+        }
+        self.write_all(value.as_bytes())
+    }
+}
+
+/// Rust-only (performance divergence): streams `fmt::Write` output (such as V3 source maps) into an
+/// `OutputWriter` in 64 KiB chunks instead of materializing an entire multi-megabyte `String`.
+pub struct StreamingFmtWriter<'a, W: JavaAppendable + ?Sized> {
+    out: &'a mut W,
+    buf: String,
+    io_err: Option<io::Error>,
+}
+
+impl<'a, W: JavaAppendable + ?Sized> StreamingFmtWriter<'a, W> {
+    const CHUNK_BYTES: usize = 64 * 1024;
+
+    pub fn new(out: &'a mut W) -> Self {
+        Self {
+            out,
+            buf: String::with_capacity(Self::CHUNK_BYTES),
+            io_err: None,
+        }
+    }
+
+    fn flush_buf(&mut self) -> std::fmt::Result {
+        if self.buf.is_empty() {
+            return Ok(());
+        }
+        match self.out.write_utf8_str(&self.buf) {
+            Ok(()) => {
+                self.buf.clear();
+                Ok(())
+            }
+            Err(err) => {
+                self.io_err = Some(err);
+                Err(std::fmt::Error)
+            }
+        }
+    }
+
+    pub fn finish(mut self) -> io::Result<()> {
+        if let Some(err) = self.io_err.take() {
+            return Err(err);
+        }
+        if !self.buf.is_empty() {
+            self.out.write_utf8_str(&self.buf)?;
+            self.buf.clear();
+        }
+        Ok(())
+    }
+}
+
+impl<W: JavaAppendable + ?Sized> std::fmt::Write for StreamingFmtWriter<'_, W> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        if s.len() >= Self::CHUNK_BYTES {
+            self.flush_buf()?;
+            match self.out.write_utf8_str(s) {
+                Ok(()) => Ok(()),
+                Err(err) => {
+                    self.io_err = Some(err);
+                    Err(std::fmt::Error)
+                }
+            }
+        } else {
+            if self.buf.len() + s.len() > Self::CHUNK_BYTES {
+                self.flush_buf()?;
+            }
+            self.buf.push_str(s);
+            Ok(())
+        }
     }
 }
 impl OutputWriter for EncodedWriter<'_> {

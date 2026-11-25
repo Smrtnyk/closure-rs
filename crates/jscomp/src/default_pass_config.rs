@@ -742,7 +742,12 @@ impl DefaultPassConfig {
                         let global_root = src_root.get_parent(compiler).unwrap();
 
                         let reverse_interpreter = compiler.get_reverse_abstract_interpreter();
-                        let scope_creator = compiler.take_typed_scope_creator();
+                        let mut scope_creator = compiler.take_typed_scope_creator();
+                        // Rust-only (performance divergence): when detailed source info and debug
+                        // logging are off, empty bundled extern stubs need no local TypedScopes.
+                        let omit_stubs = !compiler.get_options().preserves_detailed_source_info()
+                            && !compiler.is_debug_logging_enabled();
+                        scope_creator.set_omit_empty_extern_stub_scopes(omit_stubs);
                         let mut inference_pass = crate::type_inference_pass::TypeInferencePass::new(
                             compiler,
                             reverse_interpreter,

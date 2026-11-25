@@ -57,6 +57,16 @@ const THREAD_NAME: &str = "closure-preparse";
 static PARALLEL_ENABLED: std::sync::LazyLock<bool> =
     std::sync::LazyLock::new(|| std::env::var("CLOSURE_RS_PARALLEL").as_deref() != Ok("off"));
 
+/// Rust-only (performance divergence): whether spawning one background helper thread is permitted
+/// by `CLOSURE_RS_PARALLEL`, CPU count, and the busy-machine guard.
+pub(crate) fn can_spawn_background_worker() -> bool {
+    if !*PARALLEL_ENABLED {
+        return false;
+    }
+    let cpus = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+    cpus >= 2 && !machine_is_busy(cpus)
+}
+
 /// Rust-only (performance divergence): worker thread budget for scoped intra-pass parallelism,
 /// scaled by `work_items / min_per_thread` and using the same busy-machine guard as `Preparser`.
 pub(crate) fn parallel_thread_count(
@@ -74,6 +84,106 @@ pub(crate) fn parallel_thread_count(
     } else {
         threads
     }
+}
+
+/// Rust-only (performance divergence): executes `work(index, item)` across up to `threads` scoped
+/// worker threads with atomic work stealing and `COMPILER_STACK_SIZE` stacks, collecting `Some`
+/// results per worker. Falls back to inline execution when `threads < 2` or `items.len() < 2`.
+pub(crate) fn run_scoped_indexed<T: Sync, R: Send>(
+    thread_name: &str,
+    threads: usize,
+    items: &[T],
+    work: impl Fn(usize, &T) -> Option<R> + Sync,
+) -> Vec<Vec<(usize, R)>> {
+    if items.is_empty() {
+        return Vec::new();
+    }
+    let worker_count = threads.min(items.len());
+    if worker_count < 2 {
+        let mut local = Vec::new();
+        for (idx, item) in items.iter().enumerate() {
+            if let Some(res) = work(idx, item) {
+                local.push((idx, res));
+            }
+        }
+        return vec![local];
+    }
+    let next = AtomicUsize::new(0);
+    let work_ref = &work;
+    std::thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(worker_count);
+        for _ in 0..worker_count {
+            let next = &next;
+            let handle = std::thread::Builder::new()
+                .name(thread_name.into())
+                .stack_size(crate::compiler_executor::COMPILER_STACK_SIZE)
+                .spawn_scoped(scope, move || {
+                    let mut local = Vec::new();
+                    loop {
+                        let idx = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(item) = items.get(idx) else {
+                            break;
+                        };
+                        if let Some(res) = work_ref(idx, item) {
+                            local.push((idx, res));
+                        }
+                    }
+                    local
+                })
+                .expect("spawn scoped worker");
+            handles.push(handle);
+        }
+        handles
+            .into_iter()
+            .map(|h| h.join().expect("scoped worker panicked"))
+            .collect()
+    })
+}
+
+/// Rust-only (performance divergence): executes `work(index, item)` across up to `threads` scoped
+/// worker threads with atomic work stealing and `COMPILER_STACK_SIZE` stacks. Falls back to inline
+/// execution when `threads < 2` or `items.len() < 2`.
+pub(crate) fn run_scoped_for_each<T: Sync>(
+    thread_name: &str,
+    threads: usize,
+    items: &[T],
+    work: impl Fn(usize, &T) + Sync,
+) {
+    if items.is_empty() {
+        return;
+    }
+    let worker_count = threads.min(items.len());
+    if worker_count < 2 {
+        for (idx, item) in items.iter().enumerate() {
+            work(idx, item);
+        }
+        return;
+    }
+    let next = AtomicUsize::new(0);
+    let work_ref = &work;
+    std::thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(worker_count);
+        for _ in 0..worker_count {
+            let next = &next;
+            let handle = std::thread::Builder::new()
+                .name(thread_name.into())
+                .stack_size(crate::compiler_executor::COMPILER_STACK_SIZE)
+                .spawn_scoped(scope, move || {
+                    loop {
+                        let idx = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(item) = items.get(idx) else {
+                            break;
+                        };
+                        work_ref(idx, item);
+                    }
+                })
+                .expect("spawn scoped worker");
+            handles.push(handle);
+        }
+        for h in handles {
+            h.join().expect("scoped worker panicked");
+        }
+    });
 }
 
 /// The parsing of a compilation's inputs on worker threads (`start` ... `finish`).

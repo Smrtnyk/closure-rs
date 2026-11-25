@@ -33,11 +33,24 @@ pub(crate) const CHECK_NON_NULLABLE: u8 = 16;
 /// An explicitly typed field on the prototype of a simple global name.
 pub(crate) const PROTOTYPE_FIELD: u8 = 32;
 
-// The high two bits encode common closed property annotations in the embedded externs.
+// The high two bits encode common closed property annotations in the embedded externs
+// (only set when `kind(record) == PROPERTY`, i.e., `record & HAS_FUNCTION == 0`).
 pub(crate) const NATIVE_NUMBER: u8 = 0x40;
 pub(crate) const NATIVE_STRING: u8 = 0x80;
 pub(crate) const NATIVE_BOOLEAN: u8 = 0xc0;
 pub(crate) const NATIVE_MASK: u8 = 0xc0;
+
+/// Set alongside [`HAS_FUNCTION`] when the empty function stub has distinct plain `NAME`
+/// parameters with no JSDoc, no implicit variable names (`arguments`, etc.), no collision with
+/// its own function name, and no collision with any `@template` / `@typeTransformation` name
+/// in the bundled externs, so `TypeInferencePass` can type its parameters directly without
+/// building function/block `TypedScope`s when detailed source info is not preserved.
+pub(crate) const PLAIN_STUB_NO_SCOPE: u8 = 0x40;
+
+#[inline]
+pub(crate) fn is_plain_stub_no_scope(record: u8) -> bool {
+    (record & (HAS_FUNCTION | PLAIN_STUB_NO_SCOPE)) == (HAS_FUNCTION | PLAIN_STUB_NO_SCOPE)
+}
 
 pub(crate) fn closed_annotation(ast: &Ast, root: NodeId) -> u8 {
     if !root.is_string_lit(ast) || root.has_children(ast) {

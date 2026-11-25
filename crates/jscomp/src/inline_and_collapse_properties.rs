@@ -1819,6 +1819,13 @@ impl InlineAliases {
 
     // port: InlineAndCollapseProperties.InlineAliases#process
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
+        // Rust-only (performance divergence): `AliasesCollector` only collects explicitly
+        // declared const aliases (`const a = b` or `/** @const */ a = b`) in global scope.
+        // Pre-scan global-scope statements of `root` before building `GlobalNamespace` over both
+        // externs and sources, and skip `AliasesInliner` when no alias was collected.
+        if !Self::has_candidate_global_alias(compiler, root) {
+            return;
+        }
         self.namespace = Some(GlobalNamespace::new(compiler, externs, root));
         NodeTraversal::traverse_roots(
             compiler,
@@ -1826,12 +1833,69 @@ impl InlineAliases {
             externs,
             root,
         );
+        if self.aliases.is_empty() {
+            return;
+        }
         NodeTraversal::traverse_roots(
             compiler,
             &mut ExternsSkippingCallback::new(AliasesInliner { outer: self }),
             externs,
             root,
         );
+    }
+
+    fn has_candidate_global_alias(ast: &closure_rhino::node::Ast, n: NodeId) -> bool {
+        match n.get_token(ast) {
+            Token::FUNCTION
+            | Token::CLASS
+            | Token::MODULE_BODY
+            | Token::FOR
+            | Token::FOR_IN
+            | Token::FOR_OF
+            | Token::FOR_AWAIT_OF
+            | Token::SWITCH
+            | Token::CATCH => return false,
+            Token::BLOCK if NodeUtil::creates_block_scope(ast, n) => return false,
+            Token::VAR | Token::CONST | Token::LET if n.has_one_child(ast) => {
+                let first = n.get_first_child(ast).unwrap();
+                let info = NodeUtil::get_best_jsdoc_info(ast, first);
+                let declared_const =
+                    n.is_const(ast) || info.as_deref().is_some_and(|i| i.has_const_annotation());
+                if declared_const
+                    && info.as_deref().is_none_or(|i| !i.has_type_information())
+                    && first.is_qualified_name(ast)
+                    && NodeUtil::get_r_value_of_l_value(ast, first)
+                        .is_some_and(|rhs| rhs.is_qualified_name(ast))
+                {
+                    return true;
+                }
+            }
+            Token::EXPR_RESULT => {
+                if let Some(assign) = n.get_first_child(ast)
+                    && assign.is_assign(ast)
+                {
+                    let info = assign.get_jsdoc_info_ref(ast);
+                    if info.is_some_and(|i| i.has_const_annotation() && !i.has_type_information()) {
+                        let lhs = assign.get_first_child(ast).unwrap();
+                        if lhs.is_qualified_name(ast)
+                            && NodeUtil::get_r_value_of_l_value(ast, lhs)
+                                .is_some_and(|rhs| rhs.is_qualified_name(ast))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        let mut child = n.get_first_child(ast);
+        while let Some(c) = child {
+            if Self::has_candidate_global_alias(ast, c) {
+                return true;
+            }
+            child = c.get_next(ast);
+        }
+        false
     }
 }
 

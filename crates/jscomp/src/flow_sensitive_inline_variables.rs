@@ -625,7 +625,7 @@ impl CompilerPass for FlowSensitiveInlineVariables {
             let mut scope_creator = SyntacticScopeCreator::new();
             let mut scope_memo = IndexMap::default();
             let use_parallel =
-                crate::parallel_parse::parallel_thread_count(candidates.len(), 500, 8) > 1;
+                crate::parallel_parse::parallel_thread_count(candidates.len(), 64, 8) > 1;
             if !use_parallel {
                 for (fn_node, body, analysis, is_leaf, start_stamp) in candidates {
                     let fn_scope = ensure_ancestor_scope(
@@ -670,7 +670,7 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                 }
                 return;
             }
-            const CHUNK_SIZE: usize = 2048;
+            const CHUNK_SIZE: usize = 4096;
             for chunk in candidates.chunks(CHUNK_SIZE) {
                 let mut jobs = Vec::with_capacity(chunk.len());
                 for &(fn_node, body, analysis, is_leaf, start_stamp) in chunk {
@@ -732,7 +732,7 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                         exported_local_names,
                     });
                 }
-                let threads = crate::parallel_parse::parallel_thread_count(jobs.len(), 256, 8);
+                let threads = crate::parallel_parse::parallel_thread_count(jobs.len(), 64, 8);
                 if threads < 2 {
                     for job in jobs {
                         let fn_scope = ensure_ancestor_scope(
@@ -768,39 +768,19 @@ impl CompilerPass for FlowSensitiveInlineVariables {
                     continue;
                 }
                 let ast = &compiler.ast;
-                let jobs_ref = &jobs;
                 let might_inline: Vec<std::sync::atomic::AtomicBool> = (0..jobs.len())
                     .map(|_| std::sync::atomic::AtomicBool::new(false))
                     .collect();
-                let might_inline_ref = &might_inline;
-                let next = std::sync::atomic::AtomicUsize::new(0);
-                std::thread::scope(|scope| {
-                    let mut handles = Vec::with_capacity(threads);
-                    for _ in 0..threads {
-                        let next = &next;
-                        let handle = std::thread::Builder::new()
-                            .name("closure-fsiv".into())
-                            .stack_size(crate::compiler_executor::COMPILER_STACK_SIZE)
-                            .spawn_scoped(scope, move || {
-                                loop {
-                                    let idx =
-                                        next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                                    let Some(job) = jobs_ref.get(idx) else {
-                                        break;
-                                    };
-                                    if job.might_inline(ast, can_continue_after_errors) {
-                                        might_inline_ref[idx]
-                                            .store(true, std::sync::atomic::Ordering::Relaxed);
-                                    }
-                                }
-                            })
-                            .expect("spawn fsiv worker");
-                        handles.push(handle);
-                    }
-                    for h in handles {
-                        h.join().expect("fsiv worker panicked");
-                    }
-                });
+                crate::parallel_parse::run_scoped_for_each(
+                    "closure-fsiv",
+                    threads,
+                    &jobs,
+                    |idx, job| {
+                        if job.might_inline(ast, can_continue_after_errors) {
+                            might_inline[idx].store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                    },
+                );
                 let mut survivors = Vec::new();
                 for (job, flag) in jobs.into_iter().zip(might_inline) {
                     if flag.into_inner() {

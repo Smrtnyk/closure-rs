@@ -336,6 +336,12 @@ pub struct TypedScopeCreator {
     provided_names_from_call: IndexMap<NodeId, Vec<ProvidedName>>,
 
     stage: Stage,
+
+    /// Rust-only (performance divergence): when true (normal compiles where detailed source info
+    /// and debug logging are disabled), omit creating per-function/block `TypedScope`s and
+    /// `FirstOrderFunctionAnalyzer` entries for unchanged bundled extern plain function stubs;
+    /// `TypeInferencePass` types their parameter AST nodes directly after type resolution.
+    omit_empty_extern_stub_scopes: bool,
 }
 
 impl TypedScopeCreator {
@@ -391,11 +397,20 @@ impl TypedScopeCreator {
             undeclared_names_for_closure: IndexSet::<_>::default(),
             provided_names_from_call: IndexMap::<_, _>::default(),
             stage: Stage::BUILDING,
+            omit_empty_extern_stub_scopes: false,
         };
 
         // Reset state to empty collections.
         creator.clear_common_state();
         creator
+    }
+
+    pub(crate) fn set_omit_empty_extern_stub_scopes(&mut self, omit: bool) {
+        self.omit_empty_extern_stub_scopes = omit;
+    }
+
+    pub(crate) fn omit_empty_extern_stub_scopes(&self) -> bool {
+        self.omit_empty_extern_stub_scopes
     }
 
     // port: TypedScopeCreator#report
@@ -4106,6 +4121,9 @@ impl AbstractScopeBuilder<'_> {
         info: Option<&JSDocInfo>,
         record: u8,
     ) -> Option<TypeId> {
+        if record & declarations::HAS_FUNCTION != 0 {
+            return None;
+        }
         let kind = record & declarations::NATIVE_MASK;
         let native = match kind {
             declarations::NATIVE_NUMBER => JSTypeNative::NUMBER_TYPE,
@@ -6073,6 +6091,8 @@ impl<'a> FirstOrderFunctionAnalyzer<'a> {
                 child = statement.get_next(t);
                 if record == declarations::OTHER
                     || (record & declarations::HAS_FUNCTION != 0
+                        && !(self.creator.omit_empty_extern_stub_scopes
+                            && declarations::is_plain_stub_no_scope(record))
                         && !self.record_stub(
                             t,
                             declarations::initializer(t, statement, record).unwrap(),

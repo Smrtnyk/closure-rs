@@ -506,18 +506,23 @@ impl crate::source_map_consumer_v3::EntryVisitor for ConsumerEntryVisitor<'_> {
 #[derive(Default)]
 struct MappingNames {
     interned: IndexMap<JsString, i32>,
+    emitted_ids: Vec<i32>,
     emitted: Vec<i32>,
 }
 impl MappingNames {
     fn clear(&mut self) {
         self.interned.clear();
+        self.emitted_ids.clear();
         self.emitted.clear();
     }
 
     fn intern(&mut self, name: JsString) -> i32 {
         let entry = self.interned.entry(name);
         let index = entry.index();
-        entry.or_insert(UNMAPPED);
+        if index == self.emitted_ids.len() {
+            entry.or_insert(UNMAPPED);
+            self.emitted_ids.push(UNMAPPED);
+        }
         i32::try_from(index).expect("too many source map names")
     }
 
@@ -527,12 +532,13 @@ impl MappingNames {
 
     // port: SourceMapGeneratorV3#getSourceId
     // port: SourceMapGeneratorV3#getNameId
+    #[inline]
     fn emitted_id(
         &mut self,
         index: i32,
         output: &mut MappingBuffer<'_, '_>,
     ) -> Result<i32, fmt::Error> {
-        let (_, id) = self.interned.get_index_mut(index as usize).unwrap();
+        let id = &mut self.emitted_ids[index as usize];
         if *id == UNMAPPED {
             // With a fallible Appendable, earlier segment bytes must reach the writer before it
             // can observe a new name on a subsequent append.
@@ -696,23 +702,25 @@ impl<'a> MappingTraversal<'a> {
         Ok(())
     }
 }
-// Rust-only (performance divergence): collect ASCII mapping digits in bounded runs. The
+// Rust-only (performance divergence): collect ASCII mapping bytes in bounded runs. The
 // underlying Appendable receives whole segments in one write.
 struct MappingBuffer<'a, 'out> {
     dest: &'a mut JavaAppendable<'out>,
-    text: String,
+    bytes: Vec<u8>,
 }
 impl MappingBuffer<'_, '_> {
     fn flush(&mut self) -> fmt::Result {
-        if !self.text.is_empty() {
-            self.dest.write_str(&self.text)?;
-            self.text.clear();
+        if !self.bytes.is_empty() {
+            let s = std::str::from_utf8(&self.bytes).expect("mapping buffer is ASCII");
+            self.dest.write_str(s)?;
+            self.bytes.clear();
         }
         Ok(())
     }
 
+    #[inline]
     fn flush_if_full(&mut self) -> fmt::Result {
-        if self.text.len() >= 4096 {
+        if self.bytes.len() >= 65_536 {
             self.flush()?;
         }
         Ok(())
@@ -760,7 +768,7 @@ impl<'m> MappingVisitor<'m> for LineMapper<'_, '_, 'm> {
                 if !merge {
                     if self.previous_line == line {
                         // not the first entry for the line
-                        self.out.text.push(',');
+                        self.out.bytes.push(b',');
                     }
                     self.write_entry(m, col)?;
                     self.previous_line = line;
@@ -796,7 +804,7 @@ impl<'m> LineMapper<'_, '_, 'm> {
         LineMapper {
             out: MappingBuffer {
                 dest: out,
-                text: String::new(),
+                bytes: Vec::with_capacity(65_536),
             },
             max_line,
             merge_identical_segments,
@@ -826,40 +834,40 @@ impl<'m> LineMapper<'_, '_, 'm> {
     }
     // port: SourceMapGeneratorV3.LineMapper#writeEntry
     fn write_entry(&mut self, m: Option<&'m Mapping>, column: i32) -> fmt::Result {
-        Base64VLQ::encode_to(
-            &mut self.out.text,
+        Base64VLQ::encode_to_bytes(
+            &mut self.out.bytes,
             column.wrapping_sub(self.previous_column),
-        )?;
+        );
         self.previous_column = column;
         if let Some(m) = m {
             let source_id = self
                 .source_file_map
                 .emitted_id(m.source_file, &mut self.out)?;
-            Base64VLQ::encode_to(
-                &mut self.out.text,
+            Base64VLQ::encode_to_bytes(
+                &mut self.out.bytes,
                 source_id.wrapping_sub(self.previous_source_file_id),
-            )?;
+            );
             self.previous_source_file_id = source_id;
             let srcline = m.original_position.get_line();
             let src_column = m.original_position.get_column();
-            Base64VLQ::encode_to(
-                &mut self.out.text,
+            Base64VLQ::encode_to_bytes(
+                &mut self.out.bytes,
                 srcline.wrapping_sub(self.previous_source_line),
-            )?;
+            );
             self.previous_source_line = srcline;
-            Base64VLQ::encode_to(
-                &mut self.out.text,
+            Base64VLQ::encode_to_bytes(
+                &mut self.out.bytes,
                 src_column.wrapping_sub(self.previous_source_column),
-            )?;
+            );
             self.previous_source_column = src_column;
             if m.original_name != UNMAPPED {
                 let name_id = self
                     .original_name_map
                     .emitted_id(m.original_name, &mut self.out)?;
-                Base64VLQ::encode_to(
-                    &mut self.out.text,
+                Base64VLQ::encode_to_bytes(
+                    &mut self.out.bytes,
                     name_id.wrapping_sub(self.previous_name_id),
-                )?;
+                );
                 self.previous_name_id = name_id;
             }
         }
@@ -874,15 +882,15 @@ impl<'m> LineMapper<'_, '_, 'm> {
     // port: SourceMapGeneratorV3.LineMapper#openLine
     fn open_line(&mut self, first_entry: bool) -> fmt::Result {
         if first_entry {
-            self.out.text.push('"');
+            self.out.bytes.push(b'"');
         }
         Ok(())
     }
     // port: SourceMapGeneratorV3.LineMapper#closeLine
     fn close_line(&mut self, final_entry: bool) -> fmt::Result {
-        self.out.text.push(';');
+        self.out.bytes.push(b';');
         if final_entry {
-            self.out.text.push('"');
+            self.out.bytes.push(b'"');
             self.out.flush()
         } else {
             self.out.flush_if_full()

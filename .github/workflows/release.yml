@@ -50,7 +50,7 @@ jobs:
             sleep $((attempt * 20))
           done
           python3 scripts/run_bench.py \
-            --job '^(d3-12/.*/ADVANCED|lodash-es/.*|three/.*|fabric-srcmap/ADVANCED)$' \
+            --job '^(d3-12/.*/ADVANCED|lodash-es/.*|three/.*|fabric-srcmap/.*)$' \
             --write-args pgo-training
           python3 scripts/run_bench.py --job '^(d3-12/.*|lodash-es/.*|three/.*|onlyoffice-cell/.*)$' \
             --write-args platform-outputs

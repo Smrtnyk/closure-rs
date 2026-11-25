@@ -385,11 +385,18 @@ impl ReplaceIdGenerators {
 impl CompilerPass for ReplaceIdGenerators {
     // port: ReplaceIdGenerators#process
     fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
-        NodeTraversal::traverse(
-            compiler,
-            root,
-            &mut AbstractPostOrderCallback::new(GatherGenerators { outer: self }),
-        );
+        // Rust-only (performance divergence): `GatherGenerators` only acts on nodes whose JSDoc
+        // carries an id-generator annotation. Skip the full-AST scan when no such annotation has
+        // ever existed in this arena.
+        if compiler.has_seen_jsdoc_id_generator()
+            || compiler.get_options().get_merged_precompiled_libraries()
+        {
+            NodeTraversal::traverse(
+                compiler,
+                root,
+                &mut AbstractPostOrderCallback::new(GatherGenerators { outer: self }),
+            );
+        }
         if !self.name_generators.is_empty() {
             NodeTraversal::traverse(
                 compiler,

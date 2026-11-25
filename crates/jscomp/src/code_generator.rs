@@ -64,6 +64,21 @@ const GREATER_THAN: u16 = b'>' as u16;
 const BACKSLASH: u16 = b'\\' as u16;
 const BACKTICK: u16 = b'`' as u16;
 
+/// Rust-only (performance divergence): lookup table of ASCII units (`0x20..0x7f`) that pass
+/// through `CodeGenerator::str_escape` verbatim regardless of quote/trusted-string/regexp mode.
+const SAFE_STR_ASCII: [bool; 128] = {
+    let mut table = [false; 128];
+    let mut c = 0x20usize;
+    while c < 0x7f {
+        table[c] = !matches!(
+            c as u8,
+            b'\\' | b'"' | b'\'' | b'`' | b'$' | b'=' | b'&' | b'>' | b'<'
+        );
+        c += 1;
+    }
+    table
+};
+
 /// CodeGenerator generates codes from a parse tree, sending it to the specified CodeConsumer.
 pub struct CodeGenerator<'a> {
     cc: &'a mut dyn CodeConsumer,
@@ -733,7 +748,7 @@ pub trait CodeGeneration<'a> {
                         "%s",
                         node.to_string(ast)
                     );
-                    self.add_identifier(node.get_string(ast));
+                    self.add_identifier_ref(node.get_string_ref(ast));
                 }
                 Token::DESTRUCTURING_LHS => {
                     self.add_node(ast, first.unwrap());
@@ -754,7 +769,7 @@ pub trait CodeGeneration<'a> {
                     {
                         self.add_identifier(node.get_original_name(ast).unwrap());
                     } else {
-                        self.add_identifier(node.get_string(ast));
+                        self.add_identifier_ref(node.get_string_ref(ast));
                     }
                     self.maybe_add_optional(ast, node);
                     self.maybe_add_type_decl(ast, node);
@@ -2094,9 +2109,18 @@ pub trait CodeGeneration<'a> {
 
     // port: CodeGenerator#addIdentifier
     fn add_identifier(&mut self, identifier: JsString) {
-        self.code_generator_mut()
-            .cc
-            .add_identifier(&CodeGenerator::identifier_escape(&identifier));
+        self.add_identifier_ref(&identifier);
+    }
+
+    /// Rust-only (performance divergence): avoids cloning `JsString` for Latin identifiers.
+    #[inline]
+    fn add_identifier_ref(&mut self, identifier: &JsString) {
+        if NodeUtil::is_latin(identifier) {
+            self.code_generator_mut().cc.add_identifier(identifier);
+        } else {
+            let escaped = CodeGenerator::identifier_escape(identifier);
+            self.code_generator_mut().cc.add_identifier(&escaped);
+        }
     }
 
     // port: CodeGenerator#addGetpropIdentifier
@@ -2104,7 +2128,7 @@ pub trait CodeGeneration<'a> {
         self.code_generator_mut()
             .cc
             .start_source_mapping(ast, getprop);
-        self.add_identifier(getprop.get_string(ast));
+        self.add_identifier_ref(getprop.get_string_ref(ast));
         self.code_generator_mut()
             .cc
             .end_source_mapping(ast, getprop);
@@ -2725,19 +2749,28 @@ pub trait CodeGeneration<'a> {
     /// Outputs a JS string, using the optimal (single/double) quote character
     // port: CodeGenerator#addJsString
     fn add_js_string(&mut self, ast: &Ast, n: NodeId) {
-        self.add(&(self.js_string(&n.get_string(ast))));
+        let escaped = self.js_string(n.get_string_ref(ast));
+        self.add(&escaped);
     }
 
     // port: CodeGenerator#jsString
     fn js_string(&self, s: &JsString) -> JsString {
-        let mut singleq = 0;
-        let mut doubleq = 0;
-        // could count the quotes and pick the optimal quote character
-        for i in 0..s.length() {
-            match s.char_at(i) {
-                DOUBLE_QUOTE => doubleq += 1,
-                SINGLE_QUOTE => singleq += 1,
-                _ => {}
+        // Rust-only (performance divergence): scan UTF-16 units once to count quotes and detect
+        // plain safe ASCII strings that need no escaping, then build the quoted string in one
+        // pre-sized `Vec<u16>` without an intermediate `JsString`.
+        let units = s.as_units();
+        let mut singleq = 0usize;
+        let mut doubleq = 0usize;
+        let mut all_safe_ascii = true;
+        for &c in units {
+            if c < 128 && SAFE_STR_ASCII[c as usize] {
+                continue;
+            }
+            all_safe_ascii = false;
+            if c == DOUBLE_QUOTE {
+                doubleq += 1;
+            } else if c == SINGLE_QUOTE {
+                singleq += 1;
             }
         }
         let (quote, doublequote, singlequote) = if if self.code_generator().prefer_single_quotes {
@@ -2752,22 +2785,31 @@ pub trait CodeGeneration<'a> {
             (b'"' as u16, "\\\"", "'")
         };
         // more single quotes so escape the doubles
-        let mut out = vec![quote];
-        out.extend_from_slice(
-            self.str_escape(s, doublequote, singlequote, "`", "\\\\", "$", false)
-                .as_units(),
-        );
+        let mut out = Vec::with_capacity(units.len() + 2);
+        out.push(quote);
+        if all_safe_ascii {
+            out.extend_from_slice(units);
+        } else {
+            self.str_escape_into(
+                s,
+                doublequote,
+                singlequote,
+                "`",
+                "\\\\",
+                "$",
+                false,
+                &mut out,
+            );
+        }
         out.push(quote);
         JsString::from_units(out)
     }
     /// Escapes regular expression
     // port: CodeGenerator#regexpEscape
     fn regexp_escape(&self, s: &JsString) -> JsString {
-        let mut out = vec![b'/' as u16];
-        out.extend_from_slice(
-            self.str_escape(s, "\"", "'", "`", "\\", "$", true)
-                .as_units(),
-        );
+        let mut out = Vec::with_capacity(s.length() + 2);
+        out.push(b'/' as u16);
+        self.str_escape_into(s, "\"", "'", "`", "\\", "$", true, &mut out);
         out.push(b'/' as u16);
         JsString::from_units(out)
     }
@@ -2784,8 +2826,50 @@ pub trait CodeGeneration<'a> {
         is_regexp: bool,
     ) -> JsString {
         let mut sb = Vec::with_capacity(s.length() + 2);
-        for i in 0..s.length() {
-            let c = s.char_at(i);
+        self.str_escape_into(
+            s,
+            doublequote_escape,
+            singlequote_escape,
+            backtick_escape,
+            backslash_escape,
+            dollar_escape,
+            is_regexp,
+            &mut sb,
+        );
+        JsString::from_units(sb)
+    }
+
+    /// Rust-only (performance divergence): appends escaped UTF-16 units directly into `sb`,
+    /// batch-copying runs of safe ASCII characters via `SAFE_STR_ASCII`.
+    fn str_escape_into(
+        &self,
+        s: &JsString,
+        doublequote_escape: &str,
+        singlequote_escape: &str,
+        backtick_escape: &str,
+        backslash_escape: &str,
+        dollar_escape: &str,
+        is_regexp: bool,
+        sb: &mut Vec<u16>,
+    ) {
+        let units = s.as_units();
+        let len = units.len();
+        let mut i = 0;
+        while i < len {
+            let c = units[i];
+            if c < 128 && SAFE_STR_ASCII[c as usize] {
+                let start = i;
+                i += 1;
+                while i < len {
+                    let u = units[i];
+                    if u >= 128 || !SAFE_STR_ASCII[u as usize] {
+                        break;
+                    }
+                    i += 1;
+                }
+                sb.extend_from_slice(&units[start..i]);
+                continue;
+            }
             match c {
                 NUL => sb.extend("\\x00".encode_utf16()),
                 VERTICAL_TAB => sb.extend(if !is_regexp { "\\v" } else { "\\x0B" }.encode_utf16()),
@@ -2800,10 +2884,10 @@ pub trait CodeGeneration<'a> {
                 SINGLE_QUOTE => sb.extend(singlequote_escape.encode_utf16()),
                 DOLLAR => sb.extend(dollar_escape.encode_utf16()),
                 BACKTICK => sb.extend(backtick_escape.encode_utf16()),
-                EQUALS => self.append_escaped_eq(&mut sb, is_regexp),
-                AMPERSAND => self.append_escaped_amp(&mut sb, is_regexp),
-                GREATER_THAN => self.append_escaped_gt(&mut sb, s, i, is_regexp),
-                LESS_THAN => self.append_escaped_lt(&mut sb, s, i, is_regexp),
+                EQUALS => self.append_escaped_eq(sb, is_regexp),
+                AMPERSAND => self.append_escaped_amp(sb, is_regexp),
+                GREATER_THAN => self.append_escaped_gt(sb, s, i, is_regexp),
+                LESS_THAN => self.append_escaped_lt(sb, s, i, is_regexp),
                 _ => {
                     // In 2019 these characters (line and paragraph separators) are valid in strings but
                     // not regular expressions.
@@ -2816,10 +2900,12 @@ pub trait CodeGeneration<'a> {
                     {
                         if c == 0x2028 {
                             sb.extend("\\u2028".encode_utf16());
+                            i += 1;
                             continue;
                         }
                         if c == 0x2029 {
                             sb.extend("\\u2029".encode_utf16());
+                            i += 1;
                             continue;
                         }
                     }
@@ -2839,12 +2925,12 @@ pub trait CodeGeneration<'a> {
                         // Other characters can be misinterpreted by some JS parsers,
                         // or perhaps mangled by proxies along the way,
                         // so we play it safe and Unicode escape them.
-                        append_hex(&mut sb, c);
+                        append_hex(sb, c);
                     }
                 }
             }
+            i += 1;
         }
-        JsString::from_units(sb)
     }
 
     // port: CodeGenerator#appendEscapedEq

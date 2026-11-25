@@ -106,6 +106,10 @@ impl TypeInferencePass {
         inference_root: NodeId,
     ) -> TypedScope {
         let mut cfg_scopes = Vec::new();
+        let mut deferred_extern_stubs = Vec::new();
+        let omit_empty_extern_stub_scopes =
+            self.scope_creator.borrow().omit_empty_extern_stub_scopes()
+                && self.step_count_histogram.is_none();
         // Type analysis happens in two major phases.
         // 1) Finding all the symbols.
         // 2) Propagating all the inferred types.
@@ -146,7 +150,11 @@ impl TypeInferencePass {
             {
                 let mut scope_creator = SharedTypedScopeCreator(&self.scope_creator);
                 // FirstScopeBuildingCallback
-                let mut callback = FirstScopeBuildingCallback(&mut cfg_scopes);
+                let mut callback = FirstScopeBuildingCallback {
+                    cfg_scopes: &mut cfg_scopes,
+                    deferred_extern_stubs: &mut deferred_extern_stubs,
+                    omit_empty_extern_stub_scopes,
+                };
                 NodeTraversal::builder()
                     .set_compiler(compiler)
                     .set_callback(&mut callback)
@@ -162,6 +170,12 @@ impl TypeInferencePass {
             closer.close(reg, ast);
         }
         self.scope_creator.borrow_mut().finish_and_freeze(compiler);
+
+        // Rust-only (performance divergence): assign resolved parameter types directly on
+        // unchanged bundled extern stubs whose empty function/block TypedScopes were omitted.
+        for stub in deferred_extern_stubs {
+            TypeInference::infer_extern_stub_parameter_nodes_only(compiler, stub);
+        }
 
         // port: TypeInferencePass.SecondScopeBuildingCallback#enterScope
         // Rust-only (performance divergence): type resolution leaves the scope roots and AST
@@ -281,7 +295,11 @@ impl TypeInferencePass {
 }
 
 // port: TypeInferencePass.FirstScopeBuildingCallback
-struct FirstScopeBuildingCallback<'a>(&'a mut Vec<TypedScopeEntry>);
+struct FirstScopeBuildingCallback<'a> {
+    cfg_scopes: &'a mut Vec<TypedScopeEntry>,
+    deferred_extern_stubs: &'a mut Vec<NodeId>,
+    omit_empty_extern_stub_scopes: bool,
+}
 
 impl Callback for FirstScopeBuildingCallback<'_> {
     fn should_traverse(&mut self, _: &mut NodeTraversal<'_>, _: NodeId, _: Option<NodeId>) -> bool {
@@ -307,7 +325,19 @@ impl Callback for FirstScopeBuildingCallback<'_> {
             } else if record & declarations::HAS_FUNCTION != 0 {
                 // Only the stub and its body introduce scopes in this declaration.
                 let stub = declarations::initializer(t, statement, record).unwrap();
-                self.walk_branch(t, stub, stub.get_parent(t));
+                if self.omit_empty_extern_stub_scopes
+                    && declarations::is_plain_stub_no_scope(record)
+                    && !stub.get_parent(t).is_some_and(|p| {
+                        matches!(
+                            p.get_token(t),
+                            Token::FUNCTION | Token::FOR_OF | Token::FOR_AWAIT_OF
+                        )
+                    })
+                {
+                    self.deferred_extern_stubs.push(stub);
+                } else {
+                    self.walk_branch(t, stub, stub.get_parent(t));
+                }
             }
         }
         debug_assert_eq!(child, suffix);
@@ -329,7 +359,7 @@ impl ScopedCallback for FirstScopeBuildingCallback<'_> {
         let scope = t.get_typed_scope();
         let compiler = t.get_compiler();
         if scope.is_cfg_root_scope(compiler) && !scope.is_module_scope(compiler) {
-            self.0.push(t.typed_scope_entry(scope));
+            self.cfg_scopes.push(t.typed_scope_entry(scope));
         }
     }
 

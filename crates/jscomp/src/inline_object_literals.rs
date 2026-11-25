@@ -26,6 +26,7 @@ use crate::{
     reference_collector::{Behavior, ExternsReferenceSummary, ReferenceCollector},
     reference_map::ReferenceMap,
     scope::ScopeId,
+    syntactic_scope_cache::{DeepFunctionStamp, SyntacticScopeCache},
     syntactic_scope_creator::SyntacticScopeCreator,
     var::VarId,
 };
@@ -39,7 +40,17 @@ use closure_rhino::{
     token::Token,
     token_stream::TokenStream,
 };
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
+
+static INLINE_OBJ_CACHE_ENABLED: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("CLOSURE_RS_INLINE_VARS_CACHE").as_deref() != Ok("off"));
+
+/// Rust-only (performance divergence): cross-round cache of unchanged top-level functions known
+/// to perform no object-literal splitting in `InlineObjectLiterals`.
+#[derive(Default)]
+pub(crate) struct InlineObjectLiteralsCleanCache {
+    pub(crate) clean_fns: IndexMap<NodeId, DeepFunctionStamp>,
+}
 
 /// Using the infrastructure provided by ReferenceCollector, identify variables that are only ever
 /// assigned to object literals and that are never used in entirety, and expand the objects into
@@ -247,12 +258,22 @@ impl CompilerPass for InlineObjectLiterals {
         {
             return;
         }
+        let use_cache =
+            *INLINE_OBJ_CACHE_ENABLED && compiler.get_coding_convention().export_tests_are_pure();
+        if !use_cache {
+            compiler
+                .inline_object_literals_clean_cache
+                .clean_fns
+                .clear();
+        }
         let behavior = InliningBehavior {
             candidates,
+            use_cache,
             referenced_scopes: IndexSet::default(),
             safe_name_id_supplier: self.safe_name_id_supplier.clone(),
             stale_vars: IndexSet::<_>::default(),
             last_scope_enclosing_fn: None,
+            global_fn_stack: Vec::new(),
         };
         let mut scope_creator = SyntacticScopeCreator::new();
         let mut callback = ReferenceCollector::new(compiler, behavior, &mut scope_creator);
@@ -268,6 +289,7 @@ impl CompilerPass for InlineObjectLiterals {
 // port: InlineObjectLiterals.InliningBehavior
 struct InliningBehavior {
     candidates: Option<CandidateNames>,
+    use_cache: bool,
     referenced_scopes: IndexSet<NodeId>,
     // Java: the outer class's safeNameIdSupplier, read by this inner class.
     safe_name_id_supplier: Arc<dyn Fn() -> String + Send + Sync>,
@@ -278,6 +300,9 @@ struct InliningBehavior {
     stale_vars: IndexSet<(JsString, NodeId)>,
     /// One-entry cache mapping a scope root to its immediate enclosing FUNCTION (if any).
     last_scope_enclosing_fn: Option<(NodeId, Option<NodeId>)>,
+    /// Rust-only (performance divergence): stack of currently active top-level functions and
+    /// whether any object literal inside them was split during this traversal.
+    global_fn_stack: Vec<(NodeId, bool)>,
 }
 
 impl Behavior for InliningBehavior {
@@ -289,6 +314,56 @@ impl Behavior for InliningBehavior {
         self.candidates
             .as_ref()
             .is_some_and(|names| !names.candidate_fns.contains(&fn_node))
+    }
+
+    fn can_skip_global_function_if_no_pending_hoist(
+        &self,
+        compiler: &mut AbstractCompiler,
+        fn_node: NodeId,
+    ) -> bool {
+        if self
+            .candidates
+            .as_ref()
+            .is_some_and(|names| !names.candidate_fns.contains(&fn_node))
+        {
+            return true;
+        }
+        if !self.use_cache
+            || !compiler
+                .inline_object_literals_clean_cache
+                .clean_fns
+                .contains_key(&fn_node)
+        {
+            return false;
+        }
+        let own = SyntacticScopeCache::subtree_stamp_with_flags(compiler, fn_node);
+        let current = compiler
+            .inline_object_literals_clean_cache
+            .clean_fns
+            .get(&fn_node)
+            .is_some_and(|stamp| {
+                compiler
+                    .syntactic_scope_cache
+                    .deep_function_stamp_is_current(own, stamp)
+            });
+        if !current {
+            compiler
+                .inline_object_literals_clean_cache
+                .clean_fns
+                .swap_remove(&fn_node);
+        }
+        current
+    }
+
+    fn before_traverse_node(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        n: NodeId,
+        _parent: Option<NodeId>,
+    ) {
+        if self.use_cache && n.is_function(t) && t.in_global_scope() {
+            self.global_fn_stack.push((n, false));
+        }
     }
 
     fn needs_name(&self, ast: &Ast, node: NodeId) -> bool {
@@ -338,36 +413,53 @@ impl Behavior for InliningBehavior {
 
     // port: InlineObjectLiterals.InliningBehavior#afterExitScope
     fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, reference_map: &dyn ReferenceMap) {
-        if !self
-            .referenced_scopes
-            .contains(&t.get_scope_root().unwrap())
-        {
-            return;
-        }
-        let scope = t.get_scope();
-        let compiler = t.get_compiler();
-        for v in scope.get_var_iterable(compiler) {
-            if self.is_var_inline_forbidden(compiler, v) {
-                continue;
+        let scope_root = t.get_scope_root().unwrap();
+        let mut did_split_here = false;
+        if self.referenced_scopes.contains(&scope_root) {
+            let scope = t.get_scope();
+            let compiler = t.get_compiler();
+            for v in scope.get_var_iterable(compiler) {
+                if self.is_var_inline_forbidden(compiler, v) {
+                    continue;
+                }
+
+                // ReferenceMap only creates collections for variables that have references.
+                // A variable declared in a scope (e.g. unreferenced catch parameter or block-scoped
+                // function declaration) without references will return null.
+                let Some(reference_info) = reference_map.get_references(v) else {
+                    continue;
+                };
+
+                if self.is_inlinable_object(compiler, &reference_info.references) {
+                    // Skiplist the object itself, as well as any other values
+                    // that it refers to, since they will have been moved around.
+                    Self::add_stale_var(&mut self.stale_vars, compiler, Some(v));
+
+                    let init = reference_info.get_initializing_reference(compiler);
+
+                    // Split up the object into individual variables if the object
+                    // is never referenced directly in full.
+                    self.split_object(compiler, v, init, reference_info);
+                    did_split_here = true;
+                }
             }
-
-            // ReferenceMap only creates collections for variables that have references.
-            // A variable declared in a scope (e.g. unreferenced catch parameter or block-scoped
-            // function declaration) without references will return null.
-            let Some(reference_info) = reference_map.get_references(v) else {
-                continue;
-            };
-
-            if self.is_inlinable_object(compiler, &reference_info.references) {
-                // Skiplist the object itself, as well as any other values
-                // that it refers to, since they will have been moved around.
-                Self::add_stale_var(&mut self.stale_vars, compiler, Some(v));
-
-                let init = reference_info.get_initializing_reference(compiler);
-
-                // Split up the object into individual variables if the object
-                // is never referenced directly in full.
-                self.split_object(compiler, v, init, reference_info);
+        }
+        if did_split_here && let Some((_, did_split)) = self.global_fn_stack.last_mut() {
+            *did_split = true;
+        }
+        if self
+            .global_fn_stack
+            .last()
+            .is_some_and(|&(fn_node, _)| fn_node == scope_root)
+        {
+            let (fn_node, did_split) = self.global_fn_stack.pop().unwrap();
+            if self.use_cache && !did_split {
+                let compiler = t.get_compiler();
+                let stamp = SyntacticScopeCache::deep_function_stamp(compiler, fn_node);
+                compiler
+                    .inline_object_literals_clean_cache
+                    .clean_fns
+                    .insert(fn_node, stamp);
             }
         }
     }

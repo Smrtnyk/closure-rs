@@ -529,6 +529,58 @@ impl ScopeId {
     pub(crate) fn set_kept(self, compiler: &mut AbstractCompiler, kept: bool) {
         compiler.scope_mirror.scopes[self.index()].kept = kept;
     }
+
+    /// Rust-only (performance divergence): copies all declared global variable names (and any
+    /// weak implicit `goog` namespace names) for read-only parallel `VarCheck` validity scans.
+    pub(crate) fn collect_global_var_names(
+        self,
+        compiler: &AbstractCompiler,
+    ) -> (
+        closure_rhino::fast_hash::IndexSet<JsString>,
+        closure_rhino::fast_hash::IndexSet<JsString>,
+    ) {
+        use closure_rhino::static_source_file::SourceKind;
+        let entries: Vec<(JsString, VarId)> = {
+            let arena = ScopeArena::read(compiler);
+            let vars = &arena.scopes[self.index()].abstract_scope.vars;
+            vars.iter()
+                .map(|(name, &var)| (name.clone(), var))
+                .collect()
+        };
+        let mut names = closure_rhino::fast_hash::IndexSet::default();
+        names.reserve(entries.len());
+        let mut weak_implicit_goog = closure_rhino::fast_hash::IndexSet::default();
+        for (name, var) in entries {
+            if var.is_implicit_goog_namespace(compiler)
+                && var.get_implicit_goog_namespace_strength(compiler) == SourceKind::WEAK
+            {
+                weak_implicit_goog.insert(name.clone());
+            }
+            names.insert(name);
+        }
+        (names, weak_implicit_goog)
+    }
+
+    /// Rust-only (performance divergence): collects names of all hoisted function declarations
+    /// declared directly in this scope (used by `ReferenceCollector`'s global function skip path).
+    pub(crate) fn collect_hoisted_function_names(
+        self,
+        compiler: &AbstractCompiler,
+    ) -> closure_rhino::fast_hash::IndexSet<JsString> {
+        let arena = ScopeArena::read(compiler);
+        let vars = &arena.scopes[self.index()].abstract_scope.vars;
+        let mut names = closure_rhino::fast_hash::IndexSet::default();
+        for (name, &var) in vars.iter() {
+            if let Some(parent) = arena.vars[var.index()]
+                .name_node
+                .and_then(|node| node.get_parent(compiler))
+                && crate::node_util::NodeUtil::is_hoisted_function_declaration(compiler, parent)
+            {
+                names.insert(name.clone());
+            }
+        }
+        names
+    }
 }
 
 impl AbstractScope for ScopeId {

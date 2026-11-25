@@ -47,7 +47,7 @@ use crate::reference_collection::ReferenceCollection;
 use crate::reference_collector::{Behavior, FunctionReferenceCache, ReferenceCollector, Site};
 use crate::reference_map::ReferenceMap;
 use crate::scope::ScopeId;
-use crate::syntactic_scope_cache::SyntacticScopeCache;
+use crate::syntactic_scope_cache::{DeepFunctionStamp, SyntacticScopeCache};
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use crate::var::VarId;
 use closure_rhino::fast_hash::IndexMap;
@@ -111,12 +111,17 @@ pub(crate) struct CleanLeafInlineEntry {
 pub(crate) struct InlineVarsCleanCache {
     env: Option<InlineVarsEnvKey>,
     pub(crate) clean_leaves: IndexMap<NodeId, CleanLeafInlineEntry>,
+    /// Rust-only (performance divergence): unchanged top-level functions (leaf or non-leaf,
+    /// including `let`/`const` blocks and `try`/`catch`) known to perform no inlining in
+    /// `Mode::LOCALS_ONLY`.
+    pub(crate) clean_locals_only_global_fns: IndexMap<NodeId, DeepFunctionStamp>,
 }
 
 impl InlineVarsCleanCache {
     fn sync_environment(&mut self, key: InlineVarsEnvKey) {
         if !self.env.as_ref().is_some_and(|prev| prev.matches(&key)) {
             self.clean_leaves.clear();
+            self.clean_locals_only_global_fns.clear();
         }
         self.env = Some(key);
     }
@@ -180,6 +185,10 @@ impl CompilerPass for InlineVariables {
             compiler.inline_vars_clean_cache.sync_environment(env);
         } else {
             compiler.inline_vars_clean_cache.clean_leaves.clear();
+            compiler
+                .inline_vars_clean_cache
+                .clean_locals_only_global_fns
+                .clear();
         }
         let mut scope_creator = SyntacticScopeCreator::new();
         let mut callback = ReferenceCollector::new_with_filter(
@@ -333,6 +342,9 @@ struct InliningBehavior {
     use_cache: bool,
     current_scope_did_inline: bool,
     pending_leaf: Option<PendingLeafRecord>,
+    /// Rust-only (performance divergence): stack of active top-level functions in
+    /// `Mode::LOCALS_ONLY` (`(fn_node, did_inline)`).
+    global_fn_stack: Vec<(NodeId, bool)>,
 
     /// Records the analyses of variables that have already been handled in the current scope.
     ///
@@ -369,6 +381,54 @@ impl Behavior for InliningBehavior {
         self.use_cache
     }
 
+    fn can_skip_global_function_if_no_pending_hoist(
+        &self,
+        compiler: &mut AbstractCompiler,
+        fn_node: NodeId,
+    ) -> bool {
+        if !self.use_cache
+            || self.mode != Mode::LOCALS_ONLY
+            || !compiler
+                .inline_vars_clean_cache
+                .clean_locals_only_global_fns
+                .contains_key(&fn_node)
+        {
+            return false;
+        }
+        let own = SyntacticScopeCache::subtree_stamp_with_flags(compiler, fn_node);
+        let current = compiler
+            .inline_vars_clean_cache
+            .clean_locals_only_global_fns
+            .get(&fn_node)
+            .is_some_and(|stamp| {
+                compiler
+                    .syntactic_scope_cache
+                    .deep_function_stamp_is_current(own, stamp)
+            });
+        if !current {
+            compiler
+                .inline_vars_clean_cache
+                .clean_locals_only_global_fns
+                .swap_remove(&fn_node);
+        }
+        current
+    }
+
+    fn before_traverse_node(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        n: NodeId,
+        _parent: Option<NodeId>,
+    ) {
+        if self.use_cache
+            && self.mode == Mode::LOCALS_ONLY
+            && n.is_function(t)
+            && t.in_global_scope()
+        {
+            self.global_fn_stack.push((n, false));
+        }
+    }
+
     // port: InlineVariables.InliningBehavior#afterExitScope
     fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, reference_map: &dyn ReferenceMap) {
         self.do_inlines_for_scope(t, reference_map);
@@ -396,6 +456,7 @@ impl InliningBehavior {
             use_cache,
             current_scope_did_inline: false,
             pending_leaf: None,
+            global_fn_stack: Vec::new(),
             current_scope_handled_var_analyses_map: HandledVarAnalyses::default(),
             var_to_alias_retry_handlers_map: IndexMap::<_, _>::default(),
             scope_vars: Vec::new(),
@@ -516,6 +577,11 @@ impl InliningBehavior {
                 // We need to wait for the aliased variable to be handled.
                 let retry_handler = AliasInlineRetryHandler::new(v, expert);
                 let aliased_var = analysis.get_aliased_var();
+                if aliased_var.is_global(compiler)
+                    && let Some((_, dirty)) = self.global_fn_stack.last_mut()
+                {
+                    *dirty = true;
+                }
                 if let Some((_, _, fn_scope)) = track_body {
                     let aliased_scope = aliased_var.get_scope(compiler);
                     if aliased_scope != scope && aliased_scope != fn_scope {
@@ -602,6 +668,26 @@ impl InliningBehavior {
                 .inline_vars_clean_cache
                 .clean_leaves
                 .insert(pending.fn_node, CleanLeafInlineEntry { fn_stamp, free });
+        }
+        if self.current_scope_did_inline
+            && let Some((_, dirty)) = self.global_fn_stack.last_mut()
+        {
+            *dirty = true;
+        }
+        let scope_root = scope.get_root_node(compiler);
+        if self
+            .global_fn_stack
+            .last()
+            .is_some_and(|&(fn_node, _)| fn_node == scope_root)
+        {
+            let (fn_node, dirty) = self.global_fn_stack.pop().unwrap();
+            if self.use_cache && self.mode == Mode::LOCALS_ONLY && !dirty {
+                let fn_stamp = SyntacticScopeCache::deep_function_stamp(compiler, fn_node);
+                compiler
+                    .inline_vars_clean_cache
+                    .clean_locals_only_global_fns
+                    .insert(fn_node, fn_stamp);
+            }
         }
     }
 
