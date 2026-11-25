@@ -123,7 +123,15 @@ pub struct VariableReferenceCheck {
     // we clear after each method call, because the Set never gets too big.
     // (A LinkedHashSet of BasicBlock, which has identity equality.)
     blocks_with_declarations: Vec<Rc<BasicBlock>>,
+
+    /// Rust-only (performance divergence): see `ReferenceCheckingBehavior::bundled_scripts`.
+    skip_bundled_externs: bool,
 }
+
+/// Rust-only: `CLOSURE_RS_BUNDLED_EXTERN_SKIPS=off` traverses the unchanged bundled externs in
+/// VariableReferenceCheck as Java does.
+pub(crate) static SKIP_BUNDLED_EXTERNS: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("CLOSURE_RS_BUNDLED_EXTERN_SKIPS").as_deref() != Ok("off"));
 
 impl VariableReferenceCheck {
     // port: VariableReferenceCheck#VariableReferenceCheck
@@ -134,7 +142,14 @@ impl VariableReferenceCheck {
         Self {
             check_unused_locals,
             blocks_with_declarations: Vec::new(),
+            skip_bundled_externs: *SKIP_BUNDLED_EXTERNS,
         }
+    }
+
+    /// Rust-only: whether `process` may leave out the original statements of the bundled
+    /// externs (on by default).
+    pub fn set_skip_bundled_externs(&mut self, skip: bool) {
+        self.skip_bundled_externs = skip;
     }
 
     /// `blocksWithDeclarations.add(block)`: LinkedHashSet insertion by identity.
@@ -445,9 +460,13 @@ impl CompilerPass for VariableReferenceCheck {
     // port: VariableReferenceCheck#process
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
         let mut scope_creator = SyntacticScopeCreator::new();
+        let skip_bundled_externs = self.skip_bundled_externs;
         let behavior = ReferenceCheckingBehavior::new(self);
         let mut collector = ReferenceCollector::new(compiler, behavior, &mut scope_creator);
         collector.reuse_reference_sites();
+        if skip_bundled_externs {
+            collector.skip_bundled_extern_prefixes();
+        }
         CompilerPass::process(&mut collector, compiler, externs, root);
     }
 }
@@ -457,6 +476,16 @@ impl CompilerPass for VariableReferenceCheck {
 struct ReferenceCheckingBehavior<'a> {
     outer: &'a mut VariableReferenceCheck,
     vars_in_function_body: IndexSet<JsString>,
+    /// Rust-only (performance divergence): the bundled extern scripts whose original statements
+    /// the collector left out (`ReferenceCollector::skip_bundled_extern_prefixes`). Java checks a
+    /// global var they declare with their references first: those are references from the
+    /// externs, so `checkEarlyReference` passes them; the collector requires that no other script
+    /// declares the var, so they are processed as they are for the bundled externs alone, where
+    /// they report nothing (a test checks this with every diagnostic of this pass enabled). They
+    /// leave `hasErrors` false and the var declared, and the blocks they add are read only for
+    /// later declarations, of which there are none. Such a var is therefore checked with the
+    /// references the collector saw, starting as declared.
+    bundled_scripts: IndexSet<NodeId>,
 }
 
 impl<'a> ReferenceCheckingBehavior<'a> {
@@ -465,6 +494,7 @@ impl<'a> ReferenceCheckingBehavior<'a> {
         Self {
             outer,
             vars_in_function_body: IndexSet::<_>::default(),
+            bundled_scripts: IndexSet::default(),
         }
     }
 
@@ -581,9 +611,15 @@ impl<'a> ReferenceCheckingBehavior<'a> {
     /// check if a variable is used in a given scope before it is declared, which suggest a likely
     /// error. Relies on the fact that references is in parse-tree order.
     // port: VariableReferenceCheck.ReferenceCheckingBehavior#checkVar
-    fn check_var(&mut self, compiler: &mut AbstractCompiler, v: VarId, references: &[Reference]) {
+    fn check_var(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        v: VarId,
+        references: &[Reference],
+        declared_in_skipped_script: bool,
+    ) {
         self.outer.blocks_with_declarations.clear();
-        let mut has_seen_declaration = false;
+        let mut has_seen_declaration = declared_in_skipped_script;
         let mut has_errors = false;
         let mut is_read = false;
         let mut unused_assignment: Option<&Reference> = None;
@@ -702,12 +738,17 @@ impl<'a> ReferenceCheckingBehavior<'a> {
 }
 
 impl Behavior for ReferenceCheckingBehavior<'_> {
+    fn skip_bundled_extern_prefixes(&mut self, scripts: &IndexSet<NodeId>) {
+        self.bundled_scripts = scripts.clone();
+    }
+
     // port: VariableReferenceCheck.ReferenceCheckingBehavior#afterExitScope
     fn after_exit_scope(&mut self, t: &mut NodeTraversal<'_>, reference_map: &dyn ReferenceMap) {
         // Check all vars after finishing a scope
         let scope = t.get_scope();
         let compiler = t.get_compiler();
         let vars = scope.get_var_iterable(compiler);
+        let check_skipped = !self.bundled_scripts.is_empty() && scope.is_global(compiler);
         if scope.is_function_block_scope(compiler) {
             self.vars_in_function_body.clear();
             for &v in &vars {
@@ -726,7 +767,16 @@ impl Behavior for ReferenceCheckingBehavior<'_> {
                 if scope.get_root_node(compiler).is_function(compiler) {
                     Self::check_shadow_param(compiler, v, scope, &reference_collection.references);
                 }
-                self.check_var(compiler, v, &reference_collection.references);
+                let declared_in_skipped_script = check_skipped
+                    && v.get_name_node(compiler)
+                        .and_then(|n| NodeUtil::get_enclosing_script(compiler, n))
+                        .is_some_and(|script| self.bundled_scripts.contains(&script));
+                self.check_var(
+                    compiler,
+                    v,
+                    &reference_collection.references,
+                    declared_in_skipped_script,
+                );
             }
         }
         if scope.has_own_implicit_slot(compiler, Some(ImplicitVar::EXPORTS)) {
