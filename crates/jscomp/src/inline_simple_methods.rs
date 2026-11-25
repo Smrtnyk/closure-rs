@@ -20,19 +20,19 @@ use crate::{
     abstract_compiler::AbstractCompiler, ast_analyzer::AstAnalyzer,
     coding_convention::CodingConvention, compiler_pass::CompilerPass,
     node_traversal::NodeTraversal, node_util::NodeUtil, parallel_parse::parallel_thread_count,
+    source_file::bundled_script::BundledScript,
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     check_not_null, check_state,
     ir::IR,
     js_string::JsString,
-    node::{Ast, NodeId},
+    node::{Ast, NodeId, SnapshotUse},
     token::Token,
 };
 use std::any::Any;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Inlines methods that take no arguments and have only a return statement returning a property.
 /// Because it works on method names rather than type inference, a method with multiple
@@ -561,11 +561,51 @@ impl InlineSimpleMethods {
         root: NodeId,
     ) {
         let mut units: Vec<(NodeId, Option<NodeId>)> = Vec::new();
-        for tree in [externs, root] {
+        for (is_externs, tree) in [(true, externs), (false, root)] {
             if tree.is_root(compiler) {
                 let mut child = tree.get_first_child(compiler);
                 while let Some(c) = child {
-                    units.push((c, Some(tree)));
+                    // Rust-only (performance divergence): unchanged bundled extern scripts whose
+                    // properties are already in `self.extern_properties` and contain no calls
+                    // cannot add any method definitions or new non-inlineable properties.
+                    if is_externs
+                        && c.is_script(compiler)
+                        && let Some((facts, suffix)) = compiler
+                            .parsed_script_record::<BundledScript>(
+                                c,
+                                SnapshotUse::SyntaxAndNonParamNames,
+                            )
+                        && !facts.may_have_calls
+                        && facts
+                            .properties
+                            .iter()
+                            .all(|&p| self.extern_properties.contains(&JsString::from(p)))
+                    {
+                        let mut st = suffix;
+                        while let Some(s) = st {
+                            units.push((s, Some(c)));
+                            st = s.get_next(compiler);
+                        }
+                        child = c.get_next(compiler);
+                        continue;
+                    }
+                    // Chunk large non-module code scripts by top-level statement so single-bundle
+                    // inputs also parallelize across worker threads.
+                    if !is_externs
+                        && c.is_script(compiler)
+                        && let Some(first) = c.get_first_child(compiler)
+                        && !first.is_module_body(compiler)
+                        && c.get_next(compiler).is_none()
+                        && units.is_empty()
+                    {
+                        let mut st = Some(first);
+                        while let Some(s) = st {
+                            units.push((s, Some(c)));
+                            st = s.get_next(compiler);
+                        }
+                    } else {
+                        units.push((c, Some(tree)));
+                    }
                     child = c.get_next(compiler);
                 }
             } else {
@@ -573,8 +613,8 @@ impl InlineSimpleMethods {
             }
         }
 
-        let threads = if compiler.ast.node_count() >= 50_000 {
-            parallel_thread_count(units.len(), 4, 8)
+        let threads = if compiler.ast.node_count() >= 20_000 {
+            parallel_thread_count(units.len(), 2, 8)
         } else {
             1
         };
@@ -587,6 +627,11 @@ impl InlineSimpleMethods {
                     BucketGatherer::new(ast, coding_convention, &self.extern_properties);
                 let result = catch_unwind(AssertUnwindSafe(|| {
                     for &(unit, parent) in &units {
+                        if let Some(p) = parent
+                            && p.is_script(ast)
+                        {
+                            gatherer.current_script = Some(p);
+                        }
                         gatherer.walk_node(unit, parent);
                     }
                 }));
@@ -626,7 +671,6 @@ impl InlineSimpleMethods {
         let num_buckets = (threads * 2).min(units.len());
         let bucket_size = units.len().div_ceil(num_buckets);
         let slices: Vec<&[(NodeId, Option<NodeId>)]> = units.chunks(bucket_size).collect();
-        let next_bucket = AtomicUsize::new(0);
         type BucketSignatures = (IndexSet<JsString>, IndexMap<JsString, IndexSet<NodeId>>);
         let mut results: Vec<Option<Result<BucketSignatures, WalkFailure>>> =
             (0..slices.len()).map(|_| None).collect();
@@ -635,50 +679,42 @@ impl InlineSimpleMethods {
             let ast: &Ast = &compiler.ast;
             let coding_convention = compiler.get_coding_convention();
             let extern_properties_ref = &*self.extern_properties;
-            std::thread::scope(|scope| {
-                let slice_ref = &slices;
-                let next_ref = &next_bucket;
-                let mut handles = Vec::with_capacity(threads);
-                for _ in 0..threads {
-                    handles.push(scope.spawn(move || {
-                        let mut local = Vec::new();
-                        loop {
-                            let idx = next_ref.fetch_add(1, Ordering::Relaxed);
-                            if idx >= slice_ref.len() {
-                                break;
+            let worker_batches = crate::parallel_parse::run_scoped_indexed(
+                "closure-ism",
+                threads,
+                &slices,
+                |_idx, slice| {
+                    let mut gatherer =
+                        BucketGatherer::new(ast, coding_convention, extern_properties_ref);
+                    let res = catch_unwind(AssertUnwindSafe(|| {
+                        for &(unit, parent) in *slice {
+                            if let Some(p) = parent
+                                && p.is_script(ast)
+                            {
+                                gatherer.current_script = Some(p);
                             }
-                            let mut gatherer =
-                                BucketGatherer::new(ast, coding_convention, extern_properties_ref);
-                            let res = catch_unwind(AssertUnwindSafe(|| {
-                                for &(unit, parent) in slice_ref[idx] {
-                                    gatherer.walk_node(unit, parent);
-                                }
-                            }));
-                            let out = match res {
-                                Ok(()) => Ok((
-                                    gatherer.non_inlineable_properties,
-                                    gatherer.method_definitions,
-                                )),
-                                Err(payload) => Err(WalkFailure {
-                                    script: gatherer.current_script,
-                                    node: gatherer.current_node,
-                                    payload,
-                                }),
-                            };
-                            local.push((idx, out));
+                            gatherer.walk_node(unit, parent);
                         }
-                        local
                     }));
+                    let out = match res {
+                        Ok(()) => Ok((
+                            gatherer.non_inlineable_properties,
+                            gatherer.method_definitions,
+                        )),
+                        Err(payload) => Err(WalkFailure {
+                            script: gatherer.current_script,
+                            node: gatherer.current_node,
+                            payload,
+                        }),
+                    };
+                    Some(out)
+                },
+            );
+            for batch in worker_batches {
+                for (idx, out) in batch {
+                    results[idx] = Some(out);
                 }
-                for handle in handles {
-                    for (idx, out) in handle
-                        .join()
-                        .expect("inline_simple_methods worker panicked")
-                    {
-                        results[idx] = Some(out);
-                    }
-                }
-            });
+            }
         }
 
         for slot in results {

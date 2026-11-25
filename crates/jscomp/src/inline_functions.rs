@@ -742,9 +742,80 @@ impl CompilerPass for InlineFunctions {
         check_state!(compiler.get_life_cycle_stage().is_normalized());
 
         // Rust-only (performance divergence): direct AST walks for Walk 1 (FindCandidateFunctions)
-        // and Walk 2 (FindCandidatesReferences), avoiding NodeTraversal's per-node dispatch and
-        // materializing scopes lazily via `ensure_ancestor_scope` only at matched call sites.
-        {
+        // and Walk 2 (FindCandidatesReferences), fanning out read-only scans across scoped worker
+        // threads on large inputs and replaying matched events in exact post-order on the main
+        // thread while materializing scopes lazily via `ensure_ancestor_scope`.
+        let parallel_units = if compiler.ast.node_count() >= 20_000 {
+            collect_inline_fn_units(compiler, root)
+        } else {
+            Vec::new()
+        };
+        let threads = crate::parallel_parse::parallel_thread_count(parallel_units.len(), 2, 8);
+        if threads >= 2 {
+            let reach_includes_globals = self.reach.includes_globals();
+            let ast = &compiler.ast;
+            let worker_batches = crate::parallel_parse::run_scoped_indexed(
+                "closure-inlinefn1",
+                threads,
+                &parallel_units,
+                |_idx, unit| {
+                    let mut events = Vec::new();
+                    let ok = catch_unwind(AssertUnwindSafe(|| {
+                        scan_candidate_functions_unit(
+                            ast,
+                            unit,
+                            reach_includes_globals,
+                            &mut events,
+                        );
+                    }))
+                    .is_ok();
+                    if !ok {
+                        Some(Err(()))
+                    } else if !events.is_empty() {
+                        Some(Ok(events))
+                    } else {
+                        None
+                    }
+                },
+            );
+            let mut ordered: Vec<Option<Result<Vec<CandidateFnEvent>, ()>>> =
+                (0..parallel_units.len()).map(|_| None).collect();
+            for batch in worker_batches {
+                for (idx, item) in batch {
+                    ordered[idx] = Some(item);
+                }
+            }
+            let mut finder = FindCandidateFunctions::new(self, compiler, root);
+            let res = catch_unwind(AssertUnwindSafe(|| {
+                for (idx, item) in ordered.into_iter().enumerate() {
+                    match item {
+                        None => {}
+                        Some(Err(())) => {
+                            let unit = &parallel_units[idx];
+                            finder.current_script = unit.script;
+                            finder.current_chunk =
+                                unit.script.and_then(|s| chunk_of_script(compiler, s));
+                            for &node in &unit.nodes {
+                                finder.walk_node(compiler, node, unit.parent, true);
+                            }
+                        }
+                        Some(Ok(events)) => {
+                            for event in events {
+                                finder.replay_event(compiler, event);
+                            }
+                        }
+                    }
+                }
+            }));
+            if let Err(payload) = res {
+                NodeTraversal::throw_unexpected_exception_at(
+                    compiler,
+                    finder.current_script,
+                    finder.current_node,
+                    payload,
+                );
+            }
+        } else {
             let mut finder = FindCandidateFunctions::new(self, compiler, root);
             let res = catch_unwind(AssertUnwindSafe(|| {
                 finder.walk_node(compiler, root, None, true);
@@ -761,7 +832,85 @@ impl CompilerPass for InlineFunctions {
         if self.fns.is_empty() {
             return; // Nothing left to do.
         }
-        {
+        if threads >= 2 {
+            let name_bloom = CallVisitor::<Inline<'_>>::build_name_bloom(&self.fns);
+            let candidate_names: IndexSet<JsString> = self.fns.keys().cloned().collect();
+            let anon_fns_ref = &self.anon_fns;
+            let candidate_names_ref = &candidate_names;
+            let ast = &compiler.ast;
+            let worker_batches = crate::parallel_parse::run_scoped_indexed(
+                "closure-inlinefn2",
+                threads,
+                &parallel_units,
+                |_idx, unit| {
+                    let mut events = Vec::new();
+                    let ok = catch_unwind(AssertUnwindSafe(|| {
+                        scan_candidate_refs_unit(
+                            ast,
+                            root,
+                            unit,
+                            name_bloom,
+                            candidate_names_ref,
+                            anon_fns_ref,
+                            &mut events,
+                        );
+                    }))
+                    .is_ok();
+                    if !ok {
+                        Some(Err(()))
+                    } else if !events.is_empty() {
+                        Some(Ok(events))
+                    } else {
+                        None
+                    }
+                },
+            );
+            let mut ordered: Vec<Option<Result<Vec<CandidateRefEvent>, ()>>> =
+                (0..parallel_units.len()).map(|_| None).collect();
+            for batch in worker_batches {
+                for (idx, item) in batch {
+                    ordered[idx] = Some(item);
+                }
+            }
+            let mut ref_finder = FindCandidatesReferences::new(
+                compiler,
+                root,
+                &mut self.fns,
+                &self.anon_fns,
+                &mut self.injector,
+                self.enforce_max_size_after_inlining,
+                self.max_size_after_inlining,
+            );
+            let res = catch_unwind(AssertUnwindSafe(|| {
+                for (idx, item) in ordered.into_iter().enumerate() {
+                    match item {
+                        None => {}
+                        Some(Err(())) => {
+                            let unit = &parallel_units[idx];
+                            ref_finder.current_script = unit.script;
+                            ref_finder.current_chunk =
+                                unit.script.and_then(|s| chunk_of_script(compiler, s));
+                            for &node in &unit.nodes {
+                                ref_finder.walk_node(compiler, node, unit.parent, None, root);
+                            }
+                        }
+                        Some(Ok(events)) => {
+                            for event in events {
+                                ref_finder.replay_event(compiler, event);
+                            }
+                        }
+                    }
+                }
+            }));
+            if let Err(payload) = res {
+                NodeTraversal::throw_unexpected_exception_at(
+                    compiler,
+                    ref_finder.current_script,
+                    ref_finder.current_node,
+                    payload,
+                );
+            }
+        } else {
             let mut ref_finder = FindCandidatesReferences::new(
                 compiler,
                 root,
@@ -848,6 +997,615 @@ fn chunk_of_script(compiler: &AbstractCompiler, script: NodeId) -> Option<JSChun
         .and_then(|input| input.get_chunk())
 }
 
+/// Rust-only (performance divergence): read-only work unit for parallel `InlineFunctions`
+/// Walk 1 and Walk 2 scans.
+struct InlineFnUnit {
+    script: Option<NodeId>,
+    parent: Option<NodeId>,
+    nodes: Vec<NodeId>,
+}
+
+fn collect_inline_fn_units(compiler: &AbstractCompiler, root: NodeId) -> Vec<InlineFnUnit> {
+    let ast = &compiler.ast;
+    if !root.is_root(ast) {
+        return Vec::new();
+    }
+    let mut scripts = Vec::new();
+    let mut c = root.get_first_child(ast);
+    while let Some(s) = c {
+        scripts.push(s);
+        c = s.get_next(ast);
+    }
+    if scripts.len() == 1
+        && scripts[0].is_script(ast)
+        && let Some(first) = scripts[0].get_first_child(ast)
+        && !first.is_module_body(ast)
+    {
+        let script = scripts[0];
+        let mut stmts = Vec::new();
+        let mut st = Some(first);
+        while let Some(s) = st {
+            stmts.push(s);
+            st = s.get_next(ast);
+        }
+        const STMT_CHUNK: usize = 64;
+        if stmts.len() > STMT_CHUNK {
+            return stmts
+                .chunks(STMT_CHUNK)
+                .map(|chunk| InlineFnUnit {
+                    script: Some(script),
+                    parent: Some(script),
+                    nodes: chunk.to_vec(),
+                })
+                .collect();
+        }
+    }
+    scripts
+        .into_iter()
+        .map(|s| InlineFnUnit {
+            script: s.is_script(ast).then_some(s),
+            parent: Some(root),
+            nodes: vec![s],
+        })
+        .collect()
+}
+
+enum CandidateFnEvent {
+    Named {
+        node: NodeId,
+        parent: Option<NodeId>,
+        script: Option<NodeId>,
+    },
+    Expr {
+        call_node: NodeId,
+        script: Option<NodeId>,
+    },
+}
+
+fn scan_candidate_functions_unit(
+    ast: &Ast,
+    unit: &InlineFnUnit,
+    reach_includes_globals: bool,
+    events: &mut Vec<CandidateFnEvent>,
+) {
+    fn walk(
+        ast: &Ast,
+        n: NodeId,
+        parent: Option<NodeId>,
+        in_global_hoist_scope: bool,
+        reach_includes_globals: bool,
+        current_script: Option<NodeId>,
+        events: &mut Vec<CandidateFnEvent>,
+    ) {
+        let token = n.get_token(ast);
+        match token {
+            Token::SCRIPT => {
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    walk(
+                        ast,
+                        c,
+                        Some(n),
+                        in_global_hoist_scope,
+                        reach_includes_globals,
+                        Some(n),
+                        events,
+                    );
+                    child = c.get_next(ast);
+                }
+                return;
+            }
+            Token::FUNCTION => {
+                let fn_name = n.get_first_child(ast).unwrap();
+                let args = fn_name.get_next(ast).unwrap();
+                let body = args.get_next(ast).unwrap();
+                let is_decl = parent.is_some() && NodeUtil::is_function_declaration(ast, n);
+                walk(
+                    ast,
+                    fn_name,
+                    Some(n),
+                    if is_decl {
+                        in_global_hoist_scope
+                    } else {
+                        false
+                    },
+                    reach_includes_globals,
+                    current_script,
+                    events,
+                );
+                walk(
+                    ast,
+                    args,
+                    Some(n),
+                    false,
+                    reach_includes_globals,
+                    current_script,
+                    events,
+                );
+                walk(
+                    ast,
+                    body,
+                    Some(n),
+                    false,
+                    reach_includes_globals,
+                    current_script,
+                    events,
+                );
+            }
+            Token::MODULE_BODY => {
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    walk(
+                        ast,
+                        c,
+                        Some(n),
+                        false,
+                        reach_includes_globals,
+                        current_script,
+                        events,
+                    );
+                    child = c.get_next(ast);
+                }
+                return;
+            }
+            Token::CLASS => {
+                let class_name = n.get_first_child(ast).unwrap();
+                let extends_clause = class_name.get_next(ast).unwrap();
+                let body = extends_clause.get_next(ast).unwrap();
+                walk(
+                    ast,
+                    extends_clause,
+                    Some(n),
+                    in_global_hoist_scope,
+                    reach_includes_globals,
+                    current_script,
+                    events,
+                );
+                walk(
+                    ast,
+                    class_name,
+                    Some(n),
+                    in_global_hoist_scope,
+                    reach_includes_globals,
+                    current_script,
+                    events,
+                );
+                walk(
+                    ast,
+                    body,
+                    Some(n),
+                    in_global_hoist_scope,
+                    reach_includes_globals,
+                    current_script,
+                    events,
+                );
+                return;
+            }
+            Token::CLASS_MEMBERS => {
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    if c.is_computed_prop(ast) || c.is_computed_field_def(ast) {
+                        walk(
+                            ast,
+                            c.get_first_child(ast).unwrap(),
+                            Some(c),
+                            in_global_hoist_scope,
+                            reach_includes_globals,
+                            current_script,
+                            events,
+                        );
+                    }
+                    child = c.get_next(ast);
+                }
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    match c.get_token(ast) {
+                        Token::COMPUTED_PROP => {
+                            walk(
+                                ast,
+                                c.get_last_child(ast).unwrap(),
+                                Some(c),
+                                in_global_hoist_scope,
+                                reach_includes_globals,
+                                current_script,
+                                events,
+                            );
+                        }
+                        Token::COMPUTED_FIELD_DEF => {
+                            if c.has_two_children(ast) {
+                                walk(
+                                    ast,
+                                    c.get_last_child(ast).unwrap(),
+                                    Some(c),
+                                    false,
+                                    reach_includes_globals,
+                                    current_script,
+                                    events,
+                                );
+                            }
+                        }
+                        Token::MEMBER_FIELD_DEF => {
+                            walk(
+                                ast,
+                                c,
+                                Some(n),
+                                false,
+                                reach_includes_globals,
+                                current_script,
+                                events,
+                            );
+                        }
+                        _ => walk(
+                            ast,
+                            c,
+                            Some(n),
+                            in_global_hoist_scope,
+                            reach_includes_globals,
+                            current_script,
+                            events,
+                        ),
+                    }
+                    child = c.get_next(ast);
+                }
+                return;
+            }
+            Token::BLOCK => {
+                let child_global =
+                    in_global_hoist_scope && !NodeUtil::is_class_static_block(ast, n);
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    walk(
+                        ast,
+                        c,
+                        Some(n),
+                        child_global,
+                        reach_includes_globals,
+                        current_script,
+                        events,
+                    );
+                    child = c.get_next(ast);
+                }
+                return;
+            }
+            _ => {
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    walk(
+                        ast,
+                        c,
+                        Some(n),
+                        in_global_hoist_scope,
+                        reach_includes_globals,
+                        current_script,
+                        events,
+                    );
+                    child = c.get_next(ast);
+                }
+            }
+        }
+        if !reach_includes_globals && in_global_hoist_scope {
+            return;
+        }
+        match token {
+            Token::VAR | Token::LET | Token::CONST if NodeUtil::is_statement(ast, n) => {
+                if !n.has_one_child(ast) {
+                    events.push(CandidateFnEvent::Named {
+                        node: n,
+                        parent,
+                        script: current_script,
+                    });
+                } else if let Some(name_node) = n.get_first_child(ast)
+                    && name_node.is_name(ast)
+                    && name_node.has_children(ast)
+                    && name_node.get_first_child(ast).unwrap().is_function(ast)
+                {
+                    events.push(CandidateFnEvent::Named {
+                        node: n,
+                        parent,
+                        script: current_script,
+                    });
+                }
+            }
+            Token::FUNCTION if NodeUtil::is_statement(ast, n) => {
+                events.push(CandidateFnEvent::Named {
+                    node: n,
+                    parent,
+                    script: current_script,
+                });
+            }
+            Token::OPTCHAIN_CALL | Token::CALL => {
+                let first = n.get_first_child(ast).unwrap();
+                let is_cand = first.is_function(ast)
+                    || (NodeUtil::is_function_object_call(ast, n)
+                        && n.get_first_first_child(ast).unwrap().is_function(ast));
+                if is_cand {
+                    events.push(CandidateFnEvent::Expr {
+                        call_node: n,
+                        script: current_script,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for &node in &unit.nodes {
+        walk(
+            ast,
+            node,
+            unit.parent,
+            true,
+            reach_includes_globals,
+            unit.script,
+            events,
+        );
+    }
+}
+
+enum CandidateRefEvent {
+    Call {
+        call_node: NodeId,
+        enclosing_fn: Option<NodeId>,
+        scope_root: NodeId,
+        script: Option<NodeId>,
+    },
+    Name {
+        node: NodeId,
+        parent: NodeId,
+        script: Option<NodeId>,
+    },
+    TaggedTemplateFn {
+        fn_node: NodeId,
+    },
+}
+
+fn scan_candidate_refs_unit(
+    ast: &Ast,
+    root: NodeId,
+    unit: &InlineFnUnit,
+    name_bloom: [u64; 64],
+    candidate_names: &IndexSet<JsString>,
+    anon_fns: &IndexMap<NodeId, JsString>,
+    events: &mut Vec<CandidateRefEvent>,
+) {
+    struct Scanner<'a> {
+        ast: &'a Ast,
+        name_bloom: [u64; 64],
+        candidate_names: &'a IndexSet<JsString>,
+        anon_fns: &'a IndexMap<NodeId, JsString>,
+        tagged_fns: IndexSet<NodeId>,
+        events: &'a mut Vec<CandidateRefEvent>,
+    }
+    impl Scanner<'_> {
+        #[inline]
+        fn may_contain_name(&self, name: &JsString) -> bool {
+            let h = name.hash_code() as usize;
+            (self.name_bloom[(h >> 6) & 63] & (1u64 << (h & 63))) != 0
+        }
+
+        fn walk(
+            &mut self,
+            n: NodeId,
+            parent: Option<NodeId>,
+            enclosing_fn: Option<NodeId>,
+            scope_root: NodeId,
+            current_script: Option<NodeId>,
+        ) {
+            let ast = self.ast;
+            let token = n.get_token(ast);
+            match token {
+                Token::SCRIPT => {
+                    let mut child = n.get_first_child(ast);
+                    while let Some(c) = child {
+                        self.walk(c, Some(n), enclosing_fn, scope_root, Some(n));
+                        child = c.get_next(ast);
+                    }
+                    return;
+                }
+                Token::FUNCTION => {
+                    let fn_name = n.get_first_child(ast).unwrap();
+                    let args = fn_name.get_next(ast).unwrap();
+                    let body = args.get_next(ast).unwrap();
+                    let is_decl = parent.is_some() && NodeUtil::is_function_declaration(ast, n);
+                    if is_decl {
+                        self.walk(fn_name, Some(n), enclosing_fn, scope_root, current_script);
+                    } else {
+                        self.walk(fn_name, Some(n), Some(n), n, current_script);
+                    }
+                    self.walk(args, Some(n), Some(n), n, current_script);
+                    self.walk(body, Some(n), Some(n), n, current_script);
+                }
+                Token::MODULE_BODY => {
+                    let mut child = n.get_first_child(ast);
+                    while let Some(c) = child {
+                        self.walk(c, Some(n), enclosing_fn, n, current_script);
+                        child = c.get_next(ast);
+                    }
+                    return;
+                }
+                Token::CLASS => {
+                    let class_name = n.get_first_child(ast).unwrap();
+                    let extends_clause = class_name.get_next(ast).unwrap();
+                    let body = extends_clause.get_next(ast).unwrap();
+                    let is_expr = NodeUtil::is_class_expression(ast, n);
+                    self.walk(
+                        extends_clause,
+                        Some(n),
+                        enclosing_fn,
+                        scope_root,
+                        current_script,
+                    );
+                    self.walk(
+                        class_name,
+                        Some(n),
+                        enclosing_fn,
+                        if is_expr { n } else { scope_root },
+                        current_script,
+                    );
+                    self.walk(body, Some(n), enclosing_fn, n, current_script);
+                    return;
+                }
+                Token::CLASS_MEMBERS => {
+                    let mut child = n.get_first_child(ast);
+                    while let Some(c) = child {
+                        if c.is_computed_prop(ast) || c.is_computed_field_def(ast) {
+                            self.walk(
+                                c.get_first_child(ast).unwrap(),
+                                Some(c),
+                                enclosing_fn,
+                                scope_root,
+                                current_script,
+                            );
+                        }
+                        child = c.get_next(ast);
+                    }
+                    let mut child = n.get_first_child(ast);
+                    while let Some(c) = child {
+                        match c.get_token(ast) {
+                            Token::COMPUTED_PROP => {
+                                self.walk(
+                                    c.get_last_child(ast).unwrap(),
+                                    Some(c),
+                                    enclosing_fn,
+                                    scope_root,
+                                    current_script,
+                                );
+                            }
+                            Token::COMPUTED_FIELD_DEF => {
+                                if c.has_two_children(ast) {
+                                    self.walk(
+                                        c.get_last_child(ast).unwrap(),
+                                        Some(c),
+                                        enclosing_fn,
+                                        c,
+                                        current_script,
+                                    );
+                                }
+                            }
+                            Token::MEMBER_FIELD_DEF => {
+                                self.walk(c, Some(n), enclosing_fn, c, current_script);
+                            }
+                            _ => self.walk(c, Some(n), enclosing_fn, scope_root, current_script),
+                        }
+                        child = c.get_next(ast);
+                    }
+                    return;
+                }
+                Token::BLOCK => {
+                    let child_scope = if !n.is_synthetic_block(ast)
+                        && parent
+                            .is_some_and(|p| !NodeUtil::is_switch_case(ast, p) && !p.is_catch(ast))
+                    {
+                        n
+                    } else {
+                        scope_root
+                    };
+                    let mut child = n.get_first_child(ast);
+                    while let Some(c) = child {
+                        self.walk(c, Some(n), enclosing_fn, child_scope, current_script);
+                        child = c.get_next(ast);
+                    }
+                    return;
+                }
+                Token::FOR
+                | Token::FOR_IN
+                | Token::FOR_OF
+                | Token::FOR_AWAIT_OF
+                | Token::SWITCH_BODY => {
+                    let mut child = n.get_first_child(ast);
+                    while let Some(c) = child {
+                        self.walk(c, Some(n), enclosing_fn, n, current_script);
+                        child = c.get_next(ast);
+                    }
+                    return;
+                }
+                _ => {
+                    let mut child = n.get_first_child(ast);
+                    while let Some(c) = child {
+                        self.walk(c, Some(n), enclosing_fn, scope_root, current_script);
+                        child = c.get_next(ast);
+                    }
+                }
+            }
+            match token {
+                Token::OPTCHAIN_CALL | Token::CALL => {
+                    let child = n.get_first_child(ast).unwrap();
+                    let matched = if child.is_name(ast) {
+                        let name = child.get_string_ref(ast);
+                        self.may_contain_name(name) && self.candidate_names.contains(name)
+                    } else if child.is_function(ast) {
+                        self.anon_fns
+                            .get(&child)
+                            .is_some_and(|name| self.candidate_names.contains(name))
+                    } else if NodeUtil::is_function_object_call(ast, n) {
+                        let fn_id = child.get_first_child(ast).unwrap();
+                        if fn_id.is_name(ast) {
+                            let name = fn_id.get_string_ref(ast);
+                            self.may_contain_name(name) && self.candidate_names.contains(name)
+                        } else if fn_id.is_function(ast) {
+                            self.anon_fns
+                                .get(&fn_id)
+                                .is_some_and(|name| self.candidate_names.contains(name))
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+                    if matched {
+                        self.events.push(CandidateRefEvent::Call {
+                            call_node: n,
+                            enclosing_fn,
+                            scope_root,
+                            script: current_script,
+                        });
+                    }
+                }
+                Token::NAME => {
+                    let name = n.get_string_ref(ast);
+                    if self.may_contain_name(name)
+                        && self.candidate_names.contains(name)
+                        && !InlineFunctions::is_candidate_usage(ast, n)
+                    {
+                        self.events.push(CandidateRefEvent::Name {
+                            node: n,
+                            parent: parent.unwrap(),
+                            script: current_script,
+                        });
+                    }
+                }
+                Token::TAGGED_TEMPLATELIT => {
+                    if let Some(ef) = enclosing_fn {
+                        self.tagged_fns.insert(ef);
+                    }
+                }
+                Token::FUNCTION
+                    if !self.tagged_fns.is_empty() && self.tagged_fns.shift_remove(&n) =>
+                {
+                    self.events
+                        .push(CandidateRefEvent::TaggedTemplateFn { fn_node: n });
+                    if let Some(ef) = enclosing_fn {
+                        self.tagged_fns.insert(ef);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let mut scanner = Scanner {
+        ast,
+        name_bloom,
+        candidate_names,
+        anon_fns,
+        tagged_fns: IndexSet::default(),
+        events,
+    };
+    for &node in &unit.nodes {
+        scanner.walk(node, unit.parent, None, root, unit.script);
+    }
+}
+
 /// Find functions that might be inlined.
 struct FindCandidateFunctions<'a> {
     outer: &'a mut InlineFunctions,
@@ -867,6 +1625,31 @@ impl<'a> FindCandidateFunctions<'a> {
             current_script,
             current_chunk,
             current_node: None,
+        }
+    }
+
+    fn replay_event(&mut self, compiler: &mut AbstractCompiler, event: CandidateFnEvent) {
+        match event {
+            CandidateFnEvent::Named {
+                node,
+                parent,
+                script,
+            } => {
+                if self.current_script != script {
+                    self.current_script = script;
+                    self.current_chunk = script.and_then(|s| chunk_of_script(compiler, s));
+                }
+                self.current_node = Some(node);
+                self.find_named_functions(compiler, node, parent);
+            }
+            CandidateFnEvent::Expr { call_node, script } => {
+                if self.current_script != script {
+                    self.current_script = script;
+                    self.current_chunk = script.and_then(|s| chunk_of_script(compiler, s));
+                }
+                self.current_node = Some(call_node);
+                self.find_function_expressions(compiler, call_node);
+            }
         }
     }
 
@@ -1273,6 +2056,41 @@ impl<'a> FindCandidatesReferences<'a> {
     fn may_contain_name(&self, name: &JsString) -> bool {
         let h = name.hash_code() as usize;
         (self.name_bloom[(h >> 6) & 63] & (1u64 << (h & 63))) != 0
+    }
+
+    fn replay_event(&mut self, compiler: &mut AbstractCompiler, event: CandidateRefEvent) {
+        match event {
+            CandidateRefEvent::Call {
+                call_node,
+                enclosing_fn,
+                scope_root,
+                script,
+            } => {
+                if self.current_script != script {
+                    self.current_script = script;
+                    self.current_chunk = script.and_then(|s| chunk_of_script(compiler, s));
+                }
+                self.visit_calls(compiler, call_node, enclosing_fn, scope_root);
+            }
+            CandidateRefEvent::Name {
+                node,
+                parent,
+                script,
+            } => {
+                if self.current_script != script {
+                    self.current_script = script;
+                    self.current_chunk = script.and_then(|s| chunk_of_script(compiler, s));
+                }
+                self.check_name_usage(compiler, node, parent);
+            }
+            CandidateRefEvent::TaggedTemplateFn { fn_node } => {
+                if let Some(function_state) =
+                    self.get_function_state_for_function_node(compiler, fn_node)
+                {
+                    function_state.set_has_tagged_template_lit(true);
+                }
+            }
+        }
     }
 
     fn walk_node(

@@ -22,6 +22,15 @@ use std::fmt::{self, Write};
 pub struct Util;
 impl Util {
     const HEX_CHARS: &'static [u8; 16] = b"0123456789abcdef";
+    const SAFE_JSON_ASCII: [bool; 128] = {
+        let mut table = [false; 128];
+        let mut c = 0x20usize;
+        while c <= 0x7f {
+            table[c] = !matches!(c as u8, 0x22 | 0x3c | 0x3e | 0x5c);
+            c += 1;
+        }
+        table
+    };
 
     // port: Util#escapeString
     pub fn escape_string(s: impl Into<JsString>) -> JsString {
@@ -49,12 +58,12 @@ impl Util {
                 continue;
             }
             let c = units[i];
-            if (0x20..=0x7f).contains(&c) && !matches!(c, 0x22 | 0x3c | 0x3e | 0x5c) {
+            if c < 128 && Self::SAFE_JSON_ASCII[c as usize] {
                 let run_limit = (i + avail).min(n);
                 let mut j = i;
                 while j < run_limit {
                     let u = units[j];
-                    if !(0x20..=0x7f).contains(&u) || matches!(u, 0x22 | 0x3c | 0x3e | 0x5c) {
+                    if u >= 128 || !Self::SAFE_JSON_ASCII[u as usize] {
                         break;
                     }
                     buf[len] = u as u8;

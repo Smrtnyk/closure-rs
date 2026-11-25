@@ -22,7 +22,7 @@ use crate::{
 };
 use closure_rhino::{js_string::JsString, static_source_file::StaticSourceFile};
 use closure_sourcemap::source_map_consumer_v3::SourceMapConsumerV3;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 pub static SOURCEMAP_RESOLVE_FAILED: DiagnosticType = DiagnosticType::warning(
     "SOURCEMAP_RESOLVE_FAILED",
     "Failed to resolve sourcemap at {0}: {1}",
@@ -31,12 +31,20 @@ pub static SOURCEMAP_PARSE_FAILED: DiagnosticType = DiagnosticType::warning(
     "SOURCEMAP_PARSE_FAILED",
     "Failed to parse malformed sourcemap in {0}: {1}",
 );
+enum DecodeError {
+    Resolve(String),
+    Parse(String),
+}
 pub struct SourceMapInput {
     source_file: Arc<SourceFile>,
     state: Mutex<State>,
+    ready: Condvar,
 }
 struct State {
     parsed_source_map: Option<Arc<SourceMapConsumerV3>>,
+    decode_error: Option<DecodeError>,
+    in_progress: bool,
+    decoded: bool,
     cached: bool,
 }
 impl SourceMapInput {
@@ -46,9 +54,70 @@ impl SourceMapInput {
             source_file,
             state: Mutex::new(State {
                 parsed_source_map: None,
+                decode_error: None,
+                in_progress: false,
+                decoded: false,
                 cached: false,
             }),
+            ready: Condvar::new(),
         }
+    }
+    fn decode_raw(&self) -> Result<Option<Arc<SourceMapConsumerV3>>, DecodeError> {
+        match self.source_file.get_code() {
+            Ok(source_map_contents) => {
+                let mut consumer = SourceMapConsumerV3::new();
+                match consumer.parse(source_map_contents) {
+                    Ok(()) => {
+                        let file = consumer.get_file();
+                        let default_map = file.as_ref().is_some_and(|file| !file.is_empty())
+                            && consumer.get_original_sources().len() == 1
+                            && consumer.get_original_sources().contains(&file)
+                            && consumer
+                                .get_original_sources_content()
+                                .unwrap_or_else(|| panic!("java.lang.NullPointerException"))
+                                .len()
+                                == 1
+                            && consumer.get_original_names().is_empty()
+                            && consumer.get_line_count() == -1;
+                        Ok(if default_map {
+                            None
+                        } else {
+                            Some(Arc::new(consumer))
+                        })
+                    }
+                    Err(e) => Err(DecodeError::Parse(e.get_message().to_string())),
+                }
+            }
+            Err(e) => Err(DecodeError::Resolve(e.to_string())),
+        }
+    }
+    /// Rust-only (performance divergence): decodes this input source map without reporting errors
+    /// so a worker thread can parse it while the compiler runs. Any decode error is replayed when
+    /// `get_source_map` is first called on the compiler thread.
+    pub(crate) fn predecode_into_cache(&self) {
+        {
+            let mut state = self.state.lock().unwrap();
+            if state.decoded || state.in_progress {
+                return;
+            }
+            state.in_progress = true;
+        }
+        let decoded = self.decode_raw();
+        let mut state = self.state.lock().unwrap();
+        match decoded {
+            Ok(map) => {
+                state.parsed_source_map = map;
+                state.decode_error = None;
+                state.cached = true;
+            }
+            Err(err) => {
+                state.parsed_source_map = None;
+                state.decode_error = Some(err);
+            }
+        }
+        state.decoded = true;
+        state.in_progress = false;
+        self.ready.notify_all();
     }
     // port: SourceMapInput#getSourceMap
     pub fn get_source_map(
@@ -56,49 +125,38 @@ impl SourceMapInput {
         error_manager: &mut dyn ErrorManager,
     ) -> Option<Arc<SourceMapConsumerV3>> {
         let mut state = self.state.lock().unwrap();
+        while state.in_progress {
+            state = self.ready.wait(state).unwrap();
+        }
         if !state.cached {
-            state.cached = true;
-            let source_map_path = self.source_file.get_name();
-            match self.source_file.get_code() {
-                Ok(source_map_contents) => {
-                    let mut consumer = SourceMapConsumerV3::new();
-                    match consumer.parse(source_map_contents) {
-                        Ok(()) => {
-                            let file = consumer.get_file();
-                            let default_map = file.as_ref().is_some_and(|file| !file.is_empty())
-                                && consumer.get_original_sources().len() == 1
-                                && consumer.get_original_sources().contains(&file)
-                                && consumer
-                                    .get_original_sources_content()
-                                    .unwrap_or_else(|| panic!("java.lang.NullPointerException"))
-                                    .len()
-                                    == 1
-                                && consumer.get_original_names().is_empty()
-                                && consumer.get_line_count() == -1;
-                            state.parsed_source_map = if default_map {
-                                None
-                            } else {
-                                Some(Arc::new(consumer))
-                            };
-                        }
-                        Err(e) => {
-                            let message = e.get_message().to_string();
-                            let error = JSError::make_without_location(
-                                &SOURCEMAP_PARSE_FAILED,
-                                &[source_map_path, &message],
-                            );
-                            error_manager.report(error.default_level(), error);
-                        }
+            if !state.decoded {
+                let decoded = self.decode_raw();
+                state.decoded = true;
+                match decoded {
+                    Ok(map) => {
+                        state.parsed_source_map = map;
+                        state.decode_error = None;
+                    }
+                    Err(err) => {
+                        state.parsed_source_map = None;
+                        state.decode_error = Some(err);
                     }
                 }
-                Err(e) => {
-                    let message = e.to_string();
-                    let error = JSError::make_without_location(
+            }
+            state.cached = true;
+            if let Some(err) = state.decode_error.take() {
+                let source_map_path = self.source_file.get_name();
+                let error = match err {
+                    DecodeError::Parse(message) => JSError::make_without_location(
+                        &SOURCEMAP_PARSE_FAILED,
+                        &[source_map_path, &message],
+                    ),
+                    DecodeError::Resolve(message) => JSError::make_without_location(
                         &SOURCEMAP_RESOLVE_FAILED,
                         &[source_map_path, &message],
-                    );
-                    error_manager.report(error.default_level(), error);
-                }
+                    ),
+                };
+                error_manager.report(error.default_level(), error);
             }
         }
         state.parsed_source_map.clone()
@@ -141,8 +199,12 @@ impl SourceMapInput {
             source_file: fields.source_file,
             state: Mutex::new(State {
                 parsed_source_map: fields.parsed_source_map,
+                decode_error: None,
+                in_progress: false,
+                decoded: fields.cached,
                 cached: fields.cached,
             }),
+            ready: Condvar::new(),
         }
     }
 }

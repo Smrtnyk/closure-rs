@@ -789,7 +789,7 @@ impl CompilerPass for DeadAssignmentsElimination {
         let mut scope_creator = SyntacticScopeCreator::new();
         let mut scope_memo = IndexMap::default();
         let use_parallel =
-            crate::parallel_parse::parallel_thread_count(candidates.len(), 500, 8) > 1;
+            crate::parallel_parse::parallel_thread_count(candidates.len(), 64, 8) > 1;
         if !use_parallel {
             for (fn_node, body) in candidates {
                 let fn_scope = ensure_ancestor_scope(
@@ -832,7 +832,7 @@ impl CompilerPass for DeadAssignmentsElimination {
             }
             return;
         }
-        const CHUNK_SIZE: usize = 2048;
+        const CHUNK_SIZE: usize = 4096;
         for chunk in candidates.chunks(CHUNK_SIZE) {
             let mut jobs = Vec::with_capacity(chunk.len());
             for &(fn_node, body) in chunk {
@@ -863,7 +863,7 @@ impl CompilerPass for DeadAssignmentsElimination {
                 );
                 jobs.push((fn_node, prepared));
             }
-            let threads = crate::parallel_parse::parallel_thread_count(jobs.len(), 256, 8);
+            let threads = crate::parallel_parse::parallel_thread_count(jobs.len(), 64, 8);
             if threads < 2 {
                 for (fn_node, prepared) in jobs {
                     let cfg = ControlFlowAnalysis::compute_cfg_readonly(
@@ -882,47 +882,28 @@ impl CompilerPass for DeadAssignmentsElimination {
                 continue;
             }
             let ast = &compiler.ast;
-            let jobs_ref = &jobs;
             let has_dead: Vec<std::sync::atomic::AtomicBool> = (0..jobs.len())
                 .map(|_| std::sync::atomic::AtomicBool::new(false))
                 .collect();
-            let has_dead_ref = &has_dead;
-            let next = std::sync::atomic::AtomicUsize::new(0);
-            std::thread::scope(|scope| {
-                let mut handles = Vec::with_capacity(threads);
-                for _ in 0..threads {
-                    let next = &next;
-                    let handle = std::thread::Builder::new()
-                        .name("closure-dae".into())
-                        .stack_size(crate::compiler_executor::COMPILER_STACK_SIZE)
-                        .spawn_scoped(scope, move || {
-                            loop {
-                                let idx = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                                let Some((fn_node, prepared)) = jobs_ref.get(idx) else {
-                                    break;
-                                };
-                                let cfg = ControlFlowAnalysis::compute_cfg_readonly(
-                                    ast,
-                                    can_continue_after_errors,
-                                    *fn_node,
-                                    false,
-                                    true,
-                                );
-                                let borrowed = prepared.run_borrowed(ast, cfg, false);
-                                if Self::has_potential_dead_assignment(ast, prepared, &borrowed) {
-                                    has_dead_ref[idx]
-                                        .store(true, std::sync::atomic::Ordering::Relaxed);
-                                }
-                                // `borrowed` (CFG + liveness) drops here on the worker thread.
-                            }
-                        })
-                        .expect("spawn dae worker");
-                    handles.push(handle);
-                }
-                for h in handles {
-                    h.join().expect("dae worker panicked");
-                }
-            });
+            crate::parallel_parse::run_scoped_for_each(
+                "closure-dae",
+                threads,
+                &jobs,
+                |idx, (fn_node, prepared)| {
+                    let cfg = ControlFlowAnalysis::compute_cfg_readonly(
+                        ast,
+                        can_continue_after_errors,
+                        *fn_node,
+                        false,
+                        true,
+                    );
+                    let borrowed = prepared.run_borrowed(ast, cfg, false);
+                    if Self::has_potential_dead_assignment(ast, prepared, &borrowed) {
+                        has_dead[idx].store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    // `borrowed` (CFG + liveness) drops here on the worker thread.
+                },
+            );
             for ((fn_node, prepared), flag) in jobs.into_iter().zip(has_dead) {
                 if !flag.into_inner() {
                     continue;

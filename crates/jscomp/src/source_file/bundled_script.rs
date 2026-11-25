@@ -35,6 +35,10 @@ pub(crate) struct BundledScript {
     pub(crate) may_have_calls: bool,
     pub(crate) may_have_module_syntax: bool,
     pub(crate) global_property_roots: Option<&'static [&'static str]>,
+    pub(crate) declared_var_names: Option<&'static [&'static str]>,
+    pub(crate) extern_referenced_names: Option<&'static [&'static str]>,
+    pub(crate) normalize_clean: bool,
+    pub(crate) name_hash_mask: u64,
 }
 
 // port: GatherExternProperties#visit

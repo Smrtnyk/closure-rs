@@ -436,24 +436,29 @@ impl CheckAccessControls {
     // port: CheckAccessControls#checkVisibility
     fn check_visibility(
         &mut self,
-        compiler: &mut AbstractCompiler,
+        traversal: &mut NodeTraversal<'_>,
         node: NodeId,
         prop_ref: Option<&PropertyReference>,
         identifier_behaviour: IdentifierBehaviour,
-        scope: Scope,
     ) {
         if identifier_behaviour == IdentifierBehaviour::ES6_CLASS_INVOCATION {
-            self.check_es6_constructor_invocation_visibility(compiler, node);
+            self.check_es6_constructor_invocation_visibility(traversal.get_compiler(), node);
         }
 
-        if identifier_behaviour != IdentifierBehaviour::ES5_CLASS_NAMESPACE {
-            self.check_name_visibility(compiler, scope, node);
+        // Rust-only (performance divergence): only materialize `traversal.get_scope()` when
+        // `node` is actually a `NAME`, avoiding building SyntacticScopes for non-NAME nodes and
+        // empty blocks.
+        if identifier_behaviour != IdentifierBehaviour::ES5_CLASS_NAMESPACE
+            && node.is_name(traversal)
+        {
+            let scope = traversal.get_scope();
+            self.check_name_visibility(traversal.get_compiler(), scope, node);
         }
 
         if let Some(prop_ref) = prop_ref
             && identifier_behaviour != IdentifierBehaviour::ES5_CLASS_NAMESPACE
         {
-            self.check_property_visibility(compiler, prop_ref);
+            self.check_property_visibility(traversal.get_compiler(), prop_ref);
         }
     }
 
@@ -961,6 +966,17 @@ impl CheckAccessControls {
         let reference_type = Self::cast_to_object(reg, Some(raw_reference_type));
 
         let property_name = &prop_ref.name;
+
+        // Rust-only (performance divergence): when there are no fileoverview visibility defaults
+        // and no property with this spelling has explicit visibility anywhere in the registry,
+        // `get_object_type` is always `None` and `file_overview_visibility` is `None`, so this
+        // check exits without diagnostics after finishing any lazy prototype chain resolution.
+        if self.default_visibility_for_files.is_empty()
+            && !reg.property_access_annotations(property_name).visibility
+        {
+            AccessControlUtils::finish_prototype_walk(reg, ast, reference_type);
+            return;
+        }
 
         let mut defining_source = AccessControlUtils::get_defining_source(
             reg,
@@ -1763,6 +1779,30 @@ impl Callback for CheckAccessControls {
         node: NodeId,
         _parent: Option<NodeId>,
     ) -> bool {
+        // Rust-only (performance divergence): empty anonymous extern function stubs
+        // (`Foo.prototype.bar = function(a, b) {}`) with unannotated plain parameters cannot emit
+        // access-control warnings inside their parameter list or empty body when there are no
+        // fileoverview visibilities. Run `check_final_class_overrides` directly and skip entering
+        // the stub's scope and children.
+        if node.is_function(traversal)
+            && node.is_from_externs(traversal)
+            && self.default_visibility_for_files.is_empty()
+            && !NodeUtil::is_invocation_target(traversal, node)
+            && !Self::is_extends_target(traversal, node)
+            && node
+                .get_first_child(traversal)
+                .is_some_and(|name| name.get_string_ref(traversal).is_empty())
+            && crate::source_file::declarations::is_plain_function_stub(traversal, node)
+            && node
+                .get_second_child(traversal)
+                .unwrap()
+                .children(traversal)
+                .all(|p| p.get_jsdoc_info_ref(traversal).is_none())
+        {
+            self.check_final_class_overrides(traversal.get_compiler(), node);
+            return false;
+        }
+
         let access_control_root = Self::primary_access_control_scope_root_for(traversal, node);
         if let Some(access_control_root) = access_control_root {
             self.enter_access_control_scope(traversal.get_compiler(), access_control_root);
@@ -1780,14 +1820,7 @@ impl Callback for CheckAccessControls {
         let prop_ref = Self::create_property_reference(traversal.get_compiler(), node);
 
         self.check_deprecation(node, prop_ref.as_ref(), identifier_behaviour, traversal);
-        let scope = traversal.get_scope();
-        self.check_visibility(
-            traversal.get_compiler(),
-            node,
-            prop_ref.as_ref(),
-            identifier_behaviour,
-            scope,
-        );
+        self.check_visibility(traversal, node, prop_ref.as_ref(), identifier_behaviour);
         self.check_constant_property(
             traversal.get_compiler(),
             prop_ref.as_ref(),

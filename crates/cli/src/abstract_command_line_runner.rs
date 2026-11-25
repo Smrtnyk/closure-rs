@@ -2214,17 +2214,18 @@ impl
             .unwrap();
         Self::maybe_create_dirs_for_path(&out_name);
         let mut out = self.file_name_to_output_writer2(Some(&out_name))?.unwrap();
-        let mut text = String::new();
-        self.compiler
+        let mut writer = crate::java_io::StreamingFmtWriter::new(&mut *out);
+        let fmt_res = self
+            .compiler
             .as_ref()
             .unwrap()
             .get_source_map()
             .unwrap()
             .lock()
             .unwrap()
-            .append_to(&mut text, associated_name)
-            .map_err(std::io::Error::other)?;
-        out.write_all(text.as_bytes())?;
+            .append_to(&mut writer, associated_name);
+        writer.finish()?;
+        fmt_res.map_err(std::io::Error::other)?;
         out.flush()
     }
     // port: AbstractCommandLineRunner#outputNameMaps
@@ -2555,21 +2556,19 @@ impl AbstractCommandLineRunner<closure_jscomp::compiler::Compiler, CompilerOptio
                 tracker.set_current_chunk_context(chunk.clone());
                 self.write_chunk_output(&filename, &mut out, &mut tracker, chunk)?;
                 if options.should_gather_source_map_info() {
-                    let mut text = String::new();
-                    self.compiler
+                    let out = map_file_out.as_mut().unwrap();
+                    let mut writer = crate::java_io::StreamingFmtWriter::new(&mut **out);
+                    let fmt_res = self
+                        .compiler
                         .as_ref()
                         .unwrap()
                         .get_source_map()
                         .unwrap()
                         .lock()
                         .unwrap()
-                        .append_to(&mut text, filename.as_str())
-                        .map_err(RunnerException::from)?;
-                    map_file_out
-                        .as_mut()
-                        .unwrap()
-                        .write_all(text.as_bytes())
-                        .map_err(RunnerException::from)?;
+                        .append_to(&mut writer, filename.as_str());
+                    writer.finish().map_err(RunnerException::from)?;
+                    fmt_res.map_err(RunnerException::from)?;
                 }
                 Self::close_appendable(out).map_err(RunnerException::from)?;
                 if Self::should_generate_map_per_chunk(options)

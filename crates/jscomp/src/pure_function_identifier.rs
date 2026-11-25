@@ -972,11 +972,60 @@ impl CallGraphCompilerPass for PureFunctionIdentifier {
 
         self.populate_datastructures_for_analysis_traversal(compiler, references);
 
-        NodeTraversal::traverse(
-            compiler,
-            externs,
-            &mut ExternFunctionAnnotationAnalyzer { pfi: self },
-        );
+        // Rust-only (performance divergence): when artificial-purity debugging reasons are not
+        // collected, `update_side_effects_for_extern_function` only ORs side-effect bitmask flags
+        // for extern FUNCTION nodes present in `summaries_for_all_names_of_function_by_node`
+        // (order-independent). Iterate those map entries directly instead of traversing all ~250K
+        // extern AST nodes.
+        if self.artificially_pure_literals_for_debugging.is_empty() {
+            let len = self.summaries_for_all_names_of_function_by_node.len();
+            let mut analyzer = ExternFunctionAnnotationAnalyzer { pfi: self };
+            for i in 0..len {
+                let fn_node = *analyzer
+                    .pfi
+                    .summaries_for_all_names_of_function_by_node
+                    .get_index(i)
+                    .unwrap()
+                    .0;
+                if !fn_node.is_function(compiler) || !fn_node.is_from_externs(compiler) {
+                    continue;
+                }
+                let mut cur = Some(fn_node);
+                let mut under_externs = false;
+                while let Some(c) = cur {
+                    if c == externs {
+                        under_externs = true;
+                        break;
+                    }
+                    cur = c.get_parent(compiler);
+                }
+                if !under_externs {
+                    continue;
+                }
+                let summary_count = analyzer
+                    .pfi
+                    .summaries_for_all_names_of_function_by_node
+                    .get_index(i)
+                    .unwrap()
+                    .1
+                    .len();
+                for j in 0..summary_count {
+                    let summary = analyzer
+                        .pfi
+                        .summaries_for_all_names_of_function_by_node
+                        .get_index(i)
+                        .unwrap()
+                        .1[j];
+                    analyzer.update_side_effects_for_extern_function(compiler, fn_node, summary);
+                }
+            }
+        } else {
+            NodeTraversal::traverse(
+                compiler,
+                externs,
+                &mut ExternFunctionAnnotationAnalyzer { pfi: self },
+            );
+        }
         NodeTraversal::traverse(compiler, root, &mut FunctionBodyAnalyzer::new(self));
 
         self.propagate_side_effects(compiler);

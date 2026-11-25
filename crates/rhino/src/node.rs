@@ -412,8 +412,162 @@ impl Hash for OriginalName {
 /// Rust-only: indexes `Ast` for a node's `NodeCold` (`ast[C(n)].length`).
 #[derive(Clone, Copy)]
 struct C(NodeId);
-// `Ast::prop_masks` has one bit per property type.
-const _: () = assert!(Prop::VALUES.len() <= 64);
+// `Ast::prop_masks` has one bit per property type (bits 0..56), plus packed metadata in high bits:
+// - bits 57..58: inline `Prop::CONSTANT_VAR_FLAGS` value (`DECLARED=1`, `INFERRED=2`)
+// - bit 63: `PROP_MASK_SPILLED_INLINE` (set only when an inline-eligible prop had to be stored in
+//   `prop_list_head`, e.g., an unusual non-1 int or object value or raw `set_prop_list_head`).
+const _: () = assert!(Prop::VALUES.len() <= 57);
+const PROP_BITS_MASK: u64 = (1u64 << 57) - 1;
+const PROP_MASK_CONST_SHIFT: u32 = 57;
+const PROP_MASK_CONST_BITS: u64 = 0b11u64 << PROP_MASK_CONST_SHIFT;
+const PROP_MASK_SPILLED_INLINE: u64 = 1u64 << 63;
+
+/// Rust-only (performance divergence): pure boolean properties stored directly in `Ast::prop_masks`
+/// (value `1` when set, `0` when absent) instead of heap-allocating `Arc<PropListItem>` nodes.
+/// Excludes `Prop::IS_IN_CLOSURE_UNAWARE_SUBTREE` because `validate_prop_list_tail_ordering`
+/// inspects its link position right before `SOURCE_FILE`.
+const INLINE_BOOL_PROPS_MASK: u64 = (1u64 << Prop::IS_PARENTHESIZED as u8)
+    | (1u64 << Prop::INCRDECR as u8)
+    | (1u64 << Prop::QUOTED as u8)
+    | (1u64 << Prop::SYNTHETIC as u8)
+    | (1u64 << Prop::ADDED_BLOCK as u8)
+    | (1u64 << Prop::IS_CONSTANT_NAME as u8)
+    | (1u64 << Prop::IS_NAMESPACE as u8)
+    | (1u64 << Prop::USE_STRICT as u8)
+    | (1u64 << Prop::DIRECT_EVAL as u8)
+    | (1u64 << Prop::FREE_CALL as u8)
+    | (1u64 << Prop::STATIC_MEMBER as u8)
+    | (1u64 << Prop::GENERATOR_FN as u8)
+    | (1u64 << Prop::ARROW_FN as u8)
+    | (1u64 << Prop::ASYNC_FN as u8)
+    | (1u64 << Prop::YIELD_ALL as u8)
+    | (1u64 << Prop::EXPORT_DEFAULT as u8)
+    | (1u64 << Prop::EXPORT_ALL_FROM as u8)
+    | (1u64 << Prop::IS_GENERATOR_MARKER as u8)
+    | (1u64 << Prop::IS_GENERATOR_SAFE as u8)
+    | (1u64 << Prop::COMPUTED_PROP_METHOD as u8)
+    | (1u64 << Prop::COMPUTED_PROP_GETTER as u8)
+    | (1u64 << Prop::COMPUTED_PROP_SETTER as u8)
+    | (1u64 << Prop::COMPUTED_PROP_VARIABLE as u8)
+    | (1u64 << Prop::OPT_ES6_TYPED as u8)
+    | (1u64 << Prop::CONSTRUCT_SIGNATURE as u8)
+    | (1u64 << Prop::NON_INDEXABLE as u8)
+    | (1u64 << Prop::GOOG_MODULE as u8)
+    | (1u64 << Prop::IS_TYPESCRIPT_ABSTRACT as u8)
+    | (1u64 << Prop::DELETED as u8)
+    | (1u64 << Prop::MODULE_ALIAS as u8)
+    | (1u64 << Prop::IS_UNUSED_PARAMETER as u8)
+    | (1u64 << Prop::MODULE_EXPORT as u8)
+    | (1u64 << Prop::IS_SHORTHAND_PROPERTY as u8)
+    | (1u64 << Prop::ES6_MODULE as u8)
+    | (1u64 << Prop::START_OF_OPT_CHAIN as u8)
+    | (1u64 << Prop::TRAILING_COMMA as u8)
+    | (1u64 << Prop::SYNTHESIZED_UNFULFILLED_NAME_DECLARATION as u8)
+    | (1u64 << Prop::PRIVATE_IDENTIFIER as u8)
+    | (1u64 << Prop::COLOR_FROM_CAST as u8);
+
+const INLINE_INT_PROPS_MASK: u64 = INLINE_BOOL_PROPS_MASK
+    | (1u64 << Prop::CONSTANT_VAR_FLAGS as u8)
+    | (1u64 << Prop::CHANGE_TIME as u8)
+    | (1u64 << Prop::SIDE_EFFECT_FLAGS as u8);
+
+/// Rust-only: splits any inline-eligible integer properties out of a `PropListItem` chain (used
+/// when loading bundled extern snapshots) so restored nodes also avoid keeping boolean props in
+/// linked lists.
+pub(crate) fn split_inline_from_list(
+    head: Option<Arc<PropListItem>>,
+) -> (
+    Option<Arc<PropListItem>>,
+    u64,
+    Option<Arc<JSDocInfo>>,
+    i32,
+    u8,
+) {
+    let mut items = Vec::new();
+    let mut x = head.as_deref();
+    let mut any_hoistable = false;
+    while let Some(item) = x {
+        let bit = 1u64 << item.prop_type;
+        let hoistable = match item.value {
+            PropValue::Int(1) if INLINE_BOOL_PROPS_MASK & bit != 0 => true,
+            PropValue::Int(v)
+                if item.prop_type == Prop::CONSTANT_VAR_FLAGS as u8 && (1..=3).contains(&v) =>
+            {
+                true
+            }
+            PropValue::Int(v) if item.prop_type == Prop::CHANGE_TIME as u8 && v != 0 => true,
+            PropValue::Int(v)
+                if item.prop_type == Prop::SIDE_EFFECT_FLAGS as u8 && (1..=255).contains(&v) =>
+            {
+                true
+            }
+            _ => false,
+        };
+        if hoistable {
+            any_hoistable = true;
+        }
+        items.push((item, hoistable));
+        x = item.next.as_deref();
+    }
+    if !any_hoistable {
+        let (list_mask, jsdoc, _) = prop_list_summary(head.as_ref());
+        let mask = list_mask
+            | if list_mask & INLINE_INT_PROPS_MASK != 0 {
+                PROP_MASK_SPILLED_INLINE
+            } else {
+                0
+            };
+        return (head, mask, jsdoc, 0, 0);
+    }
+    let mut remaining: Option<Arc<PropListItem>> = None;
+    let mut inline_mask = 0u64;
+    let mut change_time = 0i32;
+    let mut side_effect = 0u8;
+    // Walk back-to-front so retained items preserve their exact linked-list order and tail sharing.
+    let mut seen_mask = 0u64;
+    // First find which props are shadowed by earlier entries in the list (Java's lookupProperty
+    // returns the first match).
+    let mut keep_flags = vec![false; items.len()];
+    for (idx, &(item, _)) in items.iter().enumerate() {
+        let bit = 1u64 << item.prop_type;
+        if seen_mask & bit == 0 {
+            seen_mask |= bit;
+            keep_flags[idx] = true;
+        }
+    }
+    for (idx, (item, hoistable)) in items.into_iter().enumerate().rev() {
+        if !keep_flags[idx] {
+            continue;
+        }
+        if hoistable {
+            let bit = 1u64 << item.prop_type;
+            if INLINE_BOOL_PROPS_MASK & bit != 0 {
+                inline_mask |= bit;
+            } else if item.prop_type == Prop::CONSTANT_VAR_FLAGS as u8 {
+                let v = item.get_int_value() as u64;
+                inline_mask |= bit | (v << PROP_MASK_CONST_SHIFT);
+            } else if item.prop_type == Prop::CHANGE_TIME as u8 {
+                inline_mask |= bit;
+                change_time = item.get_int_value();
+            } else if item.prop_type == Prop::SIDE_EFFECT_FLAGS as u8 {
+                inline_mask |= bit;
+                side_effect = item.get_int_value() as u8;
+            }
+        } else {
+            remaining = Some(item.chain(remaining));
+        }
+    }
+    let (list_mask, jsdoc, _) = prop_list_summary(remaining.as_ref());
+    let mask = list_mask
+        | inline_mask
+        | if list_mask & INLINE_INT_PROPS_MASK != 0 {
+            PROP_MASK_SPILLED_INLINE
+        } else {
+            0
+        };
+    (remaining, mask, jsdoc, change_time, side_effect)
+}
+
 /// Rust-only: the `Ast::prop_masks` and `Ast::jsdocs` entries of a property list: the mask of
 /// its property types and the value of its first JSDOC_INFO item (the one `lookupProperty`
 /// finds).
@@ -705,6 +859,13 @@ impl TokenCandidates {
 /// only grows: it is a superset of the arena's contents, never exact. It is kept by every write
 /// of a token, string, original name or property list in this file and merged in by
 /// `append_preparsed`.
+// Synthetic high bits inside `PresenceSummary::jsdoc_bits` for non-boolean JSDoc properties
+// (`JSDocInfo::ID_GENERATOR` and `JSDocInfo::CLOSURE_PRIMITIVE_ID`). Kept outside `Bit::*`.
+const JSDOC_KEY_ID_GENERATOR_BIT: u64 = 1u64 << 62;
+const JSDOC_KEY_CLOSURE_PRIMITIVE_BIT: u64 = 1u64 << 63;
+const JSDOC_SYNTHETIC_KEY_BITS: u64 = JSDOC_KEY_ID_GENERATOR_BIT | JSDOC_KEY_CLOSURE_PRIMITIVE_BIT;
+const _: () = assert!((crate::jsdoc_info::Bit::LEGACY_NAMED_TS_EXPORT as u32) < 62);
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PresenceSummary {
     tokens: [u64; 3],
@@ -713,6 +874,10 @@ pub struct PresenceSummary {
         deserialize_with = "PresenceSummary::deserialize_names"
     )]
     names: u16,
+    #[serde(
+        serialize_with = "PresenceSummary::serialize_jsdoc_bits",
+        deserialize_with = "PresenceSummary::deserialize_jsdoc_bits"
+    )]
     jsdoc_bits: u64,
 }
 impl PresenceSummary {
@@ -730,6 +895,20 @@ impl PresenceSummary {
         let names = <u16 as serde::Deserialize>::deserialize(deserializer)?;
         Ok(names ^ WatchedName::ClosureDefines.bit())
     }
+    // Older snapshots did not track ID_GENERATOR / CLOSURE_PRIMITIVE_ID in `jsdoc_bits` and left
+    // those high bits zero; XOR-encoding conservatively marks them present for older snapshots.
+    fn serialize_jsdoc_bits<S: serde::Serializer>(
+        bits: &u64,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u64(bits ^ JSDOC_SYNTHETIC_KEY_BITS)
+    }
+    fn deserialize_jsdoc_bits<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<u64, D::Error> {
+        let bits = <u64 as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(bits ^ JSDOC_SYNTHETIC_KEY_BITS)
+    }
 
     #[inline]
     fn note_token(&mut self, token: Token) {
@@ -743,6 +922,12 @@ impl PresenceSummary {
     #[inline]
     fn note_jsdoc(&mut self, info: &JSDocInfo) {
         self.jsdoc_bits |= info.property_bits();
+        if info.is_any_id_generator() {
+            self.jsdoc_bits |= JSDOC_KEY_ID_GENERATOR_BIT;
+        }
+        if info.has_closure_primitive_id() {
+            self.jsdoc_bits |= JSDOC_KEY_CLOSURE_PRIMITIVE_BIT;
+        }
     }
     fn merge(&mut self, other: &Self) {
         for (a, b) in self.tokens.iter_mut().zip(other.tokens) {
@@ -767,11 +952,16 @@ pub struct Ast {
     /// A missing suffix has no types or colors. Untyped compilations leave the vector empty.
     types: Vec<Option<JSTypeOrColor>>,
     original_names: IndexSet<OriginalName>,
-    /// Rust-only (performance divergence): per node, bit `p` is set when its property list holds an
-    /// item of type `p`, so that looking up an absent property (the common case) reads this dense
-    /// array only, neither the node nor its list. Kept in step with `prop_list_head` by
-    /// `Ast::set_props`.
+    /// Rust-only (performance divergence): per node, bit `p` is set when property `p` is present
+    /// (inline or in `prop_list_head`), bits 57..58 pack `CONSTANT_VAR_FLAGS`, and bit 63 marks
+    /// any spilled inline-eligible property stored in `prop_list_head`.
     prop_masks: Vec<u64>,
+    /// Rust-only (performance divergence): lazily grown per-node `Prop::CHANGE_TIME` values,
+    /// avoiding `Arc<PropListItem>` allocations on every AST edit during optimization loops.
+    change_times: Vec<i32>,
+    /// Rust-only (performance divergence): lazily grown per-node `Prop::SIDE_EFFECT_FLAGS` values
+    /// (5-bit flags), avoiding `Arc<PropListItem>` allocations on call/new sites.
+    side_effect_flags: Vec<u8>,
     /// Rust-only (performance divergence): per node, the JSDocInfo of its property list (a second
     /// reference to it), so that `getJSDocInfo`, which most passes call on most nodes, reads this
     /// dense array instead of the node and its list. Kept in step with `prop_list_head` by
@@ -981,10 +1171,10 @@ impl Ast {
             self.changed_nodes.push(n);
         }
     }
-    /// Rust-only: replaces the property list of `n` and recomputes its `prop_masks` and `jsdocs`
-    /// entries.
-    fn set_props(&mut self, n: NodeId, head: Option<Arc<PropListItem>>) {
-        let (mask, jsdoc, refers_to_nodes) = prop_list_summary(head.as_ref());
+    /// Rust-only: replaces `prop_list_head` of `n` while preserving any inline properties stored
+    /// in `prop_masks`, `change_times`, or `side_effect_flags`.
+    fn set_prop_list_preserving_inline(&mut self, n: NodeId, head: Option<Arc<PropListItem>>) {
+        let (list_mask, jsdoc, refers_to_nodes) = prop_list_summary(head.as_ref());
         if let Some(info) = &jsdoc {
             self.presence.note_jsdoc(info);
         }
@@ -995,15 +1185,103 @@ impl Ast {
                 self.preparse_node_prop_slots.push(slot_u32);
             }
         }
-        self.prop_masks[slot] = mask;
+        let old = self.prop_masks[slot];
+        let keep_inline = old & (INLINE_INT_PROPS_MASK | PROP_MASK_CONST_BITS);
+        let spilled = if list_mask & INLINE_INT_PROPS_MASK != 0 {
+            PROP_MASK_SPILLED_INLINE
+        } else {
+            0
+        };
+        self.prop_masks[slot] = keep_inline | list_mask | spilled;
         self.jsdocs[slot] = jsdoc;
         self.nodes[slot].prop_list_head = head;
     }
-    /// Rust-only: takes the property list of `n`, leaving none.
-    fn take_props(&mut self, n: NodeId) -> Option<Arc<PropListItem>> {
-        self.prop_masks[n.0.get() as usize - 1] = 0;
-        self.jsdocs[n.0.get() as usize - 1] = None;
-        self.nodes[n.arena_index()].prop_list_head.take()
+    /// Rust-only: replaces ALL properties of `n` (both list and inline) from `head`.
+    fn set_props_replacing_all(&mut self, n: NodeId, head: Option<Arc<PropListItem>>) {
+        let (list_mask, jsdoc, refers_to_nodes) = prop_list_summary(head.as_ref());
+        if let Some(info) = &jsdoc {
+            self.presence.note_jsdoc(info);
+        }
+        let slot = n.arena_index();
+        if self.preparse && refers_to_nodes {
+            let slot_u32 = slot as u32;
+            if self.preparse_node_prop_slots.last() != Some(&slot_u32) {
+                self.preparse_node_prop_slots.push(slot_u32);
+            }
+        }
+        if slot < self.change_times.len() {
+            self.change_times[slot] = 0;
+        }
+        if slot < self.side_effect_flags.len() {
+            self.side_effect_flags[slot] = 0;
+        }
+        let spilled = if list_mask & INLINE_INT_PROPS_MASK != 0 {
+            PROP_MASK_SPILLED_INLINE
+        } else {
+            0
+        };
+        self.prop_masks[slot] = list_mask | spilled;
+        self.jsdocs[slot] = jsdoc;
+        self.nodes[slot].prop_list_head = head;
+    }
+    /// Rust-only: takes `prop_list_head` of `n` without clearing inline properties.
+    fn take_prop_list(&mut self, n: NodeId) -> Option<Arc<PropListItem>> {
+        let slot = n.arena_index();
+        self.prop_masks[slot] &= INLINE_INT_PROPS_MASK | PROP_MASK_CONST_BITS;
+        self.jsdocs[slot] = None;
+        self.nodes[slot].prop_list_head.take()
+    }
+    #[inline]
+    pub(crate) fn set_inline_change_time(&mut self, slot: usize, value: i32) {
+        if value != 0 {
+            if slot >= self.change_times.len() {
+                self.change_times.resize(slot + 1, 0);
+            }
+            self.change_times[slot] = value;
+        } else if slot < self.change_times.len() {
+            self.change_times[slot] = 0;
+        }
+    }
+    #[inline]
+    pub(crate) fn set_inline_side_effect_flags(&mut self, slot: usize, value: u8) {
+        if value != 0 {
+            if slot >= self.side_effect_flags.len() {
+                self.side_effect_flags.resize(slot + 1, 0);
+            }
+            self.side_effect_flags[slot] = value;
+        } else if slot < self.side_effect_flags.len() {
+            self.side_effect_flags[slot] = 0;
+        }
+    }
+    /// Rust-only: materializes any inline properties on `n` onto `prop_list_head` for snapshot
+    /// capture. Returns the original `prop_list_head` without allocation when no inline props exist.
+    pub(crate) fn materialize_full_prop_list(&self, n: NodeId) -> Option<Arc<PropListItem>> {
+        let slot = n.arena_index();
+        let mask = self.prop_masks[slot];
+        let mut head = self.nodes[slot].prop_list_head.clone();
+        let inline_candidates = mask & INLINE_INT_PROPS_MASK;
+        if inline_candidates == 0 {
+            return head;
+        }
+        let mut list_mask = 0u64;
+        if mask & PROP_MASK_SPILLED_INLINE != 0 {
+            let mut x = head.as_deref();
+            while let Some(item) = x {
+                list_mask |= 1u64 << item.prop_type;
+                x = item.next.as_deref();
+            }
+        }
+        let mut bits = inline_candidates & !list_mask;
+        while bits != 0 {
+            let p = bits.trailing_zeros() as u8;
+            bits &= bits - 1;
+            let prop = Prop::VALUES[p as usize];
+            let val = n.get_int_prop(self, prop);
+            if val != 0 {
+                head = Some(PropListItem::int(p, val, head));
+            }
+        }
+        head
     }
     /// Rust-only, not in Java (performance divergence): an arena in which a worker thread parses
     /// one input (Java parses into the one shared object graph). `append_preparsed` then moves the
@@ -1122,6 +1400,37 @@ impl Ast {
     pub fn has_seen_jsdoc_bit(&self, bit: crate::jsdoc_info::Bit) -> bool {
         self.presence.jsdoc_bits & bit.mask() != 0
     }
+    /// Rust-only (performance divergence): whether any JSDocInfo in this arena has ever carried an
+    /// `@idGenerator` (or consistent/stable/mapped/xid) annotation.
+    pub fn has_seen_jsdoc_id_generator(&self) -> bool {
+        self.presence.jsdoc_bits & JSDOC_KEY_ID_GENERATOR_BIT != 0
+    }
+    /// Rust-only (performance divergence): whether any JSDocInfo in this arena has ever carried a
+    /// `@closurePrimitive` annotation.
+    pub fn has_seen_jsdoc_closure_primitive(&self) -> bool {
+        self.presence.jsdoc_bits & JSDOC_KEY_CLOSURE_PRIMITIVE_BIT != 0
+    }
+    /// Rust-only (performance divergence): whether any node in this arena has ever had a JSType or
+    /// Color assigned.
+    #[inline]
+    pub fn has_types(&self) -> bool {
+        !self.types.is_empty()
+    }
+    /// Rust-only (performance divergence): tests whether `n` currently carries any property in
+    /// `mask` with a single dense array load.
+    #[inline]
+    pub fn node_has_any_prop(&self, n: NodeId, mask: u64) -> bool {
+        self.prop_masks[n.arena_index()] & mask != 0
+    }
+    /// Rust-only (performance divergence): merges a saved presence summary into this arena.
+    pub fn merge_presence_summary(&mut self, other: &PresenceSummary) {
+        self.presence.merge(other);
+    }
+    /// Rust-only (performance divergence): replaces this arena's presence summary (used to isolate
+    /// transient JSON parses that may be pruned away before attaching surviving inputs).
+    pub fn set_presence_summary(&mut self, summary: PresenceSummary) {
+        self.presence = summary;
+    }
     /// Rust-only (performance divergence): every node in this arena whose current `JSDocInfo` has
     /// `bit` set. Returns an empty vector in O(1) when `bit` has never been seen.
     pub fn nodes_with_jsdoc_bit(&self, bit: crate::jsdoc_info::Bit) -> Vec<NodeId> {
@@ -1184,6 +1493,23 @@ impl Ast {
                 Some(JSTypeOrColor::JSType(t)) => (1u8, t).hash(state),
                 Some(JSTypeOrColor::Color(c)) => (2u8, c).hash(state),
             }
+            let slot = n.arena_index();
+            let mask = self.prop_masks[slot];
+            (mask & !PROP_MASK_SPILLED_INLINE).hash(state);
+            if mask & (1u64 << Prop::CHANGE_TIME as u8) != 0 {
+                self.change_times
+                    .get(slot)
+                    .copied()
+                    .unwrap_or(0)
+                    .hash(state);
+            }
+            if mask & (1u64 << Prop::SIDE_EFFECT_FLAGS as u8) != 0 {
+                self.side_effect_flags
+                    .get(slot)
+                    .copied()
+                    .unwrap_or(0)
+                    .hash(state);
+            }
             let head = self[n].prop_list_head.as_ref();
             head.map(|h| Arc::as_ptr(h) as usize).hash(state);
             let mut item = head.map(|h| &**h);
@@ -1240,6 +1566,8 @@ impl Ast {
             types,
             original_names,
             prop_masks,
+            change_times,
+            side_effect_flags,
             jsdocs,
             preparse_bound_first_use,
             mut preparse_node_prop_slots,
@@ -1320,6 +1648,16 @@ impl Ast {
                 self.set_node_type(map.node_at(i), ty);
             }
         }
+        for (i, ct) in change_times.into_iter().enumerate() {
+            if ct != 0 {
+                self.set_inline_change_time(map.node_at(i).arena_index(), ct);
+            }
+        }
+        for (i, se) in side_effect_flags.into_iter().enumerate() {
+            if se != 0 {
+                self.set_inline_side_effect_flags(map.node_at(i).arena_index(), se);
+            }
+        }
         // Only properties that contain a NodeId or JSDocInfo need remapping, after the bound exists.
         if !preparse_node_prop_slots.is_empty() {
             preparse_node_prop_slots.sort_unstable();
@@ -1337,7 +1675,7 @@ impl Ast {
                 let dst = map.node_at(slot as usize);
                 if let Some(head) = self.nodes[dst.arena_index()].prop_list_head.take() {
                     let remapped = remapper.list(head);
-                    self.set_props(dst, Some(remapped));
+                    self.set_prop_list_preserving_inline(dst, Some(remapped));
                 }
             }
         }
@@ -1754,10 +2092,12 @@ impl NodeId {
     // port: Node#setIsInClosureUnawareSubtree
     pub fn set_is_in_closure_unaware_subtree(self, ast: &mut Ast, value: bool) {
         check_argument!(
-            ast[self]
-                .prop_list_head
-                .as_ref()
-                .is_some_and(|h| h.prop_type == Prop::SOURCE_FILE as u8 && h.next.is_none()),
+            (ast.prop_masks[self.arena_index()] & PROP_BITS_MASK)
+                == (1u64 << Prop::SOURCE_FILE as u8)
+                && ast[self]
+                    .prop_list_head
+                    .as_ref()
+                    .is_some_and(|h| h.prop_type == Prop::SOURCE_FILE as u8 && h.next.is_none()),
             "Cannot set IS_IN_CLOSURE_UNAWARE_SUBTREE property on a node which proplist is not a single SOURCE_FILE prop: %s %s",
             self.to_string(ast),
             self.get_prop_list_debug_string(ast)
@@ -2037,7 +2377,19 @@ impl NodeId {
     }
     // port: Node#lookupProperty
     pub fn lookup_property(self, ast: &Ast, prop: Prop) -> Option<Arc<PropListItem>> {
-        self.lookup_property_ref(ast, prop).cloned()
+        let slot = self.arena_index();
+        let mask = ast.prop_masks[slot];
+        let bit = 1u64 << (prop as u8);
+        if mask & bit == 0 {
+            return None;
+        }
+        if mask & PROP_MASK_SPILLED_INLINE != 0 || INLINE_INT_PROPS_MASK & bit == 0 {
+            if let Some(item) = self.lookup_list_item_ref(ast, prop) {
+                return Some(Arc::clone(item));
+            }
+        }
+        let val = self.inline_int_value_unchecked(ast, slot, mask, prop);
+        (val != 0).then(|| PropListItem::int(prop as u8, val, None))
     }
     // Java walks the list by reference; walking with borrows avoids an Arc clone (two atomic
     // operations) per list item.
@@ -2046,6 +2398,11 @@ impl NodeId {
         if ast.prop_masks[self.0.get() as usize - 1] & (1u64 << prop_type) == 0 {
             return None;
         }
+        self.lookup_list_item_ref(ast, prop)
+    }
+    #[inline]
+    fn lookup_list_item_ref(self, ast: &Ast, prop: Prop) -> Option<&Arc<PropListItem>> {
+        let prop_type = prop as u8;
         let mut x = ast[self].prop_list_head.as_ref();
         while let Some(item) = x {
             if item.prop_type == prop_type {
@@ -2055,38 +2412,70 @@ impl NodeId {
         }
         None
     }
+    #[inline]
+    fn inline_int_value_unchecked(self, ast: &Ast, slot: usize, mask: u64, prop: Prop) -> i32 {
+        let bit = 1u64 << (prop as u8);
+        if INLINE_BOOL_PROPS_MASK & bit != 0 {
+            return i32::from(mask & bit != 0);
+        }
+        match prop {
+            Prop::CONSTANT_VAR_FLAGS => ((mask >> PROP_MASK_CONST_SHIFT) & 3) as i32,
+            Prop::CHANGE_TIME => ast.change_times.get(slot).copied().unwrap_or(0),
+            Prop::SIDE_EFFECT_FLAGS => {
+                i32::from(ast.side_effect_flags.get(slot).copied().unwrap_or(0))
+            }
+            _ => 0,
+        }
+    }
     // port: Node#clonePropsFrom
     pub fn clone_props_from(self, ast: &mut Ast, other: NodeId) -> Self {
+        let dst = self.arena_index();
+        let src = other.arena_index();
         check_state!(
-            ast[self].prop_list_head.is_none(),
+            ast[self].prop_list_head.is_none() && (ast.prop_masks[dst] & PROP_BITS_MASK) == 0,
             "Node has existing properties."
         );
         let head = ast[other].prop_list_head.clone();
         ast.snapshot_watches.change(self, snapshot_watch::DOC);
-        ast.set_props(self, head);
-        if ast.prop_masks[self.arena_index()] & TRACKED_FLAG_PROPS_MASK != 0 {
+        ast.set_props_replacing_all(self, head);
+        let src_mask = ast.prop_masks[src];
+        ast.prop_masks[dst] = src_mask;
+        if src_mask & (1u64 << Prop::CHANGE_TIME as u8) != 0 {
+            let ct = ast.change_times.get(src).copied().unwrap_or(0);
+            ast.set_inline_change_time(dst, ct);
+        }
+        if src_mask & (1u64 << Prop::SIDE_EFFECT_FLAGS as u8) != 0 {
+            let se = ast.side_effect_flags.get(src).copied().unwrap_or(0);
+            ast.set_inline_side_effect_flags(dst, se);
+        }
+        if src_mask & TRACKED_FLAG_PROPS_MASK != 0 {
             ast.record_flag_change(self);
         }
         self
     }
     // port: Node#validateProperties
     pub fn validate_properties(self, ast: &Ast, mut consumer: impl FnMut(String)) {
-        if ast[self].prop_list_head.is_none() {
+        const VALIDATED_MASK: u64 = (1u64 << Prop::IS_PARENTHESIZED as u8)
+            | (1u64 << Prop::ARROW_FN as u8)
+            | (1u64 << Prop::ASYNC_FN as u8)
+            | (1u64 << Prop::SYNTHETIC as u8)
+            | (1u64 << Prop::COLOR_FROM_CAST as u8)
+            | (1u64 << Prop::START_OF_OPT_CHAIN as u8)
+            | (1u64 << Prop::CONSTANT_VAR_FLAGS as u8)
+            | (1u64 << Prop::SYNTHESIZED_UNFULFILLED_NAME_DECLARATION as u8)
+            | (1u64 << Prop::CLOSURE_UNAWARE_SHADOW as u8);
+        let present = ast.prop_masks[self.arena_index()] & PROP_BITS_MASK;
+        if present == 0 {
             return;
         }
         if ast[L(self)].token == Token::ROOT {
             consumer("ROOT has properties".into());
         }
-        // Rust-only (performance divergence): the list is walked by reference, without reference
-        // counting.
-        let mut item = ast[self].prop_list_head.as_deref();
-        while let Some(p) = item {
-            let prop = Prop::VALUES[p.prop_type as usize];
-            check_state!(
-                prop as u8 == p.prop_type,
-                "ordinal doesn't match: %s",
-                format!("{prop:?}")
-            );
+        let mut bits = present & VALIDATED_MASK;
+        while bits != 0 {
+            let prop_type = bits.trailing_zeros() as u8;
+            bits &= bits - 1;
+            let prop = Prop::VALUES[prop_type as usize];
             match prop {
                 Prop::IS_PARENTHESIZED => {
                     if !IR::may_be_expression(ast, self) {
@@ -2144,7 +2533,6 @@ impl NodeId {
                 }
                 _ => {}
             }
-            item = p.next.as_deref();
         }
     }
     // port: Node#rebuildListWithoutProp
@@ -2168,17 +2556,49 @@ impl NodeId {
     }
     // port: Node#getProp
     pub fn get_prop(self, ast: &Ast, prop_type: Prop) -> Option<ObjectProp> {
-        self.lookup_property_ref(ast, prop_type)
-            .map(|i| i.get_object_value())
+        let slot = self.arena_index();
+        let mask = ast.prop_masks[slot];
+        let bit = 1u64 << (prop_type as u8);
+        if mask & bit == 0 {
+            return None;
+        }
+        if let Some(item) = self.lookup_list_item_ref(ast, prop_type) {
+            return Some(item.get_object_value());
+        }
+        // Present inline as an int property -> matches Java's IntPropListItem#getObjectValue.
+        panic!("UnsupportedOperationException")
     }
     // port: Node#getBooleanProp
+    #[inline]
     pub fn get_boolean_prop(self, ast: &Ast, prop_type: Prop) -> bool {
         self.get_int_prop(ast, prop_type) != 0
     }
     // port: Node#getIntProp
+    #[inline]
     pub fn get_int_prop(self, ast: &Ast, prop_type: Prop) -> i32 {
-        self.lookup_property_ref(ast, prop_type)
-            .map_or(0, |i| i.get_int_value())
+        let slot = self.arena_index();
+        let mask = ast.prop_masks[slot];
+        let bit = 1u64 << (prop_type as u8);
+        if mask & bit == 0 {
+            return 0;
+        }
+        if mask & PROP_MASK_SPILLED_INLINE == 0 {
+            if INLINE_BOOL_PROPS_MASK & bit != 0 {
+                return 1;
+            }
+            match prop_type {
+                Prop::CONSTANT_VAR_FLAGS => return ((mask >> PROP_MASK_CONST_SHIFT) & 3) as i32,
+                Prop::CHANGE_TIME => return ast.change_times.get(slot).copied().unwrap_or(0),
+                Prop::SIDE_EFFECT_FLAGS => {
+                    return i32::from(ast.side_effect_flags.get(slot).copied().unwrap_or(0));
+                }
+                _ => {}
+            }
+        }
+        if let Some(item) = self.lookup_list_item_ref(ast, prop_type) {
+            return item.get_int_value();
+        }
+        self.inline_int_value_unchecked(ast, slot, mask, prop_type)
     }
     // port: Node#putProp
     pub fn put_prop(self, ast: &mut Ast, prop: Prop, value: Option<ObjectProp>) {
@@ -2188,26 +2608,115 @@ impl NodeId {
                 ast.snapshot_watches.change(self, snapshot_watch::DOC);
                 ast.record_flag_change(self);
             }
-            let head = ast.take_props(self);
-            ast.set_props(self, Some(PropListItem::object(prop as u8, value, head)));
+            let head = ast.take_prop_list(self);
+            ast.set_prop_list_preserving_inline(
+                self,
+                Some(PropListItem::object(prop as u8, value, head)),
+            );
         }
     }
     // port: Node#putBooleanProp
+    #[inline]
     pub fn put_boolean_prop(self, ast: &mut Ast, prop_type: Prop, value: bool) {
         self.put_int_prop(ast, prop_type, if value { 1 } else { 0 });
     }
     // port: Node#putIntProp
     pub fn put_int_prop(self, ast: &mut Ast, prop: Prop, value: i32) {
+        let slot = self.arena_index();
+        let bit = 1u64 << (prop as u8);
         let changed = ast.tracking_changes
             && matches!(
                 prop,
                 Prop::SIDE_EFFECT_FLAGS | Prop::CONSTANT_VAR_FLAGS | Prop::IS_CONSTANT_NAME
             )
             && self.get_int_prop(ast, prop) != value;
+        // Rust-only (performance divergence): store boolean flags, 2-bit CONSTANT_VAR_FLAGS,
+        // CHANGE_TIME, and 8-bit SIDE_EFFECT_FLAGS inline without allocating `Arc<PropListItem>`.
+        if INLINE_BOOL_PROPS_MASK & bit != 0 && (value == 0 || value == 1) {
+            if ast.prop_masks[slot] & PROP_MASK_SPILLED_INLINE != 0
+                && self.lookup_list_item_ref(ast, prop).is_some()
+            {
+                let head = ast.take_prop_list(self);
+                ast.set_prop_list_preserving_inline(
+                    self,
+                    Self::rebuild_list_without_prop(head, prop),
+                );
+            }
+            if value != 0 {
+                ast.prop_masks[slot] |= bit;
+            } else {
+                ast.prop_masks[slot] &= !bit;
+            }
+            if changed {
+                ast.record_flag_change(self);
+            }
+            return;
+        }
+        if prop == Prop::CONSTANT_VAR_FLAGS && (0..=3).contains(&value) {
+            if ast.prop_masks[slot] & PROP_MASK_SPILLED_INLINE != 0
+                && self.lookup_list_item_ref(ast, prop).is_some()
+            {
+                let head = ast.take_prop_list(self);
+                ast.set_prop_list_preserving_inline(
+                    self,
+                    Self::rebuild_list_without_prop(head, prop),
+                );
+            }
+            ast.prop_masks[slot] &= !(bit | PROP_MASK_CONST_BITS);
+            if value != 0 {
+                ast.prop_masks[slot] |= bit | ((value as u64) << PROP_MASK_CONST_SHIFT);
+            }
+            if changed {
+                ast.record_flag_change(self);
+            }
+            return;
+        }
+        if prop == Prop::CHANGE_TIME {
+            if ast.prop_masks[slot] & PROP_MASK_SPILLED_INLINE != 0
+                && self.lookup_list_item_ref(ast, prop).is_some()
+            {
+                let head = ast.take_prop_list(self);
+                ast.set_prop_list_preserving_inline(
+                    self,
+                    Self::rebuild_list_without_prop(head, prop),
+                );
+            }
+            ast.set_inline_change_time(slot, value);
+            if value != 0 {
+                ast.prop_masks[slot] |= bit;
+            } else {
+                ast.prop_masks[slot] &= !bit;
+            }
+            return;
+        }
+        if prop == Prop::SIDE_EFFECT_FLAGS && (0..=255).contains(&value) {
+            if ast.prop_masks[slot] & PROP_MASK_SPILLED_INLINE != 0
+                && self.lookup_list_item_ref(ast, prop).is_some()
+            {
+                let head = ast.take_prop_list(self);
+                ast.set_prop_list_preserving_inline(
+                    self,
+                    Self::rebuild_list_without_prop(head, prop),
+                );
+            }
+            ast.set_inline_side_effect_flags(slot, value as u8);
+            if value != 0 {
+                ast.prop_masks[slot] |= bit;
+            } else {
+                ast.prop_masks[slot] &= !bit;
+            }
+            if changed {
+                ast.record_flag_change(self);
+            }
+            return;
+        }
         self.remove_prop_inner(ast, prop, false);
         if value != 0 {
-            let head = ast.take_props(self);
-            ast.set_props(self, Some(PropListItem::int(prop as u8, value, head)));
+            let head = ast.take_prop_list(self);
+            ast.set_prop_list_preserving_inline(
+                self,
+                Some(PropListItem::int(prop as u8, value, head)),
+            );
         }
         if changed {
             ast.record_flag_change(self);
@@ -2218,9 +2727,10 @@ impl NodeId {
         self.remove_prop_inner(ast, prop, true);
     }
     fn remove_prop_inner(self, ast: &mut Ast, prop: Prop, record_flag: bool) {
-        // Rust-only: rebuildListWithoutProp returns the list itself when `prop` is absent; skip
-        // the walk that copies references then (performance divergence).
-        if self.lookup_property_ref(ast, prop).is_none() {
+        let slot = self.arena_index();
+        let bit = 1u64 << (prop as u8);
+        let mask = ast.prop_masks[slot];
+        if mask & bit == 0 {
             return;
         }
         if prop == Prop::JSDOC_INFO {
@@ -2237,8 +2747,23 @@ impl NodeId {
         {
             ast.record_flag_change(self);
         }
-        let head = ast.take_props(self);
-        ast.set_props(self, Self::rebuild_list_without_prop(head, prop));
+        if INLINE_INT_PROPS_MASK & bit != 0 {
+            ast.prop_masks[slot] &= !bit;
+            if prop == Prop::CONSTANT_VAR_FLAGS {
+                ast.prop_masks[slot] &= !PROP_MASK_CONST_BITS;
+            } else if prop == Prop::CHANGE_TIME {
+                ast.set_inline_change_time(slot, 0);
+            } else if prop == Prop::SIDE_EFFECT_FLAGS {
+                ast.set_inline_side_effect_flags(slot, 0);
+            }
+            if mask & PROP_MASK_SPILLED_INLINE == 0
+                || self.lookup_list_item_ref(ast, prop).is_none()
+            {
+                return;
+            }
+        }
+        let head = ast.take_prop_list(self);
+        ast.set_prop_list_preserving_inline(self, Self::rebuild_list_without_prop(head, prop));
     }
     // port: Node#nodePropertyToBit
     pub fn node_property_to_bit(prop: NodeProperty) -> i64 {
@@ -2263,15 +2788,17 @@ impl NodeId {
     // port: Node#serializeProperties
     pub fn serialize_properties(self, ast: &Ast) -> i64 {
         let mut prop_set = 0;
-        let mut item = ast[self].prop_list_head.as_deref();
-        while let Some(p) = item {
-            let prop = Prop::VALUES[p.prop_type as usize];
+        let mut bits = ast.prop_masks[self.arena_index()] & PROP_BITS_MASK;
+        while bits != 0 {
+            let p = bits.trailing_zeros() as u8;
+            bits &= bits - 1;
+            let prop = Prop::VALUES[p as usize];
             match prop {
                 Prop::TYPE_BEFORE_CAST => {
                     prop_set = Self::set_node_property_bit(prop_set, NodeProperty::COLOR_FROM_CAST)
                 }
                 Prop::CONSTANT_VAR_FLAGS => {
-                    let int_val = p.get_int_value();
+                    let int_val = self.get_int_prop(ast, prop);
                     if Self::any_bit_set(int_val, ConstantVarFlags::INFERRED) {
                         prop_set = Self::set_node_property_bit(
                             prop_set,
@@ -2286,21 +2813,27 @@ impl NodeId {
                     }
                 }
                 Prop::SIDE_EFFECT_FLAGS => {
-                    prop_set = self.set_node_property_side_effect_flags(prop_set, p.get_int_value())
+                    prop_set = self
+                        .set_node_property_side_effect_flags(prop_set, self.get_int_prop(ast, prop))
                 }
                 Prop::CLOSURE_UNAWARE_SHADOW => {
                     prop_set =
                         Self::set_node_property_bit(prop_set, NodeProperty::CLOSURE_UNAWARE_SHADOW)
                 }
                 _ => {
-                    if matches!(p.value, PropValue::Int(_)) {
+                    let is_int = (INLINE_INT_PROPS_MASK & (1u64 << p) != 0
+                        && (ast.prop_masks[self.arena_index()] & PROP_MASK_SPILLED_INLINE == 0
+                            || self.lookup_list_item_ref(ast, prop).is_none()))
+                        || self
+                            .lookup_list_item_ref(ast, prop)
+                            .is_some_and(|item| matches!(item.value, PropValue::Int(_)));
+                    if is_int {
                         if let Some(node_property) = PropTranslator::serialize(prop) {
                             prop_set = Self::set_node_property_bit(prop_set, node_property);
                         }
                     }
                 }
             }
-            item = p.next.as_deref();
         }
         prop_set
     }
@@ -2322,11 +2855,19 @@ impl NodeId {
     }
     // port: Node#getPropListDebugString
     pub fn get_prop_list_debug_string(self, ast: &Ast) -> String {
-        let mut item = ast[self].prop_list_head.as_deref();
         let mut repr = Vec::new();
+        let mut seen = 0u64;
+        let mut item = ast[self].prop_list_head.as_deref();
         while let Some(p) = item {
+            seen |= 1u64 << p.prop_type;
             repr.push(format!("{:?}", Prop::VALUES[p.prop_type as usize]));
             item = p.next.as_deref();
+        }
+        let mut inline_only = (ast.prop_masks[self.arena_index()] & PROP_BITS_MASK) & !seen;
+        while inline_only != 0 {
+            let p = inline_only.trailing_zeros() as usize;
+            inline_only &= inline_only - 1;
+            repr.push(format!("{:?}", Prop::VALUES[p]));
         }
         repr.join("->")
     }
@@ -2339,9 +2880,10 @@ impl NodeId {
     ) {
         if self.is_root(ast) {
             check_state!(
-                ast[self].prop_list_head.is_none(),
+                ast[self].prop_list_head.is_none()
+                    && (ast.prop_masks[self.arena_index()] & PROP_BITS_MASK) == 0,
                 "%s",
-                ast[self].prop_list_head.as_ref().unwrap().to_string(ast)
+                self.get_prop_list_debug_string(ast)
             );
         } else {
             check_state!(
@@ -2375,32 +2917,15 @@ impl NodeId {
                 _ => {
                     let prop = PropTranslator::deserialize(node_property)
                         .unwrap_or_else(|| panic!("Can not translate {node_property} to AST Prop"));
-                    let head = ast[self].prop_list_head.clone();
-                    ast.set_props(self, Some(PropListItem::int(prop as u8, 1, head)));
+                    self.put_boolean_prop(ast, prop, true);
                 }
             }
         }
         if constant_var_flags != 0 {
-            let head = ast[self].prop_list_head.clone();
-            ast.set_props(
-                self,
-                Some(PropListItem::int(
-                    Prop::CONSTANT_VAR_FLAGS as u8,
-                    constant_var_flags,
-                    head,
-                )),
-            );
+            self.put_int_prop(ast, Prop::CONSTANT_VAR_FLAGS, constant_var_flags);
         }
         if side_effect_flags != 0 {
-            let head = ast[self].prop_list_head.clone();
-            ast.set_props(
-                self,
-                Some(PropListItem::int(
-                    Prop::SIDE_EFFECT_FLAGS as u8,
-                    side_effect_flags,
-                    head,
-                )),
-            );
+            self.put_int_prop(ast, Prop::SIDE_EFFECT_FLAGS, side_effect_flags);
         }
         if ast.prop_masks[self.arena_index()] & TRACKED_FLAG_PROPS_MASK != 0 {
             ast.record_flag_change(self);
@@ -2536,13 +3061,12 @@ impl NodeId {
     }
     // port: Node#getSortedPropTypes
     fn get_sorted_prop_types(self, ast: &Ast) -> Vec<u8> {
-        let mut item = ast[self].prop_list_head.as_deref();
-        let mut keys = Vec::new();
-        while let Some(p) = item {
-            keys.push(p.prop_type);
-            item = p.next.as_deref();
+        let mut bits = ast.prop_masks[self.arena_index()] & PROP_BITS_MASK;
+        let mut keys = Vec::with_capacity(bits.count_ones() as usize);
+        while bits != 0 {
+            keys.push(bits.trailing_zeros() as u8);
+            bits &= bits - 1;
         }
-        keys.sort_unstable();
         keys
     }
     // port: Node#getDouble
@@ -2607,7 +3131,14 @@ impl NodeId {
     /// presence summary sees it).
     fn store_string(ast: &mut Ast, n: NodeId, s: JsString) {
         if n.is_name(ast) {
-            ast.snapshot_watches.change(n, snapshot_watch::NAME);
+            let bit = if n.get_parent(ast).is_some_and(|p| p.is_param_list(ast))
+                && !n.has_children(ast)
+            {
+                snapshot_watch::PARAM_NAME
+            } else {
+                snapshot_watch::NAME
+            };
+            ast.snapshot_watches.change(n, bit);
         } else {
             ast.snapshot_watches.change(n, snapshot_watch::STRUCTURE);
         }
@@ -3003,7 +3534,7 @@ impl NodeId {
                 tail = next.clone();
             }
             if tail.prop_type == Prop::SOURCE_FILE as u8 {
-                ast.set_props(self, Some(tail));
+                ast.set_prop_list_preserving_inline(self, Some(tail));
                 return;
             }
         }
@@ -3193,13 +3724,33 @@ impl NodeId {
     }
     // port: Node#getPropListHeadForTesting
     pub fn get_prop_list_head_for_testing(self, ast: &Ast) -> Option<Arc<PropListItem>> {
-        ast[self].prop_list_head.clone()
+        if ast[self].prop_list_head.is_some() {
+            return ast[self].prop_list_head.clone();
+        }
+        // Rust-only: synthesize canonical shared PropListItem handles for inline-only nodes in
+        // property-sharing unit tests (`NodeTest#testSharedProps1`/`testSharedProps2`).
+        let slot = self.arena_index();
+        let present = ast.prop_masks[slot] & PROP_BITS_MASK;
+        if present == 0 {
+            return None;
+        }
+        if present == (1u64 << Prop::SIDE_EFFECT_FLAGS as u8) {
+            let val = ast.side_effect_flags.get(slot).copied().unwrap_or(0) as usize;
+            if val < 32 {
+                static CANONICAL_SIDE_EFFECTS: [std::sync::OnceLock<Arc<PropListItem>>; 32] =
+                    [const { std::sync::OnceLock::new() }; 32];
+                return Some(Arc::clone(CANONICAL_SIDE_EFFECTS[val].get_or_init(|| {
+                    PropListItem::int(Prop::SIDE_EFFECT_FLAGS as u8, val as i32, None)
+                })));
+            }
+        }
+        ast.materialize_full_prop_list(self)
     }
     // port: Node#setPropListHead
     pub fn set_prop_list_head(self, ast: &mut Ast, head: Option<Arc<PropListItem>>) {
         let old_mask = ast.prop_masks[self.arena_index()];
         ast.snapshot_watches.change(self, snapshot_watch::DOC);
-        ast.set_props(self, head);
+        ast.set_props_replacing_all(self, head);
         if (old_mask | ast.prop_masks[self.arena_index()]) & TRACKED_FLAG_PROPS_MASK != 0 {
             ast.record_flag_change(self);
         }
@@ -3584,18 +4135,28 @@ impl NodeId {
         ) {
             return false;
         }
-        let mut prop_set = [false; Prop::VALUES.len()];
-        for (arena, n) in [(ast, self), (ast_b, node)] {
-            let mut item = arena[n].prop_list_head.as_deref();
-            while let Some(p) = item {
-                prop_set[p.prop_type as usize] = true;
-                item = p.next.as_deref();
-            }
-        }
-        for prop in Prop::VALUES {
-            if !prop_set[prop as usize] {
-                continue;
-            }
+        const EQUIVALENCE_PROPS_MASK: u64 = (1u64 << Prop::ARROW_FN as u8)
+            | (1u64 << Prop::ASYNC_FN as u8)
+            | (1u64 << Prop::GENERATOR_FN as u8)
+            | (1u64 << Prop::START_OF_OPT_CHAIN as u8)
+            | (1u64 << Prop::STATIC_MEMBER as u8)
+            | (1u64 << Prop::YIELD_ALL as u8)
+            | (1u64 << Prop::EXPORT_DEFAULT as u8)
+            | (1u64 << Prop::EXPORT_ALL_FROM as u8)
+            | (1u64 << Prop::INCRDECR as u8)
+            | (1u64 << Prop::QUOTED as u8)
+            | (1u64 << Prop::FREE_CALL as u8)
+            | (1u64 << Prop::DIRECT_EVAL as u8)
+            | (1u64 << Prop::COMPUTED_PROP_METHOD as u8)
+            | (1u64 << Prop::COMPUTED_PROP_GETTER as u8)
+            | (1u64 << Prop::COMPUTED_PROP_SETTER as u8);
+        let mut combined = (ast.prop_masks[self.arena_index()]
+            | ast_b.prop_masks[node.arena_index()])
+            & EQUIVALENCE_PROPS_MASK;
+        while combined != 0 {
+            let p = combined.trailing_zeros() as usize;
+            combined &= combined - 1;
+            let prop = Prop::VALUES[p];
             let same = match prop {
                 Prop::ARROW_FN => self.is_arrow_function(ast) == node.is_arrow_function(ast_b),
                 Prop::ASYNC_FN => self.is_async_function(ast) == node.is_async_function(ast_b),
@@ -3916,9 +4477,20 @@ impl NodeId {
         ast[C(dest)].length = ast[C(source)].length;
         ast.set_node_type(dest, ast.node_type(source).cloned());
         ast[C(dest)].original_name = ast[C(source)].original_name;
+        let src_slot = source.arena_index();
+        let dst_slot = dest.arena_index();
+        let src_mask = ast.prop_masks[src_slot];
         ast[dest].prop_list_head = ast[source].prop_list_head.clone();
-        ast.prop_masks[dest.0.get() as usize - 1] = ast.prop_masks[source.0.get() as usize - 1];
-        ast.jsdocs[dest.0.get() as usize - 1] = ast.jsdocs[source.0.get() as usize - 1].clone();
+        ast.prop_masks[dst_slot] = src_mask;
+        ast.jsdocs[dst_slot] = ast.jsdocs[src_slot].clone();
+        if src_mask & (1u64 << Prop::CHANGE_TIME as u8) != 0 {
+            let ct = ast.change_times.get(src_slot).copied().unwrap_or(0);
+            ast.set_inline_change_time(dst_slot, ct);
+        }
+        if src_mask & (1u64 << Prop::SIDE_EFFECT_FLAGS as u8) != 0 {
+            let se = ast.side_effect_flags.get(src_slot).copied().unwrap_or(0);
+            ast.set_inline_side_effect_flags(dst_slot, se);
+        }
         if ast.preparse
             && ast[dest]
                 .prop_list_head

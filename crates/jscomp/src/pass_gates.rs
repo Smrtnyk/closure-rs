@@ -291,6 +291,31 @@ fn may_have_work(name: &str, compiler: &AbstractCompiler) -> bool {
             compiler.has_seen_token(Token::LABEL) || compiler.has_seen_token(Token::LABEL_NAME)
         }
 
+        // closureCodeRemoval (closure_code_removal.rs). (1) reads two options. (2) one
+        // `CombinedCompilerPass` traversal of the sources (L1): `FindAbstractMethods` acts only on
+        // `goog.abstractMethod` assignments (needs goog) or `@abstract` JSDoc (`Bit::ABSTRACT`);
+        // `FindAssertionCalls` acts only on `CALL` nodes matching either a coding-convention
+        // assertion function name (all `goog.*` for Closure/Google conventions, checked below for
+        // custom conventions) or a `@closurePrimitive` type/color (`has_seen_jsdoc_closure_primitive`,
+        // with precompiled libraries already handled above). (3) none. (4) none when nothing
+        // matches.
+        "closureCodeRemoval" => {
+            let abstract_possible = options.should_remove_abstract_methods()
+                && (goog || compiler.has_seen_jsdoc_bit(Bit::ABSTRACT));
+            let asserts_possible = options.should_remove_closure_asserts()
+                && (goog
+                    || compiler.has_seen_jsdoc_closure_primitive()
+                    || compiler
+                        .get_coding_convention()
+                        .get_assertion_functions()
+                        .iter()
+                        .any(|s| {
+                            s.get_function_name()
+                                .is_some_and(|name| !name.starts_with("goog."))
+                        }));
+            abstract_possible || asserts_possible
+        }
+
         _ => true,
     }
 }
@@ -374,7 +399,7 @@ mod tests {
         (compiler, externs, root, script)
     }
 
-    const GATED: [&str; 16] = [
+    const GATED: [&str; 17] = [
         "removeCastNodes",
         "checkSuper",
         "checkTypeImportCodeReferences",
@@ -391,6 +416,7 @@ mod tests {
         "closureOptimizePrimitives",
         "REWRITE_DYNAMIC_IMPORT",
         "renameLabels",
+        "closureCodeRemoval",
     ];
 
     /// The gated passes whose gate is open in `compiler`.
@@ -428,7 +454,6 @@ mod tests {
         for rejected in [
             "rewriteGoogJsImports",
             "closurePrimitives",
-            "closureCodeRemoval",
             "j2clChecksPass",
             "stripSideEffectProtection",
             "replaceIdGenerators",
@@ -469,7 +494,7 @@ mod tests {
 
     #[test]
     fn each_gate_opens_for_its_own_trigger() {
-        let cases: [(&str, MakeNodes); 10] = [
+        let cases: [(&str, MakeNodes); 12] = [
             ("removeCastNodes", |c| {
                 let x = IR::name(c, "x");
                 IR::cast(c, x, None);
@@ -503,6 +528,20 @@ mod tests {
             }),
             ("renameLabels", |c| {
                 c.new_node(Token::LABEL);
+            }),
+            ("closureCodeRemoval", |c| {
+                c.get_options_mut().set_remove_abstract_methods(true);
+                let mut builder = JSDocInfo::builder();
+                builder.record_abstract();
+                let n = IR::name(c, "x");
+                n.set_jsdoc_info(c, builder.build());
+            }),
+            ("closureCodeRemoval", |c| {
+                c.get_options_mut().set_remove_closure_asserts(true);
+                let mut builder = JSDocInfo::builder();
+                builder.record_closure_primitive_id("assertsTruthy");
+                let n = IR::name(c, "x");
+                n.set_jsdoc_info(c, builder.build());
             }),
         ];
         for (name, make) in cases {

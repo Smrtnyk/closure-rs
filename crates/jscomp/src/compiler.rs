@@ -143,6 +143,9 @@ pub struct Compiler {
         crate::flow_sensitive_inline_variables::FlowInlineCleanCache,
     /// Cached unchanged leaf functions known to have no `InlineVariables` local rewrites.
     pub(crate) inline_vars_clean_cache: crate::inline_variables::InlineVarsCleanCache,
+    /// Cached unchanged global functions known to have no `InlineObjectLiterals` splits.
+    pub(crate) inline_object_literals_clean_cache:
+        crate::inline_object_literals::InlineObjectLiteralsCleanCache,
     accessor_summary: Option<Arc<crate::accessor_summary::AccessorSummary>>,
     unique_name_id: Arc<std::sync::atomic::AtomicI32>,
     unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier,
@@ -218,6 +221,16 @@ pub struct Compiler {
     pub(crate) typed_scope_mirror: Vec<crate::typed_scope::TypedScopeMeta>,
     /// Rust-only (performance divergence): syntactic scopes kept for reuse by later passes.
     pub(crate) syntactic_scope_cache: crate::syntactic_scope_cache::SyntacticScopeCache,
+    /// Rust-only (performance divergence): isolates `PresenceSummary` mutations from JSON inputs
+    /// rewritten to `goog.provide(...)` during `initialize_module_loader`, merging them only for
+    /// JSON scripts that survive dependency pruning and attach to the live AST.
+    defer_json_presence: bool,
+    deferred_json_presences: IndexMap<NodeId, closure_rhino::node::PresenceSummary>,
+    /// Rust-only (performance divergence): defers `add_source_map_source_files` during
+    /// `compile_chunks` so input source maps decode on a background thread while parsing and
+    /// optimization run.
+    defer_input_source_maps: bool,
+    pending_source_map_files: Vec<Arc<crate::source_map_input::SourceMapInput>>,
 }
 
 impl Compiler {
@@ -263,6 +276,7 @@ impl Compiler {
             remove_unused_code_cache: Default::default(),
             flow_inline_clean_cache: Default::default(),
             inline_vars_clean_cache: Default::default(),
+            inline_object_literals_clean_cache: Default::default(),
             accessor_summary: None,
             unique_name_id: Arc::new(std::sync::atomic::AtomicI32::new(0)),
             unique_id_supplier: crate::unique_id_supplier::UniqueIdSupplier::default(),
@@ -331,6 +345,10 @@ impl Compiler {
             typed_scope_arena: crate::typed_scope::TypedScopeArena::shared(),
             typed_scope_mirror: Vec::new(),
             syntactic_scope_cache: Default::default(),
+            defer_json_presence: false,
+            deferred_json_presences: IndexMap::<_, _>::default(),
+            defer_input_source_maps: false,
+            pending_source_map_files: Vec::new(),
         }
     }
 
@@ -1012,6 +1030,7 @@ impl Compiler {
         // holding them alongside codegen buffers.
         if self.stage.is_normalized() && !stage.is_normalized() {
             self.inline_vars_clean_cache = Default::default();
+            self.inline_object_literals_clean_cache = Default::default();
             self.flow_inline_clean_cache = Default::default();
             self.remove_unused_code_cache = Default::default();
             self.function_reference_sites = Default::default();
@@ -1447,6 +1466,7 @@ impl Compiler {
         self.remove_unused_code_cache = Default::default();
         self.flow_inline_clean_cache = Default::default();
         self.inline_vars_clean_cache = Default::default();
+        self.inline_object_literals_clean_cache = Default::default();
         self.extern_and_js_root = Some(IR::root(self, &[externs, js]));
     }
     // port: Compiler#getChunkGraph
@@ -1522,8 +1542,26 @@ impl Compiler {
                     .values()
                     .cloned()
                     .collect();
-                for map in maps {
-                    self.add_source_map_source_files(&map);
+                // Rust-only (performance divergence): during `compile_chunks`, pre-decode input
+                // source maps on a background thread and attach their `sourcesContent` before
+                // `generate_report` so parsing/optimization overlap with input map decoding.
+                if self.defer_input_source_maps
+                    && !maps.is_empty()
+                    && crate::parallel_parse::can_spawn_background_worker()
+                {
+                    let bg_maps = maps.clone();
+                    let _ = std::thread::Builder::new()
+                        .name("closure-sourcemap".into())
+                        .spawn(move || {
+                            for map in bg_maps {
+                                map.predecode_into_cache();
+                            }
+                        });
+                    self.pending_source_map_files.extend(maps);
+                } else {
+                    for map in maps {
+                        self.add_source_map_source_files(&map);
+                    }
                 }
             }
         }
@@ -1575,15 +1613,24 @@ impl Compiler {
         options: CompilerOptions,
     ) -> crate::result::Result {
         assert!(self.js_root.is_none());
+        self.defer_input_source_maps = true;
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             self.init_chunks(externs, chunks, options);
             self.compile_initialized();
         }));
+        self.defer_input_source_maps = false;
+        self.flush_pending_source_map_files();
         self.generate_report();
         if let Err(error) = result {
             std::panic::resume_unwind(error);
         }
         self.get_result()
+    }
+    fn flush_pending_source_map_files(&mut self) {
+        let pending = std::mem::take(&mut self.pending_source_map_files);
+        for map in pending {
+            self.add_source_map_source_files(&map);
+        }
     }
     // The two Java convenience methods share this identical statement sequence.
     fn compile_initialized(&mut self) {
@@ -2366,7 +2413,7 @@ impl Compiler {
     ) {
         let non_empty = if tracker.supports_deduped_replay()
             && !self.get_options().should_print_input_delimiter()
-            && self.node_count() >= 500_000
+            && self.node_count() >= 40_000
         {
             scripts
                 .iter()
@@ -2375,7 +2422,7 @@ impl Compiler {
         } else {
             0
         };
-        let threads = crate::parallel_parse::parallel_thread_count(non_empty, 2, 4);
+        let threads = crate::parallel_parse::parallel_thread_count(non_empty, 1, 8);
         if threads < 2 {
             for &(seq, root) in scripts {
                 self.to_source_with_builder(cb, tracker, seq, root);
@@ -2386,48 +2433,24 @@ impl Compiler {
         let options = self.get_options();
         let tag_as_type_summary = options.should_generate_typed_externs();
         let emit_use_strict = options.should_emit_use_strict();
-        let next = std::sync::atomic::AtomicUsize::new(0);
         let mut ordered: Vec<Option<(crate::code_printer::SourceAndMappings, Vec<NodeId>)>> =
             (0..scripts.len()).map(|_| None).collect();
-        let worker_outputs: Vec<Vec<(usize, crate::code_printer::SourceAndMappings, Vec<NodeId>)>> =
-            std::thread::scope(|scope| {
-                let mut handles = Vec::with_capacity(threads);
-                for _ in 0..threads {
-                    let next = &next;
-                    let handle = std::thread::Builder::new()
-                        .name("closure-codegen".into())
-                        .stack_size(crate::compiler_executor::COMPILER_STACK_SIZE)
-                        .spawn_scoped(scope, move || {
-                            let mut local = Vec::new();
-                            loop {
-                                let idx =
-                                    next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                                let Some(&(seq, root)) = scripts.get(idx) else {
-                                    break;
-                                };
-                                let mut rec =
-                                    crate::compiler_license_tracker::RecordingLicenseTracker::default();
-                                let sam = crate::code_printer::Builder::with_compiler_options(
-                                    root, options,
-                                )
-                                .set_tag_as_type_summary(tag_as_type_summary)
-                                .set_tag_as_strict(seq == 0 && emit_use_strict)
-                                .set_license_tracker(Some(&mut rec))
-                                .build_with_source_mappings(ast);
-                                local.push((idx, sam, rec.into_nodes()));
-                            }
-                            local
-                        })
-                        .expect("spawn codegen worker");
-                    handles.push(handle);
-                }
-                handles
-                    .into_iter()
-                    .map(|h| h.join().expect("codegen worker panicked"))
-                    .collect()
-            });
+        let worker_outputs = crate::parallel_parse::run_scoped_indexed(
+            "closure-codegen",
+            threads,
+            scripts,
+            |_idx, &(seq, root)| {
+                let mut rec = crate::compiler_license_tracker::RecordingLicenseTracker::default();
+                let sam = crate::code_printer::Builder::with_compiler_options(root, options)
+                    .set_tag_as_type_summary(tag_as_type_summary)
+                    .set_tag_as_strict(seq == 0 && emit_use_strict)
+                    .set_license_tracker(Some(&mut rec))
+                    .build_with_source_mappings(ast);
+                Some((sam, rec.into_nodes()))
+            },
+        );
         for batch in worker_outputs {
-            for (idx, sam, nodes) in batch {
+            for (idx, (sam, nodes)) in batch {
                 ordered[idx] = Some((sam, nodes));
             }
         }
@@ -2579,11 +2602,98 @@ impl Compiler {
                 return Vec::new();
             }
             let mut sources = Vec::with_capacity(inputs.len());
+            let mut roots = Vec::with_capacity(inputs.len());
+            for input in &inputs {
+                roots.push(input.get_ast_root(compiler));
+            }
+            let non_empty = if tracker.supports_deduped_replay()
+                && !compiler.get_options().should_print_input_delimiter()
+                && compiler.node_count() >= 40_000
+            {
+                roots
+                    .iter()
+                    .filter(|&&root| root.has_children(&compiler.ast))
+                    .count()
+            } else {
+                0
+            };
+            let threads = crate::parallel_parse::parallel_thread_count(non_empty, 1, 8);
+            if threads < 2 {
+                let mut cb = CodeBuilder::default();
+                for (i, root) in roots.into_iter().enumerate() {
+                    cb.reset();
+                    compiler.to_source_with_builder(&mut cb, tracker, i as i32, root);
+                    sources.push(cb.to_js_string());
+                }
+                return sources;
+            }
+            // Rust-only (performance divergence): print chunk scripts in parallel and replay
+            // licenses, semicolons, and source-map mappings in exact input order.
+            let ast = &compiler.ast;
+            let options = compiler.get_options();
+            let tag_as_type_summary = options.should_generate_typed_externs();
+            let emit_use_strict = options.should_emit_use_strict();
+            let mut ordered: Vec<Option<(crate::code_printer::SourceAndMappings, Vec<NodeId>)>> =
+                (0..roots.len()).map(|_| None).collect();
+            let worker_outputs = crate::parallel_parse::run_scoped_indexed(
+                "closure-codegen",
+                threads,
+                &roots,
+                |idx, &root| {
+                    let mut rec =
+                        crate::compiler_license_tracker::RecordingLicenseTracker::default();
+                    let sam = crate::code_printer::Builder::with_compiler_options(root, options)
+                        .set_tag_as_type_summary(tag_as_type_summary)
+                        .set_tag_as_strict(idx == 0 && emit_use_strict)
+                        .set_license_tracker(Some(&mut rec))
+                        .build_with_source_mappings(ast);
+                    Some((sam, rec.into_nodes()))
+                },
+            );
+            for batch in worker_outputs {
+                for (idx, item) in batch {
+                    ordered[idx] = Some(item);
+                }
+            }
+            let gather_source_map = compiler.get_options().should_gather_source_map_info();
             let mut cb = CodeBuilder::default();
-            for (i, input) in inputs.iter().enumerate() {
-                let root = input.get_ast_root(compiler);
+            for item in ordered {
                 cb.reset();
-                compiler.to_source_with_builder(&mut cb, tracker, i as i32, root);
+                let (source_and_mappings, license_nodes) = item.unwrap();
+                for node in license_nodes {
+                    tracker.track_licenses_for_node(&compiler.ast, node);
+                }
+                for license in tracker.emit_licenses() {
+                    cb.append("/*\n").append(license).append("*/\n");
+                }
+                let code = source_and_mappings.source;
+                if !code.is_empty() {
+                    if gather_source_map {
+                        compiler
+                            .source_map
+                            .as_ref()
+                            .unwrap()
+                            .lock()
+                            .unwrap()
+                            .set_starting_position(cb.get_line_index(), cb.get_column_index());
+                    }
+                    let chars = code.as_units();
+                    let length = chars.len();
+                    let last_char = chars[length - 1];
+                    let second_last_char = if length >= 2 { chars[length - 2] } else { 0 };
+                    let has_semicolon =
+                        last_char == 59 || (last_char == 10 && second_last_char == 59);
+                    cb.append(code);
+                    if !has_semicolon {
+                        cb.append(";");
+                    }
+                    if gather_source_map {
+                        let mut map = compiler.source_map.as_ref().unwrap().lock().unwrap();
+                        for mapping in source_and_mappings.mappings.unwrap() {
+                            map.add_mapping(compiler, &mapping);
+                        }
+                    }
+                }
                 sources.push(cb.to_js_string());
             }
             sources
@@ -2690,7 +2800,10 @@ impl Compiler {
                 .has(Feature::MODULES)
                 || self.get_options().get_process_common_js_modules()
             {
+                self.deferred_json_presences.clear();
+                self.defer_json_presence = true;
                 self.initialize_module_loader();
+                self.defer_json_presence = false;
             } else {
                 self.module_loader = crate::deps::module_loader::EMPTY.clone();
             }
@@ -2766,6 +2879,9 @@ impl Compiler {
             }
             for input in self.get_inputs_in_order() {
                 let n = input.get_ast_root(self);
+                if let Some(json_presence) = self.deferred_json_presences.swap_remove(&n) {
+                    self.ast.merge_presence_summary(&json_presence);
+                }
                 if dev_mode {
                     self.run_validity_check();
                     if self.has_errors() {
@@ -2821,6 +2937,8 @@ impl Compiler {
         }));
         // Rust-only: inputs preparsed but never asked for (pruned, or after an error).
         crate::parallel_parse::finish(self);
+        self.defer_json_presence = false;
+        self.deferred_json_presences.clear();
         self.after_pass(crate::pass_names::PARSE_INPUTS);
         self.stop_tracer(tracer, crate::pass_names::PARSE_INPUTS);
         result.unwrap_or_else(|error| std::panic::resume_unwind(error))
@@ -3120,6 +3238,12 @@ impl Compiler {
             input
                 .get_source_file()
                 .set_code_deprecated(wrapped.to_js_string());
+            let saved_presence = self.defer_json_presence.then(|| {
+                let saved = self.ast.presence_summary();
+                self.ast
+                    .set_presence_summary(closure_rhino::node::PresenceSummary::default());
+                saved
+            });
             let root = input.get_ast_root(self);
             input.set_js_module_type(crate::compiler_input::ModuleType::JSON);
             crate::compiler_pass::CompilerPass::process(
@@ -3128,6 +3252,11 @@ impl Compiler {
                 self.externs_root.unwrap(),
                 root,
             );
+            if let Some(saved) = saved_presence {
+                let json_presence = self.ast.presence_summary();
+                self.deferred_json_presences.insert(root, json_presence);
+                self.ast.set_presence_summary(saved);
+            }
         }
         rewrite_json.get_package_json_main_entries()
     }
@@ -3582,6 +3711,18 @@ impl Compiler {
         self.type_registry = None;
         self.type_validator = None;
         self.abstract_interpreter = None;
+        // Rust-only (performance divergence): reclaim typed-scope arena memory once type checking
+        // has finished and no live typed scope or creator remains.
+        if self.typed_scope_creator.is_none()
+            && self.top_scope.is_none()
+            && !self
+                .options
+                .as_ref()
+                .is_some_and(|o| o.preserves_detailed_source_info())
+        {
+            self.typed_scope_arena = crate::typed_scope::TypedScopeArena::shared();
+            self.typed_scope_mirror = Vec::new();
+        }
     }
     // port: Compiler#isTypeRegistryCleared
     pub fn is_type_registry_cleared(&self) -> bool {
@@ -5282,6 +5423,7 @@ impl Compiler {
         self.remove_unused_code_cache = Default::default();
         self.flow_inline_clean_cache = Default::default();
         self.inline_vars_clean_cache = Default::default();
+        self.inline_object_literals_clean_cache = Default::default();
         self.js_root = Some(js_root);
         self.inputs_by_id.clear();
         self.excerpt_provider.files.lock().unwrap().clear();

@@ -247,6 +247,76 @@ impl Callback for PropagateConstantPropertyOverVars {
         true
     }
 
+    /// Rust-only (performance divergence): skip traversing `GETPROP` chains and empty function
+    /// stub scopes in unchanged `normalize_clean` bundled extern prefixes, checking only the
+    /// script's non-param `NAME`s when the global constant Bloom mask intersects the script.
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        use crate::source_file::declarations;
+        use closure_rhino::node::SnapshotUse;
+
+        if !t.in_global_scope() {
+            return true;
+        }
+        let Some((facts, suffix)) =
+            t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNonParamNames)
+        else {
+            return true;
+        };
+        if !facts.normalize_clean {
+            return true;
+        }
+        let mask = self.scope_const_masks.last().copied().unwrap_or(0);
+        if (mask & facts.name_hash_mask) != 0 {
+            let mut child = script.get_first_child(t);
+            for &record in facts.declarations {
+                let statement = child.expect("recorded extern statement");
+                child = statement.get_next(t);
+                match declarations::kind(record) {
+                    declarations::PROPERTY => {
+                        let root = bare_root_name(t, statement.get_first_child(t).unwrap());
+                        self.visit(t, root, root.get_parent(t));
+                    }
+                    declarations::FUNCTION => {
+                        let fn_name = statement.get_first_child(t).unwrap();
+                        self.visit(t, fn_name, Some(statement));
+                    }
+                    declarations::VARIABLE => {
+                        let name = statement.get_first_child(t).unwrap();
+                        if let Some(init) = name.get_first_child(t)
+                            && (record & declarations::HAS_FUNCTION) == 0
+                            && (init.is_name(t) || init.is_get_prop(t))
+                        {
+                            let root = bare_root_name(t, init);
+                            self.visit(t, root, root.get_parent(t));
+                        }
+                        self.visit(t, name, Some(statement));
+                    }
+                    declarations::ASSIGNMENT => {
+                        let assign = statement.get_first_child(t).unwrap();
+                        let lhs = bare_root_name(t, assign.get_first_child(t).unwrap());
+                        self.visit(t, lhs, lhs.get_parent(t));
+                        let rhs = assign.get_second_child(t).unwrap();
+                        if (record & declarations::HAS_FUNCTION) == 0
+                            && (rhs.is_name(t) || rhs.is_get_prop(t))
+                        {
+                            let root = bare_root_name(t, rhs);
+                            self.visit(t, root, root.get_parent(t));
+                        }
+                    }
+                    _ => unreachable!("normalize_clean scripts contain no OTHER statements"),
+                }
+            }
+            debug_assert_eq!(child, suffix);
+        }
+        t.traverse_script_suffix(script, parent, suffix, self);
+        false
+    }
+
     // port: Normalize.PropagateConstantPropertyOverVars#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
         // Note: Constant properties annotations are not propagated.
@@ -930,6 +1000,141 @@ impl Callback for NormalizeStatements {
         true
     }
 
+    /// Rust-only (performance divergence): fast-path unchanged `normalize_clean` bundled extern
+    /// prefixes directly over their declaration records, updating `ContextualRenamer` parameter
+    /// counts in place without constructing per-stub scopes or traversing `GETPROP` / empty
+    /// `BLOCK` subtrees.
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        use crate::source_file::declarations;
+        use closure_rhino::node::SnapshotUse;
+
+        if !t.in_global_scope() {
+            return self.should_traverse(t, script, parent);
+        }
+        let Some((facts, suffix)) = t.bundled_script_prefix(script, SnapshotUse::SyntaxAndNames)
+        else {
+            return self.should_traverse(t, script, parent);
+        };
+        if !facts.normalize_clean {
+            return self.should_traverse(t, script, parent);
+        }
+        if let Some(renamer) = &self.make_declared_names_unique
+            && !renamer.can_fast_path_plain_extern_stub_params()
+        {
+            return self.should_traverse(t, script, parent);
+        }
+
+        let mut suffix_after = suffix;
+        if let Some(first_suffix) = suffix {
+            let mut needs_script_norm = false;
+            let mut cur = Some(first_suffix);
+            while let Some(st) = cur {
+                if matches!(
+                    st.get_token(t),
+                    Token::VAR
+                        | Token::LET
+                        | Token::CONST
+                        | Token::FOR
+                        | Token::FOR_IN
+                        | Token::FOR_OF
+                        | Token::FOR_AWAIT_OF
+                        | Token::LABEL
+                ) {
+                    needs_script_norm = true;
+                    break;
+                }
+                cur = st.get_next(t);
+            }
+            if needs_script_norm {
+                let prev_last = first_suffix.get_previous(t);
+                let old_parent = script.get_parent(t);
+                self.do_statement_normalizations(t.get_compiler(), script);
+                check_state!(
+                    script.get_parent(t) == old_parent,
+                    "n's parent changed during normalization. It needs to stay the same so that we properly visit any added nodes."
+                );
+                suffix_after = match prev_last {
+                    Some(p) => p.get_next(t),
+                    None => script.get_first_child(t),
+                };
+            }
+        }
+
+        let mut child = script.get_first_child(t);
+        for &record in facts.declarations {
+            let statement = child.expect("recorded extern statement");
+            child = statement.get_next(t);
+            match declarations::kind(record) {
+                declarations::PROPERTY => {
+                    let root = bare_root_name(t, statement.get_first_child(t).unwrap());
+                    self.annotate_constants_by_convention(t.get_compiler(), root);
+                }
+                declarations::FUNCTION => {
+                    let fn_name = statement.get_first_child(t).unwrap();
+                    self.annotate_constants_by_convention(t.get_compiler(), fn_name);
+                    if let Some(renamer) = &mut self.make_declared_names_unique {
+                        renamer.process_plain_extern_stub_params(t, statement);
+                    }
+                    let params = fn_name.get_next(t).unwrap();
+                    let mut p = params.get_first_child(t);
+                    while let Some(param) = p {
+                        self.annotate_constants_by_convention(t.get_compiler(), param);
+                        p = param.get_next(t);
+                    }
+                }
+                declarations::VARIABLE => {
+                    let name = statement.get_first_child(t).unwrap();
+                    if let Some(init) = name.get_first_child(t) {
+                        if (record & declarations::HAS_FUNCTION) != 0 {
+                            if let Some(renamer) = &mut self.make_declared_names_unique {
+                                renamer.process_plain_extern_stub_params(t, init);
+                            }
+                            let params = init.get_second_child(t).unwrap();
+                            let mut p = params.get_first_child(t);
+                            while let Some(param) = p {
+                                self.annotate_constants_by_convention(t.get_compiler(), param);
+                                p = param.get_next(t);
+                            }
+                        } else if init.is_name(t) || init.is_get_prop(t) {
+                            let root = bare_root_name(t, init);
+                            self.annotate_constants_by_convention(t.get_compiler(), root);
+                        }
+                    }
+                    self.annotate_constants_by_convention(t.get_compiler(), name);
+                }
+                declarations::ASSIGNMENT => {
+                    let assign = statement.get_first_child(t).unwrap();
+                    let lhs = bare_root_name(t, assign.get_first_child(t).unwrap());
+                    self.annotate_constants_by_convention(t.get_compiler(), lhs);
+                    let rhs = assign.get_second_child(t).unwrap();
+                    if (record & declarations::HAS_FUNCTION) != 0 {
+                        if let Some(renamer) = &mut self.make_declared_names_unique {
+                            renamer.process_plain_extern_stub_params(t, rhs);
+                        }
+                        let params = rhs.get_second_child(t).unwrap();
+                        let mut p = params.get_first_child(t);
+                        while let Some(param) = p {
+                            self.annotate_constants_by_convention(t.get_compiler(), param);
+                            p = param.get_next(t);
+                        }
+                    } else if rhs.is_name(t) || rhs.is_get_prop(t) {
+                        let root = bare_root_name(t, rhs);
+                        self.annotate_constants_by_convention(t.get_compiler(), root);
+                    }
+                }
+                _ => unreachable!("normalize_clean scripts contain no OTHER statements"),
+            }
+        }
+        debug_assert_eq!(child, suffix_after);
+        t.traverse_script_suffix(script, parent, suffix_after, self);
+        false
+    }
+
     // port: Normalize.NormalizeStatements#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, parent: Option<NodeId>) {
         if let Some(make_declared_names_unique) = &mut self.make_declared_names_unique {
@@ -968,6 +1173,15 @@ impl Callback for NormalizeStatements {
     fn as_scoped_callback(&mut self) -> Option<&mut dyn ScopedCallback> {
         Some(self)
     }
+}
+
+/// Rust-only helper: walk a bare `GETPROP` chain down to its root `NAME`.
+#[inline]
+fn bare_root_name(ast: &Ast, mut n: NodeId) -> NodeId {
+    while n.is_get_prop(ast) {
+        n = n.get_first_child(ast).unwrap();
+    }
+    n
 }
 
 /// ScopeCreator duplicate declaration handler.

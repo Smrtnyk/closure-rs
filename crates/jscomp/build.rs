@@ -47,15 +47,37 @@ mod runtime_libraries;
 mod source_file_proto;
 
 /// One record per top-level statement, including unrecognized statements to preserve positions.
+/// Also returns the parameter lists of candidate `PLAIN_STUB_NO_SCOPE` statements (by statement
+/// index) and all `@template` / `@typeTransformation` names declared anywhere in the script, so
+/// `main` can clear `PLAIN_STUB_NO_SCOPE` if any parameter collides with any template name across
+/// the browser externs.
 fn declaration_records(
     ast: &closure_rhino::node::Ast,
     script: closure_rhino::node::NodeId,
-) -> Vec<u8> {
-    use closure_rhino::token::Token;
+    all_template_names: &mut closure_rhino::fast_hash::IndexSet<JsString>,
+) -> (Vec<u8>, Vec<(usize, Vec<JsString>)>) {
+    use closure_rhino::{fast_hash::IndexSet, token::Token};
     use declarations::*;
-    script
+    fn collect_templates(
+        ast: &closure_rhino::node::Ast,
+        n: closure_rhino::node::NodeId,
+        out: &mut IndexSet<JsString>,
+    ) {
+        if let Some(doc) = n.get_jsdoc_info_ref(ast) {
+            out.extend(doc.get_template_type_names());
+            out.extend(doc.get_type_transformations().into_keys());
+        }
+        for c in n.children(ast) {
+            collect_templates(ast, c, out);
+        }
+    }
+    collect_templates(ast, script, all_template_names);
+
+    let mut candidate_stub_params: Vec<(usize, Vec<JsString>)> = Vec::new();
+    let records = script
         .children(ast)
-        .map(|statement| {
+        .enumerate()
+        .map(|(stmt_idx, statement)| {
             let record = match statement.get_token(ast) {
                 Token::FUNCTION => FUNCTION,
                 Token::VAR | Token::LET | Token::CONST => VARIABLE,
@@ -88,6 +110,45 @@ fn declaration_records(
             } else {
                 0
             };
+            let mut plain_stub_no_scope = 0u8;
+            if let Some(fn_node) = declaration.function {
+                let fn_name = fn_node.get_first_child(ast).unwrap();
+                let fn_name_str = fn_name.get_string_ref(ast);
+                let params = fn_name.get_next(ast).unwrap();
+                let is_decl = record == FUNCTION;
+                let mut ok = !is_decl || fn_name_str != "arguments";
+                let mut seen: IndexSet<JsString> = IndexSet::default();
+                let mut names: Vec<JsString> = Vec::new();
+                for param in params.children(ast) {
+                    let p_str = param.get_string_ref(ast);
+                    if !param.is_name(ast)
+                        || param.has_children(ast)
+                        || param.get_jsdoc_info_ref(ast).is_some()
+                        || p_str.is_empty()
+                        || p_str == "arguments"
+                        || p_str == "this"
+                        || p_str == "super"
+                        || p_str == "new.target"
+                        || p_str == "exports"
+                        || (is_decl && p_str == fn_name_str)
+                    {
+                        ok = false;
+                        break;
+                    }
+                    let owned = p_str.clone();
+                    if !seen.insert(owned.clone()) {
+                        ok = false;
+                        break;
+                    }
+                    names.push(owned);
+                }
+                if ok {
+                    plain_stub_no_scope = PLAIN_STUB_NO_SCOPE;
+                    if !names.is_empty() {
+                        candidate_stub_params.push((stmt_idx, names));
+                    }
+                }
+            }
             // A sequence of ordinary typed fields can bind one live prototype.
             let prototype_field = record == PROPERTY
                 && info.is_some_and(|info| info.has_type())
@@ -105,6 +166,7 @@ fn declaration_records(
             record
                 | if prototype_field { PROTOTYPE_FIELD } else { 0 }
                 | primitive
+                | plain_stub_no_scope
                 | if declaration.function.is_some() {
                     HAS_FUNCTION
                 } else {
@@ -116,7 +178,8 @@ fn declaration_records(
                     0
                 }
         })
-        .collect()
+        .collect();
+    (records, candidate_stub_params)
 }
 
 /// JsFileRegexParser can produce dependencies or diagnostics only for Closure primitives,
@@ -161,6 +224,10 @@ fn main() {
     println!("cargo:rerun-if-changed=build/bundled_script_summary.rs");
     let mut summaries = String::from("match name {\n");
     let mut sizes = String::from("match name {\n");
+    let mut all_template_names: closure_rhino::fast_hash::IndexSet<JsString> =
+        closure_rhino::fast_hash::IndexSet::default();
+    type PendingDeclarationRecord = (String, Vec<u8>, Vec<(usize, Vec<JsString>)>);
+    let mut pending_records: Vec<PendingDeclarationRecord> = Vec::new();
     for (i, file) in AbstractCommandLineRunner::get_builtin_externs(Environment::BROWSER)
         .into_iter()
         .enumerate()
@@ -183,19 +250,19 @@ fn main() {
             writeln!(dependencies, "{:?} => Some({flags:?}),", file.path).unwrap();
         }
         let declaration_file = format!("extern-{i}-declarations.bin");
-        if let Some((bytes, (records, summary))) =
+        if let Some((bytes, (records, candidate_stub_params, summary))) =
             closure_parsing::extern_snapshot::generate_bundled_with_ast(
                 source,
                 code,
                 |ast, root| {
-                    (
-                        declaration_records(ast, root),
-                        bundled_script_summary::generate(ast, root, &declaration_file),
-                    )
+                    let (records, candidate_stub_params) =
+                        declaration_records(ast, root, &mut all_template_names);
+                    let summary =
+                        bundled_script_summary::generate(ast, root, &declaration_file, &records);
+                    (records, candidate_stub_params, summary)
                 },
             )
         {
-            fs::write(out.join(&declaration_file), &records).unwrap();
             if let Some(summary) = summary {
                 writeln!(summaries, "{:?} => Some(&{summary}),", file.path).unwrap();
             }
@@ -209,6 +276,7 @@ fn main() {
                 )
                 .unwrap();
             }
+            pending_records.push((declaration_file, records, candidate_stub_params));
             writeln!(
                 lookup,
                 "{:?} => Some(include_bytes!({filename:?})),",
@@ -216,6 +284,14 @@ fn main() {
             )
             .unwrap();
         }
+    }
+    for (declaration_file, mut records, candidate_stub_params) in pending_records {
+        for (stmt_idx, params) in candidate_stub_params {
+            if params.iter().any(|p| all_template_names.contains(p)) {
+                records[stmt_idx] &= !declarations::PLAIN_STUB_NO_SCOPE;
+            }
+        }
+        fs::write(out.join(&declaration_file), &records).unwrap();
     }
     summaries.push_str("_ => None,\n}\n");
     fs::write(out.join("bundled_script_summaries.rs"), summaries).unwrap();

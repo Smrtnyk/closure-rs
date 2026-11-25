@@ -169,9 +169,32 @@ impl PreparedLiveness {
         let mut scope_variables = IndexMap::<JsString, i32>::default();
         scope_variables.reserve(ordered_vars.len());
         let mut ordered_escaped_bits = BitSet::new(ordered_vars.len() as i32);
+        let escaped_keys: Option<IndexSet<(JsString, NodeId)>> = if escaped.len() > 4 {
+            let mut set = IndexSet::default();
+            set.reserve(escaped.len());
+            for &e in &escaped {
+                set.insert((e.get_name(compiler), e.get_scope_root(compiler)));
+            }
+            Some(set)
+        } else {
+            None
+        };
+        let is_escaped = |v: VarId| -> bool {
+            if escaped.is_empty() {
+                return false;
+            }
+            if escaped.contains(&v) {
+                return true;
+            }
+            if let Some(keys) = &escaped_keys {
+                keys.contains(&(v.get_name(compiler), v.get_scope_root(compiler)))
+            } else {
+                escaped.iter().any(|e| e.equals(compiler, v))
+            }
+        };
         for (num, &v) in ordered_vars.iter().enumerate() {
             scope_variables.insert(v.get_name(compiler), num as i32);
-            if escaped.iter().any(|e| e.equals(compiler, v)) {
+            if is_escaped(v) {
                 ordered_escaped_bits.set(num as i32);
             }
         }
@@ -198,7 +221,7 @@ impl PreparedLiveness {
             if local {
                 let idx = scope_variables[&var.get_name(compiler)];
                 local_var_indices.insert(name.clone(), idx);
-                if escaped.iter().any(|e| e.equals(compiler, var)) {
+                if is_escaped(var) {
                     escaped_bits.set(idx);
                 }
             }

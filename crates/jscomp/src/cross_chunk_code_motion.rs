@@ -420,7 +420,20 @@ impl CompilerPass for CrossChunkCodeMotion {
         self.cccm_log = Some(log_file);
         self.cccm_log().log(&mut || "doing cccm".to_string());
         // If there are <2 chunks, then we will never move anything, so we're done
-        if Self::graph(compiler).get_chunk_count() > 1 {
+        // Rust-only (performance divergence): when debug logging is off, ignore empty chunks (such
+        // as the empty `$weak$` chunk) — with at most one populated chunk, every declaration covers
+        // every reference and nothing can move.
+        let graph = Self::graph(compiler);
+        let populated_chunks = if compiler.is_debug_logging_enabled() {
+            graph.get_chunk_count()
+        } else {
+            graph
+                .get_all_chunks()
+                .iter()
+                .filter(|chunk| !chunk.get_inputs().is_empty())
+                .count()
+        };
+        if graph.get_chunk_count() > 1 && populated_chunks > 1 {
             let mut reference_collector =
                 CrossChunkReferenceCollector::new(Box::new(SyntacticScopeCreator::new()));
             reference_collector.process_root(compiler, root);

@@ -69,7 +69,83 @@ impl GatherRawExports {
     // port: GatherRawExports#process
     pub fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, root: NodeId) {
         check_state!(compiler.get_life_cycle_stage().is_normalized());
-        NodeTraversal::traverse(compiler, root, self);
+        // Rust-only (performance divergence): walk `root` directly in post-order while tracking
+        // whether the current node is in the global hoist scope, instead of running `NodeTraversal`
+        // and calling `matches_qualified_name` eight times on every property access.
+        self.walk_direct(compiler, root, true);
+    }
+
+    fn walk_direct(&mut self, ast: &closure_rhino::node::Ast, n: NodeId, in_global_hoist: bool) {
+        use closure_rhino::token::Token;
+        let tok = n.get_token(ast);
+        let child_hoist = match tok {
+            Token::FUNCTION | Token::MODULE_BODY => false,
+            Token::BLOCK if NodeUtil::is_class_static_block(ast, n) => false,
+            _ => in_global_hoist,
+        };
+        let mut child = n.get_first_child(ast);
+        while let Some(c) = child {
+            let next = c.get_next(ast);
+            self.walk_direct(ast, c, child_hoist);
+            child = next;
+        }
+        match tok {
+            Token::GETPROP | Token::OPTCHAIN_GETPROP => {
+                if let Some(target) = n.get_first_child(ast)
+                    && Self::is_global_this_object_direct(ast, target, in_global_hoist)
+                {
+                    self.exported_variables.insert(n.get_string(ast));
+                }
+            }
+            Token::GETELEM | Token::OPTCHAIN_GETELEM => {
+                if let Some(target) = n.get_first_child(ast)
+                    && let Some(key) = target.get_next(ast)
+                    && key.is_string_lit(ast)
+                    && Self::is_global_this_object_direct(ast, target, in_global_hoist)
+                {
+                    self.exported_variables.insert(key.get_string(ast));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    #[inline]
+    fn is_global_this_object_direct(
+        ast: &closure_rhino::node::Ast,
+        n: NodeId,
+        in_global_hoist: bool,
+    ) -> bool {
+        use closure_rhino::token::Token;
+        match n.get_token(ast) {
+            Token::THIS => in_global_hoist,
+            Token::NAME => {
+                let s = n.get_string_ref(ast);
+                let units = s.as_units();
+                match units.first().copied() {
+                    Some(0x77 /* w */) => s == "window",
+                    Some(0x67 /* g */) => s == "globalThis" || s == "goog$global",
+                    Some(0x74 /* t */) => s == "top",
+                    Some(0x73 /* s */) => s == "self",
+                    Some(0x24 /* $ */) => s == "$jscomp$global",
+                    _ => false,
+                }
+            }
+            Token::GETPROP => {
+                if n.get_string_ref(ast) != "global" {
+                    return false;
+                }
+                let Some(recv) = n.get_first_child(ast) else {
+                    return false;
+                };
+                if !recv.is_name(ast) {
+                    return false;
+                }
+                let r = recv.get_string_ref(ast);
+                r == "goog" || r == "$jscomp"
+            }
+            _ => false,
+        }
     }
 
     // port: GatherRawExports#isGlobalThisObject

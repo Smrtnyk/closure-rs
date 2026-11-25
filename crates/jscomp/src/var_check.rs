@@ -19,6 +19,7 @@
 //! Port of `VarCheck.java`.
 
 use crate::abstract_compiler::AbstractCompiler;
+use crate::abstract_scope::ImplicitVar;
 use crate::check_level::CheckLevel;
 use crate::closure_coding_convention::matches_qualified_name_pattern;
 use crate::compiler_input::CompilerInput;
@@ -28,10 +29,11 @@ use crate::js_error::JSError;
 use crate::node_traversal::{Callback, NodeTraversal, ScopedCallback};
 use crate::node_util::NodeUtil;
 use crate::scope::ScopeId;
+use crate::source_file::bundled_script::BundledScript;
 use crate::syntactic_scope_creator::{RedeclarationHandler, SyntacticScopeCreator};
 use crate::type_validator::TypeValidator;
 use closure_rhino::check_state;
-use closure_rhino::fast_hash::IndexSet;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::ir::IR;
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::SnapshotUse;
@@ -41,6 +43,7 @@ use closure_rhino::token::Token;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::LazyLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // port: VarCheck#UNDEFINED_VAR_ERROR
 pub static UNDEFINED_VAR_ERROR: DiagnosticType =
@@ -473,6 +476,9 @@ impl VarCheck {
 impl CompilerPass for VarCheck {
     // port: VarCheck#process
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
+        if self.validity_check && try_parallel_validity_check(compiler, externs, root) {
+            return;
+        }
         let mut scope_creator = self.create_scope_creator();
 
         // Don't run externs-checking in sanity check mode. Normalization will
@@ -503,6 +509,577 @@ impl CompilerPass for VarCheck {
 
         if let Some(dup_handler) = &self.dup_handler {
             dup_handler.remove_duplicates(compiler);
+        }
+    }
+}
+
+const IMPLICIT_ARGUMENTS: u8 = 1 << 0;
+const IMPLICIT_THIS_SUPER: u8 = 1 << 1;
+const IMPLICIT_EXPORTS: u8 = 1 << 2;
+
+enum ValidityUnit {
+    Subtree(NodeId, Option<NodeId>),
+    StmtSlice(NodeId, usize, usize),
+}
+
+/// Rust-only (performance divergence): verifies `VarCheck` validity-check invariants read-only
+/// on `&Ast` (skipping verified bundled extern prefixes via `BundledScript::extern_referenced_names`
+/// and running across scoped worker threads), returning `false` on any violation or edge case so
+/// the caller falls back to the exact sequential `NodeTraversal` for byte-identical diagnostics
+/// and panics.
+fn try_parallel_validity_check(
+    compiler: &mut AbstractCompiler,
+    externs: NodeId,
+    root: NodeId,
+) -> bool {
+    let Some(global_root) = externs
+        .get_parent(compiler)
+        .filter(|&p| root.get_parent(compiler) == Some(p))
+    else {
+        return false;
+    };
+    let mut scope_creator = SyntacticScopeCreator::new();
+    let global_scope = scope_creator.create_scope(compiler, global_root, None);
+    let (global_vars, weak_implicit_goog) = global_scope.collect_global_var_names(compiler);
+
+    let mut units: Vec<ValidityUnit> = Vec::new();
+    let mut stmts: Vec<NodeId> = Vec::new();
+
+    // Collect externs work units, skipping verified bundled extern prefixes.
+    let mut extern_child = externs.get_first_child(compiler);
+    while let Some(child) = extern_child {
+        if child.is_script(compiler)
+            && let Some((facts, suffix)) = compiler
+                .parsed_script_record::<BundledScript>(child, SnapshotUse::SyntaxAndNonParamNames)
+            && let Some(ref_names) = facts.extern_referenced_names
+        {
+            let prefix_ok = ref_names.iter().all(|&name| {
+                let js = JsString::from(name);
+                global_vars.contains(&js) && !weak_implicit_goog.contains(&js)
+            });
+            if prefix_ok {
+                let mut st = suffix;
+                while let Some(s) = st {
+                    units.push(ValidityUnit::Subtree(s, Some(child)));
+                    st = s.get_next(compiler);
+                }
+                extern_child = child.get_next(compiler);
+                continue;
+            }
+        }
+        units.push(ValidityUnit::Subtree(child, Some(externs)));
+        extern_child = child.get_next(compiler);
+    }
+
+    // Collect code root work units, chunking large non-module scripts by top-level statement so
+    // single-bundle compilations also scale across cores.
+    let mut code_child = root.get_first_child(compiler);
+    while let Some(child) = code_child {
+        if child.is_script(compiler)
+            && let Some(first) = child.get_first_child(compiler)
+            && !first.is_module_body(compiler)
+        {
+            let start = stmts.len();
+            let mut st = Some(first);
+            while let Some(s) = st {
+                stmts.push(s);
+                st = s.get_next(compiler);
+            }
+            let count = stmts.len() - start;
+            const STMT_CHUNK: usize = 64;
+            if count > STMT_CHUNK {
+                let mut offset = start;
+                while offset < stmts.len() {
+                    let end = (offset + STMT_CHUNK).min(stmts.len());
+                    units.push(ValidityUnit::StmtSlice(child, offset, end));
+                    offset = end;
+                }
+            } else {
+                units.push(ValidityUnit::StmtSlice(child, start, stmts.len()));
+            }
+        } else {
+            units.push(ValidityUnit::Subtree(child, Some(root)));
+        }
+        code_child = child.get_next(compiler);
+    }
+
+    if units.is_empty() {
+        return true;
+    }
+
+    let ast = &compiler.ast;
+    let threads = crate::parallel_parse::parallel_thread_count(units.len(), 2, 8);
+    let ok = AtomicBool::new(true);
+    let global_vars_ref = &global_vars;
+    let weak_ref = &weak_implicit_goog;
+    let stmts_ref = &stmts;
+
+    if threads < 2 {
+        let mut checker = ValidityChecker::new(global_vars_ref, weak_ref);
+        for unit in &units {
+            if !checker.check_unit(ast, unit, stmts_ref) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    crate::parallel_parse::run_scoped_for_each(
+        "closure-varcheck",
+        threads,
+        &units,
+        |_idx, unit| {
+            if !ok.load(Ordering::Relaxed) {
+                return;
+            }
+            let mut checker = ValidityChecker::new(global_vars_ref, weak_ref);
+            if !checker.check_unit(ast, unit, stmts_ref) {
+                ok.store(false, Ordering::Relaxed);
+            }
+        },
+    );
+    ok.load(Ordering::Relaxed)
+}
+
+struct ValidityChecker<'a> {
+    global_vars: &'a IndexSet<JsString>,
+    weak_implicit_goog: &'a IndexSet<JsString>,
+    local_counts: IndexMap<&'a JsString, u32>,
+    undo_log: Vec<&'a JsString>,
+    implicit_mask: u8,
+}
+
+impl<'a> ValidityChecker<'a> {
+    fn new(
+        global_vars: &'a IndexSet<JsString>,
+        weak_implicit_goog: &'a IndexSet<JsString>,
+    ) -> Self {
+        Self {
+            global_vars,
+            weak_implicit_goog,
+            local_counts: IndexMap::default(),
+            undo_log: Vec::new(),
+            implicit_mask: 0,
+        }
+    }
+
+    fn check_unit(&mut self, ast: &'a Ast, unit: &ValidityUnit, stmts: &[NodeId]) -> bool {
+        match *unit {
+            ValidityUnit::Subtree(node, parent) => self.check_node(ast, node, parent),
+            ValidityUnit::StmtSlice(script, start, end) => {
+                for &stmt in &stmts[start..end] {
+                    if !self.check_node(ast, stmt, Some(script)) {
+                        return false;
+                    }
+                }
+                true
+            }
+        }
+    }
+
+    #[inline]
+    fn push_local(&mut self, name: &'a JsString) {
+        *self.local_counts.entry(name).or_default() += 1;
+        self.undo_log.push(name);
+    }
+
+    #[inline]
+    fn pop_to(&mut self, mark: usize) {
+        while self.undo_log.len() > mark {
+            let name = self.undo_log.pop().unwrap();
+            if let Some(count) = self.local_counts.get_mut(name) {
+                *count -= 1;
+            }
+        }
+    }
+
+    fn declare_lhs(&mut self, ast: &'a Ast, n: NodeId) -> bool {
+        if n.has_one_child(ast)
+            && let Some(first) = n.get_first_child(ast)
+            && first.is_name(ast)
+        {
+            let Some(s) = first.string_payload(ast) else {
+                return false;
+            };
+            self.push_local(s);
+            return true;
+        }
+        let mut valid = true;
+        NodeUtil::visit_lhs_nodes_in_node_readonly(ast, n, &mut |lhs| {
+            if !valid {
+                return;
+            }
+            if !(lhs.is_name(ast) || lhs.is_import_star(ast)) {
+                valid = false;
+                return;
+            }
+            let Some(s) = lhs.string_payload(ast) else {
+                valid = false;
+                return;
+            };
+            self.push_local(s);
+        });
+        valid
+    }
+
+    /// Mirrors `SyntacticScopeCreator.ScopeScanner#scanVars`.
+    fn scan_vars(
+        &mut self,
+        ast: &'a Ast,
+        scope_root: NodeId,
+        n: NodeId,
+        hoist: bool,
+        block: bool,
+    ) -> bool {
+        match n.get_token(ast) {
+            Token::VAR => {
+                if hoist && !self.declare_lhs(ast, n) {
+                    return false;
+                }
+                return true;
+            }
+            Token::LET | Token::CONST => {
+                if block && !self.declare_lhs(ast, n) {
+                    return false;
+                }
+                return true;
+            }
+            Token::IMPORT => {
+                if !hoist {
+                    return false;
+                }
+                return self.declare_lhs(ast, n);
+            }
+            Token::EXPORT => {
+                let Some(decl) = n.get_first_child(ast) else {
+                    return false;
+                };
+                return self.scan_vars(ast, scope_root, decl, hoist, block);
+            }
+            Token::FUNCTION => {
+                if NodeUtil::is_function_expression(ast, n) || !block {
+                    return true;
+                }
+                let Some(fn_name) = n.get_first_child(ast) else {
+                    return false;
+                };
+                let Some(s) = fn_name.string_payload(ast) else {
+                    return false;
+                };
+                if !s.is_empty() {
+                    self.push_local(s);
+                }
+                return true;
+            }
+            Token::CLASS => {
+                if NodeUtil::is_class_expression(ast, n) || !block {
+                    return true;
+                }
+                let Some(class_name) = n.get_first_child(ast) else {
+                    return false;
+                };
+                let Some(s) = class_name.string_payload(ast) else {
+                    return false;
+                };
+                if !s.is_empty() {
+                    self.push_local(s);
+                }
+                return true;
+            }
+            Token::CATCH => {
+                if !n.has_two_children(ast) {
+                    return false;
+                }
+                if block && !self.declare_lhs(ast, n) {
+                    return false;
+                }
+                let Some(catch_block) = n.get_second_child(ast) else {
+                    return false;
+                };
+                return self.scan_vars(ast, scope_root, catch_block, hoist, block);
+            }
+            Token::MODULE_BODY if n != scope_root => {
+                return false;
+            }
+            _ => {}
+        }
+
+        let is_block_start = block && n == scope_root;
+        let entering_new_block = !is_block_start && NodeUtil::creates_block_scope(ast, n);
+        if entering_new_block && !hoist {
+            return true;
+        }
+        if NodeUtil::is_shallow_statement_tree(ast, Some(n)) {
+            let child_block = if entering_new_block { false } else { block };
+            let mut child = n.get_first_child(ast);
+            while let Some(c) = child {
+                if !self.scan_vars(ast, scope_root, c, hoist, child_block) {
+                    return false;
+                }
+                child = c.get_next(ast);
+            }
+        }
+        true
+    }
+
+    #[inline]
+    fn is_declared_locally(&self, name: &JsString) -> bool {
+        if self.local_counts.get(name).copied().unwrap_or(0) > 0 {
+            return true;
+        }
+        match ImplicitVar::of(name) {
+            Some(ImplicitVar::ARGUMENTS) => self.implicit_mask & IMPLICIT_ARGUMENTS != 0,
+            Some(ImplicitVar::THIS | ImplicitVar::SUPER) => {
+                self.implicit_mask & IMPLICIT_THIS_SUPER != 0
+            }
+            Some(ImplicitVar::EXPORTS) => self.implicit_mask & IMPLICIT_EXPORTS != 0,
+            None => false,
+        }
+    }
+
+    fn check_node(&mut self, ast: &'a Ast, n: NodeId, parent: Option<NodeId>) -> bool {
+        match n.get_token(ast) {
+            Token::NAME => {
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    if !self.check_node(ast, c, Some(n)) {
+                        return false;
+                    }
+                    child = c.get_next(ast);
+                }
+                let Some(s) = n.string_payload(ast) else {
+                    return false;
+                };
+                if s.is_empty() {
+                    return parent.is_some_and(|p| {
+                        NodeUtil::is_function_expression(ast, p)
+                            || NodeUtil::is_method_declaration(ast, p)
+                    });
+                }
+                if n.is_private_identifier(ast) {
+                    return parent
+                        .is_some_and(|p| p.is_in(ast) && n.is_first_child_of(ast, Some(p)));
+                }
+                if self.is_declared_locally(s) {
+                    return true;
+                }
+                if self.global_vars.contains(s) {
+                    if !self.weak_implicit_goog.is_empty()
+                        && self.weak_implicit_goog.contains(s)
+                        && VarCheck::strength_of(ast, n) == SourceKind::STRONG
+                    {
+                        return false;
+                    }
+                    return true;
+                }
+                if parent.is_some_and(|p| {
+                    (NodeUtil::is_function_expression(ast, p)
+                        || NodeUtil::is_class_expression(ast, p))
+                        && n.is_first_child_of(ast, Some(p))
+                }) {
+                    return true;
+                }
+                NodeUtil::is_nonlocal_module_export_name(ast, n)
+            }
+            Token::FUNCTION => {
+                let Some(fn_name) = n.get_first_child(ast) else {
+                    return false;
+                };
+                let Some(args) = fn_name.get_next(ast) else {
+                    return false;
+                };
+                let Some(body) = args.get_next(ast) else {
+                    return false;
+                };
+                if !args.is_param_list(ast) {
+                    return false;
+                }
+                let is_decl = parent.is_some() && NodeUtil::is_function_declaration(ast, n);
+                if is_decl && !self.check_node(ast, fn_name, Some(n)) {
+                    return false;
+                }
+                let mark = self.undo_log.len();
+                let prev_implicit = self.implicit_mask;
+                if !n.is_arrow_function(ast) {
+                    self.implicit_mask |= IMPLICIT_ARGUMENTS | IMPLICIT_THIS_SUPER;
+                }
+                let mut valid = self.declare_lhs(ast, args);
+                if valid && NodeUtil::is_function_expression(ast, n) {
+                    if let Some(s) = fn_name.string_payload(ast) {
+                        if !s.is_empty() {
+                            self.push_local(s);
+                        }
+                    } else {
+                        valid = false;
+                    }
+                }
+                if valid && !is_decl {
+                    valid = self.check_node(ast, fn_name, Some(n));
+                }
+                if valid {
+                    valid = self.check_node(ast, args, Some(n));
+                }
+                if valid {
+                    valid = self.check_node(ast, body, Some(n));
+                }
+                self.implicit_mask = prev_implicit;
+                self.pop_to(mark);
+                valid
+            }
+            Token::CLASS => {
+                let Some(class_name) = n.get_first_child(ast) else {
+                    return false;
+                };
+                let Some(extends_clause) = class_name.get_next(ast) else {
+                    return false;
+                };
+                let Some(body) = extends_clause.get_next(ast) else {
+                    return false;
+                };
+                let is_expr = NodeUtil::is_class_expression(ast, n);
+                if !self.check_node(ast, extends_clause, Some(n)) {
+                    return false;
+                }
+                if !is_expr && !self.check_node(ast, class_name, Some(n)) {
+                    return false;
+                }
+                let mark = self.undo_log.len();
+                let mut valid = true;
+                if is_expr && !class_name.is_empty(ast) {
+                    if let Some(s) = class_name.string_payload(ast) {
+                        self.push_local(s);
+                    } else {
+                        valid = false;
+                    }
+                }
+                if valid && is_expr {
+                    valid = self.check_node(ast, class_name, Some(n));
+                }
+                if valid {
+                    valid = self.check_node(ast, body, Some(n));
+                }
+                self.pop_to(mark);
+                valid
+            }
+            Token::CLASS_MEMBERS => {
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    if c.is_computed_prop(ast) || c.is_computed_field_def(ast) {
+                        let Some(key) = c.get_first_child(ast) else {
+                            return false;
+                        };
+                        if !self.check_node(ast, key, Some(c)) {
+                            return false;
+                        }
+                    }
+                    child = c.get_next(ast);
+                }
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    match c.get_token(ast) {
+                        Token::COMPUTED_PROP => {
+                            let Some(val) = c.get_last_child(ast) else {
+                                return false;
+                            };
+                            if !self.check_node(ast, val, Some(c)) {
+                                return false;
+                            }
+                        }
+                        Token::COMPUTED_FIELD_DEF => {
+                            if c.has_two_children(ast) {
+                                let prev = self.implicit_mask;
+                                self.implicit_mask |= IMPLICIT_THIS_SUPER;
+                                let ok =
+                                    self.check_node(ast, c.get_last_child(ast).unwrap(), Some(c));
+                                self.implicit_mask = prev;
+                                if !ok {
+                                    return false;
+                                }
+                            }
+                        }
+                        Token::MEMBER_FIELD_DEF => {
+                            if let Some(init) = c.get_first_child(ast) {
+                                let prev = self.implicit_mask;
+                                self.implicit_mask |= IMPLICIT_THIS_SUPER;
+                                let ok = self.check_node(ast, init, Some(c));
+                                self.implicit_mask = prev;
+                                if !ok {
+                                    return false;
+                                }
+                            }
+                        }
+                        _ => {
+                            if !self.check_node(ast, c, Some(n)) {
+                                return false;
+                            }
+                        }
+                    }
+                    child = c.get_next(ast);
+                }
+                true
+            }
+            Token::MODULE_BODY => {
+                let mark = self.undo_log.len();
+                let prev_implicit = self.implicit_mask;
+                if parent.is_some_and(|p| p.get_boolean_prop(ast, NodeId::GOOG_MODULE)) {
+                    self.implicit_mask |= IMPLICIT_EXPORTS;
+                }
+                let mut valid = self.scan_vars(ast, n, n, true, true);
+                if valid {
+                    let mut child = n.get_first_child(ast);
+                    while let Some(c) = child {
+                        if !self.check_node(ast, c, Some(n)) {
+                            valid = false;
+                            break;
+                        }
+                        child = c.get_next(ast);
+                    }
+                }
+                self.implicit_mask = prev_implicit;
+                self.pop_to(mark);
+                valid
+            }
+            Token::BLOCK
+            | Token::FOR
+            | Token::FOR_IN
+            | Token::FOR_OF
+            | Token::FOR_AWAIT_OF
+            | Token::SWITCH_BODY
+                if NodeUtil::creates_block_scope(ast, n) =>
+            {
+                let mark = self.undo_log.len();
+                let prev_implicit = self.implicit_mask;
+                let is_static_block = n.is_block(ast) && NodeUtil::is_class_static_block(ast, n);
+                let hoist =
+                    is_static_block || (n.is_block(ast) && NodeUtil::is_function_block(ast, n));
+                if is_static_block {
+                    self.implicit_mask |= IMPLICIT_THIS_SUPER;
+                }
+                let mut valid = self.scan_vars(ast, n, n, hoist, true);
+                if valid {
+                    let mut child = n.get_first_child(ast);
+                    while let Some(c) = child {
+                        if !self.check_node(ast, c, Some(n)) {
+                            valid = false;
+                            break;
+                        }
+                        child = c.get_next(ast);
+                    }
+                }
+                self.implicit_mask = prev_implicit;
+                self.pop_to(mark);
+                valid
+            }
+            _ => {
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    if !self.check_node(ast, c, Some(n)) {
+                        return false;
+                    }
+                    child = c.get_next(ast);
+                }
+                true
+            }
         }
     }
 }

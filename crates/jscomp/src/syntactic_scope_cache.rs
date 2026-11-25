@@ -210,6 +210,14 @@ pub(crate) enum ScriptDeclaration {
     GoogNamespace(NodeId),
 }
 
+/// Rust-only (performance divergence): the change stamps of a function and of every function
+/// nested in it (`SyntacticScopeCache::deep_function_stamp`). A nested function is a change scope
+/// of its own, so the stamp of the outer function alone does not advance when it changes.
+pub(crate) struct DeepFunctionStamp {
+    own: (u32, u32),
+    nested: Box<[(NodeId, (u32, u32))]>,
+}
+
 /// The scopes kept for reuse.
 #[derive(Default)]
 pub(crate) struct SyntacticScopeCache {
@@ -269,6 +277,7 @@ impl SyntacticScopeCache {
             compiler.remove_unused_code_cache = Default::default();
             compiler.flow_inline_clean_cache = Default::default();
             compiler.inline_vars_clean_cache = Default::default();
+            compiler.inline_object_literals_clean_cache = Default::default();
         }
         if !changed.is_empty() {
             let cache = &mut compiler.syntactic_scope_cache;
@@ -362,6 +371,64 @@ impl SyntacticScopeCache {
         (
             cache.stamps.get(idx).copied().unwrap_or(0),
             cache.flag_stamps.get(idx).copied().unwrap_or(0),
+        )
+    }
+
+    /// Rust-only (performance divergence): the `subtree_stamp_with_flags` of `fn_node` and of
+    /// every function nested in it, for a caller relying on the function's whole subtree.
+    pub(crate) fn deep_function_stamp(
+        compiler: &mut AbstractCompiler,
+        fn_node: NodeId,
+    ) -> DeepFunctionStamp {
+        let own = Self::subtree_stamp_with_flags(compiler, fn_node);
+        let ast = &compiler.ast;
+        let cache = &compiler.syntactic_scope_cache;
+        let mut nested = Vec::new();
+        let mut pending = Vec::new();
+        let mut child = fn_node.get_first_child(ast);
+        while let Some(c) = child {
+            pending.push(c);
+            child = c.get_next(ast);
+        }
+        while let Some(n) = pending.pop() {
+            if n.is_function(ast) {
+                nested.push((n, cache.recorded_stamp_with_flags(n)));
+            }
+            let mut child = n.get_first_child(ast);
+            while let Some(c) = child {
+                pending.push(c);
+                child = c.get_next(ast);
+            }
+        }
+        DeepFunctionStamp {
+            own,
+            nested: nested.into_boxed_slice(),
+        }
+    }
+
+    /// Rust-only (performance divergence): whether neither the function `stamp` was taken of nor
+    /// any function nested in it at that time has changed since; `own` is the function's
+    /// `subtree_stamp_with_flags` now. A function added to the subtree later changes the change
+    /// scope it is added to, which is one of these.
+    pub(crate) fn deep_function_stamp_is_current(
+        &self,
+        own: (u32, u32),
+        stamp: &DeepFunctionStamp,
+    ) -> bool {
+        own == stamp.own
+            && stamp
+                .nested
+                .iter()
+                .all(|&(nested_fn, recorded)| self.recorded_stamp_with_flags(nested_fn) == recorded)
+    }
+
+    /// The `(structural_stamp, flag_stamp)` of `root` as of the last `record_changes`.
+    #[inline]
+    fn recorded_stamp_with_flags(&self, root: NodeId) -> (u32, u32) {
+        let idx = root.arena_index();
+        (
+            self.stamps.get(idx).copied().unwrap_or(0),
+            self.flag_stamps.get(idx).copied().unwrap_or(0),
         )
     }
 

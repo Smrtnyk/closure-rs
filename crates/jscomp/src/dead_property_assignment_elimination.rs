@@ -33,14 +33,15 @@
 //!   then the optimization does not run at all.
 //! - Properties names defined in externs will not be pruned.
 use crate::{
-    AbstractCompiler,
-    compiler_pass::CompilerPass,
-    node_traversal::{AbstractChangedScopeCallback, Callback, NodeTraversal},
-    node_util::NodeUtil,
+    AbstractCompiler, accessor_summary::PropertyAccessKind, change_tracker::ChangeTracker,
+    compiler_pass::CompilerPass, node_util::NodeUtil,
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
-    check_argument, check_not_null, check_state, js_string::JsString, node::NodeId, token::Token,
+    check_argument, check_not_null, check_state,
+    js_string::JsString,
+    node::{Ast, NodeId},
+    token::Token,
 };
 use std::collections::VecDeque;
 
@@ -64,100 +65,140 @@ impl CompilerPass for DeadPropertyAssignmentElimination {
     fn process(&mut self, compiler: &mut AbstractCompiler, _externs: NodeId, _root: NodeId) {
         // GatherExternProperties must be enabled for this pass to safely know what property
         // writes are eligible for removal.
-        if compiler.get_extern_properties().is_none() || compiler.get_accessor_summary().is_none() {
+        let Some(extern_props) = compiler.get_extern_property_set_js().cloned() else {
             return;
-        }
-
-        // Sets.union(accessors.keySet(), externProperties): only membership is queried.
-        let mut skiplisted_prop_names: IndexSet<JsString> = IndexSet::<_>::default();
-        for name in compiler
-            .get_accessor_summary()
-            .unwrap()
-            .get_accessors()
-            .keys()
-        {
-            skiplisted_prop_names.insert(name.clone());
-        }
-        for name in compiler.get_extern_properties().unwrap() {
-            skiplisted_prop_names.insert(JsString::from(name.as_str()));
+        };
+        if compiler.get_accessor_summary().is_none() {
+            return;
         }
 
         let js_root = compiler.get_js_root().unwrap();
-        let mut function_visitor = FunctionVisitor::new(skiplisted_prop_names);
-        let mut callback =
-            AbstractChangedScopeCallback::new(|compiler: &mut AbstractCompiler, root| {
-                function_visitor.enter_changed_scope_root(compiler, root)
-            });
-        NodeTraversal::traverse(compiler, js_root, &mut callback);
-    }
-}
-
-struct FunctionVisitor {
-    /// A set of properties names that are potentially unsafe to remove duplicate writes to.
-    skiplisted_prop_names: IndexSet<JsString>,
-}
-
-impl FunctionVisitor {
-    // port: DeadPropertyAssignmentElimination.FunctionVisitor#FunctionVisitor
-    fn new(skiplisted_prop_names: IndexSet<JsString>) -> Self {
-        Self {
-            skiplisted_prop_names,
-        }
-    }
-
-    // port: DeadPropertyAssignmentElimination.FunctionVisitor#enterChangedScopeRoot
-    fn enter_changed_scope_root(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
-        if !root.is_function(compiler) {
+        // Rust-only (performance divergence): borrow the cached interned extern property set and
+        // accessor map directly (avoiding rebuilding a 10K-entry set every run), collect changed
+        // function bodies directly in pre-order, pre-screen functions with fewer than two GETPROP
+        // assignments or containing inner functions, analyze eligible leaf bodies in parallel on
+        // `&Ast`, and apply removals sequentially in exact AST order.
+        let mut candidates = Vec::new();
+        collect_changed_function_bodies(compiler, js_root, &mut candidates);
+        if candidates.is_empty() {
             return;
         }
 
-        let body = NodeUtil::get_function_body(compiler, root);
-        if !body.has_children(compiler)
-            || NodeUtil::has(
-                compiler,
-                body,
-                &NodeUtil::is_function_or_non_static_class_field_initializer,
-                &|_, _| true,
-            )
-        {
-            return;
-        }
+        let threads = crate::parallel_parse::parallel_thread_count(candidates.len(), 64, 8);
+        let ast = &compiler.ast;
+        let accessors = compiler.get_accessor_summary().unwrap().get_accessors();
+        let extern_props_ref: &IndexSet<JsString> = &extern_props;
+        let worker_batches = crate::parallel_parse::run_scoped_indexed(
+            "closure-dpae",
+            threads,
+            &candidates,
+            |_idx, &body| analyze_function_body(ast, body, extern_props_ref, accessors),
+        );
 
-        let mut traversal = FindCandidateAssignmentTraversal::new(&self.skiplisted_prop_names);
-        NodeTraversal::traverse(compiler, body, &mut traversal);
-
-        // Any candidate property assignment can have a write removed if that write is never read
-        // and it's written to at least one more time.
-        for &property in traversal.property_map.values() {
-            let property = &traversal.properties[property];
-            if property.writes.len() <= 1 {
-                continue;
+        let mut ordered: Vec<Option<Vec<NodeId>>> = (0..candidates.len()).map(|_| None).collect();
+        for batch in worker_batches {
+            for (idx, writes) in batch {
+                ordered[idx] = Some(writes);
             }
-            // Iterators.peekingIterator(property.writes.iterator())
-            let mut iter = property.writes.iter().peekable();
-            while let Some(property_write) = iter.next() {
-                if let Some(&next) = iter.peek()
-                    && property_write.is_safe_to_remove(Some(next))
-                {
-                    let lhs = property_write.assigned_at;
-                    let rhs = lhs.get_next(compiler).unwrap();
-                    let assign_node = lhs.get_parent(compiler).unwrap();
-                    if assign_node.is_assign(compiler) {
-                        // replace "a.b.c = <expr>" with "<expr>"
-                        rhs.detach(compiler);
-                        assign_node.replace_with(compiler, rhs);
-                        compiler.report_change_to_enclosing_scope(rhs);
-                    } else {
-                        check_state!(NodeUtil::is_assignment_op(compiler, assign_node));
-                        // replace "a.b.c += <expr>" with "a.b.c + expr"
-                        let op_type = NodeUtil::get_op_from_assignment_op(compiler, assign_node);
-                        assign_node.set_token(compiler, op_type);
-                        compiler.report_change_to_enclosing_scope(assign_node);
-                    }
+        }
+        for writes in ordered.into_iter().flatten() {
+            for lhs in writes {
+                let rhs = lhs.get_next(compiler).unwrap();
+                let assign_node = lhs.get_parent(compiler).unwrap();
+                if assign_node.is_assign(compiler) {
+                    // replace "a.b.c = <expr>" with "<expr>"
+                    rhs.detach(compiler);
+                    assign_node.replace_with(compiler, rhs);
+                    compiler.report_change_to_enclosing_scope(rhs);
+                } else {
+                    check_state!(NodeUtil::is_assignment_op(compiler, assign_node));
+                    // replace "a.b.c += <expr>" with "a.b.c + expr"
+                    let op_type = NodeUtil::get_op_from_assignment_op(compiler, assign_node);
+                    assign_node.set_token(compiler, op_type);
+                    compiler.report_change_to_enclosing_scope(assign_node);
                 }
             }
         }
     }
+}
+
+/// Rust-only (performance divergence): mirrors `AbstractChangedScopeCallback` pre-order collection
+/// for changed `FUNCTION` nodes with non-empty bodies.
+fn collect_changed_function_bodies(compiler: &AbstractCompiler, n: NodeId, out: &mut Vec<NodeId>) {
+    let ast = &compiler.ast;
+    if ChangeTracker::is_change_scope_root(ast, n)
+        && compiler.has_scope_changed(n)
+        && n.is_function(ast)
+    {
+        let body = NodeUtil::get_function_body(ast, n);
+        if body.has_children(ast) {
+            out.push(body);
+        }
+    }
+    let mut child = n.get_first_child(ast);
+    while let Some(c) = child {
+        collect_changed_function_bodies(compiler, c, out);
+        child = c.get_next(ast);
+    }
+}
+
+/// Rust-only (performance divergence): single-pass check that `body` contains neither an inner
+/// function nor a non-static class field initializer, and counts `GETPROP` assignment LHS nodes so
+/// bodies with fewer than two property writes skip full analysis.
+fn prescan_body(ast: &Ast, n: NodeId, getprop_assigns: &mut u32) -> bool {
+    if NodeUtil::is_function_or_non_static_class_field_initializer(ast, n) {
+        return false;
+    }
+    if NodeUtil::is_assignment_op(ast, n)
+        && n.get_first_child(ast)
+            .is_some_and(|lhs| lhs.is_get_prop(ast))
+    {
+        *getprop_assigns = getprop_assigns.saturating_add(1);
+    }
+    let mut child = n.get_first_child(ast);
+    while let Some(c) = child {
+        if !prescan_body(ast, c, getprop_assigns) {
+            return false;
+        }
+        child = c.get_next(ast);
+    }
+    true
+}
+
+// port: DeadPropertyAssignmentElimination.FunctionVisitor#enterChangedScopeRoot
+fn analyze_function_body(
+    ast: &Ast,
+    body: NodeId,
+    extern_props: &IndexSet<JsString>,
+    accessors: &IndexMap<JsString, PropertyAccessKind>,
+) -> Option<Vec<NodeId>> {
+    let mut getprop_assigns = 0u32;
+    if !prescan_body(ast, body, &mut getprop_assigns) || getprop_assigns < 2 {
+        return None;
+    }
+
+    let mut traversal = FindCandidateAssignmentTraversal::new(extern_props, accessors);
+    traversal.walk(ast, body, body.get_parent(ast));
+
+    // Any candidate property assignment can have a write removed if that write is never read
+    // and it's written to at least one more time.
+    let mut removable = Vec::new();
+    for &property in traversal.property_map.values() {
+        let property = &traversal.properties[property];
+        if property.writes.len() <= 1 {
+            continue;
+        }
+        // Iterators.peekingIterator(property.writes.iterator())
+        let mut iter = property.writes.iter().peekable();
+        while let Some(property_write) = iter.next() {
+            if let Some(&next) = iter.peek()
+                && property_write.is_safe_to_remove(Some(next))
+            {
+                removable.push(property_write.assigned_at);
+            }
+        }
+    }
+    (!removable.is_empty()).then_some(removable)
 }
 
 // Rust-only: Properties reference each other (children), so they live in an arena owned by the
@@ -217,9 +258,9 @@ impl Property {
     }
 
     // port: DeadPropertyAssignmentElimination.Property#addWrite
-    fn add_write(&mut self, compiler: &AbstractCompiler, lhs: NodeId) {
-        check_argument!(lhs.is_qualified_name(compiler));
-        self.writes.push_back(PropertyWrite::new(compiler, lhs));
+    fn add_write(&mut self, ast: &Ast, lhs: NodeId) {
+        check_argument!(lhs.is_qualified_name(ast));
+        self.writes.push_back(PropertyWrite::new(ast, lhs));
     }
 }
 
@@ -238,12 +279,12 @@ struct PropertyWrite {
 
 impl PropertyWrite {
     // port: DeadPropertyAssignmentElimination.PropertyWrite#PropertyWrite
-    fn new(compiler: &AbstractCompiler, assigned_at: NodeId) -> Self {
-        check_argument!(assigned_at.is_qualified_name(compiler));
+    fn new(ast: &Ast, assigned_at: NodeId) -> Self {
+        check_argument!(assigned_at.is_qualified_name(ast));
         Self {
             assigned_at,
             is_read: false,
-            qualified_name: assigned_at.get_qualified_name(compiler),
+            qualified_name: assigned_at.get_qualified_name(ast),
         }
     }
 
@@ -270,18 +311,29 @@ struct FindCandidateAssignmentTraversal<'a> {
     property_map: IndexMap<JsString, PropertyIndex>,
     properties: Vec<Property>,
 
-    /// A set of properties names that are potentially unsafe to remove duplicate writes to.
-    skiplisted_prop_names: &'a IndexSet<JsString>,
+    /// Sets of property names that are potentially unsafe to remove duplicate writes to
+    /// (union of extern properties and getter/setter accessors).
+    extern_props: &'a IndexSet<JsString>,
+    accessors: &'a IndexMap<JsString, PropertyAccessKind>,
 }
 
 impl<'a> FindCandidateAssignmentTraversal<'a> {
     // port: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal#FindCandidateAssignmentTraversal
-    fn new(skiplisted_prop_names: &'a IndexSet<JsString>) -> Self {
+    fn new(
+        extern_props: &'a IndexSet<JsString>,
+        accessors: &'a IndexMap<JsString, PropertyAccessKind>,
+    ) -> Self {
         Self {
             property_map: IndexMap::<_, _>::default(),
             properties: Vec::new(),
-            skiplisted_prop_names,
+            extern_props,
+            accessors,
         }
+    }
+
+    #[inline]
+    fn is_skiplisted(&self, name: &JsString) -> bool {
+        self.extern_props.contains(name) || self.accessors.contains_key(name)
     }
 
     /// Gets a `Property` given the node that references it; the `Property` is created if it does
@@ -289,19 +341,15 @@ impl<'a> FindCandidateAssignmentTraversal<'a> {
     ///
     /// Returns a `Property`, or null if the provided node is not a qualified name.
     // port: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal#getOrCreateProperty
-    fn get_or_create_property(
-        &mut self,
-        compiler: &AbstractCompiler,
-        prop_node: NodeId,
-    ) -> Option<PropertyIndex> {
-        if !prop_node.is_qualified_name(compiler) {
+    fn get_or_create_property(&mut self, ast: &Ast, prop_node: NodeId) -> Option<PropertyIndex> {
+        if !prop_node.is_qualified_name(ast) {
             return None;
         }
 
-        let prop_name = if prop_node.is_get_prop(compiler) {
-            prop_node.get_string(compiler)
+        let prop_name = if prop_node.is_get_prop(ast) {
+            prop_node.get_string(ast)
         } else {
-            prop_node.get_qualified_name(compiler).unwrap()
+            prop_node.get_qualified_name(ast).unwrap()
         };
 
         // propertyMap.computeIfAbsent(propName, Property::new)
@@ -326,9 +374,9 @@ impl<'a> FindCandidateAssignmentTraversal<'a> {
 
           Note: c is the same Property in this tree.
         */
-        if prop_node.is_get_prop(compiler) {
+        if prop_node.is_get_prop(ast) {
             let parent_property =
-                self.get_or_create_property(compiler, prop_node.get_first_child(compiler).unwrap());
+                self.get_or_create_property(ast, prop_node.get_first_child(ast).unwrap());
             if let Some(parent_property) = parent_property {
                 self.properties[parent_property].children.insert(property);
             }
@@ -338,20 +386,20 @@ impl<'a> FindCandidateAssignmentTraversal<'a> {
     }
 
     // port: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal#visitBlock
-    fn visit_block(&mut self, compiler: &AbstractCompiler, block_node: NodeId) {
-        check_argument!(block_node.is_block(compiler));
+    fn visit_block(&mut self, ast: &Ast, block_node: NodeId) {
+        check_argument!(block_node.is_block(ast));
 
         // We don't do flow analysis yet so we're going to assume everything written up to this
         // block is read.
-        if block_node.has_children(compiler) {
+        if block_node.has_children(ast) {
             self.mark_all_props_read();
         }
     }
 
     // port: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal#isConditionalExpression
-    fn is_conditional_expression(compiler: &AbstractCompiler, n: NodeId) -> bool {
+    fn is_conditional_expression(ast: &Ast, n: NodeId) -> bool {
         matches!(
-            n.get_token(compiler),
+            n.get_token(ast),
             Token::AND
                 | Token::OR
                 | Token::HOOK
@@ -363,21 +411,21 @@ impl<'a> FindCandidateAssignmentTraversal<'a> {
     }
 
     // port: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal#visitAssignmentLhs
-    fn visit_assignment_lhs(&mut self, compiler: &AbstractCompiler, lhs: NodeId) {
-        let Some(property) = self.get_or_create_property(compiler, lhs) else {
+    fn visit_assignment_lhs(&mut self, ast: &Ast, lhs: NodeId) {
+        let Some(property) = self.get_or_create_property(ast, lhs) else {
             return;
         };
 
-        if !lhs.is_get_prop(compiler) {
+        if !lhs.is_get_prop(ast) {
             self.properties[property].mark_last_write_read();
             Property::mark_children_read(&mut self.properties, property);
             return;
         }
 
-        let assign_node = lhs.get_parent(compiler).unwrap();
+        let assign_node = lhs.get_parent(ast).unwrap();
 
         // If it's mutating assignment (+=, *=, etc.) then mark the last assignment read first.
-        if !assign_node.is_assign(compiler) {
+        if !assign_node.is_assign(ast) {
             self.properties[property].mark_last_write_read();
         }
 
@@ -385,32 +433,25 @@ impl<'a> FindCandidateAssignmentTraversal<'a> {
         // referenced later on, so consider children properties as read.
         // Ex. a.b.c = 10; a.b = other; a.b.c = 20;
         Property::mark_children_read(&mut self.properties, property);
-        self.properties[property].add_write(compiler, lhs);
+        self.properties[property].add_write(ast, lhs);
 
         // Now we need to go up the prop chain and mark those as read.
-        let mut child = lhs.get_first_child(compiler);
+        let mut child = lhs.get_first_child(ast);
         while let Some(c) = child {
-            let Some(child_property) = self.get_or_create_property(compiler, c) else {
+            let Some(child_property) = self.get_or_create_property(ast, c) else {
                 break;
             };
             self.properties[child_property].mark_last_write_read();
-            child = c.get_first_child(compiler);
+            child = c.get_first_child(ast);
         }
     }
 
     // port: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal#visitNode
-    fn visit_node(
-        &mut self,
-        compiler: &AbstractCompiler,
-        n: NodeId,
-        parent: Option<NodeId>,
-    ) -> bool {
-        match n.get_token(compiler) {
+    fn visit_node(&mut self, ast: &Ast, n: NodeId, parent: Option<NodeId>) -> bool {
+        match n.get_token(ast) {
             Token::GETPROP => {
                 // Handle potential getters/setters.
-                if n.is_get_prop(compiler)
-                    && self.skiplisted_prop_names.contains(&n.get_string(compiler))
-                {
+                if self.is_skiplisted(n.get_string_ref(ast)) {
                     // We treat getters/setters as if they were a call, thus we mark all
                     // properties as read.
                     self.mark_all_props_read();
@@ -418,8 +459,7 @@ impl<'a> FindCandidateAssignmentTraversal<'a> {
                 }
 
                 let parent = parent.unwrap();
-                if NodeUtil::is_assignment_op(compiler, parent)
-                    && parent.get_first_child(compiler) == Some(n)
+                if NodeUtil::is_assignment_op(ast, parent) && parent.get_first_child(ast) == Some(n)
                 {
                     // This is a write to the property, so skip the read handling below.
                     // We'll handle this write in the visit() method
@@ -427,7 +467,7 @@ impl<'a> FindCandidateAssignmentTraversal<'a> {
                     // child.
                     return true;
                 }
-                let property = self.get_or_create_property(compiler, n);
+                let property = self.get_or_create_property(ast, n);
                 if let Some(property) = property {
                     // Mark all children properties as read.
                     self.properties[property].mark_last_write_read();
@@ -436,16 +476,16 @@ impl<'a> FindCandidateAssignmentTraversal<'a> {
                     // property chain.
                     // Ex. A read of "a.b.c" should mark a, a.b, a.b.c, and a.b.c.* as read, but
                     // not a.d
-                    if !parent.is_get_prop(compiler) {
+                    if !parent.is_get_prop(ast) {
                         Property::mark_children_read(&mut self.properties, property);
                     }
                 }
                 true
             }
             Token::THIS | Token::NAME => {
-                let name_prop = check_not_null!(self.get_or_create_property(compiler, n));
+                let name_prop = check_not_null!(self.get_or_create_property(ast, n));
                 self.properties[name_prop].mark_last_write_read();
-                if !parent.unwrap().is_get_prop(compiler) {
+                if !parent.unwrap().is_get_prop(ast) {
                     Property::mark_children_read(&mut self.properties, name_prop);
                 }
                 true
@@ -465,11 +505,10 @@ impl<'a> FindCandidateAssignmentTraversal<'a> {
                 false
             }
             Token::OBJECT_PATTERN => {
-                let mut child = n.get_first_child(compiler);
+                let mut child = n.get_first_child(ast);
                 while let Some(c) = child {
-                    if c.is_string_key(compiler) {
-                        let prop_name = c.get_string(compiler);
-                        let property = self.property_map.get(&prop_name).copied();
+                    if c.is_string_key(ast) {
+                        let property = self.property_map.get(c.get_string_ref(ast)).copied();
                         if let Some(property) = property {
                             self.properties[property].mark_last_write_read();
                             Property::mark_children_read(&mut self.properties, property);
@@ -478,16 +517,16 @@ impl<'a> FindCandidateAssignmentTraversal<'a> {
                         self.mark_all_props_read();
                         break;
                     }
-                    child = c.get_next(compiler);
+                    child = c.get_next(ast);
                 }
                 true
             }
             Token::BLOCK => {
-                self.visit_block(compiler, n);
+                self.visit_block(ast, n);
                 true
             }
             _ => {
-                if Self::is_conditional_expression(compiler, n) {
+                if Self::is_conditional_expression(ast, n) {
                     self.mark_all_props_read();
                     return false;
                 }
@@ -507,36 +546,32 @@ impl<'a> FindCandidateAssignmentTraversal<'a> {
             property.mark_last_write_read();
         }
     }
-}
 
-impl Callback for FindCandidateAssignmentTraversal<'_> {
     // port: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal#shouldTraverse
-    fn should_traverse(
-        &mut self,
-        t: &mut NodeTraversal<'_>,
-        n: NodeId,
-        parent: Option<NodeId>,
-    ) -> bool {
-        self.visit_node(t.get_compiler(), n, parent)
-    }
-
     // port: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal#visit
-    fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
-        let compiler = t.get_compiler();
+    fn walk(&mut self, ast: &Ast, n: NodeId, parent: Option<NodeId>) {
+        if !self.visit_node(ast, n, parent) {
+            return;
+        }
+        let mut child = n.get_first_child(ast);
+        while let Some(c) = child {
+            self.walk(ast, c, Some(n));
+            child = c.get_next(ast);
+        }
         // Visit the LHS of an assignment in post-order
-        if NodeUtil::is_assignment_op(compiler, n) {
-            self.visit_assignment_lhs(compiler, n.get_first_child(compiler).unwrap());
+        if NodeUtil::is_assignment_op(ast, n) {
+            self.visit_assignment_lhs(ast, n.get_first_child(ast).unwrap());
         }
 
         // Assume that all properties may be read when control flow leaves the function
-        if NodeUtil::is_invocation(compiler, n) || n.is_yield(compiler) || n.is_await(compiler) {
+        if NodeUtil::is_invocation(ast, n) || n.is_yield(ast) || n.is_await(ast) {
             self.mark_all_props_read();
         }
 
         // Mark all properties as read when leaving a block since we haven't proven that the block
         // will execute.
-        if n.is_block(compiler) {
-            self.visit_block(compiler, n);
+        if n.is_block(ast) {
+            self.visit_block(ast, n);
         }
     }
 }

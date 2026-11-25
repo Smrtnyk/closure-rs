@@ -28,11 +28,13 @@ use crate::node_util::NodeUtil;
 use closure_jstype::js_type::Nullability;
 use closure_jstype::prelude::*;
 use closure_jstype::{JSTypeRegistry, TypeId};
-use closure_parsing::parser::feature_set::Feature;
+use closure_parsing::parser::feature_set::{Feature, FeatureSet};
 use closure_rhino::jscomp_base::tri::Tri;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use closure_rhino::{check_argument, check_not_null, check_state};
+use std::marker::PhantomData;
+use std::ops::Deref;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 // Possible enhancements:
@@ -107,6 +109,101 @@ const AWAIT_NOT_WITHIN_ASYNC_FUNCTION: &str = "'await' expression is not within 
 const AWAIT_NOT_ALLOWED_IN_PARAMETER_LIST: &str =
     "'await' expression is not allowed in a parameter list";
 
+/// Rust-only (performance divergence): abstracts over `&mut AbstractCompiler` (full validation
+/// including `JSTYPE` checks) and read-only `&Ast` snapshots so `validate_code_root` can validate
+/// scripts and statement slices concurrently on worker threads when `type_validation_mode == NONE`.
+trait ValidatorTarget: Deref<Target = Ast> {
+    fn allowable_features(&self) -> FeatureSet;
+    fn skip_non_transpilation_passes(&self) -> bool;
+    fn should_wrap_goog_modules_for_whitespace_only(&self) -> bool;
+    fn source_for_node(&mut self, n: NodeId) -> String;
+    fn type_registry_and_ast(&mut self) -> (&mut JSTypeRegistry, &Ast);
+}
+
+impl ValidatorTarget for AbstractCompiler {
+    #[inline]
+    fn allowable_features(&self) -> FeatureSet {
+        self.get_allowable_features()
+    }
+    #[inline]
+    fn skip_non_transpilation_passes(&self) -> bool {
+        self.get_options().get_skip_non_transpilation_passes()
+    }
+    #[inline]
+    fn should_wrap_goog_modules_for_whitespace_only(&self) -> bool {
+        self.get_options()
+            .should_wrap_goog_modules_for_whitespace_only()
+    }
+    fn source_for_node(&mut self, n: NodeId) -> String {
+        self.to_source_for_node(n)
+    }
+    fn type_registry_and_ast(&mut self) -> (&mut JSTypeRegistry, &Ast) {
+        let (reg, ast) = self.get_type_registry_field_and_ast();
+        (
+            reg.expect("AstValidator: a node has a JSType but the compiler has no JSTypeRegistry"),
+            ast,
+        )
+    }
+}
+
+struct ReadOnlyValidatorTarget<'a> {
+    ast: &'a Ast,
+    allowable_features: FeatureSet,
+    skip_non_transpilation_passes: bool,
+    wrap_goog_modules: bool,
+}
+
+impl Deref for ReadOnlyValidatorTarget<'_> {
+    type Target = Ast;
+    #[inline]
+    fn deref(&self) -> &Ast {
+        self.ast
+    }
+}
+
+impl ValidatorTarget for ReadOnlyValidatorTarget<'_> {
+    #[inline]
+    fn allowable_features(&self) -> FeatureSet {
+        self.allowable_features
+    }
+    #[inline]
+    fn skip_non_transpilation_passes(&self) -> bool {
+        self.skip_non_transpilation_passes
+    }
+    #[inline]
+    fn should_wrap_goog_modules_for_whitespace_only(&self) -> bool {
+        self.wrap_goog_modules
+    }
+    fn source_for_node(&mut self, _n: NodeId) -> String {
+        unreachable!("ReadOnlyValidatorTarget is only used when TypeInfoValidation::NONE")
+    }
+    fn type_registry_and_ast(&mut self) -> (&mut JSTypeRegistry, &Ast) {
+        unreachable!("ReadOnlyValidatorTarget is only used when TypeInfoValidation::NONE")
+    }
+}
+
+type ParallelUnitResult = (bool, Vec<(String, Option<NodeId>)>);
+
+#[derive(Default)]
+struct CollectingViolationHandler {
+    violations: Vec<(String, Option<NodeId>)>,
+}
+
+impl ViolationHandler for CollectingViolationHandler {
+    fn handle_violation(&mut self, _ast: &Ast, message: &str, n: Option<NodeId>) {
+        self.violations.push((message.to_owned(), n));
+    }
+}
+
+struct ValidatorRunner<'a, C: ValidatorTarget + ?Sized> {
+    violation_handler: &'a mut dyn ViolationHandler,
+    current_script: Option<NodeId>,
+    type_validation_mode: TypeInfoValidation,
+    is_script_feature_validation_enabled: bool,
+    should_validate_required_inlinings: bool,
+    _target: PhantomData<fn(&mut C)>,
+}
+
 impl<'h> AstValidator<'h> {
     // port: AstValidator#AstValidator(AbstractCompiler,ViolationHandler,boolean,boolean)
     pub fn new_with_handler(
@@ -155,8 +252,259 @@ impl<'h> AstValidator<'h> {
         self
     }
 
+    fn run_with<R>(
+        &mut self,
+        f: impl FnOnce(&mut ValidatorRunner<'_, AbstractCompiler>) -> R,
+    ) -> R {
+        let mut runner = ValidatorRunner {
+            violation_handler: self.violation_handler.as_mut(),
+            current_script: self.current_script,
+            type_validation_mode: self.type_validation_mode,
+            is_script_feature_validation_enabled: self.is_script_feature_validation_enabled,
+            should_validate_required_inlinings: self.should_validate_required_inlinings,
+            _target: PhantomData,
+        };
+        let res = f(&mut runner);
+        self.current_script = runner.current_script;
+        res
+    }
+
     // port: AstValidator#validateRoot
     pub fn validate_root(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+        self.run_with(|r| r.validate_root(compiler, n));
+    }
+
+    // port: AstValidator#validateCodeRoot
+    pub fn validate_code_root(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+        if self.type_validation_mode == TypeInfoValidation::NONE
+            && n.is_root(compiler)
+            && self.try_validate_code_root_parallel(compiler, n)
+        {
+            return;
+        }
+        self.run_with(|r| r.validate_code_root(compiler, n));
+    }
+
+    /// Rust-only (performance divergence): validates scripts (or top-level statement chunks of a
+    /// large single non-module script) concurrently on `&Ast` when `type_validation_mode == NONE`,
+    /// replaying any collected violations (or falling back on worker panic) in exact AST order.
+    fn try_validate_code_root_parallel(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+    ) -> bool {
+        let mut scripts = Vec::new();
+        let mut c = n.get_first_child(compiler);
+        while let Some(cur) = c {
+            scripts.push(cur);
+            c = cur.get_next(compiler);
+        }
+        if scripts.is_empty() {
+            return true;
+        }
+        let allowable_features = compiler.get_allowable_features();
+        let skip_non_transpilation = compiler.get_options().get_skip_non_transpilation_passes();
+        let wrap_goog_modules = compiler
+            .get_options()
+            .should_wrap_goog_modules_for_whitespace_only();
+        let validate_features = self.is_script_feature_validation_enabled;
+        let validate_inlinings = self.should_validate_required_inlinings;
+
+        // Large single non-module script: split its top-level statements across worker threads.
+        if scripts.len() == 1 {
+            let script = scripts[0];
+            if !script.is_script(compiler)
+                || script.get_source_file_name(compiler).is_none()
+                || script.get_input_id(compiler).is_none()
+                || script
+                    .get_first_child(compiler)
+                    .is_none_or(|first| first.is_module_body(compiler))
+            {
+                return false;
+            }
+            let mut stmts = Vec::new();
+            let mut st = script.get_first_child(compiler);
+            while let Some(cur) = st {
+                stmts.push(cur);
+                st = cur.get_next(compiler);
+            }
+            const STMT_CHUNK: usize = 64;
+            let chunk_count = stmts.len().div_ceil(STMT_CHUNK);
+            let threads = crate::parallel_parse::parallel_thread_count(chunk_count, 2, 8);
+            if threads < 2 {
+                return false;
+            }
+            let mut ranges = Vec::with_capacity(chunk_count);
+            let mut offset = 0;
+            while offset < stmts.len() {
+                let end = (offset + STMT_CHUNK).min(stmts.len());
+                ranges.push((offset, end));
+                offset = end;
+            }
+            let ast = &compiler.ast;
+            let stmts_ref = &stmts;
+            let batches = crate::parallel_parse::run_scoped_indexed(
+                "closure-astval",
+                threads,
+                &ranges,
+                |_idx, &(start, end)| {
+                    let mut handler = CollectingViolationHandler::default();
+                    let mut target = ReadOnlyValidatorTarget {
+                        ast,
+                        allowable_features,
+                        skip_non_transpilation_passes: skip_non_transpilation,
+                        wrap_goog_modules,
+                    };
+                    let mut runner = ValidatorRunner {
+                        violation_handler: &mut handler,
+                        current_script: Some(script),
+                        type_validation_mode: TypeInfoValidation::NONE,
+                        is_script_feature_validation_enabled: validate_features,
+                        should_validate_required_inlinings: validate_inlinings,
+                        _target: PhantomData::<fn(&mut ReadOnlyValidatorTarget<'_>)>,
+                    };
+                    let panicked = catch_unwind(AssertUnwindSafe(|| {
+                        for &stmt in &stmts_ref[start..end] {
+                            runner.validate_statement(&mut target, stmt);
+                        }
+                    }))
+                    .is_err();
+                    if panicked || !handler.violations.is_empty() {
+                        Some((panicked, handler.violations))
+                    } else {
+                        None
+                    }
+                },
+            );
+            let mut ordered: Vec<Option<ParallelUnitResult>> =
+                (0..ranges.len()).map(|_| None).collect();
+            for batch in batches {
+                for (idx, item) in batch {
+                    ordered[idx] = Some(item);
+                }
+            }
+            self.current_script = Some(script);
+            for (idx, item) in ordered.into_iter().enumerate() {
+                if let Some((panicked, violations)) = item {
+                    if panicked {
+                        let (start, end) = ranges[idx];
+                        self.run_with(|r| {
+                            for &stmt in &stmts[start..end] {
+                                r.validate_statement(compiler, stmt);
+                            }
+                        });
+                        return true;
+                    }
+                    for (msg, node) in violations {
+                        self.violation_handler
+                            .handle_violation(&compiler.ast, &msg, node);
+                    }
+                }
+            }
+            if self.is_script_feature_validation_enabled {
+                self.run_with(|r| r.validate_script_feature_set(compiler, script));
+            }
+            return true;
+        }
+
+        let threads = crate::parallel_parse::parallel_thread_count(scripts.len(), 2, 8);
+        if threads < 2 {
+            return false;
+        }
+        let ast = &compiler.ast;
+        let batches = crate::parallel_parse::run_scoped_indexed(
+            "closure-astval",
+            threads,
+            &scripts,
+            |_idx, &script| {
+                let mut handler = CollectingViolationHandler::default();
+                let mut target = ReadOnlyValidatorTarget {
+                    ast,
+                    allowable_features,
+                    skip_non_transpilation_passes: skip_non_transpilation,
+                    wrap_goog_modules,
+                };
+                let mut runner = ValidatorRunner {
+                    violation_handler: &mut handler,
+                    current_script: None,
+                    type_validation_mode: TypeInfoValidation::NONE,
+                    is_script_feature_validation_enabled: validate_features,
+                    should_validate_required_inlinings: validate_inlinings,
+                    _target: PhantomData::<fn(&mut ReadOnlyValidatorTarget<'_>)>,
+                };
+                let panicked = catch_unwind(AssertUnwindSafe(|| {
+                    runner.validate_script(&mut target, script);
+                }))
+                .is_err();
+                if panicked || !handler.violations.is_empty() {
+                    Some((panicked, handler.violations))
+                } else {
+                    None
+                }
+            },
+        );
+        let mut ordered: Vec<Option<ParallelUnitResult>> =
+            (0..scripts.len()).map(|_| None).collect();
+        for batch in batches {
+            for (idx, item) in batch {
+                ordered[idx] = Some(item);
+            }
+        }
+        for (idx, item) in ordered.into_iter().enumerate() {
+            if let Some((panicked, violations)) = item {
+                if panicked {
+                    self.run_with(|r| r.validate_script(compiler, scripts[idx]));
+                    return true;
+                }
+                for (msg, node) in violations {
+                    self.violation_handler
+                        .handle_violation(&compiler.ast, &msg, node);
+                }
+            }
+        }
+        self.current_script = scripts.last().copied();
+        true
+    }
+
+    // port: AstValidator#validateScript
+    pub fn validate_script(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+        self.run_with(|r| r.validate_script(compiler, n));
+    }
+
+    // port: AstValidator#validateModuleContents
+    pub fn validate_module_contents(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+        self.run_with(|r| r.validate_module_contents(compiler, n));
+    }
+
+    // port: AstValidator#validateStatements
+    pub fn validate_statements(&mut self, compiler: &mut AbstractCompiler, n: Option<NodeId>) {
+        self.run_with(|r| r.validate_statements(compiler, n));
+    }
+
+    // port: AstValidator#validateStatement(Node)
+    pub fn validate_statement(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+        self.run_with(|r| r.validate_statement(compiler, n));
+    }
+
+    // port: AstValidator#validateStatement(Node,boolean)
+    pub fn validate_statement_ambient(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        is_ambient: bool,
+    ) {
+        self.run_with(|r| r.validate_statement_ambient(compiler, n, is_ambient));
+    }
+
+    // port: AstValidator#validateExpression
+    pub fn validate_expression(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+        self.run_with(|r| r.validate_expression(compiler, n));
+    }
+}
+
+impl<C: ValidatorTarget + ?Sized> ValidatorRunner<'_, C> {
+    // port: AstValidator#validateRoot
+    fn validate_root(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::ROOT, n);
         self.validate_properties(compiler, n);
         self.validate_child_count_expected(compiler, n, 2);
@@ -167,7 +515,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateCodeRoot
-    pub fn validate_code_root(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_code_root(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::ROOT, n);
         let mut c = n.get_first_child(compiler);
         while let Some(cur) = c {
@@ -177,7 +525,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateScript
-    pub fn validate_script(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_script(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::SCRIPT, n);
         self.validate_has_source_name(compiler, n);
         self.validate_has_input_id(compiler, n);
@@ -204,11 +552,7 @@ impl<'h> AstValidator<'h> {
     /// possbile because with go/accurately-maintain-script-node-featureSet, each transpiler pass
     /// updates script features anytime it updates the compiler's allowable features.
     // port: AstValidator#validateScriptFeatureSet
-    fn validate_script_feature_set(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        script_node: NodeId,
-    ) {
+    fn validate_script_feature_set(&mut self, compiler: &mut C, script_node: NodeId) {
         if !script_node.is_script(compiler) {
             self.violation(compiler, "Not a script node", script_node);
             // unit tests for this pass perform "Negaive Testing" (i.e pass non-script nodes to
@@ -219,7 +563,7 @@ impl<'h> AstValidator<'h> {
         }
         let current_script = self.current_script.unwrap();
         let script_features = NodeUtil::get_feature_set_of_script(compiler, current_script);
-        let allowable_features = Some(compiler.get_allowable_features());
+        let allowable_features = Some(compiler.allowable_features());
         let (Some(script_features), Some(allowable_features)) =
             (script_features, allowable_features)
         else {
@@ -248,14 +592,14 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateModuleContents
-    pub fn validate_module_contents(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_module_contents(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::MODULE_BODY, n);
         let first = n.get_first_child(compiler);
         self.validate_statements(compiler, first);
     }
 
     // port: AstValidator#validateStatements
-    pub fn validate_statements(&mut self, compiler: &mut AbstractCompiler, mut n: Option<NodeId>) {
+    fn validate_statements(&mut self, compiler: &mut C, mut n: Option<NodeId>) {
         while let Some(cur) = n {
             self.validate_statement(compiler, cur);
             n = cur.get_next(compiler);
@@ -263,7 +607,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateStatement(Node)
-    pub fn validate_statement(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_statement(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_statement_ambient(compiler, n, false);
     }
 
@@ -271,12 +615,7 @@ impl<'h> AstValidator<'h> {
     ///
     /// `is_ambient`: whether this statement comes from TS ambient `declare [...]`
     // port: AstValidator#validateStatement(Node,boolean)
-    pub fn validate_statement_ambient(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-        is_ambient: bool,
-    ) {
+    fn validate_statement_ambient(&mut self, compiler: &mut C, n: NodeId, is_ambient: bool) {
         match n.get_token(compiler) {
             Token::LABEL => self.validate_label(compiler, n),
             Token::BLOCK => self.validate_block(compiler, n),
@@ -326,11 +665,8 @@ impl<'h> AstValidator<'h> {
                 // TODO: b/294420383 Ideally the LateEs6ToEs3Rewriter pass should not inject code
                 // above the module body node
                 #[allow(clippy::collapsible_if)] // Retain Java control flow.
-                if compiler.get_options().get_skip_non_transpilation_passes() {
-                    if !compiler
-                        .get_options()
-                        .should_wrap_goog_modules_for_whitespace_only()
-                    {
+                if compiler.skip_non_transpilation_passes() {
+                    if !compiler.should_wrap_goog_modules_for_whitespace_only() {
                         self.validate_module_contents(compiler, n);
                         return;
                     }
@@ -339,13 +675,9 @@ impl<'h> AstValidator<'h> {
                 self.violation(compiler, &message, n);
             }
             _ => {
-                if n.is_module_body(compiler)
-                    && compiler.get_options().get_skip_non_transpilation_passes()
-                {
+                if n.is_module_body(compiler) && compiler.skip_non_transpilation_passes() {
                     check_state!(
-                        !compiler
-                            .get_options()
-                            .should_wrap_goog_modules_for_whitespace_only(),
+                        !compiler.should_wrap_goog_modules_for_whitespace_only(),
                         "Modules can exist in transpiler only if setWrapGoogModulesForWhitespaceOnly \
                          is false"
                     );
@@ -359,7 +691,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateExpression
-    pub fn validate_expression(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_expression(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_type_information(compiler, n);
         self.validate_required_inlinings(compiler, n);
 
@@ -510,7 +842,7 @@ impl<'h> AstValidator<'h> {
     // port: AstValidator#validatePseudoExpression
     fn validate_pseudo_expression(
         &mut self,
-        compiler: &mut AbstractCompiler,
+        compiler: &mut C,
         n: NodeId,
         allowed_pseudoexpressions: &[Token],
     ) {
@@ -549,7 +881,7 @@ impl<'h> AstValidator<'h> {
     /// `n`: a Node which we expect to have a type attached (i.e. not a control-flow-only node like
     /// a BLOCK or IF)
     // port: AstValidator#validateTypeInformation
-    fn validate_type_information(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_type_information(&mut self, compiler: &mut C, n: NodeId) {
         if n.get_is_in_closure_unaware_subtree(compiler) {
             // We don't expect closure-unaware code to have type information.
             // TODO: b/321233583 - Maybe this should be a separate validation step, to ensure that
@@ -587,7 +919,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateCallType
-    fn validate_call_type(&mut self, compiler: &mut AbstractCompiler, call_node: NodeId) {
+    fn validate_call_type(&mut self, compiler: &mut C, call_node: NodeId) {
         match self.type_validation_mode {
             TypeInfoValidation::JSTYPE => {
                 // TODO(b/74537281): Shouldn't CALL nodes always have a type, even if it is
@@ -630,14 +962,14 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#expectSomeTypeInformation
-    fn expect_some_type_information(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn expect_some_type_information(&mut self, compiler: &mut C, n: NodeId) {
         match self.type_validation_mode {
             TypeInfoValidation::JSTYPE => {
                 if n.get_jstype(compiler).is_none() {
                     let statement = NodeUtil::get_enclosing_statement(compiler, n).unwrap();
                     let message = format!(
                         "Type information missing\n{}",
-                        compiler.to_source_for_node(statement)
+                        compiler.source_for_node(statement)
                     );
                     self.violation(compiler, &message, n);
                 }
@@ -647,7 +979,7 @@ impl<'h> AstValidator<'h> {
                     let statement = NodeUtil::get_enclosing_statement(compiler, n).unwrap();
                     let message = format!(
                         "Color information missing\n{}",
-                        compiler.to_source_for_node(statement)
+                        compiler.source_for_node(statement)
                     );
                     self.violation(compiler, &message, n);
                 }
@@ -659,7 +991,7 @@ impl<'h> AstValidator<'h> {
     // port: AstValidator#expectMatchingTypeInformation
     fn expect_matching_type_information(
         &mut self,
-        compiler: &mut AbstractCompiler,
+        compiler: &mut C,
         n: NodeId,
         expected_type_i: TypeId,
     ) {
@@ -694,7 +1026,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateYield
-    fn validate_yield(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_yield(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::GENERATORS, n);
         self.validate_node_type(compiler, Token::YIELD, n);
         self.validate_properties(compiler, n);
@@ -707,11 +1039,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateYieldWithinGeneratorFunction
-    fn validate_yield_within_generator_function(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-    ) {
+    fn validate_yield_within_generator_function(&mut self, compiler: &mut C, n: NodeId) {
         let parent_function = NodeUtil::get_enclosing_function(compiler, n);
         if parent_function.is_none_or(|f| !f.is_generator_function(compiler)) {
             self.violation(
@@ -729,7 +1057,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateAwait
-    fn validate_await(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_await(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::ASYNC_FUNCTIONS, n);
         self.validate_node_type(compiler, Token::AWAIT, n);
         self.validate_properties(compiler, n);
@@ -740,7 +1068,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateAwaitWithinAsyncFunction
-    fn validate_await_within_async_function(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_await_within_async_function(&mut self, compiler: &mut C, n: NodeId) {
         let Some(parent_function) = NodeUtil::get_enclosing_function(compiler, n) else {
             // Top-level await is only allowed in modules.
             if !NodeUtil::get_enclosing_script(compiler, n)
@@ -787,7 +1115,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateImport
-    fn validate_import(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_import(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::MODULES, n);
         self.validate_node_type(compiler, Token::IMPORT, n);
         self.validate_properties(compiler, n);
@@ -812,7 +1140,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateImportSpecifiers
-    fn validate_import_specifiers(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_import_specifiers(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::IMPORT_SPECS, n);
         let mut c = n.get_first_child(compiler);
         while let Some(cur) = c {
@@ -822,7 +1150,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateImportSpecifier
-    fn validate_import_specifier(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_import_specifier(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::IMPORT_SPEC, n);
         self.validate_properties(compiler, n);
         self.validate_child_count_expected(compiler, n, 2);
@@ -834,7 +1162,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateExport
-    fn validate_export(&mut self, compiler: &mut AbstractCompiler, n: NodeId, is_ambient: bool) {
+    fn validate_export(&mut self, compiler: &mut C, n: NodeId, is_ambient: bool) {
         self.validate_feature(compiler, Feature::MODULES, n);
         self.validate_node_type(compiler, Token::EXPORT, n);
         if n.get_boolean_prop(compiler, NodeId::EXPORT_ALL_FROM) {
@@ -868,7 +1196,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateExportSpecifiers
-    fn validate_export_specifiers(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_export_specifiers(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::EXPORT_SPECS, n);
         let mut c = n.get_first_child(compiler);
         while let Some(cur) = c {
@@ -878,7 +1206,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateExportSpecifier
-    fn validate_export_specifier(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_export_specifier(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::EXPORT_SPEC, n);
         self.validate_properties(compiler, n);
         self.validate_child_count_expected(compiler, n, 2);
@@ -890,7 +1218,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateTaggedTemplateLit
-    fn validate_tagged_template_lit(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_tagged_template_lit(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::TEMPLATE_LITERALS, n);
         self.validate_node_type(compiler, Token::TAGGED_TEMPLATELIT, n);
         self.validate_properties(compiler, n);
@@ -902,7 +1230,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateTemplateLit
-    fn validate_template_lit(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_template_lit(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::TEMPLATE_LITERALS, n);
         self.validate_node_type(compiler, Token::TEMPLATELIT, n);
         let mut child = n.get_first_child(compiler);
@@ -917,7 +1245,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateTemplateLitString
-    fn validate_template_lit_string(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_template_lit_string(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::TEMPLATELIT_STRING, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -930,7 +1258,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateTemplateLitSub
-    fn validate_template_lit_sub(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_template_lit_sub(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::TEMPLATELIT_SUB, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -939,7 +1267,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateInterface
-    fn validate_interface(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_interface(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::INTERFACE, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -957,7 +1285,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateInterfaceExtends
-    fn validate_interface_extends(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_interface_extends(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::INTERFACE_EXTENDS, n);
         let mut c = n.get_first_child(compiler);
         while let Some(cur) = c {
@@ -967,7 +1295,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateInterfaceMembers
-    fn validate_interface_members(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_interface_members(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::INTERFACE_MEMBERS, n);
         let mut c = n.get_first_child(compiler);
         while let Some(cur) = c {
@@ -977,7 +1305,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateInterfaceMember
-    fn validate_interface_member(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_interface_member(&mut self, compiler: &mut C, n: NodeId) {
         match n.get_token(compiler) {
             Token::MEMBER_FUNCTION_DEF => {
                 self.validate_properties(compiler, n);
@@ -1011,7 +1339,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateEnum
-    fn validate_enum(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_enum(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::ENUM, n);
         let first = n.get_first_child(compiler).unwrap();
         self.validate_name(compiler, first);
@@ -1020,7 +1348,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateEnumMembers
-    fn validate_enum_members(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_enum_members(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::ENUM_MEMBERS, n);
         let mut c = n.get_first_child(compiler);
         while let Some(cur) = c {
@@ -1030,7 +1358,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateEnumStringKey
-    fn validate_enum_string_key(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_enum_string_key(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::STRING_KEY, n);
         self.validate_object_literal_key_name(compiler, n);
         self.validate_properties(compiler, n);
@@ -1039,29 +1367,19 @@ impl<'h> AstValidator<'h> {
 
     /// In a class declaration, unlike a class expression, the class name is required.
     // port: AstValidator#validateClassDeclaration
-    fn validate_class_declaration(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-        is_ambient: bool,
-    ) {
+    fn validate_class_declaration(&mut self, compiler: &mut C, n: NodeId, is_ambient: bool) {
         self.validate_class_helper(compiler, n, is_ambient);
         let first = n.get_first_child(compiler).unwrap();
         self.validate_name(compiler, first);
     }
 
     // port: AstValidator#validateClass
-    fn validate_class(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_class(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_class_helper(compiler, n, false);
     }
 
     // port: AstValidator#validateClassHelper
-    fn validate_class_helper(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-        is_ambient: bool,
-    ) {
+    fn validate_class_helper(&mut self, compiler: &mut C, n: NodeId, is_ambient: bool) {
         self.validate_feature(compiler, Feature::CLASSES, n);
         self.validate_node_type(compiler, Token::CLASS, n);
         self.validate_properties(compiler, n);
@@ -1088,12 +1406,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateClassMembers
-    fn validate_class_members(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-        is_ambient: bool,
-    ) {
+    fn validate_class_members(&mut self, compiler: &mut C, n: NodeId, is_ambient: bool) {
         self.validate_node_type(compiler, Token::CLASS_MEMBERS, n);
         let mut c = n.get_first_child(compiler);
         while let Some(cur) = c {
@@ -1103,12 +1416,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateClassMember
-    fn validate_class_member(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-        is_ambient: bool,
-    ) {
+    fn validate_class_member(&mut self, compiler: &mut C, n: NodeId, is_ambient: bool) {
         match n.get_token(compiler) {
             Token::MEMBER_FUNCTION_DEF => {
                 self.validate_feature(compiler, Feature::MEMBER_DECLARATIONS, n);
@@ -1167,12 +1475,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateMemberFunction
-    fn validate_member_function(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-        is_ambient: bool,
-    ) {
+    fn validate_member_function(&mut self, compiler: &mut C, n: NodeId, is_ambient: bool) {
         let function = n.get_first_child(compiler).unwrap();
         if is_ambient {
             self.validate_function_signature(compiler, function);
@@ -1182,7 +1485,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateClassField
-    fn validate_class_field(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_class_field(&mut self, compiler: &mut C, n: NodeId) {
         if n.is_private_identifier(compiler) {
             self.validate_feature(compiler, Feature::PRIVATE_ELEMENTS, n);
         } else {
@@ -1196,7 +1499,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateComputedPropClassField
-    fn validate_computed_prop_class_field(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_computed_prop_class_field(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::PUBLIC_CLASS_FIELDS, n);
         let first = n.get_first_child(compiler).unwrap();
         self.validate_expression(compiler, first);
@@ -1206,7 +1509,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateBlock
-    fn validate_block(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_block(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::BLOCK, n);
         let mut c = n.get_first_child(compiler);
         while let Some(cur) = c {
@@ -1216,7 +1519,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateHasSourceName
-    fn validate_has_source_name(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_has_source_name(&mut self, compiler: &mut C, n: NodeId) {
         let source_name = n.get_source_file_name(compiler);
         if source_name.is_none_or(|s| s.is_empty()) {
             self.violation(compiler, "Missing 'source name' annotation.", n);
@@ -1224,7 +1527,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateHasInputId
-    fn validate_has_input_id(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_has_input_id(&mut self, compiler: &mut C, n: NodeId) {
         let input_id = n.get_input_id(compiler);
         if input_id.is_none() {
             self.violation(compiler, "Missing 'input id' annotation.", n);
@@ -1232,7 +1535,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateLabel
-    fn validate_label(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_label(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::LABEL, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -1243,7 +1546,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateLabelName
-    fn validate_label_name(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_label_name(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::LABEL_NAME, n);
         self.validate_non_empty_string(compiler, n);
         self.validate_properties(compiler, n);
@@ -1251,21 +1554,21 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateNonEmptyString
-    fn validate_non_empty_string(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_non_empty_string(&mut self, compiler: &mut C, n: NodeId) {
         if self.validate_non_null_string(compiler, n) && n.get_string_ref(compiler).is_empty() {
             self.violation(compiler, "Expected non-empty string.", n);
         }
     }
 
     // port: AstValidator#validateEmptyString
-    fn validate_empty_string(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_empty_string(&mut self, compiler: &mut C, n: NodeId) {
         if self.validate_non_null_string(compiler, n) && !n.get_string_ref(compiler).is_empty() {
             self.violation(compiler, "Expected empty string.", n);
         }
     }
 
     // port: AstValidator#validateNonNullString
-    fn validate_non_null_string(&mut self, compiler: &mut AbstractCompiler, n: NodeId) -> bool {
+    fn validate_non_null_string(&mut self, compiler: &mut C, n: NodeId) -> bool {
         // Java catches the RuntimeException Node#getString throws for a non-string node; the Rust
         // Node panics there. A Rust string node never holds null.
         let ast: &Ast = compiler;
@@ -1277,7 +1580,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateName
-    fn validate_name(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_name(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::NAME, n);
         self.validate_non_empty_string(compiler, n);
         self.validate_properties(compiler, n);
@@ -1287,7 +1590,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateOptionalName
-    fn validate_optional_name(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_optional_name(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::NAME, n);
         self.validate_non_null_string(compiler, n);
         self.validate_properties(compiler, n);
@@ -1300,7 +1603,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateShadowContentIfPresent
-    fn validate_shadow_content_if_present(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_shadow_content_if_present(&mut self, compiler: &mut C, n: NodeId) {
         let Some(shadow) = n.get_closure_unaware_shadow(compiler) else {
             return;
         };
@@ -1366,7 +1669,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateEmptyName
-    fn validate_empty_name(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_empty_name(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::NAME, n);
         self.validate_empty_string(compiler, n);
         self.validate_properties(compiler, n);
@@ -1374,7 +1677,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateFunctionStatement
-    fn validate_function_statement(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_function_statement(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::FUNCTION, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -1394,19 +1697,19 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateFunctionExpression
-    fn validate_function_expression(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_function_expression(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_function_expression_helper(compiler, n, false);
     }
 
     // port: AstValidator#validateFunctionSignature
-    fn validate_function_signature(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_function_signature(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_function_expression_helper(compiler, n, true);
     }
 
     // port: AstValidator#validateFunctionExpressionHelper
     fn validate_function_expression_helper(
         &mut self,
-        compiler: &mut AbstractCompiler,
+        compiler: &mut C,
         n: NodeId,
         is_ambient: bool,
     ) {
@@ -1435,7 +1738,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateFunctionFeatures
-    fn validate_function_features(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_function_features(&mut self, compiler: &mut C, n: NodeId) {
         if n.is_arrow_function(compiler) {
             self.validate_feature(compiler, Feature::ARROW_FUNCTIONS, n);
         }
@@ -1451,12 +1754,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateFunctionBody
-    fn validate_function_body(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-        no_block: bool,
-    ) {
+    fn validate_function_body(&mut self, compiler: &mut C, n: NodeId, no_block: bool) {
         if no_block {
             self.validate_node_type(compiler, Token::EMPTY, n);
         } else {
@@ -1465,7 +1763,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateParameters
-    fn validate_parameters(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_parameters(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::PARAM_LIST, n);
         let mut c = n.get_first_child(compiler);
         while let Some(cur) = c {
@@ -1486,12 +1784,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateDefaultValue
-    fn validate_default_value(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        context_type: Token,
-        n: NodeId,
-    ) {
+    fn validate_default_value(&mut self, compiler: &mut C, context_type: Token, n: NodeId) {
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
         let first = n.get_first_child(compiler).unwrap();
@@ -1501,7 +1794,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateCall
-    fn validate_call(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_call(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::CALL, n);
         self.validate_properties(compiler, n);
         self.validate_minimum_child_count(compiler, n, 1);
@@ -1521,7 +1814,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateOptChainCall
-    fn validate_opt_chain_call(&mut self, compiler: &mut AbstractCompiler, node: NodeId) {
+    fn validate_opt_chain_call(&mut self, compiler: &mut C, node: NodeId) {
         self.validate_feature(compiler, Feature::OPTIONAL_CHAINING, node);
         self.validate_node_type(compiler, Token::OPTCHAIN_CALL, node);
         self.validate_properties(compiler, node);
@@ -1539,7 +1832,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateSuper
-    fn validate_super(&mut self, compiler: &mut AbstractCompiler, super_node: NodeId) {
+    fn validate_super(&mut self, compiler: &mut C, super_node: NodeId) {
         self.validate_feature(compiler, Feature::SUPER, super_node);
         self.validate_properties(compiler, super_node);
         self.validate_childless(compiler, super_node);
@@ -1619,34 +1912,19 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateRestParameters
-    fn validate_rest_parameters(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        context_type: Token,
-        n: NodeId,
-    ) {
+    fn validate_rest_parameters(&mut self, compiler: &mut C, context_type: Token, n: NodeId) {
         self.validate_feature(compiler, Feature::REST_PARAMETERS, n);
         self.validate_rest(compiler, context_type, n);
     }
 
     // port: AstValidator#validateArrayPatternRest
-    fn validate_array_pattern_rest(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        context_type: Token,
-        n: NodeId,
-    ) {
+    fn validate_array_pattern_rest(&mut self, compiler: &mut C, context_type: Token, n: NodeId) {
         self.validate_feature(compiler, Feature::ARRAY_PATTERN_REST, n);
         self.validate_rest(compiler, context_type, n);
     }
 
     // port: AstValidator#validateObjectPatternRest
-    fn validate_object_pattern_rest(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        context_type: Token,
-        n: NodeId,
-    ) {
+    fn validate_object_pattern_rest(&mut self, compiler: &mut C, context_type: Token, n: NodeId) {
         self.validate_feature(compiler, Feature::OBJECT_PATTERN_REST, n);
         self.validate_rest(compiler, context_type, n);
     }
@@ -1654,7 +1932,7 @@ impl<'h> AstValidator<'h> {
     /// `context_type`: A [`Token`] constant value indicating that `n` should be validated
     /// appropriately for a descendant of a Node of this type.
     // port: AstValidator#validateRest
-    fn validate_rest(&mut self, compiler: &mut AbstractCompiler, context_type: Token, n: NodeId) {
+    fn validate_rest(&mut self, compiler: &mut C, context_type: Token, n: NodeId) {
         match n.get_token(compiler) {
             Token::ITER_REST | Token::OBJECT_REST => {}
             _ => {
@@ -1676,7 +1954,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateObjectSpread
-    fn validate_object_spread(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_object_spread(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
         self.validate_feature(compiler, Feature::OBJECT_LITERALS_WITH_SPREAD, n);
@@ -1685,7 +1963,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateNew
-    fn validate_new(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_new(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::NEW, n);
         self.validate_properties(compiler, n);
         self.validate_minimum_child_count(compiler, n, 1);
@@ -1703,7 +1981,7 @@ impl<'h> AstValidator<'h> {
     // port: AstValidator#validateNameDeclarationHelper
     fn validate_name_declaration_helper(
         &mut self,
-        compiler: &mut AbstractCompiler,
+        compiler: &mut C,
         statement: NodeId,
         declaration: Token,
         n: NodeId,
@@ -1725,7 +2003,7 @@ impl<'h> AstValidator<'h> {
     // port: AstValidator#validateNameDeclarationChild
     fn validate_name_declaration_child(
         &mut self,
-        compiler: &mut AbstractCompiler,
+        compiler: &mut C,
         statement: NodeId,
         declaration: Token,
         n: NodeId,
@@ -1784,7 +2062,7 @@ impl<'h> AstValidator<'h> {
     /// `context_type`: A [`Token`] constant value indicating that `n` should be validated
     /// appropriately for a descendant of a Node of this type.
     // port: AstValidator#validateLHS
-    fn validate_lhs(&mut self, compiler: &mut AbstractCompiler, context_type: Token, n: NodeId) {
+    fn validate_lhs(&mut self, compiler: &mut C, context_type: Token, n: NodeId) {
         match n.get_token(compiler) {
             Token::NAME => self.validate_name(compiler, n),
             Token::ARRAY_PATTERN => self.validate_array_pattern(compiler, context_type, n),
@@ -1806,7 +2084,7 @@ impl<'h> AstValidator<'h> {
     // port: AstValidator#validateGetPropGetElemInLHS
     fn validate_get_prop_get_elem_in_lhs(
         &mut self,
-        compiler: &mut AbstractCompiler,
+        compiler: &mut C,
         context_type: Token,
         n: NodeId,
     ) {
@@ -1830,7 +2108,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateArrayPattern
-    fn validate_array_pattern(&mut self, compiler: &mut AbstractCompiler, type_: Token, n: NodeId) {
+    fn validate_array_pattern(&mut self, compiler: &mut C, type_: Token, n: NodeId) {
         self.validate_feature(compiler, Feature::ARRAY_DESTRUCTURING, n);
         self.validate_node_type(compiler, Token::ARRAY_PATTERN, n);
         let mut c = n.get_first_child(compiler);
@@ -1849,12 +2127,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateObjectPattern
-    fn validate_object_pattern(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        type_: Token,
-        n: NodeId,
-    ) {
+    fn validate_object_pattern(&mut self, compiler: &mut C, type_: Token, n: NodeId) {
         self.validate_feature(compiler, Feature::OBJECT_DESTRUCTURING, n);
         self.validate_node_type(compiler, Token::OBJECT_PATTERN, n);
         let mut c = n.get_first_child(compiler);
@@ -1875,7 +2148,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateFor
-    fn validate_for(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_for(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::FOR, n);
         self.validate_properties(compiler, n);
         self.validate_child_count_expected(compiler, n, 4);
@@ -1895,7 +2168,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateForIn
-    fn validate_for_in(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_for_in(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::FOR_IN, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -1908,7 +2181,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateForOf
-    fn validate_for_of(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_for_of(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::FOR_OF, n);
         self.validate_node_type(compiler, Token::FOR_OF, n);
         self.validate_properties(compiler, n);
@@ -1922,7 +2195,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateForAwaitOf
-    fn validate_for_await_of(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_for_await_of(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::FOR_AWAIT_OF, n);
         self.validate_node_type(compiler, Token::FOR_AWAIT_OF, n);
         self.validate_properties(compiler, n);
@@ -1939,7 +2212,7 @@ impl<'h> AstValidator<'h> {
     // port: AstValidator#validateEnhancedForVarOrAssignmentTarget
     fn validate_enhanced_for_var_or_assignment_target(
         &mut self,
-        compiler: &mut AbstractCompiler,
+        compiler: &mut C,
         for_node: NodeId,
         n: NodeId,
     ) {
@@ -1956,7 +2229,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateWith
-    fn validate_with(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_with(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::WITH, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -1967,7 +2240,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateWhile
-    fn validate_while(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_while(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::WHILE, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -1978,7 +2251,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateDo
-    fn validate_do(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_do(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::DO, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -1989,7 +2262,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateIf
-    fn validate_if(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_if(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::IF, n);
         self.validate_properties(compiler, n);
         self.validate_child_count_in(compiler, n, 2, 3);
@@ -2004,7 +2277,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateExprStmt
-    fn validate_expr_stmt(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_expr_stmt(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::EXPR_RESULT, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -2013,7 +2286,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateReturn
-    fn validate_return(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_return(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::RETURN, n);
         self.validate_properties(compiler, n);
         self.validate_maximum_child_count(compiler, n, 1);
@@ -2024,7 +2297,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateThrow
-    fn validate_throw(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_throw(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::THROW, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -2033,7 +2306,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateBreak
-    fn validate_break(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_break(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::BREAK, n);
         self.validate_properties(compiler, n);
         self.validate_maximum_child_count(compiler, n, 1);
@@ -2044,7 +2317,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateContinue
-    fn validate_continue(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_continue(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::CONTINUE, n);
         self.validate_properties(compiler, n);
         self.validate_maximum_child_count(compiler, n, 1);
@@ -2055,7 +2328,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateTry
-    fn validate_try(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_try(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::TRY, n);
         self.validate_properties(compiler, n);
         self.validate_child_count_in(compiler, n, 2, 3);
@@ -2088,7 +2361,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateCatch
-    fn validate_catch(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_catch(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::CATCH, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -2110,14 +2383,14 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateNoCatchBinding
-    fn validate_no_catch_binding(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_no_catch_binding(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::OPTIONAL_CATCH_BINDING, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
     }
 
     // port: AstValidator#validateSwitch
-    fn validate_switch(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_switch(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::SWITCH, n);
         self.validate_properties(compiler, n);
         self.validate_child_count_expected(compiler, n, 2);
@@ -2142,7 +2415,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateSwitchMember
-    fn validate_switch_member(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_switch_member(&mut self, compiler: &mut C, n: NodeId) {
         match n.get_token(compiler) {
             Token::CASE => self.validate_case(compiler, n),
             Token::DEFAULT_CASE => self.validate_default_case(compiler, n),
@@ -2154,7 +2427,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateDefaultCase
-    fn validate_default_case(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_default_case(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::DEFAULT_CASE, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -2163,7 +2436,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateCase
-    fn validate_case(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_case(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::CASE, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -2174,12 +2447,12 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateChildless
-    fn validate_childless(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_childless(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_child_count_expected(compiler, n, 0);
     }
 
     // port: AstValidator#validateAssignmentExpression
-    fn validate_assignment_expression(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_assignment_expression(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
         let token = n.get_token(compiler);
@@ -2190,11 +2463,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateCompoundAssignmentExpression
-    fn validate_compound_assignment_expression(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-    ) {
+    fn validate_compound_assignment_expression(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
         let context_type = n.get_token(compiler);
@@ -2210,7 +2479,7 @@ impl<'h> AstValidator<'h> {
     // port: AstValidator#validateAssignmentOpTarget
     fn validate_assignment_op_target(
         &mut self,
-        compiler: &mut AbstractCompiler,
+        compiler: &mut C,
         lhs: NodeId,
         context_type: Token,
     ) {
@@ -2233,7 +2502,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateGetElem
-    fn validate_get_elem(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_get_elem(&mut self, compiler: &mut C, n: NodeId) {
         check_argument!(n.is_get_elem(compiler), &n.to_string(compiler));
         self.validate_properties(compiler, n);
         self.validate_child_count_expected(compiler, n, 2);
@@ -2244,7 +2513,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateOptChainGetElem
-    fn validate_opt_chain_get_elem(&mut self, compiler: &mut AbstractCompiler, node: NodeId) {
+    fn validate_opt_chain_get_elem(&mut self, compiler: &mut C, node: NodeId) {
         self.validate_feature(compiler, Feature::OPTIONAL_CHAINING, node);
         check_argument!(
             node.is_opt_chain_get_elem(compiler),
@@ -2260,7 +2529,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateGetProp
-    fn validate_get_prop(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_get_prop(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::GETPROP, n);
         let first = n.get_first_child(compiler).unwrap();
         self.validate_property_reference_target(compiler, first);
@@ -2270,7 +2539,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateOptChainGetProp
-    fn validate_opt_chain_get_prop(&mut self, compiler: &mut AbstractCompiler, node: NodeId) {
+    fn validate_opt_chain_get_prop(&mut self, compiler: &mut C, node: NodeId) {
         self.validate_feature(compiler, Feature::OPTIONAL_CHAINING, node);
         self.validate_node_type(compiler, Token::OPTCHAIN_GETPROP, node);
         let first = node.get_first_child(compiler).unwrap();
@@ -2282,11 +2551,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validatePropertyReferenceTarget
-    fn validate_property_reference_target(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        object_node: NodeId,
-    ) {
+    fn validate_property_reference_target(&mut self, compiler: &mut C, object_node: NodeId) {
         if object_node.is_super(compiler) {
             self.validate_super(compiler, object_node);
         } else {
@@ -2295,7 +2560,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateRegExpLit
-    fn validate_reg_exp_lit(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_reg_exp_lit(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::REGEXP_SYNTAX, n);
         self.validate_node_type(compiler, Token::REGEXP, n);
         self.validate_properties(compiler, n);
@@ -2308,7 +2573,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateStringLit
-    fn validate_string_lit(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_string_lit(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::STRINGLIT, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -2321,7 +2586,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateNumber
-    fn validate_number(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_number(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::NUMBER, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -2334,7 +2599,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateBigInt
-    fn validate_big_int(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_big_int(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::BIGINT, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -2347,7 +2612,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateArrayLit
-    fn validate_array_lit(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_array_lit(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::ARRAYLIT, n);
         let mut c = n.get_first_child(compiler);
         while let Some(cur) = c {
@@ -2358,7 +2623,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateObjectLit
-    fn validate_object_lit(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_object_lit(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::OBJECTLIT, n);
         let mut c = n.get_first_child(compiler);
         while let Some(cur) = c {
@@ -2368,7 +2633,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateObjectLitKey
-    fn validate_object_lit_key(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_object_lit_key(&mut self, compiler: &mut C, n: NodeId) {
         match n.get_token(compiler) {
             Token::GETTER_DEF => self.validate_object_lit_get_key(compiler, n),
             Token::SETTER_DEF => self.validate_object_lit_set_key(compiler, n),
@@ -2396,7 +2661,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateObjectLitGetKey
-    fn validate_object_lit_get_key(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_object_lit_get_key(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::GETTER, n);
         self.validate_node_type(compiler, Token::GETTER_DEF, n);
         self.validate_properties(compiler, n);
@@ -2420,7 +2685,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateObjectLitSetKey
-    fn validate_object_lit_set_key(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_object_lit_set_key(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::SETTER, n);
         self.validate_node_type(compiler, Token::SETTER_DEF, n);
         self.validate_properties(compiler, n);
@@ -2444,7 +2709,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateObjectLitStringKey
-    fn validate_object_lit_string_key(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_object_lit_string_key(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::STRING_KEY, n);
         self.validate_object_literal_key_name(compiler, n);
 
@@ -2459,12 +2724,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateObjectPatternStringKey
-    fn validate_object_pattern_string_key(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        type_: Token,
-        n: NodeId,
-    ) {
+    fn validate_object_pattern_string_key(&mut self, compiler: &mut C, type_: Token, n: NodeId) {
         self.validate_node_type(compiler, Token::STRING_KEY, n);
         self.validate_object_literal_key_name(compiler, n);
         self.validate_properties(compiler, n);
@@ -2478,11 +2738,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateObjectLitComputedPropKey
-    fn validate_object_lit_computed_prop_key(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-    ) {
+    fn validate_object_lit_computed_prop_key(&mut self, compiler: &mut C, n: NodeId) {
         // TODO: b/499356003 - clean up this hack. The right fix is to:
         // 1) model computed prop getter/setters with a separate Feature from COMPUTED_PROPERTIES
         // 2) modify the transpilation passes to *not* remove the computed prop getter/setter in
@@ -2505,7 +2761,7 @@ impl<'h> AstValidator<'h> {
     // port: AstValidator#validateObjectPatternComputedPropKey
     fn validate_object_pattern_computed_prop_key(
         &mut self,
-        compiler: &mut AbstractCompiler,
+        compiler: &mut C,
         type_: Token,
         n: NodeId,
     ) {
@@ -2525,7 +2781,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateComputedPropClassMethod
-    fn validate_computed_prop_class_method(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_computed_prop_class_method(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::COMPUTED_PROPERTIES, n);
         self.validate_node_type(compiler, Token::COMPUTED_PROP, n);
         let first = n.get_first_child(compiler).unwrap();
@@ -2549,11 +2805,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateObjectLitComputedPropGetKey
-    fn validate_object_lit_computed_prop_get_key(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-    ) {
+    fn validate_object_lit_computed_prop_get_key(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::COMPUTED_PROPERTIES, n);
         self.validate_feature(compiler, Feature::GETTER, n);
         self.validate_node_type(compiler, Token::COMPUTED_PROP, n);
@@ -2577,11 +2829,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateObjectLitComputedPropSetKey
-    fn validate_object_lit_computed_prop_set_key(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-    ) {
+    fn validate_object_lit_computed_prop_set_key(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_feature(compiler, Feature::COMPUTED_PROPERTIES, n);
         self.validate_feature(compiler, Feature::SETTER, n);
         self.validate_node_type(compiler, Token::COMPUTED_PROP, n);
@@ -2605,7 +2853,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateObjectLiteralKeyName
-    fn validate_object_literal_key_name(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_object_literal_key_name(&mut self, compiler: &mut C, n: NodeId) {
         if n.is_quoted_string_key(compiler) {
             // Validate that getString doesn't throw (Java catches UnsupportedOperationException;
             // the Rust Node panics like Java's exception).
@@ -2620,7 +2868,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateIncDecOp
-    fn validate_inc_dec_op(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_inc_dec_op(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_properties(compiler, n);
         self.validate_child_count_expected(compiler, n, 1);
         let first = n.get_first_child(compiler).unwrap();
@@ -2629,7 +2877,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateUnaryOp
-    fn validate_unary_op(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_unary_op(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_properties(compiler, n);
         self.validate_child_count_expected(compiler, n, 1);
         let first = n.get_first_child(compiler).unwrap();
@@ -2637,7 +2885,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateBinaryOp
-    fn validate_binary_op(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_binary_op(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_properties(compiler, n);
         self.validate_child_count_expected(compiler, n, 2);
         let first = n.get_first_child(compiler).unwrap();
@@ -2647,7 +2895,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateTrinaryOp
-    fn validate_trinary_op(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_trinary_op(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_properties(compiler, n);
         self.validate_child_count_expected(compiler, n, 3);
         let first = n.get_first_child(compiler).unwrap();
@@ -2659,7 +2907,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateNamedType
-    fn validate_named_type(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_named_type(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::NAMED_TYPE, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -2668,21 +2916,21 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateTypeAlias
-    fn validate_type_alias(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_type_alias(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::TYPE_ALIAS, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
     }
 
     // port: AstValidator#validateAmbientDeclaration
-    fn validate_ambient_declaration(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_ambient_declaration(&mut self, compiler: &mut C, n: NodeId) {
         self.validate_node_type(compiler, Token::DECLARE, n);
         let first = n.get_first_child(compiler).unwrap();
         self.validate_ambient_declaration_helper(compiler, first);
     }
 
     // port: AstValidator#validateAmbientDeclarationHelper
-    fn validate_ambient_declaration_helper(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_ambient_declaration_helper(&mut self, compiler: &mut C, n: NodeId) {
         match n.get_token(compiler) {
             Token::VAR | Token::LET | Token::CONST => {
                 let parent = n.get_parent(compiler).unwrap();
@@ -2700,7 +2948,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateNamespace
-    fn validate_namespace(&mut self, compiler: &mut AbstractCompiler, n: NodeId, is_ambient: bool) {
+    fn validate_namespace(&mut self, compiler: &mut C, n: NodeId, is_ambient: bool) {
         self.validate_node_type(compiler, Token::NAMESPACE, n);
         self.validate_properties(compiler, n);
         self.validate_child_count(compiler, n);
@@ -2711,7 +2959,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateNamespaceName
-    fn validate_namespace_name(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_namespace_name(&mut self, compiler: &mut C, n: NodeId) {
         match n.get_token(compiler) {
             Token::NAME => self.validate_name(compiler, n),
             Token::GETPROP => self.validate_get_prop(compiler, n),
@@ -2720,12 +2968,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateNamespaceElements
-    fn validate_namespace_elements(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-        is_ambient: bool,
-    ) {
+    fn validate_namespace_elements(&mut self, compiler: &mut C, n: NodeId, is_ambient: bool) {
         self.validate_node_type(compiler, Token::NAMESPACE_ELEMENTS, n);
         let mut c = n.get_first_child(compiler);
         while let Some(cur) = c {
@@ -2746,7 +2989,7 @@ impl<'h> AstValidator<'h> {
 
     // the first node of an opt chain must be marked with Prop.START_OF_OPT_CHAIN
     // port: AstValidator#validateFirstNodeOfOptChain
-    fn validate_first_node_of_opt_chain(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_first_node_of_opt_chain(&mut self, compiler: &mut C, n: NodeId) {
         #[allow(clippy::collapsible_if)] // Retain Java control flow.
         if !NodeUtil::is_opt_chain_node(compiler, n.get_first_child(compiler).unwrap()) {
             // if the first child of an opt chain node is not an opt chain node then it is the
@@ -2762,7 +3005,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateNodeType
-    fn validate_node_type(&mut self, compiler: &mut AbstractCompiler, type_: Token, n: NodeId) {
+    fn validate_node_type(&mut self, compiler: &mut C, type_: Token, n: NodeId) {
         if n.get_token(compiler) != type_ {
             let message = format!("Expected {type_} but was {}", n.get_token(compiler));
             self.violation(compiler, &message, n);
@@ -2770,7 +3013,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateChildCount(Node)
-    fn validate_child_count(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_child_count(&mut self, compiler: &mut C, n: NodeId) {
         let expected_arity = Token::arity(n.get_token(compiler));
         if expected_arity != -1 {
             self.validate_child_count_expected(compiler, n, expected_arity);
@@ -2778,12 +3021,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateChildCount(Node,int)
-    fn validate_child_count_expected(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-        expected: i32,
-    ) {
+    fn validate_child_count_expected(&mut self, compiler: &mut C, n: NodeId, expected: i32) {
         let count = n.get_child_count(compiler);
         if expected != count {
             let message = format!("Expected {expected} children, but was {count}");
@@ -2792,13 +3030,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateChildCountIn
-    fn validate_child_count_in(
-        &mut self,
-        compiler: &mut AbstractCompiler,
-        n: NodeId,
-        min: i32,
-        max: i32,
-    ) {
+    fn validate_child_count_in(&mut self, compiler: &mut C, n: NodeId, min: i32, max: i32) {
         if max == min {
             self.validate_child_count_expected(compiler, n, min);
             return;
@@ -2811,7 +3043,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateMinimumChildCount
-    fn validate_minimum_child_count(&mut self, compiler: &mut AbstractCompiler, n: NodeId, i: i32) {
+    fn validate_minimum_child_count(&mut self, compiler: &mut C, n: NodeId, i: i32) {
         let valid = if i == 1 {
             n.has_children(compiler)
         } else if i == 2 {
@@ -2830,7 +3062,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateMaximumChildCount
-    fn validate_maximum_child_count(&mut self, compiler: &mut AbstractCompiler, n: NodeId, i: i32) {
+    fn validate_maximum_child_count(&mut self, compiler: &mut C, n: NodeId, i: i32) {
         let valid = if i == 1 {
             !n.has_more_than_one_child(compiler)
         } else if i == -1 {
@@ -2848,8 +3080,8 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateFeature
-    fn validate_feature(&mut self, compiler: &mut AbstractCompiler, feature: Feature, n: NodeId) {
-        let allowble_features = compiler.get_allowable_features();
+    fn validate_feature(&mut self, compiler: &mut C, feature: Feature, n: NodeId) {
+        let allowble_features = compiler.allowable_features();
         // Checks that feature present in the AST is recorded in the compiler's featureSet.
         if !n.is_from_externs(compiler) && !allowble_features.has(feature) {
             // Skip this check for externs because we don't need to complete transpilation on
@@ -2879,7 +3111,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateProperties
-    fn validate_properties(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_properties(&mut self, compiler: &mut C, n: NodeId) {
         let mut error_messages: Vec<String> = Vec::new();
         n.validate_properties(compiler, |error_message| error_messages.push(error_message));
         // The consumer only lends the arena; report in the same order.
@@ -2889,7 +3121,7 @@ impl<'h> AstValidator<'h> {
     }
 
     // port: AstValidator#validateRequiredInlinings
-    fn validate_required_inlinings(&mut self, compiler: &mut AbstractCompiler, n: NodeId) {
+    fn validate_required_inlinings(&mut self, compiler: &mut C, n: NodeId) {
         if !self.should_validate_required_inlinings {
             return;
         }
@@ -2902,12 +3134,8 @@ impl<'h> AstValidator<'h> {
 }
 
 /// Rust-only: the compiler's JSTypeRegistry with the arena (Java reads types through the node).
-fn type_registry(compiler: &mut AbstractCompiler) -> (&mut JSTypeRegistry, &Ast) {
-    let (reg, ast) = compiler.get_type_registry_field_and_ast();
-    (
-        reg.expect("AstValidator: a node has a JSType but the compiler has no JSTypeRegistry"),
-        ast,
-    )
+fn type_registry<C: ValidatorTarget + ?Sized>(compiler: &mut C) -> (&mut JSTypeRegistry, &Ast) {
+    compiler.type_registry_and_ast()
 }
 
 impl CompilerPass for AstValidator<'_> {

@@ -37,6 +37,7 @@ use crate::syntactic_scope_cache::SyntacticScopeCache;
 use crate::var::VarId;
 use closure_rhino::check_state;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
+use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
 use std::collections::VecDeque;
@@ -121,6 +122,10 @@ pub struct CollectorCallback<'a, B: Behavior> {
     infer_locals: Vec<InferConstLocal>,
     infer_slot_to_local: Vec<u32>,
     infer_block_stack: Vec<(u32, bool)>,
+    /// Rust-only (performance divergence): lazily computed set of hoisted function declaration
+    /// names in the global scope so skipped top-level functions can check for pending hoisted
+    /// jumps in O(1) per name (or zero cost when empty).
+    hoisted_global_fn_names: Option<IndexSet<JsString>>,
 
     /// Rust-only (performance divergence): `process(externs, root)` may skip the externs (see
     /// `skip_externs_when_unread`).
@@ -219,6 +224,7 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
                 infer_locals: Vec::new(),
                 infer_slot_to_local: Vec::new(),
                 infer_block_stack: Vec::new(),
+                hoisted_global_fn_names: None,
                 reuse_sites: false,
                 may_skip_externs: false,
                 skipped_externs: None,
@@ -316,20 +322,47 @@ impl<B: Behavior> CompilerPass for ReferenceCollector<'_, B> {
             callback,
             scope_creator,
         } = self;
+        if *REUSE_REFERENCE_SITES
+            && (callback.reuse_sites
+                || callback.behavior.can_reuse_function_reference_sites()
+                || callback.behavior.use_inline_vars_clean_cache()
+                || callback.behavior.infer_consts_leaf_fast_path())
+        {
+            function_body::FunctionReferenceCache::precompute_parallel(compiler, root);
+        }
         if callback.may_skip_externs && compiler.get_externs_root() == Some(externs) {
             // Rust-only (performance divergence): see `skip_externs_when_unread`.
             let version = ExternsReferenceSummary::externs_version(compiler, externs);
-            match compiler.externs_reference_summary {
+            let cached_only_externs = match compiler.externs_reference_summary {
                 Some(summary) if summary.externs_version == version => {
-                    if summary.refers_only_to_externs {
-                        callback.skipped_externs = Some(externs);
-                        create_traversal_builder(compiler, callback, &mut **scope_creator)
-                            .traverse_roots_skipping_externs(externs, root);
-                        callback.skipped_externs = None;
-                        return;
-                    }
+                    Some(summary.refers_only_to_externs)
                 }
                 _ => {
+                    if try_verify_bundled_externs_refer_only_to_externs(
+                        compiler,
+                        &mut **scope_creator,
+                        externs,
+                    ) {
+                        compiler.externs_reference_summary = Some(ExternsReferenceSummary {
+                            externs_version: version,
+                            refers_only_to_externs: true,
+                        });
+                        Some(true)
+                    } else {
+                        None
+                    }
+                }
+            };
+            match cached_only_externs {
+                Some(true) => {
+                    callback.skipped_externs = Some(externs);
+                    create_traversal_builder(compiler, callback, &mut **scope_creator)
+                        .traverse_roots_skipping_externs(externs, root);
+                    callback.skipped_externs = None;
+                    return;
+                }
+                Some(false) => {}
+                None => {
                     callback.externs_refer_only_to_externs = Some(true);
                     create_traversal_builder(compiler, callback, &mut **scope_creator)
                         .traverse_roots(externs, root);
@@ -356,6 +389,114 @@ impl<B: Behavior> ReferenceMap for ReferenceCollector<'_, B> {
     fn shared_references(&self, var: VarId) -> Option<Rc<ReferenceCollection>> {
         self.callback.reference_map.get(&var).cloned()
     }
+}
+
+/// Rust-only (performance divergence): verifies `externs_refer_only_to_externs` on the first run
+/// using precomputed `BundledScript::extern_referenced_names` plus a shallow scan of any appended
+/// or synthetic global-only extern statements, avoiding a full 250K-node extern AST traversal.
+fn try_verify_bundled_externs_refer_only_to_externs(
+    compiler: &mut AbstractCompiler,
+    scope_creator: &mut dyn ScopeCreator,
+    externs: NodeId,
+) -> bool {
+    use crate::source_file::bundled_script::BundledScript;
+    use closure_rhino::node::SnapshotUse;
+
+    fn collect_global_only_names(ast: &Ast, n: NodeId, out: &mut Vec<NodeId>) -> bool {
+        let token = n.get_token(ast);
+        match token {
+            Token::FUNCTION
+            | Token::CLASS
+            | Token::BLOCK
+            | Token::MODULE_BODY
+            | Token::CATCH
+            | Token::FOR
+            | Token::FOR_IN
+            | Token::FOR_OF
+            | Token::FOR_AWAIT_OF
+            | Token::SWITCH_BODY
+            | Token::DESTRUCTURING_LHS
+            | Token::IMPORT_STAR
+            | Token::IMPORT_SPEC
+            | Token::EXPORT_SPEC => return false,
+            Token::NAME if !n.get_string_ref(ast).is_empty() => {
+                out.push(n);
+            }
+            _ => {}
+        }
+        let mut child = n.get_first_child(ast);
+        while let Some(c) = child {
+            if !collect_global_only_names(ast, c, out) {
+                return false;
+            }
+            child = c.get_next(ast);
+        }
+        true
+    }
+
+    let Some(global_root) = externs.get_parent(compiler) else {
+        return false;
+    };
+    let mut bundled_slices: Vec<&'static [&'static str]> = Vec::new();
+    let mut extra_name_nodes: Vec<NodeId> = Vec::new();
+    let mut saw_bundled = false;
+
+    let mut script = externs.get_first_child(compiler);
+    while let Some(s) = script {
+        if !s.is_script(compiler) {
+            return false;
+        }
+        if let Some((facts, suffix)) =
+            compiler.parsed_script_record::<BundledScript>(s, SnapshotUse::SyntaxAndNonParamNames)
+            && let Some(names) = facts.extern_referenced_names
+        {
+            saw_bundled = true;
+            if !names.is_empty() {
+                bundled_slices.push(names);
+            }
+            let mut stmt = suffix;
+            while let Some(st) = stmt {
+                if !collect_global_only_names(compiler, st, &mut extra_name_nodes) {
+                    return false;
+                }
+                stmt = st.get_next(compiler);
+            }
+        } else {
+            let mut stmt = s.get_first_child(compiler);
+            while let Some(st) = stmt {
+                if !collect_global_only_names(compiler, st, &mut extra_name_nodes) {
+                    return false;
+                }
+                stmt = st.get_next(compiler);
+            }
+        }
+        script = s.get_next(compiler);
+    }
+
+    if !saw_bundled {
+        return false;
+    }
+
+    let global_scope = scope_creator.create_scope(compiler, global_root, None);
+    let mut checked: IndexSet<&'static str> = IndexSet::default();
+    for slice in bundled_slices {
+        for &name in slice {
+            if !checked.insert(name) {
+                continue;
+            }
+            let v = global_scope.get_var(compiler, closure_rhino::js_string::JsString::from(name));
+            if !v.is_some_and(|v| v.get_input(compiler).is_some_and(|i| i.is_extern())) {
+                return false;
+            }
+        }
+    }
+    for name_node in extra_name_nodes {
+        let v = global_scope.get_var_of_node(compiler, name_node);
+        if !v.is_some_and(|v| v.get_input(compiler).is_some_and(|i| i.is_extern())) {
+            return false;
+        }
+    }
+    true
 }
 
 /// Same as process but only runs on a part of AST associated to one script.
@@ -1027,6 +1168,96 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         true
     }
 
+    /// Rust-only (performance divergence): skips a top-level (global-scope) function when the
+    /// behavior guarantees no local variable inside it needs action and global variables are
+    /// ignored, provided no `NAME` inside it references a pending hoisted global function.
+    fn try_skip_global_function_if_no_pending_hoist(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        fn_node: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        if !self.collect_hoisted_functions_in_reference_order {
+            return true;
+        }
+        let enclosing_scope = t.get_scope();
+        let hoisted_names = self.hoisted_global_fn_names.get_or_insert_with(|| {
+            enclosing_scope.collect_hoisted_function_names(t.get_compiler())
+        });
+        if hoisted_names.is_empty() {
+            return true;
+        }
+        let fn_name = fn_node.get_first_child(t).unwrap();
+        let args = fn_name.get_next(t).unwrap();
+        let body = args.get_next(t).unwrap();
+        let is_fn_decl = parent.is_some() && NodeUtil::is_function_declaration(t, fn_node);
+
+        // Collect candidate NAME nodes in `fn_node` whose spelling is a hoisted global function.
+        // We borrow `hoisted_global_fn_names` immutably during the AST scan, then resolve matches.
+        let cached_body_sites = if body.is_block(t)
+            && t.get_compiler()
+                .function_reference_sites
+                .has_cached_sites(body)
+        {
+            let stamp = SyntacticScopeCache::subtree_stamp(t.get_compiler(), body);
+            t.get_compiler()
+                .function_reference_sites
+                .cached_sites_with_stamp(body, stamp)
+        } else {
+            None
+        };
+        let mut hits: Vec<NodeId> = Vec::new();
+        {
+            let ast: &Ast = &t.get_compiler().ast;
+            let hoisted_ref = self.hoisted_global_fn_names.as_ref().unwrap();
+            fn scan_hoisted_hits(
+                ast: &Ast,
+                n: NodeId,
+                hoisted: &IndexSet<JsString>,
+                out: &mut Vec<NodeId>,
+            ) {
+                if n.is_name(ast)
+                    && let Some(s) = n.string_payload(ast)
+                    && hoisted.contains(s)
+                {
+                    out.push(n);
+                }
+                let mut child = n.get_first_child(ast);
+                while let Some(c) = child {
+                    scan_hoisted_hits(ast, c, hoisted, out);
+                    child = c.get_next(ast);
+                }
+            }
+            if !is_fn_decl
+                && let Some(s) = fn_name.string_payload(ast)
+                && hoisted_ref.contains(s)
+            {
+                hits.push(fn_name);
+            }
+            scan_hoisted_hits(ast, args, hoisted_ref, &mut hits);
+            // If `body` already has cached `FunctionBodySites`, check only its deduplicated names.
+            if let Some(cached) = &cached_body_sites {
+                for &name in &cached.first_names {
+                    if let Some(s) = name.string_payload(ast)
+                        && hoisted_ref.contains(s)
+                    {
+                        hits.push(name);
+                    }
+                }
+            } else {
+                scan_hoisted_hits(ast, body, hoisted_ref, &mut hits);
+            }
+        }
+        for name in hits {
+            if let Some(v) = enclosing_scope.get_var_of_node(t.get_compiler(), name)
+                && self.pending_hoisted_function(t.get_compiler(), v).is_some()
+            {
+                return false;
+            }
+        }
+        true
+    }
+
     /// Rust-only (performance divergence): skips entering a simple-param leaf function when the
     /// behavior guarantees no local variable declared inside it can be needed and none of the
     /// names in its parameters or cached `FunctionBodySites` pass `needs_name`.
@@ -1217,6 +1448,14 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
             && *REUSE_REFERENCE_SITES
             && node_traversal.has_cached_source_input()
         {
+            if node_traversal.in_global_scope()
+                && self
+                    .behavior
+                    .can_skip_global_function_if_no_pending_hoist(node_traversal.get_compiler(), n)
+                && self.try_skip_global_function_if_no_pending_hoist(node_traversal, n, parent)
+            {
+                return false;
+            }
             if self.behavior.use_inline_vars_clean_cache()
                 && self.try_skip_clean_leaf_function(node_traversal, n, parent)
             {
@@ -1396,6 +1635,18 @@ pub trait Behavior {
     /// this behavior, allowing `ReferenceCollector` to skip entering `fn_node` if its parameters
     /// and cached `FunctionBodySites` contain no `needs_name` spellings.
     fn can_skip_function_with_no_needed_names(&self, _ast: &Ast, _fn_node: NodeId) -> bool {
+        false
+    }
+
+    /// Rust-only (performance divergence): opt in for a behavior that ignores global variables
+    /// when a top-level function `fn_node` cannot produce any local rewrites (e.g. contains no
+    /// candidates or is cached clean), allowing `ReferenceCollector` to skip the entire subtree
+    /// (leaf or non-leaf) if no pending hoisted global function is referenced inside it.
+    fn can_skip_global_function_if_no_pending_hoist(
+        &self,
+        _compiler: &mut AbstractCompiler,
+        _fn_node: NodeId,
+    ) -> bool {
         false
     }
 

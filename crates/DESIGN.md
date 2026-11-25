@@ -908,3 +908,51 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   stack fast path in `ColorId::union_from_iter`, `OptimizationTagsKey` JSDoc `Arc` sharing in
   `RemoveTypes`/`RemoveTypesAndApplyColors`, and single-borrow `AstProperties` iteration with
   reusable `ReconcileScratch` sets.
+- `rhino/node.rs`, `rhino/node/snapshot.rs`, `rhino/node/snapshot_watch.rs`, `jscomp/compiler.rs`,
+  `pass_gates.rs`, `replace_id_generators.rs`, `process_closure_primitives.rs`,
+  `cross_chunk_method_motion.rs`, `cross_chunk_code_motion.rs`, `gather_raw_exports.rs`,
+  `inline_and_collapse_properties.rs`, `serialization/convert_types_to_colors.rs`,
+  `source_map_input.rs`, `cli/java_io.rs`, `cli/abstract_command_line_runner.rs`: pure-boolean AST
+  properties and 2-bit `CONSTANT_VAR_FLAGS` are packed into dense per-node `Ast::prop_masks` with
+  lazy `change_times` and `side_effect_flags` vectors; `PresenceSummary` records synthetic JSDoc
+  bits (`ID_GENERATOR`, `CLOSURE_PRIMITIVE_ID`) and avoids `WatchedName::Goog` poisoning from
+  `RewriteJsonToModule`; `PassGate` gates `closureCodeRemoval` and single-chunk/unannotated passes
+  exit early without traversing untouched subtrees; `Compiler::clear_js_type_registry` reclaims
+  typed-scope arenas early; input source maps pre-decode on a background worker during parsing;
+  CLI source-map output streams through a 64 KiB `StreamingFmtWriter`.
+- `jscomp/build.rs`, `build/bundled_script_summary.rs`, `source_file/bundled_script.rs`,
+  `source_file/declarations.rs`, `typed_scope_creator.rs`, `type_inference_pass.rs`,
+  `type_inference.rs`, `default_pass_config.rs`, `reference_collector.rs`, `node_util.rs`,
+  `pure_function_identifier.rs`, `check_access_controls.rs`, `make_declared_names_unique.rs`,
+  `normalize.rs`: `SnapshotUse::SyntaxAndNonParamNames` separates extern parameter renames from
+  structural/name invalidation (`PARAM_NAME`), keeping build-time `BundledScript` metadata
+  (`PLAIN_STUB_NO_SCOPE`, `declared_var_names`, `extern_referenced_names`, `normalize_clean`,
+  `name_hash_mask`) valid across normalization and later passes; `TypeInferencePass` omits empty
+  plain extern stub `TypedScope`s and types their parameters directly; `ReferenceCollector`
+  verifies `externs_refer_only_to_externs` on first run via bundled summaries; `NodeUtil`,
+  `PureFunctionIdentifier`, `CheckAccessControls`, `Normalize`, and `MakeDeclaredNamesUnique`
+  fast-path bundled externs and empty stubs without redundant AST traversals or child scopes.
+- `jscomp/parallel_parse.rs`, `compiler.rs`, `dead_property_assignment_elimination.rs`,
+  `var_check.rs`, `ast_validator.rs`, `reference_collector/function_body.rs`,
+  `flow_sensitive_inline_variables.rs`, `dead_assignments_elimination.rs`,
+  `coalesce_variable_names.rs`, `live_variables_analysis.rs`, `must_be_reaching_variable_def.rs`,
+  `inline_functions.rs`, `inline_simple_methods.rs`, `optimize_calls.rs`,
+  `inline_object_literals.rs`, `inline_variables.rs`, `syntactic_scope_cache.rs`,
+  `remove_unused_code.rs`, `scope.rs`, `code_generator.rs`, `sourcemap/base64_vlq.rs`,
+  `sourcemap/source_map_generator_v3.rs`, `sourcemap/util.rs`: shared scoped work-stealing helpers (`run_scoped_indexed`,
+  `run_scoped_for_each`) parallelize code printing (`emit_scripts_to_builder`, `to_source_array`
+  from 40K nodes up to 8 threads), `DeadPropertyAssignmentElimination` (borrowing cached extern
+  properties and pre-screening `< 2` `GETPROP` assignments), `VarCheck` validity mode (skipping
+  verified bundled extern prefixes and chunking top-level statements), `AstValidator` (read-only
+  `ValidatorTarget` across scripts and statement slices when `type_validation_mode == NONE`),
+  `FunctionReferenceCache::precompute_parallel`, `InlineFunctions` Walks 1 and 2, and
+  single-bundle `OptimizeCalls`/`InlineSimpleMethods` (with bundled-extern skips in
+  `InlineSimpleMethods`); dataflow passes use lower parallel thresholds (64) and `O(1)` escaped
+  key checks; `RemoveUnusedCode` raises `LeafRecorder` nested-stamp and outer-var limits to 512;
+  `ReferenceCollector` skips unchanged or non-candidate top-level functions when no pending
+  hoisted global function is referenced (`InlineObjectLiteralsCleanCache` and
+  `InlineVarsCleanCache::clean_locals_only_global_fns`, both keyed by
+  `SyntacticScopeCache::deep_function_stamp`: the stamps of the function and of every function
+  nested in it, each a change scope of its own); `CodeGenerator` and `sourcemap` use
+  zero-clone Latin identifiers, ASCII lookup tables (`SAFE_STR_ASCII`, `SAFE_JSON_ASCII`), and
+  64 KiB byte-buffered VLQ encoding (`encode_to_bytes`, `MappingNames::emitted_ids`).

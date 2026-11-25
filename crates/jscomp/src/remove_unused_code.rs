@@ -172,19 +172,52 @@ struct LeafRecorder {
     last_outer_var: Option<VarId>,
     nested_stamps: Vec<(NodeId, u32)>,
     outer_vars: Vec<(VarId, NodeId, bool)>,
+    outer_vars_set: IndexSet<VarId>,
     pinned_props: Vec<JsString>,
     required_pinned_props: Vec<JsString>,
     local_var_infos: Vec<VarInfoId>,
 }
+
+const MAX_LEAF_NESTED_STAMPS: usize = 512;
+const MAX_LEAF_OUTER_VARS: usize = 512;
 
 impl LeafRecorder {
     fn clear_buffers(&mut self) {
         self.aborted = true;
         self.nested_stamps = Vec::new();
         self.outer_vars = Vec::new();
+        self.outer_vars_set = IndexSet::default();
         self.pinned_props = Vec::new();
         self.required_pinned_props = Vec::new();
         self.local_var_infos = Vec::new();
+    }
+
+    /// Returns `false` if the outer-var cap is exceeded (caller should abort).
+    #[inline]
+    fn record_outer_var(&mut self, var: VarId, node: NodeId) -> bool {
+        self.last_outer_var = Some(var);
+        let present = if !self.outer_vars_set.is_empty() {
+            self.outer_vars_set.contains(&var)
+        } else {
+            self.outer_vars.iter().any(|e| e.0 == var)
+        };
+        if present {
+            return true;
+        }
+        if self.outer_vars.len() >= MAX_LEAF_OUTER_VARS {
+            return false;
+        }
+        if !self.outer_vars_set.is_empty() {
+            self.outer_vars_set.insert(var);
+        } else if self.outer_vars.len() == 16 {
+            self.outer_vars_set.reserve(32);
+            for &(v, _, _) in &self.outer_vars {
+                self.outer_vars_set.insert(v);
+            }
+            self.outer_vars_set.insert(var);
+        }
+        self.outer_vars.push((var, node, false));
+        true
     }
 
     fn record_pinned(&mut self, prop: &JsString) {
@@ -1309,19 +1342,9 @@ impl RemoveUnusedCode {
             let rec = &mut self.leaf_recorders[self.active_leaf as usize];
             if !rec.aborted {
                 if var.get_scope(compiler).get_depth(compiler) < rec.fparam_depth {
-                    if var.is_arguments(compiler) {
+                    if var.is_arguments(compiler) || !rec.record_outer_var(var, n) {
                         rec.clear_buffers();
                         self.active_leaf = NO_LEAF;
-                    } else {
-                        rec.last_outer_var = Some(var);
-                        if !rec.outer_vars.iter().any(|e| e.0 == var) {
-                            if rec.outer_vars.len() >= 64 {
-                                rec.clear_buffers();
-                                self.active_leaf = NO_LEAF;
-                            } else {
-                                rec.outer_vars.push((var, n, false));
-                            }
-                        }
                     }
                 } else {
                     rec.last_outer_var = None;
@@ -2598,7 +2621,9 @@ impl RemoveUnusedCode {
             if self.active_leaf != NO_LEAF {
                 let rec = &mut self.leaf_recorders[self.active_leaf as usize];
                 if !rec.aborted {
-                    if rec.nested_stamps.len() + 1 + summary.nested_stamps.len() > 16 {
+                    if rec.nested_stamps.len() + 1 + summary.nested_stamps.len()
+                        > MAX_LEAF_NESTED_STAMPS
+                    {
                         self.abort_active_leaf();
                     } else {
                         rec.nested_stamps.push((function, summary.stamp));
@@ -2621,17 +2646,8 @@ impl RemoveUnusedCode {
                     let rec = &mut self.leaf_recorders[self.active_leaf as usize];
                     if !rec.aborted {
                         if var.get_scope(compiler).get_depth(compiler) < rec.fparam_depth {
-                            if var.is_arguments(compiler) {
+                            if var.is_arguments(compiler) || !rec.record_outer_var(var, name_node) {
                                 self.abort_active_leaf();
-                            } else {
-                                rec.last_outer_var = Some(var);
-                                if !rec.outer_vars.iter().any(|e| e.0 == var) {
-                                    if rec.outer_vars.len() >= 64 {
-                                        self.abort_active_leaf();
-                                    } else {
-                                        rec.outer_vars.push((var, name_node, false));
-                                    }
-                                }
                             }
                         } else {
                             rec.last_outer_var = None;
@@ -2686,6 +2702,7 @@ impl RemoveUnusedCode {
                 last_outer_var: None,
                 nested_stamps: Vec::new(),
                 outer_vars: Vec::new(),
+                outer_vars_set: IndexSet::default(),
                 pinned_props: Vec::new(),
                 required_pinned_props: Vec::new(),
                 local_var_infos: Vec::new(),

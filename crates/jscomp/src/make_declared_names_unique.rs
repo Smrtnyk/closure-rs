@@ -204,6 +204,55 @@ impl MakeDeclaredNamesUnique {
         top.own_mask = own_mask;
         top.cumulative_mask = parent_mask | own_mask;
     }
+
+    /// Rust-only (performance divergence): whether `process_plain_extern_stub_params` can handle
+    /// empty bundled extern function stubs without building per-function scopes or child renamers.
+    pub(crate) fn can_fast_path_plain_extern_stub_params(&self) -> bool {
+        self.renamer_stack.len() == 1
+            && self.renamer_stack[0].cumulative_mask == 0
+            && self.renamer_stack[0]
+                .renamer
+                .as_ref()
+                .is_some_and(|r| r.borrow().is_global_contextual_renamer())
+    }
+
+    /// Rust-only (performance divergence): processes distinct, non-`arguments` plain `NAME`
+    /// parameters of an empty bundled extern function stub directly against the root
+    /// `ContextualRenamer`'s shared `name_usage` table, avoiding child `SyntacticScope` and child
+    /// `ContextualRenamer` allocations while preserving exact rename counts and AST changes.
+    pub(crate) fn process_plain_extern_stub_params(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        fn_node: NodeId,
+    ) {
+        let params = fn_node.get_second_child(t).unwrap();
+        let mut param = params.get_first_child(t);
+        if param.is_none() {
+            return;
+        }
+        let renamer = self.renamer_stack[0].renamer.as_ref().unwrap().clone();
+        while let Some(p) = param {
+            let new_name = renamer
+                .borrow_mut()
+                .rename_plain_extern_stub_param(p.get_string_ref(t))
+                .expect("checked global contextual renamer");
+            if let Some(new_name) = new_name {
+                if self.assert_on_change {
+                    panic!(
+                        "Unexpected renaming in MakeDeclaredNamesUnique. new name: {} for {}",
+                        new_name,
+                        p.to_string(t)
+                    );
+                }
+                p.set_string(t, new_name);
+                if self.mark_changes {
+                    t.position_at_node(p);
+                    t.report_code_change();
+                }
+            }
+            param = p.get_next(t);
+        }
+    }
 }
 
 impl Callback for MakeDeclaredNamesUnique {
@@ -386,6 +435,17 @@ pub trait Renamer {
     /// all keys that currently map to a non-`None` replacement in this renamer.
     fn replacement_mask(&self) -> u64 {
         u64::MAX
+    }
+
+    /// Rust-only (performance divergence): true only for a global-scope `ContextualRenamer`.
+    fn is_global_contextual_renamer(&self) -> bool {
+        false
+    }
+
+    /// Rust-only (performance divergence): fast-path name counting and unique-name allocation for
+    /// a single distinct plain parameter of an empty extern function stub.
+    fn rename_plain_extern_stub_param(&mut self, _name: &JsString) -> Option<Option<JsString>> {
+        None
     }
 }
 
@@ -1268,6 +1328,32 @@ impl Renamer for ContextualRenamer {
 
     fn replacement_mask(&self) -> u64 {
         self.own_replacement_mask
+    }
+
+    fn is_global_contextual_renamer(&self) -> bool {
+        self.global
+    }
+
+    fn rename_plain_extern_stub_param(&mut self, name: &JsString) -> Option<Option<JsString>> {
+        if !self.global {
+            return None;
+        }
+        let mut id = self.increment_name_count(name);
+        if id == 0 {
+            return Some(None);
+        }
+        let mut unique_name = Self::get_unique_name(name, id);
+        while self
+            .name_usage
+            .borrow()
+            .get(&unique_name)
+            .is_some_and(|count| *count > 0)
+        {
+            id = self.increment_name_count(&unique_name);
+            unique_name = Self::get_unique_name(name, id);
+        }
+        self.reserve_name(&unique_name);
+        Some(Some(unique_name))
     }
 }
 

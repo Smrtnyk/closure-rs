@@ -37,8 +37,13 @@ use crate::{
 };
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
-    check_not_null, ir::IR, js_string::JsString, jsdoc_info::JSDocInfo, node::NodeId,
-    qualified_name::QualifiedName, token::Token,
+    check_not_null,
+    ir::IR,
+    js_string::JsString,
+    jsdoc_info::JSDocInfo,
+    node::{NodeId, SnapshotUse, WatchedName},
+    qualified_name::QualifiedName,
+    token::Token,
 };
 use std::sync::{Arc, LazyLock};
 
@@ -995,8 +1000,50 @@ impl CssRenamingMap for SetCssNameMappingRenamingMap {
 impl CompilerPass for ProcessClosurePrimitives {
     // port: ProcessClosurePrimitives#process
     fn process(&mut self, compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
+        // Rust-only (performance divergence): when there are no Closure modules/provides and the
+        // arena has never seen the identifier `goog`, only `CALL` nodes can possibly match
+        // (`*.base(...)` or a property-rename function such as `JSCompiler_renameProperty`). Walk
+        // directly in post-order without `NodeTraversal` and skip unchanged bundled extern scripts
+        // that contain no calls.
+        if self.closure_modules.is_empty() && !compiler.has_seen_name(WatchedName::Goog) {
+            self.walk_calls_only(compiler, externs, true);
+            self.walk_calls_only(compiler, root, false);
+            return;
+        }
         // Replace and validate other Closure primitives
         NodeTraversal::traverse_roots(compiler, self, externs, root);
+    }
+}
+
+impl ProcessClosurePrimitives {
+    fn walk_calls_only(&mut self, compiler: &mut AbstractCompiler, n: NodeId, is_externs: bool) {
+        if is_externs
+            && n.is_script(compiler)
+            && let Some((facts, suffix)) = compiler
+                .parsed_script_record::<crate::source_file::bundled_script::BundledScript>(
+                    n,
+                    SnapshotUse::SyntaxAndNames,
+                )
+            && !facts.may_have_calls
+        {
+            let mut child = suffix;
+            while let Some(c) = child {
+                let next = c.get_next(compiler);
+                self.walk_calls_only(compiler, c, true);
+                child = next;
+            }
+            return;
+        }
+        let mut child = n.get_first_child(compiler);
+        while let Some(c) = child {
+            let next = c.get_next(compiler);
+            self.walk_calls_only(compiler, c, is_externs);
+            child = next;
+        }
+        if n.is_call(compiler) {
+            self.maybe_process_class_base_call(compiler, n);
+            self.check_property_rename_call(compiler, n);
+        }
     }
 }
 
