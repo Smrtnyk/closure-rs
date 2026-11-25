@@ -62,6 +62,13 @@ impl PreprocessorSymbolTable {
         self.refs.get(&symbol.name).map_or(&[], Vec::as_slice)
     }
 
+    // port: PreprocessorSymbolTable#getSlot
+    /// Rust-only: the `StaticTypedScope` lookup for callers without a registry (the table's
+    /// slots need none).
+    pub fn get_symbol_slot(&self, name: &JsString) -> Option<&SimpleSlot> {
+        self.symbols.get(name)
+    }
+
     // port: PreprocessorSymbolTable#getAllSymbols
     pub fn get_all_symbols(&self) -> impl Iterator<Item = &SimpleSlot> {
         self.symbols.values()
@@ -117,13 +124,14 @@ impl StaticTypedScope for PreprocessorSymbolTable {
     }
 
     // port: PreprocessorSymbolTable#getSlot
-    fn get_slot(&self, name: &JsString) -> Option<&dyn StaticTypedSlot> {
-        self.symbols.get(name).map(|s| s as &dyn StaticTypedSlot)
+    fn get_slot(&self, _reg: &JSTypeRegistry, name: &JsString) -> Option<&dyn StaticTypedSlot> {
+        self.get_symbol_slot(name)
+            .map(|s| s as &dyn StaticTypedSlot)
     }
 
     // port: PreprocessorSymbolTable#getOwnSlot
-    fn get_own_slot(&self, name: &JsString) -> Option<&dyn StaticTypedSlot> {
-        self.get_slot(name)
+    fn get_own_slot(&self, reg: &JSTypeRegistry, name: &JsString) -> Option<&dyn StaticTypedSlot> {
+        self.get_slot(reg, name)
     }
 
     // port: PreprocessorSymbolTable#getTypeOfThis
@@ -186,7 +194,6 @@ impl CachedInstanceFactory {
 #[cfg(test)]
 mod tests {
     use super::PreprocessorSymbolTable;
-    use closure_jstype::static_typed_scope::StaticTypedScope;
     use closure_rhino::{ir::IR, js_string::JsString, node::Ast};
 
     // port: ProcessClosurePrimitivesTest#testPreprocessorSymbolTable
@@ -197,7 +204,7 @@ mod tests {
         let mut table = PreprocessorSymbolTable::new(Some(root));
         let n = IR::name(&mut ast, "test");
         table.add_reference_with_name(n, Some(JsString::from("test")));
-        assert!(table.get_slot(&JsString::from("test")).is_some());
+        assert!(table.get_symbol_slot(&JsString::from("test")).is_some());
         // getReferences(getSlot("test")): `get_slot` gives the slot as a `StaticTypedSlot`, the
         // `SimpleSlot` itself is the one in `symbols`.
         let slot = &table.symbols[&JsString::from("test")];

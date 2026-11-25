@@ -1107,7 +1107,9 @@ impl InliningBehavior {
         compiler.report_change_to_enclosing_scope(to_remove);
 
         // Help type-based optimizations by propagating more specific types from type assertions
-        if to_remove.get_color(compiler).is_some() && to_remove.is_color_from_type_cast(compiler) {
+        if to_remove.get_color_ref(compiler).is_some()
+            && to_remove.is_color_from_type_cast(compiler)
+        {
             let color = to_remove.get_color(compiler);
             to_insert.set_color(compiler, color);
             to_insert.set_color_from_type_cast(compiler);

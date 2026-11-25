@@ -52,12 +52,6 @@ impl<T> ChunkedVec<T> {
         self.len += 1;
     }
 
-    pub(crate) fn get(&self, index: usize) -> Option<&T> {
-        self.chunks
-            .get(index >> CHUNK_BITS)?
-            .get(index & (CHUNK_LEN - 1))
-    }
-
     /// The entries from `start` on, in order.
     pub(crate) fn iter_from(&self, start: usize) -> impl Iterator<Item = &T> {
         (start..self.len).map(move |i| &self[i])

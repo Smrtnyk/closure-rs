@@ -78,7 +78,7 @@ pub struct AnalyzePrototypeProperties {
     //
     // then there would be a node for "scotch", a node for "age", and an edge
     // from scotch to age.
-    symbol_graph: LinkedDirectedGraph<NameInfoId, Option<JSChunk>>,
+    symbol_graph: LinkedDirectedGraph<NameInfoId, Option<ChunkIndex>>,
 
     /// Owns every NameInfo (Rust-only).
     name_infos: Vec<NameInfo>,
@@ -145,9 +145,12 @@ impl AnalyzePrototypeProperties {
                 false,
                 false,
                 |n| format!("NameInfo#{}", n.0),
+                // Rust-only: the edge holds the chunk's index, not its name (debug output only).
                 |e| {
-                    e.as_ref()
-                        .map_or_else(|| "null".to_string(), ToString::to_string)
+                    e.map_or_else(
+                        || "null".to_string(),
+                        |chunk| format!("JSChunk#{}", chunk.0),
+                    )
                 },
             ),
             name_infos: Vec::new(),
@@ -176,8 +179,11 @@ impl AnalyzePrototypeProperties {
                 }
                 Some(chunk_graph) => {
                     for chunk in chunk_graph.get_all_chunks() {
-                        this.symbol_graph
-                            .connect(extern_node, Some(chunk.clone()), name_info);
+                        this.symbol_graph.connect(
+                            extern_node,
+                            Some(ChunkIndex::of(chunk)),
+                            name_info,
+                        );
                     }
                 }
             }
@@ -382,7 +388,7 @@ impl Callback for ProcessProperties<'_> {
             }
 
             Token::OPTCHAIN_GETPROP => {
-                let chunk = t.get_chunk();
+                let chunk = t.get_compiler_and_chunk().1.map(ChunkIndex::of);
                 self.add_symbol_use(
                     &n.get_string(t),
                     chunk,
@@ -408,7 +414,7 @@ impl Callback for ProcessProperties<'_> {
                         // TODO(bradfordcsmith): We don't seem to have any tests that cover this
                         // case. This class has no unit tests of its own and it is only used by
                         // CrossChunkMethodMotion.
-                        let chunk = t.get_chunk();
+                        let chunk = t.get_compiler_and_chunk().1.map(ChunkIndex::of);
                         self.add_global_use_of_symbol(
                             &prop_name,
                             chunk,
@@ -433,7 +439,7 @@ impl Callback for ProcessProperties<'_> {
                     }
                 }
 
-                let chunk = t.get_chunk();
+                let chunk = t.get_compiler_and_chunk().1.map(ChunkIndex::of);
                 self.add_symbol_use(&prop_name, chunk, AnalyzePrototypeProperties::PROPERTY);
             }
 
@@ -481,7 +487,7 @@ impl Callback for ProcessProperties<'_> {
                         if initial_value.is_some_and(|value| value.is_function(t)) {
                             if t.in_global_hoist_scope() {
                                 if !self.process_global_function_declaration(t, n, var) {
-                                    let chunk = t.get_chunk();
+                                    let chunk = t.get_compiler_and_chunk().1.map(ChunkIndex::of);
                                     self.add_global_use_of_symbol(
                                         &name,
                                         chunk,
@@ -489,7 +495,7 @@ impl Callback for ProcessProperties<'_> {
                                     );
                                 }
                             } else {
-                                let chunk = t.get_chunk();
+                                let chunk = t.get_compiler_and_chunk().1.map(ChunkIndex::of);
                                 self.add_symbol_use(&name, chunk, AnalyzePrototypeProperties::VAR);
                             }
                         }
@@ -531,7 +537,7 @@ impl Callback for ProcessProperties<'_> {
                     | Token::MEMBER_FUNCTION_DEF => {
                         if !p.is_quoted_string_key(t) {
                             // May be STRING, GET, or SET, but NUMBER isn't interesting.
-                            let chunk = t.get_chunk();
+                            let chunk = t.get_compiler_and_chunk().1.map(ChunkIndex::of);
                             self.add_symbol_use(
                                 &p.get_string(t),
                                 chunk,
@@ -566,7 +572,7 @@ impl Callback for ProcessProperties<'_> {
 
 impl ProcessProperties<'_> {
     // port: AnalyzePrototypeProperties.ProcessProperties#addSymbolUse
-    fn add_symbol_use(&mut self, name: &JsString, chunk: Option<JSChunk>, r#type: SymbolType) {
+    fn add_symbol_use(&mut self, name: &JsString, chunk: Option<ChunkIndex>, r#type: SymbolType) {
         let info = self.outer.get_name_info_for_name(name, r#type);
         let mut def = None;
         // Skip all anonymous nodes. We care only about symbols with names.
@@ -692,7 +698,7 @@ impl ProcessProperties<'_> {
                 .is_exported(&name, /* local= */ false)
                 || self.outer.anchor_unused_vars
             {
-                let chunk = t.get_chunk();
+                let chunk = t.get_compiler_and_chunk().1.map(ChunkIndex::of);
                 self.add_global_use_of_symbol(&name, chunk, AnalyzePrototypeProperties::VAR);
             }
 
@@ -824,7 +830,7 @@ impl ProcessProperties<'_> {
     fn add_global_use_of_symbol(
         &mut self,
         name: &JsString,
-        chunk: Option<JSChunk>,
+        chunk: Option<ChunkIndex>,
         r#type: SymbolType,
     ) {
         let global_node = self.outer.global_node;
@@ -842,7 +848,7 @@ struct ProcessExternProperties<'a> {
 impl ProcessExternProperties<'_> {
     fn mark_extern_property(&mut self, name: &JsString) {
         let extern_node = self.outer.extern_node;
-        let first_chunk = self.outer.first_chunk.clone();
+        let first_chunk = self.outer.first_chunk.as_ref().map(ChunkIndex::of);
         let name_info = self
             .outer
             .get_name_info_for_name(name, AnalyzePrototypeProperties::PROPERTY);
@@ -914,7 +920,7 @@ impl Callback for ProcessExternProperties<'_> {
             // let objWithFooMethod = Foo; // yes, this is valid
             //
             let extern_node = self.outer.extern_node;
-            let first_chunk = self.outer.first_chunk.clone();
+            let first_chunk = self.outer.first_chunk.as_ref().map(ChunkIndex::of);
             let name_info = self
                 .outer
                 .get_name_info_for_name(&n.get_string(t), AnalyzePrototypeProperties::PROPERTY);
@@ -925,26 +931,42 @@ impl Callback for ProcessExternProperties<'_> {
     }
 }
 
+/// Rust-only (performance divergence): a chunk in the symbol graph's edges and in a `NameInfo`,
+/// by its index in the chunk graph (a chunk's index is its position in
+/// `JSChunkGraph#getAllChunks`), so the fixed-point propagation copies it without a reference
+/// count (Java shares the object). Within the chunk graph, equal indices are the same chunk.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ChunkIndex(i32);
+
+impl ChunkIndex {
+    fn of(chunk: &JSChunk) -> Self {
+        Self(chunk.get_index())
+    }
+
+    fn get(self, chunk_graph: &JSChunkGraph) -> &JSChunk {
+        &chunk_graph.get_all_chunks()[usize::try_from(self.0).expect("a chunk of the chunk graph")]
+    }
+}
+
 struct PropagateReferences<'a> {
     chunk_graph: Option<&'a JSChunkGraph>,
     name_infos: &'a mut Vec<NameInfo>,
 }
 
-impl<G> EdgeCallback<NameInfoId, Option<JSChunk>, G> for PropagateReferences<'_> {
+impl<G> EdgeCallback<NameInfoId, Option<ChunkIndex>, G> for PropagateReferences<'_> {
     // port: AnalyzePrototypeProperties.PropagateReferences#traverseEdge
     fn traverse_edge(
         &mut self,
         _graph: &mut G,
         start: NameInfoId,
-        edge: Option<JSChunk>,
+        edge: Option<ChunkIndex>,
         dest: NameInfoId,
     ) -> bool {
         if self.name_infos[start.0].is_referenced() {
-            let start_chunk = self.name_infos[start.0].get_deepest_common_chunk_ref();
+            let start_chunk = self.name_infos[start.0].deepest_common_chunk_ref;
             if let Some(start_chunk) = start_chunk.filter(|start_chunk| {
-                self.chunk_graph
-                    .unwrap()
-                    .depends_on(start_chunk, edge.as_ref().unwrap())
+                let chunk_graph = self.chunk_graph.unwrap();
+                chunk_graph.depends_on(start_chunk.get(chunk_graph), edge.unwrap().get(chunk_graph))
             }) {
                 self.name_infos[dest.0].mark_reference(self.chunk_graph, Some(start_chunk))
             } else {
@@ -1221,7 +1243,7 @@ pub struct NameInfo {
 
     referenced: bool,
     declarations: VecDeque<Symbol>,
-    deepest_common_chunk_ref: Option<JSChunk>,
+    deepest_common_chunk_ref: Option<ChunkIndex>,
 
     // True if this property is a function that reads a variable from an
     // outer scope which isn't the global scope.
@@ -1276,7 +1298,7 @@ impl NameInfo {
     fn mark_reference(
         &mut self,
         chunk_graph: Option<&JSChunkGraph>,
-        chunk: Option<JSChunk>,
+        chunk: Option<ChunkIndex>,
     ) -> bool {
         let mut has_changed = false;
         if !self.referenced {
@@ -1284,12 +1306,23 @@ impl NameInfo {
             has_changed = true;
         }
 
-        let original_deepest_common = self.deepest_common_chunk_ref.clone();
+        let original_deepest_common = self.deepest_common_chunk_ref;
 
-        if let Some(deepest_common_chunk_ref) = &self.deepest_common_chunk_ref {
-            self.deepest_common_chunk_ref = chunk_graph
-                .unwrap()
-                .get_deepest_common_dependency_inclusive(deepest_common_chunk_ref, &chunk.unwrap());
+        if let Some(deepest_common_chunk_ref) = self.deepest_common_chunk_ref {
+            // JSChunkGraph#getDeepestCommonDependencyInclusive, keeping the chunk's index.
+            let chunk_graph = chunk_graph.unwrap();
+            let m1 = deepest_common_chunk_ref.get(chunk_graph);
+            let m2 = chunk.unwrap().get(chunk_graph);
+            self.deepest_common_chunk_ref = if m2 == m1 || chunk_graph.depends_on(m2, m1) {
+                Some(deepest_common_chunk_ref)
+            } else if chunk_graph.depends_on(m1, m2) {
+                chunk
+            } else {
+                chunk_graph
+                    .get_deepest_common_dependency(m1, m2)
+                    .as_ref()
+                    .map(ChunkIndex::of)
+            };
         } else {
             self.deepest_common_chunk_ref = chunk;
         }
@@ -1303,8 +1336,13 @@ impl NameInfo {
 
     /// Returns the deepest common chunk of all the references to this property.
     // port: AnalyzePrototypeProperties.NameInfo#getDeepestCommonChunkRef
-    pub fn get_deepest_common_chunk_ref(&self) -> Option<JSChunk> {
-        self.deepest_common_chunk_ref.clone()
+    /// Rust-only parameter: the chunk graph the analysis ran with (see `ChunkIndex`).
+    pub fn get_deepest_common_chunk_ref<'a>(
+        &self,
+        chunk_graph: &'a JSChunkGraph,
+    ) -> Option<&'a JSChunk> {
+        self.deepest_common_chunk_ref
+            .map(|chunk| chunk.get(chunk_graph))
     }
 
     /// Returns a mutable collection of all the prototype property declarations of this property

@@ -4619,6 +4619,15 @@ impl NodeId {
             _ => None,
         }
     }
+    /// Rust-only: `getColor()` without copying the color (performance divergence: a copy is a
+    /// reference-count round trip, and most callers only inspect the color).
+    #[inline]
+    pub fn get_color_ref(self, ast: &Ast) -> Option<&Color> {
+        match ast.node_type(self) {
+            Some(JSTypeOrColor::Color(c)) => Some(c),
+            _ => None,
+        }
+    }
     // port: Node#setColor
     pub fn set_color(self, ast: &mut Ast, x: Option<Color>) -> Self {
         check_state!(

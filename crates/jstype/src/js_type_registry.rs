@@ -104,6 +104,11 @@ impl<T: ForwardDeclaredTypeSet + Send> ForwardDeclaredTypeSet for Mutex<T> {
     }
 }
 pub struct JSTypeRegistry {
+    /// Rust-only (performance divergence): storage the registry's owner attaches for the scope
+    /// objects it hands to the registry (`StaticTypedScope`, `StaticTypedSlot`), which read it
+    /// through the registry every lookup passes them (Java's scopes are the objects themselves).
+    /// The compiler keeps its typed scope arena here, so that neither side needs a lock.
+    scope_storage: Option<Box<dyn std::any::Any + Send + Sync>>,
     pub(crate) types: Vec<JSTypeData>,
     pub(crate) properties: Vec<PropertyData>,
     property_access_annotations: IndexMap<JsString, crate::property::PropertyAccessAnnotations>,
@@ -689,12 +694,12 @@ impl StaticTypedScope for SyntheticTemplateScope {
         self.delegate.get_parent_scope()
     }
     // port: JSTypeRegistry.SyntheticTemplateScope#getSlot
-    fn get_slot(&self, name: &JsString) -> Option<&dyn StaticTypedSlot> {
-        self.delegate.get_slot(name)
+    fn get_slot(&self, reg: &JSTypeRegistry, name: &JsString) -> Option<&dyn StaticTypedSlot> {
+        self.delegate.get_slot(reg, name)
     }
     // port: JSTypeRegistry.SyntheticTemplateScope#getOwnSlot
-    fn get_own_slot(&self, name: &JsString) -> Option<&dyn StaticTypedSlot> {
-        self.delegate.get_own_slot(name)
+    fn get_own_slot(&self, reg: &JSTypeRegistry, name: &JsString) -> Option<&dyn StaticTypedSlot> {
+        self.delegate.get_own_slot(reg, name)
     }
     // port: JSTypeRegistry.SyntheticTemplateScope#getSlot
     /// Rust-only twin of `get_slot` (see `StaticTypedScope::get_slot_creating_implicit_vars`).
@@ -1063,12 +1068,33 @@ impl JSTypeRegistry {
     // port: JSTypeRegistry#JSTypeRegistry
     /// Java's constructor keeps the caller's `Set<String>` itself, so names the caller adds after
     /// construction (`Compiler#forwardDeclareType`) are forward declared too.
+    /// Rust-only: the storage attached with `set_scope_storage` (see the field).
+    #[inline]
+    pub fn scope_storage(&self) -> Option<&(dyn std::any::Any + Send + Sync)> {
+        self.scope_storage.as_deref()
+    }
+
+    /// Rust-only: the storage attached with `set_scope_storage`, mutably.
+    #[inline]
+    pub fn scope_storage_mut(&mut self) -> Option<&mut (dyn std::any::Any + Send + Sync)> {
+        self.scope_storage.as_deref_mut()
+    }
+
+    /// Rust-only: attaches (or with `None` detaches) the scope storage; returns the previous one.
+    pub fn set_scope_storage(
+        &mut self,
+        storage: Option<Box<dyn std::any::Any + Send + Sync>>,
+    ) -> Option<Box<dyn std::any::Any + Send + Sync>> {
+        std::mem::replace(&mut self.scope_storage, storage)
+    }
+
     pub fn new_with_shared_forward_declared_types(
         ast: &mut Ast,
         reporter: Box<dyn ErrorReporter + Send>,
         forward_declared_types: Arc<dyn ForwardDeclaredTypeSet>,
     ) -> Self {
         let mut registry = Self {
+            scope_storage: None,
             types: Vec::new(),
             properties: Vec::new(),
             property_access_annotations: IndexMap::default(),

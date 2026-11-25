@@ -144,19 +144,18 @@ impl ImplicitNullabilityCheck {
         }
         let scope = t.get_scope();
         let compiler = t.get_compiler();
-        let static_scope = crate::scope::as_static_scope(compiler, scope);
-        let (registry, ast) = compiler.get_type_registry_and_ast();
-        let ast: &Ast = ast;
-        let type_ = registry.get_type(ast, Some(&*static_scope), type_name.clone())?;
-        let is_non_nullable_name =
-            registry.is_non_nullable_name(ast, Some(&*static_scope), type_name)
-                && !type_.is_nullable(registry, ast);
-        let nullability = if is_non_nullable_name {
-            Nullability::NONNULL
-        } else {
-            Nullability::NULLABLE
-        };
-        Some(Result::create(ast, node, nullability))
+        crate::scope::with_static_scope(compiler, scope, |registry, ast, static_scope| {
+            let type_ = registry.get_type(ast, Some(static_scope), type_name.clone())?;
+            let is_non_nullable_name =
+                registry.is_non_nullable_name(ast, Some(static_scope), type_name)
+                    && !type_.is_nullable(registry, ast);
+            let nullability = if is_non_nullable_name {
+                Nullability::NONNULL
+            } else {
+                Nullability::NULLABLE
+            };
+            Some(Result::create(ast, node, nullability))
+        })
     }
 }
 

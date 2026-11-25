@@ -567,7 +567,9 @@ impl FunctionInjector {
         // If the new expression has no color or the UNKNOWN color, attach the color the call
         // node. It may be more accurate if the call node was in a cast (we don't track
         // information about casts, though)
-        if call_node.get_color(compiler).is_some() && call_node.is_color_from_type_cast(compiler) {
+        if call_node.get_color_ref(compiler).is_some()
+            && call_node.is_color_from_type_cast(compiler)
+        {
             let color = call_node.get_color(compiler);
             new_expression.set_color(compiler, color);
             new_expression.set_color_from_type_cast(compiler);

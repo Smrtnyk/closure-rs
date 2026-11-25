@@ -23,7 +23,6 @@ use crate::{
     compiler_input::CompilerInput,
     scope::{ScopeArena, ScopeId},
     scoped_name::ScopedName,
-    typed_scope::{TypedArenaMut, TypedArenaRef},
 };
 use closure_rhino::{
     check_argument, check_not_null, js_string::JsString, node::NodeId, token::Token,
@@ -59,14 +58,7 @@ impl VarId {
             implicit_goog_namespace_definition,
         );
         Self::check_name_node(compiler, name_node);
-        let arena_lock = std::sync::Arc::clone(&compiler.scope_arena);
-        let mut arena = arena_lock
-            .write()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let var = Self::push(&mut arena, data);
-        compiler.scope_mirror.sync_vars(&arena);
-        drop(arena);
-        var
+        Self::push(ScopeArena::write(compiler), data)
     }
 
     /// Rust-only: `Var#Var`'s check of the name node.
@@ -81,11 +73,6 @@ impl VarId {
                 name_node.to_string(compiler)
             );
         }
-    }
-
-    /// Rust-only: the lock-free copy of this var's immutable fields, when the mirror has it.
-    fn meta(self, compiler: &AbstractCompiler) -> Option<&crate::scope::VarMeta> {
-        compiler.scope_mirror.vars.get(self.index())
     }
 
     /// Rust-only: the arena half of `Var#Var` (the new var's slot), shared with the scope view
@@ -114,6 +101,11 @@ impl VarId {
         Self::new(compiler, name, None, scope, -1, None, Some(definition))
     }
 
+    /// Rust-only: `getInput()` without copying the input (performance divergence).
+    pub(crate) fn input_ref(self, compiler: &AbstractCompiler) -> Option<&CompilerInput> {
+        ScopeArena::read(compiler).vars[self.index()].input.as_ref()
+    }
+
     // port: Var#toString
     pub fn to_string(self, compiler: &AbstractCompiler) -> String {
         format!(
@@ -128,96 +120,29 @@ impl VarId {
 impl AbstractVar for VarId {
     type Scope = ScopeId;
 
-    type DataRef<'a> = TypedArenaRef<'a, AbstractVarData<ScopeId>, ScopeArena>;
-    type DataMut<'a> = TypedArenaMut<'a, AbstractVarData<ScopeId>, ScopeArena>;
+    type DataRef<'a> = &'a AbstractVarData<ScopeId>;
+    type DataMut<'a> = &'a mut AbstractVarData<ScopeId>;
 
+    #[inline]
     fn var_data(self, compiler: &AbstractCompiler) -> Self::DataRef<'_> {
-        TypedArenaRef::new(ScopeArena::read(compiler), self.index(), |a, i| &a.vars[i])
+        &ScopeArena::read(compiler).vars[self.index()]
     }
 
     fn var_data_mut(self, compiler: &mut AbstractCompiler) -> Self::DataMut<'_> {
-        TypedArenaMut::new(
-            ScopeArena::write(compiler),
-            self.index(),
-            |a, i| &a.vars[i],
-            |a, i| &mut a.vars[i],
-        )
+        &mut ScopeArena::write(compiler).vars[self.index()]
     }
 
     fn to_string(self, compiler: &AbstractCompiler) -> String {
         VarId::to_string(self, compiler)
     }
 
-    // The readers of immutable fields below use the lock-free `ScopeMirror`
-    // (performance divergence).
-    // port: AbstractVar#getName
-    fn get_name(self, compiler: &AbstractCompiler) -> JsString {
-        match self.meta(compiler) {
-            Some(meta) => meta.name.clone(),
-            None => self.var_data(compiler).name.clone(),
-        }
-    }
-
-    fn name_equals(self, compiler: &AbstractCompiler, name: &str) -> bool {
-        match self.meta(compiler) {
-            Some(meta) => meta.name == name,
-            None => self.var_data(compiler).name == name,
-        }
-    }
-
-    // port: AbstractVar#getNode
-    fn get_node(self, compiler: &AbstractCompiler) -> Option<NodeId> {
-        match self.meta(compiler) {
-            Some(meta) => meta.name_node,
-            None => self.var_data(compiler).name_node,
-        }
-    }
-
-    // port: AbstractVar#getInput
-    fn get_input(self, compiler: &AbstractCompiler) -> Option<CompilerInput> {
-        match self.meta(compiler) {
-            Some(meta) => meta.input.clone(),
-            None => self.var_data(compiler).input.clone(),
-        }
-    }
-
-    // port: AbstractVar#getScope
-    fn get_scope(self, compiler: &AbstractCompiler) -> Option<ScopeId> {
-        match self.meta(compiler) {
-            Some(meta) => meta.scope,
-            None => self.var_data(compiler).scope,
-        }
-    }
-
-    // port: AbstractVar#getIndex
-    fn get_index(self, compiler: &AbstractCompiler) -> i32 {
-        match self.meta(compiler) {
-            Some(meta) => meta.index,
-            None => self.var_data(compiler).index,
-        }
-    }
-
-    // port: AbstractVar#isImplicitGoogNamespace
-    fn is_implicit_goog_namespace(self, compiler: &AbstractCompiler) -> bool {
-        match self.meta(compiler) {
-            Some(meta) => meta.implicit_goog_namespace,
-            None => self
-                .var_data(compiler)
-                .implicit_goog_namespace_strength
-                .is_some(),
-        }
-    }
-
     // port: AbstractVar#isExtern
+    /// Rust-only (performance divergence): reads the input in place instead of copying it.
     fn is_extern(self, compiler: &AbstractCompiler) -> bool {
-        match self.meta(compiler) {
-            Some(meta) => meta.input.as_ref().is_none_or(|input| input.is_extern()),
-            None => self
-                .var_data(compiler)
-                .input
-                .as_ref()
-                .is_none_or(|input| input.is_extern()),
-        }
+        self.var_data(compiler)
+            .input
+            .as_ref()
+            .is_none_or(|input| input.is_extern())
     }
 }
 

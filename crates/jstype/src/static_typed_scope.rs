@@ -56,9 +56,13 @@ pub trait StaticTypedScope: Send + Sync {
     // port: StaticTypedScope#getParentScope
     fn get_parent_scope(&self) -> Option<&dyn StaticTypedScope>;
     // port: StaticTypedScope#getSlot
-    fn get_slot(&self, name: &JsString) -> Option<&dyn StaticTypedSlot>;
+    /// Rust-only parameter: the registry the scope is consulted through. A compiler scope view
+    /// reads its scope's declarations from the storage its owner attached to the registry
+    /// (`JSTypeRegistry::scope_storage`).
+    fn get_slot(&self, reg: &JSTypeRegistry, name: &JsString) -> Option<&dyn StaticTypedSlot>;
     // port: StaticTypedScope#getOwnSlot
-    fn get_own_slot(&self, name: &JsString) -> Option<&dyn StaticTypedSlot>;
+    /// Rust-only parameter: see `get_slot`.
+    fn get_own_slot(&self, reg: &JSTypeRegistry, name: &JsString) -> Option<&dyn StaticTypedSlot>;
     // port: StaticTypedScope#getSlot
     /// Rust-only twin of `get_slot` for callers that hold the registry and the AST (NamedType).
     /// A Java TypedScope creates an implicit var (`this`, `arguments`, `super`) on its first
@@ -67,11 +71,11 @@ pub trait StaticTypedScope: Send + Sync {
     /// Scopes without implicit vars answer like `get_slot`.
     fn get_slot_creating_implicit_vars(
         &self,
-        _reg: &mut JSTypeRegistry,
+        reg: &mut JSTypeRegistry,
         _ast: &Ast,
         name: &JsString,
     ) -> Option<&dyn StaticTypedSlot> {
-        self.get_slot(name)
+        self.get_slot(reg, name)
     }
     // port: StaticTypedScope#getOwnSlot
     /// Rust-only twin of `get_own_slot` for callers that hold the registry and the AST (the
@@ -80,11 +84,11 @@ pub trait StaticTypedScope: Send + Sync {
     /// Scopes without implicit vars answer like `get_own_slot`.
     fn get_own_slot_creating_implicit_vars(
         &self,
-        _reg: &mut JSTypeRegistry,
+        reg: &mut JSTypeRegistry,
         _ast: &Ast,
         name: &JsString,
     ) -> Option<&dyn StaticTypedSlot> {
-        self.get_own_slot(name)
+        self.get_own_slot(reg, name)
     }
     // port: StaticTypedScope#getTypeOfThis
     /// Rust-only parameters: Java's implementations read the root's JSType and the registry.

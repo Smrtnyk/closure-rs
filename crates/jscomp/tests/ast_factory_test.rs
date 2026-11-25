@@ -34,7 +34,8 @@ use closure_jscomp::{
 };
 use closure_jstype::{JSTypeNative, object_type::ObjectType, testing::type_subject::TypeSubject};
 use closure_jstype::{
-    static_typed_scope::StaticTypedScope, testing::map_based_scope::MapBasedScope,
+    static_typed_scope::StaticTypedScope, testing::abstract_static_scope::AbstractStaticScope,
+    testing::map_based_scope::MapBasedScope,
 };
 use closure_rhino::{
     ir::IR,
@@ -2075,11 +2076,11 @@ impl StaticScope for MapBasedStaticScope {
     }
     fn get_slot(&self, name: &JsString) -> Option<&dyn StaticSlot> {
         // The cases' scopes are empty: there is no typed slot to present as a StaticSlot.
-        assert!(StaticTypedScope::get_slot(&self.0, name).is_none());
+        assert!(AbstractStaticScope::get_slot(&self.0, name).is_none());
         None
     }
     fn get_own_slot(&self, name: &JsString) -> Option<&dyn StaticSlot> {
-        assert!(StaticTypedScope::get_own_slot(&self.0, name).is_none());
+        assert!(AbstractStaticScope::get_own_slot(&self.0, name).is_none());
         None
     }
 }

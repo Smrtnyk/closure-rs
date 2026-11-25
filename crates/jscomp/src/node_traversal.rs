@@ -40,7 +40,7 @@ use crate::{
 };
 use closure_rhino::{
     check_not_null, check_state,
-    input_id::InputId,
+    input_id::{InputId, InputKey},
     js_string::JsString,
     node::{Ast, NodeId, SnapshotUse},
     qualified_name::QualifiedName,
@@ -1508,6 +1508,13 @@ impl<'a> NodeTraversal<'a> {
         self.compiler_input_object.as_ref()
     }
 
+    /// Rust-only: `getInput()` together with the compiler, both borrowed, for a callback that
+    /// compares the current input with one the compiler holds without copying either.
+    pub(crate) fn get_input_and_compiler(&mut self) -> (Option<&CompilerInput>, &AbstractCompiler) {
+        self.get_input();
+        (self.compiler_input_object.as_ref(), &*self.compiler)
+    }
+
     /// A reference-site replay may use a known source input. Leave a cold lookup to the
     /// ordinary visitor, where resolving the first name also establishes its diagnostic node.
     pub(crate) fn has_cached_source_input(&self) -> bool {
@@ -1516,13 +1523,13 @@ impl<'a> NodeTraversal<'a> {
             .is_some_and(|input| !input.is_extern())
     }
 
-    /// Not in Java: `getInput().getInputId()` as the shared `Arc` (the cached input is looked up
-    /// by exactly this id), without hashing the id for an input lookup on every call.
-    pub fn get_input_id_of_input(&mut self) -> Option<Arc<InputId>> {
+    /// Not in Java: the key of `getInput().getInputId()` (the cached input is looked up by
+    /// exactly this id), without hashing the id for an input lookup or copying it on every call.
+    pub fn get_input_key_of_input(&mut self) -> Option<InputKey> {
         if self.compiler_input.is_none() {
             self.get_input()?;
         }
-        self.compiler_input.clone()
+        self.compiler_input.as_deref().map(InputId::key)
     }
 
     // port: NodeTraversal#getChunk

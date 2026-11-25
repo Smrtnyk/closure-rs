@@ -19,7 +19,6 @@
 //   src/com/google/javascript/jscomp/AbstractVar.java, src/com/google/javascript/jscomp/Scope.java.
 
 use crate::chunked_vec::ChunkedVec;
-use crate::typed_scope::{TypedArenaMut, TypedArenaRef};
 use crate::{
     abstract_compiler::AbstractCompiler,
     abstract_scope::{AbstractScope, AbstractScopeData, ImplicitVar},
@@ -35,7 +34,7 @@ use closure_rhino::{check_argument, check_state, js_string::JsString, node::Node
 use closure_rhino::{jsdoc_info::JSDocInfo, node::Ast, static_source_file::StaticSourceFile};
 use std::{
     num::NonZeroU32,
-    sync::{Arc, OnceLock, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak},
+    sync::{Arc, OnceLock, PoisonError, RwLock, Weak},
 };
 
 /// Rust-only (performance divergence): a variable-name argument that scope lookups read by
@@ -90,8 +89,9 @@ pub(crate) struct ScopeData {
 }
 
 /// Rust-only owner for Java scope and variable object identities; slots are never removed.
-/// Shared (`Arc<RwLock<..>>` in the compiler) like the typed arena, so that the canonical
-/// closure-jstype views can read it while the registry is borrowed from the compiler.
+/// The compiler owns it (`Compiler::scope_arena`) and reads it without a lock. The canonical
+/// closure-jstype views read it only while `with_static_scope` lends it to them through
+/// `Compiler::scope_arena_loan` (performance divergence, see `ScopeArenaLoan`).
 #[derive(Debug, Default)]
 pub struct ScopeArena {
     pub(crate) scopes: ChunkedVec<ScopeData>,
@@ -100,17 +100,22 @@ pub struct ScopeArena {
     pub(crate) var_views: ChunkedVec<OnceLock<&'static VarView>>,
 }
 
-/// Rust-only, not in Java (performance divergence): the fields of scopes and vars that never change
-/// after construction (Java `final` fields), copied out of the shared `ScopeArena` so that the
-/// compiler's hot readers (`getRootNode`, `getParent`, `getDepth`, `Var#getName`, `getNode`,
-/// `getScope`, ...) skip the arena's lock. Index-aligned with `ScopeArena::scopes` / `vars`; a var
-/// that a scope view created (implicit vars) may be missing until the next `VarId::new`
-/// resynchronises, and is then read from the arena.
+/// Rust-only, not in Java (performance divergence): the fields of scopes that never change after
+/// construction (Java `final` fields: `getRootNode`, `getParent`, `getDepth`) in a dense array,
+/// with the scope cache's `kept` mark and the declared-name bits. Index-aligned with
+/// `ScopeArena::scopes`.
 #[derive(Debug, Default)]
 pub(crate) struct ScopeMirror {
     pub(crate) scopes: ChunkedVec<ScopeMeta>,
-    pub(crate) vars: ChunkedVec<VarMeta>,
 }
+
+/// Rust-only (performance divergence): the slot through which the compiler lends its
+/// `ScopeArena` to the closure-jstype views (`ScopeView`, `VarView`) for the duration of one
+/// registry call (`with_static_scope`); empty otherwise. Java's registry reads the Scope object
+/// itself. The compiler keeps the arena in a plain field, so the scope and var lookups of every pass
+/// take no lock; only the views, which closure-jstype calls without the compiler, go through this
+/// lock.
+pub(crate) type ScopeArenaLoan = Arc<RwLock<Option<ScopeArena>>>;
 
 enum LookupName<'a> {
     Node(NodeId),
@@ -170,58 +175,20 @@ pub(crate) struct ScopeMeta {
     pub(crate) name_bits: u64,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct VarMeta {
-    pub(crate) name: JsString,
-    pub(crate) name_node: Option<NodeId>,
-    pub(crate) input: Option<CompilerInput>,
-    pub(crate) index: i32,
-    pub(crate) scope: Option<ScopeId>,
-    /// Whether the var is an implicit goog namespace (fixed when it is made; only its strength
-    /// changes later).
-    pub(crate) implicit_goog_namespace: bool,
-}
-
-impl VarMeta {
-    pub(crate) fn of(data: &AbstractVarData<ScopeId>) -> Self {
-        Self {
-            name: data.name.clone(),
-            name_node: data.name_node,
-            input: data.input.clone(),
-            index: data.index,
-            scope: data.scope,
-            implicit_goog_namespace: data.implicit_goog_namespace_strength.is_some(),
-        }
-    }
-}
-
-impl ScopeMirror {
-    /// Appends the vars the arena has and the mirror lacks.
-    pub(crate) fn sync_vars(&mut self, arena: &ScopeArena) {
-        for data in arena.vars.iter_from(self.vars.len()) {
-            self.vars.push(VarMeta::of(data));
-        }
-    }
-}
-
 impl ScopeArena {
-    /// Rust-only: the compiler's shared arena.
-    pub(crate) fn shared() -> Arc<RwLock<ScopeArena>> {
-        Arc::new(RwLock::new(ScopeArena::default()))
+    /// Rust-only: the compiler's (empty) loan slot.
+    pub(crate) fn new_loan() -> ScopeArenaLoan {
+        Arc::new(RwLock::new(None))
     }
 
-    pub(crate) fn read(compiler: &AbstractCompiler) -> RwLockReadGuard<'_, ScopeArena> {
-        compiler
-            .scope_arena
-            .read()
-            .unwrap_or_else(PoisonError::into_inner)
+    #[inline]
+    pub(crate) fn read(compiler: &AbstractCompiler) -> &ScopeArena {
+        &compiler.scope_arena
     }
 
-    pub(crate) fn write(compiler: &AbstractCompiler) -> RwLockWriteGuard<'_, ScopeArena> {
-        compiler
-            .scope_arena
-            .write()
-            .unwrap_or_else(PoisonError::into_inner)
+    #[inline]
+    pub(crate) fn write(compiler: &mut AbstractCompiler) -> &mut ScopeArena {
+        &mut compiler.scope_arena
     }
 }
 
@@ -262,8 +229,8 @@ impl ScopeId {
     }
 
     /// Rust-only: `getVar` for a name no implicit slot can match: getOwnSlot only reads each
-    /// scope's declared vars, so walk the chain under one read lock instead of one lock per
-    /// scope (performance divergence).
+    /// scope's declared vars, so walk the chain reading the declarations directly (performance
+    /// divergence).
     fn get_declared_var(
         self,
         compiler: &AbstractCompiler,
@@ -365,15 +332,14 @@ impl ScopeId {
         if ImplicitVar::of(&name).is_none() {
             // Rust-only fast path (performance divergence): with no implicit slot for `name`,
             // getOwnSlot, hasOwnSlot and canDeclare only read declared vars, so the checks, the new
-            // Var and its declaration take one lock.
+            // Var and its declaration read the arena directly.
             let name_node = name_node.into();
             VarId::check_name_node(compiler, name_node);
             let parent = self
                 .is_function_block_scope(compiler)
                 .then(|| self.get_parent(compiler))
                 .flatten();
-            let mut mirror = std::mem::take(&mut compiler.scope_mirror);
-            let mut arena = ScopeArena::write(compiler);
+            let arena = ScopeArena::read(compiler);
             let vars = &arena.scopes[self.index()].abstract_scope.vars;
             check_state!(!vars.contains_key(&name));
             let index = i32::try_from(vars.len()).unwrap();
@@ -393,21 +359,15 @@ impl ScopeId {
                 input,
                 None,
             );
-            let var = VarId::push(&mut arena, data);
-            mirror.sync_vars(&arena);
-            let undeclared = if parent_declares {
-                Some(name)
+            let arena = ScopeArena::write(compiler);
+            let var = VarId::push(arena, data);
+            if parent_declares {
+                self.declare_internal(compiler, name, var);
             } else {
                 arena.scopes[self.index()]
                     .abstract_scope
                     .vars
                     .insert(name, var);
-                None
-            };
-            drop(arena);
-            compiler.scope_mirror = mirror;
-            if let Some(name) = undeclared {
-                self.declare_internal(compiler, name, var);
             }
             return var;
         }
@@ -460,14 +420,13 @@ impl ScopeId {
         parent: Option<ScopeId>,
         depth: i32,
     ) -> Self {
-        let mut arena = ScopeArena::write(compiler);
+        let arena = ScopeArena::write(compiler);
         let scope = Self(NonZeroU32::new(u32::try_from(arena.scopes.len() + 1).unwrap()).unwrap());
         arena.scopes.push(ScopeData {
             abstract_scope: AbstractScopeData::new(root_node),
             parent,
             view: OnceLock::new(),
         });
-        drop(arena);
         compiler.scope_mirror.scopes.push(ScopeMeta {
             root_node,
             parent,
@@ -586,24 +545,18 @@ impl ScopeId {
 impl AbstractScope for ScopeId {
     type Var = VarId;
 
-    type DataRef<'a> = TypedArenaRef<'a, AbstractScopeData<VarId>, ScopeArena>;
-    type DataMut<'a> = TypedArenaMut<'a, AbstractScopeData<VarId>, ScopeArena>;
+    type DataRef<'a> = &'a AbstractScopeData<VarId>;
+    type DataMut<'a> = &'a mut AbstractScopeData<VarId>;
 
+    #[inline]
     fn scope_data(self, compiler: &AbstractCompiler) -> Self::DataRef<'_> {
-        TypedArenaRef::new(ScopeArena::read(compiler), self.index(), |a, i| {
-            &a.scopes[i].abstract_scope
-        })
+        &ScopeArena::read(compiler).scopes[self.index()].abstract_scope
     }
 
     fn scope_data_mut(self, compiler: &mut AbstractCompiler) -> Self::DataMut<'_> {
         compiler.scope_lookups.invalidate(self);
         compiler.scope_mirror.scopes[self.index()].name_bits = u64::MAX;
-        TypedArenaMut::new(
-            ScopeArena::write(compiler),
-            self.index(),
-            |a, i| &a.scopes[i].abstract_scope,
-            |a, i| &mut a.scopes[i].abstract_scope,
-        )
+        &mut ScopeArena::write(compiler).scopes[self.index()].abstract_scope
     }
 
     // port: AbstractScope#getRootNode
@@ -767,12 +720,12 @@ impl ScopeId {
 /// Rust-only: Java's syntactic Scope object as closure-jstype sees it (a `StaticScope`, which
 /// closure-jstype's registry takes as `&dyn StaticTypedScope`). One canonical view per scope,
 /// created on first use, cached in its arena entry and leaked, exactly like `TypedScopeView`
-/// (PORT_NOTES, "TypedScope and TypedVar views"). The view reads the shared arena; an implicit var
-/// the compiler side has not materialised yet is absent. Typed queries answer what Java's untyped
-/// Scope has: no type.
+/// (PORT_NOTES, "TypedScope and TypedVar views"). The view reads the arena that
+/// `with_static_scope` lends it (the compiler's loan slot); an implicit var the compiler side has
+/// not materialised yet is absent. Typed queries answer what Java's untyped Scope has: no type.
 #[derive(Debug)]
 pub struct ScopeView {
-    arena: Weak<RwLock<ScopeArena>>,
+    arena: Weak<RwLock<Option<ScopeArena>>>,
     scope: ScopeId,
 }
 
@@ -780,7 +733,7 @@ pub struct ScopeView {
 /// one canonical, leaked view per var, like `ScopeView`.
 #[derive(Debug)]
 pub struct VarView {
-    arena: Weak<RwLock<ScopeArena>>,
+    arena: Weak<RwLock<Option<ScopeArena>>>,
     var: VarId,
 }
 
@@ -788,7 +741,7 @@ impl ScopeArena {
     /// Rust-only: the canonical view of `scope`, created on first use.
     fn scope_view(
         &self,
-        this: &Weak<RwLock<ScopeArena>>,
+        this: &Weak<RwLock<Option<ScopeArena>>>,
         scope: ScopeId,
     ) -> &'static Arc<ScopeView> {
         self.scopes[scope.index()].view.get_or_init(|| {
@@ -800,7 +753,7 @@ impl ScopeArena {
     }
 
     /// Rust-only: the canonical view of `var`, created on first use.
-    fn var_view(&self, this: &Weak<RwLock<ScopeArena>>, var: VarId) -> &'static VarView {
+    fn var_view(&self, this: &Weak<RwLock<Option<ScopeArena>>>, var: VarId) -> &'static VarView {
         self.var_views[var.index()].get_or_init(|| {
             Box::leak(Box::new(VarView {
                 arena: this.clone(),
@@ -834,23 +787,51 @@ impl ScopeArena {
     }
 }
 
-/// Rust-only: the canonical closure-jstype view of the syntactic scope `scope` (Java passes the
-/// Scope itself as a StaticScope, e.g. to JSTypeRegistry#identifyNonNullableName). The `Arc`'s
-/// data pointer is the same for every call on the same scope (Java identity).
-pub fn as_static_scope(compiler: &AbstractCompiler, scope: ScopeId) -> Arc<dyn StaticTypedScope> {
-    let this = Arc::downgrade(&compiler.scope_arena);
-    let view: Arc<ScopeView> = Arc::clone(ScopeArena::read(compiler).scope_view(&this, scope));
-    view
+/// Rust-only: calls `f` with the type registry, the AST and the canonical closure-jstype view of
+/// the syntactic scope `scope` (Java passes the Scope itself as a StaticScope, e.g. to
+/// JSTypeRegistry#identifyNonNullableName). The view's address is the same for every call on the
+/// same scope (Java identity).
+///
+/// Rust-only (performance divergence): the compiler keeps its `ScopeArena` in a plain field and
+/// reads it without a lock; for the duration of `f` it lends the arena to the views through its
+/// loan slot (`ScopeArenaLoan`), the only place the views read it, and takes it back afterwards,
+/// also when `f` unwinds. Java's views are the scope objects themselves, so this changes no lookup.
+pub fn with_static_scope<R>(
+    compiler: &mut AbstractCompiler,
+    scope: ScopeId,
+    f: impl FnOnce(&mut JSTypeRegistry, &Ast, &dyn StaticTypedScope) -> R,
+) -> R {
+    let loan = Arc::clone(&compiler.scope_arena_loan);
+    let view: &'static Arc<ScopeView> = compiler
+        .scope_arena
+        .scope_view(&Arc::downgrade(&loan), scope);
+    *loan.write().unwrap_or_else(PoisonError::into_inner) =
+        Some(std::mem::take(&mut compiler.scope_arena));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let (reg, ast) = compiler.get_type_registry_and_ast();
+        f(reg, ast, &**view)
+    }));
+    compiler.scope_arena = loan
+        .write()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take()
+        .expect("the lent scope arena");
+    result.unwrap_or_else(|payload| std::panic::resume_unwind(payload))
 }
 
 impl ScopeView {
-    fn read<R>(&self, f: impl FnOnce(&Weak<RwLock<ScopeArena>>, &ScopeArena) -> R) -> R {
+    fn read<R>(&self, f: impl FnOnce(&Weak<RwLock<Option<ScopeArena>>>, &ScopeArena) -> R) -> R {
         let arena = self
             .arena
             .upgrade()
             .expect("a Scope view outlived its compiler");
         let guard = arena.read().unwrap_or_else(PoisonError::into_inner);
-        f(&self.arena, &guard)
+        f(
+            &self.arena,
+            guard
+                .as_ref()
+                .expect("a Scope view is used only within with_static_scope"),
+        )
     }
 }
 
@@ -882,6 +863,9 @@ impl ScopeView {
                     .upgrade()
                     .expect("a Scope view outlived its compiler");
                 let mut arena = arena.write().unwrap_or_else(PoisonError::into_inner);
+                let arena = arena
+                    .as_mut()
+                    .expect("a Scope view is used only within with_static_scope");
                 // port: Scope#makeImplicitVar
                 let data = AbstractVarData {
                     name: implicit.js_name(),
@@ -891,7 +875,7 @@ impl ScopeView {
                     index: -1,
                     scope: Some(scope),
                 };
-                let var = VarId::push(&mut arena, data);
+                let var = VarId::push(arena, data);
                 arena.scopes[scope.index()]
                     .abstract_scope
                     .implicit_vars
@@ -918,7 +902,7 @@ impl StaticTypedScope for ScopeView {
     }
 
     // port: AbstractScope#getSlot
-    fn get_slot(&self, name: &JsString) -> Option<&dyn StaticTypedSlot> {
+    fn get_slot(&self, _reg: &JSTypeRegistry, name: &JsString) -> Option<&dyn StaticTypedSlot> {
         self.read(|this, arena| {
             arena
                 .view_get_var(self.scope, name)
@@ -927,7 +911,7 @@ impl StaticTypedScope for ScopeView {
     }
 
     // port: AbstractScope#getOwnSlot
-    fn get_own_slot(&self, name: &JsString) -> Option<&dyn StaticTypedSlot> {
+    fn get_own_slot(&self, _reg: &JSTypeRegistry, name: &JsString) -> Option<&dyn StaticTypedSlot> {
         self.read(|this, arena| {
             arena
                 .view_get_own_slot(self.scope, name)
@@ -941,7 +925,7 @@ impl StaticTypedScope for ScopeView {
     /// scopes with getOwnSlot, which creates the implicit var in the first scope that makes it.
     fn get_slot_creating_implicit_vars(
         &self,
-        _reg: &mut JSTypeRegistry,
+        reg: &mut JSTypeRegistry,
         ast: &Ast,
         name: &JsString,
     ) -> Option<&dyn StaticTypedSlot> {
@@ -952,7 +936,7 @@ impl StaticTypedScope for ScopeView {
             }
             scope = self.read(|_, arena| arena.scopes[s.index()].parent);
         }
-        self.get_slot(name)
+        self.get_slot(reg, name)
     }
 
     // port: AbstractScope#getOwnSlot
@@ -960,12 +944,12 @@ impl StaticTypedScope for ScopeView {
     /// `StaticTypedScope::get_own_slot_creating_implicit_vars`).
     fn get_own_slot_creating_implicit_vars(
         &self,
-        _reg: &mut JSTypeRegistry,
+        reg: &mut JSTypeRegistry,
         ast: &Ast,
         name: &JsString,
     ) -> Option<&dyn StaticTypedSlot> {
         self.create_own_implicit_slot(ast, self.scope, name);
-        self.get_own_slot(name)
+        self.get_own_slot(reg, name)
     }
 
     /// Rust-only: Java's syntactic Scope is no StaticTypedScope and has no type of `this`.
@@ -977,14 +961,17 @@ impl StaticTypedScope for ScopeView {
 impl VarView {
     fn read<R>(
         &self,
-        f: impl FnOnce(&Weak<RwLock<ScopeArena>>, &AbstractVarData<ScopeId>, &ScopeArena) -> R,
+        f: impl FnOnce(&Weak<RwLock<Option<ScopeArena>>>, &AbstractVarData<ScopeId>, &ScopeArena) -> R,
     ) -> R {
         let arena = self
             .arena
             .upgrade()
             .expect("a Var view outlived its compiler");
         let guard = arena.read().unwrap_or_else(PoisonError::into_inner);
-        f(&self.arena, &guard.vars[self.var.index()], &guard)
+        let arena = guard
+            .as_ref()
+            .expect("a Var view is used only within with_static_scope");
+        f(&self.arena, &arena.vars[self.var.index()], arena)
     }
 }
 

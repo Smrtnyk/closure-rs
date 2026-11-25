@@ -219,12 +219,16 @@ pub struct Compiler {
     pub change_tracker: ChangeTracker,
     synthetic_externs_input: Option<CompilerInput>,
     pub ast: Ast,
-    pub(crate) scope_arena: std::sync::Arc<std::sync::RwLock<ScopeArena>>,
-    /// Rust-only: lock-free copies of the immutable fields of `scope_arena` (see `ScopeMirror`).
+    /// Rust-only: the syntactic scopes and vars, read without a lock (see `ScopeArena`).
+    pub(crate) scope_arena: ScopeArena,
+    /// Rust-only: where `scope::with_static_scope` lends `scope_arena` to the closure-jstype views.
+    pub(crate) scope_arena_loan: crate::scope::ScopeArenaLoan,
+    /// Rust-only: dense copies of the immutable fields of the scopes (see `ScopeMirror`).
     pub(crate) scope_mirror: crate::scope::ScopeMirror,
     pub(crate) scope_lookups: crate::scope::ScopeLookupCache,
-    pub(crate) typed_scope_arena:
-        std::sync::Arc<std::sync::RwLock<crate::typed_scope::TypedScopeArena>>,
+    /// Rust-only: the typed scope arena while there is no type registry; the registry holds it
+    /// otherwise (see `TypedScopeArena` and `Compiler::typed_scope_arena`).
+    typed_scope_arena: crate::typed_scope::TypedScopeArena,
     /// Rust-only: lock-free copies of immutable `typed_scope_arena` fields.
     pub(crate) typed_scope_mirror: Vec<crate::typed_scope::TypedScopeMeta>,
     /// Rust-only (performance divergence): syntactic scopes kept for reuse by later passes.
@@ -348,10 +352,11 @@ impl Compiler {
             change_tracker,
             synthetic_externs_input: None,
             ast: Ast::new(),
-            scope_arena: ScopeArena::shared(),
+            scope_arena: ScopeArena::default(),
+            scope_arena_loan: ScopeArena::new_loan(),
             scope_mirror: crate::scope::ScopeMirror::default(),
             scope_lookups: Default::default(),
-            typed_scope_arena: crate::typed_scope::TypedScopeArena::shared(),
+            typed_scope_arena: crate::typed_scope::TypedScopeArena::default(),
             typed_scope_mirror: Vec::new(),
             syntactic_scope_cache: Default::default(),
             defer_json_presence: false,
@@ -3739,7 +3744,16 @@ impl Compiler {
     }
     // port: Compiler#clearJSTypeRegistry
     pub fn clear_js_type_registry(&mut self) {
-        self.type_registry = None;
+        // Rust-only: the typed scopes outlive the registry, which held their arena.
+        if let Some(arena) = self
+            .type_registry
+            .take()
+            .and_then(|mut registry| registry.set_scope_storage(None))
+        {
+            self.typed_scope_arena = *arena
+                .downcast()
+                .expect("the type registry holds the typed scope arena");
+        }
         self.type_validator = None;
         self.abstract_interpreter = None;
         // Rust-only (performance divergence): reclaim typed-scope arena memory once type checking
@@ -3751,7 +3765,7 @@ impl Compiler {
                 .as_ref()
                 .is_some_and(|o| o.preserves_detailed_source_info())
         {
-            self.typed_scope_arena = crate::typed_scope::TypedScopeArena::shared();
+            self.typed_scope_arena = crate::typed_scope::TypedScopeArena::default();
             self.typed_scope_mirror = Vec::new();
         }
     }
@@ -3784,13 +3798,38 @@ impl Compiler {
         let old_error_reporter = crate::rhino_error_reporter::QueueingOldRhinoErrorReporter::new(
             Arc::clone(&self.queued_type_registry_errors),
         );
-        self.type_registry = Some(
-            closure_jstype::JSTypeRegistry::new_with_shared_forward_declared_types(
-                &mut self.ast,
-                Box::new(old_error_reporter),
-                self.forward_declared_types.clone(),
-            ),
+        let mut registry = closure_jstype::JSTypeRegistry::new_with_shared_forward_declared_types(
+            &mut self.ast,
+            Box::new(old_error_reporter),
+            self.forward_declared_types.clone(),
         );
+        // Rust-only (performance divergence): the registry holds the typed scope arena while it
+        // exists, so that its scope views read it through the registry (see `TypedScopeArena`).
+        registry.set_scope_storage(Some(Box::new(std::mem::take(&mut self.typed_scope_arena))));
+        self.type_registry = Some(registry);
+    }
+
+    /// Rust-only: the typed scope arena, in the type registry's scope storage while the registry
+    /// exists and in the compiler before and after (see `TypedScopeArena`). No lock: the registry's
+    /// views read it through the registry they are consulted with.
+    #[inline]
+    pub(crate) fn typed_scope_arena(&self) -> &crate::typed_scope::TypedScopeArena {
+        match &self.type_registry {
+            Some(registry) => crate::typed_scope::TypedScopeArena::of_registry(registry),
+            None => &self.typed_scope_arena,
+        }
+    }
+
+    /// Rust-only: `typed_scope_arena`, mutably.
+    #[inline]
+    pub(crate) fn typed_scope_arena_mut(&mut self) -> &mut crate::typed_scope::TypedScopeArena {
+        match &mut self.type_registry {
+            Some(registry) => registry
+                .scope_storage_mut()
+                .and_then(|storage| storage.downcast_mut())
+                .expect("the type registry holds the typed scope arena"),
+            None => &mut self.typed_scope_arena,
+        }
     }
     /// Rust-only: the `typeRegistry` field (as `Compiler#getAstAnalyzer` hands it to
     /// `new AstAnalyzer(..)`, possibly null) together with the arena, split-borrowed.

@@ -32,7 +32,7 @@ use crate::{
     abstract_var::{AbstractVar, AbstractVarData},
     compiler_input::CompilerInput,
     scoped_name::ScopedName,
-    typed_scope::{TypedArenaMut, TypedArenaRef, TypedScope, TypedScopeArena},
+    typed_scope::{TypedScope, TypedScopeArena},
 };
 use closure_jstype::{
     JSTypeRegistry, TypeId, prelude::JSType, static_typed_ref::StaticTypedRef,
@@ -48,7 +48,7 @@ use closure_rhino::{
 };
 use std::{
     num::NonZeroU32,
-    sync::{Arc, OnceLock, PoisonError, RwLock, Weak},
+    sync::{Arc, OnceLock},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -94,22 +94,14 @@ impl TypedVar {
         self.0.get() as usize - 1
     }
 
-    pub(crate) fn data(self, compiler: &AbstractCompiler) -> TypedArenaRef<'_, TypedVarData> {
-        TypedArenaRef::new(TypedScopeArena::read(compiler), self.index(), |a, i| {
-            &a.vars[i]
-        })
+    #[inline]
+    pub(crate) fn data(self, compiler: &AbstractCompiler) -> &TypedVarData {
+        &TypedScopeArena::read(compiler).vars[self.index()]
     }
 
-    pub(crate) fn data_mut(
-        self,
-        compiler: &mut AbstractCompiler,
-    ) -> TypedArenaMut<'_, TypedVarData> {
-        TypedArenaMut::new(
-            TypedScopeArena::write(compiler),
-            self.index(),
-            |a, i| &a.vars[i],
-            |a, i| &mut a.vars[i],
-        )
+    #[inline]
+    pub(crate) fn data_mut(self, compiler: &mut AbstractCompiler) -> &mut TypedVarData {
+        &mut TypedScopeArena::write(compiler).vars[self.index()]
     }
 
     // port: TypedVar#TypedVar
@@ -140,8 +132,12 @@ impl TypedVar {
                 name_node.get_token(compiler)
             );
         }
-        let mut arena = TypedScopeArena::write(compiler);
-        Self::push(&mut arena, inferred, abstract_var, type_)
+        Self::push(
+            TypedScopeArena::write(compiler),
+            inferred,
+            abstract_var,
+            type_,
+        )
     }
 
     /// Rust-only: the arena half of `TypedVar#TypedVar` (the new var's slot), shared with the
@@ -242,22 +238,17 @@ impl TypedVar {
 impl AbstractVar for TypedVar {
     type Scope = TypedScope;
 
-    type DataRef<'a> = TypedArenaRef<'a, AbstractVarData<TypedScope>>;
-    type DataMut<'a> = TypedArenaMut<'a, AbstractVarData<TypedScope>>;
+    type DataRef<'a> = &'a AbstractVarData<TypedScope>;
+    type DataMut<'a> = &'a mut AbstractVarData<TypedScope>;
 
+    #[inline]
     fn var_data(self, compiler: &AbstractCompiler) -> Self::DataRef<'_> {
-        TypedArenaRef::new(TypedScopeArena::read(compiler), self.index(), |a, i| {
-            &a.vars[i].abstract_var
-        })
+        &self.data(compiler).abstract_var
     }
 
+    #[inline]
     fn var_data_mut(self, compiler: &mut AbstractCompiler) -> Self::DataMut<'_> {
-        TypedArenaMut::new(
-            TypedScopeArena::write(compiler),
-            self.index(),
-            |a, i| &a.vars[i].abstract_var,
-            |a, i| &mut a.vars[i].abstract_var,
-        )
+        &mut self.data_mut(compiler).abstract_var
     }
 
     /// Rust-only: AbstractVar calls this only to build its precondition (internal error) messages,
@@ -356,26 +347,19 @@ impl TypedVar {
 }
 
 /// Rust-only: Java's TypedVar object as closure-jstype sees it (a `StaticTypedSlot` and
-/// `StaticTypedRef`); one canonical, leaked view per var, like `TypedScopeView`.
+/// `StaticTypedRef`); one canonical, leaked view per var, like `TypedScopeView`, which reads the
+/// arena through the registry its methods receive.
 #[derive(Debug)]
 pub struct TypedVarView {
-    arena: Weak<RwLock<TypedScopeArena>>,
     var: TypedVar,
 }
 
 impl TypedScopeArena {
     /// Rust-only: the canonical view of `var`, created on first use.
-    pub(crate) fn var_view(
-        &self,
-        this: &Weak<RwLock<TypedScopeArena>>,
-        var: TypedVar,
-    ) -> &'static TypedVarView {
-        self.vars[var.index()].view.get_or_init(|| {
-            Box::leak(Box::new(TypedVarView {
-                arena: this.clone(),
-                var,
-            }))
-        })
+    pub(crate) fn var_view(&self, var: TypedVar) -> &'static TypedVarView {
+        self.vars[var.index()]
+            .view
+            .get_or_init(|| Box::leak(Box::new(TypedVarView { var })))
     }
 }
 
@@ -383,44 +367,40 @@ impl TypedVar {
     /// Rust-only: the canonical closure-jstype view of this var (Java passes `this` as a
     /// StaticTypedSlot).
     pub fn as_static_typed_slot(self, compiler: &AbstractCompiler) -> &'static dyn StaticTypedSlot {
-        let this = Arc::downgrade(&compiler.typed_scope_arena);
-        TypedScopeArena::read(compiler).var_view(&this, self)
+        TypedScopeArena::read(compiler).var_view(self)
     }
 }
 
 impl TypedVarView {
     fn read<R>(
         &self,
-        f: impl FnOnce(&Weak<RwLock<TypedScopeArena>>, &TypedVarData, &TypedScopeArena) -> R,
+        reg: &JSTypeRegistry,
+        f: impl FnOnce(&TypedVarData, &TypedScopeArena) -> R,
     ) -> R {
-        let arena = self
-            .arena
-            .upgrade()
-            .expect("a TypedVar view outlived its compiler");
-        let guard = arena.read().unwrap_or_else(PoisonError::into_inner);
-        f(&self.arena, &guard.vars[self.var.index()], &guard)
+        let arena = TypedScopeArena::of_registry(reg);
+        f(&arena.vars[self.var.index()], arena)
     }
 }
 
 impl StaticTypedSlot for TypedVarView {
     // port: AbstractVar#getName
-    fn get_name(&self, _reg: &JSTypeRegistry) -> JsString {
-        self.read(|_, data, _| data.abstract_var.name.clone())
+    fn get_name(&self, reg: &JSTypeRegistry) -> JsString {
+        self.read(reg, |data, _| data.abstract_var.name.clone())
     }
 
     // port: TypedVar#getType
-    fn get_type(&self, _reg: &JSTypeRegistry) -> Option<TypeId> {
-        self.read(|_, data, _| data.type_)
+    fn get_type(&self, reg: &JSTypeRegistry) -> Option<TypeId> {
+        self.read(reg, |data, _| data.type_)
     }
 
     // port: TypedVar#isTypeInferred
-    fn is_type_inferred(&self, _reg: &JSTypeRegistry) -> bool {
-        self.read(|_, data, _| data.type_inferred)
+    fn is_type_inferred(&self, reg: &JSTypeRegistry) -> bool {
+        self.read(reg, |data, _| data.type_inferred)
     }
 
     // port: AbstractVar#getDeclaration
-    fn get_declaration(&self, _reg: &JSTypeRegistry) -> Option<&dyn StaticTypedRef> {
-        self.read(|_, data, _| data.abstract_var.name_node)
+    fn get_declaration(&self, reg: &JSTypeRegistry) -> Option<&dyn StaticTypedRef> {
+        self.read(reg, |data, _| data.abstract_var.name_node)
             .map(|_| self as &dyn StaticTypedRef)
     }
 
@@ -433,11 +413,11 @@ impl StaticTypedSlot for TypedVarView {
     }
 
     // port: AbstractVar#getScope
-    fn get_scope(&self, _reg: &JSTypeRegistry) -> Option<&dyn StaticTypedScope> {
-        self.read(|this, data, arena| {
+    fn get_scope(&self, reg: &JSTypeRegistry) -> Option<&dyn StaticTypedScope> {
+        self.read(reg, |data, arena| {
             data.abstract_var
                 .scope
-                .map(|scope| &**arena.scope_view(this, scope) as &dyn StaticTypedScope)
+                .map(|scope| &**arena.scope_view(scope) as &dyn StaticTypedScope)
         })
     }
 }
@@ -449,17 +429,17 @@ impl StaticTypedRef for TypedVarView {
     }
 
     // port: AbstractVar#getNode
-    fn get_node(&self, _reg: &JSTypeRegistry) -> Option<NodeId> {
-        self.read(|_, data, _| data.abstract_var.name_node)
+    fn get_node(&self, reg: &JSTypeRegistry) -> Option<NodeId> {
+        self.read(reg, |data, _| data.abstract_var.name_node)
     }
 
     // port: AbstractVar#getSourceFile
     fn get_source_file(
         &self,
-        _reg: &JSTypeRegistry,
+        reg: &JSTypeRegistry,
         ast: &Ast,
     ) -> Option<Arc<dyn StaticSourceFile>> {
-        self.read(|_, data, arena| {
+        self.read(reg, |data, arena| {
             data.abstract_var
                 .name_node
                 .unwrap_or_else(|| {

@@ -1007,3 +1007,40 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   GETPROPs there; a repeated mark adds an edge that changes nothing). StrictModeCheck has nothing
   to report in a `normalize_clean` prefix (a test checks its shapes).
   `CLOSURE_RS_BUNDLED_EXTERN_SKIPS=off` traverses those prefixes in all four passes.
+- `jscomp/scope.rs`, `var.rs`, `compiler.rs` (`scope_arena`, `scope_arena_loan`),
+  `implicit_nullability_check.rs`, `typed_scope_creator.rs`: the compiler owns the syntactic
+  `ScopeArena` in a plain field and reads and writes it without a lock (it was an
+  `Arc<RwLock<..>>` shared with the closure-jstype views). The views (`ScopeView`, `VarView`), which
+  the registry calls without the compiler, read the arena only inside `scope::with_static_scope`,
+  which lends it to them through the `scope_arena_loan` slot for one registry call and takes it
+  back afterwards (also on unwind); the earlier bullets' lock-free `ScopeMirror` keeps only the
+  scope fields, the vars are read from the arena.
+- `jscomp/js_chunk.rs`: a chunk's final name and the depth and index the chunk graph assigns are
+  kept outside the mutex of its inputs and dependencies (atomics for depth and index), so
+  `getName`, `isWeak`, `getIndex` and `getDepth` take no lock; `name_ref` reads the name without
+  copying it. `var_check.rs` `checkName` compares the current input with the var's input in place
+  (`NodeTraversal::get_input_and_compiler`, `VarId::input_ref`) and takes the current chunk from
+  the traversal's cache instead of copying both inputs for every name.
+- `jscomp/typed_scope.rs`, `typed_var.rs`, `compiler.rs` (`typed_scope_arena`,
+  `initialize_type_registry`, `clear_js_type_registry`), `jstype/js_type_registry.rs`
+  (`scope_storage`), `jstype/static_typed_scope.rs`: while the compiler has a type registry, the
+  `TypedScopeArena` lives in the registry's scope storage (an opaque `Box<dyn Any>` the registry
+  only holds), before and after that in a compiler field; the compiler reads and writes it without
+  a lock (it was an `Arc<RwLock<..>>` shared with the closure-jstype views). The canonical
+  `TypedScopeView` / `TypedVarView` no longer hold a handle to the arena: they read it through the
+  registry their lookups receive (`StaticTypedScope::get_slot` and `get_own_slot` take the
+  registry, like the slot methods already did), and a scope view keeps its root and its parent's
+  view, made with it.
+- `rhino/input_id.rs` `InputKey`, `jscomp/reference.rs`, `node_traversal.rs`
+  (`get_input_key_of_input`, replacing `get_input_id_of_input`): a `Reference` keeps a copyable
+  key of its input id (numbered per distinct id name in a process-wide table, computed once per
+  `InputId`) instead of a shared `Arc<InputId>`; two keys are equal exactly when the ids are
+  equal, which is all `ReferenceCollection#areInSameFile` asks. The reference stays 24 bytes.
+- `jscomp/analyze_prototype_properties.rs` `ChunkIndex`, `cross_chunk_method_motion.rs`: the
+  symbol graph's edges and each `NameInfo`'s deepest common chunk name a chunk by its index in the
+  chunk graph (`getAllChunks()[index]`), so the fixed-point propagation copies chunks without
+  reference counts; `NameInfo::get_deepest_common_chunk_ref` takes the chunk graph and lends the
+  chunk. `markReference` computes `getDeepestCommonDependencyInclusive` on the indices.
+- `rhino/node.rs` `get_color_ref`: the node's color is lent instead of copied where callers only
+  inspect it (`AstAnalyzer#isTypedAsString`, `NodeUtil#mayBeString`, `PeepholeFoldConstants`,
+  `PeepholeReplaceKnownMethods`, `ClosureCodeRemoval`, and the color presence checks).
