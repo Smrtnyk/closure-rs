@@ -144,7 +144,12 @@ impl CandidateNames {
                             }
                         }
                         Token::FUNCTION => {
-                            if node.get_parent(ast).is_none()
+                            // In a detached subtree the parent of a function may have no parent
+                            // of its own, which `is_hoisted_function_declaration` relies on.
+                            if node
+                                .get_parent(ast)
+                                .and_then(|parent| parent.get_parent(ast))
+                                .is_none()
                                 || !NodeUtil::is_hoisted_function_declaration(ast, node)
                             {
                                 continue;

@@ -1959,6 +1959,18 @@ impl<'a> NodeTraversal<'a> {
         self.scopes.remove(self.scopes.len() - 1);
     }
 
+    /// Rust-only (performance divergence): enters the scope rooted at `node` without telling the
+    /// callback, for a callback that replays a subtree instead of having it traversed
+    /// (`ReferenceCollector`). The scope itself is made when it is first asked for.
+    pub(crate) fn push_scope_root_quietly(&mut self, node: NodeId) {
+        self.scopes.push(ScopeObject::Node(node));
+    }
+
+    /// Rust-only (performance divergence): leaves the scope `push_scope_root_quietly` entered.
+    pub(crate) fn pop_scope_root_quietly(&mut self) {
+        self.scopes.pop();
+    }
+
     // port: NodeTraversal#getNodeRootFromScopeObj
     fn get_node_root_from_scope_obj(&self, root: ScopeObject) -> NodeId {
         match root {

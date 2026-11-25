@@ -39,6 +39,7 @@ at the warning level configured for each job.
 | `lodash-bundle` | lodash 4.17.21, `lodash.js` (the monolithic single-file build, about 540 KB) from the npm release tarball (commit `c6e281b8`). | As `three-bundle`; a script (an IIFE). |
 | `fabric-srcmap` | `fabric`'s `dist/index.mjs` with the tarball's `dist/index.mjs.map` (rollup's map, with `sourcesContent`) as the input source map. | A bundle compiled with its bundler's source map, as projects ship them: adds `--create_source_map=%outname%.map --source_map_include_content --source_map_input=<bundle>\|<bundle>.map`, so parsing the input map, mapping every node back through it and writing the output map with all sources are measured (and the map compared byte for byte). |
 | `three-srcmap`, `d3-bundle-srcmap`, `lodash-bundle-srcmap` | The `three-bundle`, `d3-bundle` and `lodash-bundle` files, each re-emitted with a source map back to the original (see below). | As `fabric-srcmap`, for bundles that ship no map. |
+| `bundles-chunks` | The bundles of `three-bundle`, `fabric-srcmap`, `d3-bundle` and `lodash-bundle` in one compile of five dependent chunks: `three.core.js` is the chunk the other four depend on. ES2021 output, a source map per chunk, fabric's own map as an input source map. | The code-split output of a bundler compiled as chunks: the passes that move code between chunks run, and every chunk and source map is compared. |
 
 ### Workload details
 

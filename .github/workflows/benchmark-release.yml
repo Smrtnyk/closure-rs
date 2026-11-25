@@ -1,7 +1,7 @@
 # Benchmarks published PGO npm binaries of closure-rs on one dedicated GitHub Actions runner:
 #   1. Java reference compiler vs. closure-rs@<current_version> (README "Java and closure-rs" table)
 #   2. Interleaved A/B comparison of closure-rs@<prev_version> vs. closure-rs@<current_version>
-#      across all 50 benchmark jobs and flag variants (README "Change from the previous release" table)
+#      across all benchmark jobs and flag variants (README "Change from the previous release" table)
 #
 # Run manually via Actions -> benchmark-release (or `gh workflow run benchmark-release.yml ...`).
 # Never runs automatically on pushes or pull requests.
@@ -25,7 +25,7 @@ on:
         default: '5'
         type: string
       ab_rounds:
-        description: 'Interleaved A/B rounds across all 50 jobs (README uses 6)'
+        description: 'Interleaved A/B rounds across all jobs (README uses 6)'
         required: false
         default: '6'
         type: string

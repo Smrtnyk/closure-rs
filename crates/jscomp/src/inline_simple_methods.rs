@@ -589,14 +589,12 @@ impl InlineSimpleMethods {
                         child = c.get_next(compiler);
                         continue;
                     }
-                    // Chunk large non-module code scripts by top-level statement so single-bundle
-                    // inputs also parallelize across worker threads.
+                    // Split non-module code scripts by top-level statement so single-bundle
+                    // and chunked inputs also parallelize across worker threads.
                     if !is_externs
                         && c.is_script(compiler)
                         && let Some(first) = c.get_first_child(compiler)
                         && !first.is_module_body(compiler)
-                        && c.get_next(compiler).is_none()
-                        && units.is_empty()
                     {
                         let mut st = Some(first);
                         while let Some(s) = st {

@@ -1016,38 +1016,38 @@ fn collect_inline_fn_units(compiler: &AbstractCompiler, root: NodeId) -> Vec<Inl
         scripts.push(s);
         c = s.get_next(ast);
     }
-    if scripts.len() == 1
-        && scripts[0].is_script(ast)
-        && let Some(first) = scripts[0].get_first_child(ast)
-        && !first.is_module_body(ast)
-    {
-        let script = scripts[0];
-        let mut stmts = Vec::new();
-        let mut st = Some(first);
-        while let Some(s) = st {
-            stmts.push(s);
-            st = s.get_next(ast);
-        }
-        const STMT_CHUNK: usize = 64;
-        if stmts.len() > STMT_CHUNK {
-            return stmts
-                .chunks(STMT_CHUNK)
-                .map(|chunk| InlineFnUnit {
+    // A large non-module script is split into runs of its top-level statements, so that one big
+    // file among several (the chunks a bundler writes) is scanned on several threads too.
+    const STMT_CHUNK: usize = 64;
+    let mut units = Vec::with_capacity(scripts.len());
+    let mut stmts = Vec::new();
+    for script in scripts {
+        if script.is_script(ast)
+            && let Some(first) = script.get_first_child(ast)
+            && !first.is_module_body(ast)
+        {
+            stmts.clear();
+            let mut st = Some(first);
+            while let Some(s) = st {
+                stmts.push(s);
+                st = s.get_next(ast);
+            }
+            if stmts.len() > STMT_CHUNK {
+                units.extend(stmts.chunks(STMT_CHUNK).map(|chunk| InlineFnUnit {
                     script: Some(script),
                     parent: Some(script),
                     nodes: chunk.to_vec(),
-                })
-                .collect();
+                }));
+                continue;
+            }
         }
-    }
-    scripts
-        .into_iter()
-        .map(|s| InlineFnUnit {
-            script: s.is_script(ast).then_some(s),
+        units.push(InlineFnUnit {
+            script: script.is_script(ast).then_some(script),
             parent: Some(root),
-            nodes: vec![s],
-        })
-        .collect()
+            nodes: vec![script],
+        });
+    }
+    units
 }
 
 enum CandidateFnEvent {

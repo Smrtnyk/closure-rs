@@ -116,6 +116,9 @@ impl FunctionlessLocalScope {
 /// in post-order where the variable is guaranteed to retain its original value.
 // port: NodeIterators.LocalVarMotion
 pub struct LocalVarMotion {
+    /// Rust-only (performance divergence): Java asks the compiler for a new `AstAnalyzer` at every
+    /// node; its settings do not change while one variable is looked at.
+    ast_analyzer: crate::ast_analyzer::AstAnalyzer,
     value_has_side_effects: bool,
     iterator: FunctionlessLocalScope,
     var_name: closure_rhino::js_string::JsString,
@@ -170,12 +173,11 @@ impl LocalVarMotion {
         let value_node = NodeUtil::get_assigned_value(compiler, name_node);
         // checkNotNull(compiler): a Rust reference is never null.
         let var_name = name_node.get_string(compiler);
-        let value_has_side_effects = value_node.is_some_and(|value_node| {
-            compiler
-                .get_ast_analyzer()
-                .may_have_side_effects(compiler, value_node)
-        });
+        let ast_analyzer = compiler.get_ast_analyzer();
+        let value_has_side_effects = value_node
+            .is_some_and(|value_node| ast_analyzer.may_have_side_effects(compiler, value_node));
         let mut motion = Self {
+            ast_analyzer,
             value_has_side_effects,
             iterator,
             var_name,
@@ -270,8 +272,8 @@ impl LocalVarMotion {
         //   var a = b;
         //   var b = 3;
         //   alert(a);
-        if (compiler
-            .get_ast_analyzer()
+        if (self
+            .ast_analyzer
             .node_type_may_have_side_effects(compiler, next_node)
             && type_ != Token::NAME)
             || (type_ == Token::NAME && next_parent.unwrap().is_catch(compiler))

@@ -654,9 +654,9 @@ impl ReferenceMapBuilder<'_> {
             .cloned()
             .unwrap_or_default();
 
-        // Collect ordered top-level units (scripts under `externs` and `root`, or top-level
-        // statements of a single large non-module script) so multi-script and single-bundle
-        // compilations scan chunks in parallel while merging in exact AST order.
+        // Collect ordered top-level units (scripts under `externs` and `root`, or the top-level
+        // statements of each non-module script) so multi-script, chunked and single-bundle
+        // compilations scan units in parallel while merging in exact AST order.
         let mut units: Vec<(NodeId, Option<NodeId>)> = Vec::new();
         for (is_externs, tree) in [(true, externs), (false, root)] {
             if tree.is_root(compiler) {
@@ -667,8 +667,6 @@ impl ReferenceMapBuilder<'_> {
                             && c.is_script(compiler)
                             && let Some(first) = c.get_first_child(compiler)
                             && !first.is_module_body(compiler)
-                            && c.get_next(compiler).is_none()
-                            && units.is_empty()
                         {
                             let mut st = Some(first);
                             while let Some(s) = st {

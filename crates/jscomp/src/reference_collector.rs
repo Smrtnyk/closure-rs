@@ -112,6 +112,9 @@ pub struct CollectorCallback<'a, B: Behavior> {
 
     /// Scratch for one single-scope body's current bindings and reference-map indices.
     body_bindings: Vec<(Option<VarId>, Option<usize>)>,
+    /// Per spelling of a body replayed by `replay_scoped_body_sites`: whether its first site has
+    /// been reached.
+    body_names_seen: Vec<bool>,
     /// Scratch stack of nested empty block scopes lazily materialized during cached site replay.
     replay_scope_stack: Vec<(NodeId, Option<ScopeId>)>,
     /// Scratch stack of nested basic blocks lazily materialized during cached site replay.
@@ -218,6 +221,7 @@ impl<'a, B: Behavior> ReferenceCollector<'a, B> {
                 collected_hoisted_functions: IndexSet::<_>::default(),
                 narrow_scope: None,
                 body_bindings: Vec::new(),
+                body_names_seen: Vec::new(),
                 replay_scope_stack: Vec::new(),
                 replay_block_stack: Vec::new(),
                 free_vars_scratch: Vec::new(),
@@ -602,6 +606,13 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         if body.first_names.is_empty() {
             return true;
         }
+        // A name declared in a nested scope is found by its spelling alone, which holds only
+        // while every declared name is unique.
+        if body.declares_in_nested_scopes
+            && !t.get_compiler().get_life_cycle_stage().is_normalized()
+        {
+            return false;
+        }
         let mut scope = None;
         self.body_bindings.clear();
         for &name in &body.first_names {
@@ -618,6 +629,10 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                 return false;
             }
             self.body_bindings.push((var, None));
+        }
+        if body.declares_in_nested_scopes {
+            self.replay_scoped_body_sites(t, &body);
+            return true;
         }
 
         // Each spelling now has one stable binding until the end of this body. Insertion at its
@@ -642,6 +657,88 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         true
     }
 
+    /// Rust-only (performance divergence): `replay_body_sites` for a body in which nested scopes
+    /// declare `let`/`const` bindings (`FunctionBodySites::declares_in_nested_scopes`), in a
+    /// normalized tree. The traversal is made to enter and leave every nested scope, so each
+    /// scope is created with the parent the traversal would give it, when a reference in it or
+    /// the behavior asks for it; a scope that declares bindings has its exit reported to the
+    /// behavior where the traversal would report it. `self.body_bindings` holds the binding of
+    /// every spelling visible from the body's own scope; a spelling without one is declared in
+    /// a nested scope (or nowhere) and is resolved at its first site, from the scope there.
+    /// Entries of the reference map are made at the first site of a spelling, as the traversal
+    /// makes them.
+    fn replay_scoped_body_sites(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        body: &function_body::FunctionBodySites,
+    ) {
+        self.replay_block_stack.clear();
+        self.body_names_seen.clear();
+        self.body_names_seen.resize(body.first_names.len(), false);
+        let observe = self.behavior.observes_replayed_references();
+        for site in &body.sites {
+            match site.decode() {
+                SiteKind::Reference(name, slot) => {
+                    let slot = slot as usize;
+                    t.position_at_node(name);
+                    if !self.body_names_seen[slot] {
+                        self.body_names_seen[slot] = true;
+                        let mut var = self.body_bindings[slot].0;
+                        if var.is_none() && self.needs_name(t, name) {
+                            let scope = t.get_scope();
+                            var = scope.get_var_of_node(t.get_compiler(), name);
+                        }
+                        let index = var
+                            .filter(|&v| {
+                                (self.var_filter)(t.get_compiler(), v)
+                                    && self.behavior.needs_variable(t.get_compiler(), v)
+                            })
+                            .map(|v| {
+                                let entry = self.reference_map.entry(v);
+                                let index = entry.index();
+                                entry.or_default();
+                                index
+                            });
+                        self.body_bindings[slot] = (var, index);
+                    }
+                    if let Some(index) = self.body_bindings[slot].1 {
+                        let ref_scope = t.get_scope();
+                        let block = Self::materialize_replay_block(
+                            t,
+                            &self.block_stack,
+                            &mut self.replay_block_stack,
+                        );
+                        let references = Rc::make_mut(&mut self.reference_map[index]);
+                        references.add(Reference::in_scope(name, t, block, ref_scope));
+                        if observe {
+                            let reference = references.references.last().expect("just added");
+                            self.behavior.after_replayed_reference(t, reference);
+                        }
+                    }
+                }
+                SiteKind::EnterBlock(n) => self.replay_block_stack.push((n, None)),
+                SiteKind::ExitBlock(n) => {
+                    let (root, _) = self.replay_block_stack.pop().expect("removeLast");
+                    check_state!(root == n, &n.to_string(t));
+                }
+                SiteKind::EnterEmptyScope(n) | SiteKind::EnterScope(n) => {
+                    t.push_scope_root_quietly(n);
+                }
+                SiteKind::ExitEmptyScope => t.pop_scope_root_quietly(),
+                SiteKind::ExitScope => {
+                    // What `exit_scope` does for a scope that is not a hoist scope.
+                    let Self {
+                        behavior,
+                        reference_map,
+                        ..
+                    } = self;
+                    behavior.after_exit_scope(t, &CollectedReferenceMap { reference_map });
+                    t.pop_scope_root_quietly();
+                }
+            }
+        }
+    }
+
     /// Rust-only (performance divergence): replays `sites` using `self.body_bindings`,
     /// lazily materializing both nested `BasicBlock`s and nested empty `ScopeId`s only when an
     /// active reference actually fires inside them.
@@ -653,6 +750,7 @@ impl<B: Behavior> CollectorCallback<'_, B> {
     ) {
         self.replay_scope_stack.clear();
         self.replay_block_stack.clear();
+        let observe = self.behavior.observes_replayed_references();
         for site in sites {
             match site.decode() {
                 SiteKind::Reference(name, binding) => {
@@ -672,8 +770,12 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                             &self.block_stack,
                             &mut self.replay_block_stack,
                         );
-                        Rc::make_mut(&mut self.reference_map[index])
-                            .add(Reference::in_scope(name, t, block, ref_scope));
+                        let references = Rc::make_mut(&mut self.reference_map[index]);
+                        references.add(Reference::in_scope(name, t, block, ref_scope));
+                        if observe {
+                            let reference = references.references.last().expect("just added");
+                            self.behavior.after_replayed_reference(t, reference);
+                        }
                     }
                 }
                 SiteKind::EnterBlock(n) => self.replay_block_stack.push((n, None)),
@@ -681,8 +783,10 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                     let (root, _) = self.replay_block_stack.pop().expect("removeLast");
                     check_state!(root == n, &n.to_string(t));
                 }
-                SiteKind::EnterEmptyScope(n) => self.replay_scope_stack.push((n, None)),
-                SiteKind::ExitEmptyScope => {
+                SiteKind::EnterEmptyScope(n) | SiteKind::EnterScope(n) => {
+                    self.replay_scope_stack.push((n, None));
+                }
+                SiteKind::ExitEmptyScope | SiteKind::ExitScope => {
                     self.replay_scope_stack.pop();
                 }
             }
@@ -858,6 +962,9 @@ impl<B: Behavior> CollectorCallback<'_, B> {
         let Some(body_sites) = FunctionReferenceCache::sites(t.get_compiler(), body) else {
             return false;
         };
+        if body_sites.declares_in_nested_scopes {
+            return false;
+        }
 
         // Populate `fn_scope` locals (parameters first, then bleeding function expression name,
         // matching `SyntacticScopeCreator#populate`).
@@ -1083,7 +1190,10 @@ impl<B: Behavior> CollectorCallback<'_, B> {
                         loop_depth -= 1;
                     }
                 }
-                SiteKind::EnterEmptyScope(_) | SiteKind::ExitEmptyScope => {}
+                SiteKind::EnterEmptyScope(_)
+                | SiteKind::ExitEmptyScope
+                | SiteKind::EnterScope(_)
+                | SiteKind::ExitScope => {}
             }
         }
 
@@ -1619,6 +1729,16 @@ pub trait Behavior {
         false
     }
 
+    /// Rust-only (performance divergence): whether `after_replayed_reference` must be called for
+    /// the references added from the cached sites of a function body. A behavior that reads
+    /// `added_reference` in `after_visit_node` and opts into `can_reuse_function_reference_sites`
+    /// needs it, because no node of a replayed body is visited.
+    fn observes_replayed_references(&self) -> bool {
+        false
+    }
+    /// Rust-only (performance divergence): called for each reference added from the cached sites
+    /// of a function body, in the order `after_visit_node` would have received them.
+    fn after_replayed_reference(&mut self, _t: &mut NodeTraversal<'_>, _reference: &Reference) {}
     /// Rust-only (performance divergence): opt in for `InlineVariables` to skip unchanged clean
     /// leaf functions via `AbstractCompiler::inline_vars_clean_cache`.
     fn use_inline_vars_clean_cache(&self) -> bool {
@@ -1688,6 +1808,15 @@ impl<T: Behavior + ?Sized> Behavior for &mut T {
     }
     fn needs_variable(&mut self, compiler: &AbstractCompiler, var: VarId) -> bool {
         (**self).needs_variable(compiler, var)
+    }
+    fn can_reuse_function_reference_sites(&self) -> bool {
+        (**self).can_reuse_function_reference_sites()
+    }
+    fn observes_replayed_references(&self) -> bool {
+        (**self).observes_replayed_references()
+    }
+    fn after_replayed_reference(&mut self, t: &mut NodeTraversal<'_>, reference: &Reference) {
+        (**self).after_replayed_reference(t, reference);
     }
     fn before_traverse_node(
         &mut self,

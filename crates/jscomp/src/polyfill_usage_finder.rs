@@ -24,6 +24,7 @@ use crate::{
     compiler_options::LanguageMode,
     guarded_callback::{GuardedCallback, GuardedCallbackSubclass},
     node_traversal::NodeTraversal,
+    syntactic_scope_cache::SyntacticScopeCache,
 };
 use closure_parsing::parser::feature_set::{Feature, FeatureSet};
 use closure_resources::resources::resource_loader::ResourceLoader;
@@ -343,6 +344,32 @@ impl PolyfillUsage {
 /// consumers cannot capture it (DESIGN §6).
 pub type PolyfillConsumer<'a> = dyn FnMut(&mut AbstractCompiler, PolyfillUsage) + 'a;
 
+/// Rust-only (performance divergence): what `traverse_only_guarded_cached` found in the functions
+/// it traversed, kept by the caller between its traversals of a normalized tree.
+#[derive(Default)]
+pub(crate) struct GuardedPolyfillUsageCache {
+    /// `disambiguate_properties` and whether colors exist: both select the usages passed on.
+    environment: Option<(bool, bool)>,
+    functions: IndexMap<NodeId, GuardedFunctionUsages>,
+}
+
+/// The guarded usages in one function that the traversal reached with nothing guarded and no
+/// conditional linked (`GuardedCallbackSubclass::enter_function`), so that they depend on its
+/// subtree alone.
+struct GuardedFunctionUsages {
+    /// The function's change stamp when it was traversed.
+    stamp: u32,
+    /// Every function below it then, with its change stamp. A function is a change scope of its
+    /// own, and one added later changes the scope it is added to, which is one of these.
+    nested: Arc<[(NodeId, u32)]>,
+    /// The usages passed on, in order.
+    usages: Arc<[PolyfillUsage]>,
+}
+
+/// Where the caller keeps its `GuardedPolyfillUsageCache`.
+pub(crate) type GuardedPolyfillUsageCacheOf =
+    fn(&mut AbstractCompiler) -> &mut GuardedPolyfillUsageCache;
+
 pub struct PolyfillUsageFinder {
     polyfills: Arc<Polyfills>,
     disambiguate_properties: bool,
@@ -425,6 +452,33 @@ impl PolyfillUsageFinder {
         // In a normalized tree, checking a polyfill name never creates a scope.
         traverser.skip_unguardable_nodes =
             compiler.get_life_cycle_stage() == LifeCycleStage::NORMALIZED;
+        NodeTraversal::traverse(compiler, root, &mut traverser);
+    }
+
+    /// Rust-only (performance divergence): `traverse_only_guarded` for a normalized tree that is
+    /// traversed again and again (`RemoveUnusedCode`). A function whose subtree has not changed
+    /// since an earlier traversal, and that is reached with nothing guarded and no conditional
+    /// linked, is not traversed again: its usages are passed on from `cache`.
+    pub(crate) fn traverse_only_guarded_cached(
+        &self,
+        compiler: &mut AbstractCompiler,
+        root: NodeId,
+        cache: GuardedPolyfillUsageCacheOf,
+        polyfill_consumer: &mut PolyfillConsumer<'_>,
+    ) {
+        if compiler.get_life_cycle_stage() != LifeCycleStage::NORMALIZED {
+            self.traverse_only_guarded(compiler, root, polyfill_consumer);
+            return;
+        }
+        let environment = (self.disambiguate_properties, self.registry.is_some());
+        let kept = cache(compiler);
+        if kept.environment != Some(environment) {
+            kept.functions.clear();
+            kept.environment = Some(environment);
+        }
+        let mut traverser = Traverser::new(self, polyfill_consumer, Guard::ONLY_GUARDED);
+        traverser.skip_unguardable_nodes = true;
+        traverser.function_cache = Some(cache);
         NodeTraversal::traverse(compiler, root, &mut traverser);
     }
 
@@ -583,6 +637,19 @@ struct Traverser<'a, 'c> {
     // Whether to emit usages like Promise in `if (Promise) return Promise.resolve('ok');}`
     include_guarded_usages: Guard,
     skip_unguardable_nodes: bool,
+    /// Rust-only (performance divergence): set by `traverse_only_guarded_cached`.
+    function_cache: Option<GuardedPolyfillUsageCacheOf>,
+    /// The isolated functions being traversed, outermost first, each with the lengths of
+    /// `usage_log` and `function_log` when it was entered.
+    recording: Vec<(NodeId, usize, usize)>,
+    /// The usages passed on since the outermost function of `recording` was entered.
+    usage_log: Vec<PolyfillUsage>,
+    /// The functions reached since then, with their change stamps.
+    function_log: Vec<(NodeId, u32)>,
+    /// How many of the functions of `recording`, counted from the outermost, contain a usage
+    /// that was decided by the color of a node. A color is not part of a function's change
+    /// stamp, so what was found in these functions is not kept.
+    color_dependent: usize,
 }
 
 impl<'a, 'c> Traverser<'a, 'c> {
@@ -598,15 +665,28 @@ impl<'a, 'c> Traverser<'a, 'c> {
             polyfill_consumer,
             include_guarded_usages,
             skip_unguardable_nodes: false,
+            function_cache: None,
+            recording: Vec::new(),
+            usage_log: Vec::new(),
+            function_log: Vec::new(),
+            color_dependent: 0,
         }
+    }
+
+    /// Passes a usage on to the consumer (Java calls `polyfillConsumer.accept`).
+    fn accept(&mut self, compiler: &mut AbstractCompiler, usage: PolyfillUsage) {
+        if !self.recording.is_empty() {
+            self.usage_log.push(usage.clone());
+        }
+        (self.polyfill_consumer)(compiler, usage);
     }
 
     // port: PolyfillUsageFinder.Traverser#visitName
     fn visit_name(&mut self, traversal: &mut NodeTraversal<'_>, name_node: NodeId) {
         // Rust-only: the name is looked up in place and copied only for a polyfill
         // (performance divergence).
-        let Some(polyfill) = self
-            .outer
+        let outer = self.outer;
+        let Some(polyfill) = outer
             .polyfills
             .statics
             .get(name_node.get_string_ref(traversal))
@@ -616,12 +696,12 @@ impl<'a, 'c> Traverser<'a, 'c> {
         };
         let name = name_node.get_string(traversal);
 
-        if self.outer.is_polyfill_visible_in_scope(traversal, &name)
+        if outer.is_polyfill_visible_in_scope(traversal, &name)
             && self
                 .include_guarded_usages
                 .should_include(self.base.is_guarded(name.clone()))
         {
-            (self.polyfill_consumer)(
+            self.accept(
                 traversal.get_compiler(),
                 PolyfillUsage::create_non_explicit(polyfill.clone(), name_node, name),
             );
@@ -640,15 +720,15 @@ impl<'a, 'c> Traverser<'a, 'c> {
                 .include_guarded_usages
                 .should_include(self.is_guarded(static_polyfill_usage.name().clone()))
             {
-                (self.polyfill_consumer)(traversal.get_compiler(), static_polyfill_usage);
+                self.accept(traversal.get_compiler(), static_polyfill_usage);
             }
         } else {
             // We don't have a static polyfill usage, but this could still be a reference to one of
             // several possible method polyfills.
             // e.g. `obj.includes(x)` could be a usage of `Array.prototype.includes` or
             // `String.prototype.includes`.
-            let Some(methods) = self
-                .outer
+            let outer = self.outer;
+            let Some(methods) = outer
                 .polyfills
                 .methods
                 .get(get_prop_node.get_string_ref(traversal))
@@ -662,17 +742,19 @@ impl<'a, 'c> Traverser<'a, 'c> {
                 let property_name = get_prop_node.get_string(traversal);
                 for polyfill in &methods.definitions {
                     // The iterator test only applies to the exact owner "Iterator".
-                    if self.outer.disambiguate_properties
+                    if outer.disambiguate_properties
                         && polyfill.native_symbol.starts_with("Iterator.prototype.")
-                        && self.outer.is_disjoint_from_iterator(
+                    {
+                        self.color_dependent = self.recording.len();
+                        if outer.is_disjoint_from_iterator(
                             traversal,
                             get_prop_node,
                             Some("Iterator"),
-                        )
-                    {
-                        continue;
+                        ) {
+                            continue;
+                        }
                     }
-                    (self.polyfill_consumer)(
+                    self.accept(
                         traversal.get_compiler(),
                         PolyfillUsage::create_non_explicit(
                             polyfill.clone(),
@@ -709,6 +791,73 @@ impl GuardedCallbackSubclass for Traverser<'_, '_> {
             _ => {
                 // nothing to do
             }
+        }
+    }
+
+    fn enter_function(
+        &mut self,
+        traversal: &mut NodeTraversal<'_>,
+        function: NodeId,
+        isolated: bool,
+    ) -> bool {
+        let Some(cache) = self.function_cache else {
+            return false;
+        };
+        let compiler = traversal.get_compiler();
+        let stamp = SyntacticScopeCache::subtree_stamp(compiler, function);
+        if !self.recording.is_empty() {
+            self.function_log.push((function, stamp));
+        }
+        if !isolated {
+            return false;
+        }
+        let kept = cache(compiler)
+            .functions
+            .get(&function)
+            .filter(|kept| kept.stamp == stamp)
+            .map(|kept| (kept.nested.clone(), kept.usages.clone()));
+        if let Some((nested, usages)) = kept
+            && nested.iter().all(|&(nested_function, nested_stamp)| {
+                SyntacticScopeCache::cached_subtree_stamp(compiler, nested_function) == nested_stamp
+            })
+        {
+            if !self.recording.is_empty() {
+                self.function_log.extend_from_slice(&nested);
+            }
+            for usage in usages.iter() {
+                self.accept(compiler, usage.clone());
+            }
+            return true;
+        }
+        self.recording
+            .push((function, self.usage_log.len(), self.function_log.len()));
+        false
+    }
+
+    fn exit_function(&mut self, traversal: &mut NodeTraversal<'_>, function: NodeId) {
+        let Some(cache) = self.function_cache else {
+            return;
+        };
+        if self.recording.last().is_none_or(|&(f, _, _)| f != function) {
+            return;
+        }
+        let (_, usage_start, function_start) = self.recording.pop().unwrap();
+        let compiler = traversal.get_compiler();
+        if self.color_dependent > self.recording.len() {
+            // This function and the ones around it stay out of the cache.
+            self.color_dependent = self.recording.len();
+            cache(compiler).functions.swap_remove(&function);
+        } else {
+            let kept = GuardedFunctionUsages {
+                stamp: SyntacticScopeCache::cached_subtree_stamp(compiler, function),
+                nested: self.function_log[function_start..].into(),
+                usages: self.usage_log[usage_start..].into(),
+            };
+            cache(compiler).functions.insert(function, kept);
+        }
+        if self.recording.is_empty() {
+            self.usage_log.clear();
+            self.function_log.clear();
         }
     }
 }

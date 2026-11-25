@@ -1,0 +1,15 @@
+{
+ "argv": [
+  "--compilation_level=ADVANCED",
+  "--language_out=ECMASCRIPT_2015",
+  "--js",
+  "in.js",
+  "--js_output_file",
+  "out/out.js"
+ ],
+ "origin": "fz-6c8d10653090 (seed 7701): RemoveUnusedCode skipped an unchanged function through its cached summary although markPureFunctions had since marked a call in it as free of side effects, which makes a local removable; the summary's stamp ignored in-place flag changes",
+ "exit_code": 0,
+ "outputs": [
+  "out/out.js"
+ ]
+}

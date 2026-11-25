@@ -89,19 +89,27 @@ use std::{
 static USE_LEAF_CACHE: LazyLock<bool> =
     LazyLock::new(|| std::env::var("CLOSURE_RS_RUC_CACHE").as_deref() != Ok("off"));
 
+/// `CLOSURE_RS_RUC_CACHE=verify`: every cached collection of guarded polyfill usages is compared
+/// with a full traversal.
+static VERIFY_GUARD_CACHE: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("CLOSURE_RS_RUC_CACHE").as_deref() == Ok("verify"));
+
 const NO_LEAF: u32 = u32::MAX;
 
 /// Rust-only (performance divergence): deduplicated semantic summary of an unchanged function
 /// subtree for `RemoveUnusedCode`. Holds the outer-scope variable references (in first-seen
 /// order, with whether each marks the var not-removable), interned non-extern property IDs
 /// (`RemoveUnusedCodeCache::prop_universe`), polyfill preconditions, and nested function stamps.
+/// The stamps are `SyntacticScopeCache::subtree_stamp_with_flags`: whether a local is removable
+/// depends on the side-effect flags of the calls in the function too, and those are set in
+/// place, between two runs of the pass, without the function changing otherwise.
 struct LeafFunctionSummary {
-    stamp: u32,
+    stamp: (u32, u32),
     parent: Option<NodeId>,
     flags: u16,
     polyfill_mask: u128,
     required_used_polyfills: u128,
-    nested_stamps: Box<[(NodeId, u32)]>,
+    nested_stamps: Box<[(NodeId, (u32, u32))]>,
     outer_vars: Box<[(NodeId, bool)]>,
     pinned_props: Box<[u32]>,
     required_pinned_props: Box<[u32]>,
@@ -116,6 +124,8 @@ pub(crate) struct RemoveUnusedCodeCache {
     polyfill_universe: IndexSet<JsString>,
     prop_universe: IndexSet<JsString>,
     summaries: IndexMap<NodeId, Arc<LeafFunctionSummary>>,
+    /// The guarded polyfill usages of unchanged functions (`collect_guarded_usages`).
+    guarded_polyfill_usages: crate::polyfill_usage_finder::GuardedPolyfillUsageCache,
 }
 
 impl RemoveUnusedCodeCache {
@@ -164,13 +174,13 @@ impl RemoveUnusedCodeCache {
 struct LeafRecorder {
     function: NodeId,
     parent: Option<NodeId>,
-    start_stamp: u32,
+    start_stamp: (u32, u32),
     fparam_depth: i32,
     polyfill_mask: u128,
     required_used_polyfills: u128,
     aborted: bool,
     last_outer_var: Option<VarId>,
-    nested_stamps: Vec<(NodeId, u32)>,
+    nested_stamps: Vec<(NodeId, (u32, u32))>,
     outer_vars: Vec<(VarId, NodeId, bool)>,
     outer_vars_set: IndexSet<VarId>,
     pinned_props: Vec<JsString>,
@@ -841,11 +851,14 @@ impl RemoveUnusedCode {
             if rec.aborted {
                 continue;
             }
-            if SyntacticScopeCache::subtree_stamp(compiler, rec.function) != rec.start_stamp {
+            if SyntacticScopeCache::subtree_stamp_with_flags(compiler, rec.function)
+                != rec.start_stamp
+            {
                 continue;
             }
             if !rec.nested_stamps.iter().all(|&(nested_fn, nested_stamp)| {
-                SyntacticScopeCache::cached_subtree_stamp(compiler, nested_fn) == nested_stamp
+                SyntacticScopeCache::cached_subtree_stamp_with_flags(compiler, nested_fn)
+                    == nested_stamp
             }) {
                 continue;
             }
@@ -905,11 +918,36 @@ impl RemoveUnusedCode {
     }
 
     fn collect_guarded_usages(&mut self, compiler: &mut AbstractCompiler, root: NodeId) {
-        self.polyfill_usage_finder
-            .traverse_only_guarded(compiler, root, &mut |_, usage| {
-                // port: RemoveUnusedCode#storePolyfill
-                self.guarded_usages.insert(usage.node());
-            });
+        if !*USE_LEAF_CACHE {
+            self.polyfill_usage_finder
+                .traverse_only_guarded(compiler, root, &mut |_, usage| {
+                    // port: RemoveUnusedCode#storePolyfill
+                    self.guarded_usages.insert(usage.node());
+                });
+            return;
+        }
+        // Rust-only (performance divergence): the pass runs many times, and most functions do
+        // not change between two runs.
+        let mut found = Vec::new();
+        self.polyfill_usage_finder.traverse_only_guarded_cached(
+            compiler,
+            root,
+            |compiler| &mut compiler.remove_unused_code_cache.guarded_polyfill_usages,
+            &mut |_, usage| found.push(usage.node()),
+        );
+        if *VERIFY_GUARD_CACHE {
+            let mut expected = Vec::new();
+            self.polyfill_usage_finder
+                .traverse_only_guarded(compiler, root, &mut |_, usage| {
+                    expected.push(usage.node());
+                });
+            assert!(
+                found == expected,
+                "guarded polyfill usages from the cache differ from a full traversal"
+            );
+        }
+        // port: RemoveUnusedCode#storePolyfill
+        self.guarded_usages.extend(found);
     }
 
     fn is_guarded_polyfill_use(&mut self, compiler: &mut AbstractCompiler, n: NodeId) -> bool {
@@ -2606,12 +2644,13 @@ impl RemoveUnusedCode {
             && (self.current_polyfill_mask & !summary.polyfill_mask) == 0
             && (self.removable_polyfill_mask & summary.required_used_polyfills) == 0
             && summary.parent == function.get_parent(compiler)
-            && summary.stamp == SyntacticScopeCache::subtree_stamp(compiler, function)
+            && summary.stamp == SyntacticScopeCache::subtree_stamp_with_flags(compiler, function)
             && summary
                 .nested_stamps
                 .iter()
                 .all(|&(nested_fn, nested_stamp)| {
-                    SyntacticScopeCache::cached_subtree_stamp(compiler, nested_fn) == nested_stamp
+                    SyntacticScopeCache::cached_subtree_stamp_with_flags(compiler, nested_fn)
+                        == nested_stamp
                 })
             && summary
                 .required_pinned_props
@@ -2689,7 +2728,7 @@ impl RemoveUnusedCode {
             .create_scope(compiler, body, Some(fparam_scope));
 
         if self.can_use_leaf_cache && !self.polyfill_mask_overflow {
-            let start_stamp = SyntacticScopeCache::subtree_stamp(compiler, function);
+            let start_stamp = SyntacticScopeCache::subtree_stamp_with_flags(compiler, function);
             let rec_idx = self.leaf_recorders.len() as u32;
             self.leaf_recorders.push(LeafRecorder {
                 function,

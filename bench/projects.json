@@ -751,6 +751,80 @@
       ]
     },
     {
+      "name": "bundles-chunks",
+      "description": "The bundles of three-bundle, fabric-srcmap, d3-bundle and lodash-bundle compiled together as five dependent chunks, the way a project compiles the code-split output of its bundler: three.core.js is the chunk every other chunk depends on, and each chunk gets a source map of its own. ES2021 output.",
+      "sources": [],
+      "flags": [
+        "--language_in=ECMASCRIPT_NEXT",
+        "--language_out=ECMASCRIPT_2021",
+        "--module_resolution=NODE",
+        "--dependency_mode=PRUNE",
+        "--externs=bench/externs/webxr.js",
+        "--jscomp_off=visibility",
+        "--create_source_map=%outname%.map",
+        "--source_map_include_content",
+        "--source_map_input=bench-cache/fabric-srcmap/dist/index.mjs|bench-cache/fabric-srcmap/dist/index.mjs.map"
+      ],
+      "jobs": [
+        {
+          "name": "bundles-chunks",
+          "main_chunk": "three",
+          "entry_points": [
+            "bench/entries/three-bundle.js",
+            "bench/entries/fabric-srcmap.js",
+            "bench-cache/d3-bundle/dist/d3.js",
+            "bench-cache/lodash-bundle/lodash.js"
+          ],
+          "chunks": [
+            {
+              "name": "core",
+              "js": [
+                "bench-cache/three-bundle/build/three.core.js"
+              ]
+            },
+            {
+              "name": "three",
+              "js": [
+                "bench-cache/three-bundle/build/three.module.js",
+                "bench/entries/three-bundle.js"
+              ],
+              "deps": [
+                "core"
+              ]
+            },
+            {
+              "name": "fabric",
+              "js": [
+                "bench-cache/fabric-srcmap/dist/index.mjs",
+                "bench/entries/fabric-srcmap.js"
+              ],
+              "deps": [
+                "core"
+              ]
+            },
+            {
+              "name": "d3",
+              "js": [
+                "bench-cache/d3-bundle/dist/d3.js"
+              ],
+              "deps": [
+                "core"
+              ]
+            },
+            {
+              "name": "lodash",
+              "js": [
+                "bench-cache/lodash-bundle/lodash.js"
+              ],
+              "deps": [
+                "core"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "onlyoffice-cell",
       "description": "The ONLYOFFICE spreadsheet editor's browser SDK. Its upstream manifest orders 394 sources into two Closure chunks built with source maps and renaming reports.",
       "sources": [

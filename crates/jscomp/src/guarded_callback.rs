@@ -26,6 +26,7 @@ use crate::{
     abstract_compiler::AbstractCompiler, node_traversal::Callback, node_traversal::NodeTraversal,
     node_util::NodeUtil,
 };
+use closure_rhino::check_state;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::{
     node::{Ast, NodeId},
@@ -90,6 +91,25 @@ pub trait GuardedCallbackSubclass {
     fn is_guarded(&mut self, resource: Self::Resource) -> bool {
         self.guarded_callback().is_guarded(resource)
     }
+
+    /// Rust-only (performance divergence): called before a FUNCTION below the traversal root is
+    /// traversed. `isolated` means that no resource is guarded and no conditional is linked
+    /// here: what the traversal does inside the function then depends on the function's subtree
+    /// alone, and it leaves no guard behind. Only for an isolated function may this return true,
+    /// after doing itself what the traversal of the subtree would have done; the subtree is then
+    /// skipped.
+    fn enter_function(
+        &mut self,
+        _traversal: &mut NodeTraversal<'_>,
+        _function: NodeId,
+        _isolated: bool,
+    ) -> bool {
+        false
+    }
+
+    /// Rust-only (performance divergence): called after a FUNCTION that `enter_function` did not
+    /// skip has been traversed.
+    fn exit_function(&mut self, _traversal: &mut NodeTraversal<'_>, _function: NodeId) {}
 }
 
 impl<C: GuardedCallbackSubclass> Callback for C {
@@ -101,7 +121,16 @@ impl<C: GuardedCallbackSubclass> Callback for C {
         parent: Option<NodeId>,
     ) -> bool {
         self.guarded_callback()
-            .should_traverse(traversal.get_compiler(), n, parent)
+            .should_traverse(traversal.get_compiler(), n, parent);
+        if parent.is_some() && n.is_function(traversal) {
+            let isolated = self.guarded_callback().is_isolated();
+            if self.enter_function(traversal, n, isolated) {
+                check_state!(isolated);
+                self.guarded_callback().context_stack.pop();
+                return false;
+            }
+        }
+        true
     }
 
     // port: GuardedCallback#visit
@@ -111,6 +140,10 @@ impl<C: GuardedCallbackSubclass> Callback for C {
 
         // Finally continue on to whatever the traversal would normally do.
         self.visit_guarded(traversal, n, parent);
+
+        if parent.is_some() && n.is_function(traversal) {
+            self.exit_function(traversal, n);
+        }
 
         // After children have been traversed, pop the top of the conditional stack.
         self.guarded_callback().context_stack.pop();
@@ -252,6 +285,17 @@ impl<T: Clone + Eq + Hash> GuardedCallback<T> {
     }
 
     /// True if a resource lookup here could find or register a guard.
+    /// Rust-only (performance divergence): whether nothing outside the current node can guard a
+    /// resource used below it, and nothing below it can register a guard above it: no resource
+    /// is guarded now, and the node's context links to no conditional.
+    fn is_isolated(&self) -> bool {
+        self.guarded.is_empty()
+            && self
+                .context_stack
+                .last()
+                .is_some_and(|context| context.conditional.is_none())
+    }
+
     pub(crate) fn can_guard_any_resource(&self) -> bool {
         !self.guarded.is_empty() || self.context_stack.last().expect("context stack").safe
     }

@@ -24,7 +24,7 @@ use crate::basic_block::BasicBlock;
 use crate::node_traversal::has_traversal_handler;
 use crate::node_util::NodeUtil;
 use crate::syntactic_scope_cache::SyntacticScopeCache;
-use closure_rhino::fast_hash::IndexMap;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::token::Token;
@@ -36,6 +36,8 @@ const TAG_ENTER_BLOCK: u32 = 1 << TAG_SHIFT;
 const TAG_EXIT_BLOCK: u32 = 2 << TAG_SHIFT;
 const TAG_ENTER_EMPTY_SCOPE: u32 = 3 << TAG_SHIFT;
 const TAG_EXIT_EMPTY_SCOPE: u32 = 4 << TAG_SHIFT;
+const TAG_ENTER_SCOPE: u32 = 5 << TAG_SHIFT;
+const TAG_EXIT_SCOPE: u32 = 6 << TAG_SHIFT;
 const PAYLOAD_MASK: u32 = (1 << TAG_SHIFT) - 1;
 
 /// Compact 8-byte site record for cached reference-collection replay.
@@ -48,6 +50,9 @@ pub(super) enum SiteKind {
     ExitBlock(NodeId),
     EnterEmptyScope(NodeId),
     ExitEmptyScope,
+    /// A nested scope that declares `let`/`const` bindings.
+    EnterScope(NodeId),
+    ExitScope,
 }
 
 impl Site {
@@ -77,13 +82,25 @@ impl Site {
     }
 
     #[inline]
+    fn enter_scope(node: NodeId) -> Self {
+        Self(node, TAG_ENTER_SCOPE)
+    }
+
+    #[inline]
+    fn exit_scope(node: NodeId) -> Self {
+        Self(node, TAG_EXIT_SCOPE)
+    }
+
+    #[inline]
     pub(super) fn decode(self) -> SiteKind {
         match self.1 & !PAYLOAD_MASK {
             TAG_REFERENCE => SiteKind::Reference(self.0, self.1 & PAYLOAD_MASK),
             TAG_ENTER_BLOCK => SiteKind::EnterBlock(self.0),
             TAG_EXIT_BLOCK => SiteKind::ExitBlock(self.0),
             TAG_ENTER_EMPTY_SCOPE => SiteKind::EnterEmptyScope(self.0),
-            _ => SiteKind::ExitEmptyScope,
+            TAG_EXIT_EMPTY_SCOPE => SiteKind::ExitEmptyScope,
+            TAG_ENTER_SCOPE => SiteKind::EnterScope(self.0),
+            _ => SiteKind::ExitScope,
         }
     }
 }
@@ -92,6 +109,21 @@ pub(crate) struct FunctionBodySites {
     /// First occurrence of each spelling in the order in which the collector visits it.
     pub(crate) first_names: Box<[NodeId]>,
     pub(super) sites: Box<[Site]>,
+    /// Whether a scope nested in the body declares `let`/`const` bindings (`SiteKind::EnterScope`).
+    /// The names of such a body resolve in more than one scope, and the scopes that declare
+    /// bindings have exits a behavior acts on: only `collect_body_from_sites` handles that.
+    pub(crate) declares_in_nested_scopes: bool,
+}
+
+/// The innermost scope around a node of a function body.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Nested {
+    /// The scope of the body itself.
+    No,
+    /// A nested scope without bindings.
+    Empty,
+    /// A nested scope that declares `let`/`const` bindings.
+    Declaring,
 }
 
 impl FunctionBodySites {
@@ -100,22 +132,61 @@ impl FunctionBodySites {
         let mut sites = Vec::new();
         let mut child = body.get_first_child(ast);
         while let Some(n) = child {
-            if !Self::collect_node(ast, n, body, false, &mut names, &mut sites) {
+            if !Self::collect_node(ast, n, body, Nested::No, &mut names, &mut sites) {
                 return None;
             }
             child = n.get_next(ast);
         }
+        let declares_in_nested_scopes = sites
+            .iter()
+            .any(|site| matches!(site.decode(), SiteKind::EnterScope(_)));
         Some(Self {
             first_names: names.into_values().collect(),
             sites: sites.into_boxed_slice(),
+            declares_in_nested_scopes,
         })
+    }
+
+    /// Whether the scope rooted at `n` declares `let` or `const` bindings: as statements of a
+    /// block, in the head of a loop, or as statements of the cases of a switch. Classes and
+    /// function declarations end the collection of a body, so they need not be looked for.
+    fn declares_lexical_bindings(ast: &Ast, n: NodeId, token: Token) -> bool {
+        fn any_lexical(ast: &Ast, parent: NodeId) -> bool {
+            let mut child = parent.get_first_child(ast);
+            while let Some(c) = child {
+                if matches!(c.get_token(ast), Token::LET | Token::CONST) {
+                    return true;
+                }
+                child = c.get_next(ast);
+            }
+            false
+        }
+        match token {
+            Token::BLOCK => any_lexical(ast, n),
+            Token::FOR | Token::FOR_IN | Token::FOR_OF | Token::FOR_AWAIT_OF => n
+                .get_first_child(ast)
+                .is_some_and(|c| matches!(c.get_token(ast), Token::LET | Token::CONST)),
+            Token::SWITCH_BODY => {
+                let mut case = n.get_first_child(ast);
+                while let Some(c) = case {
+                    if c.get_last_child(ast)
+                        .is_some_and(|block| block.is_block(ast) && any_lexical(ast, block))
+                    {
+                        return true;
+                    }
+                    case = c.get_next(ast);
+                }
+                false
+            }
+            _ => false,
+        }
     }
 
     fn collect_node<'a>(
         ast: &'a Ast,
         n: NodeId,
         parent: NodeId,
-        in_nested_scope: bool,
+        nested: Nested,
         names: &mut IndexMap<&'a JsString, NodeId>,
         sites: &mut Vec<Site>,
     ) -> bool {
@@ -123,12 +194,12 @@ impl FunctionBodySites {
         if has_traversal_handler(token) || token == Token::CATCH {
             return false;
         }
-        if in_nested_scope
-            && matches!(
-                token,
-                Token::LET | Token::CONST | Token::IMPORT | Token::EXPORT
-            )
-        {
+        if nested != Nested::No && matches!(token, Token::IMPORT | Token::EXPORT) {
+            return false;
+        }
+        // A `let`/`const` in a nested scope belongs to the innermost scope, which was found to
+        // declare bindings when it was entered; anywhere else it is not understood here.
+        if nested == Nested::Empty && matches!(token, Token::LET | Token::CONST) {
             return false;
         }
         // Rust-only (performance divergence): nested BLOCK/FOR/SWITCH_BODY subtrees that declare
@@ -149,16 +220,25 @@ impl FunctionBodySites {
             | Token::SWITCH_BODY => true,
             _ => false,
         };
+        let declares = creates_scope && Self::declares_lexical_bindings(ast, n, token);
         let boundary = BasicBlock::is_block_boundary(ast, n, Some(parent));
         let start = sites.len();
         if boundary {
             sites.push(Site::enter_block(n));
         }
-        if creates_scope {
+        if declares {
+            sites.push(Site::enter_scope(n));
+        } else if creates_scope {
             sites.push(Site::enter_empty_scope(n));
         }
         let content_start = sites.len();
-        let child_nested = in_nested_scope || creates_scope;
+        let child_nested = if declares {
+            Nested::Declaring
+        } else if creates_scope {
+            Nested::Empty
+        } else {
+            nested
+        };
         let mut child = n.get_first_child(ast);
         while let Some(c) = child {
             if !Self::collect_node(ast, c, n, child_nested, names, sites) {
@@ -184,7 +264,9 @@ impl FunctionBodySites {
         if sites.len() == content_start {
             sites.truncate(start);
         } else {
-            if creates_scope {
+            if declares {
+                sites.push(Site::exit_scope(n));
+            } else if creates_scope {
                 sites.push(Site::exit_empty_scope(n));
             }
             if boundary {
@@ -223,11 +305,13 @@ impl FunctionBodySites {
                         out.push(Site::reference(node, new_slot).expect("remapped slot fits"));
                     }
                 }
-                SiteKind::EnterBlock(_) | SiteKind::EnterEmptyScope(_) => {
+                SiteKind::EnterBlock(_)
+                | SiteKind::EnterEmptyScope(_)
+                | SiteKind::EnterScope(_) => {
                     frames.push(out.len());
                     out.push(site);
                 }
-                SiteKind::ExitBlock(_) | SiteKind::ExitEmptyScope => {
+                SiteKind::ExitBlock(_) | SiteKind::ExitEmptyScope | SiteKind::ExitScope => {
                     let start = frames.pop().expect("balanced enter/exit frame");
                     if out.len() == start + 1 {
                         out.truncate(start);
@@ -252,6 +336,15 @@ impl FunctionReferenceCache {
         self.bodies
             .get(&body)
             .is_some_and(|(_, sites)| sites.is_some())
+    }
+
+    /// Whether `body` has cached sites and all its names resolve in the scope of the body itself.
+    pub(crate) fn has_single_scope_sites(&self, body: NodeId) -> bool {
+        self.bodies.get(&body).is_some_and(|(_, sites)| {
+            sites
+                .as_ref()
+                .is_some_and(|sites| !sites.declares_in_nested_scopes)
+        })
     }
 
     pub(crate) fn cached_sites_with_stamp(
@@ -308,8 +401,36 @@ impl FunctionReferenceCache {
             }
         }
 
+        // Without a second thread every body is collected when the traversal reaches it.
+        if crate::parallel_parse::parallel_thread_count(usize::MAX, 64, 8) < 2 {
+            return;
+        }
         let mut dirty = Vec::new();
-        collect_dirty(compiler, root, &mut dirty);
+        match SyntacticScopeCache::take_changed_functions(compiler) {
+            // Only a body in a changed function can be stale. A function made since the last call
+            // may be missing from the list; the traversal collects its body.
+            Some(changed) => {
+                let mut seen = IndexSet::<NodeId>::default();
+                for function in changed {
+                    if seen.insert(function)
+                        && let Some(body) = function.get_last_child(compiler)
+                        && body.is_block(compiler)
+                        && body.has_children(compiler)
+                    {
+                        let stamp = SyntacticScopeCache::subtree_stamp(compiler, body);
+                        let up_to_date = compiler
+                            .function_reference_sites
+                            .bodies
+                            .get(&body)
+                            .is_some_and(|(old_stamp, _)| *old_stamp == stamp);
+                        if !up_to_date {
+                            dirty.push((body, stamp));
+                        }
+                    }
+                }
+            }
+            None => collect_dirty(compiler, root, &mut dirty),
+        }
         let threads = crate::parallel_parse::parallel_thread_count(dirty.len(), 64, 8);
         if threads < 2 {
             return;
