@@ -738,6 +738,75 @@ mod tests {
         assert!(reported >= 5, "{reported}");
     }
 
+    /// AnalyzePrototypeProperties marks the names of the GETPROPs and class members of the
+    /// externs; for a `normalize_clean` script that is its `properties` summary. StrictModeCheck
+    /// finds nothing to report in such a script.
+    #[test]
+    fn clean_scripts_summarize_the_marked_extern_properties() {
+        use closure_rhino::node::NodeId;
+        fn marked(ast: &Ast, n: NodeId, names: &mut IndexSet<String>) {
+            for c in n.children(ast) {
+                marked(ast, c, names);
+            }
+            if matches!(
+                n.get_token(ast),
+                Token::GETPROP | Token::MEMBER_FUNCTION_DEF | Token::GETTER_DEF | Token::SETTER_DEF
+            ) {
+                names.insert(n.get_string_ref(ast).to_string_lossy());
+            }
+        }
+        let mut checked = 0;
+        for file in SourceFile::bundled_externs(Environment::BROWSER) {
+            file.set_kind(SourceKind::EXTERN);
+            let Some(summary) = file.bundled_script_summary() else {
+                continue;
+            };
+            if !summary.normalize_clean {
+                continue;
+            }
+            let file = Arc::new(file);
+            let code = file.read_source().unwrap();
+            let mut ast = Ast::new();
+            let root = ParserRunner::parse(
+                &mut ast,
+                file.clone(),
+                code.into_text(),
+                &extern_snapshot::CONFIG,
+                &mut AlwaysThrowsErrorReporter,
+            )
+            .ast
+            .unwrap();
+            let mut names = IndexSet::default();
+            marked(&ast, root, &mut names);
+            assert!(
+                names.iter().eq(summary.properties.iter()),
+                "{}",
+                file.get_name()
+            );
+            // StrictModeCheck reports nothing for such a script.
+            let mut nodes = vec![root];
+            while let Some(n) = nodes.pop() {
+                assert!(
+                    !matches!(
+                        n.get_token(&ast),
+                        Token::DELPROP | Token::WITH | Token::CLASS
+                    ) && !(n.is_object_lit(&ast) && n.has_children(&ast))
+                        && !(n.is_assign(&ast)
+                            && n.get_first_child(&ast).is_some_and(|lhs| {
+                                lhs.is_name(&ast)
+                                    && (lhs.get_string_ref(&ast) == "arguments"
+                                        || lhs.get_string_ref(&ast) == "eval")
+                            })),
+                    "{}",
+                    file.get_name()
+                );
+                nodes.extend(n.children(&ast));
+            }
+            checked += 1;
+        }
+        assert!(checked > 100, "{checked}");
+    }
+
     #[test]
     fn declarations_require_the_snapshot_loaded_for_this_script() {
         use crate::{

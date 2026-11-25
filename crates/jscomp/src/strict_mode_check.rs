@@ -275,6 +275,28 @@ impl Callback for StrictModeCheck {
         true
     }
 
+    /// Rust-only (performance divergence): Java visits every node of the bundled externs. An
+    /// unchanged `normalize_clean` bundled prefix holds no DELPROP, WITH or class, its object
+    /// literals are empty and no assignment in it targets the name `arguments` or `eval` (a test
+    /// checks this), so `visit` reports nothing there. Statements appended to the script are
+    /// visited.
+    fn should_traverse_script(
+        &mut self,
+        t: &mut NodeTraversal<'_>,
+        script: NodeId,
+        parent: Option<NodeId>,
+    ) -> bool {
+        if *crate::variable_reference_check::SKIP_BUNDLED_EXTERNS
+            && let Some((facts, first)) =
+                t.bundled_script_prefix(script, closure_rhino::node::SnapshotUse::SyntaxAndNames)
+            && facts.normalize_clean
+        {
+            t.traverse_script_suffix(script, parent, first, self);
+            return false;
+        }
+        true
+    }
+
     // port: StrictModeCheck#visit
     fn visit(&mut self, t: &mut NodeTraversal<'_>, n: NodeId, _parent: Option<NodeId>) {
         if n.is_assign(t) {
