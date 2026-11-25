@@ -1551,6 +1551,16 @@ impl<B: Behavior> Callback for CollectorCallback<'_, B> {
             }
         }
 
+        // Rust-only (performance divergence): a traversal that starts at a function (the jump to
+        // a hoisted function, `maybe_jump_to_hoisted_function`) has not looked up its input yet,
+        // and the shortcuts below are taken only with a known input. The lookup has no other
+        // effect; without an input the ordinary visitor reports it at the first name, as before.
+        if parent.is_none()
+            && n.is_function(node_traversal)
+            && node_traversal.get_scope_root().is_some()
+        {
+            let _ = node_traversal.get_input();
+        }
         if n.is_function(node_traversal)
             && (parent.is_some() || node_traversal.get_scope_root().is_some())
             && self.narrow_scope.is_none()
