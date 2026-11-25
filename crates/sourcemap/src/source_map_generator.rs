@@ -64,4 +64,10 @@ pub trait SourceMapGenerator {
     /// this ignore it.
     // port: SourceMapGenerator#setMergeIdenticalSegments
     fn set_merge_identical_segments(&mut self, _merge_identical_segments: bool) {}
+    /// Rust-only, not in Java (performance divergence): a copy of this generator in its current
+    /// state, so that the maps of several chunks can be built on worker threads from one
+    /// prepared generator (`Compiler::prepare_chunk_outputs`). `None`: it cannot be copied.
+    fn try_clone(&self) -> Option<Box<dyn SourceMapGenerator + Send>> {
+        None
+    }
 }

@@ -2382,17 +2382,7 @@ impl AbstractCommandLineRunner<closure_jscomp::compiler::Compiler, CompilerOptio
         if !self.is_output_in_json() {
             Self::maybe_create_dirs_for_path(filename);
         }
-        let basename = std::path::Path::new(filename)
-            .file_name()
-            .map(|n| n.to_string_lossy())
-            .unwrap_or_default();
-        let wrapper = self
-            .parsed_chunk_wrappers
-            .as_ref()
-            .unwrap()
-            .get(&chunk.get_name())
-            .unwrap()
-            .replace("%basename%", &basename);
+        let wrapper = self.chunk_wrapper(chunk, filename);
         self.write_compiler_output(
             out,
             license_tracker,
@@ -2403,6 +2393,80 @@ impl AbstractCommandLineRunner<closure_jscomp::compiler::Compiler, CompilerOptio
             filename,
         )
         .map_err(RunnerException::from)
+    }
+    /// Rust-only (performance divergence): `Compiler::prepare_chunk_outputs` for the chunks the
+    /// loop of `outputChunkBinaryAndSourceMaps` writes to files with normal output. `None`: the
+    /// loop computes every chunk itself.
+    fn prepare_chunk_outputs(
+        &mut self,
+        chunks: &[JSChunk],
+        tracker: &mut closure_jscomp::compiler_license_tracker::ChunkGraphAwareLicenseTracker,
+    ) -> Option<Vec<closure_jscomp::compiler::PreparedChunkOutput>> {
+        if self.is_output_in_json()
+            || self
+                .compiler
+                .as_ref()
+                .unwrap()
+                .get_options()
+                .get_output_js()
+                != closure_jscomp::compiler_options::OutputJs::NORMAL
+        {
+            return None;
+        }
+        let mut jobs = Vec::with_capacity(chunks.len());
+        for chunk in chunks {
+            if chunk.get_name() == JSChunk::WEAK_CHUNK_NAME {
+                continue;
+            }
+            // A file name the loop fails to get is reported there, after the chunks before it.
+            let file_name = self.get_chunk_output_file_name(&chunk.get_name()).ok()?;
+            let wrapper = self.chunk_wrapper(chunk, &file_name);
+            // What `writeOutput` gives `SourceMap#setWrapperPrefix`.
+            let wrapper_prefix = wrapper.find("%s").map(|pos| wrapper[..pos].into());
+            jobs.push(closure_jscomp::compiler::ChunkOutputJob {
+                chunk,
+                file_name,
+                wrapper_prefix,
+            });
+        }
+        self.compiler
+            .as_mut()
+            .unwrap()
+            .prepare_chunk_outputs(&jobs, tracker)
+    }
+    /// The wrapper `writeChunkOutput` writes around the code of `chunk` (parsed chunk wrappers
+    /// required).
+    fn chunk_wrapper(&self, chunk: &JSChunk, filename: &str) -> String {
+        let basename = std::path::Path::new(filename)
+            .file_name()
+            .map(|n| n.to_string_lossy())
+            .unwrap_or_default();
+        self.parsed_chunk_wrappers
+            .as_ref()
+            .unwrap()
+            .get(&chunk.get_name())
+            .unwrap()
+            .replace("%basename%", &basename)
+    }
+    /// Rust-only (performance divergence): `writeChunkOutput` for a chunk of
+    /// `Compiler::prepare_chunk_outputs`, whose code was computed ahead. The compiler's source
+    /// map gets the wrapper prefix only if it holds the chunk's mappings.
+    fn write_prepared_chunk_output(
+        &mut self,
+        filename: &str,
+        out: &mut dyn crate::java_io::JavaAppendable,
+        chunk: &JSChunk,
+        prepared: &mut closure_jscomp::compiler::PreparedChunkOutput,
+    ) -> Result<(), RunnerException> {
+        Self::maybe_create_dirs_for_path(filename);
+        let wrapper = self.chunk_wrapper(chunk, filename);
+        let mut compiler = self.compiler.take().unwrap();
+        let code = compiler.take_prepared_chunk_code(prepared);
+        let compiler_map = (!prepared.has_source_map()).then_some(&mut compiler);
+        let result =
+            self.write_output_code(out, compiler_map, &code, &wrapper, "%s", None, filename);
+        self.compiler = Some(compiler);
+        result.map_err(RunnerException::from)
     }
     // port: AbstractCommandLineRunner#outputSingleBinary
     pub fn output_single_binary(
@@ -2527,6 +2591,9 @@ impl AbstractCommandLineRunner<closure_jscomp::compiler::Compiler, CompilerOptio
             closure_jscomp::compiler_license_tracker::ChunkGraphAwareLicenseTracker::new(
                 self.compiler.as_ref().unwrap(),
             );
+        let mut prepared = self
+            .prepare_chunk_outputs(chunks, &mut tracker)
+            .map(Vec::into_iter);
         for chunk in chunks {
             if chunk.get_name() == JSChunk::WEAK_CHUNK_NAME {
                 continue;
@@ -2547,26 +2614,41 @@ impl AbstractCommandLineRunner<closure_jscomp::compiler::Compiler, CompilerOptio
                     .file_name_to_legacy_output_writer(Some(&filename))
                     .map_err(RunnerException::from)?
                     .unwrap();
-                if options.should_gather_source_map_info() {
+                let mut prepared_chunk = prepared.as_mut().map(|p| p.next().unwrap());
+                let prepared_map = prepared_chunk
+                    .as_ref()
+                    .is_some_and(closure_jscomp::compiler::PreparedChunkOutput::has_source_map);
+                if options.should_gather_source_map_info() && !prepared_map {
                     self.compiler
                         .as_mut()
                         .unwrap()
                         .reset_and_intitialize_source_map();
                 }
-                tracker.set_current_chunk_context(chunk.clone());
-                self.write_chunk_output(&filename, &mut out, &mut tracker, chunk)?;
+                if let Some(prepared_chunk) = &mut prepared_chunk {
+                    // The tracker was given the chunk when its code was assembled.
+                    self.write_prepared_chunk_output(&filename, &mut out, chunk, prepared_chunk)?;
+                } else {
+                    tracker.set_current_chunk_context(chunk.clone());
+                    self.write_chunk_output(&filename, &mut out, &mut tracker, chunk)?;
+                }
                 if options.should_gather_source_map_info() {
                     let out = map_file_out.as_mut().unwrap();
                     let mut writer = crate::java_io::StreamingFmtWriter::new(&mut **out);
-                    let fmt_res = self
-                        .compiler
-                        .as_ref()
-                        .unwrap()
-                        .get_source_map()
-                        .unwrap()
-                        .lock()
-                        .unwrap()
-                        .append_to(&mut writer, filename.as_str());
+                    let fmt_res = if prepared_map {
+                        prepared_chunk
+                            .as_mut()
+                            .unwrap()
+                            .write_source_map(&mut writer)
+                    } else {
+                        self.compiler
+                            .as_ref()
+                            .unwrap()
+                            .get_source_map()
+                            .unwrap()
+                            .lock()
+                            .unwrap()
+                            .append_to(&mut writer, filename.as_str())
+                    };
                     writer.finish().map_err(RunnerException::from)?;
                     fmt_res.map_err(RunnerException::from)?;
                 }

@@ -190,45 +190,89 @@ impl SourceFileMapping for Arc<CompilerSourceExcerptProvider> {
         line: i32,
         column: i32,
     ) -> Option<OriginalMapping> {
-        let consumer = match &cache.file {
-            Some((cached_name, consumer)) if cached_name == name => consumer.as_ref(),
-            _ => {
-                // The first node of a file: the lookup above, which parses the input map and
-                // reports its errors, then what it parsed for the next nodes.
-                let mapping = SourceFileMapping::get_source_mapping(self, name, line, column);
-                let consumer = self
-                    .input_source_maps
-                    .lock()
-                    .unwrap()
-                    .get(&name.to_string_lossy())
-                    .and_then(|map| map.get_cached_source_map().flatten());
-                cache.file = Some((name.clone(), consumer));
-                cache.resolved = None;
-                return mapping;
-            }
+        // The lookups below call `SourceExcerptProvider::get_source_mapping` with the name this
+        // cache converted, which is what `get_source_mapping` above does with the name it
+        // converted (and keeps in `last_mapping_name`, which all threads share).
+        let file = match cache.current {
+            Some(index) if cache.files.get_index(index).unwrap().0 == name => index,
+            _ => match cache.files.get_index_of(name) {
+                Some(index) => {
+                    cache.current = Some(index);
+                    index
+                }
+                None => {
+                    // The first node of a file: the lookup, which parses the input map and
+                    // reports its errors, then what it parsed for the next nodes.
+                    let rust_name = name.to_string_lossy();
+                    let mapping = SourceExcerptProvider::get_source_mapping(
+                        self.as_ref(),
+                        Some(&rust_name),
+                        line,
+                        column,
+                    );
+                    let consumer = self
+                        .input_source_maps
+                        .lock()
+                        .unwrap()
+                        .get(&rust_name)
+                        .and_then(|map| map.get_cached_source_map().flatten());
+                    let (index, _) = cache.files.insert_full(
+                        name.clone(),
+                        crate::source_file_mapping::FileMappingCache {
+                            name: rust_name,
+                            consumer,
+                            resolved: None,
+                            resolved_paths: Default::default(),
+                        },
+                    );
+                    cache.current = Some(index);
+                    return mapping;
+                }
+            },
         };
-        let consumer = consumer?;
+        let file = &mut cache.files[file];
+        let consumer = file.consumer.as_ref()?;
         let Some(result) = consumer.get_mapping_for_line(line, column.wrapping_add(1)) else {
             return Some(OriginalMapping::get_default_instance().clone());
         };
         let original_file = result.get_original_file();
-        let relative_path = match &cache.resolved {
+        let relative_path = match &file.resolved {
             Some((resolved_file, relative_path)) if *resolved_file == original_file => {
                 relative_path.clone()
             }
             _ => {
-                // The first node mapped to this original file: the lookup above resolves the
-                // path (and registers the original source), then what it resolved.
-                let mapping = SourceFileMapping::get_source_mapping(self, name, line, column);
-                let resolved = self.resolved_source_map.lock().unwrap();
-                cache.resolved = Some((
-                    resolved.source_map_path_js.clone(),
-                    resolved.relative_path_js.clone(),
-                ));
-                return mapping;
+                if let Some(relative_path) = file.resolved_paths.get(&original_file) {
+                    let relative_path = relative_path.clone();
+                    file.resolved = Some((original_file, relative_path.clone()));
+                    relative_path
+                } else {
+                    // The first node mapped to this original file: the lookup resolves the path
+                    // (and registers the original source), then what it resolved. The lookup
+                    // finds `result` again, with the path resolved for `original_file` (read from
+                    // the mapping, not from `resolved_source_map`, which a lookup on another
+                    // thread may have replaced in the meantime).
+                    let mapping = SourceExcerptProvider::get_source_mapping(
+                        self.as_ref(),
+                        Some(&file.name),
+                        line,
+                        column,
+                    );
+                    if let Some(mapping) = &mapping {
+                        let relative_path = mapping.get_original_file();
+                        file.resolved_paths
+                            .insert(original_file.clone(), relative_path.clone());
+                        file.resolved = Some((original_file, relative_path));
+                    }
+                    return mapping;
+                }
             }
         };
         Some(with_resolved_file(result, relative_path))
+    }
+    fn try_clone(&self) -> Option<Box<dyn SourceFileMapping + Send>> {
+        // Every lookup locks the state it shares (input maps, resolved paths, original sources)
+        // and gives the same result on any thread.
+        Some(Box::new(self.clone()))
     }
 }
 
