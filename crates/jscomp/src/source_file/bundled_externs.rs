@@ -690,6 +690,31 @@ mod tests {
     /// An externs update that breaks this fails here.
     #[test]
     fn variable_reference_check_reports_nothing_for_the_bundled_externs() {
+        // A report filtered by an @suppress tag still sets `hasErrors`, which is read only for a
+        // const var: the bundled externs declare none.
+        for file in SourceFile::bundled_externs(Environment::BROWSER) {
+            file.set_kind(SourceKind::EXTERN);
+            let file = Arc::new(file);
+            let code = file.read_source().unwrap();
+            let mut ast = Ast::new();
+            let root = ParserRunner::parse(
+                &mut ast,
+                file.clone(),
+                code.into_text(),
+                &extern_snapshot::CONFIG,
+                &mut AlwaysThrowsErrorReporter,
+            )
+            .ast
+            .unwrap();
+            assert!(
+                root.children(&ast).all(|statement| !matches!(
+                    statement.get_token(&ast),
+                    Token::LET | Token::CONST | Token::CLASS
+                )),
+                "{}",
+                file.get_name()
+            );
+        }
         let (diagnostics, skipped) = variable_reference_diagnostics("", "", false);
         assert_eq!(skipped, 0);
         assert_eq!(diagnostics, Vec::<String>::new());

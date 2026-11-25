@@ -491,8 +491,9 @@ struct ReferenceCheckingBehavior<'a> {
     /// externs, so `checkEarlyReference` passes them; the collector requires that no other script
     /// declares the var, so they are processed as they are for the bundled externs alone, where
     /// they report nothing (a test checks this with every diagnostic of this pass enabled). They
-    /// leave `hasErrors` false and the var declared, and the blocks they add are read only for
-    /// later declarations, of which there are none. Such a var is therefore checked with the
+    /// leave the var declared; `hasErrors` is read only for a const var, and the bundled externs
+    /// declare none (the same test checks this); the blocks they add are read only for later
+    /// declarations, of which there are none. Such a var is therefore checked with the
     /// references the collector saw, starting as declared.
     bundled_scripts: IndexSet<NodeId>,
 }
