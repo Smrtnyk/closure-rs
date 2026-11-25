@@ -40,14 +40,43 @@
 
 use crate::js_string::JsString;
 use std::fmt;
-#[derive(Debug, Clone, Eq)]
+use std::sync::{Mutex, OnceLock, PoisonError};
+#[derive(Clone, Eq)]
 pub struct InputId {
     id: String,
+    /// Rust-only: `key()`, computed on first use.
+    key: OnceLock<InputKey>,
 }
+
+/// Rust-only (performance divergence): a copyable stand-in for an `InputId` in records that keep
+/// one per entry (`Reference`). Two ids have the same key exactly when they are equal (Java's
+/// `InputId#equals`: the same name); the keys are numbered in a process-wide table of id names, so
+/// that copying one needs no reference count (Java shares the object).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct InputKey(u32);
+
 impl InputId {
     // port: InputId#InputId
     pub fn new(id: impl Into<String>) -> Self {
-        Self { id: id.into() }
+        Self {
+            id: id.into(),
+            key: OnceLock::new(),
+        }
+    }
+
+    /// Rust-only: the key of this id (see `InputKey`).
+    #[inline]
+    pub fn key(&self) -> InputKey {
+        *self.key.get_or_init(|| {
+            static NAMES: Mutex<Option<crate::fast_hash::IndexSet<String>>> = Mutex::new(None);
+            let mut names = NAMES.lock().unwrap_or_else(PoisonError::into_inner);
+            let names = names.get_or_insert_with(Default::default);
+            let index = match names.get_index_of(self.id.as_str()) {
+                Some(index) => index,
+                None => names.insert_full(self.id.clone()).0,
+            };
+            InputKey(u32::try_from(index).expect("fewer than 2^32 input names"))
+        })
     }
     // port: InputId#getIdName
     pub fn get_id_name(&self) -> &str {
@@ -62,6 +91,11 @@ impl PartialEq for InputId {
     // port: InputId#equals
     fn eq(&self, obj: &Self) -> bool {
         std::ptr::eq(self, obj) || self.id == obj.id
+    }
+}
+impl fmt::Debug for InputId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("InputId").field("id", &self.id).finish()
     }
 }
 impl fmt::Display for InputId {

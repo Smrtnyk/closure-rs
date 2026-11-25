@@ -334,14 +334,16 @@ impl ExtractPrototypeMemberDeclarations {
         );
 
         name.copy_type_from(compiler, lhs);
-        if name.get_color(compiler).is_some() && lhs.is_color_from_type_cast(compiler) {
+        if name.get_color_ref(compiler).is_some() && lhs.is_color_from_type_cast(compiler) {
             name.set_color_from_type_cast(compiler);
         }
 
         let receiver = lhs.get_first_child(compiler).unwrap();
         let alias_node = name.get_first_child(compiler).unwrap();
         alias_node.copy_type_from(compiler, receiver);
-        if alias_node.get_color(compiler).is_some() && receiver.is_color_from_type_cast(compiler) {
+        if alias_node.get_color_ref(compiler).is_some()
+            && receiver.is_color_from_type_cast(compiler)
+        {
             alias_node.set_color_from_type_cast(compiler);
         }
 

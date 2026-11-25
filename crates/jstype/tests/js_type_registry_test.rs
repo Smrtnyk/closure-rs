@@ -399,14 +399,14 @@ impl StaticTypedScope for TestScope {
         self.parent.as_deref()
     }
     // port: JSTypeRegistryTest#getSlot
-    fn get_slot(&self, name: &JsString) -> Option<&dyn StaticTypedSlot> {
+    fn get_slot(&self, _reg: &JSTypeRegistry, name: &JsString) -> Option<&dyn StaticTypedSlot> {
         self.slots
             .get()
             .and_then(|slots| slots.get(name))
             .map(|s| s as &dyn StaticTypedSlot)
     }
-    fn get_own_slot(&self, name: &JsString) -> Option<&dyn StaticTypedSlot> {
-        self.get_slot(name)
+    fn get_own_slot(&self, reg: &JSTypeRegistry, name: &JsString) -> Option<&dyn StaticTypedSlot> {
+        self.get_slot(reg, name)
     }
     fn get_type_of_this(&self, _reg: &JSTypeRegistry, _ast: &Ast) -> Option<TypeId> {
         None

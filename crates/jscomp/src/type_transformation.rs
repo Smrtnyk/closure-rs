@@ -152,7 +152,7 @@ impl TypeTransformation {
         if type_.is_some() {
             return type_;
         }
-        let slot = self.type_env.get_slot(type_name);
+        let slot = self.type_env.get_slot(registry, type_name);
         let type_ = slot.and_then(|slot| slot.get_type(registry));
         if let Some(type_) = type_ {
             if type_.is_constructor(registry) || type_.is_interface(registry) {
@@ -1122,7 +1122,7 @@ impl TypeTransformation {
             .get_string(compiler);
         let type_ = {
             let registry = compiler.get_type_registry();
-            let slot = self.type_env.get_slot(&name);
+            let slot = self.type_env.get_slot(registry, &name);
             slot.and_then(|slot| slot.get_type(registry))
         };
         let Some(type_) = type_ else {

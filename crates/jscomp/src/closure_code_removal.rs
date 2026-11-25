@@ -222,7 +222,7 @@ impl Callback for FindAssertionCalls {
             .assertion_names
             .lookup_by_callee_with_optional_registry(ast, registry.as_deref(), callee)
             .is_some() // type-based
-            || callee.get_color(ast).is_some_and(|c| c.is_closure_assert())
+            || callee.get_color_ref(ast).is_some_and(|c| c.is_closure_assert())
         {
             // color-based
             self.assertion_calls.push(n);

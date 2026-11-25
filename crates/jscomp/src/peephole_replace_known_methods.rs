@@ -579,8 +579,8 @@ impl PeepholeReplaceKnownMethods {
             && let Some(first_arg) = first_arg
             && (is_string_literal
                 || string_node
-                    .get_color(compiler)
-                    .is_some_and(|c| c == *standard_colors::STRING))
+                    .get_color_ref(compiler)
+                    .is_some_and(|c| *c == *standard_colors::STRING))
             && subtree.has_x_children(compiler, 3)
         {
             let maybe_start = self.get_side_effect_free_number_value(compiler, first_arg);

@@ -1123,8 +1123,8 @@ impl PeepholeFoldConstants {
         }
         if self.should_use_types {
             return n
-                .get_color(compiler)
-                .is_some_and(|color| color == *StandardColors::NUMBER);
+                .get_color_ref(compiler)
+                .is_some_and(|color| *color == *StandardColors::NUMBER);
         }
         false
     }
@@ -1136,8 +1136,8 @@ impl PeepholeFoldConstants {
         }
         if self.should_use_types {
             return n
-                .get_color(compiler)
-                .is_some_and(|color| color == *StandardColors::BIGINT);
+                .get_color_ref(compiler)
+                .is_some_and(|color| *color == *StandardColors::BIGINT);
         }
         false
     }
@@ -1571,8 +1571,8 @@ impl PeepholeFoldConstants {
         }
         if self.should_use_types {
             return n
-                .get_color(compiler)
-                .is_some_and(|color| color == *StandardColors::STRING);
+                .get_color_ref(compiler)
+                .is_some_and(|color| *color == *StandardColors::STRING);
         }
         false
     }

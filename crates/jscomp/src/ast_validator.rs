@@ -975,7 +975,7 @@ impl<C: ValidatorTarget + ?Sized> ValidatorRunner<'_, C> {
                 }
             }
             TypeInfoValidation::COLOR => {
-                if n.get_color(compiler).is_none() {
+                if n.get_color_ref(compiler).is_none() {
                     let statement = NodeUtil::get_enclosing_statement(compiler, n).unwrap();
                     let message = format!(
                         "Color information missing\n{}",

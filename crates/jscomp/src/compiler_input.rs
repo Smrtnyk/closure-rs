@@ -25,7 +25,7 @@ use crate::{
         module_loader::ModulePath,
         simple_dependency_info::SimpleDependencyInfo,
     },
-    js_chunk::{JSChunk, JSChunkData},
+    js_chunk::{JSChunk, JSChunkFields},
     js_error::JSError,
     source_file::SourceFile,
 };
@@ -64,7 +64,7 @@ impl std::ops::Deref for CompilerInput {
 }
 #[derive(Default)]
 pub(crate) struct CompilerInputData {
-    chunk: Option<Weak<Mutex<JSChunkData>>>,
+    chunk: Option<Weak<JSChunkFields>>,
     ast: JsAst,
     dependency_info: Option<SimpleDependencyInfo>,
     lazy_load_flags: Option<IndexMap<String, String>>,

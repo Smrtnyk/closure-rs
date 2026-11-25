@@ -275,20 +275,25 @@ impl VarCheck {
             return;
         }
 
-        let curr_input: Option<CompilerInput> = t.get_input().cloned();
-        let var_input: Option<CompilerInput> = var.get_input(t.get_compiler());
-        let (Some(curr_input), Some(var_input)) = (curr_input, var_input) else {
-            // The variable was defined in the same file. This is fine.
-            return;
+        // Rust-only (performance divergence): both inputs are compared in place, and the current
+        // input's chunk is the traversal's cached one, instead of copying them (Java compares the
+        // objects and reads the chunk field).
+        let var_chunk = {
+            let (curr_input, compiler) = t.get_input_and_compiler();
+            let var_input = var.input_ref(compiler);
+            let (Some(curr_input), Some(var_input)) = (curr_input, var_input) else {
+                // The variable was defined in the same file. This is fine.
+                return;
+            };
+            if curr_input == var_input {
+                // The variable was defined in the same file. This is fine.
+                return;
+            }
+            var_input.get_chunk()
         };
-        if curr_input == var_input {
-            // The variable was defined in the same file. This is fine.
-            return;
-        }
 
         // Check chunk dependencies.
-        let curr_chunk = curr_input.get_chunk();
-        let var_chunk = var_input.get_chunk();
+        let curr_chunk = t.get_compiler_and_chunk().1.cloned();
         if !self.validity_check
             && var_chunk != curr_chunk
             && let (Some(var_chunk), Some(curr_chunk)) = (var_chunk, curr_chunk)

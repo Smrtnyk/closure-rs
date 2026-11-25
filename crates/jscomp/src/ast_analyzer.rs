@@ -330,9 +330,10 @@ impl AstAnalyzer {
         }
 
         if self.use_types_for_local_optimization {
-            let color = n.get_color(ast);
+            // Rust-only: the color is inspected in place (performance divergence).
+            let color = n.get_color_ref(ast);
             if let Some(color) = color {
-                return color == *standard_colors::STRING;
+                return *color == *standard_colors::STRING;
             }
             let type_ = n.get_jstype(ast);
             if let Some(type_) = type_ {

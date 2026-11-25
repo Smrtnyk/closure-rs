@@ -49,7 +49,7 @@ use crate::node_util::NodeUtil;
 use crate::process_closure_provides_and_requires::{
     ProcessClosureProvidesAndRequires, ProvidedName,
 };
-use crate::scope::as_static_scope;
+use crate::scope::with_static_scope;
 use crate::scope_creator::ASSERT_NO_SCOPES_CREATED;
 use crate::scoped_name::{ScopedName, Simple};
 use crate::source_file::declarations::{self, Declaration, DocSite};
@@ -6309,34 +6309,34 @@ impl IdentifyEnumsAndTypedefsAsNonNullable {
             let scope = t.get_scope();
             let qualified_name = name_node.get_qualified_name(t).unwrap();
             let compiler = t.get_compiler();
-            let scope = as_static_scope(compiler, scope);
-            let (reg, ast) = compiler.get_type_registry_and_ast();
-            reg.identify_non_nullable_name(ast, Some(&*scope), qualified_name);
+            with_static_scope(compiler, scope, |reg, ast, scope| {
+                reg.identify_non_nullable_name(ast, Some(scope), qualified_name);
+            });
         } else if info.is_some() && info.unwrap().has_typedef_type() {
             let scope = t.get_scope();
             let qualified_name = name_node.get_qualified_name(t).unwrap();
             let compiler = t.get_compiler();
-            let scope = as_static_scope(compiler, scope);
-            let (reg, ast) = compiler.get_type_registry_and_ast();
-            reg.identify_non_nullable_name(ast, Some(&*scope), qualified_name);
+            with_static_scope(compiler, scope, |reg, ast, scope| {
+                reg.identify_non_nullable_name(ast, Some(scope), qualified_name);
+            });
         } else if rvalue.is_some()
             && rvalue.unwrap().is_qualified_name(t)
             && {
                 let scope = t.get_scope();
                 let rvalue_name = rvalue.unwrap().get_qualified_name(t).unwrap();
                 let compiler = t.get_compiler();
-                let scope = as_static_scope(compiler, scope);
-                let (reg, ast) = compiler.get_type_registry_and_ast();
-                reg.is_non_nullable_name(ast, Some(&*scope), rvalue_name)
+                with_static_scope(compiler, scope, |reg, ast, scope| {
+                    reg.is_non_nullable_name(ast, Some(scope), rvalue_name)
+                })
             }
             && NodeUtil::is_constant_declaration(t, info, name_node)
         {
             let scope = t.get_scope();
             let qualified_name = name_node.get_qualified_name(t).unwrap();
             let compiler = t.get_compiler();
-            let scope = as_static_scope(compiler, scope);
-            let (reg, ast) = compiler.get_type_registry_and_ast();
-            reg.identify_non_nullable_name(ast, Some(&*scope), qualified_name);
+            with_static_scope(compiler, scope, |reg, ast, scope| {
+                reg.identify_non_nullable_name(ast, Some(scope), qualified_name);
+            });
         }
     }
 }

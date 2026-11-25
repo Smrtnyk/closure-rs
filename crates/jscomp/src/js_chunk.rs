@@ -24,36 +24,51 @@ use std::{
     collections::VecDeque,
     fmt,
     hash::{Hash, Hasher},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicI32, Ordering},
+    },
 };
 
 pub const STRONG_CHUNK_NAME: &str = "$strong$";
 pub const WEAK_CHUNK_NAME: &str = "$weak$";
 #[derive(Clone)]
-pub struct JSChunk(pub(crate) Arc<Mutex<JSChunkData>>);
-pub(crate) struct JSChunkData {
+pub struct JSChunk(pub(crate) Arc<JSChunkFields>);
+/// Rust-only (performance divergence): the final `name` and the `depth` and `index` that the
+/// chunk graph sets once are kept outside the lock of the mutable fields, so their readers
+/// (`getName`, `isWeak`, `getIndex`, `getDepth`) take no lock (Java reads the object's fields).
+pub(crate) struct JSChunkFields {
     name: String,
+    depth: AtomicI32,
+    index: AtomicI32,
+    data: Mutex<JSChunkData>,
+}
+pub(crate) struct JSChunkData {
     inputs: IndexMap<String, CompilerInput>,
     deps: Vec<JSChunk>,
-    depth: i32,
-    index: i32,
 }
 impl JSChunk {
     pub const STRONG_CHUNK_NAME: &'static str = STRONG_CHUNK_NAME;
     pub const WEAK_CHUNK_NAME: &'static str = WEAK_CHUNK_NAME;
     // port: JSChunk#JSChunk
     pub fn new(name: impl Into<String>) -> Self {
-        Self(Arc::new(Mutex::new(JSChunkData {
+        Self(Arc::new(JSChunkFields {
             name: name.into(),
-            inputs: IndexMap::<_, _>::default(),
-            deps: Vec::new(),
-            depth: -1,
-            index: -1,
-        })))
+            depth: AtomicI32::new(-1),
+            index: AtomicI32::new(-1),
+            data: Mutex::new(JSChunkData {
+                inputs: IndexMap::<_, _>::default(),
+                deps: Vec::new(),
+            }),
+        }))
     }
     // port: JSChunk#getName
     pub fn get_name(&self) -> String {
-        self.0.lock().unwrap().name.clone()
+        self.0.name.clone()
+    }
+    /// Rust-only: `getName` without copying the name (performance divergence).
+    pub fn name_ref(&self) -> &str {
+        &self.0.name
     }
     // port: JSChunk#getProvides
     pub fn get_provides(&self) -> Vec<String> {
@@ -96,6 +111,7 @@ impl JSChunk {
         let input_name = input.get_name().to_owned();
         let previous = self
             .0
+            .data
             .lock()
             .unwrap()
             .inputs
@@ -111,23 +127,28 @@ impl JSChunk {
     // port: JSChunk#addDependency
     pub fn add_dependency(&self, dep: &Self) {
         assert!(dep != self, "Cannot add dependency on self ({self})");
-        self.0.lock().unwrap().deps.push(dep.clone());
+        self.0.data.lock().unwrap().deps.push(dep.clone());
     }
     // port: JSChunk#remove
     pub fn remove(&self, input: &CompilerInput) {
         input.set_chunk(None);
-        self.0.lock().unwrap().inputs.shift_remove(input.get_name());
+        self.0
+            .data
+            .lock()
+            .unwrap()
+            .inputs
+            .shift_remove(input.get_name());
     }
     // port: JSChunk#removeAll
     pub fn remove_all(&self) {
         for input in self.get_inputs() {
             input.set_chunk(None);
         }
-        self.0.lock().unwrap().inputs.clear();
+        self.0.data.lock().unwrap().inputs.clear();
     }
     // port: JSChunk#getDependencies
     pub fn get_dependencies(&self) -> Vec<Self> {
-        self.0.lock().unwrap().deps.clone()
+        self.0.data.lock().unwrap().deps.clone()
     }
     // port: JSChunk#getSortedDependencyNames
     pub fn get_sorted_dependency_names(&self) -> Vec<String> {
@@ -157,15 +178,30 @@ impl JSChunk {
     }
     // port: JSChunk#getInputCount
     pub fn get_input_count(&self) -> usize {
-        self.0.lock().unwrap().inputs.len()
+        self.0.data.lock().unwrap().inputs.len()
     }
     // port: JSChunk#getFirst
     pub fn get_first(&self) -> CompilerInput {
-        self.0.lock().unwrap().inputs.first().unwrap().1.clone()
+        self.0
+            .data
+            .lock()
+            .unwrap()
+            .inputs
+            .first()
+            .unwrap()
+            .1
+            .clone()
     }
     // port: JSChunk#getInputs
     pub fn get_inputs(&self) -> Vec<CompilerInput> {
-        self.0.lock().unwrap().inputs.values().cloned().collect()
+        self.0
+            .data
+            .lock()
+            .unwrap()
+            .inputs
+            .values()
+            .cloned()
+            .collect()
     }
     // port: JSChunk#getInputsIterable
     pub fn get_inputs_iterable(&self) -> impl Iterator<Item = CompilerInput> {
@@ -173,40 +209,43 @@ impl JSChunk {
     }
     // port: JSChunk#getByName
     pub fn get_by_name(&self, name: &str) -> Option<CompilerInput> {
-        self.0.lock().unwrap().inputs.get(name).cloned()
+        self.0.data.lock().unwrap().inputs.get(name).cloned()
     }
     // port: JSChunk#removeByName
     pub fn remove_by_name(&self, name: &str) -> bool {
-        self.0.lock().unwrap().inputs.shift_remove(name).is_some()
+        self.0
+            .data
+            .lock()
+            .unwrap()
+            .inputs
+            .shift_remove(name)
+            .is_some()
     }
     // port: JSChunk#isSynthetic
     pub fn is_synthetic(&self) -> bool {
-        matches!(
-            self.get_name().as_str(),
-            STRONG_CHUNK_NAME | WEAK_CHUNK_NAME
-        )
+        matches!(self.name_ref(), STRONG_CHUNK_NAME | WEAK_CHUNK_NAME)
     }
     // port: JSChunk#isWeak
     pub fn is_weak(&self) -> bool {
-        self.get_name() == WEAK_CHUNK_NAME
+        self.name_ref() == WEAK_CHUNK_NAME
     }
     // port: JSChunk#setDepth
     pub fn set_depth(&self, dep: i32) {
         assert!(dep >= 0, "invalid depth: {dep}");
-        self.0.lock().unwrap().depth = dep;
+        self.0.depth.store(dep, Ordering::Release);
     }
     // port: JSChunk#getDepth
     pub fn get_depth(&self) -> i32 {
-        self.0.lock().unwrap().depth
+        self.0.depth.load(Ordering::Acquire)
     }
     // port: JSChunk#setIndex
     pub fn set_index(&self, index: i32) {
         assert!(index >= 0, "Invalid chunk index: {index}");
-        self.0.lock().unwrap().index = index;
+        self.0.index.store(index, Ordering::Release);
     }
     // port: JSChunk#getIndex
     pub fn get_index(&self) -> i32 {
-        self.0.lock().unwrap().index
+        self.0.index.load(Ordering::Acquire)
     }
 }
 impl PartialEq for JSChunk {
@@ -228,7 +267,7 @@ impl fmt::Debug for JSChunk {
 impl fmt::Display for JSChunk {
     // port: JSChunk#toString
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.get_name())
+        f.write_str(self.name_ref())
     }
 }
 impl JSChunk {
@@ -251,7 +290,7 @@ impl JSChunk {
                 .map(|input| input.dependency_snapshot(compiler))
                 .collect(),
         );
-        let mut data = self.0.lock().unwrap();
+        let mut data = self.0.data.lock().unwrap();
         data.inputs.clear();
         for input in sorted.get_sorted_list() {
             data.inputs

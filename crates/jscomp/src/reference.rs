@@ -25,12 +25,11 @@ use crate::node_traversal::NodeTraversal;
 use crate::node_util::NodeUtil;
 use crate::scope::ScopeId;
 use crate::var::VarId;
-use closure_rhino::input_id::InputId;
+use closure_rhino::input_id::InputKey;
 use closure_rhino::node::{Ast, NodeId};
 use closure_rhino::static_source_file::StaticSourceFile;
 use closure_rhino::token::Token;
 use std::rc::Rc;
-use std::sync::Arc;
 
 /// Represents a single declaration or reference to a variable. Note that references can only be
 /// used with untyped scopes and traversals.
@@ -42,7 +41,9 @@ pub struct Reference {
     name_node: NodeId,
     basic_block: Option<Rc<BasicBlock>>,
     scope: Option<ScopeId>,
-    input_id: Arc<InputId>,
+    /// Rust-only (performance divergence): the key of Java's `inputId` (equal exactly when the ids
+    /// are equal), copied instead of sharing the id's reference count per reference.
+    input_id: InputKey,
 }
 
 // Favor EnumSet over ImmutableSet for performance
@@ -69,8 +70,8 @@ impl Reference {
         basic_block: Rc<BasicBlock>,
         scope: ScopeId,
     ) -> Self {
-        // Java: t.getInput().getInputId(); the id is shared instead of copied per reference.
-        let input_id = t.get_input_id_of_input().expect("NodeTraversal#getInput");
+        // Java: t.getInput().getInputId(); the reference keeps the id's key.
+        let input_id = t.get_input_key_of_input().expect("NodeTraversal#getInput");
         Self::new_private(name_node, Some(basic_block), Some(scope), input_id)
     }
 
@@ -79,7 +80,7 @@ impl Reference {
         name_node: NodeId,
         basic_block: Option<Rc<BasicBlock>>,
         scope: Option<ScopeId>,
-        input_id: Arc<InputId>,
+        input_id: InputKey,
     ) -> Self {
         Self {
             name_node,
@@ -101,7 +102,7 @@ impl Reference {
             ast.new_node(Token::NAME),
             None,
             None,
-            Arc::new(input.get_input_id().clone()),
+            input.get_input_id().key(),
         )
     }
 
@@ -112,7 +113,7 @@ impl Reference {
             self.name_node,
             self.basic_block.clone(),
             Some(new_scope),
-            self.input_id.clone(),
+            self.input_id,
         )
     }
 
@@ -130,12 +131,13 @@ impl Reference {
     }
 
     // port: Reference#getInputId
-    pub fn get_input_id(&self) -> &Arc<InputId> {
-        &self.input_id
+    /// Rust-only: Java returns the `InputId`; its key compares the same (see `InputKey`).
+    pub fn get_input_id(&self) -> InputKey {
+        self.input_id
     }
 
     // port: Reference#getSourceFile
-    pub fn get_source_file(&self, ast: &Ast) -> Option<Arc<dyn StaticSourceFile>> {
+    pub fn get_source_file(&self, ast: &Ast) -> Option<std::sync::Arc<dyn StaticSourceFile>> {
         self.name_node.get_static_source_file(ast)
     }
 

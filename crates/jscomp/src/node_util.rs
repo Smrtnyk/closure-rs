@@ -1490,13 +1490,14 @@ impl NodeUtil {
     ) -> bool {
         use crate::colors::standard_colors as StandardColors;
         if use_type {
-            if let Some(color) = n.get_color(ast) {
-                if color == *StandardColors::STRING {
+            // Rust-only: the color is inspected in place (performance divergence).
+            if let Some(color) = n.get_color_ref(ast) {
+                if *color == *StandardColors::STRING {
                     return true;
-                } else if color == *StandardColors::NUMBER
-                    || color == *StandardColors::BIGINT
-                    || color == *StandardColors::BOOLEAN
-                    || color == *StandardColors::NULL_OR_VOID
+                } else if *color == *StandardColors::NUMBER
+                    || *color == *StandardColors::BIGINT
+                    || *color == *StandardColors::BOOLEAN
+                    || *color == *StandardColors::NULL_OR_VOID
                 {
                     return false;
                 }

@@ -52,7 +52,7 @@ use crate::{
     transpilation_util,
     typed_scope::TypedScope,
 };
-use closure_jstype::{TypeId, js_type_native::JSTypeNative, static_typed_scope::StaticTypedScope};
+use closure_jstype::{TypeId, js_type_native::JSTypeNative};
 use closure_parsing::parser::feature_set::Feature;
 use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::node::SnapshotUse;
@@ -1005,7 +1005,7 @@ impl Es6RewriteModules {
         // If this if the first import that mentions importedFilePath then we need to create a
         // SCRIPT node for the imported file.
         if preprocessor_symbol_table
-            .get_slot(&JsString::from(imported_file_path))
+            .get_symbol_slot(&JsString::from(imported_file_path))
             .is_none()
         {
             let script_node = compiler.get_script_node(imported_file_path);
@@ -1418,7 +1418,6 @@ impl<'a> RenameGlobalVars<'a> {
             mask |= Self::name_bit(name);
             self.candidate_names.insert(name.clone());
         }
-        drop(data);
         for name in bound_names.keys() {
             mask |= Self::name_bit(name);
             self.candidate_names.insert(name.clone());

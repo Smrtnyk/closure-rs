@@ -130,7 +130,10 @@ impl CrossChunkMethodMotion {
                 continue;
             }
 
-            let Some(deepest_common_chunk_ref) = info.get_deepest_common_chunk_ref() else {
+            let Some(deepest_common_chunk_ref) = info
+                .get_deepest_common_chunk_ref(compiler.get_chunk_graph().unwrap())
+                .cloned()
+            else {
                 compiler.report(JSError::make_without_location(
                     &NULL_COMMON_CHUNK_ERROR,
                     &[],

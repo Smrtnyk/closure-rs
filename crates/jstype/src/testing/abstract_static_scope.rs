@@ -75,10 +75,10 @@ impl<S: AbstractStaticScope> StaticTypedScope for S {
     fn get_parent_scope(&self) -> Option<&dyn StaticTypedScope> {
         AbstractStaticScope::get_parent_scope(self)
     }
-    fn get_slot(&self, name: &JsString) -> Option<&dyn StaticTypedSlot> {
+    fn get_slot(&self, _reg: &JSTypeRegistry, name: &JsString) -> Option<&dyn StaticTypedSlot> {
         AbstractStaticScope::get_slot(self, name)
     }
-    fn get_own_slot(&self, name: &JsString) -> Option<&dyn StaticTypedSlot> {
+    fn get_own_slot(&self, _reg: &JSTypeRegistry, name: &JsString) -> Option<&dyn StaticTypedSlot> {
         AbstractStaticScope::get_own_slot(self, name)
     }
     fn get_type_of_this(&self, reg: &JSTypeRegistry, ast: &Ast) -> Option<TypeId> {
