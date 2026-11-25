@@ -1006,4 +1006,4 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   AnalyzePrototypeProperties marks the `properties` summary of a `normalize_clean` prefix (only
   GETPROPs there; a repeated mark adds an edge that changes nothing). StrictModeCheck has nothing
   to report in a `normalize_clean` prefix (a test checks its shapes).
-  `CLOSURE_RS_BUNDLED_EXTERN_SKIPS=off` traverses those prefixes in all five passes.
+  `CLOSURE_RS_BUNDLED_EXTERN_SKIPS=off` traverses those prefixes in all four passes.
