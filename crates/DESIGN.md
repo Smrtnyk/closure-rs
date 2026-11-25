@@ -985,3 +985,25 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   asking the compiler for one at every node. `Compiler::add_source_map_source_files` resolves
   the source names of an input source map once (`resolved_source_map_sources`), not again for
   the source map of every chunk.
+- `jscomp/build/bundled_script_summary.rs`, `source_file/declarations.rs` (`clean_other`),
+  `normalize.rs`: `extern_referenced_names` treats a GETELEM in a global expression
+  (`C.prototype[Symbol.iterator] = ...`) as part of it, and the plain parameters and the
+  expression name of any function in one as bound in the function's own scope (a body with a
+  name still invalidates the summary), so every bundled script has the summary and the first
+  InlineVariables run can skip the externs. `normalize_clean` also admits stray `;` statements and
+  computed members of qualified names, alone or assigned an empty stub, which both Normalize fast
+  paths handle in statement order.
+- `jscomp/var_check.rs`, `variable_reference_check.rs`, `reference_collector.rs`,
+  `analyze_prototype_properties.rs`, `strict_mode_check.rs`: these passes leave out the original
+  statements of unchanged bundled extern scripts and visit only appended ones (Java traverses
+  them). VarCheck: in a `normalize_clean` prefix whose `extern_referenced_names` the global scope
+  declares, every name resolves and nothing is reported. VariableReferenceCheck
+  (`ReferenceCollector::skip_bundled_extern_prefixes`): when every bundled script precedes all
+  other non-empty scripts, declares every global name the bundled scripts use, and no other
+  script declares such a name (a conservative scan outside functions), a var a bundled script
+  declares is checked with its other references, starting as declared; a test shows the bundled
+  references report nothing on their own with every diagnostic of the pass enabled.
+  AnalyzePrototypeProperties marks the `properties` summary of a `normalize_clean` prefix (only
+  GETPROPs there; a repeated mark adds an edge that changes nothing). StrictModeCheck has nothing
+  to report in a `normalize_clean` prefix (a test checks its shapes).
+  `CLOSURE_RS_BUNDLED_EXTERN_SKIPS=off` traverses those prefixes in all five passes.
