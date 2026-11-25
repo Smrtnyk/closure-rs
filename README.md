@@ -65,48 +65,48 @@ systems, [build from source](#building); those builds are not tested by the proj
 ### Java and closure-rs
 
 The table compares the Java reference compiler at `v20261117` with the profile-guided Linux
-x64 binary shipped in `closure-rs@20261117.5.0`. Wall time and peak resident set size (RSS)
+x64 binary shipped in `closure-rs@20261117.6.0`. Wall time and peak resident set size (RSS)
 are medians of five fresh processes per compiler on one GitHub Actions `ubuntu-24.04` runner
-(4-vCPU Intel Xeon Platinum 8573C, Ubuntu 24.04.5 LTS). Java ran on Temurin 21.0.12.1 with
+(4-vCPU AMD EPYC 7763, Ubuntu 24.04.5 LTS). Java ran on Temurin 21.0.12.1 with
 default JVM settings. Speedup is Java wall time divided by closure-rs wall time, calculated
 before rounding.
 
 | Project (JavaScript input) | Level | Java | closure-rs | Speedup | Java peak RSS | closure-rs peak RSS |
 |---|---|---:|---:|---:|---:|---:|
-| ONLYOFFICE spreadsheet SDK 9.2.0.119 (34.9 MB) | ADVANCED | 74.22 s | 22.44 s | 3.3× | 2,782 MiB | 2,217 MiB |
-|  | SIMPLE | 54.36 s | 15.24 s | 3.6× | 2,546 MiB | 2,189 MiB |
-| three.js r186 (1.3 MB) | ADVANCED | 12.40 s | 1.51 s | 8.2× | 622 MiB | 276 MiB |
-|  | SIMPLE | 9.00 s | 0.88 s | 10.2× | 560 MiB | 227 MiB |
-| fabric.js 7.4.0 (0.8 MB) | ADVANCED | 10.24 s | 1.13 s | 9.1× | 549 MiB | 228 MiB |
-|  | SIMPLE | 6.19 s | 0.55 s | 11.3× | 520 MiB | 179 MiB |
-| d3 7.9.0 (0.6 MB) | ADVANCED | 10.52 s | 1.14 s | 9.2× | 536 MiB | 232 MiB |
-|  | SIMPLE | 6.55 s | 0.68 s | 9.6× | 576 MiB | 183 MiB |
-| lodash 4.17.21 (0.2 MB) | ADVANCED | 7.04 s | 0.48 s | 14.6× | 398 MiB | 178 MiB |
-|  | SIMPLE | 4.36 s | 0.25 s | 17.5× | 377 MiB | 115 MiB |
+| ONLYOFFICE spreadsheet SDK 9.2.0.119 (34.9 MB) | ADVANCED | 77.41 s | 20.75 s | 3.7× | 2,656 MiB | 2,164 MiB |
+|  | SIMPLE | 57.75 s | 13.42 s | 4.3× | 2,387 MiB | 2,112 MiB |
+| three.js r186 (1.3 MB) | ADVANCED | 15.13 s | 1.34 s | 11.3× | 586 MiB | 261 MiB |
+|  | SIMPLE | 10.68 s | 0.75 s | 14.3× | 574 MiB | 231 MiB |
+| fabric.js 7.4.0 (0.8 MB) | ADVANCED | 12.30 s | 0.95 s | 13.0× | 556 MiB | 232 MiB |
+|  | SIMPLE | 7.15 s | 0.46 s | 15.4× | 459 MiB | 183 MiB |
+| d3 7.9.0 (0.6 MB) | ADVANCED | 12.19 s | 0.99 s | 12.3× | 474 MiB | 226 MiB |
+|  | SIMPLE | 8.93 s | 0.60 s | 14.9× | 554 MiB | 183 MiB |
+| lodash 4.17.21 (0.2 MB) | ADVANCED | 8.30 s | 0.43 s | 19.5× | 411 MiB | 180 MiB |
+|  | SIMPLE | 5.43 s | 0.22 s | 24.4× | 357 MiB | 131 MiB |
 
 The ONLYOFFICE browser build compiles 394 source files into two dependent ES5 chunks with
-source maps and renaming reports. At ADVANCED it took closure-rs 15× as long as three.js.
+source maps and renaming reports. At ADVANCED it took closure-rs 16× as long as three.js.
 The four library bundles use ES2015 output and input source maps. All 50 paired runs exited
 successfully, with byte-identical JavaScript, source maps and diagnostics.
 [Benchmark inputs and reproduction commands](bench/README.md#reproducing-the-readme-tables)
 
 ### Change from the previous release
 
-On the same runner, the published Linux x64 binaries for `20261117.5.0` and
-`20261117.4.0` compiled all 50 jobs over six rounds, alternating which version ran first.
+On the same runner, the published Linux x64 binaries for `20261117.6.0` and
+`20261117.5.0` compiled all 50 jobs over six rounds, alternating which version ran first.
 The percentages are the geometric mean of the per-job median ratios. A negative value means
 less time or memory.
 
 | Workload | Jobs | Wall time | CPU time | Peak RSS |
 |---|---:|---:|---:|---:|
-| SIMPLE | 23 | −3.8% | −3.1% | −1.4% |
-| ADVANCED | 23 | −5.5% | −3.1% | +5.8% |
-| Flag variants | 4 | −7.4% | −2.9% | +7.8% |
-| All jobs | 50 | −4.9% | −3.1% | +2.5% |
+| SIMPLE | 23 | −11.5% | −4.9% | +5.0% |
+| ADVANCED | 23 | −13.5% | −11.0% | −3.1% |
+| Flag variants | 4 | −11.6% | −7.8% | −4.0% |
+| All jobs | 50 | −12.4% | −8.0% | +0.5% |
 
-The sum of median wall times fell from 67.80 s to 64.61 s (4.7%). Multi-file ES module builds
-dropped 9.8%–10.2% on three.js and 7.7%–8.8% on lodash-es; on ONLYOFFICE, median wall time
-dropped 2.8% in SIMPLE and 5.2% in ADVANCED (median paired reductions of 3.5% and 5.2%). All
+The sum of median wall times fell from 61.00 s to 56.87 s (6.8%). Multi-file ES module builds
+dropped 12.9%–15.0% on three.js and 15.3%–17.1% on lodash-es; on ONLYOFFICE, median wall time
+dropped 5.6% in SIMPLE and 2.0% in ADVANCED (median paired reductions of 5.8% and 1.9%). All
 runs produced identical output.
 [Benchmark method and commands](bench/README.md#reproducing-the-readme-tables)
 
