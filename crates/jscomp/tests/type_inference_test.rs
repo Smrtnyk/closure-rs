@@ -62,9 +62,9 @@ use closure_rhino::{
 };
 use closure_testing::testing::scope_subject::{ScopeSubject, assert_scope};
 use std::cell::{RefCell, RefMut};
-use std::sync::Arc;
+use std::rc::Rc;
 
-type FS = Arc<dyn FlowScope>;
+type FS = Rc<dyn FlowScope>;
 
 /// Java's overloads taking either a `JSType` or a `JSTypeNative`.
 trait AsType {

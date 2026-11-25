@@ -29,7 +29,7 @@
 //! typed scopes the flow scopes read.
 use crate::{abstract_compiler::AbstractCompiler, flow_scope::FlowScope};
 use closure_rhino::{node::NodeId, outcome::Outcome};
-use std::sync::Arc;
+use std::rc::Rc;
 
 pub trait ReverseAbstractInterpreter: Send + Sync {
     // port: ReverseAbstractInterpreter#getPreciserScopeKnowingConditionOutcome
@@ -41,7 +41,7 @@ pub trait ReverseAbstractInterpreter: Send + Sync {
         &self,
         compiler: &mut AbstractCompiler,
         condition: NodeId,
-        blind_scope: Arc<dyn FlowScope>,
+        blind_scope: Rc<dyn FlowScope>,
         outcome: Outcome,
-    ) -> Arc<dyn FlowScope>;
+    ) -> Rc<dyn FlowScope>;
 }

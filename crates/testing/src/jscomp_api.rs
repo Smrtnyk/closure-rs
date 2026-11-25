@@ -68,18 +68,12 @@ pub trait CompilerHarnessAccess {
 impl CompilerHarnessAccess for Compiler {
     // port: CompilerTestCase#testInternal
     fn reset_recent_change(&mut self) {
-        self.get_change_tracker()
-            .get_recent_change()
-            .lock()
-            .unwrap()
-            .reset();
+        self.get_change_tracker().get_recent_change().reset();
     }
     // port: CompilerTestCase#testInternal
     fn has_code_changed(&self) -> bool {
         self.get_change_tracker_ref()
             .get_recent_change()
-            .lock()
-            .unwrap()
             .has_code_changed()
     }
     // port: CompilerTestCase#testInternal
@@ -89,9 +83,8 @@ impl CompilerHarnessAccess for Compiler {
     }
     // port: CompilerTestCaseUtils#multistageSerializeAndDeserialize
     fn remove_recent_change_handler(&mut self) {
-        let recent: std::sync::Arc<
-            std::sync::Mutex<dyn closure_jscomp::code_change_handler::CodeChangeHandler>,
-        > = self.get_change_tracker().get_recent_change();
+        let recent: std::sync::Arc<dyn closure_jscomp::code_change_handler::CodeChangeHandler> =
+            self.get_change_tracker().get_recent_change();
         self.get_change_tracker().remove_change_handler(&recent);
     }
 }

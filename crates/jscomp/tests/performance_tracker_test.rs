@@ -58,7 +58,7 @@ fn test_stats_calculation() {
     ] {
         tracker.record_pass_start(name, one_time);
         if changed {
-            handler.lock().unwrap().report_change();
+            handler.report_change();
         }
         tracker.record_pass_stop(&ast, name, pass_runtime);
     }

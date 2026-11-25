@@ -19,7 +19,7 @@
 //! A symbol table for inferring types during data flow analysis.
 //!
 //! Java's `FlowScope extends StaticTypedScope, LatticeElement`. Flow scopes are shared immutable
-//! objects compared by identity (`Arc::ptr_eq`), so they travel as `Arc<dyn FlowScope>`; the
+//! objects compared by identity (`Rc::ptr_eq`), so they travel as `Rc<dyn FlowScope>`; the
 //! StaticTypedScope methods take the compiler, which owns the typed scope arena and the registry.
 use crate::{
     abstract_compiler::AbstractCompiler, graph::lattice_element::LatticeElement,
@@ -27,39 +27,39 @@ use crate::{
 };
 use closure_jstype::TypeId;
 use closure_rhino::{js_string::JsString, jsdoc_info::JSDocInfo, node::NodeId};
-use std::{any::Any, sync::Arc};
+use std::{any::Any, rc::Rc, sync::Arc};
 
 pub trait FlowScope: LatticeElement {
     // port: FlowScope#withSyntacticScope
     /// Returns a flow scope with the given syntactic scope, which may be required to be a specific
     /// subclass, such as TypedScope.
     fn with_syntactic_scope(
-        self: Arc<Self>,
+        self: Rc<Self>,
         compiler: &mut AbstractCompiler,
         scope: TypedScope,
-    ) -> Arc<dyn FlowScope>;
+    ) -> Rc<dyn FlowScope>;
 
     // port: FlowScope#inferSlotType
     /// Returns a flow scope with the type of the given `symbol` updated to `type`.
     fn infer_slot_type(
-        self: Arc<Self>,
+        self: Rc<Self>,
         compiler: &mut AbstractCompiler,
         symbol: &JsString,
         type_: Option<TypeId>,
-    ) -> Arc<dyn FlowScope>;
+    ) -> Rc<dyn FlowScope>;
 
     // port: FlowScope#inferQualifiedSlot
     /// Returns a flow scope with the type of the given `symbol` updated to `inferredType`. Updates
     /// are not performed in-place.
     fn infer_qualified_slot(
-        self: Arc<Self>,
+        self: Rc<Self>,
         compiler: &mut AbstractCompiler,
         node: NodeId,
         symbol: &JsString,
         bottom_type: Option<TypeId>,
         inferred_type: TypeId,
         declare: bool,
-    ) -> Arc<dyn FlowScope>;
+    ) -> Rc<dyn FlowScope>;
 
     // port: FlowScope#getDeclarationScope
     /// Returns the underlying TypedScope.
@@ -97,7 +97,7 @@ pub trait FlowScope: LatticeElement {
     }
 
     /// Rust-only: Java's casts of a FlowScope to its class (`(LinkedFlowScope) input`).
-    fn as_any_arc(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
+    fn as_any_rc(self: Rc<Self>) -> Rc<dyn Any>;
 }
 
 /// The `StaticTypedSlot` a flow scope hands out: a TypedVar of the syntactic scope chain, or a
@@ -105,7 +105,7 @@ pub trait FlowScope: LatticeElement {
 #[derive(Debug, Clone)]
 pub enum FlowSlot {
     Var(TypedVar),
-    Overlay(Arc<OverlaySlot>),
+    Overlay(Rc<OverlaySlot>),
 }
 
 impl FlowSlot {
@@ -161,7 +161,7 @@ impl FlowSlot {
     pub fn ptr_eq(&self, other: &FlowSlot) -> bool {
         match (self, other) {
             (Self::Var(a), Self::Var(b)) => a == b,
-            (Self::Overlay(a), Self::Overlay(b)) => Arc::ptr_eq(a, b),
+            (Self::Overlay(a), Self::Overlay(b)) => Rc::ptr_eq(a, b),
             _ => false,
         }
     }

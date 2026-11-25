@@ -28,7 +28,7 @@ use closure_jstype::{TypeId, js_type_native::JSTypeNative, testing::type_subject
 use closure_parsing::parser::feature_set::Feature;
 use closure_rhino::{js_string::JsString, node::NodeId, token::Token};
 use closure_testing::compiler_type_test_case::CompilerTypeTestCase;
-use std::sync::Arc;
+use std::rc::Rc;
 
 // port: LinkedFlowScopeTest#LONG_CHAIN_LENGTH
 const LONG_CHAIN_LENGTH: i32 = 1050;
@@ -37,8 +37,8 @@ struct LinkedFlowScopeTest {
     compiler: Compiler,
     local_scope: TypedScope,
     #[allow(dead_code)] // Java: @SuppressWarnings("unused")
-    global_entry: Arc<dyn FlowScope>,
-    local_entry: Arc<dyn FlowScope>,
+    global_entry: Rc<dyn FlowScope>,
+    local_entry: Rc<dyn FlowScope>,
 }
 
 impl LinkedFlowScopeTest {
@@ -62,8 +62,8 @@ impl LinkedFlowScopeTest {
         local_scope.declare(&mut compiler, "localA", None, None, None, true);
         local_scope.declare(&mut compiler, "localB", None, None, None, true);
 
-        let global_entry: Arc<dyn FlowScope> = LinkedFlowScope::create_entry_lattice(global_scope);
-        let local_entry: Arc<dyn FlowScope> = LinkedFlowScope::create_entry_lattice(local_scope);
+        let global_entry: Rc<dyn FlowScope> = LinkedFlowScope::create_entry_lattice(global_scope);
+        let local_entry: Rc<dyn FlowScope> = LinkedFlowScope::create_entry_lattice(local_scope);
         Self {
             compiler,
             local_scope,
@@ -109,16 +109,11 @@ impl LinkedFlowScopeTest {
         TypeSubject::assert_type(b).is_equal_to(reg, ast, a);
     }
 
-    fn infer(
-        &mut self,
-        scope: &Arc<dyn FlowScope>,
-        name: &str,
-        type_: TypeId,
-    ) -> Arc<dyn FlowScope> {
-        Arc::clone(scope).infer_slot_type(&mut self.compiler, &JsString::from(name), Some(type_))
+    fn infer(&mut self, scope: &Rc<dyn FlowScope>, name: &str, type_: TypeId) -> Rc<dyn FlowScope> {
+        Rc::clone(scope).infer_slot_type(&mut self.compiler, &JsString::from(name), Some(type_))
     }
 
-    fn slot_type(&mut self, scope: &Arc<dyn FlowScope>, name: &str) -> Option<TypeId> {
+    fn slot_type(&mut self, scope: &Rc<dyn FlowScope>, name: &str) -> Option<TypeId> {
         let slot = scope
             .get_slot(&mut self.compiler, &JsString::from(name))
             .expect("NullPointerException");
@@ -126,7 +121,7 @@ impl LinkedFlowScopeTest {
     }
 
     /// Java `a.equals(b)` (LinkedFlowScope#equals).
-    fn flow_equals(&mut self, a: &Arc<dyn FlowScope>, b: &Arc<dyn FlowScope>) -> bool {
+    fn flow_equals(&mut self, a: &Rc<dyn FlowScope>, b: &Rc<dyn FlowScope>) -> bool {
         a.as_any()
             .downcast_ref::<LinkedFlowScope>()
             .unwrap()
@@ -134,22 +129,22 @@ impl LinkedFlowScopeTest {
     }
 
     // port: LinkedFlowScopeTest#assertScopesDiffer
-    fn assert_scopes_differ(&mut self, a: &Arc<dyn FlowScope>, b: &Arc<dyn FlowScope>) {
+    fn assert_scopes_differ(&mut self, a: &Rc<dyn FlowScope>, b: &Rc<dyn FlowScope>) {
         assert!(!self.flow_equals(a, b));
         assert!(!self.flow_equals(b, a));
     }
 
     // port: LinkedFlowScopeTest#assertScopesSame
-    fn assert_scopes_same(&mut self, a: &Arc<dyn FlowScope>, b: &Arc<dyn FlowScope>) {
+    fn assert_scopes_same(&mut self, a: &Rc<dyn FlowScope>, b: &Rc<dyn FlowScope>) {
         assert!(self.flow_equals(b, a));
         assert!(self.flow_equals(a, b));
     }
 
     // port: LinkedFlowScopeTest#join
-    fn join(&mut self, a: &Arc<dyn FlowScope>, b: &Arc<dyn FlowScope>) -> Arc<dyn FlowScope> {
+    fn join(&mut self, a: &Rc<dyn FlowScope>, b: &Rc<dyn FlowScope>) -> Rc<dyn FlowScope> {
         let mut joiner = FlowScopeJoinOp::new();
-        joiner.join_flow(&mut self.compiler, Arc::clone(a));
-        joiner.join_flow(&mut self.compiler, Arc::clone(b));
+        joiner.join_flow(&mut self.compiler, Rc::clone(a));
+        joiner.join_flow(&mut self.compiler, Rc::clone(b));
         joiner.finish().expect("NullPointerException")
     }
 }
@@ -158,7 +153,7 @@ impl LinkedFlowScopeTest {
 #[test]
 fn test_join1() {
     let mut t = LinkedFlowScopeTest::set_up();
-    let local_entry = Arc::clone(&t.local_entry);
+    let local_entry = Rc::clone(&t.local_entry);
     let number = t.get_native_number_type();
     let string = t.get_native_string_type();
     let boolean = t.get_native_boolean_type();
@@ -193,7 +188,7 @@ fn test_join1() {
 #[test]
 fn test_join2() {
     let mut t = LinkedFlowScopeTest::set_up();
-    let local_entry = Arc::clone(&t.local_entry);
+    let local_entry = Rc::clone(&t.local_entry);
     let string = t.get_native_string_type();
     let boolean = t.get_native_boolean_type();
     let child_a = t.infer(&local_entry, "localA", string);
@@ -233,7 +228,7 @@ fn test_join3() {
     local_scope.declare(&mut t.compiler, "localC", None, Some(string), None, true);
     local_scope.declare(&mut t.compiler, "localD", None, Some(string), None, true);
 
-    let local_entry = Arc::clone(&t.local_entry);
+    let local_entry = Rc::clone(&t.local_entry);
     let child_a = t.infer(&local_entry, "localC", number);
     let child_b = t.infer(&local_entry, "localD", boolean);
 
@@ -267,8 +262,8 @@ fn test_long_chain() {
     let string = t.get_native_string_type();
     let boolean = t.get_native_boolean_type();
     let local_scope = t.local_scope;
-    let mut chain_a = Arc::clone(&t.local_entry);
-    let mut chain_b = Arc::clone(&t.local_entry);
+    let mut chain_a = Rc::clone(&t.local_entry);
+    let mut chain_b = Rc::clone(&t.local_entry);
     for i in 0..LONG_CHAIN_LENGTH {
         local_scope.declare(&mut t.compiler, format!("local{i}"), None, None, None, true);
         chain_a = t.infer(
@@ -314,7 +309,7 @@ fn test_long_chain() {
 #[test]
 fn test_differ1() {
     let mut t = LinkedFlowScopeTest::set_up();
-    let local_entry = Arc::clone(&t.local_entry);
+    let local_entry = Rc::clone(&t.local_entry);
     let number = t.get_native_number_type();
     let string = t.get_native_string_type();
     let boolean = t.get_native_boolean_type();
@@ -341,7 +336,7 @@ fn test_differ1() {
 #[test]
 fn test_differ2() {
     let mut t = LinkedFlowScopeTest::set_up();
-    let local_entry = Arc::clone(&t.local_entry);
+    let local_entry = Rc::clone(&t.local_entry);
     let number = t.get_native_number_type();
     let no_type = t.get_native_no_type();
     let child_a = t.infer(&local_entry, "localA", number);

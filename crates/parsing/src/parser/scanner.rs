@@ -19,6 +19,7 @@
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use closure_rhino::java_lang::{digit, parse_int};
+use closure_rhino::rhino_string_pool::RhinoStringPool;
 
 use super::{
     JsString,
@@ -889,10 +890,20 @@ impl Scanner {
         {
             return Token::new(k.type_(), self.get_token_range(begin_token));
         }
-        let mut value = self
-            .source
-            .contents
-            .substring(value_start_index as usize, self.index as usize);
+        let mut value = if contains_unicode_escape {
+            self.source
+                .contents
+                .substring(value_start_index as usize, self.index as usize)
+        } else {
+            // Rust-only (performance divergence): the spelling is interned straight from the
+            // source instead of copied into a reference-counted string that the node interns
+            // later (Java: `contents.substring`, interned by `Node.newString`). The parser
+            // compares identifier values by content, and a pool hit allocates nothing, so the
+            // copies the token, the parse trees and IRFactory make of it need no reference counts.
+            RhinoStringPool::add_or_get_units(
+                &self.source.contents.as_units()[value_start_index as usize..self.index as usize],
+            )
+        };
         if is_private_identifier && value == "#" {
             let position = self.get_position_at(begin_token);
             self.report_error_at(position, "Invalid usage of #", &[]);

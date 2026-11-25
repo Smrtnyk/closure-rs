@@ -35,7 +35,7 @@ pub struct PerformanceTracker {
     externs_root: NodeId,
     js_root: NodeId,
     mode: TracerMode,
-    code_change: Arc<std::sync::Mutex<RecentChange>>,
+    code_change: Arc<RecentChange>,
     current_pass: Vec<Stats>,
     pass_summary: Option<IndexMap<String, Stats>>,
     ast_manifest: Option<IndexMap<Token, i32>>,
@@ -106,7 +106,7 @@ impl PerformanceTracker {
             externs_root,
             js_root,
             mode,
-            code_change: Arc::new(std::sync::Mutex::new(RecentChange::default())),
+            code_change: Arc::new(RecentChange::default()),
             current_pass: vec![],
             pass_summary: None,
             ast_manifest: None,
@@ -143,14 +143,14 @@ impl PerformanceTracker {
         }
     }
     // port: PerformanceTracker#getCodeChangeHandler
-    pub fn get_code_change_handler(&self) -> Arc<std::sync::Mutex<dyn CodeChangeHandler>> {
+    pub fn get_code_change_handler(&self) -> Arc<dyn CodeChangeHandler> {
         self.code_change.clone()
     }
     // port: PerformanceTracker#recordPassStart
     pub fn record_pass_start(&mut self, pass_name: &str, is_one_time: bool) {
         self.current_pass.push(Stats::new(pass_name, is_one_time));
         if pass_name != "toSource" {
-            self.code_change.lock().unwrap().reset();
+            self.code_change.reset();
         }
     }
     // port: PerformanceTracker#updateAfterDeserialize
@@ -180,12 +180,12 @@ impl PerformanceTracker {
         stats.runtime = runtime;
         stats.alloc_mem = alloc_mem;
         stats.runs = 1;
-        if self.code_change.lock().unwrap().has_code_changed() {
+        if self.code_change.has_code_changed() {
             stats.changes = 1;
         }
         if pass_name == pass_names::PARSE_INPUTS {
             self.record_parsing_stop(ast, &mut stats);
-        } else if self.code_change.lock().unwrap().has_code_changed() && self.tracks_ast_size() {
+        } else if self.code_change.has_code_changed() && self.tracks_ast_size() {
             self.record_other_pass_stop(ast, &mut stats);
         }
         self.log.push(stats);

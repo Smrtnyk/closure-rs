@@ -17,27 +17,30 @@
 //   src/com/google/javascript/jscomp/RecentChange.java.
 
 use crate::code_change_handler::CodeChangeHandler;
+use std::sync::atomic::{AtomicBool, Ordering};
 
+/// Rust-only: the flag is a relaxed atomic so that the handler is shared without a mutex (see
+/// `CodeChangeHandler`).
 #[derive(Debug, Default)]
 pub struct RecentChange {
-    has_changed: bool,
+    has_changed: AtomicBool,
 }
 
 impl CodeChangeHandler for RecentChange {
     // port: RecentChange#reportChange
-    fn report_change(&mut self) {
-        self.has_changed = true;
+    fn report_change(&self) {
+        self.has_changed.store(true, Ordering::Relaxed);
     }
 }
 
 impl RecentChange {
     // port: RecentChange#hasCodeChanged
     pub fn has_code_changed(&self) -> bool {
-        self.has_changed
+        self.has_changed.load(Ordering::Relaxed)
     }
 
     // port: RecentChange#reset
-    pub fn reset(&mut self) {
-        self.has_changed = false;
+    pub fn reset(&self) {
+        self.has_changed.store(false, Ordering::Relaxed);
     }
 }

@@ -47,12 +47,15 @@ use crate::{
 use std::{
     collections::VecDeque,
     fmt::{self, Display},
-    sync::Arc,
+    rc::Rc,
 };
 const BITS: u32 = 4;
 const BITS_SHIFT: u32 = 32 - BITS;
-type Children<K, V> = Arc<[Arc<HamtNode<K, V>>]>;
-type Tree<K, V> = Option<Arc<HamtNode<K, V>>>;
+/// Rust-only (performance divergence): the nodes are shared with `Rc`, not `Arc`: a map is built,
+/// read and dropped by one thread (the flow analyses), and every node a new map shares with an old
+/// one costs a reference count, which with `Arc` is a locked instruction. A map is not `Send`.
+type Children<K, V> = Rc<[Rc<HamtNode<K, V>>]>;
+type Tree<K, V> = Option<Rc<HamtNode<K, V>>>;
 #[derive(Debug)]
 struct HamtNode<K, V> {
     key: Option<K>,
@@ -201,13 +204,13 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> PMap<K, V> for H
 fn same_tree<K, V>(a: &Tree<K, V>, b: &Tree<K, V>) -> bool {
     match (a, b) {
         (None, None) => true,
-        (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+        (Some(a), Some(b)) => Rc::ptr_eq(a, b),
         _ => false,
     }
 }
 // port: HamtPMap#emptyChildren
 fn empty_children<K, V>() -> Children<K, V> {
-    Arc::from([])
+    Rc::from([])
 }
 // port: HamtPMap#hash
 fn hash(key: &impl JavaHashCode) -> u32 {
@@ -242,8 +245,8 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
         value: Option<V>,
         mask: u32,
         children: Children<K, V>,
-    ) -> Arc<Self> {
-        let n = Arc::new(Self {
+    ) -> Rc<Self> {
+        let n = Rc::new(Self {
             key,
             hash,
             value,
@@ -270,7 +273,7 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
         }
     }
     // port: HamtPMap#plus(K, int, V)
-    fn plus(self: &Arc<Self>, key: K, mut hash: u32, value: V) -> Arc<Self> {
+    fn plus(self: &Rc<Self>, key: K, mut hash: u32, value: V) -> Rc<Self> {
         if hash == self.hash && self.key.as_ref() == Some(&key) {
             return if self.value.as_ref() == Some(&value) {
                 self.clone()
@@ -293,7 +296,7 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
         if self.mask & bucket_mask != 0 {
             let child = &self.children[index];
             let new_child = child.plus(key, hash, value);
-            if Arc::ptr_eq(child, &new_child) {
+            if Rc::ptr_eq(child, &new_child) {
                 self.clone()
             } else {
                 self.with_children(self.mask, replace_child(&self.children, index, new_child))
@@ -307,7 +310,7 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
         }
     }
     // port: HamtPMap#replaceRoot
-    fn replace_root(&self, key: K, hash: u32, value: V) -> Arc<Self> {
+    fn replace_root(&self, key: K, hash: u32, value: V) -> Rc<Self> {
         let bucket_mask = 1 << bucket(self.hash);
         let leaf_hash = shift(self.hash);
         let index = self.index(bucket_mask);
@@ -343,7 +346,7 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
         )
     }
     // port: HamtPMap#minus(K, int, V[])
-    fn minus(self: &Arc<Self>, key: &K, hash: u32, value: &mut Option<V>) -> Tree<K, V> {
+    fn minus(self: &Rc<Self>, key: &K, hash: u32, value: &mut Option<V>) -> Tree<K, V> {
         if hash == self.hash && self.key.as_ref() == Some(key) {
             let result = Self::delete_root(self.mask, &self.children);
             *value = self.value.clone();
@@ -357,7 +360,7 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
         let child = &self.children[index];
         let new_child = child.minus(key, shift(hash), value);
         match new_child {
-            Some(new_child) if Arc::ptr_eq(child, &new_child) => Some(self.clone()),
+            Some(new_child) if Rc::ptr_eq(child, &new_child) => Some(self.clone()),
             None => Some(self.with_children(
                 self.mask & !bucket_mask,
                 delete_child(&self.children, index),
@@ -541,17 +544,17 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
         }
     }
     // port: HamtPMap#pivot(K, int)
-    fn pivot(self: &Arc<Self>, key: &K, hash: u32) -> Arc<Self> {
+    fn pivot(self: &Rc<Self>, key: &K, hash: u32) -> Rc<Self> {
         self.pivot_recursive(key, hash, None, &mut None)
     }
     // port: HamtPMap#pivot(K, int, HamtPMap, V[])
     fn pivot_recursive(
-        self: &Arc<Self>,
+        self: &Rc<Self>,
         key: &K,
         hash: u32,
         parent: Option<&Self>,
         result: &mut Option<V>,
-    ) -> Arc<Self> {
+    ) -> Rc<Self> {
         let mut new_mask = self.mask;
         let mut new_children = self.children.clone();
         if hash == self.hash && self.key.as_ref() == Some(key) {
@@ -625,7 +628,7 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
         }
     }
     // port: HamtPMap#vacateRoot
-    fn vacate_root(&self) -> Arc<Self> {
+    fn vacate_root(&self) -> Rc<Self> {
         let bucket_mask = 1 << bucket(self.hash);
         let index = self.index(bucket_mask);
         if self.mask & bucket_mask != 0 {
@@ -658,8 +661,8 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
         )
     }
     // port: HamtPMap#withChildren
-    fn with_children(self: &Arc<Self>, mask: u32, children: Children<K, V>) -> Arc<Self> {
-        if mask == self.mask && Arc::ptr_eq(&children, &self.children) {
+    fn with_children(self: &Rc<Self>, mask: u32, children: Children<K, V>) -> Rc<Self> {
+        if mask == self.mask && Rc::ptr_eq(&children, &self.children) {
             self.clone()
         } else {
             Self::new(
@@ -701,7 +704,7 @@ impl<K: Clone + PartialEq + JavaHashCode, V: Clone + PartialEq> HamtNode<K, V> {
 fn insert_child<K, V>(
     children: &Children<K, V>,
     index: usize,
-    child: Arc<HamtNode<K, V>>,
+    child: Rc<HamtNode<K, V>>,
 ) -> Children<K, V> {
     let mut new_children = children.to_vec();
     new_children.insert(index, child);
@@ -711,7 +714,7 @@ fn insert_child<K, V>(
 fn replace_child<K, V>(
     children: &Children<K, V>,
     index: usize,
-    child: Arc<HamtNode<K, V>>,
+    child: Rc<HamtNode<K, V>>,
 ) -> Children<K, V> {
     let mut new_children = children.to_vec();
     new_children[index] = child;

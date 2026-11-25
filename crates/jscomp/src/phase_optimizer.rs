@@ -284,7 +284,9 @@ impl std::fmt::Display for NamedPass {
     }
 }
 struct ScopedChangeHandler {
-    last_code_change_query: i32,
+    /// Rust-only: a relaxed atomic so that the handler is shared without a mutex (see
+    /// `CodeChangeHandler`); only the compiler thread reads and writes it.
+    last_code_change_query: AtomicI32,
     last_change: Arc<AtomicI32>,
     change_stamp: Arc<AtomicI32>,
 }
@@ -292,22 +294,24 @@ impl ScopedChangeHandler {
     // port: PhaseOptimizer.ScopedChangeHandler#ScopedChangeHandler
     fn new(change_tracker: &ChangeTracker, last_change: Arc<AtomicI32>) -> Self {
         Self {
-            last_code_change_query: change_tracker.get_change_stamp(),
+            last_code_change_query: AtomicI32::new(change_tracker.get_change_stamp()),
             last_change,
             change_stamp: change_tracker.get_change_stamp_source(),
         }
     }
     // port: PhaseOptimizer.ScopedChangeHandler#hasCodeChangedSinceLastCall
-    fn has_code_changed_since_last_call(&mut self, change_tracker: &mut ChangeTracker) -> bool {
-        let result = self.last_change.load(Ordering::Relaxed) > self.last_code_change_query;
-        self.last_code_change_query = change_tracker.get_change_stamp();
+    fn has_code_changed_since_last_call(&self, change_tracker: &mut ChangeTracker) -> bool {
+        let result = self.last_change.load(Ordering::Relaxed)
+            > self.last_code_change_query.load(Ordering::Relaxed);
+        self.last_code_change_query
+            .store(change_tracker.get_change_stamp(), Ordering::Relaxed);
         change_tracker.increment_change_stamp();
         result
     }
 }
 impl CodeChangeHandler for ScopedChangeHandler {
     // port: PhaseOptimizer.ScopedChangeHandler#reportChange
-    fn report_change(&mut self) {
+    fn report_change(&self) {
         self.last_change
             .store(self.change_stamp.load(Ordering::Relaxed), Ordering::Relaxed);
     }
@@ -349,11 +353,11 @@ impl Loop {
         self.is_code_removal_loop = self.is_code_removal_loop();
         optimizer.scope_change_state.lock().unwrap().in_loop = true;
 
-        let scope_handler = Arc::new(Mutex::new(ScopedChangeHandler::new(
+        let scope_handler = Arc::new(ScopedChangeHandler::new(
             compiler.get_change_tracker_ref(),
             optimizer.last_change.clone(),
-        )));
-        let handler: Arc<Mutex<dyn CodeChangeHandler>> = scope_handler.clone();
+        ));
+        let handler: Arc<dyn CodeChangeHandler> = scope_handler.clone();
         compiler
             .get_change_tracker()
             .add_change_handler(handler.clone());
@@ -404,8 +408,6 @@ impl Loop {
                         if optimizer.has_halting_errors(compiler) {
                             return;
                         } else if scope_handler
-                            .lock()
-                            .unwrap()
                             .has_code_changed_since_last_call(compiler.get_change_tracker())
                         {
                             made_changes.insert(i);

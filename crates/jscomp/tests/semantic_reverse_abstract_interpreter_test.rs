@@ -30,9 +30,10 @@ use closure_parsing::parser::feature_set::Feature;
 use closure_rhino::{js_string::JsString, node::NodeId, outcome::Outcome, token::Token};
 use closure_testing::compiler_type_test_case::CompilerTypeTestCase;
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
+use std::rc::Rc;
 use std::sync::Arc;
 
-type Blind = [Arc<dyn FlowScope>; 1];
+type Blind = [Rc<dyn FlowScope>; 1];
 
 struct SemanticReverseAbstractInterpreterTest {
     compiler: Compiler,
@@ -200,12 +201,12 @@ impl SemanticReverseAbstractInterpreterTest {
         condition: NodeId,
         blind: &Blind,
         outcome: Outcome,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         let interpreter = Arc::clone(&self.interpreter);
         interpreter.get_preciser_scope_knowing_condition_outcome(
             &mut self.compiler,
             condition,
-            Arc::clone(&blind[0]),
+            Rc::clone(&blind[0]),
             outcome,
         )
     }
@@ -261,7 +262,7 @@ impl SemanticReverseAbstractInterpreterTest {
     }
 
     // port: SemanticReverseAbstractInterpreterTest#getVarType
-    fn get_var_type(&mut self, scope: &Arc<dyn FlowScope>, name: &str) -> Option<TypeId> {
+    fn get_var_type(&mut self, scope: &Rc<dyn FlowScope>, name: &str) -> Option<TypeId> {
         let slot = scope
             .get_slot(&mut self.compiler, &JsString::from(name))
             .expect("NullPointerException");
@@ -279,7 +280,7 @@ impl SemanticReverseAbstractInterpreterTest {
             None,
             true,
         );
-        scope[0] = Arc::clone(&scope[0]).infer_slot_type(
+        scope[0] = Rc::clone(&scope[0]).infer_slot_type(
             &mut self.compiler,
             &JsString::from(name),
             Some(type_),

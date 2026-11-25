@@ -25,15 +25,15 @@ use closure_rhino::{
     node::{Ast, NodeId},
 };
 use std::sync::{
-    Arc, Mutex,
+    Arc,
     atomic::{AtomicI32, Ordering},
 };
 
 pub struct ChangeTracker {
     change_stamp: Arc<AtomicI32>,
     change_timeline: Timeline<NodeId>,
-    recent_change: Arc<Mutex<RecentChange>>,
-    code_change_handlers: Vec<Arc<Mutex<dyn CodeChangeHandler>>>,
+    recent_change: Arc<RecentChange>,
+    code_change_handlers: Vec<Arc<dyn CodeChangeHandler>>,
     /// Rust-only (crates/DESIGN.md, "Performance divergences"): the externs root and the number of
     /// changes recorded to change scopes inside it, so that what is cached about the externs
     /// (`ReferenceCollector`'s `ExternsReferenceSummary`) is known to be still valid.
@@ -46,7 +46,7 @@ impl ChangeTracker {
         Self {
             change_stamp: Arc::new(AtomicI32::new(1)),
             change_timeline: Timeline::new(),
-            recent_change: Arc::new(Mutex::new(RecentChange::default())),
+            recent_change: Arc::new(RecentChange::default()),
             code_change_handlers: Vec::new(),
             externs_root: None,
             externs_changes: 0,
@@ -68,12 +68,12 @@ impl ChangeTracker {
     }
 
     // port: ChangeTracker#addChangeHandler
-    pub fn add_change_handler(&mut self, handler: Arc<Mutex<dyn CodeChangeHandler>>) {
+    pub fn add_change_handler(&mut self, handler: Arc<dyn CodeChangeHandler>) {
         self.code_change_handlers.push(handler);
     }
 
     // port: ChangeTracker#removeChangeHandler
-    pub fn remove_change_handler(&mut self, handler: &Arc<Mutex<dyn CodeChangeHandler>>) {
+    pub fn remove_change_handler(&mut self, handler: &Arc<dyn CodeChangeHandler>) {
         if let Some(index) = self
             .code_change_handlers
             .iter()
@@ -84,14 +84,14 @@ impl ChangeTracker {
     }
 
     // port: ChangeTracker#getRecentChange
-    pub fn get_recent_change(&self) -> Arc<Mutex<RecentChange>> {
+    pub fn get_recent_change(&self) -> Arc<RecentChange> {
         Arc::clone(&self.recent_change)
     }
 
     /// Rust-only: the RecentChange this tracker holds for the test harness is the test case's own
     /// object in Java, which CompilerTestCaseUtils#multistageSerializeAndDeserialize hands from the
     /// saved compiler to the restored one.
-    pub fn set_recent_change(&mut self, recent_change: Arc<Mutex<RecentChange>>) {
+    pub fn set_recent_change(&mut self, recent_change: Arc<RecentChange>) {
         self.recent_change = recent_change;
     }
 
@@ -142,7 +142,12 @@ impl ChangeTracker {
 
     // port: ChangeTracker#incrementChangeStamp
     pub fn increment_change_stamp(&mut self) {
-        self.change_stamp.fetch_add(1, Ordering::Relaxed);
+        // Rust-only (performance divergence): a load and a store instead of an atomic increment
+        // (a locked instruction, once per reported change). Only this tracker (`&mut self`)
+        // writes the stamp; `PhaseOptimizer`'s change handler only reads it. Java: `changeStamp++`.
+        let stamp = self.change_stamp.load(Ordering::Relaxed);
+        self.change_stamp
+            .store(stamp.wrapping_add(1), Ordering::Relaxed);
     }
 
     // port: ChangeTracker#resetChangeStamp
@@ -169,7 +174,7 @@ impl ChangeTracker {
     // port: ChangeTracker#notifyChangeHandlers
     fn notify_change_handlers(&mut self) {
         for handler in &self.code_change_handlers {
-            handler.lock().unwrap().report_change();
+            handler.report_change();
         }
     }
 

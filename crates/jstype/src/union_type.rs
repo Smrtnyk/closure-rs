@@ -55,6 +55,38 @@ use closure_rhino::{
 use std::sync::Arc;
 
 const MAX_UNION_SIZE: usize = 30;
+/// The number of alternates an [`Alternates`] copy holds without a reference count.
+const INLINE_ALTERNATES: usize = 8;
+/// Rust-only (performance divergence): the alternates `getAlternates` returns, a snapshot that stays
+/// the same while the caller goes on to use the registry mutably (Java iterates the immutable list
+/// it got). A union of at most `INLINE_ALTERNATES` members (nearly all) is copied, so that taking
+/// and dropping the snapshot costs no reference count (a locked instruction each); a larger one
+/// shares the union's list.
+#[derive(Clone, Debug)]
+pub enum Alternates {
+    Inline(u8, [TypeId; INLINE_ALTERNATES]),
+    Shared(Arc<Vec<TypeId>>),
+}
+impl Alternates {
+    fn of(alternates: &Arc<Vec<TypeId>>) -> Self {
+        if alternates.len() <= INLINE_ALTERNATES {
+            let mut ids = [TypeId(0); INLINE_ALTERNATES];
+            ids[..alternates.len()].copy_from_slice(alternates);
+            Self::Inline(alternates.len() as u8, ids)
+        } else {
+            Self::Shared(Arc::clone(alternates))
+        }
+    }
+}
+impl std::ops::Deref for Alternates {
+    type Target = [TypeId];
+    fn deref(&self) -> &[TypeId] {
+        match self {
+            Self::Inline(len, ids) => &ids[..usize::from(*len)],
+            Self::Shared(ids) => ids,
+        }
+    }
+}
 pub(crate) struct UnionTypeData {
     pub(crate) alternates: Arc<Vec<TypeId>>,
     pub(crate) alternates_resolved_before_build: bool,
@@ -350,7 +382,17 @@ fn count_resolved_alternates(t: TypeId, reg: &JSTypeRegistry) -> i32 {
         .count() as i32
 }
 // port: UnionType#getAlternates
-pub fn get_alternates(t: TypeId, reg: &mut JSTypeRegistry, ast: &Ast) -> Arc<Vec<TypeId>> {
+pub fn get_alternates(t: TypeId, reg: &mut JSTypeRegistry, ast: &Ast) -> Alternates {
+    rebuild_alternates_if_needed(t, reg, ast);
+    Alternates::of(&data(t, reg).alternates)
+}
+/// Rust-only: `getAlternates` as the union's own list, for tests of its identity.
+pub fn get_alternates_shared(t: TypeId, reg: &mut JSTypeRegistry, ast: &Ast) -> Arc<Vec<TypeId>> {
+    rebuild_alternates_if_needed(t, reg, ast);
+    data(t, reg).alternates.clone()
+}
+// port: UnionType#getAlternates (the rebuild of an unresolved union)
+fn rebuild_alternates_if_needed(t: TypeId, reg: &mut JSTypeRegistry, ast: &Ast) {
     if !t.is_resolved(reg) && !data(t, reg).alternates_resolved_before_build {
         let resolved = count_resolved_alternates(t, reg);
         if resolved != data(t, reg).resolved_alternates_at_last_build {
@@ -365,16 +407,15 @@ pub fn get_alternates(t: TypeId, reg: &mut JSTypeRegistry, ast: &Ast) -> Arc<Vec
             }
         }
     }
-    data(t, reg).alternates.clone()
 }
 pub trait UnionType {
-    fn get_alternates(self, reg: &mut JSTypeRegistry, ast: &Ast) -> Arc<Vec<TypeId>>;
+    fn get_alternates(self, reg: &mut JSTypeRegistry, ast: &Ast) -> Alternates;
     fn contains(self, reg: &mut JSTypeRegistry, ast: &Ast, type_: TypeId) -> bool;
     fn get_restricted_union(self, reg: &mut JSTypeRegistry, ast: &Ast, type_: TypeId) -> TypeId;
 }
 impl UnionType for TypeId {
     // port: UnionType#getAlternates
-    fn get_alternates(self, reg: &mut JSTypeRegistry, ast: &Ast) -> Arc<Vec<TypeId>> {
+    fn get_alternates(self, reg: &mut JSTypeRegistry, ast: &Ast) -> Alternates {
         get_alternates(self, reg, ast)
     }
     // port: UnionType#contains

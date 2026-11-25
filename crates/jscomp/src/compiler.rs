@@ -2101,13 +2101,7 @@ impl Compiler {
     fn new_tracer(&self, pass_name: &str) -> crate::tracer::Tracer {
         let comment = format!(
             "{pass_name}{}",
-            if self
-                .change_tracker
-                .get_recent_change()
-                .lock()
-                .unwrap()
-                .has_code_changed()
-            {
+            if self.change_tracker.get_recent_change().has_code_changed() {
                 " on recently changed AST"
             } else {
                 ""

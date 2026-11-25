@@ -16,7 +16,12 @@
 // Ported from Closure Compiler (https://github.com/google/closure-compiler), commit 143e31c:
 //   src/com/google/javascript/jscomp/CodeChangeHandler.java.
 
-pub trait CodeChangeHandler: Send {
+/// Rust-only (performance divergence): `report_change` takes `&self` and the handlers are shared
+/// as `Arc<dyn CodeChangeHandler>`, not behind a mutex: every reported change calls every handler,
+/// and a handler only records the change in a relaxed atomic (a plain store; Java writes a plain
+/// field), so that a change report costs no locked instruction. Only the compiler thread reports
+/// changes.
+pub trait CodeChangeHandler: Send + Sync {
     // port: CodeChangeHandler#reportChange
-    fn report_change(&mut self);
+    fn report_change(&self);
 }

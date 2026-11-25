@@ -743,7 +743,11 @@ pub trait JSType {
         that: TypeId,
     ) -> TypePair;
     fn is_null_type_or_void_type(self, reg: &JSTypeRegistry) -> bool;
-    fn get_union_members(self, reg: &mut JSTypeRegistry, ast: &Ast) -> Option<Arc<Vec<TypeId>>>;
+    fn get_union_members(
+        self,
+        reg: &mut JSTypeRegistry,
+        ast: &Ast,
+    ) -> Option<crate::union_type::Alternates>;
     fn restrict_by_not_null_or_undefined(self, reg: &mut JSTypeRegistry, ast: &Ast) -> TypeId;
     fn restrict_by_not_undefined(self, reg: &mut JSTypeRegistry, ast: &Ast) -> TypeId;
     fn restrict_by_not_null(self, reg: &mut JSTypeRegistry, ast: &Ast) -> TypeId;
@@ -2453,7 +2457,11 @@ impl JSType for TypeId {
         self.is_null_type(reg) || self.is_void_type(reg)
     }
     // port: JSType#getUnionMembers
-    fn get_union_members(self, reg: &mut JSTypeRegistry, ast: &Ast) -> Option<Arc<Vec<TypeId>>> {
+    fn get_union_members(
+        self,
+        reg: &mut JSTypeRegistry,
+        ast: &Ast,
+    ) -> Option<crate::union_type::Alternates> {
         self.to_maybe_union_type(reg)
             .map(|t| crate::union_type::get_alternates(t, reg, ast))
     }

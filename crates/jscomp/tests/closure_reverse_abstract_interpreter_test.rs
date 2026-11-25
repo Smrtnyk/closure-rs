@@ -29,7 +29,7 @@ use closure_jstype::{TypeId, js_type_native::JSTypeNative, testing::type_subject
 use closure_parsing::parser::feature_set::Feature;
 use closure_rhino::{ir::IR, js_string::JsString, outcome::Outcome, token::Token};
 use closure_testing::compiler_type_test_case::CompilerTypeTestCase;
-use std::sync::Arc;
+use std::rc::Rc;
 
 struct ClosureReverseAbstractInterpreterTest {
     compiler: Compiler,
@@ -107,7 +107,7 @@ impl ClosureReverseAbstractInterpreterTest {
         reg.create_union_type(ast, variants)
     }
 
-    fn slot_type(&mut self, scope: &Arc<dyn FlowScope>, name: &str) -> Option<TypeId> {
+    fn slot_type(&mut self, scope: &Rc<dyn FlowScope>, name: &str) -> Option<TypeId> {
         let slot = scope
             .get_slot(&mut self.compiler, &JsString::from(name))
             .expect("NullPointerException");
@@ -138,7 +138,7 @@ impl ClosureReverseAbstractInterpreterTest {
         let root = IR::root(&mut self.compiler, &[externs_root, js_root]);
         let scope =
             TypedScopeCreator::new(&mut self.compiler).create_scope(&mut self.compiler, root, None);
-        let mut flow_scope: Arc<dyn FlowScope> = LinkedFlowScope::create_entry_lattice(scope);
+        let mut flow_scope: Rc<dyn FlowScope> = LinkedFlowScope::create_entry_lattice(scope);
 
         assert_eq!(call.get_token(&self.compiler), Token::CALL);
         assert_eq!(name.get_token(&self.compiler), Token::NAME);
@@ -150,7 +150,7 @@ impl ClosureReverseAbstractInterpreterTest {
         let true_scope = rai.get_preciser_scope_knowing_condition_outcome(
             &mut self.compiler,
             call,
-            Arc::clone(&flow_scope),
+            Rc::clone(&flow_scope),
             Outcome::TRUE,
         );
         let a_true_type = self.slot_type(&true_scope, "a");
@@ -163,7 +163,7 @@ impl ClosureReverseAbstractInterpreterTest {
         let false_scope = rai.get_preciser_scope_knowing_condition_outcome(
             &mut self.compiler,
             call,
-            Arc::clone(&flow_scope),
+            Rc::clone(&flow_scope),
             Outcome::FALSE,
         );
         let a_type = self.slot_type(&false_scope, "a");

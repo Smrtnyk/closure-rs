@@ -33,8 +33,8 @@ use closure_rhino::{
     node::{Ast, NodeId},
     token::Token,
 };
-use std::sync::Arc;
-#[derive(Debug)]
+use std::rc::Rc;
+#[derive(Clone, Debug)]
 pub struct Definition {
     pub node: NodeId,
     pub depends: IndexSet<VarId>,
@@ -77,12 +77,14 @@ impl PartialEq for Definition {
     }
 }
 impl Eq for Definition {}
-/// Rust-only (performance divergence): the map is shared copy-on-write (`Arc::make_mut` before a
+/// Rust-only (performance divergence): the map is shared copy-on-write (`Rc::make_mut` before a
 /// change), so the lattice elements DataFlowAnalysis copies (Java shares references to them) cost
-/// no map copy.
+/// no map copy. The map and its definitions are shared with `Rc`, not `Arc`: one thread runs an
+/// analysis, and each copy of a map counts every definition in it (with `Arc`, a locked
+/// instruction each). What workers share is `PreparedMustDef`, which holds no lattice.
 #[derive(Clone, Default)]
 pub struct MustDef {
-    pub reaching_def: Arc<IndexMap<VarId, Option<Arc<Definition>>>>,
+    pub reaching_def: Rc<IndexMap<VarId, Option<Rc<Definition>>>>,
 }
 impl MustDef {
     // port: MustBeReachingVariableDef.MustDef#MustDef()
@@ -95,11 +97,11 @@ impl MustDef {
         vars: impl IntoIterator<Item = VarId>,
     ) -> Self {
         let mut result = Self::new();
-        let reaching_def = Arc::make_mut(&mut result.reaching_def);
+        let reaching_def = Rc::make_mut(&mut result.reaching_def);
         for var in vars {
             reaching_def.insert(
                 var,
-                Some(Arc::new(Definition::new(
+                Some(Rc::new(Definition::new(
                     var.get_scope(compiler).get_root_node(compiler),
                 ))),
             );
@@ -122,7 +124,7 @@ impl MustDef {
 impl PartialEq for MustDef {
     // port: MustBeReachingVariableDef.MustDef#equals
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.reaching_def, &other.reaching_def)
+        Rc::ptr_eq(&self.reaching_def, &other.reaching_def)
             || self.reaching_def.len() == other.reaching_def.len()
                 && self
                     .reaching_def
@@ -141,17 +143,17 @@ pub struct MustDefJoin {
 }
 impl MustDefJoin {
     // port: MustBeReachingVariableDef.MustDefJoin#mergeVarDef
-    fn merge_var_def(&mut self, var: VarId, def: &Option<Arc<Definition>>) {
+    fn merge_var_def(&mut self, var: VarId, def: &Option<Rc<Definition>>) {
         Self::merge_var_def_into(&mut self.result, var, def);
     }
 
-    fn merge_var_def_into(result: &mut MustDef, var: VarId, def: &Option<Arc<Definition>>) {
+    fn merge_var_def_into(result: &mut MustDef, var: VarId, def: &Option<Rc<Definition>>) {
         let result_def = match result.reaching_def.get(&var) {
             None => def.clone(),
             Some(existing) if existing.is_none() || existing == def => return,
             Some(_) => None,
         };
-        Arc::make_mut(&mut result.reaching_def).insert(var, result_def);
+        Rc::make_mut(&mut result.reaching_def).insert(var, result_def);
     }
 
     fn join_into(result: &mut MustDef, input: &MustDef) {
@@ -159,7 +161,7 @@ impl MustDefJoin {
             *result = input.clone();
             return;
         }
-        if Arc::ptr_eq(&result.reaching_def, &input.reaching_def) {
+        if Rc::ptr_eq(&result.reaching_def, &input.reaching_def) {
             return;
         }
         for (&var, def) in input.reaching_def.iter() {
@@ -176,7 +178,7 @@ impl FlowJoiner<MustDef> for MustDefJoin {
             self.result = input;
             return;
         }
-        if Arc::ptr_eq(&self.result.reaching_def, &input.reaching_def) {
+        if Rc::ptr_eq(&self.result.reaching_def, &input.reaching_def) {
             return;
         }
         for (var, def) in input.reaching_def.iter() {
@@ -196,7 +198,9 @@ pub(crate) struct PreparedMustDef {
     escaped_var_ids: IndexSet<VarId>,
     param_var_ids: IndexSet<VarId>,
     all_vars_in_fn: IndexMap<JsString, VarId>,
-    entry_lattice: MustDef,
+    /// The definitions of the entry lattice (`MustDef#MustDef(Collection)`), from which each run
+    /// builds its own lattice.
+    entry_definitions: Vec<(VarId, Definition)>,
 }
 
 pub(crate) struct BorrowedMustDef<'a> {
@@ -209,7 +213,7 @@ impl<'a> BorrowedMustDef<'a> {
         &self.state.cfg
     }
 
-    pub(crate) fn get_def(&self, name: &JsString, use_node: NodeId) -> Option<Arc<Definition>> {
+    pub(crate) fn get_def(&self, name: &JsString, use_node: NodeId) -> Option<Rc<Definition>> {
         let n = self.state.cfg.get_node(&Some(use_node))?;
         let state = self.state.node_flow::<MustDef>(n);
         self.prepared
@@ -260,13 +264,31 @@ impl PreparedMustDef {
                 param_var_ids.insert(var);
             }
         }
-        let entry_lattice = MustDef::new_with_vars(compiler, all_vars_in_fn.values().copied());
+        let entry_definitions = all_vars_in_fn
+            .values()
+            .map(|&var| {
+                (
+                    var,
+                    Definition::new(var.get_scope(compiler).get_root_node(compiler)),
+                )
+            })
+            .collect();
         Self {
             escaped_var_ids,
             param_var_ids,
             all_vars_in_fn,
-            entry_lattice,
+            entry_definitions,
         }
+    }
+
+    /// The entry lattice of a run: `MustDef::new_with_vars` of the variables of the function.
+    fn entry_lattice(&self) -> MustDef {
+        let mut result = MustDef::new();
+        let reaching_def = Rc::make_mut(&mut result.reaching_def);
+        for (var, definition) in &self.entry_definitions {
+            reaching_def.insert(*var, Some(Rc::new(definition.clone())));
+        }
+        result
     }
 
     pub(crate) fn escaped_var_ids(&self) -> &IndexSet<VarId> {
@@ -283,7 +305,7 @@ impl PreparedMustDef {
         cfg: ControlFlowGraph<NodeId>,
     ) -> BorrowedMustDef<'a> {
         let mut state = DataFlowAnalysisState::new(cfg, true, false);
-        let entry = &self.entry_lattice;
+        let entry = &self.entry_lattice();
         state.run_indexed_readonly(
             ast,
             true,
@@ -328,13 +350,14 @@ impl MustBeReachingVariableDef {
         all_vars_in_fn: IndexMap<JsString, VarId>,
     ) -> Self {
         let prepared = PreparedMustDef::new(compiler, &escaped, all_vars_in_fn);
+        let entry_lattice = prepared.entry_lattice();
         Self {
             state: DataFlowAnalysisState::new(cfg, true, false),
             escaped,
             escaped_var_ids: prepared.escaped_var_ids,
             param_var_ids: prepared.param_var_ids,
             all_vars_in_fn: prepared.all_vars_in_fn,
-            entry_lattice: prepared.entry_lattice,
+            entry_lattice,
         }
     }
     pub fn into_cfg(self) -> ControlFlowGraph<NodeId> {
@@ -757,11 +780,11 @@ impl MustBeReachingVariableDef {
         let Some(&var) = all_vars_in_fn.get(name) else {
             return;
         };
-        let depends_on_var = |other: &Option<Arc<Definition>>| {
+        let depends_on_var = |other: &Option<Rc<Definition>>| {
             other.as_ref().is_some_and(|d| d.depends.contains(&var))
         };
         if def.reaching_def.values().any(depends_on_var) {
-            for other in Arc::make_mut(&mut def.reaching_def).values_mut() {
+            for other in Rc::make_mut(&mut def.reaching_def).values_mut() {
                 if depends_on_var(other) {
                     *other = None;
                 }
@@ -773,9 +796,9 @@ impl MustBeReachingVariableDef {
                 if let Some(r_value) = r_value {
                     Self::compute_dependence_ast(ast, &mut definition, r_value, all_vars_in_fn);
                 }
-                Arc::make_mut(&mut def.reaching_def).insert(var, Some(Arc::new(definition)));
+                Rc::make_mut(&mut def.reaching_def).insert(var, Some(Rc::new(definition)));
             } else {
-                Arc::make_mut(&mut def.reaching_def).insert(var, None);
+                Rc::make_mut(&mut def.reaching_def).insert(var, None);
             }
         }
     }
@@ -785,15 +808,15 @@ impl MustBeReachingVariableDef {
             return;
         }
         for &v in param_var_ids {
-            Arc::make_mut(&mut output.reaching_def).insert(v, None);
+            Rc::make_mut(&mut output.reaching_def).insert(v, None);
         }
-        let depends_on_parameter = |value: &Option<Arc<Definition>>| {
+        let depends_on_parameter = |value: &Option<Rc<Definition>>| {
             value
                 .as_ref()
                 .is_some_and(|d| d.depends.iter().any(|dep| param_var_ids.contains(dep)))
         };
         if output.reaching_def.values().any(depends_on_parameter) {
-            for value in Arc::make_mut(&mut output.reaching_def).values_mut() {
+            for value in Rc::make_mut(&mut output.reaching_def).values_mut() {
                 if depends_on_parameter(value) {
                     *value = None;
                 }
@@ -861,7 +884,7 @@ impl MustBeReachingVariableDef {
         walk(ast, r_value, true, def, all_vars_in_fn);
     }
     // port: MustBeReachingVariableDef#getDef
-    pub fn get_def(&self, name: &JsString, use_node: NodeId) -> Option<Arc<Definition>> {
+    pub fn get_def(&self, name: &JsString, use_node: NodeId) -> Option<Rc<Definition>> {
         check_argument!(self.get_cfg().has_node(&Some(use_node)));
         let n = self.get_cfg().get_node(&Some(use_node)).unwrap();
         let state = self.flow_state(n);

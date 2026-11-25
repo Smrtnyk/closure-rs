@@ -898,12 +898,14 @@ fn test_union_of_resolved_alternates_is_not_rebuilt_during_resolution() {
             .create_union_type(&f.base.ast, &[f.base.number_type, f.base.string_type]);
         union = _expr2;
         TypeSubject::assert_type(union).is_unresolved(&f.base.reg);
-        let _expr3 = union.get_alternates(&mut f.base.reg, &f.base.ast);
+        let _expr3 =
+            closure_jstype::union_type::get_alternates_shared(union, &mut f.base.reg, &f.base.ast);
         original_alternates = _expr3;
         _expr1.close(&mut f.base.reg, &f.base.ast);
     }
     TypeSubject::assert_type(union).is_resolved(&f.base.reg);
-    let _expr4 = union.get_alternates(&mut f.base.reg, &f.base.ast);
+    let _expr4 =
+        closure_jstype::union_type::get_alternates_shared(union, &mut f.base.reg, &f.base.ast);
     assert!(Arc::ptr_eq(&original_alternates, &_expr4));
 }
 
@@ -951,9 +953,11 @@ fn test_union_with_unresolved_alternate_is_not_rebuilt_if_no_alternate_has_resol
             .create_union_type(&f.base.ast, &[f.base.string_type, number_proxy]);
         let union = _expr6;
         TypeSubject::assert_type(union).is_unresolved(&f.base.reg);
-        let _expr7 = union.get_alternates(&mut f.base.reg, &f.base.ast);
+        let _expr7 =
+            closure_jstype::union_type::get_alternates_shared(union, &mut f.base.reg, &f.base.ast);
         let first_read = _expr7;
-        let _expr8 = union.get_alternates(&mut f.base.reg, &f.base.ast);
+        let _expr8 =
+            closure_jstype::union_type::get_alternates_shared(union, &mut f.base.reg, &f.base.ast);
         let second_read = _expr8;
         assert!(Arc::ptr_eq(&second_read, &first_read));
         _expr1.close(&mut f.base.reg, &f.base.ast);
@@ -981,9 +985,11 @@ fn test_union_with_alternate_that_resolves_to_union_is_still_flattened() {
             .reg
             .create_union_type(&f.base.ast, &[f.base.string_type, union_proxy]);
         union = _expr7;
-        let _expr8 = union.get_alternates(&mut f.base.reg, &f.base.ast);
+        let _expr8 =
+            closure_jstype::union_type::get_alternates_shared(union, &mut f.base.reg, &f.base.ast);
         let first_read = _expr8;
-        let _expr9 = union.get_alternates(&mut f.base.reg, &f.base.ast);
+        let _expr9 =
+            closure_jstype::union_type::get_alternates_shared(union, &mut f.base.reg, &f.base.ast);
         assert!(Arc::ptr_eq(&_expr9, &first_read));
         _expr1.close(&mut f.base.reg, &f.base.ast);
     }

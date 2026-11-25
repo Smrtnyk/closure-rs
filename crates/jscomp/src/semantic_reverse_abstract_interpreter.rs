@@ -48,7 +48,9 @@ use closure_rhino::{
 };
 use std::{
     any::Any,
-    sync::{Arc, Mutex, MutexGuard, PoisonError, Weak},
+    cell::{RefCell, RefMut},
+    rc::Rc,
+    sync::{Arc, Weak},
 };
 
 /// Java's `Function<TypePair, TypePair>` merging functions.
@@ -121,9 +123,9 @@ impl SemanticReverseAbstractInterpreter {
         &self,
         compiler: &mut AbstractCompiler,
         value: NodeId,
-        blind_scope: Arc<dyn FlowScope>,
+        blind_scope: Rc<dyn FlowScope>,
         outcome: Outcome,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         let type_ = self.get_type_if_refinable(compiler, value, &blind_scope);
         if let Some(type_) = type_ {
             let (reg, ast) = compiler.get_type_registry_and_ast();
@@ -143,9 +145,9 @@ impl SemanticReverseAbstractInterpreter {
         &self,
         compiler: &mut AbstractCompiler,
         condition: NodeId,
-        blind_scope: Arc<dyn FlowScope>,
+        blind_scope: Rc<dyn FlowScope>,
         merging: Merging,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         let left = condition.get_first_child(&compiler.ast).unwrap();
         let right = condition.get_last_child(&compiler.ast).unwrap();
         self.case_equality_of(compiler, left, right, blind_scope, merging)
@@ -159,9 +161,9 @@ impl SemanticReverseAbstractInterpreter {
         compiler: &mut AbstractCompiler,
         left: NodeId,
         right: NodeId,
-        blind_scope: Arc<dyn FlowScope>,
+        blind_scope: Rc<dyn FlowScope>,
         merging: Merging,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         // left type
         let mut left_type = self.get_type_if_refinable(compiler, left, &blind_scope);
         let left_is_refineable;
@@ -217,9 +219,9 @@ impl SemanticReverseAbstractInterpreter {
         compiler: &mut AbstractCompiler,
         left: NodeId,
         right: NodeId,
-        mut blind_scope: Arc<dyn FlowScope>,
+        mut blind_scope: Rc<dyn FlowScope>,
         outcome: Outcome,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         // left type
         let mut left_type = self.get_type_if_refinable(compiler, left, &blind_scope);
         let left_is_refineable;
@@ -305,16 +307,16 @@ impl SemanticReverseAbstractInterpreter {
         compiler: &mut AbstractCompiler,
         left: NodeId,
         right: NodeId,
-        mut blind_scope: Arc<dyn FlowScope>,
+        mut blind_scope: Rc<dyn FlowScope>,
         outcome: Outcome,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         // Perform two separate refinements, one for if short-circuiting occurred, and one for if it
         // did not.  Because it's not clear whether short-circuiting occurred, we actually have to
         // ignore both separate result flow scopes individually, but if they both refined the same
         // slot, we can join the two refinements.  TODO(sdh): look into simplifying this.  If
         // joining were more efficient, we should just be able to join the scopes unconditionally?
-        let refinements: Refinements = Arc::new(Mutex::new(IndexSet::<_>::default()));
-        blind_scope = Arc::new(RefinementTrackingFlowScope::new(
+        let refinements: Refinements = Rc::new(RefCell::new(IndexSet::<_>::default()));
+        blind_scope = Rc::new(RefinementTrackingFlowScope::new(
             blind_scope,
             refinements.clone(),
         ));
@@ -336,7 +338,7 @@ impl SemanticReverseAbstractInterpreter {
         };
         lock(&refinements).clear();
         // Note: re-wrap the scope, in case it was unwrapped by a nested call to this method.
-        let mut right_scope: Arc<dyn FlowScope> = Arc::new(RefinementTrackingFlowScope::new(
+        let mut right_scope: Rc<dyn FlowScope> = Rc::new(RefinementTrackingFlowScope::new(
             self.first_preciser_scope_knowing_condition_outcome(
                 compiler,
                 left,
@@ -385,11 +387,11 @@ impl SemanticReverseAbstractInterpreter {
     fn maybe_restrict_name(
         &self,
         compiler: &mut AbstractCompiler,
-        blind_scope: Arc<dyn FlowScope>,
+        blind_scope: Rc<dyn FlowScope>,
         node: NodeId,
         original_type: Option<TypeId>,
         restricted_type: Option<TypeId>,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         if let Some(restricted_type) = restricted_type
             && Some(restricted_type) != original_type
         {
@@ -405,14 +407,14 @@ impl SemanticReverseAbstractInterpreter {
     fn maybe_restrict_two_names(
         &self,
         compiler: &mut AbstractCompiler,
-        blind_scope: Arc<dyn FlowScope>,
+        blind_scope: Rc<dyn FlowScope>,
         left: NodeId,
         original_left_type: Option<TypeId>,
         restricted_left_type: Option<TypeId>,
         right: NodeId,
         original_right_type: Option<TypeId>,
         restricted_right_type: Option<TypeId>,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         let should_refine_left =
             restricted_left_type.is_some() && restricted_left_type != original_left_type;
         let should_refine_right =
@@ -446,9 +448,9 @@ impl SemanticReverseAbstractInterpreter {
         &self,
         compiler: &mut AbstractCompiler,
         name: NodeId,
-        blind_scope: Arc<dyn FlowScope>,
+        blind_scope: Rc<dyn FlowScope>,
         outcome: Outcome,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         let type_ = self.get_type_if_refinable(compiler, name, &blind_scope);
         if let Some(type_) = type_ {
             let (reg, ast) = compiler.get_type_registry_and_ast();
@@ -473,8 +475,8 @@ impl SemanticReverseAbstractInterpreter {
         type_: TypeId,
         value: &JsString,
         result_equals_value: bool,
-        blind_scope: Arc<dyn FlowScope>,
-    ) -> Arc<dyn FlowScope> {
+        blind_scope: Rc<dyn FlowScope>,
+    ) -> Rc<dyn FlowScope> {
         let (reg, ast) = compiler.get_type_registry_and_ast();
         let restricted = self.get_restricted_by_type_of_result(
             reg,
@@ -493,9 +495,9 @@ impl SemanticReverseAbstractInterpreter {
         compiler: &mut AbstractCompiler,
         left: NodeId,
         right: NodeId,
-        blind_scope: Arc<dyn FlowScope>,
+        blind_scope: Rc<dyn FlowScope>,
         outcome: Outcome,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         let left_type = self.get_type_if_refinable(compiler, left, &blind_scope);
         let Some(left_type) = left_type else {
             return blind_scope;
@@ -539,8 +541,8 @@ impl SemanticReverseAbstractInterpreter {
         compiler: &mut AbstractCompiler,
         object: NodeId,
         property_name: &JsString,
-        blind_scope: Arc<dyn FlowScope>,
-    ) -> Arc<dyn FlowScope> {
+        blind_scope: Rc<dyn FlowScope>,
+    ) -> Rc<dyn FlowScope> {
         let (reg, ast) = compiler.get_type_registry_and_ast();
         let mut js_type = object.get_jstype(ast);
         js_type = js_type.map(|js_type| js_type.restrict_by_not_null_or_undefined(reg, ast));
@@ -584,9 +586,9 @@ impl ReverseAbstractInterpreter for SemanticReverseAbstractInterpreter {
         &self,
         compiler: &mut AbstractCompiler,
         condition: NodeId,
-        blind_scope: Arc<dyn FlowScope>,
+        blind_scope: Rc<dyn FlowScope>,
         outcome: Outcome,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         // Check for the typeof operator.
         let operator_token = condition.get_token(&compiler.ast);
         match operator_token {
@@ -956,10 +958,11 @@ impl RestrictByTypeOfResultVisitor for RestrictByFalseInstanceOfResultVisitor {
 }
 
 /// Java's `Set<String> refinements`, shared by the RefinementTrackingFlowScopes of one refinement.
-type Refinements = Arc<Mutex<IndexSet<JsString>>>;
+/// Rust-only: `Rc<RefCell<..>>` like the flow scopes that hold it (one thread, no locking).
+type Refinements = Rc<RefCell<IndexSet<JsString>>>;
 
-fn lock(refinements: &Refinements) -> MutexGuard<'_, IndexSet<JsString>> {
-    refinements.lock().unwrap_or_else(PoisonError::into_inner)
+fn lock(refinements: &Refinements) -> RefMut<'_, IndexSet<JsString>> {
+    refinements.borrow_mut()
 }
 
 /// Java's `refinements.size() == 1 ? refinements.iterator().next() : <no slot>`.
@@ -974,11 +977,11 @@ fn single_refinement(refinements: &Refinements) -> Option<JsString> {
 
 // port: SemanticReverseAbstractInterpreter#unwrap
 /// Unwraps any RefinementTrackingFlowScopes.
-fn unwrap(mut scope: Arc<dyn FlowScope>) -> Arc<dyn FlowScope> {
+fn unwrap(mut scope: Rc<dyn FlowScope>) -> Rc<dyn FlowScope> {
     loop {
         match scope
             .clone()
-            .as_any_arc()
+            .as_any_rc()
             .downcast::<RefinementTrackingFlowScope>()
         {
             Ok(tracking) => scope = tracking.delegate.clone(),
@@ -989,13 +992,13 @@ fn unwrap(mut scope: Arc<dyn FlowScope>) -> Arc<dyn FlowScope> {
 
 /// A wrapper around FlowScope that keeps track of which vars were refined.
 struct RefinementTrackingFlowScope {
-    delegate: Arc<dyn FlowScope>,
+    delegate: Rc<dyn FlowScope>,
     refinements: Refinements,
 }
 
 impl RefinementTrackingFlowScope {
     // port: SemanticReverseAbstractInterpreter.RefinementTrackingFlowScope#RefinementTrackingFlowScope
-    fn new(delegate: Arc<dyn FlowScope>, refinements: Refinements) -> Self {
+    fn new(delegate: Rc<dyn FlowScope>, refinements: Refinements) -> Self {
         Self {
             delegate,
             refinements,
@@ -1003,9 +1006,9 @@ impl RefinementTrackingFlowScope {
     }
 
     // port: SemanticReverseAbstractInterpreter.RefinementTrackingFlowScope#wrap
-    fn wrap(self: Arc<Self>, scope: Arc<dyn FlowScope>) -> Arc<dyn FlowScope> {
-        if !Arc::ptr_eq(&scope, &self.delegate) {
-            Arc::new(RefinementTrackingFlowScope::new(
+    fn wrap(self: Rc<Self>, scope: Rc<dyn FlowScope>) -> Rc<dyn FlowScope> {
+        if !Rc::ptr_eq(&scope, &self.delegate) {
+            Rc::new(RefinementTrackingFlowScope::new(
                 scope,
                 self.refinements.clone(),
             ))
@@ -1018,20 +1021,20 @@ impl RefinementTrackingFlowScope {
 impl FlowScope for RefinementTrackingFlowScope {
     // port: SemanticReverseAbstractInterpreter.RefinementTrackingFlowScope#withSyntacticScope
     fn with_syntactic_scope(
-        self: Arc<Self>,
+        self: Rc<Self>,
         _compiler: &mut AbstractCompiler,
         _scope: TypedScope,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         panic!("UnsupportedOperationException")
     }
 
     // port: SemanticReverseAbstractInterpreter.RefinementTrackingFlowScope#inferSlotType
     fn infer_slot_type(
-        self: Arc<Self>,
+        self: Rc<Self>,
         compiler: &mut AbstractCompiler,
         symbol: &JsString,
         type_: Option<TypeId>,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         lock(&self.refinements).insert(symbol.clone());
         let scope = self
             .delegate
@@ -1042,14 +1045,14 @@ impl FlowScope for RefinementTrackingFlowScope {
 
     // port: SemanticReverseAbstractInterpreter.RefinementTrackingFlowScope#inferQualifiedSlot
     fn infer_qualified_slot(
-        self: Arc<Self>,
+        self: Rc<Self>,
         compiler: &mut AbstractCompiler,
         node: NodeId,
         symbol: &JsString,
         bottom_type: Option<TypeId>,
         inferred_type: TypeId,
         declare: bool,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         lock(&self.refinements).insert(symbol.clone());
         let scope = self.delegate.clone().infer_qualified_slot(
             compiler,
@@ -1092,7 +1095,7 @@ impl FlowScope for RefinementTrackingFlowScope {
         self.delegate.get_type_of_this(compiler)
     }
 
-    fn as_any_arc(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
+    fn as_any_rc(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
 }

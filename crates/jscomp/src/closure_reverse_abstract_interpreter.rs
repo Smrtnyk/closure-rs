@@ -35,6 +35,7 @@ use closure_rhino::{
     node::{Ast, NodeId},
     outcome::Outcome,
 };
+use std::rc::Rc;
 use std::sync::{Arc, Weak};
 
 /// Java's `Function<TypeRestriction, JSType>`: the restricter lambdas of `restricters`.
@@ -87,10 +88,10 @@ impl ClosureReverseAbstractInterpreter {
         compiler: &mut AbstractCompiler,
         parameter: NodeId,
         type_: Option<TypeId>,
-        blind_scope: Arc<dyn FlowScope>,
+        blind_scope: Rc<dyn FlowScope>,
         restriction: Restricter,
         outcome: bool,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         // restricting
         let (reg, ast) = compiler.get_type_registry_and_ast();
         let type_ = restriction(self, reg, ast, TypeRestriction::new(type_, outcome));
@@ -110,9 +111,9 @@ impl ReverseAbstractInterpreter for ClosureReverseAbstractInterpreter {
         &self,
         compiler: &mut AbstractCompiler,
         condition: NodeId,
-        blind_scope: Arc<dyn FlowScope>,
+        blind_scope: Rc<dyn FlowScope>,
         outcome: Outcome,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         let ast = &compiler.ast;
         if condition.is_call(ast) && condition.has_two_children(ast) {
             let callee = condition.get_first_child(ast).unwrap();

@@ -8975,8 +8975,7 @@ fn test_parse_union_type_function_return_three_alts() {
     TypeSubject::assert_type(r#type).is_union_type(&f.types.reg);
     let mut alts = (((r#type).to_maybe_union_type(&f.types.reg)).unwrap())
         .get_alternates(&mut f.types.reg, &f.types.ast)
-        .as_ref()
-        .clone();
+        .to_vec();
     assert_eq!((alts).len(), 3usize);
     TypeSubject::assert_type((alts)[0usize])
         .is_function_type_that(&f.types.reg)

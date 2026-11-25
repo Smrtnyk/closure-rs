@@ -18,7 +18,10 @@
 
 use std::any::Any;
 /// Java marker interface; `to_string` is the hook for Java Object.toString in DOT labels.
-pub trait Annotation: Any + Send + Sync {
+/// Rust-only: not `Send + Sync`, so that a lattice element can share its parts with `Rc`
+/// (TypeInference's flow scopes, MaybeReachingVariableUse's maps); a graph whose annotations
+/// another thread reads still has to hold `Send + Sync` ones.
+pub trait Annotation: Any {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
     /// Object identity hashes have no JVM-independent numeric value. Marker

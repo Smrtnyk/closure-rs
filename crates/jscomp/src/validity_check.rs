@@ -41,7 +41,7 @@ use closure_rhino::{
     js_string::JsString,
     node::{NodeId, Prop},
 };
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 // port: ValidityCheck#EXTERN_PROPERTIES_CHANGED
 pub static EXTERN_PROPERTIES_CHANGED: DiagnosticType = DiagnosticType::error(
@@ -84,7 +84,7 @@ impl ValidityCheck {
     // port: ValidityCheck#checkNormalization
     fn check_normalization(compiler: &mut AbstractCompiler, externs: NodeId, root: NodeId) {
         // Verify nothing has inappropriately denormalize the AST.
-        let handler: Arc<Mutex<dyn CodeChangeHandler>> = Arc::new(Mutex::new(ForbiddenChange));
+        let handler: Arc<dyn CodeChangeHandler> = Arc::new(ForbiddenChange);
         compiler
             .get_change_tracker()
             .add_change_handler(handler.clone());

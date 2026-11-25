@@ -21,7 +21,7 @@
 //!
 //! Java's `TypeInference extends DataFlowAnalysis<Node, FlowScope>`. The Java fields `compiler`
 //! and `registry` are not stored (DESIGN §6): every method that used them takes the compiler,
-//! which owns the registry. The lattice is `Arc<dyn FlowScope>` (Java's `FlowScope`), compared by
+//! which owns the registry. The lattice is `Rc<dyn FlowScope>` (Java's `FlowScope`), compared by
 //! identity where Java compares with `==`.
 use crate::{
     abstract_compiler::AbstractCompiler,
@@ -70,6 +70,7 @@ use closure_rhino::{
     qualified_name::QualifiedName,
     token::Token,
 };
+use std::rc::Rc;
 use std::{
     any::Any,
     collections::VecDeque,
@@ -77,7 +78,7 @@ use std::{
 };
 
 /// Java's `FlowScope` value.
-type FS = Arc<dyn FlowScope>;
+type FS = Rc<dyn FlowScope>;
 /// The lattice element of TypeInference (Java's `FlowScope`).
 pub type FlowScopeLattice = FS;
 
@@ -95,16 +96,16 @@ const GOOG_REQUIREDYNAMIC_NAME: &str = "goog.requireDynamic";
 /// Rust-only: Java's `==` on FlowScope objects (data pointer identity).
 fn same_scope(a: &FS, b: &FS) -> bool {
     std::ptr::eq(
-        Arc::as_ptr(a) as *const () as *const u8,
-        Arc::as_ptr(b) as *const () as *const u8,
+        Rc::as_ptr(a) as *const () as *const u8,
+        Rc::as_ptr(b) as *const () as *const u8,
     )
 }
 
 /// Rust-only: `LinkedFlowScope#equals` for the DataFlowAnalysis lattice comparison.
 impl LatticeEquals for FS {
     fn lattice_equals(&self, compiler: &mut AbstractCompiler, other: &Self) -> bool {
-        let linked: Arc<LinkedFlowScope> = Arc::clone(self)
-            .as_any_arc()
+        let linked: Rc<LinkedFlowScope> = Rc::clone(self)
+            .as_any_rc()
             .downcast::<LinkedFlowScope>()
             .unwrap_or_else(|_| panic!("ClassCastException"));
         linked.equals(compiler, other.as_ref())

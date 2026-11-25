@@ -77,7 +77,7 @@ struct IndexedFlows<L> {
 pub struct DataFlowAnalysisState<N: Clone + Eq + Hash> {
     pub cfg: ControlFlowGraph<N>,
     work_queue: UniqueQueue,
-    indexed: Option<Box<dyn std::any::Any + Send + Sync>>,
+    indexed: Option<Box<dyn std::any::Any>>,
 }
 impl<N: Clone + Eq + Hash> DataFlowAnalysisState<N> {
     // port: DataFlowAnalysis#DataFlowAnalysis

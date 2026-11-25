@@ -26,7 +26,7 @@ pub struct ForbiddenChange;
 
 impl CodeChangeHandler for ForbiddenChange {
     // port: ForbiddenChange#reportChange
-    fn report_change(&mut self) {
+    fn report_change(&self) {
         panic!("Code changes forbidden");
     }
 }

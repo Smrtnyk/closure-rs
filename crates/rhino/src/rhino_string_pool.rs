@@ -73,7 +73,11 @@ static INTERNER: OnceLock<Vec<Mutex<Interner>>> = OnceLock::new();
 thread_local! {
     static THREAD_CACHE: std::cell::RefCell<Option<Interner>> =
         const { std::cell::RefCell::new(None) };
+    static RECENT: std::cell::RefCell<Vec<Option<JsString>>> =
+        const { std::cell::RefCell::new(Vec::new()) };
 }
+/// The number of entries of a thread's table of recently interned strings (a power of two).
+const RECENT_SLOTS: usize = 1 << 14;
 /// Rust-only: with `CLOSURE_RS_REFCOUNTED_NAMES` set in the environment, the pool keeps the
 /// reference-counted strings it is given instead of permanent copies (to compare the two).
 fn refcounted_names() -> bool {
@@ -144,7 +148,28 @@ impl RhinoStringPool {
                     s
                 }
             },
-            None => Self::intern_shared(units, hash, new),
+            None => Self::intern_recent(units, hash, new),
+        })
+    }
+    /// Rust-only (performance divergence): a thread without a scoped cache (the compiler thread, a
+    /// scoped worker) looks up the pool entries it interned last before the shared pool, whose
+    /// shard lock costs two locked instructions per lookup: a direct-mapped table of
+    /// `RECENT_SLOTS` entries indexed by hash, created on first use and kept as long as the thread.
+    /// Pool entries are never removed, so it returns exactly what the pool would.
+    fn intern_recent(units: &[u16], hash: u64, new: impl FnOnce() -> JsString) -> JsString {
+        RECENT.with_borrow_mut(|recent| {
+            if recent.is_empty() {
+                recent.resize(RECENT_SLOTS, None);
+            }
+            let slot = &mut recent[hash as usize & (RECENT_SLOTS - 1)];
+            if let Some(s) = slot
+                && s.as_units() == units
+            {
+                return s.clone();
+            }
+            let s = Self::intern_shared(units, hash, new);
+            *slot = Some(s.clone());
+            s
         })
     }
     /// Rust-only (performance divergence): runs `f` with a cache, private to this thread, in front
@@ -157,9 +182,10 @@ impl RhinoStringPool {
         THREAD_CACHE.set(previous);
         result
     }
-    /// Intern a bundled spelling without allocating a temporary string on a pool hit.
-    pub(crate) fn add_or_get_units(units: &[u16]) -> JsString {
-        Self::intern_shared(units, hash_units(units), || {
+    /// Rust-only: `addOrGet` of the string of the code units `units`, which allocates nothing on
+    /// a pool hit (a bundled spelling, an identifier the scanner reads).
+    pub fn add_or_get_units(units: &[u16]) -> JsString {
+        Self::intern_cached(units, || {
             if refcounted_names() {
                 JsString::from_slice(units)
             } else {
@@ -191,32 +217,32 @@ impl Default for RhinoStringPool {
 }
 
 pub struct LazyInternedStringList {
-    pool: Vec<Mutex<JsString>>,
-    is_interned: WriteOnlyBitset,
+    pool: Vec<JsString>,
+    /// Rust-only (performance divergence): the interned string of each entry, set by its first
+    /// `get` (Java replaces the array entry and sets a bit of a `WriteOnlyBitset`). Reading a set
+    /// `OnceLock` is a plain load; a mutex per entry and an atomic bit cost locked instructions on
+    /// every `get`.
+    interned: Vec<OnceLock<JsString>>,
 }
 impl LazyInternedStringList {
     // port: LazyInternedStringList#LazyInternedStringList
     pub fn new(pool: Vec<JsString>) -> Self {
-        let size = pool.len();
-        Self {
-            pool: pool.into_iter().map(Mutex::new).collect(),
-            is_interned: WriteOnlyBitset::new(size as i32),
-        }
+        let interned = pool.iter().map(|_| OnceLock::new()).collect();
+        Self { pool, interned }
     }
     // port: LazyInternedStringList#get
     pub fn get(&self, offset: i32) -> JsString {
-        if !self.is_interned.get(offset) {
-            let mut slot = self.pool[offset as usize].lock().unwrap();
-            let interned = RhinoStringPool::add_or_get(slot.clone());
-            *slot = interned.clone();
-            self.is_interned.set(offset);
-            return interned;
-        }
-        self.pool[offset as usize].lock().unwrap().clone()
+        let index = offset as usize;
+        self.interned[index]
+            .get_or_init(|| RhinoStringPool::add_or_get(self.pool[index].clone()))
+            .clone()
     }
     // port: LazyInternedStringList#stream
     pub fn stream(&self) -> impl Iterator<Item = JsString> + '_ {
-        self.pool.iter().map(|s| s.lock().unwrap().clone())
+        self.pool
+            .iter()
+            .zip(&self.interned)
+            .map(|(raw, interned)| interned.get().unwrap_or(raw).clone())
     }
 }
 pub struct WriteOnlyBitset {

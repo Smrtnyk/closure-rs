@@ -50,6 +50,7 @@ use closure_rhino::{
     outcome::Outcome,
     token::Token,
 };
+use std::rc::Rc;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 
 /// Java's `firstLink` and `nextLink` fields of a ChainableReverseAbstractInterpreter.
@@ -126,9 +127,9 @@ pub trait ChainableReverseAbstractInterpreter: ReverseAbstractInterpreter {
         &self,
         compiler: &mut AbstractCompiler,
         condition: NodeId,
-        blind_scope: Arc<dyn FlowScope>,
+        blind_scope: Rc<dyn FlowScope>,
         outcome: Outcome,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         self.links()
             .first_link()
             .get_preciser_scope_knowing_condition_outcome(compiler, condition, blind_scope, outcome)
@@ -141,9 +142,9 @@ pub trait ChainableReverseAbstractInterpreter: ReverseAbstractInterpreter {
         &self,
         compiler: &mut AbstractCompiler,
         condition: NodeId,
-        blind_scope: Arc<dyn FlowScope>,
+        blind_scope: Rc<dyn FlowScope>,
         outcome: Outcome,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         match self.links().next_link() {
             Some(next_link) => next_link.get_preciser_scope_knowing_condition_outcome(
                 compiler,
@@ -164,7 +165,7 @@ pub trait ChainableReverseAbstractInterpreter: ReverseAbstractInterpreter {
         &self,
         compiler: &mut AbstractCompiler,
         node: NodeId,
-        scope: &Arc<dyn FlowScope>,
+        scope: &Rc<dyn FlowScope>,
     ) -> Option<TypeId> {
         match node.get_token(&compiler.ast) {
             Token::NAME => {
@@ -212,10 +213,10 @@ pub trait ChainableReverseAbstractInterpreter: ReverseAbstractInterpreter {
     fn declare_name_in_scope(
         &self,
         compiler: &mut AbstractCompiler,
-        scope: Arc<dyn FlowScope>,
+        scope: Rc<dyn FlowScope>,
         node: NodeId,
         type_: TypeId,
-    ) -> Arc<dyn FlowScope> {
+    ) -> Rc<dyn FlowScope> {
         match node.get_token(&compiler.ast) {
             Token::NAME => {
                 let name = node.get_string(&compiler.ast);

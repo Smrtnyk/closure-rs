@@ -401,7 +401,7 @@ mod tests {
     use crate::{Compiler, flow_scope::FlowScope, typed_var::TypedVar};
     use closure_jstype::prelude::JSType;
     use closure_rhino::{ir::IR, outcome::Outcome};
-    use std::sync::Mutex;
+    use std::{rc::Rc, sync::Mutex};
 
     struct RecordingInterpreter {
         inner: Arc<dyn ReverseAbstractInterpreter>,
@@ -413,9 +413,9 @@ mod tests {
             &self,
             compiler: &mut AbstractCompiler,
             condition: NodeId,
-            scope: Arc<dyn FlowScope>,
+            scope: Rc<dyn FlowScope>,
             outcome: Outcome,
-        ) -> Arc<dyn FlowScope> {
+        ) -> Rc<dyn FlowScope> {
             self.calls.lock().unwrap().push((condition, outcome));
             self.inner
                 .get_preciser_scope_knowing_condition_outcome(compiler, condition, scope, outcome)

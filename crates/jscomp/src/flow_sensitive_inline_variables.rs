@@ -62,6 +62,7 @@ use closure_rhino::token::Token;
 use closure_rhino::{check_argument, check_not_null, check_state};
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::rc::Rc;
 use std::sync::{Arc, LazyLock};
 
 static USE_CLEAN_CACHE: LazyLock<bool> =
@@ -1222,7 +1223,7 @@ struct Candidate {
 
     // Nodes related to the definition.
     def: Option<NodeId>,
-    def_metadata: Arc<Definition>,
+    def_metadata: Rc<Definition>,
 
     // Nodes related to the use.
     use_: NodeId,
@@ -1237,7 +1238,7 @@ impl Candidate {
     fn new(
         ast: &Ast,
         var_name: JsString,
-        def_metadata: Arc<Definition>,
+        def_metadata: Rc<Definition>,
         use_: NodeId,
         use_cfg_node: NodeId,
     ) -> Self {
