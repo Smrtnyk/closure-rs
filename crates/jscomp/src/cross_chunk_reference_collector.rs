@@ -503,6 +503,29 @@ impl TopLevelStatementCollectingBehavior {
 }
 
 impl Behavior for TopLevelStatementCollectingBehavior {
+    // Rust-only (performance divergence): the references of a function body come from its cached
+    // sites. The variable filter depends only on the binding, and inside a function body this
+    // behavior reads nothing but the references added.
+    fn can_reuse_function_reference_sites(&self) -> bool {
+        true
+    }
+
+    fn observes_replayed_references(&self) -> bool {
+        true
+    }
+
+    fn after_replayed_reference(&mut self, t: &mut NodeTraversal<'_>, reference: &Reference) {
+        if let Some(draft) = &mut self.top_level_statement_draft
+            && reference.get_node().is_name(t)
+        {
+            if Some(reference.get_node()) == draft.declared_name_node {
+                draft.declared_name_reference = Some(reference.clone());
+            } else {
+                draft.non_declaration_references.push(reference.clone());
+            }
+        }
+    }
+
     // port: CrossChunkReferenceCollector.TopLevelStatementCollectingBehavior#beforeTraverseNode
     fn before_traverse_node(
         &mut self,

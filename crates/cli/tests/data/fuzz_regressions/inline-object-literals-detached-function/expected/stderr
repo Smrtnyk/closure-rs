@@ -1,0 +1,11 @@
+in.js:1:16: WARNING - [JSC_TYPE_MISMATCH] Can only iterate over a (non-null) Iterable type
+found   : number
+required: Iterable
+  1| for (const x of 0) {
+                     ^
+
+in.js:3:2: WARNING - [JSC_UNREACHABLE_CODE] unreachable code
+  3|   if ({0: 0, [`}`]: 1, b: 0}) { function fb46() {  } }
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+0 error(s), 2 warning(s), 100.0% typed

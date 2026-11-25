@@ -1,0 +1,16 @@
+{
+ "argv": [
+  "--compilation_level=ADVANCED",
+  "--strict_mode_input=false",
+  "--language_out=ECMASCRIPT_2015",
+  "--js",
+  "in.js",
+  "--js_output_file",
+  "out/out.js"
+ ],
+ "origin": "fz-6add0fa006c2 (seed 7701): InlineObjectLiterals read the token index, which still lists the nodes of removed code, and asked whether a function declaration in a detached block is hoisted",
+ "exit_code": 0,
+ "outputs": [
+  "out/out.js"
+ ]
+}

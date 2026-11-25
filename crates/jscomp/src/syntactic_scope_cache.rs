@@ -218,6 +218,9 @@ pub(crate) struct DeepFunctionStamp {
     nested: Box<[(NodeId, (u32, u32))]>,
 }
 
+/// The most changed functions `SyntacticScopeCache` lists between two `take_changed_functions`.
+const MAX_CHANGED_FUNCTIONS: usize = 1 << 18;
+
 /// The scopes kept for reuse.
 #[derive(Default)]
 pub(crate) struct SyntacticScopeCache {
@@ -236,6 +239,10 @@ pub(crate) struct SyntacticScopeCache {
     /// The number of `record_changes` rounds that found flag-changed nodes.
     flag_round: u32,
     cursor: AstChangeCursor,
+    /// Rust-only (performance divergence): the functions whose change scope a `record_changes`
+    /// round stamped since `take_changed_functions` last ran, once per round; `None` when the list
+    /// is not complete (never taken yet, stamps reset, or too long to keep).
+    changed_functions: Option<Vec<NodeId>>,
     /// Scratch list of changed nodes.
     changed: Vec<NodeId>,
     /// Scratch list of flag-changed nodes.
@@ -272,6 +279,7 @@ impl SyntacticScopeCache {
             cache.script_declarations.clear();
             cache.stamps.clear();
             cache.flag_stamps.clear();
+            cache.changed_functions = None;
             changed_flags.clear();
             compiler.function_reference_sites = Default::default();
             compiler.remove_unused_code_cache = Default::default();
@@ -294,11 +302,24 @@ impl SyntacticScopeCache {
                         break;
                     }
                     cache.stamps[index] = round;
-                    if current.is_function(&compiler.ast) || current.is_script(&compiler.ast) {
+                    if current.is_function(&compiler.ast) {
+                        if let Some(functions) = &mut cache.changed_functions {
+                            functions.push(current);
+                        }
+                        break;
+                    }
+                    if current.is_script(&compiler.ast) {
                         break;
                     }
                     node = current.get_parent(&compiler.ast);
                 }
+            }
+            if cache
+                .changed_functions
+                .as_ref()
+                .is_some_and(|functions| functions.len() > MAX_CHANGED_FUNCTIONS)
+            {
+                cache.changed_functions = None;
             }
             changed.clear();
         }
@@ -422,6 +443,18 @@ impl SyntacticScopeCache {
                 .all(|&(nested_fn, recorded)| self.recorded_stamp_with_flags(nested_fn) == recorded)
     }
 
+    /// Reads what `subtree_stamp_with_flags` returns for `root` after a call of it has already
+    /// drained pending changes.
+    #[inline]
+    pub(crate) fn cached_subtree_stamp_with_flags(
+        compiler: &AbstractCompiler,
+        root: NodeId,
+    ) -> (u32, u32) {
+        compiler
+            .syntactic_scope_cache
+            .recorded_stamp_with_flags(root)
+    }
+
     /// The `(structural_stamp, flag_stamp)` of `root` as of the last `record_changes`.
     #[inline]
     fn recorded_stamp_with_flags(&self, root: NodeId) -> (u32, u32) {
@@ -430,6 +463,19 @@ impl SyntacticScopeCache {
             self.stamps.get(idx).copied().unwrap_or(0),
             self.flag_stamps.get(idx).copied().unwrap_or(0),
         )
+    }
+
+    /// Rust-only (performance divergence): the functions whose change scope changed since the last
+    /// call, or `None` when that list is not complete and the caller has to look at every function.
+    /// Either way the list starts anew. A function may be listed more than once, and one that was
+    /// created since may be missing: the list serves to refresh caches early, never to trust them.
+    pub(crate) fn take_changed_functions(compiler: &mut AbstractCompiler) -> Option<Vec<NodeId>> {
+        compiler.ast.track_changes();
+        Self::record_changes(compiler);
+        compiler
+            .syntactic_scope_cache
+            .changed_functions
+            .replace(Vec::new())
     }
 
     /// The round from which a change makes a scope scanned now stale.

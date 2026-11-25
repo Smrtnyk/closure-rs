@@ -50,7 +50,7 @@ use crate::scope::ScopeId;
 use crate::syntactic_scope_cache::{DeepFunctionStamp, SyntacticScopeCache};
 use crate::syntactic_scope_creator::SyntacticScopeCreator;
 use crate::var::VarId;
-use closure_rhino::fast_hash::IndexMap;
+use closure_rhino::fast_hash::{IndexMap, IndexSet};
 use closure_rhino::js_string::JsString;
 use closure_rhino::node::{Ast, NodeId, WatchedName};
 use closure_rhino::{check_argument, check_not_null, check_state};
@@ -342,6 +342,10 @@ struct InliningBehavior {
     use_cache: bool,
     current_scope_did_inline: bool,
     pending_leaf: Option<PendingLeafRecord>,
+    /// Rust-only (performance divergence): the functions in which a nested block scope inlined a
+    /// variable or has a variable that depends on one outside the function, until the scope of
+    /// the function's body is left. Such a function is not recorded as a clean leaf.
+    nested_dirty_fns: IndexSet<NodeId>,
     /// Rust-only (performance divergence): stack of active top-level functions in
     /// `Mode::LOCALS_ONLY` (`(fn_node, did_inline)`).
     global_fn_stack: Vec<(NodeId, bool)>,
@@ -456,6 +460,7 @@ impl InliningBehavior {
             use_cache,
             current_scope_did_inline: false,
             pending_leaf: None,
+            nested_dirty_fns: IndexSet::default(),
             global_fn_stack: Vec::new(),
             current_scope_handled_var_analyses_map: HandledVarAnalyses::default(),
             var_to_alias_retry_handlers_map: IndexMap::<_, _>::default(),
@@ -506,6 +511,63 @@ impl InliningBehavior {
         false
     }
 
+    /// The scope of the function that `scope` lies in, if any.
+    fn function_scope_around(compiler: &AbstractCompiler, scope: ScopeId) -> Option<ScopeId> {
+        let mut s = scope;
+        loop {
+            if s.is_function_scope(compiler) {
+                return Some(s);
+            }
+            s = s.get_parent(compiler)?;
+        }
+    }
+
+    /// Whether `scope` is `fn_scope` or a scope of the same function nested in it.
+    fn scope_is_in_function(
+        compiler: &AbstractCompiler,
+        scope: ScopeId,
+        fn_scope: ScopeId,
+    ) -> bool {
+        let mut s = scope;
+        loop {
+            if s == fn_scope {
+                return true;
+            }
+            if s.is_function_scope(compiler) {
+                return false;
+            }
+            match s.get_parent(compiler) {
+                Some(parent) => s = parent,
+                None => return false,
+            }
+        }
+    }
+
+    /// `has_outer_name_assignment` for a variable of a block scope nested in the body of the
+    /// function with scope `fn_scope`: whether it is assigned a name that is not a variable of
+    /// that function.
+    fn has_name_assignment_from_outside(
+        compiler: &mut AbstractCompiler,
+        scope: ScopeId,
+        fn_scope: ScopeId,
+        refs: &ReferenceCollection,
+    ) -> bool {
+        for r in &refs.references {
+            if let Some(val) = r.get_assigned_value(compiler)
+                && val.is_name(compiler)
+            {
+                let target = scope.get_var_of_node(compiler, val);
+                let is_local = target.is_some_and(|tv| {
+                    Self::scope_is_in_function(compiler, tv.get_scope(compiler), fn_scope)
+                });
+                if !is_local {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     /// For all variables in this scope, see if they are only used once. If it looks safe to do
     /// so, inline them.
     // port: InlineVariables.InliningBehavior#doInlinesForScope
@@ -529,12 +591,29 @@ impl InliningBehavior {
                     && !fn_node.is_from_externs(compiler)
                     && Self::has_simple_params(compiler, fn_node)
                     && (!body.has_children(compiler)
-                        || compiler.function_reference_sites.has_cached_sites(body)))
+                        || compiler
+                            .function_reference_sites
+                            .has_single_scope_sites(body)
+                        || (compiler.get_life_cycle_stage().is_normalized()
+                            && compiler.function_reference_sites.has_cached_sites(body))))
                 .then_some((fn_node, body, scope.get_parent(compiler).unwrap()))
             })
         } else {
             None
         };
+        // A block scope nested in a function: what happens in it decides, with the scopes of the
+        // body and of the function, whether the function is a clean leaf.
+        let nested_fn_scope = if self.use_cache && !is_body_scope && !is_fn_scope {
+            Self::function_scope_around(compiler, scope)
+        } else {
+            None
+        };
+        let mut nested_outer_dep = false;
+        let nested_dirty = is_body_scope
+            && scope
+                .get_root_node(compiler)
+                .get_parent(compiler)
+                .is_some_and(|fn_node| self.nested_dirty_fns.swap_remove(&fn_node));
         let pending_for_fn = if is_fn_scope {
             self.pending_leaf
                 .take()
@@ -553,6 +632,13 @@ impl InliningBehavior {
         scope.collect_declared_vars(compiler, &mut vars);
         for &v in &vars {
             let reference_info = reference_map.shared_references(v);
+            if !nested_outer_dep
+                && let Some(fn_scope) = nested_fn_scope
+                && let Some(refs) = reference_info.as_deref()
+                && Self::has_name_assignment_from_outside(compiler, scope, fn_scope, refs)
+            {
+                nested_outer_dep = true;
+            }
             if !had_outer_dep {
                 if let Some((_, _, fn_scope)) = track_body
                     && let Some(refs) = reference_info.as_deref()
@@ -581,6 +667,15 @@ impl InliningBehavior {
                     && let Some((_, dirty)) = self.global_fn_stack.last_mut()
                 {
                     *dirty = true;
+                }
+                if let Some(fn_scope) = nested_fn_scope
+                    && !Self::scope_is_in_function(
+                        compiler,
+                        aliased_var.get_scope(compiler),
+                        fn_scope,
+                    )
+                {
+                    nested_outer_dep = true;
                 }
                 if let Some((_, _, fn_scope)) = track_body {
                     let aliased_scope = aliased_var.get_scope(compiler);
@@ -625,12 +720,18 @@ impl InliningBehavior {
         }
         self.scope_vars = vars;
 
+        if let Some(fn_scope) = nested_fn_scope
+            && (self.current_scope_did_inline || nested_outer_dep)
+        {
+            self.nested_dirty_fns
+                .insert(fn_scope.get_root_node(compiler));
+        }
         if let Some((fn_node, body, _)) = track_body {
             self.pending_leaf = Some(PendingLeafRecord {
                 fn_node,
                 body,
                 body_scope: scope,
-                clean: !self.current_scope_did_inline && !had_outer_dep,
+                clean: !self.current_scope_did_inline && !had_outer_dep && !nested_dirty,
             });
         } else if let Some(pending) = pending_for_fn
             && !self.current_scope_did_inline

@@ -956,3 +956,32 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   nested in it, each a change scope of its own); `CodeGenerator` and `sourcemap` use
   zero-clone Latin identifiers, ASCII lookup tables (`SAFE_STR_ASCII`, `SAFE_JSON_ASCII`), and
   64 KiB byte-buffered VLQ encoding (`encode_to_bytes`, `MappingNames::emitted_ids`).
+- `jscomp/cross_chunk_reference_collector.rs`, `reference_collector.rs`,
+  `reference_collector/function_body.rs`, `syntactic_scope_cache.rs`, `guarded_callback.rs`,
+  `polyfill_usage_finder.rs`, `remove_unused_code.rs`, `inline_functions.rs`, `optimize_calls.rs`,
+  `inline_simple_methods.rs`: `CrossChunkReferenceCollector` takes the references of a function
+  body from its cached `FunctionBodySites` (`Behavior::after_replayed_reference` hands each one to
+  the behavior that reads `added_reference`); `FunctionReferenceCache::precompute_parallel` looks
+  only at the functions `SyntacticScopeCache::take_changed_functions` lists instead of walking the
+  tree, and not at all without a second thread; `RemoveUnusedCode` collects guarded polyfill
+  usages with `PolyfillUsageFinder::traverse_only_guarded_cached`, which does not traverse again
+  a function that is unchanged (its change stamp and those of the functions below it) and that
+  `GuardedCallback` reaches with nothing guarded and no conditional linked, so that the usages in
+  it depend on its subtree alone (`CLOSURE_RS_RUC_CACHE=off`; `=verify` compares every cached
+  collection with a full traversal); the parallel scans of `InlineFunctions`, `OptimizeCalls` and
+  `InlineSimpleMethods` split every large non-module script into runs of top-level statements, not
+  only a lone one, so that one big file among several chunks is scanned on several threads.
+- `jscomp/reference_collector/function_body.rs`, `reference_collector.rs`, `node_traversal.rs`,
+  `inline_variables.rs`, `node_iterators.rs`, `compiler.rs`: `FunctionBodySites` also covers a
+  body in which nested scopes declare `let`/`const` bindings (`SiteKind::EnterScope`,
+  `declares_in_nested_scopes`). In a normalized tree, where every declared name is unique,
+  `ReferenceCollector::replay_scoped_body_sites` replays such a body: the traversal enters and
+  leaves every nested scope (`NodeTraversal::push_scope_root_quietly`), a name without a binding
+  in the body's own scope is resolved at its first site, and the exit of a scope that declares
+  bindings is reported to the behavior where the traversal would report it. The other users of
+  the sites keep to bodies with one scope. `InlineVariables` records such a function as a clean
+  leaf too, unless a nested scope inlined a variable or holds one that depends on a variable
+  outside the function (`nested_dirty_fns`). `LocalVarMotion` keeps one `AstAnalyzer` instead of
+  asking the compiler for one at every node. `Compiler::add_source_map_source_files` resolves
+  the source names of an input source map once (`resolved_source_map_sources`), not again for
+  the source map of every chunk.

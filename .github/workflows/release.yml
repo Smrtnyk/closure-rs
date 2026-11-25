@@ -34,8 +34,8 @@ concurrency:
 
 jobs:
   # Fetch the pinned inputs once for all five platforms. ONLYOFFICE is a held-out workload:
-  # its two chunk builds exercise output parity, while the four smaller training projects
-  # supply the release PGO profile.
+  # its two chunk builds exercise output parity, while the smaller training projects, among
+  # them the bundles compiled as five dependent chunks, supply the release PGO profile.
   inputs:
     name: benchmark inputs
     runs-on: ubuntu-22.04
@@ -45,12 +45,13 @@ jobs:
         run: |
           for attempt in 1 2 3; do
             scripts/fetch_bench.sh --project d3-12 --project lodash-es --project three \
-              --project fabric-srcmap --project onlyoffice-cell && break
+              --project fabric-srcmap --project three-bundle --project d3-bundle \
+              --project lodash-bundle --project onlyoffice-cell && break
             [ "$attempt" -lt 3 ] || exit 1
             sleep $((attempt * 20))
           done
           python3 scripts/run_bench.py \
-            --job '^(d3-12/.*/ADVANCED|lodash-es/.*|three/.*|fabric-srcmap/.*)$' \
+            --job '^(d3-12/.*/ADVANCED|lodash-es/.*|three/.*|fabric-srcmap/.*|bundles-chunks/.*)$' \
             --write-args pgo-training
           python3 scripts/run_bench.py --job '^(d3-12/.*|lodash-es/.*|three/.*|onlyoffice-cell/.*)$' \
             --write-args platform-outputs
@@ -64,6 +65,9 @@ jobs:
             bench-cache/lodash-es/
             bench-cache/three/
             bench-cache/fabric-srcmap/
+            bench-cache/three-bundle/
+            bench-cache/d3-bundle/
+            bench-cache/lodash-bundle/
             bench-cache/onlyoffice-cell/
           if-no-files-found: error
 

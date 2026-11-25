@@ -110,11 +110,25 @@ def onlyoffice_cell_job(source: str, flags: list[str]) -> dict:
 
     sdk = config("cell.json")["sdk"]
     externs = config("externs.json")["externs"]
-    return {"entry_point": None, "main_chunk": "sdk-all",
+    return {"entry_point": None, "main_chunk": "sdk-all", "renaming_reports": True,
             "js": [f"{source}/{path}" for path in sdk["min"] + sdk["common"]],
             "flags": [*flags, *(f"--externs={source}/{path}" for path in externs),
                       f"--chunk=sdk-all-min:{len(sdk['min'])}",
                       f"--chunk=sdk-all:{len(sdk['common'])}:sdk-all-min"]}
+
+
+def chunks_job(job: dict, flags: list[str]) -> dict:
+    """A compile of several chunks ("chunks": name, js and deps of each, in --chunk order)."""
+    js, chunk_flags = [], []
+    for chunk in job["chunks"]:
+        files = expand(chunk["js"])
+        js += files
+        deps = chunk.get("deps")
+        chunk_flags.append(f"--chunk={chunk['name']}:{len(files)}"
+                           + (":" + ",".join(deps) if deps else ""))
+    return {"entry_point": None, "main_chunk": job["main_chunk"], "js": js,
+            "flags": [*flags, *(f"--entry_point={e}" for e in job["entry_points"]),
+                      *chunk_flags]}
 
 
 def load_jobs(spec: dict, selected=lambda job: True) -> list[dict]:
@@ -131,6 +145,9 @@ def load_jobs(spec: dict, selected=lambda job: True) -> list[dict]:
                 flags = [f"--compilation_level={level}", *proj["flags"]]
                 if "onlyoffice_sdk" in job:
                     jobs.append({**meta, **onlyoffice_cell_job(job["onlyoffice_sdk"], flags)})
+                    continue
+                if "chunks" in job:
+                    jobs.append({**meta, **chunks_job(job, flags)})
                     continue
                 advanced_entry = level == "ADVANCED" and job.get("advanced_entry_point")
                 entry = job["advanced_entry_point"] if advanced_entry else job["entry_point"]
@@ -169,9 +186,11 @@ def compiler_args(job: dict, out_file: str) -> list[str]:
     args = [*job["flags"], *(f"--js={f}" for f in job["js"]), *job.get("extra", [])]
     if "main_chunk" in job:
         prefix = out_file.removesuffix(".js") + "-"
-        return [*args, f"--chunk_output_path_prefix={prefix}",
-                f"--property_renaming_report={prefix}properties.txt",
-                f"--variable_renaming_report={prefix}variables.txt"]
+        args.append(f"--chunk_output_path_prefix={prefix}")
+        if job.get("renaming_reports"):
+            args += [f"--property_renaming_report={prefix}properties.txt",
+                     f"--variable_renaming_report={prefix}variables.txt"]
+        return args
     args.append(f"--js_output_file={out_file}")
     if job.get("source_map"):
         args.append(f"--create_source_map={out_file}.map")

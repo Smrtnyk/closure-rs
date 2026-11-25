@@ -51,6 +51,10 @@ use std::{
 
 /// `Compiler#inputSourceMaps`: a `ConcurrentHashMap<String, SourceMapInput>`, iterated in Java's
 /// order (docs/PORTING.md §8).
+/// The resolved names of the sources of the input source maps (see
+/// `Compiler::resolved_source_map_sources`).
+type ResolvedSourceMapSources = IndexMap<(String, usize, usize), Arc<[JsString]>>;
+
 pub type InputSourceMaps = closure_rhino::java_lang::concurrent_hash_map::ConcurrentHashMap<
     String,
     Arc<crate::source_map_input::SourceMapInput>,
@@ -183,6 +187,10 @@ pub struct Compiler {
     // Java's ConcurrentHashMap: inputSourceMaps.values() iterates in its hash-table order, which
     // decides which input map's sourcesContent is kept for a source that several maps name.
     input_source_maps: Arc<std::sync::Mutex<InputSourceMaps>>,
+    /// Rust-only (performance divergence): the names `add_source_map_source_files` resolved for
+    /// the sources of an input source map, by the map's path and the identity of its source list.
+    /// The source map of every chunk is given these files again.
+    resolved_source_map_sources: std::sync::Mutex<ResolvedSourceMapSources>,
     script_node_by_filename: Arc<std::sync::Mutex<IndexMap<String, NodeId>>>,
     // Java's LinkedHashMultimap: keys and each key's values in insertion order.
     hoisted_externs_by_chunk:
@@ -317,6 +325,7 @@ impl Compiler {
             externs_parser_config: None,
             comments_per_file: IndexMap::<_, _>::default(),
             input_source_maps,
+            resolved_source_map_sources: Default::default(),
             script_node_by_filename: Arc::new(std::sync::Mutex::new(IndexMap::<_, _>::default())),
             hoisted_externs_by_chunk: IndexMap::<_, _>::default(),
             module_loader: crate::deps::module_loader::EMPTY.clone(),
@@ -3343,24 +3352,46 @@ impl Compiler {
             return;
         };
         let sources = consumer.get_original_sources();
-        for (source, code) in sources.iter().zip(content) {
-            let source = crate::source_map_resolver::SourceMapResolver::get_relative_path(
-                input_source_map.get_original_path(),
-                &source
-                    .as_ref()
-                    .expect("null original source")
-                    .to_string_lossy(),
-            );
-            self.source_map
-                .as_ref()
-                .unwrap()
+        // Rust-only (performance divergence): Java resolves every name again for every chunk.
+        let key = (
+            input_source_map.get_original_path().to_owned(),
+            sources.as_ptr() as usize,
+            sources.len(),
+        );
+        let cached = self
+            .resolved_source_map_sources
+            .lock()
+            .unwrap()
+            .get(&key)
+            .cloned();
+        let names = cached.unwrap_or_else(|| {
+            let names: Arc<[JsString]> = sources
+                .iter()
+                .zip(content)
+                .map(|(source, _)| {
+                    crate::source_map_resolver::SourceMapResolver::get_relative_path(
+                        input_source_map.get_original_path(),
+                        &source
+                            .as_ref()
+                            .expect("null original source")
+                            .to_string_lossy(),
+                    )
+                    .get_name()
+                    .into()
+                })
+                .collect();
+            self.resolved_source_map_sources
                 .lock()
                 .unwrap()
-                .add_source_file(
-                    &source.get_name().into(),
-                    // Java passes a null "sourcesContent" entry on as a null content.
-                    code.as_ref(),
-                );
+                .insert(key, names.clone());
+            names
+        });
+        {
+            let mut source_map = self.source_map.as_ref().unwrap().lock().unwrap();
+            for (name, code) in names.iter().zip(content) {
+                // Java passes a null "sourcesContent" entry on as a null content.
+                source_map.add_source_file(name, code.as_ref());
+            }
         }
         assert_eq!(
             sources.len(),
