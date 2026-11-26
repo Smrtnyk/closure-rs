@@ -52,6 +52,26 @@ impl ModuleRenaming {
         module_metadata: &ModuleMetadata,
         variable_name: &JsString,
     ) -> QualifiedName {
+        if matches!(
+            module_metadata.module_type(),
+            ModuleType::ES6_MODULE | ModuleType::COMMON_JS
+        ) {
+            // Rust-only fast path (performance divergence): the global name of such a module is
+            // `QualifiedName.of(path.toModuleName())` (`GlobalizedModuleName#create`, no typed
+            // scope), which joins back to the module name, so that the result is built from code
+            // units without the intermediate strings (each a reference-count decrement when
+            // dropped).
+            let mut units = variable_name.as_units().to_vec();
+            units.extend_from_slice(&[u16::from(b'$'); 2]);
+            units.extend(
+                module_metadata
+                    .path()
+                    .unwrap()
+                    .to_module_name()
+                    .encode_utf16(),
+            );
+            return QualifiedName::of_units(&units);
+        }
         QualifiedName::of(variable_name.concat(&JsString::from("$$")).concat(
             &Self::get_global_name(ast, module_metadata, /* googNamespace= */ None).join(ast),
         ))

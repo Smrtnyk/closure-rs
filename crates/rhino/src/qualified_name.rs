@@ -87,24 +87,22 @@ impl QualifiedName {
     // port: QualifiedName#of
     pub fn of(string: impl Into<JsString>) -> Self {
         let string = string.into();
-        let mut last_index = 0;
-        let mut builder = Vec::new();
-        loop {
-            let index = string.index_of_from(".", last_index as i32);
-            let term = string.substring(
-                last_index,
-                if index < 0 {
-                    string.length()
-                } else {
-                    index as usize
-                },
-            );
-            builder.push(RhinoStringPool::add_or_get(term));
-            last_index = (index + 1) as usize;
-            if index < 0 {
-                break;
-            }
+        if string.is_interned() && string.index_of_char(b'.' as u16) < 0 {
+            // Rust-only fast path: the only term is the string itself, already a pool entry.
+            return Self::from_terms(Arc::from([string]), 1);
         }
+        Self::of_units(string.as_units())
+    }
+    // port: QualifiedName#of
+    /// Rust-only (performance divergence): `of` the string of the code units `units`. Each term is
+    /// interned from its code units (`RhinoStringPool::add_or_get_units_cached`), the pool entry
+    /// `addOrGet(string.substring(...))` returns, without making the substring (whose drop is a
+    /// reference-count decrement).
+    pub fn of_units(units: &[u16]) -> Self {
+        let builder: Vec<JsString> = units
+            .split(|&unit| unit == b'.' as u16)
+            .map(RhinoStringPool::add_or_get_units_cached)
+            .collect();
         let size = builder.len();
         Self::from_terms(Arc::from(builder), size)
     }

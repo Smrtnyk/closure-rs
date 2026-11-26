@@ -1181,3 +1181,34 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
 - `jscomp/source_file/line_count.rs` `line_offsets`, `source_file.rs` `find_line_offsets`: the line
   offsets skip blocks of sixteen units without a line terminator (a test that vectorizes), and a
   pending line count of the same text is taken from them (the two agree, as Java checks).
+- `sourcemap/source_map_consumer_v3.rs`, `jscomp/source_map.rs`, `compiler_source_excerpt_provider.rs`:
+  the file names and symbol names of a parsed input source map, the resolved original file names
+  (`getSourceMapping`'s relative path), the generated file names of `SourceMap#addMapping` and the
+  prefix-fixed names of `fixupSourceLocation` are pool strings (`RhinoStringPool::add_or_get`)
+  instead of the parsed or converted strings. Each output mapping copies and drops several of them
+  (the input-map lookup, the resolved mapping, the generator's file and name keys); a pool string
+  needs no reference count for that, so a mapping costs no locked instruction and the workers of
+  the parallel mapping resolve share no count. The strings are equal and hash the same.
+- `jscomp/compiler_warnings_guard.rs`, `compose_warnings_guard.rs` (`with_guards`): the level of a
+  report is what the `ComposeWarningsGuard` of the contextual guards and the options guard would
+  return, computed from borrowed guards: the list is built by `addGuard`'s steps (replace the same
+  guard, insert before the first guard of the same or a higher priority; the options guard's
+  guards last first, its demotion passed on) instead of building the composed guard, which copied
+  every guard handle of the options guard per report. `ComposeWarningsGuard#level` evaluates its
+  guards under its lock instead of copying the list (the list holds no composed guard).
+- `rhino/node.rs` (`NodeType`, `Ast::colors`, `NodeId::set_color_ref`), `jscomp_colors/color.rs`
+  (`Color::address`), `jscomp/serialization/convert_types_to_colors.rs`,
+  `disambiguate/color_find_property_references.rs`: a node's color is an index into a table of
+  the arena (each color object once, keyed by its address and kept alive by the table) instead of
+  its own reference-counted `Color` handle. Giving a node a color the caller lends
+  (`set_color_ref`, which `RemoveTypesAndApplyColors` uses for every typed node), copying a node's
+  type (`copyTypeFrom`, `cloneNode`) and reading it in place (`get_color_ref`, now used by
+  `ColorFindPropertyReferences`) cost no reference count. `get_color` still returns a copy, and a
+  color reads back as the same object. `append_preparsed` moves a worker arena's colors into the
+  table. `rhino::node::JSTypeOrColor` is no longer public (nothing outside `node.rs` used it).
+- `rhino/qualified_name.rs` (`QualifiedName::of_units`), `jscomp/module_renaming.rs`:
+  `QualifiedName.of` interns each term from its code units (`add_or_get_units`) instead of making
+  the substring first, and takes an interned string without a dot as its only term;
+  `getGlobalNameOfEsModuleLocalVariable` of an ES or CommonJS module builds
+  `name + "$$" + path.toModuleName()` (what the module's global name joins back to) in one buffer.
+  Each intermediate string cost a reference-count decrement when dropped.

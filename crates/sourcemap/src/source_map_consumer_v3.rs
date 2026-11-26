@@ -46,6 +46,18 @@ pub struct SourceMapConsumerV3 {
     source_root: Option<JsString>,
     extensions: IndexMap<JsString, ExtensionValue>,
 }
+/// Rust-only (performance divergence): the consumer keeps its file names and symbol names as pool
+/// strings (Java keeps the parsed strings). Every mapping it returns copies a file name and maybe a
+/// symbol name, and the compiler copies them again on the way into the output map; a pool string
+/// is copied and dropped without a reference count, so that this costs no locked instruction (and
+/// workers resolving mappings in parallel do not contend on one count). The strings are equal to
+/// the parsed ones and hash the same; only their storage differs.
+fn intern_all(strings: Vec<Option<JsString>>) -> Vec<Option<JsString>> {
+    strings
+        .into_iter()
+        .map(|s| s.map(closure_rhino::rhino_string_pool::RhinoStringPool::add_or_get))
+        .collect()
+}
 pub struct DefaultSourceMapSupplier;
 impl SourceMapSupplier for DefaultSourceMapSupplier {
     // port: SourceMapConsumerV3.DefaultSourceMapSupplier#getSourceMap
@@ -86,9 +98,9 @@ impl SourceMapConsumerV3 {
         self.line_count = source_map_object.get_line_count();
         self.source_root = source_map_object.get_source_root();
         // Rust-only (performance divergence): the parsed object belongs to the consumer.
-        self.sources = source_map_object.sources;
+        self.sources = source_map_object.sources.map(intern_all);
         self.sources_content = source_map_object.sources_content;
-        self.names = source_map_object.names;
+        self.names = source_map_object.names.map(intern_all);
         let sources = self.sources.as_ref().unwrap_or_else(|| panic!("java.lang.NullPointerException: Cannot read the array length because \"this.sources\" is null"));
         let use_compact_mappings =
             sources.len() < 65535 && self.names.as_ref().is_none_or(|names| names.len() < 65535);
