@@ -343,10 +343,20 @@ pub struct TemplateLiteralStrings {
     cooked: Option<JsString>,
     raw: JsString,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum JSTypeOrColor {
+/// A node's type or color, as `Ast::types` stores it. Rust-only (performance divergence): a color
+/// is an index into `Ast::colors` (Java: a reference to the Color), so that giving a node the color
+/// of another node, or a color a pass holds, copies an index instead of a reference-counted
+/// handle; reads lend the color from the table (`NodeTypeRef`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NodeType {
     JSType(TypeId),
-    Color(Color),
+    Color(u32),
+}
+/// A node's type or color, as `Ast::node_type` reads it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NodeTypeRef<'a> {
+    JSType(TypeId),
+    Color(&'a Color),
 }
 /// Rust-only (performance divergence): the tree links and token of a node, the fields every
 /// traversal reads. They live in their own dense array (`Ast::links`), apart from the rest of the
@@ -950,7 +960,14 @@ pub struct Ast {
     nodes: Vec<NodeData>,
     cold: Vec<NodeCold>,
     /// A missing suffix has no types or colors. Untyped compilations leave the vector empty.
-    types: Vec<Option<JSTypeOrColor>>,
+    types: Vec<Option<NodeType>>,
+    /// Rust-only (performance divergence): the colors of `types`, each color object once (see
+    /// `NodeType`); entries are never removed while the arena lives.
+    colors: Vec<Color>,
+    /// The index of each color in `colors`, by the address of the color object (which `colors`
+    /// keeps alive, so that no other color gets the same address), and the color found last.
+    color_slots: crate::fast_hash::IndexMap<usize, u32>,
+    last_color_slot: Option<(usize, u32)>,
     original_names: IndexSet<OriginalName>,
     /// Rust-only (performance divergence): per node, bit `p` is set when property `p` is present
     /// (inline or in `prop_list_head`), bits 57..58 pack `CONSTANT_VAR_FLAGS`, and bit 63 marks
@@ -1094,10 +1111,10 @@ impl Ast {
     }
 
     #[inline]
-    fn node_type(&self, node: NodeId) -> Option<&JSTypeOrColor> {
+    fn node_type_slot(&self, node: NodeId) -> Option<NodeType> {
         let index = node.arena_index();
         match self.types.get(index) {
-            Some(ty) => ty.as_ref(),
+            Some(ty) => *ty,
             None => {
                 assert!(index < self.nodes.len());
                 None
@@ -1106,7 +1123,38 @@ impl Ast {
     }
 
     #[inline]
-    fn set_node_type(&mut self, node: NodeId, value: Option<JSTypeOrColor>) {
+    fn node_type(&self, node: NodeId) -> Option<NodeTypeRef<'_>> {
+        self.node_type_slot(node).map(|ty| match ty {
+            NodeType::JSType(t) => NodeTypeRef::JSType(t),
+            NodeType::Color(slot) => NodeTypeRef::Color(&self.colors[slot as usize]),
+        })
+    }
+
+    /// Rust-only: the index of `color` in `colors`, added when it is new (see `NodeType`).
+    #[inline]
+    fn color_slot(&mut self, color: &Color) -> u32 {
+        let address = color.address();
+        match self.last_color_slot {
+            Some((last, slot)) if last == address => slot,
+            _ => self.color_slot_slow(color, address),
+        }
+    }
+
+    fn color_slot_slow(&mut self, color: &Color, address: usize) -> u32 {
+        let next = self.colors.len();
+        let slot = *self
+            .color_slots
+            .entry(address)
+            .or_insert_with(|| u32::try_from(next).expect("fewer than 2^32 node colors"));
+        if slot as usize == next {
+            self.colors.push(color.clone());
+        }
+        self.last_color_slot = Some((address, slot));
+        slot
+    }
+
+    #[inline]
+    fn set_node_type(&mut self, node: NodeId, value: Option<NodeType>) {
         let index = node.arena_index();
         if let Some(slot) = self.types.get_mut(index) {
             *slot = value;
@@ -1503,8 +1551,8 @@ impl Ast {
                 .hash(state);
             match self.node_type(n) {
                 None => 0u8.hash(state),
-                Some(JSTypeOrColor::JSType(t)) => (1u8, t).hash(state),
-                Some(JSTypeOrColor::Color(c)) => (2u8, c).hash(state),
+                Some(NodeTypeRef::JSType(t)) => (1u8, t).hash(state),
+                Some(NodeTypeRef::Color(c)) => (2u8, c).hash(state),
             }
             let slot = n.arena_index();
             let mask = self.prop_masks[slot];
@@ -1577,6 +1625,7 @@ impl Ast {
             links,
             mut cold,
             types,
+            colors,
             original_names,
             prop_masks,
             change_times,
@@ -1657,8 +1706,14 @@ impl Ast {
             }
         }
         for (i, ty) in types.into_iter().enumerate() {
-            if ty.is_some() {
-                self.set_node_type(map.node_at(i), ty);
+            if let Some(ty) = ty {
+                let ty = match ty {
+                    NodeType::JSType(t) => NodeType::JSType(t),
+                    NodeType::Color(slot) => {
+                        NodeType::Color(self.color_slot(&colors[slot as usize]))
+                    }
+                };
+                self.set_node_type(map.node_at(i), Some(ty));
             }
         }
         for (i, ct) in change_times.into_iter().enumerate() {
@@ -3306,9 +3361,9 @@ impl NodeId {
         }
         if print_type && let Some(ty) = ast.node_type(self) {
             match ty {
-                JSTypeOrColor::Color(color) => write!(sb, " : {color}").unwrap(),
-                JSTypeOrColor::JSType(t) => {
-                    let type_string = type_printer(*t);
+                NodeTypeRef::Color(color) => write!(sb, " : {color}").unwrap(),
+                NodeTypeRef::JSType(t) => {
+                    let type_string = type_printer(t);
                     sb.write_str(" : ").unwrap();
                     sb.append(&type_string);
                 }
@@ -3407,15 +3462,15 @@ impl NodeId {
         }
         if let Some(ty) = ast.node_type(self) {
             match ty {
-                JSTypeOrColor::Color(color) => {
+                NodeTypeRef::Color(color) => {
                     sb.write_char(',')?;
                     sb.append(&Self::create_json_pair(
                         "typeString",
                         &color.to_string().replace('"', "\\\"").into(),
                     ));
                 }
-                JSTypeOrColor::JSType(t) => {
-                    let type_string = type_printer(*t);
+                NodeTypeRef::JSType(t) => {
+                    let type_string = type_printer(t);
                     sb.write_char(',')?;
                     sb.append(&Self::create_json_pair(
                         "typeString",
@@ -4488,7 +4543,7 @@ impl NodeId {
     fn copy_base_node_fields(ast: &mut Ast, source: NodeId, dest: NodeId, clone_type_exprs: bool) {
         ast[C(dest)].lineno_charno = ast[C(source)].lineno_charno;
         ast[C(dest)].length = ast[C(source)].length;
-        ast.set_node_type(dest, ast.node_type(source).cloned());
+        ast.set_node_type(dest, ast.node_type_slot(source));
         ast[C(dest)].original_name = ast[C(source)].original_name;
         let src_slot = source.arena_index();
         let dst_slot = dest.arena_index();
@@ -4599,8 +4654,8 @@ impl NodeId {
     }
     // port: Node#getJSType
     pub fn get_jstype(self, ast: &Ast) -> Option<TypeId> {
-        match ast.node_type(self) {
-            Some(JSTypeOrColor::JSType(t)) => Some(*t),
+        match ast.node_type_slot(self) {
+            Some(NodeType::JSType(t)) => Some(t),
             _ => None,
         }
     }
@@ -4614,46 +4669,51 @@ impl NodeId {
     }
     // port: Node#setJSType
     pub fn set_jstype(self, ast: &mut Ast, x: Option<TypeId>) -> Self {
-        let cur = ast.node_type(self);
+        let cur = ast.node_type_slot(self);
         check_state!(
-            matches!(cur, None | Some(JSTypeOrColor::JSType(_))),
+            matches!(cur, None | Some(NodeType::JSType(_))),
             "%s",
             self.to_string(ast)
         );
         if x.is_some() || cur.is_some() {
-            ast.set_node_type(self, x.map(JSTypeOrColor::JSType));
+            ast.set_node_type(self, x.map(NodeType::JSType));
         }
         self
     }
     // port: Node#getColor
     pub fn get_color(self, ast: &Ast) -> Option<Color> {
-        match ast.node_type(self) {
-            Some(JSTypeOrColor::Color(c)) => Some(c.clone()),
-            _ => None,
-        }
+        self.get_color_ref(ast).cloned()
     }
     /// Rust-only: `getColor()` without copying the color (performance divergence: a copy is a
     /// reference-count round trip, and most callers only inspect the color).
     #[inline]
     pub fn get_color_ref(self, ast: &Ast) -> Option<&Color> {
         match ast.node_type(self) {
-            Some(JSTypeOrColor::Color(c)) => Some(c),
+            Some(NodeTypeRef::Color(c)) => Some(c),
             _ => None,
         }
     }
     // port: Node#setColor
     pub fn set_color(self, ast: &mut Ast, x: Option<Color>) -> Self {
+        self.set_color_ref(ast, x.as_ref())
+    }
+    // port: Node#setColor
+    /// Rust-only: `setColor` with the color lent (performance divergence): the node keeps the
+    /// color's index in the arena's table of colors (see `NodeType`), so that a caller need not
+    /// copy the color.
+    pub fn set_color_ref(self, ast: &mut Ast, x: Option<&Color>) -> Self {
         check_state!(
-            matches!(ast.node_type(self), None | Some(JSTypeOrColor::Color(_))),
+            matches!(ast.node_type_slot(self), None | Some(NodeType::Color(_))),
             "%s",
             self.to_string(ast)
         );
-        ast.set_node_type(self, x.map(JSTypeOrColor::Color));
+        let slot = x.map(|color| NodeType::Color(ast.color_slot(color)));
+        ast.set_node_type(self, slot);
         self
     }
     // port: Node#copyTypeFrom
     pub fn copy_type_from(self, ast: &mut Ast, other: NodeId) -> Self {
-        ast.set_node_type(self, ast.node_type(other).cloned());
+        ast.set_node_type(self, ast.node_type_slot(other));
         self
     }
     // port: Node#getJSDocInfo

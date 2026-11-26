@@ -22,6 +22,7 @@ use closure_rhino::fast_hash::IndexMap;
 use closure_rhino::{
     js_string::JsString,
     node::{Ast, NodeId},
+    rhino_string_pool::RhinoStringPool,
 };
 use closure_sourcemap::{
     file_position::FilePosition, proto::mapping::OriginalMapping,
@@ -277,7 +278,9 @@ impl SourceMap {
             .is_none_or(|(name, _, _)| name != source_file.get_name())
         {
             let name = source_file.get_name();
-            let js_name = JsString::from(name);
+            // Rust-only (performance divergence): pool strings, which every mapping of a node of
+            // this file copies (and the generator drops) without a reference count.
+            let js_name = RhinoStringPool::add_or_get(name);
             let fixed_name = if self.prefix_mappings.is_empty() {
                 js_name.clone()
             } else {
@@ -397,7 +400,9 @@ impl SourceMap {
             }
         }
         // If none of the mappings match then use the original file path.
-        let fixed = fixed.unwrap_or_else(|| source_file.to_owned());
+        // Rust-only (performance divergence): the cache keeps a pool string, which the mappings
+        // of every node of the file copy without a reference count.
+        let fixed = RhinoStringPool::add_or_get(fixed.unwrap_or_else(|| source_file.to_owned()));
         self.source_location_fixup_cache
             .insert(source_file.to_owned(), fixed.clone());
         fixed

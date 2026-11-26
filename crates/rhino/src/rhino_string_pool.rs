@@ -157,6 +157,17 @@ impl RhinoStringPool {
         THREAD_CACHE.set(previous);
         result
     }
+    /// Rust-only: `addOrGet` of the string of `units` without a temporary string on a hit, through
+    /// the thread's cache when it has one (parse workers), so that it takes no shared lock per call.
+    pub(crate) fn add_or_get_units_cached(units: &[u16]) -> JsString {
+        Self::intern_cached(units, || {
+            if refcounted_names() {
+                JsString::from_slice(units)
+            } else {
+                JsString::interned_copy(units)
+            }
+        })
+    }
     /// Intern a bundled spelling without allocating a temporary string on a pool hit.
     pub(crate) fn add_or_get_units(units: &[u16]) -> JsString {
         Self::intern_shared(units, hash_units(units), || {

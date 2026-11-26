@@ -199,7 +199,8 @@ impl RemoveTypesAndApplyColors {
             .and_then(|id| self.colors.get(id.0 as usize))
             .and_then(Option::as_ref)
         {
-            n.set_color(ast, Some(color.clone()));
+            // Rust-only (performance divergence): the color is lent (see `NodeId::set_color_ref`).
+            n.set_color_ref(ast, Some(color));
         }
 
         if old_type_before_cast.is_some() {

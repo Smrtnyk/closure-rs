@@ -153,7 +153,8 @@ impl<'a> ColorFindPropertyReferences<'a> {
     ) {
         match token {
             Token::GETPROP | Token::OPTCHAIN_GETPROP => {
-                let owner = n.get_first_child(compiler).unwrap().get_color(compiler);
+                // Rust-only (performance divergence): the owner's color is lent, not copied.
+                let owner = n.get_first_child(compiler).unwrap().get_color_ref(compiler);
                 self.register_property_use_direct(compiler, from_externs, n, owner)
             }
             Token::OBJECTLIT => self.handle_object_lit(compiler, from_externs, n),
@@ -237,8 +238,8 @@ impl<'a> ColorFindPropertyReferences<'a> {
         // see any direct property references off either type, it's possible that a property is
         // referenced via a superclass or implemented interface.
         // e.g. `const /** !FooInterface */ x = new Foo(); x.method();`
-        let fn_type = fn_node.get_color(ast);
-        if let Some(fn_type) = &fn_type
+        let fn_type = fn_node.get_color_ref(ast);
+        if let Some(fn_type) = fn_type
             && !fn_type.get_instance_colors().is_empty()
         {
             self.color_graph_node_factory
@@ -270,7 +271,7 @@ impl<'a> ColorFindPropertyReferences<'a> {
         };
 
         let obj = name.get_next(compiler);
-        let obj_color = obj.and_then(|obj| obj.get_color(compiler));
+        let obj_color = obj.and_then(|obj| obj.get_color_ref(compiler));
         self.register_property_use_direct(compiler, from_externs, name, obj_color);
     }
 
@@ -330,7 +331,7 @@ impl<'a> ColorFindPropertyReferences<'a> {
                     }
 
                     let owner = member_owner_fn(compiler, c);
-                    self.register_property_use_direct(compiler, from_externs, c, owner);
+                    self.register_property_use_direct(compiler, from_externs, c, owner.as_ref());
                 }
                 _ => panic!(
                     "Unexpected child of {}: {}",
@@ -350,7 +351,7 @@ impl<'a> ColorFindPropertyReferences<'a> {
         ast: &Ast,
         from_externs: bool,
         site: NodeId,
-        owner: Option<Color>,
+        owner: Option<&Color>,
     ) {
         let site_string = site.get_string_ref(ast);
         let prop_index = self.prop_index.as_mut().unwrap();
@@ -370,9 +371,7 @@ impl<'a> ColorFindPropertyReferences<'a> {
                 prop
             }
         };
-        let flat_owner = self
-            .color_graph_node_factory
-            .create_node(self.arena, owner.as_ref());
+        let flat_owner = self.color_graph_node_factory.create_node(self.arena, owner);
 
         // Set the initial condition for flowing this property along the graph.
         flat_owner
@@ -383,9 +382,7 @@ impl<'a> ColorFindPropertyReferences<'a> {
             owner: flat_owner,
             site,
             keep_original: from_externs
-                || owner
-                    .as_ref()
-                    .is_some_and(|c| c.get_properties_keep_original_name()),
+                || owner.is_some_and(|c| c.get_properties_keep_original_name()),
         };
         if let Some(uses) = &mut self.pending_uses {
             uses.push(usage);

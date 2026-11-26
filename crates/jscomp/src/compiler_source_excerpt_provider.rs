@@ -160,7 +160,10 @@ impl SourceExcerptProvider for CompilerSourceExcerptProvider {
             cache.original_path = source_map_original_path.into();
             cache.source_map_path = result_original_path;
             cache.source_map_path_js = result.get_original_file().clone();
-            cache.relative_path_js = relative.as_str().into();
+            // Rust-only (performance divergence): a pool string, which every mapping into this
+            // file copies without a reference count (see `SourceMapConsumerV3`'s names).
+            cache.relative_path_js =
+                closure_rhino::rhino_string_pool::RhinoStringPool::add_or_get(relative.as_str());
             cache.relative_path = relative;
             cache.relative_path_js.clone()
         };

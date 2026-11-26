@@ -90,6 +90,11 @@ impl Color {
     pub fn ptr_eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }
+    /// Rust-only: the address of the color object (its identity, as `ptr_eq` compares it), for a
+    /// table keyed by identity that keeps the color alive (`Ast`'s node colors).
+    pub fn address(&self) -> usize {
+        Arc::as_ptr(&self.0).addr()
+    }
 
     // port: Color#singleBuilder
     pub fn single_builder() -> Builder {
