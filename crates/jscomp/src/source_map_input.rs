@@ -46,6 +46,8 @@ struct State {
     in_progress: bool,
     decoded: bool,
     cached: bool,
+    /// Rust-only: the decode succeeded (`decode_error` is taken when it is reported).
+    decoded_ok: bool,
 }
 impl SourceMapInput {
     // port: SourceMapInput#SourceMapInput
@@ -58,6 +60,7 @@ impl SourceMapInput {
                 in_progress: false,
                 decoded: false,
                 cached: false,
+                decoded_ok: false,
             }),
             ready: Condvar::new(),
         }
@@ -109,6 +112,7 @@ impl SourceMapInput {
                 state.parsed_source_map = map;
                 state.decode_error = None;
                 state.cached = true;
+                state.decoded_ok = true;
             }
             Err(err) => {
                 state.parsed_source_map = None;
@@ -136,6 +140,7 @@ impl SourceMapInput {
                     Ok(map) => {
                         state.parsed_source_map = map;
                         state.decode_error = None;
+                        state.decoded_ok = true;
                     }
                     Err(err) => {
                         state.parsed_source_map = None;
@@ -160,6 +165,54 @@ impl SourceMapInput {
             }
         }
         state.parsed_source_map.clone()
+    }
+    /// Rust-only (performance divergence): takes the decoded map of `earlier`, an input source map
+    /// of the same input that this one replaces, when `earlier` decoded without an error and its
+    /// text is the text of this one (typically `--source_map_input` and the file named by the
+    /// input's `//# sourceMappingURL` comment, which Java reads and decodes twice). Decoding
+    /// depends on the text alone, so this map is then in the state a successful decode leaves
+    /// (with nothing to report), sharing the immutable consumer. Waits for a decode of `earlier`
+    /// in progress on a worker. With `decode_earlier` (the compiler decodes both maps either way)
+    /// it first decodes `earlier` as the worker would, reporting nothing, when no decode of it
+    /// has started. Does nothing when this map could not be read: its own decode reports that.
+    /// `CLOSURE_RS_SHARED_INPUT_MAPS=off` disables it.
+    pub(crate) fn adopt_decoded_from(&self, earlier: &SourceMapInput, decode_earlier: bool) {
+        static ENABLED: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
+            std::env::var("CLOSURE_RS_SHARED_INPUT_MAPS").as_deref() != Ok("off")
+        });
+        if !*ENABLED || std::ptr::eq(self, earlier) {
+            return;
+        }
+        if decode_earlier {
+            earlier.predecode_into_cache();
+        }
+        let map = {
+            let mut state = earlier.state.lock().unwrap();
+            while state.in_progress {
+                state = earlier.ready.wait(state).unwrap();
+            }
+            if !state.decoded_ok {
+                return;
+            }
+            state.parsed_source_map.clone()
+        };
+        let (Ok(text), Ok(earlier_text)) =
+            (self.source_file.get_code(), earlier.source_file.get_code())
+        else {
+            return;
+        };
+        if text != earlier_text {
+            return;
+        }
+        let mut state = self.state.lock().unwrap();
+        if state.decoded || state.in_progress {
+            return;
+        }
+        state.parsed_source_map = map;
+        state.decode_error = None;
+        state.decoded = true;
+        state.cached = true;
+        state.decoded_ok = true;
     }
     /// Rust-only: `getSourceMap()` once it has been parsed (it then reports nothing), else
     /// `None`.
@@ -203,8 +256,52 @@ impl SourceMapInput {
                 in_progress: false,
                 decoded: fields.cached,
                 cached: fields.cached,
+                decoded_ok: false,
             }),
             ready: Condvar::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sorting_error_manager::SortingErrorManager;
+
+    const MAP: &str = r#"{"version":3,"file":"a.js","sources":["s.js"],"sourcesContent":["x"],"names":["n"],"mappings":"AAAAA"}"#;
+
+    fn input(name: &str, text: &str) -> SourceMapInput {
+        SourceMapInput::new(Arc::new(SourceFile::from_code(name, text)))
+    }
+
+    #[test]
+    fn adopts_a_successful_decode_of_the_same_text_only() {
+        let mut errors = SortingErrorManager::new(Vec::new());
+        let earlier = input("a.js.map", MAP);
+        let decoded = earlier.get_source_map(&mut errors).unwrap();
+        // The same text in another file: shares the consumer, reports nothing.
+        let same = input("./a.js.map", MAP);
+        same.adopt_decoded_from(&earlier, false);
+        let shared = same.get_cached_source_map().unwrap().unwrap();
+        assert!(Arc::ptr_eq(&decoded, &shared));
+        assert!(Arc::ptr_eq(
+            &same.get_source_map(&mut errors).unwrap(),
+            &decoded
+        ));
+        // Another text decodes itself.
+        let other = input("a.js.map", &MAP.replace("AAAAA", "AACAA"));
+        other.adopt_decoded_from(&earlier, false);
+        assert!(other.get_cached_source_map().is_none());
+        assert!(other.get_source_map(&mut errors).is_some());
+        // A failed decode is not shared: each map reports its own error (the sorting manager
+        // drops a repeated error, so the files differ).
+        let broken = input("b.js.map", "{");
+        assert!(broken.get_source_map(&mut errors).is_none());
+        let again = input("c.js.map", "{");
+        again.adopt_decoded_from(&broken, true);
+        assert!(again.get_cached_source_map().is_none());
+        assert!(again.get_source_map(&mut errors).is_none());
+        assert_eq!(errors.get_warning_count(), 2);
+        assert_eq!(errors.get_error_count(), 0);
     }
 }

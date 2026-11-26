@@ -486,15 +486,86 @@ pub mod io_exception;
 pub mod message_format;
 
 // port: String#compareTo
+///
+/// Rust-only (performance divergence): compares the UTF-16 units as they are encoded, after
+/// skipping the common prefix of the two UTF-8 encodings (equal UTF-8 code points encode to equal
+/// UTF-16 units), instead of encoding both strings into new vectors; the sorting error manager
+/// compares the source names and messages of diagnostics many times each.
 pub fn string_compare_to(left: &str, right: &str) -> i32 {
-    let a: Vec<u16> = left.encode_utf16().collect();
-    let b: Vec<u16> = right.encode_utf16().collect();
-    for (&a, &b) in a.iter().zip(&b) {
-        if a != b {
-            return a as i32 - b as i32;
+    let common = left
+        .bytes()
+        .zip(right.bytes())
+        .position(|(a, b)| a != b)
+        .unwrap_or(left.len().min(right.len()));
+    // Back to the start of the code point in which the encodings differ.
+    let mut start = common;
+    while !left.is_char_boundary(start) {
+        start -= 1;
+    }
+    let mut a = left[start..].encode_utf16();
+    let mut b = right[start..].encode_utf16();
+    loop {
+        match (a.next(), b.next()) {
+            (Some(x), Some(y)) if x != y => return x as i32 - y as i32,
+            (Some(_), Some(_)) => {}
+            (None, None) => return 0,
+            (Some(_), None) => return 1 + a.count() as i32,
+            (None, Some(_)) => return -1 - b.count() as i32,
         }
     }
-    (a.len() as i32).wrapping_sub(b.len() as i32)
+}
+
+#[cfg(test)]
+mod string_compare_to_tests {
+    use super::string_compare_to;
+
+    fn reference(left: &str, right: &str) -> i32 {
+        let a: Vec<u16> = left.encode_utf16().collect();
+        let b: Vec<u16> = right.encode_utf16().collect();
+        for (&a, &b) in a.iter().zip(&b) {
+            if a != b {
+                return a as i32 - b as i32;
+            }
+        }
+        (a.len() as i32).wrapping_sub(b.len() as i32)
+    }
+
+    #[test]
+    fn compares_like_java() {
+        let words = [
+            "",
+            "a",
+            "b",
+            "ab",
+            "abc",
+            "abd",
+            "é",
+            "ée",
+            "ê",
+            "\u{ffff}",
+            "\u{10000}",
+            "\u{10001}",
+            "a\u{10000}",
+            "a\u{ffff}",
+            "a\u{e000}",
+            "\u{1f600}x",
+            "\u{1f601}",
+            "build/x.js",
+            "build/y.js",
+            "zz\u{7ff}",
+            "zz\u{800}",
+        ];
+        for a in words {
+            for b in words {
+                for (x, y) in [
+                    (a.to_owned(), b.to_owned()),
+                    (format!("{a}{b}"), format!("{b}{a}")),
+                ] {
+                    assert_eq!(string_compare_to(&x, &y), reference(&x, &y), "{x:?} {y:?}");
+                }
+            }
+        }
+    }
 }
 pub mod zip_input_stream;
 

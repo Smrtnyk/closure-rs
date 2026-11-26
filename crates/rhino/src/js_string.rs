@@ -63,13 +63,32 @@ impl JsString {
     }
     /// Rust-only: `String#hashCode` of `units`, `Σ units[i]·31^(n-1-i)` (mod 2^32).
     fn java_hash(units: &[u16]) -> u32 {
-        // Four units per step (`h·31^4 + u0·31^3 + u1·31^2 + u2·31 + u3`, the same sum) make
-        // the chain of dependent multiplications four times shorter than Java's loop.
+        // Rust-only (performance divergence): sixteen units per step (`h·31^16` plus the dot
+        // product of the units with `31^15 .. 31^0`, the same sum mod 2^32), which the compiler
+        // can vectorize, then four per step: the chain of dependent multiplications is short.
+        const fn powers() -> [i32; 16] {
+            let mut p = [1i32; 16];
+            let mut i = 15;
+            while i > 0 {
+                p[i - 1] = p[i].wrapping_mul(31);
+                i -= 1;
+            }
+            p
+        }
+        const POW: [i32; 16] = powers();
+        const P16: i32 = POW[0].wrapping_mul(31);
         const P2: i32 = 31 * 31;
         const P3: i32 = P2 * 31;
         const P4: i32 = P3 * 31;
-        let mut chunks = units.chunks_exact(4);
+        let mut blocks = units.chunks_exact(16);
         let mut h = 0i32;
+        for block in &mut blocks {
+            let dot = block.iter().zip(POW).fold(0i32, |sum, (&u, p)| {
+                sum.wrapping_add(i32::from(u).wrapping_mul(p))
+            });
+            h = h.wrapping_mul(P16).wrapping_add(dot);
+        }
+        let mut chunks = blocks.remainder().chunks_exact(4);
         for c in &mut chunks {
             h = h
                 .wrapping_mul(P4)
@@ -448,5 +467,29 @@ impl fmt::Display for JsString {
 impl fmt::Debug for JsString {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("JsString").field(&self.as_units()).finish()
+    }
+}
+
+#[cfg(test)]
+mod java_hash_tests {
+    use super::JsString;
+
+    #[test]
+    fn java_hash_is_java_string_hash_code() {
+        let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+        for len in (0..70).chain([255, 256, 1000, 4097]) {
+            let units: Vec<u16> = (0..len)
+                .map(|_| {
+                    seed ^= seed << 13;
+                    seed ^= seed >> 7;
+                    seed ^= seed << 17;
+                    seed as u16
+                })
+                .collect();
+            let expected = units
+                .iter()
+                .fold(0i32, |h, &u| h.wrapping_mul(31).wrapping_add(i32::from(u)));
+            assert_eq!(JsString::java_hash(&units), expected as u32, "{len}");
+        }
     }
 }

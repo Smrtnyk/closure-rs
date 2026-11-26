@@ -170,7 +170,12 @@ impl TypedVar {
 
     // port: TypedVar#setType
     pub fn set_type(self, compiler: &mut AbstractCompiler, type_: Option<TypeId>) {
-        self.data_mut(compiler).type_ = type_;
+        let arena = TypedScopeArena::write(compiler);
+        let data = &mut arena.vars[self.index()];
+        if data.type_ != type_ {
+            data.type_ = type_;
+            arena.watch.touched(self);
+        }
     }
 
     // port: TypedVar#resolveType
@@ -181,7 +186,7 @@ impl TypedVar {
         if let Some(type_) = type_ {
             let (reg, ast) = compiler.get_type_registry_and_ast();
             let resolved = type_.resolve(reg, ast);
-            self.data_mut(compiler).type_ = Some(resolved);
+            self.set_type(compiler, Some(resolved));
         }
     }
 
