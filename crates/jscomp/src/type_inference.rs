@@ -179,6 +179,52 @@ where
     }
 }
 
+/// Rust-only: the imports `InferenceTransfer::declare_module_imports` last declared in a module.
+struct DeclaredModuleImports {
+    epoch: u64,
+    declared: Vec<crate::module_import_resolver::DeclaredImport>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SkipMode {
+    On,
+    Off,
+    Verify,
+}
+
+/// Rust-only: `CLOSURE_RS_MODULE_IMPORT_CACHE` (`declare_module_imports`).
+static MODULE_IMPORT_CACHE: LazyLock<SkipMode> =
+    LazyLock::new(
+        || match std::env::var("CLOSURE_RS_MODULE_IMPORT_CACHE").as_deref() {
+            Ok("off") => SkipMode::Off,
+            Ok("verify") => SkipMode::Verify,
+            _ => SkipMode::On,
+        },
+    );
+
+/// Rust-only: tests set the mode of `declare_module_imports` and count its skips.
+#[cfg(test)]
+pub(crate) mod module_import_cache_for_test {
+    use std::sync::atomic::{AtomicU8, AtomicUsize};
+    /// 0: `CLOSURE_RS_MODULE_IMPORT_CACHE`, 1: on, 2: off, 3: verify.
+    pub(crate) static MODE: AtomicU8 = AtomicU8::new(0);
+    pub(crate) static SKIPS: AtomicUsize = AtomicUsize::new(0);
+}
+
+fn module_import_cache_mode() -> SkipMode {
+    #[cfg(test)]
+    {
+        use std::sync::atomic::Ordering::Relaxed;
+        match module_import_cache_for_test::MODE.load(Relaxed) {
+            1 => return SkipMode::On,
+            2 => return SkipMode::Off,
+            3 => return SkipMode::Verify,
+            _ => {}
+        }
+    }
+    *MODULE_IMPORT_CACHE
+}
+
 pub struct TypeInference<'a> {
     state: DataFlowAnalysisState<NodeId>,
     transfer: InferenceTransfer<'a>,
@@ -208,6 +254,9 @@ struct InferenceTransfer<'a> {
     container_scope_is_global: bool,
     last_scope_root: Option<(NodeId, TypedScope)>,
     last_inferred_unbound_scope: Option<TypedScope>,
+    /// Rust-only (performance divergence): per ES module scope, the imports last declared in it
+    /// and the `VarWatch` epoch after that (`declare_module_imports`).
+    module_imports: IndexMap<TypedScope, DeclaredModuleImports>,
 
     // For convenience
     unknown_type: TypeId,
@@ -386,6 +435,7 @@ impl<'a> InferenceTransfer<'a> {
             container_scope_is_global,
             last_scope_root: None,
             last_inferred_unbound_scope: None,
+            module_imports: IndexMap::default(),
             unknown_type,
             number_addition_supertype,
         }
@@ -436,17 +486,7 @@ impl<'a> InferenceTransfer<'a> {
         if let Some(module) = &module
             && module.metadata().is_es6_module()
         {
-            let input_id = NodeUtil::get_input_id(compiler, n);
-            let module_input = input_id.and_then(|id| compiler.get_input(&id).cloned());
-            let scope_creator: &TypedScopeCreator = self.scope_creator;
-            let mapper = scope_creator.get_node_to_scope_mapper();
-            self.module_import_resolver.declare_es_module_imports(
-                compiler,
-                &mapper,
-                module,
-                syntactic_block_scope,
-                module_input,
-            );
+            self.declare_module_imports(compiler, n, module, syntactic_block_scope);
         }
 
         // This logic is not specific to ES modules.
@@ -458,6 +498,97 @@ impl<'a> InferenceTransfer<'a> {
             self.update_module_scope(compiler, module, syntactic_block_scope);
         }
         output
+    }
+
+    /// The `declareEsModuleImports` call of `TypeInference#flowThrough`.
+    ///
+    /// Rust-only (performance divergence): Java declares the imports of an ES module again at
+    /// every node of the module body that the flow reaches, each time as a new var with the
+    /// current type of the var the import names. The declaration is skipped while nothing it
+    /// reads or writes changed since this analysis last declared the module's imports: the vars
+    /// it read (each an own var of the module scope it was looked up in) and the vars it
+    /// declared are watched (`VarWatch`) and the epoch is unchanged. Declaring would then make
+    /// vars equal to the declared ones in all but identity and index, neither of which anything
+    /// reads (no var is kept from one node to the next). A module with an import resolving to
+    /// no scope, or to a var outside the module scope it was looked up in, declares at every
+    /// node. `CLOSURE_RS_MODULE_IMPORT_CACHE=off` declares at every node, `=verify` too and
+    /// checks that each skipped declaration would have declared equal vars.
+    fn declare_module_imports(
+        &mut self,
+        compiler: &mut AbstractCompiler,
+        n: NodeId,
+        module: &Module,
+        scope: TypedScope,
+    ) {
+        let mode = module_import_cache_mode();
+        let epoch = crate::typed_scope::TypedScopeArena::read(compiler)
+            .watch
+            .epoch();
+        let unchanged = self
+            .module_imports
+            .get(&scope)
+            .filter(|declared| mode != SkipMode::Off && declared.epoch == epoch);
+        #[cfg(test)]
+        if unchanged.is_some() {
+            module_import_cache_for_test::SKIPS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+        let kept = match (unchanged, mode) {
+            (Some(_), SkipMode::On) => return,
+            (Some(declared), SkipMode::Verify) => Some(declared.declared.clone()),
+            _ => None,
+        };
+        let input_id = NodeUtil::get_input_id(compiler, n);
+        let module_input = input_id.and_then(|id| compiler.get_input(&id).cloned());
+        let scope_creator: &TypedScopeCreator = self.scope_creator;
+        let mapper = scope_creator.get_node_to_scope_mapper();
+        let mut declared = Vec::new();
+        let missing = self
+            .module_import_resolver
+            .declare_es_module_imports_recording(
+                compiler,
+                &mapper,
+                module,
+                scope,
+                module_input,
+                (mode != SkipMode::Off).then_some(&mut declared),
+            );
+        if mode == SkipMode::Off {
+            return;
+        }
+        if let Some(kept) = kept {
+            let same = kept.len() == declared.len()
+                && kept.iter().zip(&declared).all(|(old, new)| {
+                    old.original == new.original
+                        && old.original_scope == new.original_scope
+                        && old.import.get_type(compiler) == new.import.get_type(compiler)
+                        && old.import.is_type_inferred(compiler)
+                            == new.import.is_type_inferred(compiler)
+                        && old.import.get_name_node(compiler) == new.import.get_name_node(compiler)
+                        && old.import.get_input_name(compiler)
+                            == new.import.get_input_name(compiler)
+                });
+            assert!(
+                same,
+                "CLOSURE_RS_MODULE_IMPORT_CACHE=verify: the imports of {} changed unseen",
+                scope.get_root_node(compiler).to_string(compiler)
+            );
+        }
+        let cacheable = missing.is_empty()
+            && declared
+                .iter()
+                .all(|d| d.original.get_scope(compiler) == d.original_scope);
+        if cacheable {
+            let watch = &mut crate::typed_scope::TypedScopeArena::write(compiler).watch;
+            for d in &declared {
+                watch.watch(d.original);
+                watch.watch(d.import);
+            }
+            let epoch = watch.epoch();
+            self.module_imports
+                .insert(scope, DeclaredModuleImports { epoch, declared });
+        } else {
+            self.module_imports.swap_remove(&scope);
+        }
     }
 
     fn join(&self, compiler: &mut AbstractCompiler, left: FS, right: FS) -> FS {

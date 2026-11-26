@@ -51,6 +51,15 @@ use std::sync::{Arc, LazyLock};
 /// Rust-only: Java's `Function<Node, TypedScope> nodeToScopeMapper`.
 pub type NodeToScopeMapper<'a> = &'a dyn Fn(Option<NodeId>) -> Option<TypedScope>;
 
+/// Rust-only: an import `declareEsModuleImports` declared, the var it read (found from
+/// `original_scope`) and the var it declared.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct DeclaredImport {
+    pub(crate) original: crate::typed_var::TypedVar,
+    pub(crate) original_scope: TypedScope,
+    pub(crate) import: crate::typed_var::TypedVar,
+}
+
 // port: ModuleImportResolver#GOOG
 const GOOG: &str = "goog";
 // port: ModuleImportResolver#GOOG_DEPENDENCY_CALLS
@@ -217,6 +226,27 @@ impl ModuleImportResolver {
         scope: TypedScope,
         module_input: Option<CompilerInput>,
     ) -> IndexMap<NodeId, Simple> {
+        self.declare_es_module_imports_recording(
+            compiler,
+            node_to_scope_mapper,
+            module,
+            scope,
+            module_input,
+            None,
+        )
+    }
+
+    /// Rust-only: `declareEsModuleImports`, which also lists in `declared` (when given) each
+    /// declared import: the var it read and the var it declared.
+    pub(crate) fn declare_es_module_imports_recording(
+        &self,
+        compiler: &mut AbstractCompiler,
+        node_to_scope_mapper: NodeToScopeMapper<'_>,
+        module: &Module,
+        scope: TypedScope,
+        module_input: Option<CompilerInput>,
+        mut declared: Option<&mut Vec<DeclaredImport>>,
+    ) -> IndexMap<NodeId, Simple> {
         if !module.metadata().is_es6_module() {
             panic!("IllegalArgumentException: {:?}", module.metadata());
         }
@@ -251,7 +281,7 @@ impl ModuleImportResolver {
                 .get_var(compiler, export.get_name(compiler))
                 .unwrap();
             let import_type = original_var.get_type(compiler);
-            scope.declare(
+            let import_var = scope.declare(
                 compiler,
                 local_name.clone(),
                 Some(source_node),
@@ -259,6 +289,13 @@ impl ModuleImportResolver {
                 module_input.clone(),
                 /* inferred= */ original_var.is_type_inferred(compiler),
             );
+            if let Some(declared) = declared.as_deref_mut() {
+                declared.push(DeclaredImport {
+                    original: original_var,
+                    original_scope: mod_scope,
+                    import: import_var,
+                });
+            }
 
             // Non-namespace imports may be typedefs; if so, propagate the typedef prop onto the
             // export and import bindings, if not already there.
@@ -271,6 +308,9 @@ impl ModuleImportResolver {
                     .get_typedef_type_prop(&compiler.ast);
                 if let Some(typedef_type) = typedef_type {
                     source_node.set_typedef_type_prop(&mut compiler.ast, Some(typedef_type));
+                    crate::typed_scope::TypedScopeArena::write(compiler)
+                        .watch
+                        .bump();
                     let static_scope = scope.as_static_typed_scope(compiler);
                     let (registry, ast) = compiler.get_type_registry_and_ast();
                     registry.declare_type(
@@ -346,12 +386,16 @@ impl ModuleImportResolver {
                     unknown,
                     binding_source_node,
                 );
-                Self::update_ast_for_export(
+                if Self::update_ast_for_export(
                     ast,
                     binding_source_node.unwrap(),
                     unknown,
                     /* typedefType= */ None,
-                );
+                ) {
+                    crate::typed_scope::TypedScopeArena::write(compiler)
+                        .watch
+                        .bump();
+                }
                 continue;
             };
 
@@ -389,22 +433,29 @@ impl ModuleImportResolver {
                 );
             }
 
-            Self::update_ast_for_export(
+            if Self::update_ast_for_export(
                 ast,
                 binding_source_node.unwrap(),
                 export_type,
                 typedef_type,
-            );
+            ) {
+                crate::typed_scope::TypedScopeArena::write(compiler)
+                    .watch
+                    .bump();
+            }
         }
     }
 
     // port: ModuleImportResolver#updateAstForExport
+    /// Returns whether the typedef type of `binding_source_node` changed (Rust-only: for the
+    /// change detection of `TypeInference`'s import declarations, `VarWatch`).
     fn update_ast_for_export(
         ast: &mut Ast,
         binding_source_node: NodeId,
         export_type: TypeId,
         typedef_type: Option<TypeId>,
-    ) {
+    ) -> bool {
+        let typedef_changed = binding_source_node.get_typedef_type_prop(ast) != typedef_type;
         binding_source_node.set_jstype(ast, Some(export_type));
         binding_source_node.set_typedef_type_prop(ast, typedef_type);
         if binding_source_node
@@ -418,6 +469,7 @@ impl ModuleImportResolver {
                 .unwrap()
                 .set_jstype(ast, Some(export_type));
         }
+        typedef_changed
     }
 
     /// Given a Binding from an ES module, return the name and scope of the bound name.

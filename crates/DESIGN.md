@@ -1132,3 +1132,52 @@ named by crate and file: `jstype/property_map.rs` is `crates/jstype/src/property
   `record_changes` (run by every scope request and every change stamp read) returns at once when
   the arena recorded no edit since the cache's cursor and no other reader drained the log, which
   is what it would find after draining nothing.
+- `jscomp/source_file.rs`, `source_file/line_count.rs`: a source file's lines are counted when the
+  count is first asked for, or before its code is cleared (Java keeps the count of cleared code),
+  not whenever code is set, so the counts nobody reads (an input source map's, most inputs') are
+  never taken; the count is every line terminator less the CRLF pairs (looked for only in a text
+  with a CR), in passes the compiler can vectorize, equal to Java's loop.
+- `jscomp/source_map_input.rs` `adopt_decoded_from`, `compiler.rs` `add_input_source_map`: an input
+  source map that replaces an earlier one of the same input (the file an input's
+  `//# sourceMappingURL` names, after `--source_map_input` gave it) takes the earlier map's decoded
+  consumer when that decode succeeded and the two texts are equal (Java reads and decodes the map
+  twice; decoding depends on the text alone and the consumer is immutable). A decode in progress
+  on the background worker is waited for, one not started yet is done first on the compiler
+  thread (as the worker does it, reporting nothing) when the compiler decodes both maps anyway; a
+  failed one is not shared, so each map still reports its own error.
+  `CLOSURE_RS_SHARED_INPUT_MAPS=off` decodes every map.
+- `jscomp/type_inference.rs` `declare_module_imports`, `typed_scope.rs` `VarWatch`, `typed_var.rs`,
+  `module_import_resolver.rs`: TypeInference declares an ES module's imports at the first node of
+  the module body it flows through and again only when something the declaration reads or writes
+  has changed since (Java declares them again at every node, each as a new var with the current
+  type of the var the import names). The vars read (own vars of their module scopes) and declared
+  are watched: the arena's epoch advances when a watched var's type changes, a watched var is
+  replaced or removed, declarations are cleared, or a typedef the declaration propagates changes;
+  an unchanged epoch means the declaration would make equal vars, differing only in identity and
+  index, which nothing reads. Modules with an import resolving to no scope, or to a var outside
+  its module scope, declare at every node. `CLOSURE_RS_MODULE_IMPORT_CACHE=off` declares at every
+  node, `=verify` declares too and checks each skipped declaration would have made equal vars.
+- `jscomp/compiler.rs` `has_halting_errors`, `report_queued_type_registry_errors_to_manager`: the
+  check that runs twice per node of every CombinedCompilerPass is inlined down to three flag loads
+  (queued registry errors, continue-after-errors, no halting errors); reporting queued errors and
+  asking the error manager stay out of line. Taking an empty queue did nothing before either.
+- `jscomp/es6_rewrite_modules.rs` `RenameGlobalVars`: the global name of a module-level variable
+  is the variable's name, `$$` and the module's global name, computed once per module (Java derives
+  the module's name from its path at every reference and splits the result into the terms of a
+  qualified name only to join them again); a debug assertion compares it with Java's computation.
+- `rhino/java_lang.rs` `string_compare_to` (`String#compareTo`): the UTF-16 units are compared as
+  they are encoded, after the common prefix of the UTF-8 encodings, instead of encoding both
+  strings into new vectors (the sorting error manager compares diagnostics' source names and
+  messages many times each).
+- `jscomp/compiler_warnings_guard.rs`, `compose_warnings_guard.rs` (`version`): the composition of
+  the J2CL, closure-unaware-code, `@suppress` and options guards that decides each diagnostic's
+  level is ordered once and kept while the options guard is unchanged (the contextual guards need
+  the compiler, so it was composed again for every diagnostic, their levels computed first); the
+  guards are asked in that order until one answers, as Java asks them.
+  `CLOSURE_RS_WARNINGS_GUARD_ORDER=off` composes for every diagnostic.
+- `rhino/js_string.rs` `java_hash`: the cached `String#hashCode` of a new string is summed sixteen
+  units per step (`h·31^16` plus a dot product with constant powers, which vectorizes; the same
+  sum mod 2^32), so hashing large texts (input source maps, their `sourcesContent`) costs less.
+- `jscomp/source_file/line_count.rs` `line_offsets`, `source_file.rs` `find_line_offsets`: the line
+  offsets skip blocks of sixteen units without a line terminator (a test that vectorizes), and a
+  pending line count of the same text is taken from them (the two agree, as Java checks).

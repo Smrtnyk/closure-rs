@@ -715,7 +715,19 @@ impl Compiler {
     /// Rust-only: `report_queued_type_registry_errors` for the `&self` readers of the error
     /// manager. Before the options exist there is no error manager to read, so the queue waits for
     /// the next `report_queued_type_registry_errors`.
+    ///
+    /// Rust-only (performance divergence): `has_halting_errors` runs this twice for every node of
+    /// a CombinedCompilerPass, almost always with nothing queued; the queue's flag is read inline
+    /// and the reporting is out of line.
+    #[inline]
     fn report_queued_type_registry_errors_to_manager(&self) {
+        if self.queued_type_registry_errors.has_pending() {
+            self.report_queued_type_registry_errors_to_manager_now();
+        }
+    }
+    #[cold]
+    #[inline(never)]
+    fn report_queued_type_registry_errors_to_manager_now(&self) {
         if self.options.is_none() || self.error_manager.is_none() {
             return;
         }
@@ -847,6 +859,7 @@ impl Compiler {
         self.error_manager.as_ref().unwrap().lock().unwrap()
     }
     // port: Compiler#hasHaltingErrors
+    #[inline]
     pub fn has_halting_errors(&self) -> bool {
         self.report_queued_type_registry_errors_to_manager();
         if self.get_options().can_continue_after_errors() {
@@ -859,6 +872,10 @@ impl Compiler {
         {
             return false;
         }
+        self.error_manager_has_halting_errors()
+    }
+    #[inline(never)]
+    fn error_manager_has_halting_errors(&self) -> bool {
         self.error_manager
             .as_ref()
             .unwrap()
@@ -1033,6 +1050,15 @@ impl Compiler {
         name: &str,
         source_map: crate::source_map_input::SourceMapInput,
     ) {
+        let earlier = self.input_source_maps.lock().unwrap().get(name).cloned();
+        if let Some(earlier) = earlier {
+            // With sources content both maps are decoded (the earlier one when the compiler
+            // started, or on the background worker).
+            let decodes_both = self.get_options().get_source_map_include_sources_content()
+                && self.source_map.is_some()
+                && self.get_options().get_apply_input_source_maps();
+            source_map.adopt_decoded_from(&earlier, decodes_both);
+        }
         let source_map = Arc::new(source_map);
         self.input_source_maps
             .lock()

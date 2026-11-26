@@ -37,6 +37,9 @@ struct State {
 #[derive(Debug)]
 pub struct ComposeWarningsGuard {
     state: Mutex<State>,
+    /// Rust-only: counts the changes of `state` (`CompilerWarningsGuard` keeps the composition
+    /// with this guard while it is unchanged).
+    version: std::sync::atomic::AtomicU64,
 }
 impl ComposeWarningsGuard {
     // port: ComposeWarningsGuard#ComposeWarningsGuard(List<WarningsGuard>)
@@ -49,12 +52,23 @@ impl ComposeWarningsGuard {
                 demote_errors: false,
                 guards: Vec::new(),
             }),
+            version: std::sync::atomic::AtomicU64::new(0),
         };
         result.add_guards(guards);
         result
     }
+    /// Rust-only: the number of changes made to this guard so far.
+    pub(crate) fn version(&self) -> u64 {
+        self.version.load(std::sync::atomic::Ordering::Acquire)
+    }
+    /// Rust-only: whether this guard demotes errors to warnings.
+    pub(crate) fn demotes_errors(&self) -> bool {
+        self.state.lock().unwrap().demote_errors
+    }
     // port: ComposeWarningsGuard#addGuard
     pub fn add_guard(&self, guard: Arc<dyn WarningsGuard>) {
+        self.version
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         if let Some(compose_guard) = guard.as_any().downcast_ref::<Self>() {
             // Snapshot before taking our lock also preserves addGuard(this).
             let (demote, guards) = {

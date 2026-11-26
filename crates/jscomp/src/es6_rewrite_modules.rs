@@ -1381,6 +1381,11 @@ struct RenameGlobalVars<'a> {
     /// Rust-only (performance divergence): tracks whether any `goog` NAME may exist after renaming
     /// so `rewrite_requires` can skip pure ES6 modules in O(1).
     saw_goog: bool,
+    /// Rust-only (performance divergence): `$$` and the global name of this module, which ends
+    /// the global name of each module-level variable. Java derives the module's name from its path
+    /// again at every reference (`ModuleRenaming#getGlobalName`), and splits the variable's
+    /// global name into the terms of a qualified name only to join them again.
+    global_name_suffix: Option<JsString>,
 }
 
 impl<'a> RenameGlobalVars<'a> {
@@ -1392,6 +1397,7 @@ impl<'a> RenameGlobalVars<'a> {
             candidate_mask: 0,
             candidate_names: IndexSet::<_>::default(),
             saw_goog: false,
+            global_name_suffix: None,
         }
     }
 
@@ -1652,12 +1658,23 @@ impl Callback for RenameGlobalVars<'_> {
             let var = scope.get_var(t.get_compiler(), &name);
             if var.is_some_and(|var| var.is_global(t.get_compiler())) {
                 // Avoid polluting the global namespace.
-                let new_name = ModuleRenaming::get_global_name_of_es_module_local_variable(
-                    t,
-                    self.this_module.metadata(),
-                    &name,
-                )
-                .join(t);
+                // `ModuleRenaming#getGlobalNameOfEsModuleLocalVariable`, from the suffix.
+                let suffix = self.global_name_suffix.get_or_insert_with(|| {
+                    JsString::from("$$").concat(
+                        &ModuleRenaming::get_global_name(t, self.this_module.metadata(), None)
+                            .join(t),
+                    )
+                });
+                let new_name = name.concat(suffix);
+                debug_assert_eq!(
+                    new_name,
+                    ModuleRenaming::get_global_name_of_es_module_local_variable(
+                        t,
+                        self.this_module.metadata(),
+                        &name,
+                    )
+                    .join(t)
+                );
                 if new_name == "goog" {
                     self.saw_goog = true;
                 }

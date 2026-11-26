@@ -102,6 +102,51 @@ pub(crate) struct TypedScopeMeta {
 pub struct TypedScopeArena {
     pub(crate) scopes: Vec<TypedScopeData>,
     pub(crate) vars: Vec<TypedVarData>,
+    pub(crate) watch: VarWatch,
+}
+
+/// Rust-only (performance divergence): change detection for a cache of `TypeInference` that
+/// reads vars (`InferenceTransfer::declare_module_imports`). The epoch advances whenever the
+/// type of a watched var changes, a watched var is replaced in or removed from its scope's
+/// declarations, a scope's declarations are cleared, or a caller reports another change
+/// (`bump`). Watching never ends: a stale watch only costs a cache miss.
+#[derive(Debug, Default)]
+pub(crate) struct VarWatch {
+    epoch: u64,
+    watched: Vec<u64>,
+}
+
+impl VarWatch {
+    pub(crate) fn epoch(&self) -> u64 {
+        self.epoch
+    }
+
+    pub(crate) fn watch(&mut self, var: TypedVar) {
+        let (word, bit) = (var.index() / 64, var.index() % 64);
+        if self.watched.len() <= word {
+            self.watched.resize(word + 1, 0);
+        }
+        self.watched[word] |= 1 << bit;
+    }
+
+    #[inline]
+    pub(crate) fn is_watched(&self, var: TypedVar) -> bool {
+        self.watched
+            .get(var.index() / 64)
+            .is_some_and(|word| word & (1 << (var.index() % 64)) != 0)
+    }
+
+    /// Notes a change of `var`.
+    #[inline]
+    pub(crate) fn touched(&mut self, var: TypedVar) {
+        if self.is_watched(var) {
+            self.epoch += 1;
+        }
+    }
+
+    pub(crate) fn bump(&mut self) {
+        self.epoch += 1;
+    }
 }
 
 impl TypedScopeArena {
@@ -673,7 +718,8 @@ impl AbstractScope for TypedScope {
     }
     fn declare_internal(self, compiler: &mut AbstractCompiler, name: JsString, var: TypedVar) {
         let dot = name.index_of_char(u16::from(b'.'));
-        let scope = self.data_mut(compiler);
+        let arena = TypedScopeArena::write(compiler);
+        let scope = &mut arena.scopes[self.index()];
         if dot > 0 {
             let root = name.substring(0, dot as usize);
             if root == "this" {
@@ -681,9 +727,24 @@ impl AbstractScope for TypedScope {
             }
             scope.qualified_roots.insert(root);
         }
-        scope.abstract_scope.vars.insert(name, var);
+        if let Some(replaced) = scope.abstract_scope.vars.insert(name, var) {
+            arena.watch.touched(replaced);
+        }
+    }
+    // port: AbstractScope#undeclareInteral
+    fn undeclare_interal(self, compiler: &mut AbstractCompiler, var: TypedVar) {
+        let name = var.get_name(compiler);
+        let arena = TypedScopeArena::write(compiler);
+        if let Some(removed) = arena.scopes[self.index()]
+            .abstract_scope
+            .vars
+            .shift_remove(&name)
+        {
+            arena.watch.touched(removed);
+        }
     }
     fn clear_vars_internal(self, compiler: &mut AbstractCompiler) {
+        TypedScopeArena::write(compiler).watch.bump();
         let scope = self.data_mut(compiler);
         scope.abstract_scope.vars.clear();
         scope.abstract_scope.implicit_vars.clear();

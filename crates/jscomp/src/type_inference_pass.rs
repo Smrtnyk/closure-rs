@@ -727,6 +727,118 @@ mod tests {
     }
 
     #[test]
+    fn module_import_declarations_are_skipped_without_changing_types_or_diagnostics() {
+        use crate::{
+            compiler_options::{CompilerOptions, LanguageMode},
+            source_file::SourceFile,
+            type_inference::module_import_cache_for_test as cache,
+        };
+        use std::sync::atomic::Ordering::Relaxed;
+        const SOURCES: [(&str, &str); 4] = [
+            (
+                "a.js",
+                r#"
+                export let x = 1;
+                export function f() { return x; }
+                /** @typedef {number} */
+                export let T;
+                export default class D {}
+                for (let i = 0; i < 2; i++) { x = i ? 'two' : x; }
+                export let late;
+                late = x;
+                "#,
+            ),
+            (
+                "b.js",
+                r#"
+                import {x, f, late, T} from './a.js';
+                import * as ns from './a.js';
+                import D from './a.js';
+                import {w} from './c.js';
+                export let y = x;
+                /** @type {T} */ let z = 3;
+                while (y) { y = f() + w; z = y; }
+                export {y as yy};
+                const n = new D();
+                const k = ns.late;
+                let m = late;
+                "#,
+            ),
+            (
+                "c.js",
+                r#"
+                import {yy} from './b.js';
+                export let w = yy;
+                if (w) { w = 4; }
+                "#,
+            ),
+            (
+                "d.js",
+                r#"
+                import * as self from './d.js';
+                export let s = 1;
+                let t = self.s;
+                s = 'a';
+                for (;;) { t = self.s; if (t) break; }
+                "#,
+            ),
+        ];
+        type Nodes = Vec<(NodeId, Option<TypeId>, Option<String>)>;
+        type Slots = Vec<(TypedScope, Option<TypeId>, String, bool)>;
+        fn run(mode: u8) -> (Nodes, Slots, Vec<String>) {
+            use crate::{
+                compiler_pass::CompilerPass, deps::module_loader::ResolutionMode,
+                gather_module_metadata::GatherModuleMetadata,
+                modules::module_map_creator::ModuleMapCreator,
+            };
+            let mut compiler = Compiler::new();
+            let mut options = CompilerOptions::new();
+            options.set_language_in(LanguageMode::ECMASCRIPT_NEXT);
+            options.set_check_types(true);
+            let inputs: Vec<_> = SOURCES
+                .iter()
+                .map(|(name, code)| Arc::new(SourceFile::from_code(name, *code)))
+                .collect();
+            compiler.init(&[], &inputs, options);
+            let root = compiler.parse_inputs().unwrap();
+            let externs = root.get_first_child(&compiler).unwrap();
+            let js = root.get_last_child(&compiler).unwrap();
+            GatherModuleMetadata::new(false, ResolutionMode::BROWSER).process(
+                &mut compiler,
+                externs,
+                js,
+            );
+            let metadata = compiler.get_module_metadata_map().unwrap().clone();
+            ModuleMapCreator::new(metadata).process(&mut compiler, externs, js);
+            let creator = TypedScopeCreator::new(&mut compiler);
+            let interpreter = compiler.get_reverse_abstract_interpreter();
+            let mut pass = TypeInferencePass::new(&mut compiler, interpreter, creator);
+            cache::MODE.store(mode, Relaxed);
+            pass.infer_all_scopes(&mut compiler, root);
+            cache::MODE.store(0, Relaxed);
+            let result = results(compiler, root, pass);
+            // The declared vars differ in identity only.
+            let slots = result
+                .slots
+                .into_iter()
+                .map(|(_, scope, ty, name, inferred)| (scope, ty, name, inferred))
+                .collect();
+            (result.nodes, slots, result.diagnostics)
+        }
+        let declared_everywhere = run(2);
+        assert!(
+            declared_everywhere
+                .0
+                .iter()
+                .any(|(_, _, ty)| ty.as_deref() == Some("(number|string)"))
+        );
+        cache::SKIPS.store(0, Relaxed);
+        assert_eq!(run(1), declared_everywhere);
+        assert!(cache::SKIPS.load(Relaxed) > 0);
+        assert_eq!(run(3), declared_everywhere);
+    }
+
+    #[test]
     fn linear_flow_matches_graph_types_slots_and_diagnostics() {
         let direct = infer_with_recording(false);
         assert!(

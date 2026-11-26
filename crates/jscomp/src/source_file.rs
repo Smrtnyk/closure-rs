@@ -48,10 +48,26 @@ struct State {
     code: Option<SourceCode>,
     line_offsets: Option<Arc<[i32]>>,
     num_lines: i32,
+    /// Rust-only (performance divergence): `num_lines` is still to be counted in `code`.
+    num_lines_pending: bool,
     num_bytes: i32,
     kind: SourceKind,
     is_closure_unaware_code: bool,
     is_stub_source_file_for_already_provided_input: bool,
+}
+impl State {
+    /// Rust-only (performance divergence): Java counts the lines of the code when it sets it.
+    /// Here they are counted when first asked for, or before the code is cleared (Java keeps the
+    /// count of cleared code), from the same text: most files' counts are never read (an input
+    /// source map's, an input's whose line offsets are never needed).
+    fn num_lines(&mut self) -> i32 {
+        if self.num_lines_pending {
+            self.num_lines_pending = false;
+            let code = self.code.as_ref().expect("pending line count without code");
+            self.num_lines = line_count::num_lines(code.as_text().as_units());
+        }
+        self.num_lines
+    }
 }
 #[derive(Debug)]
 pub struct SourceFile {
@@ -105,6 +121,7 @@ impl SourceFile {
                 code: None,
                 line_offsets: None,
                 num_lines: -1,
+                num_lines_pending: false,
                 num_bytes: -1,
                 kind,
                 is_closure_unaware_code: false,
@@ -130,11 +147,14 @@ impl SourceFile {
     }
     // port: SourceFile#getNumLines
     pub fn get_num_lines(&self) -> i32 {
-        let unknown = self.state.lock().unwrap().num_lines < 0;
+        let unknown = {
+            let state = self.state.lock().unwrap();
+            state.num_lines < 0 && !state.num_lines_pending
+        };
         if unknown && self.read_source().is_err() {
             return 0;
         }
-        self.state.lock().unwrap().num_lines
+        self.state.lock().unwrap().num_lines()
     }
     // port: SourceFile#getNumBytes
     pub fn get_num_bytes(&self) -> i32 {
@@ -161,20 +181,22 @@ impl SourceFile {
                 return offsets;
             }
         };
-        let mut offsets = vec![0];
-        let units = local_code.as_units();
-        let mut i = 0;
-        while i < units.len() {
-            let ch = units[i];
-            if Self::is_line_terminator(ch) {
-                if ch == 0x0D && i + 1 < units.len() && units[i + 1] == 0x0A {
-                    i += 1;
-                }
-                offsets.push((i + 1) as i32);
+        let offsets = line_count::line_offsets(local_code.as_units());
+        {
+            let mut state = self.state.lock().unwrap();
+            // Rust-only (performance divergence): the offsets of a text with a pending count are
+            // its lines, as `line_count::num_lines` would count them.
+            if state.num_lines_pending
+                && state
+                    .code
+                    .as_ref()
+                    .is_some_and(|code| code.as_text().ptr_eq(&local_code))
+            {
+                state.num_lines_pending = false;
+                state.num_lines = offsets.len() as i32;
             }
-            i += 1;
+            check_state!(offsets.len() as i32 == state.num_lines());
         }
-        check_state!(offsets.len() as i32 == self.state.lock().unwrap().num_lines);
         let offsets: Arc<[i32]> = offsets.into();
         self.state.lock().unwrap().line_offsets = Some(offsets.clone());
         offsets
@@ -235,18 +257,26 @@ impl SourceFile {
     // port: SourceFile#setCodeAndDoBookkeeping
     fn set_code_and_do_bookkeeping(&self, source_code: Option<SourceCode>) {
         let mut state = self.state.lock().unwrap();
+        if source_code.is_none() {
+            // Java keeps the count of the code it clears.
+            state.num_lines();
+        }
+        state.num_lines_pending = false;
         state.code = None;
         state.line_offsets = None;
         if let Some(mut source_code) = source_code {
-            (state.num_bytes, state.num_lines) = match &mut source_code {
+            match &mut source_code {
                 SourceCode::Text(text) => {
                     if text.as_units().first() == Some(&0xfeff) {
                         *text = text.substring_from(1);
                     }
-                    (text.length() as i32, line_count::num_lines(text.as_units()))
+                    state.num_bytes = text.length() as i32;
+                    state.num_lines_pending = true;
                 }
-                SourceCode::Bundled(resource) => resource.size(),
-            };
+                SourceCode::Bundled(resource) => {
+                    (state.num_bytes, state.num_lines) = resource.size();
+                }
+            }
             state.code = Some(source_code);
         }
     }
@@ -521,6 +551,7 @@ impl SourceFile {
         let mut state = self.state.lock().unwrap();
         if lines != -1 {
             state.num_lines = lines;
+            state.num_lines_pending = false;
         }
         if bytes != -1 {
             state.num_bytes = bytes;
@@ -547,6 +578,7 @@ impl SourceFile {
         {
             let mut state = file.state.lock().unwrap();
             state.num_lines = proto_num_lines;
+            state.num_lines_pending = false;
             state.num_bytes = proto_num_bytes;
         }
         if proto.is_closure_unaware_code {
@@ -607,13 +639,14 @@ impl SourceFile {
     }
     // port: SourceFile#getProto
     pub fn get_proto(&self) -> SourceFileProto {
-        let state = self.state.lock().unwrap();
+        let mut state = self.state.lock().unwrap();
+        let num_lines = state.num_lines();
         self.loader
             .to_proto_location_builder(self.get_name())
             .set_filename(self.get_name())
             .set_source_kind(Self::source_kind_to_proto(state.kind))
             .set_is_closure_unaware_code(state.is_closure_unaware_code)
-            .set_num_lines_plus_one(state.num_lines.wrapping_add(1))
+            .set_num_lines_plus_one(num_lines.wrapping_add(1))
             .set_num_bytes_plus_one(state.num_bytes.wrapping_add(1))
             .build()
     }
